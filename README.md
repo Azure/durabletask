@@ -10,6 +10,7 @@ By contributing this project we hope to give the community a very cost-effective
 <b>Development Notes</b>
 
 To run unit tests, edit this in TestHelpers.cs and plugin your Service Bus connection string:
+
 ```static string connectionString = "<TODO: PLUGIN YOUR CONNECTION STRING HERE>";```
 
 The code in this repo is a version of what was used to build this Nuget package:
