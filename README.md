@@ -33,6 +33,7 @@ Community is welcome to take a stab and send pull requests on these items.
 * Provider model for the TaskOrchestrationDispatcher. ServiceBus should just be one of the providers. We want providers on top of Azure Storage, Amazon's Simple Workflow Service, MS-SQL.
 * Provider model for the instance store. Currently it is tied to Azure tables. Need providers for MS-SQL and probably some NoSQL stores.
 * Out-of-box integration with standard IoC libraries (AutoFac, Unity etc) for registering TaskOrchestration and TaskActivity objects.
+* Better indexing support for the Azure table based instance store
 * Change tracing to use EventSource rather than TraceSource
 * Library of standard task activities and sub orchestrations that perform domain specific operations e.g. a SaaS connector library for integrating with Twilio, FB, Twitter, Skype etc OR a library for managing cloud resources like AWS EC2 instances or S3 buckets etc.
   
