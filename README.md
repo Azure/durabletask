@@ -36,5 +36,10 @@ Community is welcome to take a stab and send pull requests on these items.
 * Better indexing support for the Azure table based instance store
 * Change tracing to use EventSource rather than TraceSource
 * Library of standard task activities and sub orchestrations that perform domain specific operations e.g. a SaaS connector library for integrating with Twilio, FB, Twitter, Skype etc OR a library for managing cloud resources like AWS EC2 instances or S3 buckets etc.
+* ...many more :)
   
+<b>Forum</b>
+
+Please post feedback/comments at:
+https://groups.google.com/forum/#!forum/durabletask
 
