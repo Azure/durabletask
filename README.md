@@ -36,6 +36,10 @@ Community is welcome to take a stab and send pull requests on these items.
 * Better indexing support for the Azure table based instance store
 * Change tracing to use EventSource rather than TraceSource
 * Library of standard task activities and sub orchestrations that perform domain specific operations e.g. a SaaS connector library for integrating with Twilio, FB, Twitter, Skype etc OR a library for managing cloud resources like AWS EC2 instances or S3 buckets etc.
+* Consistent serialization across the board, standardize on json.net. We have a mixture of DCS & Json.Net right now.
+* Separate out test fx related code (e.g. mock test host) into a separate project and consequently a different nuget package.
+* Add replay capability which enables users to replay an orchestration giving an execution history
+* Better organization of tests, right now a bunch of tests are placed under the wrong test classes
 * ...many more :)
   
 <b>Forum</b>
