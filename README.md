@@ -7,6 +7,9 @@ It is used heavily within various teams at Microsoft to reliably orchestrate lon
 
 By open sourcing this project we hope to give the community a very cost-effective alternative to heavy duty workflow systems. We also hope to build an ecosystem of providers and activities around this simple yet incredibly powerful framework.
 
+The framework binaries are available as a NuGet package at:
+https://www.nuget.org/packages/DurableTask
+
 <b>Development Notes</b>
 
 To run unit tests, edit this in TestHelpers.cs and plugin your Service Bus connection string:
@@ -26,7 +29,7 @@ Note that the doc and samples refer to 'Microsoft.ServiceBus.DurableTask' which 
 
 <b>TODO</b>
 
-We could have spent a lot of time cleaning up the code and teasing apart various layers but we opted for shipping this earlier and cleaning up post-commit. Consequently there are a lot of TODOs and there will be breaking changes.
+We could have spent a lot of time cleaning up the code and teasing apart various layers but we opted for shipping this earlier and cleaning up post-commit. Consequently there are a lot of TODOs :)
 
 The community is welcome to take a stab and send pull requests on these items (and more):
 
