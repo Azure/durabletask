@@ -3,9 +3,9 @@ Durable Task Framework
 
 This framework allows users to write long running persistent workflows in C# using the async/await capabilities.
 
-It is used heavily within various teams in Microsoft to reliably orchestrate long running provisioning, monitoring and management operations. The orchestrations scale out linearly by simply adding more worker machines. 
+It is used heavily within various teams at Microsoft to reliably orchestrate long running provisioning, monitoring and management operations. The orchestrations scale out linearly by simply adding more worker machines. 
 
-By contributing this project we hope to give the community a very cost-effective alternative to heavy duty workflow systems. We also hope to build an ecosystem of providers and activities around this simple yet incredibly powerful framework.
+By open sourcing this project we hope to give the community a very cost-effective alternative to heavy duty workflow systems. We also hope to build an ecosystem of providers and activities around this simple yet incredibly powerful framework.
 
 <b>Development Notes</b>
 
@@ -28,7 +28,7 @@ Note that the doc and samples refer to 'Microsoft.ServiceBus.DurableTask' which 
 
 We could have spent a lot of time cleaning up the code and teasing apart various layers but we opted for shipping this earlier and cleaning up post-commit. Consequently there are a lot of TODOs and there will be breaking changes.
 
-Community is welcome to take a stab and send pull requests on these items.
+The community is welcome to take a stab and send pull requests on these items (and more):
 
 * Provider model for the TaskOrchestrationDispatcher. ServiceBus should just be one of the providers. We want providers on top of Azure Storage, Amazon's Simple Workflow Service, MS-SQL.
 * Provider model for the instance store. Currently it is tied to Azure tables. Need providers for MS-SQL and probably some NoSQL stores.
