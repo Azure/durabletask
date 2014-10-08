@@ -1,0 +1,212 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{6F5D2EAD-726D-4FE5-A575-AEB96D1CCE37}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>DurableTask</RootNamespace>
+    <AssemblyName>DurableTask</AssemblyName>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">..\</SolutionDir>
+    <RestorePackages>true</RestorePackages>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\debugB\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <DocumentationFile>bin\debugB\DurableTask.xml</DocumentationFile>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <DocumentationFile>bin\Release\DurableTask.xml</DocumentationFile>
+  </PropertyGroup>
+  <PropertyGroup>
+    <StartupObject />
+  </PropertyGroup>
+  <PropertyGroup>
+    <SignAssembly>false</SignAssembly>
+  </PropertyGroup>
+  <PropertyGroup>
+    <AssemblyOriginatorKeyFile>
+    </AssemblyOriginatorKeyFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="ImpromptuInterface, Version=6.2.2.0, Culture=neutral, PublicKeyToken=0b1781c923b2975b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\packages\ImpromptuInterface.6.2.2\lib\net40\ImpromptuInterface.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Data.Edm, Version=5.6.2.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\packages\Microsoft.Data.Edm.5.6.2\lib\net40\Microsoft.Data.Edm.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Data.OData, Version=5.6.2.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\packages\Microsoft.Data.OData.5.6.2\lib\net40\Microsoft.Data.OData.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Data.Services.Client, Version=5.6.2.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\packages\Microsoft.Data.Services.Client.5.6.2\lib\net40\Microsoft.Data.Services.Client.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.ServiceBus, Version=2.2.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\packages\WindowsAzure.ServiceBus.2.2.4.0\lib\net40-full\Microsoft.ServiceBus.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.WindowsAzure.Configuration, Version=2.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.WindowsAzure.ConfigurationManager.2.0.3\lib\net40\Microsoft.WindowsAzure.Configuration.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.WindowsAzure.Storage, Version=4.3.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\packages\WindowsAzure.Storage.4.3.0\lib\net40\Microsoft.WindowsAzure.Storage.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.WindowsAzure.StorageClient, Version=1.7.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL" />
+    <Reference Include="Newtonsoft.Json, Version=4.5.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>..\packages\Newtonsoft.Json.5.0.6\lib\net45\Newtonsoft.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Data.Services.Client" />
+    <Reference Include="System.Runtime.Serialization" />
+    <Reference Include="System.ServiceModel" />
+    <Reference Include="System.Spatial, Version=5.6.2.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\packages\System.Spatial.5.6.2\lib\net40\System.Spatial.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Transactions" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="SynchronousTaskScheduler.cs" />
+    <Compile Include="History\GenericEvent.cs" />
+    <Compile Include="CompressionSettings.cs" />
+    <Compile Include="OrchestrationStateQuerySegment.cs" />
+    <Compile Include="OrchestrationStateNameVersionFilter.cs" />
+    <Compile Include="OrchestrationStateTimeRangeFilterType.cs" />
+    <Compile Include="OrchestrationStateTimeRangeFilter.cs" />
+    <Compile Include="OrchestrationStateStatusFilter.cs" />
+    <Compile Include="OrchestrationStateInstanceFilter.cs" />
+    <Compile Include="OrchestrationStateQueryFilter.cs" />
+    <Compile Include="OrchestrationStateQuery.cs" />
+    <Compile Include="DefaultObjectCreator.cs" />
+    <Compile Include="INameVersionInfo.cs" />
+    <Compile Include="NameValueObjectCreator.cs" />
+    <Compile Include="ObjectCreator.cs" />
+    <Compile Include="OrchestrationException.cs" />
+    <Compile Include="OrchestrationFailureException.cs" />
+    <Compile Include="FrameworkConstants.cs" />
+    <Compile Include="OrchestrationInstance.cs" />
+    <Compile Include="ReflectionBasedTaskActivity.cs" />
+    <Compile Include="RetryInterceptor.cs" />
+    <Compile Include="NonDeterministicOrchestrationException.cs" />
+    <Compile Include="SubOrchestrationFailedException.cs" />
+    <Compile Include="TaskFailedExceptionDeserializationException.cs" />
+    <Compile Include="TaskFailureException.cs" />
+    <Compile Include="OrchestrationState.cs" />
+    <Compile Include="TaskActivityDispatcherSettings.cs" />
+    <Compile Include="TaskHubClientSettings.cs" />
+    <Compile Include="TrackingDispatcherSettings.cs" />
+    <Compile Include="TaskOrchestrationDispatcherSettings.cs" />
+    <Compile Include="TaskHubWorkerSettings.cs" />
+    <Compile Include="TaskHubDescription.cs" />
+    <Compile Include="TaskHubWorker.cs" />
+    <Compile Include="SessionWorkItem.cs" />
+    <Compile Include="Tracing\OrchestrationConsoleTraceListener.cs" />
+    <Compile Include="Test\FakeOrchestrationClock.cs" />
+    <Compile Include="Test\FakeOrchestrationExecutor.cs" />
+    <Compile Include="Test\FakeTaskActivityExecutor.cs" />
+    <Compile Include="TypeMissingException.cs" />
+    <Compile Include="OrchestrationFrameworkException.cs" />
+    <Compile Include="DispatcherBase.cs" />
+    <Compile Include="History\ContinueAsNewEvent.cs" />
+    <Compile Include="ParentInstance.cs" />
+    <Compile Include="Tracing\TraceHelper.cs" />
+    <Compile Include="History\SubOrchestrationInstanceCompletedEvent.cs" />
+    <Compile Include="History\SubOrchestrationInstanceCreatedEvent.cs" />
+    <Compile Include="History\SubOrchestrationInstanceFailedEvent.cs" />
+    <Compile Include="Command\CreateSubOrchestrationAction.cs" />
+    <Compile Include="TrackingDispatcher.cs" />
+    <Compile Include="DataConverter.cs" />
+    <Compile Include="History\EventRaisedEvent.cs" />
+    <Compile Include="History\ExecutionTerminatedEvent.cs" />
+    <Compile Include="History\TaskFailedEvent.cs" />
+    <Compile Include="JsonCreationConverter.cs" />
+    <Compile Include="JsonDataConverter.cs" />
+    <Compile Include="TaskOrchestrationContext.cs" />
+    <Compile Include="OrchestrationRuntimeState.cs" />
+    <Compile Include="OrchestrationStatus.cs" />
+    <Compile Include="RetryOptions.cs" />
+    <Compile Include="RetryProxy.cs" />
+    <Compile Include="ScheduleProxy.cs" />
+    <Compile Include="StateMessage.cs" />
+    <Compile Include="TaskFailedException.cs" />
+    <Compile Include="TaskHubClient.cs" />
+    <Compile Include="TaskOrchestrationExecutor.cs" />
+    <Compile Include="Command\CreateTimerOrchestratorAction.cs" />
+    <Compile Include="Command\OrchestratorAction.cs" />
+    <Compile Include="OrchestrationContext.cs" />
+    <Compile Include="Command\OrchestratorActionType.cs" />
+    <Compile Include="Command\OrchestrationCompleteOrchestratorAction.cs" />
+    <Compile Include="Command\ScheduleTaskOrchestratorAction.cs" />
+    <Compile Include="History\OrchestratorCompletedEvent.cs" />
+    <Compile Include="History\OrchestratorStartedEvent.cs" />
+    <Compile Include="History\EventType.cs" />
+    <Compile Include="History\ExecutionCompletedEvent.cs" />
+    <Compile Include="History\ExecutionStartedEvent.cs" />
+    <Compile Include="History\HistoryEvent.cs" />
+    <Compile Include="History\TaskCompletedEvent.cs" />
+    <Compile Include="History\TaskScheduledEvent.cs" />
+    <Compile Include="History\TimerCreatedEvent.cs" />
+    <Compile Include="History\TimerFiredEvent.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="TaskActivityDispatcher.cs" />
+    <Compile Include="TaskOrchestrationDispatcher.cs" />
+    <Compile Include="TaskContext.cs" />
+    <Compile Include="TaskActivity.cs" />
+    <Compile Include="TaskMessage.cs" />
+    <Compile Include="TaskOrchestration.cs" />
+    <Compile Include="NameVersionObjectManager.cs" />
+    <Compile Include="Tracking\CompositeTableEntity.cs" />
+    <Compile Include="Tracking\OrchestrationHistoryEventEntity.cs" />
+    <Compile Include="Tracking\TableClient.cs" />
+    <Compile Include="Tracking\TableConstants.cs" />
+    <Compile Include="Tracking\OrchestrationStateEntity.cs" />
+    <Compile Include="Test\FakeOrchestrationContext.cs" />
+    <Compile Include="Test\OrchestrationTestHost.cs" />
+    <Compile Include="CompressionStyle.cs" />
+    <Compile Include="NameVersionHelper.cs" />
+    <Compile Include="Utils.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config">
+      <SubType>Designer</SubType>
+    </None>
+  </ItemGroup>
+  <ItemGroup />
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <Import Project="$(SolutionDir)\.nuget\nuget.targets" />
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+       Other similar extension points exist, see Microsoft.Common.targets.
+  <Target Name="BeforeBuild">
+  </Target>
+  <Target Name="AfterBuild">
+  </Target>
+  -->
+</Project>
