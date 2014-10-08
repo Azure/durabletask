@@ -23,7 +23,6 @@ namespace FrameworkUnitTests
     {
         // TODO : move this to app.config
         static string connectionString = "<TODO: PLUGIN YOUR CONNECTION STRING HERE>";
-
         static string tableConnectionString =
             "UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://127.0.0.1:10002/";
 

@@ -12,6 +12,7 @@ bin/
 obj/
 packages/
 TestResults/
+sign.snk
 
 # Packages #
 ############

@@ -27,6 +27,6 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyCulture("")]
 [assembly: ComVisible(false)]
 [assembly: Guid("1d626d8b-330b-4c6a-b689-c0fefbeb99cd")]
-[assembly: AssemblyVersion("0.2.0.23")]
-[assembly: AssemblyFileVersion("0.2.0.23")]
+[assembly: AssemblyVersion("1.0.0.0")]
+[assembly: AssemblyFileVersion("1.0.0.0")]
 [assembly: InternalsVisibleTo("FrameworkUnitTests")]
