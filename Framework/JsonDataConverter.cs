@@ -19,10 +19,6 @@ namespace DurableTask
     using System.Text;
     using Newtonsoft.Json;
 
-    // TODO : 
-    //      1. Have to figure out the licensing issues with using Json.Net
-    //      2. Must have a mechanism by which a user can simply pass in an XmlObjectSerializer based serializer rather than having to wrap
-    //          it in a dataconverter
     public class JsonDataConverter : DataConverter
     {
         readonly JsonSerializer serializer;
