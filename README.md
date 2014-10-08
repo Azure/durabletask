@@ -16,16 +16,13 @@ To run unit tests, edit this in TestHelpers.cs and plugin your Service Bus conne
 
 ```static string connectionString = "<TODO: PLUGIN YOUR CONNECTION STRING HERE>";```
 
-The code in this repo is a version of what was used to build this Nuget package:
-http://www.nuget.org/packages/ServiceBus.DurableTask/
-
 A document that describes the framework is described here:
 http://abhishekrlal.files.wordpress.com/2013/06/service-bus-durable-task-framework-developer-guide.docx
 
 Some samples are published here:
 http://code.msdn.microsoft.com/windowsazure/Service-Bus-Durable-Task-07330399
 
-Note that the doc and samples refer to 'Microsoft.ServiceBus.DurableTask' which is the pre-OSS version of the package. We will soon be publishing packages to Nuget based on the OSS version (i.e. this code).
+Note that the doc and samples refer to 'Microsoft.ServiceBus.DurableTask' which is the pre-OSS version of the package. Will be fixing up these soon.
 
 <b>TODO</b>
 
