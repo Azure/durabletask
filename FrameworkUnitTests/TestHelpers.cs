@@ -14,6 +14,7 @@
 namespace FrameworkUnitTests
 {
     using System;
+    using System.Configuration;
     using System.Threading;
     using DurableTask;
     using Microsoft.ServiceBus;
@@ -21,12 +22,26 @@ namespace FrameworkUnitTests
 
     public static class TestHelpers
     {
-        // TODO : move this to app.config
-        static string connectionString = "<TODO: PLUGIN YOUR CONNECTION STRING HERE>";
-        static string tableConnectionString =
-            "UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://127.0.0.1:10002/";
+        private static string ServiceBusConnectionString;
+        private static string StorageConnectionString;
+        private static string TaskHubName;
 
-        static string taskHubName = "test";
+        static TestHelpers()
+        {
+            ServiceBusConnectionString = GetTestSetting("ServiceBusConnectionString");
+            if (string.IsNullOrEmpty(ServiceBusConnectionString))
+            {
+                throw new Exception("A ServiceBus connection string must be defined in either an environment variable or in configuration.");
+            }
+
+            StorageConnectionString = GetTestSetting("StorageConnectionString");
+            if (string.IsNullOrEmpty(StorageConnectionString))
+            {
+                throw new Exception("A Storage connection string must be defined in either an environment variable or in configuration.");
+            }
+
+            TaskHubName = ConfigurationManager.AppSettings.Get("TaskHubName");
+        }
 
         public static TaskHubWorkerSettings CreateTestWorkerSettings(CompressionStyle style = CompressionStyle.Threshold)
         {
@@ -51,9 +66,9 @@ namespace FrameworkUnitTests
         {
             if (createInstanceStore)
             {
-                return new TaskHubClient(taskHubName, connectionString, tableConnectionString);
+                return new TaskHubClient(TaskHubName, ServiceBusConnectionString, StorageConnectionString);
             }
-            return new TaskHubClient(taskHubName, connectionString);
+            return new TaskHubClient(TaskHubName, ServiceBusConnectionString);
         }
 
         public static TaskHubClient CreateTaskHubClient(bool createInstanceStore = true)
@@ -62,19 +77,19 @@ namespace FrameworkUnitTests
 
             if (createInstanceStore)
             {
-                return new TaskHubClient(taskHubName, connectionString, tableConnectionString, clientSettings);
+                return new TaskHubClient(TaskHubName, ServiceBusConnectionString, StorageConnectionString, clientSettings);
             }
-            return new TaskHubClient(taskHubName, connectionString, clientSettings);
+            return new TaskHubClient(TaskHubName, ServiceBusConnectionString, clientSettings);
         }
 
         public static TaskHubWorker CreateTaskHubNoCompression(bool createInstanceStore = true)
         {
             if (createInstanceStore)
             {
-                return new TaskHubWorker(taskHubName, connectionString, tableConnectionString);
+                return new TaskHubWorker(TaskHubName, ServiceBusConnectionString, StorageConnectionString);
             }
 
-            return new TaskHubWorker(taskHubName, connectionString);
+            return new TaskHubWorker(TaskHubName, ServiceBusConnectionString);
         }
 
         public static TaskHubWorker CreateTaskHubLegacyCompression(bool createInstanceStore = true)
@@ -83,10 +98,10 @@ namespace FrameworkUnitTests
 
             if (createInstanceStore)
             {
-                return new TaskHubWorker(taskHubName, connectionString, tableConnectionString, workerSettings);
+                return new TaskHubWorker(TaskHubName, ServiceBusConnectionString, StorageConnectionString, workerSettings);
             }
 
-            return new TaskHubWorker(taskHubName, connectionString);
+            return new TaskHubWorker(TaskHubName, ServiceBusConnectionString);
         }
 
         public static TaskHubWorker CreateTaskHubAlwaysCompression(bool createInstanceStore = true)
@@ -95,10 +110,10 @@ namespace FrameworkUnitTests
 
             if (createInstanceStore)
             {
-                return new TaskHubWorker(taskHubName, connectionString, tableConnectionString, workerSettings);
+                return new TaskHubWorker(TaskHubName, ServiceBusConnectionString, StorageConnectionString, workerSettings);
             }
 
-            return new TaskHubWorker(taskHubName, connectionString);
+            return new TaskHubWorker(TaskHubName, ServiceBusConnectionString);
         }
 
 
@@ -108,16 +123,16 @@ namespace FrameworkUnitTests
 
             if (createInstanceStore)
             {
-                return new TaskHubWorker(taskHubName, connectionString, tableConnectionString, workerSettings);
+                return new TaskHubWorker(TaskHubName, ServiceBusConnectionString, StorageConnectionString, workerSettings);
             }
 
-            return new TaskHubWorker(taskHubName, connectionString, workerSettings);
+            return new TaskHubWorker(TaskHubName, ServiceBusConnectionString, workerSettings);
         }
 
         public static long GetOrchestratorQueueSizeInBytes()
         {
-            NamespaceManager nsManager = NamespaceManager.CreateFromConnectionString(connectionString);
-            QueueDescription queueDesc = nsManager.GetQueue(taskHubName + "/orchestrator");
+            NamespaceManager nsManager = NamespaceManager.CreateFromConnectionString(ServiceBusConnectionString);
+            QueueDescription queueDesc = nsManager.GetQueue(TaskHubName + "/orchestrator");
 
             return queueDesc.SizeInBytes;
         }
@@ -169,6 +184,16 @@ namespace FrameworkUnitTests
                 timeWaited, history);
 
             return message;
+        }
+
+        public static string GetTestSetting(string name)
+        {
+            string value = Environment.GetEnvironmentVariable("DurableTaskTest" + name);
+            if (string.IsNullOrEmpty(value))
+            {
+                value = ConfigurationManager.AppSettings.Get(name);
+            }
+            return value;
         }
     }
 }
