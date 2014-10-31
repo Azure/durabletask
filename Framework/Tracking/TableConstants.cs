@@ -57,6 +57,12 @@ namespace DurableTask.Tracking
         // primary filters 
         public const string PrimaryFilterTemplate = "(PartitionKey eq 'IS')";
 
+        // rowkey format: ID_EID_<instanceId>_<executionId>
+        public const string PrimaryInstanceQueryExactTemplate =
+            "(RowKey eq '" + InstanceStateExactRowPrefix + JoinDelimiter + "{0}" + JoinDelimiter + "{1}')";
+        public const string PrimaryInstanceQueryRangeTemplate =
+            "(RowKey ge '" + InstanceStateExactRowPrefix + JoinDelimiter + "{0}') and (RowKey lt '" + InstanceStateExactRowPrefix + JoinDelimiter + "{1}')";
+
         // secondary filters
         public const string InstanceQuerySecondaryFilterTemplate = "(InstanceId eq '{0}')";
 

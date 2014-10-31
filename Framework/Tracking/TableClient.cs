@@ -135,12 +135,44 @@ namespace DurableTask.Tracking
         string GetPrimaryFilterExpression(OrchestrationStateQueryFilter filter)
         {
             string basicPrimaryFilter = string.Format(CultureInfo.InvariantCulture, TableConstants.PrimaryFilterTemplate);
+            string filterExpression = string.Empty;
             if (filter != null)
             {
-                // TODO : for now we don't have indexes so all filters are 'secondary' filters
-                basicPrimaryFilter += " and " + GetSecondaryFilterExpression(filter);
+                if (filter is OrchestrationStateInstanceFilter)
+                {
+                    var typedFilter = filter as OrchestrationStateInstanceFilter;
+                    if (typedFilter.StartsWith)
+                    {
+                        filterExpression = string.Format(CultureInfo.InvariantCulture,
+                            TableConstants.PrimaryInstanceQueryRangeTemplate,
+                            typedFilter.InstanceId, ComputeNextKeyInRange(typedFilter.InstanceId));
+                    }
+                    else
+                    {
+                        if (string.IsNullOrEmpty(typedFilter.ExecutionId))
+                        {
+                            filterExpression = string.Format(CultureInfo.InvariantCulture,
+                                TableConstants.PrimaryInstanceQueryRangeTemplate,
+                                typedFilter.InstanceId, ComputeNextKeyInRange(typedFilter.InstanceId));
+                        }
+                        else
+                        {
+                            filterExpression = string.Format(CultureInfo.InvariantCulture,
+                                TableConstants.PrimaryInstanceQueryExactTemplate,
+                                typedFilter.InstanceId,
+                                typedFilter.ExecutionId);
+                        }
+                    }
+                }
+                else
+                {
+                    // TODO : for now we don't have indexes for anything other than the
+                    // instance id so all filters are 'secondary' filters
+                    filterExpression = GetSecondaryFilterExpression(filter);
+                }
             }
-            return basicPrimaryFilter;
+            return basicPrimaryFilter + (string.IsNullOrEmpty(filterExpression) ? 
+                string.Empty : " and " + filterExpression);
         }
 
         string GetSecondaryFilterExpression(OrchestrationStateQueryFilter filter)
