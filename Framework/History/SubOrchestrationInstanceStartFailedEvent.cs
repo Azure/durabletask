@@ -13,25 +13,27 @@
 
 namespace DurableTask.History
 {
-    public enum EventType
+    using System.Runtime.Serialization;
+
+    [DataContract]
+    public class SubOrchestrationInstanceStartFailedEvent : HistoryEvent
     {
-        ExecutionStarted,
-        ExecutionCompleted,
-        ExecutionFailed,
-        ExecutionTerminated,
-        TaskScheduled,
-        TaskCompleted,
-        TaskFailed,
-        SubOrchestrationInstanceCreated,
-        SubOrchestrationInstanceCompleted,
-        SubOrchestrationInstanceFailed,
-        SubOrchestrationInstanceStartFailed,
-        TimerCreated,
-        TimerFired,
-        OrchestratorStarted,
-        OrchestratorCompleted,
-        EventRaised,
-        ContinueAsNew,
-        GenericEvent,
+        public SubOrchestrationInstanceStartFailedEvent(int eventId, int taskScheduledId, OrchestrationInstanceStartFailedCause cause)
+            : base(eventId)
+        {
+            TaskScheduledId = taskScheduledId;
+            Cause = cause;
+        }
+
+        public override EventType EventType
+        {
+            get { return EventType.SubOrchestrationInstanceStartFailed; }
+        }
+
+        [DataMember]
+        public int TaskScheduledId { get; private set; }
+
+        [DataMember]
+        public OrchestrationInstanceStartFailedCause Cause { get; private set; }
     }
 }

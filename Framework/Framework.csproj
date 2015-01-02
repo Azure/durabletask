@@ -86,6 +86,9 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="History\OrchestrationInstanceStartFailedCause.cs" />
+    <Compile Include="History\SubOrchestrationInstanceStartFailedEvent.cs" />
+    <Compile Include="SubOrchestrationInstanceStartFailedException.cs" />
     <Compile Include="SynchronousTaskScheduler.cs" />
     <Compile Include="History\GenericEvent.cs" />
     <Compile Include="CompressionSettings.cs" />

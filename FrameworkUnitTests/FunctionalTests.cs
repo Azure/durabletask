@@ -17,6 +17,7 @@ namespace FrameworkUnitTests
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask;
+    using DurableTask.History;
     using DurableTask.Test;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -490,5 +491,80 @@ namespace FrameworkUnitTests
         }
 
         #endregion
+
+        [TestMethod]
+        public async Task DuplicateSubOrchestrationInstanceTest()
+        {
+            taskHubNoCompression.AddTaskOrchestrations(typeof(ParentOrchestration),
+                typeof(ChildOrchestration))
+                .Start();
+
+            // First create 2 child orchestrations with different ids and validate both completes successfully
+            OrchestrationInstance id1 = client.CreateOrchestrationInstance(typeof(ParentOrchestration), "child1");
+            await Task.Delay(1000);
+            OrchestrationInstance id2 = client.CreateOrchestrationInstance(typeof(ParentOrchestration), "child2");
+
+            bool isCompleted = TestHelpers.WaitForInstance(client, id1, 60);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id1, 60));
+            OrchestrationState state = client.GetOrchestrationState(id1);
+            Assert.AreEqual("\"Success\"", state.Output, TestHelpers.PrintHistory(client, id1));
+
+            isCompleted = TestHelpers.WaitForInstance(client, id2, 60);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id2, 60));
+            state = client.GetOrchestrationState(id2);
+            Assert.AreEqual("\"Success\"", state.Output, TestHelpers.PrintHistory(client, id2));
+
+            // Now create 2 child orchestrations with different ids and validate one fails
+            id1 = client.CreateOrchestrationInstance(typeof(ParentOrchestration), "child1");
+            await Task.Delay(1000);
+            id2 = client.CreateOrchestrationInstance(typeof(ParentOrchestration), "child1");
+
+            isCompleted = TestHelpers.WaitForInstance(client, id1, 60);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id1, 60));
+            state = client.GetOrchestrationState(id1);
+            Assert.AreEqual("\"Success\"", state.Output, TestHelpers.PrintHistory(client, id1));
+
+            isCompleted = TestHelpers.WaitForInstance(client, id2, 60);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id2, 60));
+            state = client.GetOrchestrationState(id2);
+            Assert.AreEqual("\"Failed\"", state.Output, TestHelpers.PrintHistory(client, id2));
+        }
+
+        public class ParentOrchestration : TaskOrchestration<string, string>
+        {
+            public override async Task<string> RunTask(OrchestrationContext context, string childOrchestrationId)
+            {
+                string childResult = string.Empty;
+                try
+                {
+                    childResult = await
+                        context.CreateSubOrchestrationInstance<string>(typeof(ChildOrchestration),
+                        childOrchestrationId,
+                        context.OrchestrationInstance.InstanceId);
+
+                    
+                }
+                catch (SubOrchestrationFailedException ex)
+                {
+                    SubOrchestrationInstanceStartFailedException startFailedEx = ex.InnerException as SubOrchestrationInstanceStartFailedException;
+                    Assert.IsNotNull(startFailedEx, "unexpected inner exception.");
+                    Assert.AreEqual<OrchestrationInstanceStartFailedCause>(OrchestrationInstanceStartFailedCause.OrchestrationAlreadyRunning, startFailedEx.Cause, "Incorrect cause.");
+                    childResult = "Failed";
+                }
+
+                // This is a HACK to get unit test up and running.  Should never be done in actual code.
+                return childResult;
+            }
+        }
+
+        public class ChildOrchestration : TaskOrchestration<string, string>
+        {
+            public override async Task<string> RunTask(OrchestrationContext context, string parentInstanceId)
+            {
+                return await context.CreateTimer<string>(context.CurrentUtcDateTime.AddSeconds(10), "Success");
+            }
+        }
+
+
     }
 }

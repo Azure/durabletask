@@ -125,6 +125,9 @@ namespace DurableTask
                 case EventType.SubOrchestrationInstanceFailed:
                     context.HandleSubOrchestrationInstanceFailedEvent((SubOrchestrationInstanceFailedEvent) historyEvent);
                     break;
+                case EventType.SubOrchestrationInstanceStartFailed:
+                    context.HandleSubOrchestrationInstanceStartFailedEvent((SubOrchestrationInstanceStartFailedEvent) historyEvent);
+                    break;
                 case EventType.TimerCreated:
                     context.HandleTimerCreatedEvent((TimerCreatedEvent) historyEvent);
                     break;

@@ -164,7 +164,7 @@ namespace DurableTask
                 "Size of session state is {0}, compressed {1}", newSessionStateSize, rawSessionStateSize);
             runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
 
-            if (!(await ReconcileMessagesWithStateAsync(session.SessionId, runtimeState, newMessages)))
+            if (!(await ReconcileMessagesWithStateAsync(session.SessionId, runtimeState, newMessages, subOrchestrationMessages)))
             {
                 // TODO : mark an orchestration as faulted if there is data corruption
                 TraceHelper.TraceSession(TraceEventType.Error, session.SessionId,
@@ -544,7 +544,7 @@ namespace DurableTask
         }
 
         async Task<bool> ReconcileMessagesWithStateAsync(string sessionId,
-            OrchestrationRuntimeState runtimeState, IEnumerable<BrokeredMessage> messages)
+            OrchestrationRuntimeState runtimeState, IEnumerable<BrokeredMessage> messages, List<BrokeredMessage> subOrchestrationMessages)
         {
             foreach (BrokeredMessage message in messages)
             {
@@ -575,10 +575,15 @@ namespace DurableTask
                 {
                     if (runtimeState.Events.Count > 1)
                     {
-                        // this was caused due to a dupe execution started event, swallow this one
-                        TraceHelper.TraceInstance(TraceEventType.Warning, orchestrationInstance,
-                            "Duplicate start event.  Ignoring event with Id {0} and type {1} ",
-                            taskMessage.Event.EventId, taskMessage.Event.EventType);
+                        BrokeredMessage startFailed = OrchestrationInstanceStartFailedHandling(orchestrationInstance,
+                            taskMessage.Event as ExecutionStartedEvent,
+                            OrchestrationInstanceStartFailedCause.OrchestrationAlreadyRunning);
+
+                        if (startFailed != null)
+                        {
+                            subOrchestrationMessages.Add(startFailed);
+                        }
+
                         continue;
                     }
                 }
@@ -709,6 +714,43 @@ namespace DurableTask
             }
 
             return null;
+        }
+
+        BrokeredMessage OrchestrationInstanceStartFailedHandling(
+            OrchestrationInstance orchestrationInstance,
+            ExecutionStartedEvent executionStartedEvent, 
+            OrchestrationInstanceStartFailedCause cause)
+        {
+            BrokeredMessage orchestrationInstanceStartFailedBrokeredMessage = null;
+
+            if (executionStartedEvent != null)
+            {
+                // this was caused due to a dupe execution started event, swallow this one
+                TraceHelper.TraceInstance(TraceEventType.Warning, orchestrationInstance,
+                    "Duplicate start event.  Ignoring event with Id {0} and type {1} ",
+                    executionStartedEvent.EventId, executionStartedEvent.EventType);
+
+                ParentInstance parent = null;
+                if ((parent = executionStartedEvent.ParentInstance) != null)
+                {
+                    TraceHelper.TraceInstance(TraceEventType.Warning, orchestrationInstance,
+                        "Duplicate start event.  Notifying parent with InstanceId '{0}' and ExecutionId '{1}'.",
+                        parent.OrchestrationInstance.InstanceId,
+                        parent.OrchestrationInstance.ExecutionId);
+                    TaskMessage taskMessage = new TaskMessage();
+                    taskMessage.Event = new SubOrchestrationInstanceStartFailedEvent(-1, parent.TaskScheduleId, cause);
+                    taskMessage.OrchestrationInstance = parent.OrchestrationInstance;
+
+                    // Send complete message to parent workflow or to itself to start a new execution
+                    orchestrationInstanceStartFailedBrokeredMessage = Utils.GetBrokeredMessageFromObject(
+                        taskMessage, settings.MessageCompressionSettings,
+                        parent.OrchestrationInstance, "Complete Suborchestration");
+                    orchestrationInstanceStartFailedBrokeredMessage.SessionId =
+                        parent.OrchestrationInstance.InstanceId;
+                }
+            }
+
+            return orchestrationInstanceStartFailedBrokeredMessage;
         }
 
         static TaskMessage ProcessScheduleTaskDecision(

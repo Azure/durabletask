@@ -305,6 +305,24 @@ namespace DurableTask
             }
         }
 
+        public void HandleSubOrchestrationInstanceStartFailedEvent(SubOrchestrationInstanceStartFailedEvent startFailedEvent)
+        {
+            int taskId = startFailedEvent.TaskScheduledId;
+            if (openTasks.ContainsKey(taskId))
+            {
+                OpenTaskInfo info = openTasks[taskId];
+                Exception cause = new SubOrchestrationInstanceStartFailedException(
+                    startFailedEvent.EventId, taskId, info.Name, info.Version, startFailedEvent.Cause);
+                var failedException = new SubOrchestrationFailedException(startFailedEvent.EventId, taskId, info.Name,
+                    info.Version,
+                    startFailedEvent.Cause.ToString(), cause);
+                TaskCompletionSource<string> tcs = info.Result;
+                tcs.SetException(failedException);
+
+                openTasks.Remove(taskId);
+            }
+        }
+
         public void HandleTimerFiredEvent(TimerFiredEvent timerFiredEvent)
         {
             int taskId = timerFiredEvent.TimerId;

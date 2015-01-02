@@ -13,25 +13,8 @@
 
 namespace DurableTask.History
 {
-    public enum EventType
+    public enum OrchestrationInstanceStartFailedCause
     {
-        ExecutionStarted,
-        ExecutionCompleted,
-        ExecutionFailed,
-        ExecutionTerminated,
-        TaskScheduled,
-        TaskCompleted,
-        TaskFailed,
-        SubOrchestrationInstanceCreated,
-        SubOrchestrationInstanceCompleted,
-        SubOrchestrationInstanceFailed,
-        SubOrchestrationInstanceStartFailed,
-        TimerCreated,
-        TimerFired,
-        OrchestratorStarted,
-        OrchestratorCompleted,
-        EventRaised,
-        ContinueAsNew,
-        GenericEvent,
+        OrchestrationAlreadyRunning
     }
 }
