@@ -35,7 +35,7 @@ namespace DurableTask
         }
 
         public SubOrchestrationInstanceStartFailedException(int eventId, int scheduleId, string name, string version, 
-            OrchestrationInstanceStartFailedCause cause)
+            OrchestrationInstanceStartFailureCause cause)
             : base(eventId, cause.ToString(), null)
         {
             ScheduleId = scheduleId;
@@ -52,6 +52,6 @@ namespace DurableTask
         public int ScheduleId { get; set; }
         public string Name { get; set; }
         public string Version { get; set; }
-        public OrchestrationInstanceStartFailedCause Cause { get; set; }
+        public OrchestrationInstanceStartFailureCause Cause { get; set; }
     }
 }

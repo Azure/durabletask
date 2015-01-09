@@ -18,7 +18,7 @@ namespace DurableTask.History
     [DataContract]
     public class SubOrchestrationInstanceStartFailedEvent : HistoryEvent
     {
-        public SubOrchestrationInstanceStartFailedEvent(int eventId, int taskScheduledId, OrchestrationInstanceStartFailedCause cause)
+        public SubOrchestrationInstanceStartFailedEvent(int eventId, int taskScheduledId, OrchestrationInstanceStartFailureCause cause)
             : base(eventId)
         {
             TaskScheduledId = taskScheduledId;
@@ -34,6 +34,6 @@ namespace DurableTask.History
         public int TaskScheduledId { get; private set; }
 
         [DataMember]
-        public OrchestrationInstanceStartFailedCause Cause { get; private set; }
+        public OrchestrationInstanceStartFailureCause Cause { get; private set; }
     }
 }

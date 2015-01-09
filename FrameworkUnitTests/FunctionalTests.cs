@@ -548,7 +548,7 @@ namespace FrameworkUnitTests
                 {
                     SubOrchestrationInstanceStartFailedException startFailedEx = ex.InnerException as SubOrchestrationInstanceStartFailedException;
                     Assert.IsNotNull(startFailedEx, "unexpected inner exception.");
-                    Assert.AreEqual<OrchestrationInstanceStartFailedCause>(OrchestrationInstanceStartFailedCause.OrchestrationAlreadyRunning, startFailedEx.Cause, "Incorrect cause.");
+                    Assert.AreEqual<OrchestrationInstanceStartFailureCause>(OrchestrationInstanceStartFailureCause.OrchestrationAlreadyRunning, startFailedEx.Cause, "Incorrect cause.");
                     childResult = "Failed";
                 }
 

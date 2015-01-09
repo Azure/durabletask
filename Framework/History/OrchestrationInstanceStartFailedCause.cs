@@ -13,7 +13,7 @@
 
 namespace DurableTask.History
 {
-    public enum OrchestrationInstanceStartFailedCause
+    public enum OrchestrationInstanceStartFailureCause
     {
         OrchestrationAlreadyRunning
     }

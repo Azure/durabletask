@@ -45,11 +45,6 @@ namespace DurableTask
             get { return orchestratorActionsMap.Values; }
         }
 
-        internal override TaskScheduler Scheduler
-        {
-            get { return taskScheduler; }
-        }
-
         public bool HasOpenTasks
         {
             get { return openTasks.Count > 0; }
