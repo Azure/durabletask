@@ -339,9 +339,6 @@ namespace DurableTask
                             TraceHelper.TraceSession(TraceEventType.Information, session.SessionId,
                                 "Updating state for continuation");
                             newState = new List<HistoryEvent>();
-                            newState.Add(new OrchestratorStartedEvent(-1));
-                            newState.Add(continueAsNewExecutionStarted);
-                            newState.Add(new OrchestratorCompletedEvent(-1));
                         }
 
                         string serializedState = JsonConvert.SerializeObject(newState,
