@@ -306,7 +306,5 @@ namespace DurableTask
         ///         the first execution of this orchestration instance.
         ///     </param>
         public abstract void ContinueAsNew(string newVersion, object input);
-
-        internal abstract TaskScheduler Scheduler { get; }
     }
 }

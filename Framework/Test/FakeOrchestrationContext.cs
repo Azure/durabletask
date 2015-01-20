@@ -33,11 +33,6 @@ namespace DurableTask.Test
             Clock = clock;
         }
 
-        internal override TaskScheduler Scheduler
-        {
-            get { return scheduler; }
-        }
-
         public FakeTaskActivityExecutor TaskActivityExecutor { get; private set; }
         public FakeOrchestrationExecutor OrchestrationExecutor { get; private set; }
         public FakeOrchestrationClock Clock { get; private set; }
