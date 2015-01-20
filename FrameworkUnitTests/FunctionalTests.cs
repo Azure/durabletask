@@ -249,7 +249,7 @@ namespace FrameworkUnitTests
             Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
 
             Assert.AreEqual("Test", GenerationSubFailedParentOrchestration.Result, "Orchestration Result is wrong!!!");
-            Assert.AreEqual(1, GenerationSubFailedChildOrchestration.Count, "Child Workflow Count invalid.");
+            Assert.AreEqual(2, GenerationSubFailedChildOrchestration.Count, "Child Workflow Count invalid.");
 
             GenerationSubFailedChildOrchestration.Count = 0;
             GenerationSubFailedParentOrchestration.Result = null;
@@ -258,7 +258,7 @@ namespace FrameworkUnitTests
             isCompleted = TestHelpers.WaitForInstance(client, id, 60);
             Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
             Assert.AreEqual("Test", GenerationSubFailedParentOrchestration.Result, "Orchestration Result is wrong!!!");
-            Assert.AreEqual(5, GenerationSubFailedChildOrchestration.Count, "Child Workflow Count invalid.");
+            Assert.AreEqual(10, GenerationSubFailedChildOrchestration.Count, "Child Workflow Count invalid.");
         }
 
         public class GenerationSubFailedChildOrchestration : TaskOrchestration<string, int>
@@ -292,7 +292,7 @@ namespace FrameworkUnitTests
             public override async Task<string> RunTask(OrchestrationContext context, bool waitForCompletion)
             {
                 var results = new Task<string>[5];
-                int numberOfChildGenerations = 3;
+                int numberOfChildGenerations = 4;
                 try
                 {
                     for (int i = 0; i < 5; i++)

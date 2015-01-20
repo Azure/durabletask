@@ -25,7 +25,8 @@ namespace DurableTask
         public const string StateMessageContentType = "StateMessage";
         public const string HistoryEventIndexPropertyName = "HistoryEventIndex";
 
-        public const int FakeTimerIdToSplitDecision = -100;
+        // This is used in various scenarios like splitting decisions and tickling newly created generations
+        public const int SystemTimerId = -100;
         public const int MaxDeliveryCount = 10;
 
         // task orchestration dispatcher default constants

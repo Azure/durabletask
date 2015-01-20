@@ -139,7 +139,6 @@ namespace DurableTask
             bool isCompleted = false;
             bool continuedAsNew = false;
 
-            BrokeredMessage continuedAsNewMessage = null;
             ExecutionStartedEvent continueAsNewExecutionStarted = null;
 
             MessageSession session = sessionWorkItem.Session;
@@ -210,12 +209,8 @@ namespace DurableTask
                             break;
                         case OrchestratorActionType.CreateTimer:
                             var timerOrchestratorAction = (CreateTimerOrchestratorAction) decision;
-                            TaskMessage timerMessage = ProcessCreateTimerDecision(timerOrchestratorAction, runtimeState);
-                            BrokeredMessage brokeredTimerMessage = Utils.GetBrokeredMessageFromObject(
-                                timerMessage, settings.MessageCompressionSettings, runtimeState.OrchestrationInstance,
-                                "Timer");
-                            brokeredTimerMessage.ScheduledEnqueueTimeUtc = timerOrchestratorAction.FireAt;
-                            brokeredTimerMessage.SessionId = session.SessionId;
+                            BrokeredMessage brokeredTimerMessage = ProcessCreateTimerDecision(session.SessionId, timerOrchestratorAction, runtimeState,
+                            settings.MessageCompressionSettings, "Timer");
                             timerMessages.Add(brokeredTimerMessage);
                             break;
                         case OrchestratorActionType.CreateSubOrchestration:
@@ -246,7 +241,6 @@ namespace DurableTask
                                 // Store the event so we can rebuild the state
                                 if (continuedAsNew)
                                 {
-                                    continuedAsNewMessage = workflowCompletedBrokeredMessage;
                                     continueAsNewExecutionStarted =
                                         workflowInstanceCompletedMessage.Event as ExecutionStartedEvent;
                                 }
@@ -283,17 +277,8 @@ namespace DurableTask
                             break;
                         }
 
-                        var dummyTimer = new CreateTimerOrchestratorAction
-                        {
-                            Id = FrameworkConstants.FakeTimerIdToSplitDecision,
-                            FireAt = DateTime.UtcNow
-                        };
-                        TaskMessage timerMessage = ProcessCreateTimerDecision(dummyTimer, runtimeState);
-                        BrokeredMessage brokeredTimerMessage = Utils.GetBrokeredMessageFromObject(
-                            timerMessage, settings.MessageCompressionSettings, runtimeState.OrchestrationInstance,
-                            "MaxMessageCount Timer");
-                        brokeredTimerMessage.ScheduledEnqueueTimeUtc = dummyTimer.FireAt;
-                        brokeredTimerMessage.SessionId = session.SessionId;
+                        BrokeredMessage brokeredTimerMessage = CreateSystemTimer(session.SessionId, runtimeState, 
+                            settings.MessageCompressionSettings, "MaxMessageCount");
                         timerMessages.Add(brokeredTimerMessage);
                         break;
                     }
@@ -333,15 +318,26 @@ namespace DurableTask
                                 new ArgumentException("Instance state stream is partially consumed"));
                         }
 
-                        IList<HistoryEvent> newState = runtimeState.Events;
                         if (continuedAsNew)
                         {
                             TraceHelper.TraceSession(TraceEventType.Information, session.SessionId,
                                 "Updating state for continuation");
-                            newState = new List<HistoryEvent>();
+
+                            // Update the session state to represent a newly started execution.
+                            // State needs to be updated in the same transaction so all pending events are applied to the new generation.
+                            runtimeState.Clear();
+                            runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
+                            runtimeState.AddEvent(continueAsNewExecutionStarted);
+
+                            // Send a message to tickle new generation
+                            BrokeredMessage tickleMessage = CreateSystemTimer(session.SessionId, runtimeState,
+                                settings.MessageCompressionSettings, "Tickle new generation");
+                            runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
+
+                            orchestratorQueueClient.Send(tickleMessage);
                         }
 
-                        string serializedState = JsonConvert.SerializeObject(newState,
+                        string serializedState = JsonConvert.SerializeObject(runtimeState.Events,
                             new JsonSerializerSettings {TypeNameHandling = TypeNameHandling.Auto});
                         var writer = new StreamWriter(ms);
                         writer.Write(serializedState);
@@ -418,11 +414,6 @@ namespace DurableTask
                     if (subOrchestrationMessages.Count > 0)
                     {
                         subOrchestrationMessages.ForEach(m => orchestratorQueueClient.Send(m));
-                    }
-
-                    if (continuedAsNewMessage != null)
-                    {
-                        orchestratorQueueClient.Send(continuedAsNewMessage);
                     }
 
                     if (isTrackingEnabled)
@@ -782,22 +773,21 @@ namespace DurableTask
             return taskMessage;
         }
 
-        static TaskMessage ProcessCreateTimerDecision(
-            CreateTimerOrchestratorAction createTimerOrchestratorAction, OrchestrationRuntimeState runtimeState)
+        static BrokeredMessage ProcessCreateTimerDecision(string sessionId, CreateTimerOrchestratorAction createTimerOrchestratorAction,
+            OrchestrationRuntimeState runtimeState, CompressionSettings settings, string messageType)
         {
-            var taskMessage = new TaskMessage();
-
             var timerCreatedEvent = new TimerCreatedEvent(createTimerOrchestratorAction.Id);
             timerCreatedEvent.FireAt = createTimerOrchestratorAction.FireAt;
             runtimeState.AddEvent(timerCreatedEvent);
 
-            var timerFiredEvent = new TimerFiredEvent(-1);
-            timerFiredEvent.TimerId = createTimerOrchestratorAction.Id;
+            TaskMessage timerFiredMessage = CreateTimerFiredEvent(runtimeState.OrchestrationInstance, createTimerOrchestratorAction.Id);
 
-            taskMessage.Event = timerFiredEvent;
-            taskMessage.OrchestrationInstance = runtimeState.OrchestrationInstance;
+            BrokeredMessage brokeredTimerMessage = Utils.GetBrokeredMessageFromObject(
+                            timerFiredMessage, settings, runtimeState.OrchestrationInstance, messageType);
+            brokeredTimerMessage.ScheduledEnqueueTimeUtc = createTimerOrchestratorAction.FireAt;
+            brokeredTimerMessage.SessionId = sessionId;
 
-            return taskMessage;
+            return brokeredTimerMessage;
         }
 
         static TaskMessage ProcessCreateSubOrchestrationInstanceDecision(
@@ -834,6 +824,32 @@ namespace DurableTask
 
             taskMessage.OrchestrationInstance = startedEvent.OrchestrationInstance;
             taskMessage.Event = startedEvent;
+
+            return taskMessage;
+        }
+
+        static BrokeredMessage CreateSystemTimer(string sessionId, OrchestrationRuntimeState runtimeState, CompressionSettings settings, string timerType)
+        {
+            var dummyTimer = new CreateTimerOrchestratorAction
+            {
+                Id = FrameworkConstants.SystemTimerId,
+                FireAt = DateTime.UtcNow
+            };
+
+            BrokeredMessage brokeredTimerMessage = ProcessCreateTimerDecision(sessionId, dummyTimer, runtimeState,
+                settings, "SystemTime: " + timerType);
+            return brokeredTimerMessage;
+        }
+
+        static TaskMessage CreateTimerFiredEvent(OrchestrationInstance instance, int id)
+        {
+            var taskMessage = new TaskMessage();
+
+            var timerFiredEvent = new TimerFiredEvent(-1);
+            timerFiredEvent.TimerId = id;
+
+            taskMessage.Event = timerFiredEvent;
+            taskMessage.OrchestrationInstance = instance;
 
             return taskMessage;
         }

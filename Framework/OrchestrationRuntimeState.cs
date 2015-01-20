@@ -141,6 +141,19 @@ namespace DurableTask
             AddEvent(historyEvent, true);
         }
 
+        public void Clear()
+        {
+            this.Events.Clear();
+            this.NewEvents.Clear();
+
+            this.ExecutionStartedEvent = null;
+            this.ExecutionCompletedEvent = null;
+
+            this.CompressedSize = 0;
+            this.Size = 0;
+            this.Status = null;
+        }
+
         void AddEvent(HistoryEvent historyEvent, bool isNewEvent)
         {
             Events.Add(historyEvent);
@@ -270,6 +283,10 @@ namespace DurableTask
                 {
                     Timestamp = sourceEvent.Timestamp,
                     IsPlayed = sourceEvent.IsPlayed,
+                    OrchestrationInstance = sourceEvent.OrchestrationInstance,
+                    Name = sourceEvent.Name,
+                    Version = sourceEvent.Version,
+                    ParentInstance = sourceEvent.ParentInstance,
                 };
             }
             else if (evt is ExecutionCompletedEvent)

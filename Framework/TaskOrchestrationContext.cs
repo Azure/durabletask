@@ -204,7 +204,7 @@ namespace DurableTask
         public void HandleTimerCreatedEvent(TimerCreatedEvent timerCreatedEvent)
         {
             int taskId = timerCreatedEvent.EventId;
-            if (taskId == FrameworkConstants.FakeTimerIdToSplitDecision)
+            if (taskId == FrameworkConstants.SystemTimerId)
             {
                 // This is our dummy timer to split decision for avoiding 100 messages per transaction service bus limit
                 return;
