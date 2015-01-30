@@ -14,13 +14,8 @@ https://www.nuget.org/packages/DurableTask
 
 To run unit tests, you must specify your Service Bus connection string for the tests to use. You can do this via the **ServiceBusConnectionString** app.config value in the test project, or by defining a **DurableTaskTestServiceBusConnectionString** environment variable. The benefit of the environment variable is that no temporary source changes are required. 
 
-A document that describes the framework is described here:
-http://abhishekrlal.files.wordpress.com/2013/06/service-bus-durable-task-framework-developer-guide.docx
-
-Some samples are published here:
-http://code.msdn.microsoft.com/windowsazure/Service-Bus-Durable-Task-07330399
-
-Note that the doc and samples refer to 'Microsoft.ServiceBus.DurableTask' which is the pre-OSS version of the package. Will be fixing up these soon.
+The associated wiki contains more details about the framework:
+https://github.com/affandar/durabletask/wiki
 
 <b>TODO</b>
 
