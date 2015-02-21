@@ -152,38 +152,31 @@ namespace DurableTask
             }
         }
 
+        /// <summary>
+        /// Ensures that long running tasks are not redispatched if execution takes longer than 
+        /// LockDuration, which is usually 1 minute by default.
+        /// It would be good to make default renew interval configurable.
+        /// </summary>
+        /// <param name="message"></param>
+        /// <param name="cancellationToken"></param>
         async void RenewUntil(BrokeredMessage message, CancellationToken cancellationToken)
         {
             try
             {
-                if (message.LockedUntilUtc < DateTime.UtcNow)
-                {
-                    return;
-                }
-
-                DateTime renewAt = message.LockedUntilUtc.Subtract(TimeSpan.FromSeconds(30));
-
-                // service bus clock sku can really mess us up so just always renew every 30 secs regardless of 
-                // what the message.LockedUntilUtc says. if the sku is negative then in the worst case we will be
-                // renewing every 5 secs
-                //
-                renewAt = AdjustRenewAt(renewAt);
+                int renewInterval = 30000;
 
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(5));
-
-                    if (DateTime.UtcNow >= renewAt)
+                    await Task.Delay(TimeSpan.FromSeconds(30));
                     {
                         try
                         {
                             TraceHelper.Trace(TraceEventType.Information, "Renewing lock for message id {0}",
                                 message.MessageId);
                             message.RenewLock();
-                            renewAt = message.LockedUntilUtc.Subtract(TimeSpan.FromSeconds(30));
-                            renewAt = AdjustRenewAt(renewAt);
+
                             TraceHelper.Trace(TraceEventType.Information, "Next renew for message id '{0}' at '{1}'",
-                                message.MessageId, renewAt);
+                                message.MessageId, DateTime.Now.AddMilliseconds(renewInterval));
                         }
                         catch (Exception exception)
                         {
@@ -201,6 +194,8 @@ namespace DurableTask
                 // a complete call in the main dispatcher thread
             }
         }
+
+
 
         DateTime AdjustRenewAt(DateTime renewAt)
         {
