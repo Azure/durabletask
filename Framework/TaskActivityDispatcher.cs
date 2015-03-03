@@ -152,6 +152,7 @@ namespace DurableTask
             }
         }
 
+
         /// <summary>
         /// Ensures that long running tasks are not redispatched if execution takes longer than 
         /// LockDuration, which is usually 1 minute by default.
@@ -169,21 +170,27 @@ namespace DurableTask
                 {
                     await Task.Delay(TimeSpan.FromSeconds(30));
                     {
-                        try
+                        //
+                        // This prevents throwing of ObjectDisposedException of the message.
+                        if (!cancellationToken.IsCancellationRequested)
                         {
-                            TraceHelper.Trace(TraceEventType.Information, "Renewing lock for message id {0}",
-                                message.MessageId);
-                            message.RenewLock();
+                            try
+                            {
+                                TraceHelper.Trace(TraceEventType.Information, "Renewing lock for message id {0}",
+                                    message.MessageId);
 
-                            TraceHelper.Trace(TraceEventType.Information, "Next renew for message id '{0}' at '{1}'",
-                                message.MessageId, DateTime.Now.AddMilliseconds(renewInterval));
-                        }
-                        catch (Exception exception)
-                        {
-                            // might have been completed
-                            TraceHelper.TraceException(TraceEventType.Information, exception,
-                                "Failed to renew lock for message {0}", message.MessageId);
-                            break;
+                                message.RenewLock();
+
+                                TraceHelper.Trace(TraceEventType.Information, "Next renew for message id '{0}' at '{1}'",
+                                    message.MessageId, DateTime.Now.AddMilliseconds(renewInterval));
+                            }
+                            catch (Exception exception)
+                            {
+                                // might have been completed
+                                TraceHelper.TraceException(TraceEventType.Information, exception,
+                                    "Failed to renew lock for message {0}", message.MessageId);
+                                break;
+                            }
                         }
                     }
                 }
