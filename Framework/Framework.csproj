@@ -114,6 +114,7 @@
     <Compile Include="OrchestrationState.cs" />
     <Compile Include="TaskActivityDispatcherSettings.cs" />
     <Compile Include="TaskHubClientSettings.cs" />
+    <Compile Include="Test\DebugTestHost.cs" />
     <Compile Include="TrackingDispatcherSettings.cs" />
     <Compile Include="TaskOrchestrationDispatcherSettings.cs" />
     <Compile Include="TaskHubWorkerSettings.cs" />
