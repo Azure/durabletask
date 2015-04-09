@@ -19,16 +19,16 @@ namespace DurableTask.Test
     using DurableTask.History;
     using Newtonsoft.Json;
 
-    public class ReplayTestHost
+    public class DebugTestHost
     {
         NameVersionObjectManager<TaskOrchestration> orchestrationObjectManager;
 
-        public ReplayTestHost()
+        public DebugTestHost()
         {
             this.orchestrationObjectManager = new NameVersionObjectManager<TaskOrchestration>();
         }
 
-        public ReplayTestHost AddTaskOrchestrations(params Type[] taskOrchestrationTypes)
+        public DebugTestHost AddTaskOrchestrations(params Type[] taskOrchestrationTypes)
         {
             foreach (Type type in taskOrchestrationTypes)
             {
@@ -39,7 +39,7 @@ namespace DurableTask.Test
             return this;
         }
 
-        public ReplayTestHost AddTaskOrchestrations(params ObjectCreator<TaskOrchestration>[] taskOrchestrationCreators)
+        public DebugTestHost AddTaskOrchestrations(params ObjectCreator<TaskOrchestration>[] taskOrchestrationCreators)
         {
             foreach (ObjectCreator<TaskOrchestration> creator in taskOrchestrationCreators)
             {
