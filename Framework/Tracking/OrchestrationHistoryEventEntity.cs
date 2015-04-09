@@ -22,8 +22,6 @@ namespace DurableTask.Tracking
 
     public class OrchestrationHistoryEventEntity : CompositeTableEntity
     {
-        const int MaxStringLengthForAzureTableColumn = 1024*15; // cut off at 15k * 2 bytes 
-
         public OrchestrationHistoryEventEntity()
         {
         }
@@ -75,10 +73,10 @@ namespace DurableTask.Tracking
             // note that this makes the history stored in the instance store unreplayable. so any replay logic
             // that we build will have to especially check for this event and flag the orchestration as unplayable if it sees this event
             if (!string.IsNullOrEmpty(serializedHistoryEvent) &&
-                serializedHistoryEvent.Length > MaxStringLengthForAzureTableColumn)
+                serializedHistoryEvent.Length > FrameworkConstants.MaxStringLengthForAzureTableColumn)
             {
                 serializedHistoryEvent = JsonConvert.SerializeObject(new GenericEvent(HistoryEvent.EventId,
-                    serializedHistoryEvent.Substring(0, MaxStringLengthForAzureTableColumn) + " ....(truncated)..]"),
+                    serializedHistoryEvent.Substring(0, FrameworkConstants.MaxStringLengthForAzureTableColumn) + " ....(truncated)..]"),
                     new JsonSerializerSettings
                     {
                         Formatting = Formatting.Indented,

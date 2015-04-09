@@ -15,8 +15,10 @@ namespace DurableTask.Tracking
 {
     using System;
     using System.Collections.Generic;
+    using DurableTask.History;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Table;
+    using Newtonsoft.Json;
 
     public class OrchestrationStateEntity : CompositeTableEntity
     {
@@ -72,8 +74,8 @@ namespace DurableTask.Tracking
             retVals.Add("LastUpdatedTime", new EntityProperty(State.LastUpdatedTime));
             retVals.Add("Size", new EntityProperty(State.Size));
             retVals.Add("CompressedSize", new EntityProperty(State.CompressedSize));
-            retVals.Add("Input", new EntityProperty(State.Input));
-            retVals.Add("Output", new EntityProperty(State.Output));
+            retVals.Add("Input", new EntityProperty(State.Input.Truncate(FrameworkConstants.MaxStringLengthForAzureTableColumn)));
+            retVals.Add("Output", new EntityProperty(State.Output.Truncate(FrameworkConstants.MaxStringLengthForAzureTableColumn)));
 
             return retVals;
         }

@@ -35,6 +35,15 @@ namespace DurableTask
 
         static readonly byte[] GzipHeader = {0x1f, 0x8b};
 
+        public static string Truncate(this string input, int maxLength)
+        {
+            if (!string.IsNullOrEmpty(input) && input.Length > maxLength)
+            {
+                return input.Substring(0, maxLength);
+            }
+            return input;
+        }
+
         public static BrokeredMessage GetBrokeredMessageFromObject(object serializableObject,
             CompressionSettings compressionSettings)
         {
