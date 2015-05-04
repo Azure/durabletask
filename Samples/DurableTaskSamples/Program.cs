@@ -19,6 +19,10 @@
 
         static void Main(string[] args)
         {
+            if (args.Length == 0)
+                args = new string[1]{ "-?"};
+                
+
             if (CommandLine.Parser.Default.ParseArgumentsStrict(args, options))
             {
                 string servicebusConnectionString = Program.GetSetting("ServiceBusConnectionString");
@@ -116,9 +120,9 @@
 
                         taskHub.Stop(true);
                     }
-                    catch (Exception)
+                    catch (Exception ex)
                     {
-                        // silently eat any unhadled exceptions.
+                        Console.WriteLine(ex);
                     }
                 }
             }
