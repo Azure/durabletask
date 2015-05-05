@@ -20,7 +20,9 @@
         static void Main(string[] args)
         {
             if (args.Length == 0)
-                args = new string[1]{ "-?"};
+            {
+                args = new string[1] { "-?" };
+            }
                 
 
             if (CommandLine.Parser.Default.ParseArgumentsStrict(args, options))
