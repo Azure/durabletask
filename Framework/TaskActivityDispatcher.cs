@@ -162,7 +162,7 @@ namespace DurableTask
         /// <param name="cancellationToken"></param>
         async void RenewUntil(BrokeredMessage message, CancellationToken cancellationToken)
         {
-            try
+            try 
             {
                 int renewInterval = 30000;
 
