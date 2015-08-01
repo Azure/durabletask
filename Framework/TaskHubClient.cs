@@ -27,6 +27,7 @@ namespace DurableTask
     using Newtonsoft.Json;
     using Tracing;
     using Tracking;
+    using System.Threading;
 
     /// <summary>
     ///     Client used to manage and query orchestration instances
@@ -40,10 +41,11 @@ namespace DurableTask
         readonly string orchestratorEntityName;
 
         readonly TaskHubClientSettings settings;
-        readonly TableClient tableClient;
+        readonly IStateProvider tableClient;
         readonly string tableStoreConnectionString;
         readonly string workerEntityName;
 
+    
         /// <summary>
         ///     Create a new TaskHubClient with the given name, service bus connection string and default settings.
         /// </summary>
@@ -52,6 +54,7 @@ namespace DurableTask
         public TaskHubClient(string hubName, string connectionString)
             : this(hubName, connectionString, null, new TaskHubClientSettings())
         {
+
         }
 
         /// <summary>
@@ -85,9 +88,12 @@ namespace DurableTask
         /// <param name="connectionString">Service Bus connection string</param>
         /// <param name="tableStoreConnectionString">Azure Storage connection string</param>
         /// <param name="settings">Client settings</param>
-        public TaskHubClient(string hubName, string connectionString, string tableStoreConnectionString,
+        public TaskHubClient(string hubName,
+            string connectionString,
+            string tableStoreConnectionString,
             TaskHubClientSettings settings)
         {
+
             this.hubName = hubName;
             this.connectionString = connectionString;
             messagingFactory = Utils.CreateMessagingFactory(connectionString);
@@ -96,10 +102,23 @@ namespace DurableTask
             defaultConverter = new JsonDataConverter();
             this.settings = settings;
 
-            this.tableStoreConnectionString = tableStoreConnectionString;
-            if (!string.IsNullOrEmpty(this.tableStoreConnectionString))
+            //
+            // If the state provider is specified (is injected), we will use it.
+            if (this.settings.Services.ContainsKey(TaskHubWorker.StateProviderKeyName))
             {
-                tableClient = new TableClient(this.hubName, this.tableStoreConnectionString);
+                tableClient = this.settings.Services[TaskHubWorker.StateProviderKeyName] as IStateProvider;
+                if (tableClient == null)
+                    throw new ArgumentException("The specified 'StateProvider' service does not implement required interface IStateProvider.");
+            }
+            //
+            // If the state provider is not specified (not injected) we will use default provider.
+            else
+            {
+                this.tableStoreConnectionString = tableStoreConnectionString;
+                if (!string.IsNullOrEmpty(this.tableStoreConnectionString))
+                {
+                    tableClient = new TableClient(this.hubName, this.tableStoreConnectionString);
+                }
             }
         }
 
@@ -309,7 +328,7 @@ namespace DurableTask
             var taskMessage = new TaskMessage
             {
                 OrchestrationInstance = orchestrationInstance,
-                Event = new EventRaisedEvent(-1, serializedInput) {Name = eventName}
+                Event = new EventRaisedEvent(-1, serializedInput) { Name = eventName }
             };
 
             BrokeredMessage brokeredMessage = Utils.GetBrokeredMessageFromObject(taskMessage,
@@ -395,10 +414,14 @@ namespace DurableTask
         {
             ThrowIfInstanceStoreNotConfigured();
 
-            IEnumerable<OrchestrationStateEntity> result = Utils.AsyncExceptionWrapper(() =>
+            //IEnumerable<OrchestrationStateEntity> result = Utils.AsyncExceptionWrapper(() =>
+            //    tableClient.QueryOrchestrationStatesAsync(new OrchestrationStateQuery()).Result);
+            //return new List<OrchestrationState>(result.Results.Select(stateEntity => stateEntity.State));
+
+            var result = Utils.AsyncExceptionWrapper(() =>
                 tableClient.QueryOrchestrationStatesAsync(new OrchestrationStateQuery()).Result);
 
-            return new List<OrchestrationState>(result.Select(stateEntity => stateEntity.State));
+            return result.Results.ToList();
         }
 
         /// <summary>
@@ -412,9 +435,15 @@ namespace DurableTask
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync()
         {
             ThrowIfInstanceStoreNotConfigured();
-            IEnumerable<OrchestrationStateEntity> result =
-                await tableClient.QueryOrchestrationStatesAsync(new OrchestrationStateQuery()).ConfigureAwait(false);
-            return new List<OrchestrationState>(result.Select(stateEntity => stateEntity.State));
+            //IEnumerable<OrchestrationStateEntity> result =
+            //    await tableClient.QueryOrchestrationStatesAsync(new OrchestrationStateQuery()).ConfigureAwait(false);
+            //return new List<OrchestrationState>(result.Select(stateEntity => stateEntity.State));
+
+
+            var result = Utils.AsyncExceptionWrapper(() =>
+                tableClient.QueryOrchestrationStatesAsync(new OrchestrationStateQuery()).Result);
+
+            return result.Results.ToList();
         }
 
         /// <summary>
@@ -462,9 +491,15 @@ namespace DurableTask
             OrchestrationStateQuery stateQuery)
         {
             ThrowIfInstanceStoreNotConfigured();
-            IEnumerable<OrchestrationStateEntity> result =
-                await tableClient.QueryOrchestrationStatesAsync(stateQuery).ConfigureAwait(false);
-            return new List<OrchestrationState>(result.Select(stateEntity => stateEntity.State));
+            //IEnumerable<OrchestrationStateEntity> result =
+            //    await tableClient.QueryOrchestrationStatesAsync(stateQuery).ConfigureAwait(false);
+            //return new List<OrchestrationState>(result.Select(stateEntity => stateEntity.State));
+
+
+            var result = Utils.AsyncExceptionWrapper(() =>
+                tableClient.QueryOrchestrationStatesAsync(stateQuery).Result);
+
+            return result.Results.ToList();
         }
 
         /// <summary>
@@ -524,26 +559,40 @@ namespace DurableTask
         {
             ThrowIfInstanceStoreNotConfigured();
 
-            TableContinuationToken tokenObj = null;
 
-            if (continuationToken != null)
-            {
-                tokenObj = DeserializeTableContinuationToken(continuationToken);
-            }
 
-            TableQuerySegment<OrchestrationStateEntity> results =
-                await
-                    tableClient.QueryOrchestrationStatesSegmentedAsync(stateQuery, tokenObj, count)
+            return await
+                    tableClient.QueryOrchestrationStatesAsync(stateQuery, continuationToken, count)
                         .ConfigureAwait(false);
 
-            return new OrchestrationStateQuerySegment
-            {
-                Results = results.Results.Select(s => s.State),
-                ContinuationToken = results.ContinuationToken == null
-                    ? null
-                    : SerializeTableContinuationToken(results.ContinuationToken)
-            };
+            /*
+            //
+            // Old Implementation.
+            //
+            //TableContinuationToken tokenObj = null;
+
+            //if (continuationToken != null)
+            //{
+            //    tokenObj = DeserializeTableContinuationToken(continuationToken);
+            //}
+
+            //TableQuerySegment<OrchestrationStateEntity> results =
+            //    await
+            //        tableClient.queryOrchestrationStatesSegmentedAsync(stateQuery, tokenObj, count)
+            //            .ConfigureAwait(false);
+
+            //return new OrchestrationStateQuerySegment
+            //{
+            //    Results = results.Results.Select(s => s.State),
+            //    ContinuationToken = results.ContinuationToken == null
+            //        ? null
+            //        : SerializeTableContinuationToken(results.ContinuationToken)
+            //};
+            */
+
         }
+
+
 
         /// <summary>
         ///     Get a list of orchestration states from the instance storage table for either the most current
@@ -582,15 +631,17 @@ namespace DurableTask
         {
             ThrowIfInstanceStoreNotConfigured();
 
-            IEnumerable<OrchestrationStateEntity> states =
+            var segments =
                 await tableClient.QueryOrchestrationStatesAsync(new OrchestrationStateQuery()
                     .AddInstanceFilter(instanceId)).ConfigureAwait(false);
+
+            IEnumerable<OrchestrationState> states = segments.Results;
 
             var returnedStates = new List<OrchestrationState>();
 
             if (allExecutions)
             {
-                returnedStates.AddRange(states.Select(stateEntity => stateEntity.State));
+                returnedStates.AddRange(states.Select(stateEntity => stateEntity));
             }
             else
             {
@@ -657,12 +708,14 @@ namespace DurableTask
             }
 
             ThrowIfInstanceStoreNotConfigured();
-            OrchestrationStateEntity stateEntity = (await tableClient.QueryOrchestrationStatesAsync(
-                new OrchestrationStateQuery()
-                    .AddInstanceFilter(instanceId, executionId)).ConfigureAwait(false))
-                .FirstOrDefault();
 
-            return stateEntity != null ? stateEntity.State : null;
+            var segments = (await tableClient.QueryOrchestrationStatesAsync(
+                new OrchestrationStateQuery()
+                    .AddInstanceFilter(instanceId, executionId)).ConfigureAwait(false));
+
+            OrchestrationState state = segments.Results.FirstOrDefault();
+
+            return state != null ? state : null;
         }
 
         // Orchestration History
@@ -696,7 +749,7 @@ namespace DurableTask
 
             ThrowIfInstanceStoreNotConfigured();
 
-            IEnumerable<OrchestrationHistoryEventEntity> eventEntities =
+            IEnumerable<OrchestrationHistoryEvent> eventEntities =
                 await
                     tableClient.ReadOrchestrationHistoryEventsAsync(instance.InstanceId, instance.ExecutionId)
                         .ConfigureAwait(false);
@@ -723,69 +776,73 @@ namespace DurableTask
         {
             ThrowIfInstanceStoreNotConfigured();
 
-            TableContinuationToken continuationToken = null;
+            await tableClient.PurgeOrchestrationInstanceHistoryAsync(thresholdDateTimeUtc, timeRangeFilterType);
+
+            //TableContinuationToken continuationToken = null;
 
             TraceHelper.Trace(TraceEventType.Information,
                 () =>
                     "Purging orchestration instances before: " + thresholdDateTimeUtc + ", Type: " + timeRangeFilterType);
 
-            int purgeCount = 0;
-            do
-            {
-                TableQuerySegment<OrchestrationStateEntity> resultSegment =
-                    (await tableClient.QueryOrchestrationStatesSegmentedAsync(
-                        new OrchestrationStateQuery()
-                            .AddTimeRangeFilter(DateTime.MinValue, thresholdDateTimeUtc, timeRangeFilterType),
-                        continuationToken, 100)
-                        .ConfigureAwait(false));
+            //int purgeCount = 0;
+            //do
+            //{
+            //    TableQuerySegment<OrchestrationStateEntity> resultSegment =
+            //        (await tableClient.queryOrchestrationStatesSegmentedAsync(
+            //            new OrchestrationStateQuery()
+            //                .AddTimeRangeFilter(DateTime.MinValue, thresholdDateTimeUtc, timeRangeFilterType),
+            //            continuationToken, 100)
+            //            .ConfigureAwait(false));
 
-                continuationToken = resultSegment.ContinuationToken;
+            //    continuationToken = resultSegment.ContinuationToken;
 
-                if (resultSegment.Results != null)
-                {
-                    await PurgeOrchestrationHistorySegmentAsync(resultSegment).ConfigureAwait(false);
-                    purgeCount += resultSegment.Results.Count;
-                }
-            } while (continuationToken != null);
+            //    if (resultSegment.Results != null)
+            //    {
+            //        await PurgeOrchestrationHistorySegmentAsync(resultSegment).ConfigureAwait(false);
+            //        purgeCount += resultSegment.Results.Count;
+            //    }
+            //} while (continuationToken != null);
 
-            TraceHelper.Trace(TraceEventType.Information, () => "Purged " + purgeCount + " orchestration histories");
+            //TraceHelper.Trace(TraceEventType.Information, () => "Purged " + purgeCount + " orchestration histories");
+            TraceHelper.Trace(TraceEventType.Information, () => "Purged orchestration history");
         }
 
-        async Task PurgeOrchestrationHistorySegmentAsync(
-            TableQuerySegment<OrchestrationStateEntity> orchestrationStateEntitySegment)
+        //async Task PurgeOrchestrationHistorySegmentAsync(
+        //    TableQuerySegment<OrchestrationStateEntity> orchestrationStateEntitySegment)
+        //{
+        //    var stateEntitiesToDelete = new List<OrchestrationStateEntity>(orchestrationStateEntitySegment.Results);
+
+        //    var historyEntitiesToDelete = new ConcurrentBag<IEnumerable<OrchestrationHistoryEventEntity>>();
+        //    await Task.WhenAll(orchestrationStateEntitySegment.Results.Select(
+        //        entity => Task.Run(async () =>
+        //        {
+        //            IEnumerable<OrchestrationHistoryEventEntity> historyEntities =
+        //                await
+        //                    tableClient.ReadOrchestrationHistoryEventsAsync(
+        //                        entity.State.OrchestrationInstance.InstanceId,
+        //                        entity.State.OrchestrationInstance.ExecutionId).ConfigureAwait(false);
+
+        //            historyEntitiesToDelete.Add(historyEntities);
+        //        })));
+
+        //    List<Task> historyDeleteTasks = historyEntitiesToDelete.Select(
+        //        historyEventList => tableClient.DeleteEntitesAsync(historyEventList)).Cast<Task>().ToList();
+
+        //    // need to serialize history deletes before the state deletes so we dont leave orphaned history events
+        //    await Task.WhenAll(historyDeleteTasks).ConfigureAwait(false);
+        //    await Task.WhenAll(tableClient.DeleteEntitesAsync(stateEntitiesToDelete)).ConfigureAwait(false);
+        //}
+
+        static OrchestrationState FindLatestExecution(IEnumerable<OrchestrationState> stateEntities)
         {
-            var stateEntitiesToDelete = new List<OrchestrationStateEntity>(orchestrationStateEntitySegment.Results);
-
-            var historyEntitiesToDelete = new ConcurrentBag<IEnumerable<OrchestrationHistoryEventEntity>>();
-            await Task.WhenAll(orchestrationStateEntitySegment.Results.Select(
-                entity => Task.Run(async () =>
-                {
-                    IEnumerable<OrchestrationHistoryEventEntity> historyEntities =
-                        await
-                            tableClient.ReadOrchestrationHistoryEventsAsync(
-                                entity.State.OrchestrationInstance.InstanceId,
-                                entity.State.OrchestrationInstance.ExecutionId).ConfigureAwait(false);
-
-                    historyEntitiesToDelete.Add(historyEntities);
-                })));
-
-            List<Task> historyDeleteTasks = historyEntitiesToDelete.Select(
-                historyEventList => tableClient.DeleteEntitesAsync(historyEventList)).Cast<Task>().ToList();
-
-            // need to serialize history deletes before the state deletes so we dont leave orphaned history events
-            await Task.WhenAll(historyDeleteTasks).ConfigureAwait(false);
-            await Task.WhenAll(tableClient.DeleteEntitesAsync(stateEntitiesToDelete)).ConfigureAwait(false);
-        }
-
-        static OrchestrationState FindLatestExecution(IEnumerable<OrchestrationStateEntity> stateEntities)
-        {
-            foreach (OrchestrationStateEntity stateEntity in stateEntities)
+            foreach (OrchestrationState stateEntity in stateEntities)
             {
-                if (stateEntity.State.OrchestrationStatus != OrchestrationStatus.ContinuedAsNew)
+                if (stateEntity.OrchestrationStatus != OrchestrationStatus.ContinuedAsNew)
                 {
-                    return stateEntity.State;
+                    return stateEntity;
                 }
             }
+
             return null;
         }
 
@@ -829,28 +886,6 @@ namespace DurableTask
             return queueDescription.MessageCount;
         }
 
-        string SerializeTableContinuationToken(TableContinuationToken continuationToken)
-        {
-            if (continuationToken == null)
-            {
-                throw new ArgumentNullException("continuationToken");
-            }
 
-            string serializedToken = JsonConvert.SerializeObject(continuationToken,
-                new JsonSerializerSettings {TypeNameHandling = TypeNameHandling.None});
-            return Convert.ToBase64String(Encoding.Unicode.GetBytes(serializedToken));
-        }
-
-        TableContinuationToken DeserializeTableContinuationToken(string serializedContinuationToken)
-        {
-            if (string.IsNullOrWhiteSpace(serializedContinuationToken))
-            {
-                throw new ArgumentException("Invalid serializedContinuationToken");
-            }
-
-            byte[] tokenBytes = Convert.FromBase64String(serializedContinuationToken);
-
-            return JsonConvert.DeserializeObject<TableContinuationToken>(Encoding.Unicode.GetString(tokenBytes));
-        }
     }
 }

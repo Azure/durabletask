@@ -42,6 +42,21 @@ namespace DurableTask.Tracking
             RowKey = ExecutionId + TableConstants.JoinDelimiter + SequenceNumber;
         }
 
+        public OrchestrationHistoryEventEntity(OrchestrationHistoryEvent historyEvent)
+            : this(historyEvent.InstanceId, historyEvent.ExecutionId, historyEvent.SequenceNumber,
+                  historyEvent.TaskTimeStamp, historyEvent.HistoryEvent)
+        {
+
+        }
+
+        //public OrchestrationHistoryEventEntity(OrchestrationState historyEvent)
+        // : this(historyEvent.OrchestrationInstance.InstanceId, historyEvent.OrchestrationInstance.ExecutionId, 
+        //       "",
+        //       historyEvent.LastUpdatedTime, historyEvent.HistoryEvent)
+        //{
+
+        //}
+
         public string InstanceId { get; set; }
         public string ExecutionId { get; set; }
         public int SequenceNumber { get; set; }

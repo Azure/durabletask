@@ -11,6 +11,8 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+using System.Collections.Generic;
+
 namespace DurableTask
 {
     /// <summary>
@@ -28,6 +30,8 @@ namespace DurableTask
                 Style = CompressionStyle.Never,
                 ThresholdInBytes = 0
             };
+
+            this.Services = new Dictionary<string, object>();
         }
 
         public CompressionSettings MessageCompressionSettings { get; set; }
@@ -38,5 +42,11 @@ namespace DurableTask
             clonedSettings.MessageCompressionSettings = MessageCompressionSettings;
             return clonedSettings;
         }
+
+        /// <summary>
+        /// List of services (injectable components) which extend internal functionality.
+        /// This is very similar to OWIN pipeline.
+        /// </summary>
+        public Dictionary<string, object> Services { get; set; }
     }
 }

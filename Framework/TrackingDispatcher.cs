@@ -102,8 +102,8 @@ namespace DurableTask
             MessageSession session = sessionWorkItem.Session;
             IEnumerable<BrokeredMessage> newMessages = sessionWorkItem.Messages;
 
-            var historyEntities = new List<OrchestrationHistoryEventEntity>();
-            var stateEntities = new List<OrchestrationStateEntity>();
+            var historyEntities = new List<OrchestrationHistoryEvent>();
+            var stateEntities = new List<OrchestrationState>();
             foreach (BrokeredMessage message in newMessages)
             {
                 Utils.CheckAndLogDeliveryCount(message, taskHubDescription.MaxTrackingDeliveryCount);
@@ -125,7 +125,7 @@ namespace DurableTask
                     var historyEventIndex = (int) historyEventIndexObj;
 
                     TaskMessage taskMessage = await Utils.GetObjectFromBrokeredMessageAsync<TaskMessage>(message);
-                    historyEntities.Add(new OrchestrationHistoryEventEntity(
+                    historyEntities.Add(new OrchestrationHistoryEvent(
                         taskMessage.OrchestrationInstance.InstanceId,
                         taskMessage.OrchestrationInstance.ExecutionId,
                         historyEventIndex,
@@ -136,7 +136,7 @@ namespace DurableTask
                     StringComparison.OrdinalIgnoreCase))
                 {
                     StateMessage stateMessage = await Utils.GetObjectFromBrokeredMessageAsync<StateMessage>(message);
-                    stateEntities.Add(new OrchestrationStateEntity(stateMessage.State));
+                    stateEntities.Add(stateMessage.State);
                 }
                 else
                 {
@@ -166,10 +166,16 @@ namespace DurableTask
 
             try
             {
-                foreach (OrchestrationStateEntity stateEntity in stateEntities)
+                //await Utils.ExecuteWithRetries(
+                //        () => tableClient.WriteStateAsync(stateEntities),
+                //        session.SessionId, string.Format("WriteStateEntities:{0}", session.SessionId),
+                //        MaxRetriesTableStore,
+                //        IntervalBetweenRetriesSecs);
+
+                foreach (OrchestrationState stateEntity in stateEntities)
                 {
                     await Utils.ExecuteWithRetries(
-                        () => tableClient.WriteEntitesAsync(new List<OrchestrationStateEntity> {stateEntity}),
+                        () => tableClient.WriteStateAsync(new List<OrchestrationState> { stateEntity }),
                         session.SessionId, string.Format("WriteStateEntities:{0}", session.SessionId),
                         MaxRetriesTableStore,
                         IntervalBetweenRetriesSecs);
@@ -205,9 +211,9 @@ namespace DurableTask
             }
         }
 
-        string GetNormalizedStateEntityTrace(int index, string message, OrchestrationStateEntity stateEntity)
+        string GetNormalizedStateEntityTrace(int index, string message, OrchestrationState stateEntity)
         {
-            string serializedHistoryEvent = Utils.EscapeJson(JsonConvert.SerializeObject(stateEntity.State));
+            string serializedHistoryEvent = Utils.EscapeJson(JsonConvert.SerializeObject(stateEntity));
             int historyEventLength = serializedHistoryEvent.Length;
 
             if (historyEventLength > MaxDisplayStringLengthForAzureTableColumn)
@@ -221,16 +227,16 @@ namespace DurableTask
                 GetFormattedLog(
                     string.Format(message + " - #{0} - Instance Id: {1}, Execution Id: {2}, State Length: {3}\n{4}",
                         index,
-                        stateEntity.State != null && stateEntity.State.OrchestrationInstance != null
-                            ? stateEntity.State.OrchestrationInstance.InstanceId
+                        stateEntity != null && stateEntity.OrchestrationInstance != null
+                            ? stateEntity.OrchestrationInstance.InstanceId
                             : string.Empty,
-                        stateEntity.State != null && stateEntity.State.OrchestrationInstance != null
-                            ? stateEntity.State.OrchestrationInstance.ExecutionId
+                        stateEntity != null && stateEntity.OrchestrationInstance != null
+                            ? stateEntity.OrchestrationInstance.ExecutionId
                             : string.Empty,
                         historyEventLength, serializedHistoryEvent));
         }
 
-        string GetNormalizedHistoryEventEntityTrace(int index, string message, OrchestrationHistoryEventEntity entity)
+        string GetNormalizedHistoryEventEntityTrace(int index, string message, OrchestrationHistoryEvent entity)
         {
             string serializedHistoryEvent = Utils.EscapeJson(JsonConvert.SerializeObject(entity.HistoryEvent));
             int historyEventLength = serializedHistoryEvent.Length;

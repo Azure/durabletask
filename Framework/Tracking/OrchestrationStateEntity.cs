@@ -74,7 +74,7 @@ namespace DurableTask.Tracking
             retVals.Add("CompressedSize", new EntityProperty(State.CompressedSize));
             retVals.Add("Input", new EntityProperty(State.Input));
             retVals.Add("Output", new EntityProperty(State.Output));
-
+            
             return retVals;
         }
 

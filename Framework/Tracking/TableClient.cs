@@ -22,8 +22,12 @@ namespace DurableTask.Tracking
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.RetryPolicies;
     using Microsoft.WindowsAzure.Storage.Table;
+    using Newtonsoft.Json;
+    using System.Text;
+    using System.Collections.Concurrent;
+    using History;
 
-    internal class TableClient
+    internal class TableClient : IStateProvider
     {
         const int MaxRetries = 3;
         static readonly TimeSpan MaximumExecutionTime = TimeSpan.FromSeconds(30);
@@ -75,19 +79,75 @@ namespace DurableTask.Tracking
             }
         }
 
-        public Task<IEnumerable<OrchestrationStateEntity>> QueryOrchestrationStatesAsync(
-            OrchestrationStateQuery stateQuery)
-        {
-            TableQuery<OrchestrationStateEntity> query = CreateQueryInternal(stateQuery, -1);
-            return ReadAllEntitiesAsync(query);
-        }
+        //public Task<IEnumerable<OrchestrationStateEntity>> QueryOrchestrationStatesAsync(
+        //    OrchestrationStateQuery stateQuery)
+        //{
+        //    TableQuery<OrchestrationStateEntity> query = CreateQueryInternal(stateQuery, -1);
+        //    return ReadAllEntitiesAsync(query);
+        //}
 
-        public Task<TableQuerySegment<OrchestrationStateEntity>> QueryOrchestrationStatesSegmentedAsync(
+
+        private Task<TableQuerySegment<OrchestrationStateEntity>> queryOrchestrationStatesSegmentedAsync(
             OrchestrationStateQuery stateQuery, TableContinuationToken continuationToken, int count)
         {
             TableQuery<OrchestrationStateEntity> query = CreateQueryInternal(stateQuery, count);
             return table.ExecuteQuerySegmentedAsync(query, continuationToken);
         }
+
+        public async Task<OrchestrationStateQuerySegment> QueryOrchestrationStatesAsync(
+            OrchestrationStateQuery stateQuery, object continuationToken = null, int count = -1)
+        {
+            TableContinuationToken tokenObj = null;
+
+            if (continuationToken != null)
+            {
+                tokenObj = DeserializeTableContinuationToken((string)continuationToken);
+            }
+
+   
+            TableQuerySegment<OrchestrationStateEntity> results =
+              await
+                  this.queryOrchestrationStatesSegmentedAsync(stateQuery, tokenObj, count)
+                      .ConfigureAwait(false);
+
+            return new OrchestrationStateQuerySegment
+            {
+                Results = results.Results.Select(s => s.State),
+                ContinuationToken = results.ContinuationToken == null
+                    ? null
+                    : SerializeTableContinuationToken(results.ContinuationToken)
+            };
+           
+        }
+
+
+        private string SerializeTableContinuationToken(TableContinuationToken continuationToken)
+        {
+            if (continuationToken == null)
+            {
+                throw new ArgumentNullException("continuationToken");
+            }
+
+            string serializedToken = JsonConvert.SerializeObject(continuationToken,
+                new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.None });
+            return Convert.ToBase64String(Encoding.Unicode.GetBytes(serializedToken));
+        }
+
+        private TableContinuationToken DeserializeTableContinuationToken(string serializedContinuationToken)
+        {
+            if (string.IsNullOrWhiteSpace(serializedContinuationToken))
+            {
+                throw new ArgumentException("Invalid serializedContinuationToken");
+            }
+
+            byte[] tokenBytes = Convert.FromBase64String(serializedContinuationToken);
+
+            return JsonConvert.DeserializeObject<TableContinuationToken>(Encoding.Unicode.GetString(tokenBytes));
+        }
+
+
+
+
 
         TableQuery<OrchestrationStateEntity> CreateQueryInternal(OrchestrationStateQuery stateQuery, int count)
         {
@@ -279,8 +339,22 @@ namespace DurableTask.Tracking
             return endTime;
         }
 
-        public Task<IEnumerable<OrchestrationHistoryEventEntity>> ReadOrchestrationHistoryEventsAsync(string instanceId,
+        public async Task<IEnumerable<OrchestrationHistoryEvent>> ReadOrchestrationHistoryEventsAsync(string instanceId,
             string executionId)
+        {
+            var results = fromHistoryEventEntities(await readHistoryEventsAsync(instanceId, executionId));
+
+            return results;
+        }
+
+        /// <summary>
+        /// Reads events from Table Storage
+        /// </summary>
+        /// <param name="instanceId"></param>
+        /// <param name="executionId"></param>
+        /// <returns></returns>
+        private Task<IEnumerable<OrchestrationHistoryEventEntity>> readHistoryEventsAsync(string instanceId,
+         string executionId)
         {
             string partitionKey = TableConstants.InstanceHistoryEventPrefix +
                                   TableConstants.JoinDelimiter + instanceId;
@@ -298,6 +372,7 @@ namespace DurableTask.Tracking
 
             TableQuery<OrchestrationHistoryEventEntity> query =
                 new TableQuery<OrchestrationHistoryEventEntity>().Where(filter);
+
             return ReadAllEntitiesAsync(query);
         }
 
@@ -332,7 +407,7 @@ namespace DurableTask.Tracking
             return newKey;
         }
 
-        public async Task<object> PerformBatchTableOperationAsync(string operationTag,
+        private async Task<object> performBatchTableOperationAsync(string operationTag,
             IEnumerable<CompositeTableEntity> entities,
             Action<TableBatchOperation, ITableEntity> batchOperationFunc)
         {
@@ -385,18 +460,142 @@ namespace DurableTask.Tracking
             }
         }
 
-        public async Task<object> WriteEntitesAsync(IEnumerable<CompositeTableEntity> entities)
+        public async Task<object> WriteEntitesAsync(IEnumerable<OrchestrationHistoryEvent> entities)
         {
-            return await PerformBatchTableOperationAsync("Write Entities", entities, (bo, te) => bo.InsertOrReplace(te));
+            return await performBatchTableOperationAsync("Write Entities", 
+                fromHistoryEvents(entities), (bo, te) => bo.InsertOrReplace(te));
         }
 
-        public async Task<object> DeleteEntitesAsync(IEnumerable<CompositeTableEntity> entities)
+        public async Task<object> WriteStateAsync(IEnumerable<OrchestrationState> states)
+        {           
+            return await performBatchTableOperationAsync("Write Entities", fromStates(states),
+                (bo, te) => bo.InsertOrReplace(te));
+        }
+        
+
+        private IEnumerable<CompositeTableEntity> fromHistoryEvents(IEnumerable<OrchestrationHistoryEvent> historyEvents)
         {
-            return await PerformBatchTableOperationAsync("Delete Entities", entities, (bo, te) =>
+            List<OrchestrationHistoryEventEntity> events = new List<OrchestrationHistoryEventEntity>();
+
+            foreach (var item in historyEvents)
+            {
+                events.Add(new OrchestrationHistoryEventEntity(item));
+            }
+
+            return events.ToArray();
+        }
+
+        private IEnumerable<CompositeTableEntity> fromStates(IEnumerable<OrchestrationState> stateEvents)
+        {
+            List<OrchestrationStateEntity> events = new List<OrchestrationStateEntity>();
+
+            foreach (var item in stateEvents)
+            {
+                events.Add(new OrchestrationStateEntity(item));
+            }
+
+            return events.ToArray();
+        }
+
+
+        private IEnumerable<OrchestrationHistoryEvent> fromHistoryEventEntities(IEnumerable<OrchestrationHistoryEventEntity> historyEvents)
+        {
+            List<OrchestrationHistoryEvent> events = new List<OrchestrationHistoryEvent>();
+
+            foreach (var item in historyEvents)
+            {
+                events.Add(new OrchestrationHistoryEvent(item.InstanceId,
+                    item.ExecutionId, item.SequenceNumber, item.TaskTimeStamp, item.HistoryEvent));
+            }
+
+            return events.ToArray();
+        }
+
+
+        private async Task<object> deleteEntitesAsync(IEnumerable<CompositeTableEntity> entities)
+        {
+            return await performBatchTableOperationAsync("Delete Entities", entities, (bo, te) =>
             {
                 te.ETag = "*";
                 bo.Delete(te);
             });
         }
+
+
+        /// <summary>
+        /// Purges orchestration instance state and history for orchestrations older than the specified threshold time.
+        /// </summary>
+        /// <param name="thresholdDateTimeUtc">Threshold date time in UTC</param>
+        /// <param name="timeRangeFilterType">What to compare the threshold date time against</param>
+        /// <returns></returns>
+        public async Task PurgeOrchestrationInstanceHistoryAsync(DateTime thresholdDateTimeUtc,
+            OrchestrationStateTimeRangeFilterType timeRangeFilterType)
+        {
+           
+            TableContinuationToken continuationToken = null;
+
+            //TraceHelper.Trace(TraceEventType.Information,
+            //    () =>
+            //        "Purging orchestration instances before: " + thresholdDateTimeUtc + ", Type: " + timeRangeFilterType);
+
+            int purgeCount = 0;
+            do
+            {
+                TableQuerySegment<OrchestrationStateEntity> resultSegment =
+                    (await this.queryOrchestrationStatesSegmentedAsync(
+                        new OrchestrationStateQuery()
+                            .AddTimeRangeFilter(DateTime.MinValue, thresholdDateTimeUtc, timeRangeFilterType),
+                        continuationToken, 100)
+                        .ConfigureAwait(false));
+
+                continuationToken = resultSegment.ContinuationToken;
+
+                if (resultSegment.Results != null)
+                {
+                    await PurgeOrchestrationHistorySegmentAsync(resultSegment).ConfigureAwait(false);
+                    purgeCount += resultSegment.Results.Count;
+                }
+            } while (continuationToken != null);
+
+           // TraceHelper.Trace(TraceEventType.Information, () => "Purged " + purgeCount + " orchestration histories");
+        }
+
+        private async Task PurgeOrchestrationHistorySegmentAsync(
+            TableQuerySegment<OrchestrationStateEntity> orchestrationStateEntitySegment)
+        {
+            var stateEntitiesToDelete = new List<OrchestrationStateEntity>(orchestrationStateEntitySegment.Results);
+
+            var historyEntitiesToDelete = new ConcurrentBag<IEnumerable<OrchestrationHistoryEventEntity>>();
+            await Task.WhenAll(orchestrationStateEntitySegment.Results.Select(
+                entity => Task.Run(async () =>
+                {
+                    IEnumerable<OrchestrationHistoryEventEntity> historyEntities =
+                        await
+                            this.readHistoryEventsAsync(
+                                entity.State.OrchestrationInstance.InstanceId,
+                                entity.State.OrchestrationInstance.ExecutionId).ConfigureAwait(false);
+
+                    historyEntitiesToDelete.Add(historyEntities);
+                })));
+
+            List<Task> historyDeleteTasks = historyEntitiesToDelete.Select(
+                historyEventList => this.deleteEntitesAsync(historyEventList)).Cast<Task>().ToList();
+
+            // need to serialize history deletes before the state deletes so we dont leave orphaned history events
+            await Task.WhenAll(historyDeleteTasks).ConfigureAwait(false);
+            await Task.WhenAll(this.deleteEntitesAsync(stateEntitiesToDelete)).ConfigureAwait(false);
+        }
+
+        public async Task DeleteStoreIfExistsAsync()
+        {
+            await this.table.DeleteIfExistsAsync();
+        }
+
+        public async Task CreateStoreIfNotExistsAsync()
+        {
+            await this.table.CreateIfNotExistsAsync();
+        }
+
+     
     }
 }

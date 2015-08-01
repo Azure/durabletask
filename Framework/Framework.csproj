@@ -124,6 +124,8 @@
     <Compile Include="Test\FakeOrchestrationClock.cs" />
     <Compile Include="Test\FakeOrchestrationExecutor.cs" />
     <Compile Include="Test\FakeTaskActivityExecutor.cs" />
+    <Compile Include="Tracking\IStateProvider.cs" />
+    <Compile Include="Tracking\OrchestrationHistoryEvent.cs" />
     <Compile Include="TypeMissingException.cs" />
     <Compile Include="OrchestrationFrameworkException.cs" />
     <Compile Include="DispatcherBase.cs" />
