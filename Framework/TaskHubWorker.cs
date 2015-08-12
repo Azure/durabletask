@@ -28,7 +28,7 @@ namespace DurableTask
     /// </summary>
     public sealed class TaskHubWorker
     {
-        internal static string StateProviderKeyName = "StateProvider";
+        public static string StateProviderKeyName = "StateProvider";
 
         readonly NameVersionObjectManager<TaskActivity> activityManager;
         readonly string connectionString;
@@ -436,7 +436,7 @@ namespace DurableTask
             {
                 if (!string.IsNullOrEmpty(tableStoreConnectionString) && createInstanceStore)
                 {
-                    client = new TableClient(hubName, tableStoreConnectionString);                    
+                    client = new TableClient(hubName, tableStoreConnectionString);
                 }
             }
 
@@ -500,7 +500,7 @@ namespace DurableTask
                 }
             }
 
-            if(client != null)
+            if (client != null)
                 client.CreateStoreIfNotExistsAsync().Wait();
         }
 
@@ -538,11 +538,11 @@ namespace DurableTask
                 {
                     if (!string.IsNullOrEmpty(tableStoreConnectionString))
                     {
-                        client = new TableClient(hubName, tableStoreConnectionString);                      
+                        client = new TableClient(hubName, tableStoreConnectionString);
                     }
                 }
 
-                if(client != null)
+                if (client != null)
                 {
                     client.DeleteStoreIfExistsAsync().Wait();
                 }

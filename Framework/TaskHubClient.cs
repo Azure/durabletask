@@ -45,7 +45,7 @@ namespace DurableTask
         readonly string tableStoreConnectionString;
         readonly string workerEntityName;
 
-    
+
         /// <summary>
         ///     Create a new TaskHubClient with the given name, service bus connection string and default settings.
         /// </summary>
@@ -114,6 +114,9 @@ namespace DurableTask
             // If the state provider is not specified (not injected) we will use default provider.
             else
             {
+                if (tableStoreConnectionString == null)
+                    throw new ArgumentException("Either 'TaskHubWorker.StateProviderKeyName' must be added to list of services or 'tableStoreConnectionString' must be specified.");
+
                 this.tableStoreConnectionString = tableStoreConnectionString;
                 if (!string.IsNullOrEmpty(this.tableStoreConnectionString))
                 {
@@ -244,6 +247,7 @@ namespace DurableTask
                     () => CreateOrchestrationInstanceAsync(name, version, instanceId, input, tags).Result);
         }
 
+
         /// <summary>
         ///     Create a new orchestration of the specified name and version
         /// </summary>
@@ -257,6 +261,36 @@ namespace DurableTask
             string instanceId,
             object input, IDictionary<string, string> tags)
         {
+            string serializedInput = defaultConverter.Serialize(input);
+            string serializedTags = tags != null ? defaultConverter.Serialize(tags) : null;
+
+            return await CreateOrchestrationInstanceAsync(name, version, instanceId, serializedInput, serializedTags);
+        }
+
+
+        /// <summary>
+        /// Create a new orchestration of the specified name and version.
+        /// This is most generic version of CreateOrchestrationInstanceAsync methods. It is useful in
+        /// external systems, which need to start orchestration without of need to reference
+        /// input orchestration types, which sometimes might be very complexs and/or owned
+        /// by different teams.
+        /// To avoit this dependency this method enables you to start orchestration from serialized 
+        /// input, which is of type string.
+        /// </summary>
+        /// <param name="name">Name of the orchestration as specified by the ObjectCreator</param>
+        /// <param name="version">Name of the orchestration as specified by the ObjectCreator</param>
+        /// <param name="instanceId">Instance id for the orchestration to be created, must be unique across the Task Hub</param>
+        /// <param name="serializedInput">Input parameter to the specified TaskOrchestration</param>
+        /// <param name="serializedTags">Dictionary of key/value tags associated with this instance</param>
+        /// <returns>OrchestrationInstance that represents the orchestration that was created.
+        /// By using of this method, be sure that serialized input and tags use same serializer as DTF.</returns>
+        public async Task<OrchestrationInstance> CreateOrchestrationInstanceAsync(string name, string version,
+            string instanceId,
+            string serializedInput, string serializedTags)
+        {
+            //string serializedInput = defaultConverter.Serialize(input);
+            //string serializedtags = tags != null ? defaultConverter.Serialize(tags) : null;
+
             if (string.IsNullOrWhiteSpace(instanceId))
             {
                 instanceId = Guid.NewGuid().ToString("N");
@@ -268,12 +302,9 @@ namespace DurableTask
                 ExecutionId = Guid.NewGuid().ToString("N"),
             };
 
-            string serializedInput = defaultConverter.Serialize(input);
-            string serializedtags = tags != null ? defaultConverter.Serialize(tags) : null;
-
             var startedEvent = new ExecutionStartedEvent(-1, serializedInput)
             {
-                Tags = serializedtags,
+                Tags = serializedTags,
                 Name = name,
                 Version = version,
                 OrchestrationInstance = orchestrationInstance
