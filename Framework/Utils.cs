@@ -14,7 +14,6 @@
 namespace DurableTask
 {
     using System;
-    using System.Collections.Generic;
     using System.Diagnostics;
     using System.IO;
     using System.IO.Compression;
@@ -398,44 +397,6 @@ namespace DurableTask
                 throw TraceHelper.TraceExceptionSession(TraceEventType.Error, sessionId, lastException);
             }
             return retVal;
-        }
-
-        public static Task<BrokeredMessage> ReceiveAsync(this QueueClient client, TimeSpan timeout)
-        {
-            return Task.Factory.FromAsync<TimeSpan, BrokeredMessage>(client.BeginReceive, client.EndReceive,
-                timeout, null);
-        }
-
-        public static Task<IEnumerable<BrokeredMessage>> ReceiveBatchAsync(this MessageSession session, int messageCount)
-        {
-            return Task.Factory.FromAsync<int, IEnumerable<BrokeredMessage>>(session.BeginReceiveBatch,
-                session.EndReceiveBatch,
-                messageCount, null);
-        }
-
-        public static Task<MessageSession> AcceptMessageSessionAsync(this QueueClient client, TimeSpan timeout)
-        {
-            return Task.Factory.FromAsync<TimeSpan, MessageSession>(client.BeginAcceptMessageSession,
-                client.EndAcceptMessageSession,
-                timeout, null);
-        }
-
-        public static Task SendBatchAsync(this QueueClient queueClient, IEnumerable<BrokeredMessage> messages)
-        {
-            var tcs = new TaskCompletionSource<object>();
-            queueClient.BeginSendBatch(messages, ar =>
-            {
-                try
-                {
-                    queueClient.EndSendBatch(ar);
-                    tcs.SetResult(null);
-                }
-                catch (Exception exception)
-                {
-                    tcs.SetException(exception);
-                }
-            }, null);
-            return tcs.Task;
         }
 
         public static string SerializeCause(Exception originalException, DataConverter converter)
