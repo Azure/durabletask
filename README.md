@@ -1,6 +1,8 @@
 Durable Task Framework
 ======================
 
+[![Join the chat at https://gitter.im/affandar/durabletask](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/affandar/durabletask?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 This framework allows users to write long running persistent workflows in C# using the async/await capabilities.
 
 It is used heavily within various teams at Microsoft to reliably orchestrate long running provisioning, monitoring and management operations. The orchestrations scale out linearly by simply adding more worker machines. 
