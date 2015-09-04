@@ -13,7 +13,10 @@
 
 namespace DurableTask
 {
-    internal abstract class OrchestrationStateQueryFilter
+    /// <summary>
+    /// Defines the query for orchestration states.
+    /// </summary>
+    public abstract class OrchestrationStateQueryFilter
     {
     }
 }

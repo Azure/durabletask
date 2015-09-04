@@ -114,10 +114,8 @@ namespace DurableTask
             // If the state provider is not specified (not injected) we will use default provider.
             else
             {
-                if (tableStoreConnectionString == null)
-                    throw new ArgumentException("Either 'TaskHubWorker.StateProviderKeyName' must be added to list of services or 'tableStoreConnectionString' must be specified.");
-
                 this.tableStoreConnectionString = tableStoreConnectionString;
+
                 if (!string.IsNullOrEmpty(this.tableStoreConnectionString))
                 {
                     tableClient = new TableClient(this.hubName, this.tableStoreConnectionString);

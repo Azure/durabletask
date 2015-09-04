@@ -46,8 +46,12 @@ namespace DurableTask
 
         internal IDictionary<Type, OrchestrationStateQueryFilter> FilterMap { get; private set; }
 
-        // returns <primary_filter, collection_of(secondary_filters)>
-        internal Tuple<OrchestrationStateQueryFilter, IEnumerable<OrchestrationStateQueryFilter>> GetFilters()
+      
+        /// <summary>
+        /// Returns primary and secondary filters for query.
+        /// </summary>
+        /// <returns>[primary_filter, collection_of(secondary_filters)]</returns>
+        public Tuple<OrchestrationStateQueryFilter, IEnumerable<OrchestrationStateQueryFilter>> GetFilters()
         {
             ICollection<OrchestrationStateQueryFilter> filters = FilterMap.Values;
             if (filters.Count == 0)
