@@ -162,16 +162,14 @@ namespace DurableTask
         /// <param name="cancellationToken"></param>
         async void RenewUntil(BrokeredMessage message, CancellationToken cancellationToken)
         {
-            try 
+            try
             {
                 int renewInterval = 30000;
 
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(30));
+                    await Task.Delay(TimeSpan.FromMilliseconds(renewInterval));
                     {
-                        //
-                        // This prevents throwing of ObjectDisposedException of the message.
                         if (!cancellationToken.IsCancellationRequested)
                         {
                             try
@@ -179,10 +177,10 @@ namespace DurableTask
                                 TraceHelper.Trace(TraceEventType.Information, "Renewing lock for message id {0}",
                                     message.MessageId);
 
-                                message.RenewLock();
+                                await message.RenewLockAsync();
 
                                 TraceHelper.Trace(TraceEventType.Information, "Next renew for message id '{0}' at '{1}'",
-                                    message.MessageId, DateTime.Now.AddMilliseconds(renewInterval));
+                                    message.MessageId, DateTime.UtcNow.AddMilliseconds(renewInterval));
                             }
                             catch (Exception exception)
                             {
@@ -201,7 +199,6 @@ namespace DurableTask
                 // a complete call in the main dispatcher thread
             }
         }
-
 
 
         DateTime AdjustRenewAt(DateTime renewAt)
