@@ -552,7 +552,7 @@ namespace DurableTask.Tracking
 
                 if (resultSegment.Results != null)
                 {
-                    await PurgeOrchestrationHistorySegmentAsync(resultSegment).ConfigureAwait(false);
+                    await purgeOrchestrationHistorySegmentAsync(resultSegment).ConfigureAwait(false);
                     purgeCount += resultSegment.Results.Count;
                 }
             } while (continuationToken != null);
@@ -560,7 +560,7 @@ namespace DurableTask.Tracking
            // TraceHelper.Trace(TraceEventType.Information, () => "Purged " + purgeCount + " orchestration histories");
         }
 
-        private async Task PurgeOrchestrationHistorySegmentAsync(
+        private async Task purgeOrchestrationHistorySegmentAsync(
             TableQuerySegment<OrchestrationStateEntity> orchestrationStateEntitySegment)
         {
             var stateEntitiesToDelete = new List<OrchestrationStateEntity>(orchestrationStateEntitySegment.Results);
