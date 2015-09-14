@@ -157,7 +157,6 @@ namespace DurableTask.Test
                    || clock.HasPendingTimers)
             {
                 nextDelay = clock.FirePendingTimers();
-                Trace.WriteLine("Delay: " + nextDelay);
                 if (nextDelay.Equals(TimeSpan.Zero))
                 {
                     await Task.Delay(10);
