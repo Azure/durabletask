@@ -170,7 +170,8 @@ namespace DurableTask
 
                     //TraceHelper.Trace(TraceEventType.Information, "2 - deciderSender.Send(responseMessage)", message.MessageId);
 
-                    retry((msg) => {
+                    retry((msg) =>
+                    {
                         deciderSender.Send(msg);
                     }, responseMessage);
 
@@ -193,12 +194,11 @@ namespace DurableTask
 
 
         /// <summary>
-        /// This method provides retrying of sending of the new task message to SB.
-        /// In some rare cases Complete of the current message and sending of the new message, which run in one trasaction,
-        /// might fail du transaction failure. This exeptional case can be mostly reproduced when host is running
-        /// On-Prem and Azure Service Bus in remote hosting center is used.
-        /// This method is called inside of the transaction, when Complete succeddes and Sending of the new message fails.
-        /// When that happen, without of sending of the new message, system would stay in inconsistent state:
+        /// The new "retry()" method provides retrying of sending of the new task message to SB.        
+        /// In some rare cases Complete of the current message and sending of the new message, which run in one transaction, 
+        /// might fail du transaction failure.This exceptional case can be mostly reproduced when host is running On-Prem and Azure Service Bus in remote hosting center is used.
+        /// This method is called inside of the transaction, when Complete succeeds and Sending of the new message fails.
+        ///  When that happen, without of sending of the new message, system would stay in inconsistent state:
         /// looping orchestration would not be dispatched any more and orchestration instance would be still tracked as running.
         /// </summary>
         /// <param name="action"></param>
