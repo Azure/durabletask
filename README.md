@@ -1,3 +1,5 @@
+[NOTE: The location for this repo has changed from https://github.com/<b>affandar</b>/durabletask to https://github.com/<b>Azure</b>/durabletask. Please update your bookmarks.]
+
 Durable Task Framework
 ======================
 
