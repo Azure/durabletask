@@ -11,6 +11,8 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+using System.Globalization;
+
 namespace DurableTask.Tracing
 {
     using System;
@@ -208,7 +210,9 @@ namespace DurableTask.Tracing
                 try
                 {
                     source.TraceEvent(TraceEventType.Critical, 0,
-                        "Failed to log actual trace because one or more trace listeners threw an exception.");
+                        string.Format(CultureInfo.InvariantCulture,
+                        "Failed to log actual trace because one or more trace listeners threw an exception. Message: {0}", 
+                        exception.ToString()));
                 }
                 catch (Exception anotherException)
                 {
