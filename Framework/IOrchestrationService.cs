@@ -15,15 +15,17 @@ namespace DurableTask
 {
     using System;
     using System.Collections.Generic;
+    using System.Threading;
     using System.Threading.Tasks;
 
     // AFFANDAR : TODO : MASTER
-    //      + fix up taskhubworker
     //      + implement LocalOrchestrationService and LocalOchestrationServiceClient
-    //      + add TaskActivityDispatcher2
     //      + test checkpoint
     //      + move public classes to separate files
     //      + rethink method names?
+    //      + fix up all tests
+    //      + make dispatcher start/stop methods async
+    //      + task hub description
     //      + change TaskOrchestrationDispatcher2 to use this
     //      + implement ServiceBusOrchestrationService
     //      + build trackingdispatcher2 inside the serivce bus layer
@@ -31,12 +33,22 @@ namespace DurableTask
     //      + replumb taskhubclient on top of IOrchestrationService
     //      + clean up XML doc comments in public classes
     //
+    //  DONE:
+    //      + fix up taskhubworker
+    //      + add TaskActivityDispatcher2
+    //      
 
     public interface IOrchestrationServiceClient
     {
         Task CreateTaskOrchestrationAsync(TaskMessage creationMessage);
 
         Task SendTaskOrchestrationMessage(TaskMessage message);
+
+        Task<OrchestrationState> WaitForOrchestrationAsync(
+            string instanceId, 
+            string executionId,
+            TimeSpan timeout, 
+            CancellationToken cancellationToken);
 
         Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions);
 
@@ -47,19 +59,25 @@ namespace DurableTask
         Task PurgeOrchestrationInstanceHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType);
     }
 
-    interface IOrchestrationService
+    public interface IOrchestrationService
     {
-        // TaskHubWorker methods
+        // Service management and lifecycle operations
         Task StartAsync();
 
         Task StopAsync();
 
+        Task CreateAsync();
+
+        Task CreateIfNotExistsAsync();
+
+        Task DeleteAsync();
+
         // TaskOrchestrationDispatcher methods
         bool IsMaxMessageCountExceeded(int currentMessageCount, OrchestrationRuntimeState runtimeState);
 
-        Task<TaskOrchestrationWorkItem> LockNextTaskOrchestrationWorkItemAsync();
+        Task<TaskOrchestrationWorkItem> LockNextTaskOrchestrationWorkItemAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken);
 
-        Task RenewTaskOrchestrationWorkItemLockAsync(TaskOrchestrationWorkItem workItem);
+        Task<TaskOrchestrationWorkItem> RenewTaskOrchestrationWorkItemLockAsync(TaskOrchestrationWorkItem workItem);
 
         Task CompleteTaskOrchestrationWorkItemAsync(
             TaskOrchestrationWorkItem workItem,
@@ -73,9 +91,9 @@ namespace DurableTask
         Task TerminateTaskOrchestrationAsync(TaskOrchestrationWorkItem workItem, bool force);
 
         // TaskActiviryDispatcher methods
-        Task<TaskActivityWorkItem> LockNextTaskActivityWorkItem();
+        Task<TaskActivityWorkItem> LockNextTaskActivityWorkItem(TimeSpan receiveTimeout, CancellationToken cancellationToken);
 
-        Task RenewTaskActivityWorkItemLockAsync(TaskActivityWorkItem workItem);
+        Task<TaskActivityWorkItem> RenewTaskActivityWorkItemLockAsync(TaskActivityWorkItem workItem);
 
         Task CompleteTaskActivityWorkItemAsync(TaskActivityWorkItem workItem, TaskMessage responseMessage);
 
@@ -84,22 +102,18 @@ namespace DurableTask
         // AFFANDAR : TODO : add instance store methods.
     }
 
-    internal class TaskActivityWorkItem
+    public class TaskActivityWorkItem
     {
         public string Id;
+        public DateTime LockedUntilUtc;
         public TaskMessage TaskMessage;
     }
 
-    internal class TrackingWorkItem
-    {
-        public string Id;
-        public IList<TaskMessage> messages;
-    }
-
-    internal class TaskOrchestrationWorkItem
+    public class TaskOrchestrationWorkItem
     {
         public OrchestrationInstance OrchestrationInstance;
         public OrchestrationRuntimeState OrchestrationRuntimeState;
+        DateTime LockedUntilUtc;
         public IList<TaskMessage> NewMessages;
     }
 }

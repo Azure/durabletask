@@ -21,30 +21,25 @@ namespace DurableTask
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Linq;
+    using System.Threading;
     using System.Threading.Tasks;
     using Tracing;
 
-    internal class TaskOrchestrationDispatcher2 : DispatcherBase<TaskOrchestrationWorkItem>
+    public class TaskOrchestrationDispatcher2 : DispatcherBase<TaskOrchestrationWorkItem>
     {
         readonly NameVersionObjectManager<TaskOrchestration> objectManager;
         readonly TaskHubWorkerSettings settings;
-        readonly TaskHubDescription taskHubDescription;
-        readonly TrackingDispatcher trackingDipatcher;
         readonly IOrchestrationService orchestrationService;
 
-        internal TaskOrchestrationDispatcher2(MessagingFactory messagingFactory,
-            TrackingDispatcher trackingDispatcher,
-            TaskHubDescription taskHubDescription,
+        internal TaskOrchestrationDispatcher2(
             TaskHubWorkerSettings workerSettings,
             IOrchestrationService orchestrationService,
             NameVersionObjectManager<TaskOrchestration> objectManager)
             : base("TaskOrchestration Dispatcher", item => item == null  ? string.Empty : item.OrchestrationInstance.InstanceId)  // AFFANDAR : TODO : revisit this abstraction
         {
-            this.taskHubDescription = taskHubDescription;
             this.settings = workerSettings.Clone();
             this.objectManager = objectManager;
 
-            this.trackingDipatcher = trackingDispatcher;
             this.orchestrationService = orchestrationService;
             maxConcurrentWorkItems = settings.TaskOrchestrationDispatcherSettings.MaxConcurrentOrchestrations;
         }
@@ -67,7 +62,8 @@ namespace DurableTask
         protected override async Task<TaskOrchestrationWorkItem> OnFetchWorkItem(TimeSpan receiveTimeout)
         {
             // AFFANDAR : TODO : do we really need this abstract method anymore?
-            return await this.orchestrationService.LockNextTaskOrchestrationWorkItemAsync();
+            // AFFANDAR : TODO : wire-up cancellation tokens
+            return await this.orchestrationService.LockNextTaskOrchestrationWorkItemAsync(receiveTimeout, new CancellationToken());
         }
 
         protected override async Task OnProcessWorkItem(TaskOrchestrationWorkItem workItem)

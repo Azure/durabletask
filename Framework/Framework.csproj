@@ -109,6 +109,7 @@
     <Compile Include="RetryInterceptor.cs" />
     <Compile Include="NonDeterministicOrchestrationException.cs" />
     <Compile Include="SubOrchestrationFailedException.cs" />
+    <Compile Include="TaskActivityDispatcher2.cs" />
     <Compile Include="TaskFailedExceptionDeserializationException.cs" />
     <Compile Include="TaskFailureException.cs" />
     <Compile Include="OrchestrationState.cs" />
@@ -116,8 +117,10 @@
     <Compile Include="TaskHubClient2.cs" />
     <Compile Include="TaskHubClientSettings.cs" />
     <Compile Include="IOrchestrationService.cs" />
+    <Compile Include="TaskHubWorker2.cs" />
     <Compile Include="TaskOrchestrationDispatcher2.cs" />
     <Compile Include="Test\DebugTestHost.cs" />
+    <Compile Include="Test\LocalOrchestrationService.cs" />
     <Compile Include="TrackingDispatcherSettings.cs" />
     <Compile Include="TaskOrchestrationDispatcherSettings.cs" />
     <Compile Include="TaskHubWorkerSettings.cs" />

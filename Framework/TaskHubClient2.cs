@@ -17,6 +17,7 @@ namespace DurableTask
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using System.Threading;
     using System.Threading.Tasks;
 
     /// <summary>
@@ -202,6 +203,29 @@ namespace DurableTask
             };
 
             await this.serviceClient.SendTaskOrchestrationMessage(taskMessage);
+        }
+
+        // AFFANDAR : TODO : just scan this file and fix up xml comments
+
+        /// <summary>
+        ///     Wait for an orchestration to reach any terminal state within the given timeout
+        /// </summary>
+        /// <param name="orchestrationInstance">Instance to terminate</param>
+        public Task<OrchestrationState> WaitForOrchestrationAsync(
+            OrchestrationInstance orchestrationInstance,
+            TimeSpan timeout,
+            CancellationToken cancellationToken)
+        {
+            if (orchestrationInstance == null || string.IsNullOrWhiteSpace(orchestrationInstance.InstanceId))
+            {
+                throw new ArgumentException("orchestrationInstance");
+            }
+
+            return this.serviceClient.WaitForOrchestrationAsync(
+                orchestrationInstance.InstanceId,
+                orchestrationInstance.ExecutionId,
+                timeout,
+                cancellationToken);
         }
 
         // Instance query methods

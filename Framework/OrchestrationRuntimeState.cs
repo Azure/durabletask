@@ -18,7 +18,7 @@ namespace DurableTask
     using System.Diagnostics;
     using History;
 
-    internal class OrchestrationRuntimeState
+    public class OrchestrationRuntimeState
     {
         public readonly IList<HistoryEvent> Events;
 
@@ -296,7 +296,7 @@ namespace DurableTask
             return returnedEvent;
         }
 
-        internal class OrchestrationRuntimeStateDump
+        public class OrchestrationRuntimeStateDump
         {
             public IList<HistoryEvent> Events;
             public IList<HistoryEvent> NewEvents;
