@@ -13,22 +13,49 @@
 
 namespace DurableTask
 {
+    using System;
     using System.Collections.Generic;
     using System.Threading.Tasks;
 
     // AFFANDAR : TODO : MASTER
+    //      + fix up taskhubworker
+    //      + implement LocalOrchestrationService and LocalOchestrationServiceClient
+    //      + add TaskActivityDispatcher2
+    //      + test checkpoint
     //      + move public classes to separate files
     //      + rethink method names?
     //      + change TaskOrchestrationDispatcher2 to use this
     //      + implement ServiceBusOrchestrationService
-    //      + add TaskActivityDispatcher2
     //      + build trackingdispatcher2 inside the serivce bus layer
     //      + add instance store methods to IOrchestrationService
     //      + replumb taskhubclient on top of IOrchestrationService
+    //      + clean up XML doc comments in public classes
     //
+
+    public interface IOrchestrationServiceClient
+    {
+        Task CreateTaskOrchestrationAsync(TaskMessage creationMessage);
+
+        Task SendTaskOrchestrationMessage(TaskMessage message);
+
+        Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions);
+
+        Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId);
+
+        Task<string> GetOrchestrationHistoryAsync(string instanceId, string executionId);
+
+        Task PurgeOrchestrationInstanceHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType);
+    }
+
     interface IOrchestrationService
     {
-        int MaxMessageCount { get;  }
+        // TaskHubWorker methods
+        Task StartAsync();
+
+        Task StopAsync();
+
+        // TaskOrchestrationDispatcher methods
+        bool IsMaxMessageCountExceeded(int currentMessageCount, OrchestrationRuntimeState runtimeState);
 
         Task<TaskOrchestrationWorkItem> LockNextTaskOrchestrationWorkItemAsync();
 
@@ -45,6 +72,7 @@ namespace DurableTask
 
         Task TerminateTaskOrchestrationAsync(TaskOrchestrationWorkItem workItem, bool force);
 
+        // TaskActiviryDispatcher methods
         Task<TaskActivityWorkItem> LockNextTaskActivityWorkItem();
 
         Task RenewTaskActivityWorkItemLockAsync(TaskActivityWorkItem workItem);

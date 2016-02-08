@@ -26,21 +26,6 @@ namespace DurableTask
 
     internal class TaskOrchestrationDispatcher2 : DispatcherBase<TaskOrchestrationWorkItem>
     {
-        const int PrefetchCount = 50;
-        const int SessionStreamWarningSizeInBytes = 200*1024;
-        const int SessionStreamTerminationThresholdInBytes = 230*1024;
-
-        // This is the Max number of messages which can be processed in a single transaction.
-        // Current ServiceBus limit is 100 so it has to be lower than that.  
-        // This also has an impact on prefetch count as PrefetchCount cannot be greater than this value
-        // as every fetched message also creates a tracking message which counts towards this limit.
-        const int MaxMessageCount = 80;
-
-        const int MaxRetries = 5;
-        const int IntervalBetweenRetriesSecs = 5;
-        readonly bool isTrackingEnabled;
-
-
         readonly NameVersionObjectManager<TaskOrchestration> objectManager;
         readonly TaskHubWorkerSettings settings;
         readonly TaskHubDescription taskHubDescription;
@@ -69,10 +54,6 @@ namespace DurableTask
 
         protected override void OnStart()
         {
-            if (isTrackingEnabled)
-            {
-                trackingDipatcher.Start();
-            }
         }
 
         protected override void OnStopping(bool isForced)
@@ -81,10 +62,6 @@ namespace DurableTask
 
         protected override void OnStopped(bool isForced)
         {
-            if (isTrackingEnabled)
-            {
-                trackingDipatcher.Stop(isForced);
-            }
         }
 
         protected override async Task<TaskOrchestrationWorkItem> OnFetchWorkItem(TimeSpan receiveTimeout)
@@ -177,18 +154,14 @@ namespace DurableTask
                                 new NotSupportedException("decision type not supported"));
                     }
 
-                    // We cannot send more than 100 messages within a transaction, to avoid the situation
-                    // we keep on checking the message count and stop processing the new decisions.
+                    // Underlying orchestration service provider may have a limit of messages per call, to avoid the situation
+                    // we keep on asking the provider if message count is ok and stop processing new decisions if not.
+                    //
                     // We also put in a fake timer to force next orchestration task for remaining messages
                     int totalMessages = messagesToSend.Count + subOrchestrationMessages.Count + timerMessages.Count;
-                    // Also add tracking messages as they contribute to total messages within transaction
-                    if (isTrackingEnabled)
-                    {
-                        totalMessages += runtimeState.NewEvents.Count;
-                    }
 
                     // AFFANDAR : TODO : this should be moved to the service bus orchestration service
-                    if (totalMessages > this.orchestrationService.MaxMessageCount)
+                    if (this.orchestrationService.IsMaxMessageCountExceeded(totalMessages, runtimeState))
                     {
                         TraceHelper.TraceInstance(TraceEventType.Information, runtimeState.OrchestrationInstance,
                             "MaxMessageCount reached.  Adding timer to process remaining events in next attempt.");

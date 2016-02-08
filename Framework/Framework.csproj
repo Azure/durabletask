@@ -86,7 +86,6 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ServiceBusOrchestrationService.cs" />
     <Compile Include="SynchronousTaskScheduler.cs" />
     <Compile Include="History\GenericEvent.cs" />
     <Compile Include="CompressionSettings.cs" />
@@ -114,6 +113,7 @@
     <Compile Include="TaskFailureException.cs" />
     <Compile Include="OrchestrationState.cs" />
     <Compile Include="TaskActivityDispatcherSettings.cs" />
+    <Compile Include="TaskHubClient2.cs" />
     <Compile Include="TaskHubClientSettings.cs" />
     <Compile Include="IOrchestrationService.cs" />
     <Compile Include="TaskOrchestrationDispatcher2.cs" />
