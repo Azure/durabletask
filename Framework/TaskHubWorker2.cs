@@ -140,8 +140,9 @@ namespace DurableTask
                 this.activityDispatcher = new TaskActivityDispatcher2(this.workerSettings, this.orchestrationService, this.activityManager);
 
                 // AFFANDAR : TODO : make dispatcher start/stop methods async
-                orchestrationDispatcher.Start();
-                activityDispatcher.Start();
+                this.orchestrationDispatcher.Start();
+                this.activityDispatcher.Start();
+                this.orchestrationService.StartAsync();
 
                 isStarted = true;
             }
@@ -166,8 +167,9 @@ namespace DurableTask
             {
                 if (isStarted)
                 {
-                    orchestrationDispatcher.Stop(isForced);
-                    activityDispatcher.Stop(isForced);
+                    this.orchestrationService.StopAsync();
+                    this.orchestrationDispatcher.Stop(isForced);
+                    this.activityDispatcher.Stop(isForced);
 
                     isStarted = false;
                 }

@@ -105,7 +105,7 @@
     <Compile Include="Mocks\PeekLockQueue.cs" />
     <Compile Include="Mocks\PeekLockSessionQueue.cs" />
     <Compile Include="Mocks\LocalOrchestrationService.cs" />
-    <Compile Include="LocalOrchestrationServiceTests.cs" />
+    <Compile Include="DurableTaskCoreFxTest.cs" />
     <Compile Include="FunctionalTests.cs" />
     <Compile Include="InstanceStoreQueryTests.cs" />
     <Compile Include="OrchestrationTestHostTests.cs" />

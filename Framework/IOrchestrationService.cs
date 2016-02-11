@@ -19,7 +19,8 @@ namespace DurableTask
     using System.Threading.Tasks;
 
     // AFFANDAR : TODO : MASTER
-    //      + write tests for terminate, raise event, suborch, generations and exception passing
+    //      + write tests for terminate, raise event, suborch and exception passing
+    //      + sbus provider: force terminate if session size is greater than supported
     //      + implement batched message receive
     //      + proper exception model for orchestration service providers
     //      + rethink method names?
@@ -33,6 +34,7 @@ namespace DurableTask
     //      + clean up XML doc comments in public classes
     //
     //  DONE:
+    //      + write tests for generations
     //      + implement LocalOrchestrationService and LocalOchestrationServiceClient
     //      + fix up taskhubworker
     //      + add TaskActivityDispatcher2
