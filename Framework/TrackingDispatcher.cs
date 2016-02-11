@@ -72,7 +72,7 @@ namespace DurableTask
             messagingFactory.Close();
         }
 
-        protected override async Task<SessionWorkItem> OnFetchWorkItem(TimeSpan receiveTimeout)
+        protected override async Task<SessionWorkItem> OnFetchWorkItemAsync(TimeSpan receiveTimeout)
         {
             IEnumerable<BrokeredMessage> newMessages = null;
 
@@ -97,7 +97,7 @@ namespace DurableTask
             return new SessionWorkItem {Session = session, Messages = newMessages};
         }
 
-        protected override async Task OnProcessWorkItem(SessionWorkItem sessionWorkItem)
+        protected override async Task OnProcessWorkItemAsync(SessionWorkItem sessionWorkItem)
         {
             MessageSession session = sessionWorkItem.Session;
             IEnumerable<BrokeredMessage> newMessages = sessionWorkItem.Messages;
@@ -249,7 +249,7 @@ namespace DurableTask
                         index, entity.InstanceId, entity.ExecutionId, historyEventLength, serializedHistoryEvent));
         }
 
-        protected override async Task SafeReleaseWorkItem(SessionWorkItem workItem)
+        protected override async Task SafeReleaseWorkItemAsync(SessionWorkItem workItem)
         {
             if (workItem != null && workItem.Session != null)
             {
@@ -265,7 +265,7 @@ namespace DurableTask
             }
         }
 
-        protected override async Task AbortWorkItem(SessionWorkItem workItem)
+        protected override async Task AbortWorkItemAsync(SessionWorkItem workItem)
         {
             if (workItem != null && workItem.Session != null)
             {

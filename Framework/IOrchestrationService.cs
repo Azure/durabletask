@@ -19,45 +19,28 @@ namespace DurableTask
     using System.Threading.Tasks;
 
     // AFFANDAR : TODO : MASTER
-    //      + implement LocalOrchestrationService and LocalOchestrationServiceClient
-    //      + test checkpoint
-    //      + move public classes to separate files
+    //      + write tests for terminate, raise event, suborch, generations and exception passing
+    //      + implement batched message receive
+    //      + proper exception model for orchestration service providers
     //      + rethink method names?
-    //      + fix up all tests
+    //      + rename xxx2 classes to xxx and remove old ones
+    //      + fix up all tests to use the new APIs
     //      + make dispatcher start/stop methods async
     //      + task hub description
     //      + change TaskOrchestrationDispatcher2 to use this
     //      + implement ServiceBusOrchestrationService
     //      + build trackingdispatcher2 inside the serivce bus layer
-    //      + add instance store methods to IOrchestrationService
-    //      + replumb taskhubclient on top of IOrchestrationService
     //      + clean up XML doc comments in public classes
     //
     //  DONE:
+    //      + implement LocalOrchestrationService and LocalOchestrationServiceClient
     //      + fix up taskhubworker
     //      + add TaskActivityDispatcher2
+    //      + test checkpoint
+    //      + move public classes to separate files
+    //      + add instance store methods to IOrchestrationService
+    //      + replumb taskhubclient on top of IOrchestrationService
     //      
-
-    public interface IOrchestrationServiceClient
-    {
-        Task CreateTaskOrchestrationAsync(TaskMessage creationMessage);
-
-        Task SendTaskOrchestrationMessage(TaskMessage message);
-
-        Task<OrchestrationState> WaitForOrchestrationAsync(
-            string instanceId, 
-            string executionId,
-            TimeSpan timeout, 
-            CancellationToken cancellationToken);
-
-        Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions);
-
-        Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId);
-
-        Task<string> GetOrchestrationHistoryAsync(string instanceId, string executionId);
-
-        Task PurgeOrchestrationInstanceHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType);
-    }
 
     public interface IOrchestrationService
     {
@@ -84,13 +67,14 @@ namespace DurableTask
             OrchestrationRuntimeState newOrchestrationRuntimeState, 
             IList<TaskMessage> outboundMessages, 
             IList<TaskMessage> orchestratorMessages, 
-            IList<TaskMessage> timerMessages);
+            IList<TaskMessage> timerMessages,
+            OrchestrationState orchestrationState);
 
         Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem);
 
         Task TerminateTaskOrchestrationAsync(TaskOrchestrationWorkItem workItem, bool force);
 
-        // TaskActiviryDispatcher methods
+        // TaskActivityDispatcher methods
         Task<TaskActivityWorkItem> LockNextTaskActivityWorkItem(TimeSpan receiveTimeout, CancellationToken cancellationToken);
 
         Task<TaskActivityWorkItem> RenewTaskActivityWorkItemLockAsync(TaskActivityWorkItem workItem);
@@ -98,22 +82,5 @@ namespace DurableTask
         Task CompleteTaskActivityWorkItemAsync(TaskActivityWorkItem workItem, TaskMessage responseMessage);
 
         Task AbandonTaskActivityWorkItemAsync(TaskActivityWorkItem workItem);
-
-        // AFFANDAR : TODO : add instance store methods.
-    }
-
-    public class TaskActivityWorkItem
-    {
-        public string Id;
-        public DateTime LockedUntilUtc;
-        public TaskMessage TaskMessage;
-    }
-
-    public class TaskOrchestrationWorkItem
-    {
-        public OrchestrationInstance OrchestrationInstance;
-        public OrchestrationRuntimeState OrchestrationRuntimeState;
-        DateTime LockedUntilUtc;
-        public IList<TaskMessage> NewMessages;
     }
 }

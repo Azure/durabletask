@@ -53,7 +53,7 @@ namespace DurableTask
 
         public bool IncludeDetails { get; set; }
 
-        protected override async Task<BrokeredMessage> OnFetchWorkItem(TimeSpan receiveTimeout)
+        protected override async Task<BrokeredMessage> OnFetchWorkItemAsync(TimeSpan receiveTimeout)
         {
             BrokeredMessage receivedMessage = await workerQueueClient.ReceiveAsync(receiveTimeout);
 
@@ -68,7 +68,7 @@ namespace DurableTask
             return receivedMessage;
         }
 
-        protected override async Task OnProcessWorkItem(BrokeredMessage message)
+        protected override async Task OnProcessWorkItemAsync(BrokeredMessage message)
         {
             Utils.CheckAndLogDeliveryCount(message, taskHubDescription.MaxTaskActivityDeliveryCount);
 
@@ -231,7 +231,7 @@ namespace DurableTask
             messagingFactory.Close();
         }
 
-        protected override Task SafeReleaseWorkItem(BrokeredMessage workItem)
+        protected override Task SafeReleaseWorkItemAsync(BrokeredMessage workItem)
         {
             if (workItem != null)
             {
@@ -241,7 +241,7 @@ namespace DurableTask
             return Task.FromResult<Object>(null);
         }
 
-        protected override async Task AbortWorkItem(BrokeredMessage workItem)
+        protected override async Task AbortWorkItemAsync(BrokeredMessage workItem)
         {
             if (workItem != null)
             {

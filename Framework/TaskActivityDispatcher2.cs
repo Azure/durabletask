@@ -43,12 +43,12 @@ namespace DurableTask
 
         public bool IncludeDetails { get; set; }
 
-        protected override Task<TaskActivityWorkItem> OnFetchWorkItem(TimeSpan receiveTimeout)
+        protected override Task<TaskActivityWorkItem> OnFetchWorkItemAsync(TimeSpan receiveTimeout)
         {
-            return this.orchestrationService.LockNextTaskActivityWorkItem(receiveTimeout, new CancellationToken());
+            return this.orchestrationService.LockNextTaskActivityWorkItem(receiveTimeout, CancellationToken.None);
         }
 
-        protected override async Task OnProcessWorkItem(TaskActivityWorkItem workItem)
+        protected override async Task OnProcessWorkItemAsync(TaskActivityWorkItem workItem)
         {
             // AFFANDAR : TODO : add this to the orchestration service impl
             //Utils.CheckAndLogDeliveryCount(message, taskHubDescription.MaxTaskActivityDeliveryCount);
@@ -198,12 +198,12 @@ namespace DurableTask
         {
         }
 
-        protected override Task SafeReleaseWorkItem(TaskActivityWorkItem workItem)
+        protected override Task SafeReleaseWorkItemAsync(TaskActivityWorkItem workItem)
         {
             return Task.FromResult<object>(null);
         }
 
-        protected override Task AbortWorkItem(TaskActivityWorkItem workItem)
+        protected override Task AbortWorkItemAsync(TaskActivityWorkItem workItem)
         {
             return this.orchestrationService.AbandonTaskActivityWorkItemAsync(workItem);
         }

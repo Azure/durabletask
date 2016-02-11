@@ -109,7 +109,7 @@ namespace DurableTask
             }
         }
 
-        protected override async Task<SessionWorkItem> OnFetchWorkItem(TimeSpan receiveTimeout)
+        protected override async Task<SessionWorkItem> OnFetchWorkItemAsync(TimeSpan receiveTimeout)
         {
             MessageSession session = await orchestratorQueueClient.AcceptMessageSessionAsync(receiveTimeout);
 
@@ -131,7 +131,7 @@ namespace DurableTask
             return new SessionWorkItem {Session = session, Messages = newMessages};
         }
 
-        protected override async Task OnProcessWorkItem(SessionWorkItem sessionWorkItem)
+        protected override async Task OnProcessWorkItemAsync(SessionWorkItem sessionWorkItem)
         {
             var messagesToSend = new List<BrokeredMessage>();
             var timerMessages = new List<BrokeredMessage>();
@@ -791,7 +791,7 @@ namespace DurableTask
             return taskMessage;
         }
 
-        protected override async Task SafeReleaseWorkItem(SessionWorkItem workItem)
+        protected override async Task SafeReleaseWorkItemAsync(SessionWorkItem workItem)
         {
             if (workItem != null && workItem.Session != null)
             {
@@ -807,7 +807,7 @@ namespace DurableTask
             }
         }
 
-        protected override async Task AbortWorkItem(SessionWorkItem workItem)
+        protected override async Task AbortWorkItemAsync(SessionWorkItem workItem)
         {
             if (workItem != null && workItem.Session != null)
             {

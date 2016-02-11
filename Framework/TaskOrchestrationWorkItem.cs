@@ -11,29 +11,16 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.History
+namespace DurableTask
 {
     using System;
-    using System.Runtime.Serialization;
+    using System.Collections.Generic;
 
-    [DataContract]
-    public class TimerFiredEvent : HistoryEvent
+    public class TaskOrchestrationWorkItem
     {
-        public TimerFiredEvent(int eventId)
-            : base(eventId)
-        {
-        }
-
-        public override EventType EventType
-        {
-            get { return EventType.TimerFired; }
-        }
-
-        [DataMember]
-        public int TimerId { get; set; }
-
-        // AFFANDAR : TODO : wire format change. 
-        [DataMember]
-        public DateTime FireAt { get; set; }
+        public string InstanceId;
+        public OrchestrationRuntimeState OrchestrationRuntimeState;
+        public DateTime LockedUntilUtc;
+        public IList<TaskMessage> NewMessages;
     }
 }

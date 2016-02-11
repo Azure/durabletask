@@ -20,7 +20,7 @@ namespace FrameworkUnitTests
     using DurableTask;
     using DurableTask.Test;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
-
+    using Mocks;
     [TestClass]
     public class LocalOrchestrationServiceTests
     {
@@ -38,9 +38,11 @@ namespace FrameworkUnitTests
         }
 
         [TestMethod]
-        public async Task LosSimplestGreetingsTest()
+        public async Task LocalOrchestrationServiceSimplestGreetingTest()
         {
             LocalOrchestrationService orchService = new LocalOrchestrationService();
+
+            await orchService.StartAsync();
 
             TaskHubWorker2 worker = new TaskHubWorker2(orchService, "test", new TaskHubWorkerSettings());
 
@@ -55,6 +57,8 @@ namespace FrameworkUnitTests
             OrchestrationState result = await client.WaitForOrchestrationAsync(id, TimeSpan.FromSeconds(30), new CancellationToken());
             Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,
                 "Orchestration Result is wrong!!!");
+
+            await orchService.StopAsync();
         }
 
         public sealed class SimplestGetUserTask : TaskActivity<string, string>
@@ -73,6 +77,7 @@ namespace FrameworkUnitTests
             public override async Task<string> RunTask(OrchestrationContext context, string input)
             {
                 string user = await context.ScheduleTask<string>(typeof(SimplestGetUserTask));
+                await context.CreateTimer<object>(context.CurrentUtcDateTime.Add(TimeSpan.FromSeconds(10)), null);
                 string greeting = await context.ScheduleTask<string>(typeof(SimplestSendGreetingTask), user);
                 // This is a HACK to get unit test up and running.  Should never be done in actual code.
                 Result = greeting;

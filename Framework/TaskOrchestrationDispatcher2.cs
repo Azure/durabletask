@@ -35,7 +35,7 @@ namespace DurableTask
             TaskHubWorkerSettings workerSettings,
             IOrchestrationService orchestrationService,
             NameVersionObjectManager<TaskOrchestration> objectManager)
-            : base("TaskOrchestration Dispatcher", item => item == null  ? string.Empty : item.OrchestrationInstance.InstanceId)  // AFFANDAR : TODO : revisit this abstraction
+            : base("TaskOrchestration Dispatcher", item => item == null  ? string.Empty : item.InstanceId)  // AFFANDAR : TODO : revisit this abstraction
         {
             this.settings = workerSettings.Clone();
             this.objectManager = objectManager;
@@ -59,14 +59,14 @@ namespace DurableTask
         {
         }
 
-        protected override async Task<TaskOrchestrationWorkItem> OnFetchWorkItem(TimeSpan receiveTimeout)
+        protected override async Task<TaskOrchestrationWorkItem> OnFetchWorkItemAsync(TimeSpan receiveTimeout)
         {
             // AFFANDAR : TODO : do we really need this abstract method anymore?
             // AFFANDAR : TODO : wire-up cancellation tokens
-            return await this.orchestrationService.LockNextTaskOrchestrationWorkItemAsync(receiveTimeout, new CancellationToken());
+            return await this.orchestrationService.LockNextTaskOrchestrationWorkItemAsync(receiveTimeout, CancellationToken.None);
         }
 
-        protected override async Task OnProcessWorkItem(TaskOrchestrationWorkItem workItem)
+        protected override async Task OnProcessWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
             var messagesToSend = new List<TaskMessage>();
             var timerMessages = new List<TaskMessage>();
@@ -77,6 +77,8 @@ namespace DurableTask
             ExecutionStartedEvent continueAsNewExecutionStarted = null;
 
             OrchestrationRuntimeState runtimeState = workItem.OrchestrationRuntimeState;
+
+            runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
 
             if (!ReconcileMessagesWithState(workItem))
             {
@@ -188,16 +190,18 @@ namespace DurableTask
 
             OrchestrationRuntimeState newOrchestrationRuntimeState = workItem.OrchestrationRuntimeState;
 
+            OrchestrationState instanceState = BuildOrchestrationState(newOrchestrationRuntimeState);
+
             if (isCompleted)
             {
-                TraceHelper.TraceSession(TraceEventType.Information, workItem.OrchestrationInstance.InstanceId, "Deleting session state");
-                workItem.OrchestrationRuntimeState = null;
+                TraceHelper.TraceSession(TraceEventType.Information, workItem.InstanceId, "Deleting session state");
+                newOrchestrationRuntimeState = null;
             }
             else
             {
                 if (continuedAsNew)
                 {
-                    TraceHelper.TraceSession(TraceEventType.Information, workItem.OrchestrationInstance.InstanceId,
+                    TraceHelper.TraceSession(TraceEventType.Information, workItem.InstanceId,
                         "Updating state for continuation");
                     newOrchestrationRuntimeState = new OrchestrationRuntimeState();
                     newOrchestrationRuntimeState.AddEvent(new OrchestratorStartedEvent(-1));
@@ -214,13 +218,35 @@ namespace DurableTask
                     newOrchestrationRuntimeState,
                     continuedAsNew ? null : messagesToSend,
                     subOrchestrationMessages,
-                    continuedAsNew ? null : timerMessages);
+                    continuedAsNew ? null : timerMessages,
+                    instanceState);
             }
             catch(Exception exception)
             {
                 // AFFANDAR : TODO : if exception is due to session state size then force terminate message
                 throw;
             }
+        }
+
+        static OrchestrationState BuildOrchestrationState(OrchestrationRuntimeState runtimeState)
+        {
+            return new OrchestrationState
+            {
+                OrchestrationInstance = runtimeState.OrchestrationInstance,
+                ParentInstance = runtimeState.ParentInstance,
+                Name = runtimeState.Name,
+                Version = runtimeState.Version,
+                Status = runtimeState.Status,
+                Tags = runtimeState.Tags,
+                OrchestrationStatus = runtimeState.OrchestrationStatus,
+                CreatedTime = runtimeState.CreatedTime,
+                CompletedTime = runtimeState.CompletedTime,
+                LastUpdatedTime = DateTime.UtcNow,
+                Size = runtimeState.Size,
+                CompressedSize = runtimeState.CompressedSize,
+                Input = runtimeState.Input,
+                Output = runtimeState.Output
+            };
         }
 
         internal virtual IEnumerable<OrchestratorAction> ExecuteOrchestration(OrchestrationRuntimeState runtimeState)
@@ -406,6 +432,7 @@ namespace DurableTask
 
             var timerFiredEvent = new TimerFiredEvent(-1);
             timerFiredEvent.TimerId = createTimerOrchestratorAction.Id;
+            timerFiredEvent.FireAt = createTimerOrchestratorAction.FireAt;
 
             taskMessage.Event = timerFiredEvent;
             taskMessage.OrchestrationInstance = runtimeState.OrchestrationInstance;
@@ -451,7 +478,7 @@ namespace DurableTask
             return taskMessage;
         }
 
-        protected override Task AbortWorkItem(TaskOrchestrationWorkItem workItem)
+        protected override Task AbortWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
             return this.orchestrationService.AbandonTaskOrchestrationWorkItemAsync(workItem);
         }
@@ -481,7 +508,7 @@ namespace DurableTask
             return delay;
         }
 
-        protected override Task SafeReleaseWorkItem(TaskOrchestrationWorkItem workItem)
+        protected override Task SafeReleaseWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
             // no need, 
             return Task.FromResult<object>(null);

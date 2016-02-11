@@ -60,7 +60,7 @@ namespace DurableTask
 
             TraceHelper.Trace(TraceEventType.Information, "{0} starting. Id {1}.", name, id);
             OnStart();
-            Task.Factory.StartNew(() => Dispatch());
+            Task.Factory.StartNew(() => DispatchAsync());
         }
 
         public void Stop()
@@ -96,15 +96,15 @@ namespace DurableTask
         protected abstract void OnStopping(bool isForced);
         protected abstract void OnStopped(bool isForced);
 
-        protected abstract Task<T> OnFetchWorkItem(TimeSpan receiveTimeout);
-        protected abstract Task OnProcessWorkItem(T workItem);
-        protected abstract Task SafeReleaseWorkItem(T workItem);
-        protected abstract Task AbortWorkItem(T workItem);
+        protected abstract Task<T> OnFetchWorkItemAsync(TimeSpan receiveTimeout);
+        protected abstract Task OnProcessWorkItemAsync(T workItem);
+        protected abstract Task SafeReleaseWorkItemAsync(T workItem);
+        protected abstract Task AbortWorkItemAsync(T workItem);
         protected abstract int GetDelayInSecondsAfterOnFetchException(Exception exception);
         protected abstract int GetDelayInSecondsAfterOnProcessException(Exception exception);
 
         // TODO : dispatcher refactoring between worker, orchestrator, tacker & DLQ
-        public async Task Dispatch()
+        public async Task DispatchAsync()
         {
             while (isStarted == 1)
             {
@@ -126,7 +126,7 @@ namespace DurableTask
                     isFetching = true;
                     TraceHelper.Trace(TraceEventType.Information,
                         GetFormattedLog(string.Format("Starting fetch with timeout of {0}", DefaultReceiveTimeout)));
-                    workItem = await OnFetchWorkItem(DefaultReceiveTimeout);
+                    workItem = await OnFetchWorkItemAsync(DefaultReceiveTimeout);
                 }
                 catch (TimeoutException)
                 {
@@ -148,12 +148,12 @@ namespace DurableTask
                 {
                     if (isStarted == 0)
                     {
-                        await SafeReleaseWorkItem(workItem);
+                        await SafeReleaseWorkItemAsync(workItem);
                     }
                     else
                     {
                         Interlocked.Increment(ref concurrentWorkItemCount);
-                        Task.Factory.StartNew<Task>(ProcessWorkItem, workItem);
+                        Task.Factory.StartNew<Task>(ProcessWorkItemAsync, workItem);
                     }
                 }
 
@@ -166,7 +166,7 @@ namespace DurableTask
             }
         }
 
-        protected virtual async Task ProcessWorkItem(object workItemObj)
+        protected virtual async Task ProcessWorkItemAsync(object workItemObj)
         {
             var workItem = (T) workItemObj;
             bool abortWorkItem = true;
@@ -179,7 +179,7 @@ namespace DurableTask
                 TraceHelper.Trace(TraceEventType.Information,
                     GetFormattedLog(string.Format("Starting to process workItem {0}", workItemId)));
 
-                await OnProcessWorkItem(workItem);
+                await OnProcessWorkItemAsync(workItem);
 
                 AdjustDelayModifierOnSuccess();
 
@@ -231,10 +231,10 @@ namespace DurableTask
 
             if (abortWorkItem)
             {
-                await ExceptionTraceWrapperAsync(() => AbortWorkItem(workItem));
+                await ExceptionTraceWrapperAsync(() => AbortWorkItemAsync(workItem));
             }
 
-            await ExceptionTraceWrapperAsync(() => SafeReleaseWorkItem(workItem));
+            await ExceptionTraceWrapperAsync(() => SafeReleaseWorkItemAsync(workItem));
         }
 
         void AdjustDelayModifierOnSuccess()

@@ -11,29 +11,23 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.History
+namespace FrameworkUnitTests.Mocks
 {
-    using System;
-    using System.Runtime.Serialization;
+    using DurableTask;
+    using System.Collections.Generic;
 
-    [DataContract]
-    public class TimerFiredEvent : HistoryEvent
+    class TaskSession
     {
-        public TimerFiredEvent(int eventId)
-            : base(eventId)
+        public string Id;
+        public byte[] SessionState;
+        public List<TaskMessage> Messages;
+        public HashSet<TaskMessage> LockTable;
+
+        public TaskSession()
         {
+            this.SessionState = null;
+            this.Messages = new List<TaskMessage>();
+            this.LockTable = new HashSet<TaskMessage>();
         }
-
-        public override EventType EventType
-        {
-            get { return EventType.TimerFired; }
-        }
-
-        [DataMember]
-        public int TimerId { get; set; }
-
-        // AFFANDAR : TODO : wire format change. 
-        [DataMember]
-        public DateTime FireAt { get; set; }
     }
 }
