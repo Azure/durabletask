@@ -112,14 +112,167 @@ namespace FrameworkUnitTests
             // strip out the eid so we wait for the latest one always
             OrchestrationInstance masterid = new OrchestrationInstance { InstanceId = id.InstanceId };
 
-            OrchestrationState result1 = await client.WaitForOrchestrationAsync(id, TimeSpan.FromSeconds(40), new CancellationToken());
+            OrchestrationState result1 = await client.WaitForOrchestrationAsync(id, TimeSpan.FromSeconds(40), CancellationToken.None);
 
-            OrchestrationState result2 = await client.WaitForOrchestrationAsync(masterid, TimeSpan.FromSeconds(500), new CancellationToken());
+            OrchestrationState result2 = await client.WaitForOrchestrationAsync(masterid, TimeSpan.FromSeconds(500), CancellationToken.None);
 
             Assert.AreEqual(OrchestrationStatus.ContinuedAsNew, result1.OrchestrationStatus);
             Assert.AreEqual(OrchestrationStatus.Completed, result2.OrchestrationStatus);
 
             Assert.AreEqual(4, GenerationBasicOrchestration.Result, "Orchestration Result is wrong!!!");
+        }
+
+        [TestMethod]
+        public async Task MockSuborchestrationTest()
+        {
+            LocalOrchestrationService orchService = new LocalOrchestrationService();
+
+            TaskHubWorker2 worker = new TaskHubWorker2(orchService, "test", new TaskHubWorkerSettings());
+            TaskHubClient2 client = new TaskHubClient2(orchService, "test", new TaskHubClientSettings());
+
+            worker.AddTaskOrchestrations(typeof(ParentWorkflow), typeof(ChildWorkflow))
+                .Start();
+
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof(ParentWorkflow), true);
+
+            OrchestrationState result = await client.WaitForOrchestrationAsync(id, 
+                TimeSpan.FromSeconds(40), CancellationToken.None);
+
+            Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
+            Assert.AreEqual(
+                "Child '0' completed.Child '1' completed.Child '2' completed.Child '3' completed.Child '4' completed.",
+                ParentWorkflow.Result, "Orchestration Result is wrong!!!");
+
+            ParentWorkflow.Result = string.Empty;
+
+            id = await client.CreateOrchestrationInstanceAsync(typeof(ParentWorkflow), false);
+
+            result = await client.WaitForOrchestrationAsync(id, TimeSpan.FromSeconds(40), CancellationToken.None);
+
+            Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
+            Assert.AreEqual(
+                "Child '0' completed.Child '1' completed.Child '2' completed.Child '3' completed.Child '4' completed.",
+                ParentWorkflow.Result, "Orchestration Result is wrong!!!");
+
+            worker.Stop();
+        }
+
+        [TestMethod]
+        public async Task MockRaiseEventTest()
+        {
+            LocalOrchestrationService orchService = new LocalOrchestrationService();
+
+            TaskHubWorker2 worker = new TaskHubWorker2(orchService, "test", new TaskHubWorkerSettings());
+            TaskHubClient2 client = new TaskHubClient2(orchService, "test", new TaskHubClientSettings());
+
+            worker.AddTaskOrchestrations(typeof(GenerationSignalOrchestration))
+                .Start();
+
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(
+                typeof(GenerationSignalOrchestration), 5);
+
+            var signalId = new OrchestrationInstance { InstanceId = id.InstanceId };
+
+            Thread.Sleep(2 * 1000);
+            await client.RaiseEventAsync(signalId, "Count", "1");
+            GenerationSignalOrchestration.signal.Set();
+
+            Thread.Sleep(2 * 1000);
+            GenerationSignalOrchestration.signal.Reset();
+            await client.RaiseEventAsync(signalId, "Count", "2");
+            Thread.Sleep(2 * 1000);
+            await client.RaiseEventAsync(signalId, "Count", "3"); // will be recieved by next generation
+            GenerationSignalOrchestration.signal.Set();
+
+            Thread.Sleep(2 * 1000);
+            GenerationSignalOrchestration.signal.Reset();
+            await client.RaiseEventAsync(signalId, "Count", "4");
+            Thread.Sleep(2 * 1000);
+            await client.RaiseEventAsync(signalId, "Count", "5"); // will be recieved by next generation
+            await client.RaiseEventAsync(signalId, "Count", "6"); // lost
+            await client.RaiseEventAsync(signalId, "Count", "7"); // lost
+            GenerationSignalOrchestration.signal.Set();
+
+            OrchestrationState result = await client.WaitForOrchestrationAsync(new OrchestrationInstance { InstanceId = id.InstanceId },
+                TimeSpan.FromSeconds(40), CancellationToken.None);
+
+            Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
+            Assert.AreEqual("5", GenerationSignalOrchestration.Result, "Orchestration Result is wrong!!!");
+        }
+
+        public class GenerationSignalOrchestration : TaskOrchestration<int, int>
+        {
+            // HACK: This is just a hack to communicate result of orchestration back to test
+            public static string Result;
+            public static ManualResetEvent signal = new ManualResetEvent(false);
+
+            TaskCompletionSource<string> resumeHandle;
+
+            public override async Task<int> RunTask(OrchestrationContext context, int numberOfGenerations)
+            {
+                int count = await WaitForSignal();
+                signal.WaitOne();
+                numberOfGenerations--;
+                if (numberOfGenerations > 0)
+                {
+                    context.ContinueAsNew(numberOfGenerations);
+                }
+
+                // This is a HACK to get unit test up and running.  Should never be done in actual code.
+                Result = count.ToString();
+                return count;
+            }
+
+            async Task<int> WaitForSignal()
+            {
+                resumeHandle = new TaskCompletionSource<string>();
+                string data = await resumeHandle.Task;
+                resumeHandle = null;
+                return int.Parse(data);
+            }
+
+            public override void OnEvent(OrchestrationContext context, string name, string input)
+            {
+                Assert.AreEqual("Count", name, "Unknown signal recieved...");
+                if (resumeHandle != null)
+                {
+                    resumeHandle.SetResult(input);
+                }
+            }
+        }
+
+
+        public class ChildWorkflow : TaskOrchestration<string, int>
+        {
+            public override async Task<string> RunTask(OrchestrationContext context, int input)
+            {
+                return "Child '" + input + "' completed.";
+            }
+        }
+
+        public class ParentWorkflow : TaskOrchestration<string, bool>
+        {
+            // HACK: This is just a hack to communicate result of orchestration back to test
+            public static string Result;
+
+            public override async Task<string> RunTask(OrchestrationContext context, bool waitForCompletion)
+            {
+                var results = new Task<string>[5];
+                for (int i = 0; i < 5; i++)
+                {
+                    Task<string> r = context.CreateSubOrchestrationInstance<string>(typeof(ChildWorkflow), i);
+                    if (waitForCompletion)
+                    {
+                        await r;
+                    }
+
+                    results[i] = r;
+                }
+
+                string[] data = await Task.WhenAll(results);
+                Result = string.Concat(data);
+                return Result;
+            }
         }
 
         public class GenerationBasicOrchestration : TaskOrchestration<int, int>

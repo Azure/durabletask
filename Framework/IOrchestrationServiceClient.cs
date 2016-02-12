@@ -30,6 +30,8 @@ namespace DurableTask
             TimeSpan timeout, 
             CancellationToken cancellationToken);
 
+        Task ForceTerminateTaskOrchestrationAsync(string instanceId);
+
         Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions);
 
         Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId);

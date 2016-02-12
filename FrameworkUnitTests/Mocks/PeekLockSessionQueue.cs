@@ -33,6 +33,28 @@ namespace FrameworkUnitTests.Mocks
             this.lockedSessionQueue = new List<TaskSession>();
         }
 
+        public void DropSession(string id)
+        {
+            lock(this.ThisLock)
+            {
+                TaskSession taskSession = this.lockedSessionQueue.Find((ts) => string.Equals(ts.Id, id, StringComparison.InvariantCultureIgnoreCase));
+
+                if (taskSession == null)
+                {
+                    return;
+                }
+
+                if (this.sessionQueue.Contains(taskSession))
+                {
+                    this.sessionQueue.Remove(taskSession);
+                }
+                else if (this.lockedSessionQueue.Contains(taskSession))
+                {
+                    this.lockedSessionQueue.Remove(taskSession);
+                }
+            }
+        }
+
         public void SendMessage(TaskMessage message)
         {
             lock(this.ThisLock)

@@ -385,8 +385,10 @@ namespace FrameworkUnitTests.Mocks
             this.orchestratorQueue.AbandonSession(workItem.InstanceId);
             return Task.FromResult<object>(null);
         }
-        public Task TerminateTaskOrchestrationAsync(TaskOrchestrationWorkItem workItem, bool force)
+
+        public Task ForceTerminateTaskOrchestrationAsync(string instanceId)
         {
+            // tricky to implement in-memory as object references are being used instead of clones
             throw new NotImplementedException();
         }
 
@@ -400,7 +402,6 @@ namespace FrameworkUnitTests.Mocks
         {
             return false;
         }
-
 
         /******************************/
         // Task activity methods
