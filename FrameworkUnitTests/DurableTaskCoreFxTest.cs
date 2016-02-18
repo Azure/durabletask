@@ -246,7 +246,7 @@ namespace FrameworkUnitTests
         {
             public override async Task<string> RunTask(OrchestrationContext context, int input)
             {
-                return "Child '" + input + "' completed.";
+                return await Task.FromResult("Child '" + input + "' completed.");
             }
         }
 

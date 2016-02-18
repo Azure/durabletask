@@ -576,7 +576,7 @@ namespace FrameworkUnitTests
         {
             public override async Task<string> RunTask(OrchestrationContext context, int input)
             {
-                return "Child '" + input + "' completed.";
+                return await Task.FromResult("Child '" + input + "' completed.");
             }
         }
 
@@ -640,7 +640,7 @@ namespace FrameworkUnitTests
         {
             public static int Count;
 
-            public override async Task<string> RunTask(OrchestrationContext context, int input)
+            public override Task<string> RunTask(OrchestrationContext context, int input)
             {
                 Count++;
                 throw new InvalidOperationException("Test");
@@ -700,7 +700,9 @@ namespace FrameworkUnitTests
 
         public class BadOrchestration : TaskOrchestration<string, string>
         {
+#pragma warning disable 1998
             public override async Task<string> RunTask(OrchestrationContext context, string input)
+#pragma warning restore 1998
             {
                 throw new Exception("something very bad happened");
             }
@@ -744,7 +746,7 @@ namespace FrameworkUnitTests
             public override async Task<string> RunTask(OrchestrationContext context, object input)
             {
                 ChildInstanceId = context.OrchestrationInstance.InstanceId;
-                return null;
+                return await Task.FromResult<string>(null);
             }
         }
 

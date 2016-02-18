@@ -59,6 +59,7 @@ namespace DurableTask
         /// </summary>
         /// <param name="hubName">Name of the Task Hub</param>
         /// <param name="connectionString">Service Bus connection string</param>
+        /// <param name="workerSettings">configuration for task hub options</param>
         public TaskHubWorker(string hubName, string connectionString, TaskHubWorkerSettings workerSettings)
             : this(hubName, connectionString, null, workerSettings)
         {

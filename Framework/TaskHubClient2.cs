@@ -211,6 +211,8 @@ namespace DurableTask
         ///     Wait for an orchestration to reach any terminal state within the given timeout
         /// </summary>
         /// <param name="orchestrationInstance">Instance to terminate</param>
+        /// <param name="timeout">Max timeout to wait</param>
+        /// <param name="cancellationToken">Task cancellation token</param>
         public Task<OrchestrationState> WaitForOrchestrationAsync(
             OrchestrationInstance orchestrationInstance,
             TimeSpan timeout,

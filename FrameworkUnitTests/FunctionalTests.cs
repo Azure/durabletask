@@ -279,7 +279,7 @@ namespace FrameworkUnitTests
 
                 Interlocked.Increment(ref Count);
 
-                return "done";
+                return await Task.FromResult("done");
             }
         }
 
@@ -460,7 +460,7 @@ namespace FrameworkUnitTests
             {
                 WasRun = true;
                 context.ContinueAsNew("V2", null);
-                return null;
+                return await Task.FromResult<object>(null);
             }
         }
 
@@ -473,7 +473,7 @@ namespace FrameworkUnitTests
             {
                 WasRun = true;
                 context.ContinueAsNew("V3", null);
-                return null;
+                return await Task.FromResult<object>(null);
             }
         }
 
@@ -485,7 +485,7 @@ namespace FrameworkUnitTests
             public override async Task<object> RunTask(OrchestrationContext context, object input)
             {
                 WasRun = true;
-                return null;
+                return await Task.FromResult<object>(null);
             }
         }
 

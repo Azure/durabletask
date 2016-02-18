@@ -129,7 +129,6 @@ namespace DurableTask.Tracking
                     .GetValueOrDefault()
                     .DateTime;
 
-            OrchestrationStatus orchestrationStatus;
             string orchestrationStatusStr = GetValue("OrchestrationStatus", properties, property => property.StringValue);
             if (!Enum.TryParse(orchestrationStatusStr, out State.OrchestrationStatus))
             {

@@ -244,28 +244,34 @@ namespace FrameworkUnitTests.Mocks
 
         public async Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)
         {
-            lock(this.thisLock)
+            OrchestrationState response = null;
+            lock (this.thisLock)
             {
-                if(this.instanceStore[instanceId] == null)
+                if(this.instanceStore[instanceId] != null)
                 {
-                    return null;
+                    response = this.instanceStore[instanceId][executionId];
                 }
-
-                return this.instanceStore[instanceId][executionId];
             }
+
+            return await Task.FromResult(response);
         }
 
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
         {
+            IList<OrchestrationState> response = null;
             lock (this.thisLock)
             {
-                if (this.instanceStore[instanceId] == null)
+                if (this.instanceStore[instanceId] != null)
                 {
-                    return new List<OrchestrationState>();
+                    response = this.instanceStore[instanceId].Values.ToList();
                 }
-
-                return (IList<OrchestrationState>)this.instanceStore[instanceId].ToList();
+                else
+                {
+                    response = new List<OrchestrationState>();
+                }
             }
+
+            return await Task.FromResult(response);
         }
 
         public Task<string> GetOrchestrationHistoryAsync(string instanceId, string executionId)
@@ -311,7 +317,7 @@ namespace FrameworkUnitTests.Mocks
             OrchestrationRuntimeState newOrchestrationRuntimeState, 
             IList<TaskMessage> outboundMessages, 
             IList<TaskMessage> orchestratorMessages, 
-            IList<TaskMessage> timerMessages,
+            IList<TaskMessage> workItemTimerMessages,
             OrchestrationState state)
         {
             lock(this.thisLock)
@@ -332,9 +338,9 @@ namespace FrameworkUnitTests.Mocks
                     }
                 }
 
-                if (timerMessages != null)
+                if (workItemTimerMessages != null)
                 {
-                    foreach (TaskMessage m in timerMessages)
+                    foreach (TaskMessage m in workItemTimerMessages)
                     {
                         this.timerMessages.Add(m);
                     }

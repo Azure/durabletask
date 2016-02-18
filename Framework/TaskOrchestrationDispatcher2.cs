@@ -221,7 +221,7 @@ namespace DurableTask
                     continuedAsNew ? null : timerMessages,
                     instanceState);
             }
-            catch(Exception exception)
+            catch(Exception)
             {
                 // AFFANDAR : TODO : if exception is due to session state size then force terminate message
                 throw;

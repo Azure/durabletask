@@ -11,6 +11,8 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+using System.ServiceModel.Syndication;
+
 namespace FrameworkUnitTests
 {
     using System;
@@ -572,7 +574,7 @@ namespace FrameworkUnitTests
 
                 Interlocked.Increment(ref Count);
 
-                return "done";
+                return await Task.FromResult("done");
             }
         }
 
@@ -814,15 +816,16 @@ namespace FrameworkUnitTests
                 .AddTaskActivities(new SendGreetingTask());
 
             var instance = new OrchestrationInstance {InstanceId = "Test"};
-            Task.Factory.StartNew(() =>
+            var hostTask = Task.Factory.StartNew(() =>
             {
-                testHost.Delay(2*1000).Wait();
+                testHost.Delay(2 * 1000).Wait();
                 testHost.RaiseEvent(instance, "GetUser", "Gabbar");
-            }
-                );
+            });
+
             string result = await testHost.RunOrchestration<string>(instance, typeof (SignalOrchestration), null);
             Assert.AreEqual("Greeting send to Gabbar", result, "Orchestration Result is wrong!!!");
             Assert.AreEqual("Greeting send to Gabbar", SignalOrchestration.Result, "Orchestration Result is wrong!!!");
+            Assert.IsNull(hostTask.Exception, string.Format("hostTask threw exception: {0}", hostTask.Exception));
         }
 
         public class SignalOrchestration : TaskOrchestration<string, string>
@@ -1062,7 +1065,7 @@ namespace FrameworkUnitTests
         {
             public override async Task<string> RunTask(OrchestrationContext context, int input)
             {
-                return "Child '" + input + "' completed.";
+                return await Task.FromResult("Child '" + input + "' completed.");
             }
         }
 
@@ -1120,7 +1123,7 @@ namespace FrameworkUnitTests
         {
             public static int Count;
 
-            public override async Task<string> RunTask(OrchestrationContext context, int input)
+            public override Task<string> RunTask(OrchestrationContext context, int input)
             {
                 Count++;
                 throw new InvalidOperationException("Test");
