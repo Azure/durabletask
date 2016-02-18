@@ -18,6 +18,8 @@ namespace FrameworkUnitTests
     using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
+    using System.Linq;
+
     using DurableTask;
     using DurableTask.Test;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -478,6 +480,7 @@ namespace FrameworkUnitTests
                 .AddTaskActivities(typeof (CronTask))
                 .Start();
 
+            CronOrchestration.Tasks.Clear();
             OrchestrationInstance id = client.CreateOrchestrationInstance(typeof (CronOrchestration), new CronJob
             {
                 Frequency = RecurrenceFrequency.Second,
@@ -489,6 +492,8 @@ namespace FrameworkUnitTests
             Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 120));
             Assert.AreEqual(5, CronTask.Result, "Orchestration Result is wrong!!!");
             Assert.AreEqual(5, CronOrchestration.Result, "Orchestration Result is wrong!!!");
+            int taskExceptions = CronOrchestration.Tasks.Count(task => task.Exception != null);
+            Assert.AreEqual(0, taskExceptions, $"Orchestration Result contains {taskExceptions} exceptions!!!");
         }
 
         public class CronJob
@@ -501,6 +506,7 @@ namespace FrameworkUnitTests
         public class CronOrchestration : TaskOrchestration<string, CronJob>
         {
             public static int Result;
+            public static List<Task<string>> Tasks = new List<Task<string>>();
 
             public override async Task<string> RunTask(OrchestrationContext context, CronJob job)
             {
@@ -523,7 +529,7 @@ namespace FrameworkUnitTests
 
                     string attempt = await context.CreateTimer(fireAt, i.ToString());
 
-                    context.ScheduleTask<string>(typeof (CronTask), attempt);
+                    Tasks.Add(context.ScheduleTask<string>(typeof(CronTask), attempt));
                 }
 
                 Result = i - 1;
@@ -539,7 +545,6 @@ namespace FrameworkUnitTests
             {
                 Result++;
                 Thread.Sleep(2*1000);
-
                 string completed = "Cron Job '" + input + "' Completed...";
                 return completed;
             }

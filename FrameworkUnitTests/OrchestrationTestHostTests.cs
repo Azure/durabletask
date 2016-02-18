@@ -11,14 +11,14 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System.ServiceModel.Syndication;
-
 namespace FrameworkUnitTests
 {
     using System;
     using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
+    using System.Linq;
+
     using DurableTask;
     using DurableTask.Test;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -959,6 +959,7 @@ namespace FrameworkUnitTests
                 .AddTaskActivities(new CronTask(() => { testHost.Delay(2*1000).Wait(); }));
 
             CronTask.Result = 0;
+            CronOrchestration.Tasks.Clear();
             string result = await testHost.RunOrchestration<string>(typeof (CronOrchestration), new CronJob
             {
                 Frequency = RecurrenceFrequency.Second,
@@ -968,6 +969,8 @@ namespace FrameworkUnitTests
             Assert.AreEqual(5, CronTask.Result, "Orchestration Result is wrong!!!");
             Assert.AreEqual("Done", result, "Orchestration Result is wrong!!!");
             Assert.AreEqual(5, CronOrchestration.Result, "Orchestration Result is wrong!!!");
+            int taskExceptions = CronOrchestration.Tasks.Count(task => task.Exception != null);
+            Assert.AreEqual(0, taskExceptions, $"Orchestration Result contains {taskExceptions} exceptions!!!");
         }
 
         public class CronJob
@@ -980,6 +983,7 @@ namespace FrameworkUnitTests
         public class CronOrchestration : TaskOrchestration<string, CronJob>
         {
             public static int Result;
+            public static List<Task<string>> Tasks = new List<Task<string>>();
 
             public override async Task<string> RunTask(OrchestrationContext context, CronJob job)
             {
@@ -1002,7 +1006,7 @@ namespace FrameworkUnitTests
 
                     string attempt = await context.CreateTimer(fireAt, i.ToString());
 
-                    context.ScheduleTask<string>(typeof (CronTask), attempt);
+                    Tasks.Add(context.ScheduleTask<string>(typeof (CronTask), attempt));
                 }
 
                 Result = i - 1;
