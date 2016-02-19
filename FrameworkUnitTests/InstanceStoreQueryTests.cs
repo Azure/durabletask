@@ -700,9 +700,9 @@ namespace FrameworkUnitTests
 
         public class InstanceStoreTestOrchestration2 : TaskOrchestration<string, string>
         {
-            public override async Task<string> RunTask(OrchestrationContext context, string input)
+            public override Task<string> RunTask(OrchestrationContext context, string input)
             {
-                return await Task.FromResult("SOME_RESULT");
+                return Task.FromResult("SOME_RESULT");
             }
         }
 

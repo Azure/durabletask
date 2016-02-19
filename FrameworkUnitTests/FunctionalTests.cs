@@ -264,7 +264,7 @@ namespace FrameworkUnitTests
         {
             public static int Count;
 
-            public override async Task<string> RunTask(OrchestrationContext context, int numberOfGenerations)
+            public override Task<string> RunTask(OrchestrationContext context, int numberOfGenerations)
             {
                 numberOfGenerations--;
                 if (numberOfGenerations > 0)
@@ -279,7 +279,7 @@ namespace FrameworkUnitTests
 
                 Interlocked.Increment(ref Count);
 
-                return await Task.FromResult("done");
+                return Task.FromResult("done");
             }
         }
 
@@ -456,11 +456,11 @@ namespace FrameworkUnitTests
             // HACK: This is just a hack to communicate result of orchestration back to test
             public static bool WasRun = false;
 
-            public override async Task<object> RunTask(OrchestrationContext context, object input)
+            public override Task<object> RunTask(OrchestrationContext context, object input)
             {
                 WasRun = true;
                 context.ContinueAsNew("V2", null);
-                return await Task.FromResult<object>(null);
+                return Task.FromResult<object>(null);
             }
         }
 
@@ -469,11 +469,11 @@ namespace FrameworkUnitTests
             // HACK: This is just a hack to communicate result of orchestration back to test
             public static bool WasRun = false;
 
-            public override async Task<object> RunTask(OrchestrationContext context, object input)
+            public override Task<object> RunTask(OrchestrationContext context, object input)
             {
                 WasRun = true;
                 context.ContinueAsNew("V3", null);
-                return await Task.FromResult<object>(null);
+                return Task.FromResult<object>(null);
             }
         }
 
@@ -482,10 +482,10 @@ namespace FrameworkUnitTests
             // HACK: This is just a hack to communicate result of orchestration back to test
             public static bool WasRun = false;
 
-            public override async Task<object> RunTask(OrchestrationContext context, object input)
+            public override Task<object> RunTask(OrchestrationContext context, object input)
             {
                 WasRun = true;
-                return await Task.FromResult<object>(null);
+                return Task.FromResult<object>(null);
             }
         }
 

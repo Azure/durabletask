@@ -579,9 +579,9 @@ namespace FrameworkUnitTests
 
         public class ChildWorkflow : TaskOrchestration<string, int>
         {
-            public override async Task<string> RunTask(OrchestrationContext context, int input)
+            public override Task<string> RunTask(OrchestrationContext context, int input)
             {
-                return await Task.FromResult("Child '" + input + "' completed.");
+                return Task.FromResult($"Child '{input}' completed.");
             }
         }
 
@@ -748,10 +748,10 @@ namespace FrameworkUnitTests
             // HACK: This is just a hack to communicate result of orchestration back to test
             public static string ChildInstanceId = null;
 
-            public override async Task<string> RunTask(OrchestrationContext context, object input)
+            public override Task<string> RunTask(OrchestrationContext context, object input)
             {
                 ChildInstanceId = context.OrchestrationInstance.InstanceId;
-                return await Task.FromResult<string>(null);
+                return Task.FromResult<string>(null);
             }
         }
 

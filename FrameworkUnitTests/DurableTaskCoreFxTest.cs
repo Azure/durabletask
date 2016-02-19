@@ -244,9 +244,9 @@ namespace FrameworkUnitTests
 
         public class ChildWorkflow : TaskOrchestration<string, int>
         {
-            public override async Task<string> RunTask(OrchestrationContext context, int input)
+            public override Task<string> RunTask(OrchestrationContext context, int input)
             {
-                return await Task.FromResult("Child '" + input + "' completed.");
+                return Task.FromResult($"Child '{input}' completed.");
             }
         }
 

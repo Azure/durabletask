@@ -559,7 +559,7 @@ namespace FrameworkUnitTests
         {
             public static int Count;
 
-            public override async Task<string> RunTask(OrchestrationContext context, int numberOfGenerations)
+            public override Task<string> RunTask(OrchestrationContext context, int numberOfGenerations)
             {
                 numberOfGenerations--;
                 if (numberOfGenerations > 0)
@@ -574,7 +574,7 @@ namespace FrameworkUnitTests
 
                 Interlocked.Increment(ref Count);
 
-                return await Task.FromResult("done");
+                return Task.FromResult("done");
             }
         }
 
@@ -1067,9 +1067,9 @@ namespace FrameworkUnitTests
 
         public class ChildWorkflow : TaskOrchestration<string, int>
         {
-            public override async Task<string> RunTask(OrchestrationContext context, int input)
+            public override Task<string> RunTask(OrchestrationContext context, int input)
             {
-                return await Task.FromResult("Child '" + input + "' completed.");
+                return Task.FromResult($"Child '{input}' completed.");
             }
         }
 
