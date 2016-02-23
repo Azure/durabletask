@@ -13,7 +13,7 @@
 
 namespace DurableTask
 {
-    using Common;
+    using DurableTask.Common;
 
     /// <summary>
     ///     Configuration for various TaskHubClient options

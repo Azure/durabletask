@@ -18,8 +18,8 @@ namespace DurableTask
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-    using History;
-    using Serializing;
+    using DurableTask.History;
+    using DurableTask.Serializing;
 
     /// <summary>
     ///     Client used to manage and query orchestration instances

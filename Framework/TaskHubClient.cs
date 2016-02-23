@@ -21,15 +21,15 @@ namespace DurableTask
     using System.Text;
     using System.Threading.Tasks;
 
-    using Common;
-    using History;
+    using DurableTask.Common;
+    using DurableTask.History;
+    using DurableTask.Serializing;
+    using DurableTask.Tracing;
+    using DurableTask.Tracking;
     using Microsoft.ServiceBus;
     using Microsoft.ServiceBus.Messaging;
     using Microsoft.WindowsAzure.Storage.Table;
     using Newtonsoft.Json;
-    using Serializing;
-    using Tracing;
-    using Tracking;
 
     /// <summary>
     ///     Client used to manage and query orchestration instances

@@ -17,9 +17,9 @@ namespace DurableTask
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-    using Command;
-    using Exceptions;
-    using History;
+    using DurableTask.Command;
+    using DurableTask.Exceptions;
+    using DurableTask.History;
 
     internal class TaskOrchestrationExecutor
     {

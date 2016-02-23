@@ -19,10 +19,10 @@ namespace DurableTask
     using System.Linq;
     using System.Threading.Tasks;
     using Microsoft.ServiceBus.Messaging;
-    using Common;
+    using DurableTask.Common;
+    using DurableTask.Tracing;
+    using DurableTask.Tracking;
     using Newtonsoft.Json;
-    using Tracing;
-    using Tracking;
 
     internal sealed class TrackingDispatcher : DispatcherBase<SessionWorkItem>
     {

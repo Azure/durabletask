@@ -13,7 +13,7 @@
 
 namespace DurableTask
 {
-    using History;
+    using DurableTask.History;
     using System.Collections.Generic;
 
     public class OrchestrationRuntimeStateDump

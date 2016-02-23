@@ -20,10 +20,10 @@ namespace DurableTask
     using System.Linq;
     using System.Threading.Tasks;
     using System.Transactions;
-    using Common;
-    using Command;
-    using Exceptions;
-    using History;
+    using DurableTask.Common;
+    using DurableTask.Command;
+    using DurableTask.Exceptions;
+    using DurableTask.History;
     using Microsoft.ServiceBus.Messaging;
     using Newtonsoft.Json;
     using Tracing;

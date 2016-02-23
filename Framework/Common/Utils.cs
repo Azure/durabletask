@@ -21,8 +21,8 @@ namespace DurableTask.Common
     using System.Text;
     using System.Threading.Tasks;
     using Newtonsoft.Json;
-    using Exceptions;
-    using Serializing;
+    using DurableTask.Exceptions;
+    using DurableTask.Serializing;
     using Tracing;
 
     internal static class Utils

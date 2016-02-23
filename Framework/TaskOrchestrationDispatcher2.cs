@@ -21,10 +21,10 @@ namespace DurableTask
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-    using Command;
-    using Common;
-    using Exceptions;
-    using History;
+    using DurableTask.Command;
+    using DurableTask.Common;
+    using DurableTask.Exceptions;
+    using DurableTask.History;
     using Tracing;
 
     public class TaskOrchestrationDispatcher2 : DispatcherBase<TaskOrchestrationWorkItem>

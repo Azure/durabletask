@@ -15,7 +15,7 @@ namespace DurableTask.Tracking
 {
     using System;
     using System.Collections.Generic;
-    using Common;
+    using DurableTask.Common;
     using DurableTask.History;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Table;

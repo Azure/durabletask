@@ -14,7 +14,7 @@
 namespace DurableTask
 {
     using System.Runtime.Serialization;
-    using History;
+    using DurableTask.History;
 
     [DataContract]
     public class TaskMessage

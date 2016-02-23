@@ -17,8 +17,8 @@ namespace DurableTask.Test
     using System.Reflection;
     using System.Threading;
     using System.Threading.Tasks;
-    using Exceptions;
-    using Serializing;
+    using DurableTask.Exceptions;
+    using DurableTask.Serializing;
 
     public class OrchestrationTestHost
     {

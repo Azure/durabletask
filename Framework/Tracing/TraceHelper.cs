@@ -15,7 +15,7 @@ namespace DurableTask.Tracing
 {
     using System;
     using System.Diagnostics;
-    using Common;
+    using DurableTask.Common;
 
     internal class TraceHelper
     {

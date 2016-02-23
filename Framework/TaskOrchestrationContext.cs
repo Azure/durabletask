@@ -17,11 +17,11 @@ namespace DurableTask
     using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
-    using Command;
-    using Common;
-    using Exceptions;
-    using History;
-    using Serializing;
+    using DurableTask.Command;
+    using DurableTask.Common;
+    using DurableTask.Exceptions;
+    using DurableTask.History;
+    using DurableTask.Serializing;
 
     internal class TaskOrchestrationContext : OrchestrationContext
     {

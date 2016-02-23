@@ -18,9 +18,9 @@ namespace DurableTask
     using System.Threading;
     using System.Threading.Tasks;
     using System.Transactions;
-    using Common;
-    using Exceptions;
-    using History;
+    using DurableTask.Common;
+    using DurableTask.Exceptions;
+    using DurableTask.History;
     using Microsoft.ServiceBus.Messaging;
     using Tracing;
 
