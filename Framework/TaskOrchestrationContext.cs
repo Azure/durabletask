@@ -21,6 +21,7 @@ namespace DurableTask
     using Common;
     using Exceptions;
     using History;
+    using Serializing;
 
     internal class TaskOrchestrationContext : OrchestrationContext
     {

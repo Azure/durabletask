@@ -15,6 +15,7 @@ namespace DurableTask.Command
 {
     using System;
     using Newtonsoft.Json.Linq;
+    using Serializing;
 
     internal class OrchestrationActionConverter : JsonCreationConverter<OrchestratorAction>
     {

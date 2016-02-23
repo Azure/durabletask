@@ -27,6 +27,7 @@ namespace DurableTask
     using Microsoft.ServiceBus.Messaging;
     using Microsoft.WindowsAzure.Storage.Table;
     using Newtonsoft.Json;
+    using Serializing;
     using Tracing;
     using Tracking;
 
