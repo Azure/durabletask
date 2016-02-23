@@ -193,6 +193,11 @@ namespace FrameworkUnitTests.Mocks
                 {
                     this.orchestrationWaiters.TryGetValue(key, out tcs);
                 }
+
+                if (tcs == null)
+                {
+                    throw new InvalidOperationException("Unable to get tcs from orchestrationWaiters");
+                }
             }
 
             // might have finished already
@@ -312,7 +317,7 @@ namespace FrameworkUnitTests.Mocks
             return wi;
         }
 
-        public async Task CompleteTaskOrchestrationWorkItemAsync(
+        public Task CompleteTaskOrchestrationWorkItemAsync(
             TaskOrchestrationWorkItem workItem, 
             OrchestrationRuntimeState newOrchestrationRuntimeState, 
             IList<TaskMessage> outboundMessages, 
@@ -367,10 +372,12 @@ namespace FrameworkUnitTests.Mocks
 
                     string key1 = workItem.OrchestrationRuntimeState.OrchestrationInstance.InstanceId + "_";
 
+                    var tasks = new List<Task>();
+
                     if (state.OrchestrationStatus != OrchestrationStatus.Running 
                         && this.orchestrationWaiters.TryGetValue(key, out tcs))
                     {
-                        Task.Run(() => tcs.TrySetResult(state));
+                        tasks.Add(Task.Run(() => tcs.TrySetResult(state)));
                     }
 
                     // for instanceid level waiters, we will not consider continueasnew as a terminal state because
@@ -378,12 +385,17 @@ namespace FrameworkUnitTests.Mocks
                     if ((state.OrchestrationStatus != OrchestrationStatus.Running && state.OrchestrationStatus != OrchestrationStatus.ContinuedAsNew)
                         && this.orchestrationWaiters.TryGetValue(key1, out tcs1))
                     {
-                        Task.Run(() => tcs1.TrySetResult(state));
+                        tasks.Add(Task.Run(() => tcs1.TrySetResult(state)));
+                    }
+
+                    if (tasks.Count > 0)
+                    {
+                        Task.WaitAll(tasks.ToArray());
                     }
                 }
             }
 
-            return;
+            return Task.FromResult(0);
         }
 
         public Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)

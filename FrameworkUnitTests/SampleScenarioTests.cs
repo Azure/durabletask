@@ -21,6 +21,7 @@ namespace FrameworkUnitTests
     using System.Linq;
 
     using DurableTask;
+    using DurableTask.Exceptions;
     using DurableTask.Test;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 

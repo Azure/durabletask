@@ -17,6 +17,8 @@ namespace DurableTask.Test
     using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
+    using Common;
+    using Exceptions;
 
     internal class FakeOrchestrationExecutor
     {

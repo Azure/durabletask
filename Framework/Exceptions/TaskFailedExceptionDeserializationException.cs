@@ -11,14 +11,15 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask
+namespace DurableTask.Exceptions
 {
     using System;
 
-    public class TypeMissingException : Exception
+    [Serializable]
+    public sealed class TaskFailedExceptionDeserializationException : Exception
     {
-        public TypeMissingException(string message)
-            : base(message)
+        public TaskFailedExceptionDeserializationException(string details, Exception deserializationException)
+            : base("Failed to deserialize exception from TaskActivity: " + details, deserializationException)
         {
         }
     }

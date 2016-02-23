@@ -20,6 +20,7 @@ namespace DurableTask
     using System.Threading.Tasks;
     using Microsoft.ServiceBus;
     using Microsoft.ServiceBus.Messaging;
+    using Common;
     using Tracking;
 
     /// <summary>
@@ -175,11 +176,11 @@ namespace DurableTask
                 TaskHubDescription taskHubDescription = GetTaskHubDescription();
 
                 orchestrationDispatcher =
-                    new TaskOrchestrationDispatcher(Utils.CreateMessagingFactory(connectionString),
+                    new TaskOrchestrationDispatcher(ServiceBusUtils.CreateMessagingFactory(connectionString),
                         string.IsNullOrEmpty(tableStoreConnectionString)
                             ? null
                             : new TrackingDispatcher(
-                                Utils.CreateMessagingFactory(connectionString),
+                                ServiceBusUtils.CreateMessagingFactory(connectionString),
                                 taskHubDescription,
                                 workerSettings,
                                 tableStoreConnectionString, hubName,
@@ -191,7 +192,7 @@ namespace DurableTask
 
                 activityDispatcher =
                     new TaskActivityDispatcher(
-                        Utils.CreateMessagingFactory(connectionString),
+                        ServiceBusUtils.CreateMessagingFactory(connectionString),
                         taskHubDescription,
                         workerSettings,
                         orchestratorEntityName,

@@ -13,8 +13,6 @@
 
 namespace DurableTask
 {
-    using Command;
-    using History;
     using Microsoft.ServiceBus.Messaging;
     using Newtonsoft.Json;
     using System;
@@ -23,6 +21,10 @@ namespace DurableTask
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
+    using Command;
+    using Common;
+    using Exceptions;
+    using History;
     using Tracing;
 
     public class TaskOrchestrationDispatcher2 : DispatcherBase<TaskOrchestrationWorkItem>

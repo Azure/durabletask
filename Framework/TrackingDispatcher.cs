@@ -19,6 +19,7 @@ namespace DurableTask
     using System.Linq;
     using System.Threading.Tasks;
     using Microsoft.ServiceBus.Messaging;
+    using Common;
     using Newtonsoft.Json;
     using Tracing;
     using Tracking;
@@ -106,7 +107,7 @@ namespace DurableTask
             var stateEntities = new List<OrchestrationStateEntity>();
             foreach (BrokeredMessage message in newMessages)
             {
-                Utils.CheckAndLogDeliveryCount(message, taskHubDescription.MaxTrackingDeliveryCount);
+                ServiceBusUtils.CheckAndLogDeliveryCount(message, taskHubDescription.MaxTrackingDeliveryCount);
 
                 if (message.ContentType.Equals(FrameworkConstants.TaskMessageContentType,
                     StringComparison.OrdinalIgnoreCase))
@@ -124,7 +125,7 @@ namespace DurableTask
 
                     var historyEventIndex = (int) historyEventIndexObj;
 
-                    TaskMessage taskMessage = await Utils.GetObjectFromBrokeredMessageAsync<TaskMessage>(message);
+                    TaskMessage taskMessage = await ServiceBusUtils.GetObjectFromBrokeredMessageAsync<TaskMessage>(message);
                     historyEntities.Add(new OrchestrationHistoryEventEntity(
                         taskMessage.OrchestrationInstance.InstanceId,
                         taskMessage.OrchestrationInstance.ExecutionId,
@@ -135,7 +136,7 @@ namespace DurableTask
                 else if (message.ContentType.Equals(FrameworkConstants.StateMessageContentType,
                     StringComparison.OrdinalIgnoreCase))
                 {
-                    StateMessage stateMessage = await Utils.GetObjectFromBrokeredMessageAsync<StateMessage>(message);
+                    StateMessage stateMessage = await ServiceBusUtils.GetObjectFromBrokeredMessageAsync<StateMessage>(message);
                     stateEntities.Add(new OrchestrationStateEntity(stateMessage.State));
                 }
                 else

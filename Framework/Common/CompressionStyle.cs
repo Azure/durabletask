@@ -11,25 +11,31 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask
+namespace DurableTask.Common
 {
-    using System;
-
-    public class OrchestrationFrameworkException : Exception
+    /// <summary>
+    /// Compression style
+    /// </summary>
+    public enum CompressionStyle
     {
-        public OrchestrationFrameworkException(string message)
-            : base(message)
-        {
-        }
+        /// <summary>
+        ///     Revert to pre-message compression behavior (not recommended)
+        /// </summary>
+        Legacy = 0,
 
-        public OrchestrationFrameworkException(Exception innerException)
-            : base(innerException.Message, innerException)
-        {
-        }
+        /// <summary>
+        ///     Never compress messages
+        /// </summary>
+        Never,
 
-        public OrchestrationFrameworkException(string message, Exception innerException)
-            : base(message, innerException)
-        {
-        }
+        /// <summary>
+        ///     Always compress messages
+        /// </summary>
+        Always,
+
+        /// <summary>
+        ///     Only compress messages if they are above the threshold
+        /// </summary>
+        Threshold,
     }
 }

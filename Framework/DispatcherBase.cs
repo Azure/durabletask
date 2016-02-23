@@ -17,6 +17,8 @@ namespace DurableTask
     using System.Diagnostics;
     using System.Threading;
     using System.Threading.Tasks;
+    using Common;
+    using Exceptions;
     using Tracing;
 
     public abstract class DispatcherBase<T>

@@ -14,13 +14,7 @@
 namespace DurableTask
 {
     using System;
-    using System.Collections.Generic;
-    using System.Linq;
     using System.Reflection;
-    using System.Threading.Tasks;
-    using Microsoft.ServiceBus;
-    using Microsoft.ServiceBus.Messaging;
-    using Tracking;
 
     /// <summary>
     ///     Allows users to load the TaskOrchestration and TaskActivity classes and start

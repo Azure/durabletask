@@ -17,6 +17,7 @@ namespace FrameworkUnitTests
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask;
+    using DurableTask.Exceptions;
     using DurableTask.Test;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 

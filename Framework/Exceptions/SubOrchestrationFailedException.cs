@@ -11,32 +11,44 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask
+namespace DurableTask.Exceptions
 {
     using System;
+    using System.Runtime.Serialization;
 
-    internal class TaskFailureException : Exception
+    [Serializable]
+    public class SubOrchestrationFailedException : OrchestrationException
     {
-        public TaskFailureException()
+        public SubOrchestrationFailedException()
         {
         }
 
-        public TaskFailureException(string reason)
+        public SubOrchestrationFailedException(string reason)
             : base(reason)
         {
         }
 
-        public TaskFailureException(string reason, Exception innerException)
+        public SubOrchestrationFailedException(string reason, Exception innerException)
             : base(reason, innerException)
         {
         }
 
-        public TaskFailureException(string reason, string details)
-            : base(reason)
+        public SubOrchestrationFailedException(int eventId, int scheduleId, string name, string version, string reason,
+            Exception cause)
+            : base(eventId, reason, cause)
         {
-            Details = details;
+            ScheduleId = scheduleId;
+            Name = name;
+            Version = version;
         }
 
-        public string Details { get; set; }
+        protected SubOrchestrationFailedException(SerializationInfo info, StreamingContext context)
+            : base(info, context)
+        {
+        }
+
+        public int ScheduleId { get; set; }
+        public string Name { get; set; }
+        public string Version { get; set; }
     }
 }

@@ -11,16 +11,22 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask
+namespace DurableTask.Common
 {
-    using System;
-
-    [Serializable]
-    public sealed class TaskFailedExceptionDeserializationException : Exception
+    /// <summary>
+    /// Compression settings
+    /// </summary>
+    public struct CompressionSettings
     {
-        public TaskFailedExceptionDeserializationException(string details, Exception deserializationException)
-            : base("Failed to deserialize exception from TaskActivity: " + details, deserializationException)
-        {
-        }
+        /// <summary>
+        ///     Type of compression
+        /// </summary>
+        public CompressionStyle Style { get; set; }
+
+        /// <summary>
+        ///     Compression threshold in bytes; if specified by compression criteria, compression will not be done
+        ///     if size is below this value
+        /// </summary>
+        public int ThresholdInBytes { get; set; }
     }
 }

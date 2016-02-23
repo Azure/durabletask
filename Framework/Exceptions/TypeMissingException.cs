@@ -11,22 +11,15 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask
+namespace DurableTask.Exceptions
 {
-    /// <summary>
-    /// Compression settings
-    /// </summary>
-    public struct CompressionSettings
-    {
-        /// <summary>
-        ///     Type of compression
-        /// </summary>
-        public CompressionStyle Style { get; set; }
+    using System;
 
-        /// <summary>
-        ///     Compression threshold in bytes; if specified by compression criteria, compression will not be done
-        ///     if size is below this value
-        /// </summary>
-        public int ThresholdInBytes { get; set; }
+    public class TypeMissingException : Exception
+    {
+        public TypeMissingException(string message)
+            : base(message)
+        {
+        }
     }
 }

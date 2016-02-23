@@ -13,40 +13,12 @@
 
 namespace DurableTask.Command
 {
-    using System;
     using Newtonsoft.Json;
-    using Newtonsoft.Json.Linq;
 
     [JsonConverter(typeof (OrchestrationActionConverter))]
     internal abstract class OrchestratorAction
     {
         public int Id { get; set; }
         public abstract OrchestratorActionType OrchestratorActionType { get; }
-    }
-
-    internal class OrchestrationActionConverter : JsonCreationConverter<OrchestratorAction>
-    {
-        protected override OrchestratorAction CreateObject(Type objectType, JObject jobject)
-        {
-            JToken actionType;
-            if (jobject.TryGetValue("OrchestratorActionType", StringComparison.OrdinalIgnoreCase, out actionType))
-            {
-                var type = (OrchestratorActionType) int.Parse((string) actionType);
-                switch (type)
-                {
-                    case OrchestratorActionType.CreateTimer:
-                        return new CreateTimerOrchestratorAction();
-                    case OrchestratorActionType.OrchestrationComplete:
-                        return new OrchestrationCompleteOrchestratorAction();
-                    case OrchestratorActionType.ScheduleOrchestrator:
-                        return new ScheduleTaskOrchestratorAction();
-                    case OrchestratorActionType.CreateSubOrchestration:
-                        return new CreateSubOrchestrationAction();
-                    default:
-                        throw new NotSupportedException("Unrecognized action type.");
-                }
-            }
-            throw new NotSupportedException("Action Type not provided.");
-        }
     }
 }

@@ -18,6 +18,8 @@ namespace DurableTask
     using System.Threading;
     using System.Threading.Tasks;
     using Command;
+    using Common;
+    using Exceptions;
     using History;
 
     internal class TaskOrchestrationContext : OrchestrationContext

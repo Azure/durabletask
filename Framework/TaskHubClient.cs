@@ -20,6 +20,8 @@ namespace DurableTask
     using System.Linq;
     using System.Text;
     using System.Threading.Tasks;
+
+    using Common;
     using History;
     using Microsoft.ServiceBus;
     using Microsoft.ServiceBus.Messaging;
@@ -90,7 +92,7 @@ namespace DurableTask
         {
             this.hubName = hubName;
             this.connectionString = connectionString;
-            messagingFactory = Utils.CreateMessagingFactory(connectionString);
+            messagingFactory = ServiceBusUtils.CreateMessagingFactory(connectionString);
             workerEntityName = string.Format(FrameworkConstants.WorkerEndpointFormat, this.hubName);
             orchestratorEntityName = string.Format(FrameworkConstants.OrchestratorEndpointFormat, this.hubName);
             defaultConverter = new JsonDataConverter();
@@ -266,7 +268,7 @@ namespace DurableTask
                 Event = startedEvent
             };
 
-            BrokeredMessage brokeredMessage = Utils.GetBrokeredMessageFromObject(taskMessage,
+            BrokeredMessage brokeredMessage = ServiceBusUtils.GetBrokeredMessageFromObject(taskMessage,
                 settings.MessageCompressionSettings);
             brokeredMessage.SessionId = instanceId;
 
@@ -312,7 +314,7 @@ namespace DurableTask
                 Event = new EventRaisedEvent(-1, serializedInput) {Name = eventName}
             };
 
-            BrokeredMessage brokeredMessage = Utils.GetBrokeredMessageFromObject(taskMessage,
+            BrokeredMessage brokeredMessage = ServiceBusUtils.GetBrokeredMessageFromObject(taskMessage,
                 settings.MessageCompressionSettings);
             brokeredMessage.SessionId = orchestrationInstance.InstanceId;
 
@@ -370,7 +372,7 @@ namespace DurableTask
                 Event = new ExecutionTerminatedEvent(-1, reason)
             };
 
-            BrokeredMessage brokeredMessage = Utils.GetBrokeredMessageFromObject(taskMessage,
+            BrokeredMessage brokeredMessage = ServiceBusUtils.GetBrokeredMessageFromObject(taskMessage,
                 settings.MessageCompressionSettings);
             brokeredMessage.SessionId = instanceId;
 

@@ -17,6 +17,8 @@ namespace FrameworkUnitTests
     using System.Configuration;
     using System.Threading;
     using DurableTask;
+    using DurableTask.Common;
+    using DurableTask.Exceptions;
     using Microsoft.ServiceBus;
     using Microsoft.ServiceBus.Messaging;
 

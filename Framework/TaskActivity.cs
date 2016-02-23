@@ -15,6 +15,8 @@ namespace DurableTask
 {
     using System;
     using System.Threading.Tasks;
+    using Common;
+    using Exceptions;
     using Newtonsoft.Json.Linq;
 
     /// <summary>
