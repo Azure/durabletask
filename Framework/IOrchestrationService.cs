@@ -57,6 +57,9 @@ namespace DurableTask
 
         Task DeleteAsync();
 
+        // Provider reliant methods
+        bool IsTransientException(Exception exception);
+
         // TaskOrchestrationDispatcher methods
         bool IsMaxMessageCountExceeded(int currentMessageCount, OrchestrationRuntimeState runtimeState);
 

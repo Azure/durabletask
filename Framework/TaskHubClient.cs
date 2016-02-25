@@ -34,6 +34,7 @@ namespace DurableTask
     /// <summary>
     ///     Client used to manage and query orchestration instances
     /// </summary>
+    [Obsolete]
     public sealed class TaskHubClient
     {
         readonly string connectionString;

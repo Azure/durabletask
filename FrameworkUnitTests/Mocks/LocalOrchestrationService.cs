@@ -121,6 +121,11 @@ namespace FrameworkUnitTests.Mocks
             this.cancellationTokenSource.Cancel();
             return Task.FromResult<object>(null);
         }
+        
+        public bool IsTransientException(Exception exception)
+        {
+            return false;
+        }
 
         /******************************/
         // client methods

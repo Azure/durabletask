@@ -18,10 +18,10 @@ namespace FrameworkUnitTests
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask;
-    using DurableTask.Test;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Mocks;
     using System.Diagnostics;
+
     /// <summary>
     /// Test the core dtfx via a mock orchestration service and client provider
     /// </summary>
@@ -173,21 +173,21 @@ namespace FrameworkUnitTests
 
             var signalId = new OrchestrationInstance { InstanceId = id.InstanceId };
 
-            Thread.Sleep(2 * 1000);
+            await Task.Delay(2 * 1000);
             await client.RaiseEventAsync(signalId, "Count", "1");
             GenerationSignalOrchestration.signal.Set();
 
-            Thread.Sleep(2 * 1000);
+            await Task.Delay(2 * 1000);
             GenerationSignalOrchestration.signal.Reset();
             await client.RaiseEventAsync(signalId, "Count", "2");
-            Thread.Sleep(2 * 1000);
+            await Task.Delay(2 * 1000);
             await client.RaiseEventAsync(signalId, "Count", "3"); // will be recieved by next generation
             GenerationSignalOrchestration.signal.Set();
 
-            Thread.Sleep(2 * 1000);
+            await Task.Delay(2 * 1000);
             GenerationSignalOrchestration.signal.Reset();
             await client.RaiseEventAsync(signalId, "Count", "4");
-            Thread.Sleep(2 * 1000);
+            await Task.Delay(2 * 1000);
             await client.RaiseEventAsync(signalId, "Count", "5"); // will be recieved by next generation
             await client.RaiseEventAsync(signalId, "Count", "6"); // lost
             await client.RaiseEventAsync(signalId, "Count", "7"); // lost

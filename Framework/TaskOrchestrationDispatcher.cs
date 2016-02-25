@@ -28,6 +28,7 @@ namespace DurableTask
     using Newtonsoft.Json;
     using Tracing;
 
+    [Obsolete]
     public class TaskOrchestrationDispatcher : DispatcherBase<SessionWorkItem>
     {
         const int PrefetchCount = 50;

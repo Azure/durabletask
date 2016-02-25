@@ -27,6 +27,7 @@ namespace DurableTask
     ///     Allows users to load the TaskOrchestration and TaskActivity classes and start
     ///     dispatching to these. Also allows CRUD operations on the Task Hub itself.
     /// </summary>
+    [Obsolete]
     public sealed class TaskHubWorker
     {
         readonly NameVersionObjectManager<TaskActivity> activityManager;

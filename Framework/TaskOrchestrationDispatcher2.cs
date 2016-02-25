@@ -13,8 +13,6 @@
 
 namespace DurableTask
 {
-    using Microsoft.ServiceBus.Messaging;
-    using Newtonsoft.Json;
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
@@ -25,13 +23,15 @@ namespace DurableTask
     using DurableTask.Common;
     using DurableTask.Exceptions;
     using DurableTask.History;
-    using Tracing;
+    using DurableTask.Serializing;
+    using DurableTask.Tracing;
 
     public class TaskOrchestrationDispatcher2 : DispatcherBase<TaskOrchestrationWorkItem>
     {
         readonly NameVersionObjectManager<TaskOrchestration> objectManager;
         readonly TaskHubWorkerSettings settings;
         readonly IOrchestrationService orchestrationService;
+        private static readonly DataConverter DataConverter = new JsonDataConverter();
 
         internal TaskOrchestrationDispatcher2(
             TaskHubWorkerSettings workerSettings,
@@ -95,12 +95,7 @@ namespace DurableTask
                     TraceEventType.Verbose,
                     runtimeState.OrchestrationInstance,
                     "Executing user orchestration: {0}",
-                    JsonConvert.SerializeObject(runtimeState.GetOrchestrationRuntimeStateDump(),
-                        new JsonSerializerSettings
-                        {
-                            TypeNameHandling = TypeNameHandling.Auto,
-                            Formatting = Formatting.Indented
-                        }));
+                    DataConverter.Serialize(runtimeState.GetOrchestrationRuntimeStateDump(), true));
 
                 IEnumerable<OrchestratorAction> decisions = ExecuteOrchestration(runtimeState);
 
@@ -340,10 +335,8 @@ namespace DurableTask
             TraceHelper.TraceInstance(TraceEventType.Information, runtimeState.OrchestrationInstance,
                 "Instance Id '{0}' completed in state {1} with result: {2}",
                 runtimeState.OrchestrationInstance, runtimeState.OrchestrationStatus, completeOrchestratorAction.Result);
-            string history = JsonConvert.SerializeObject(runtimeState.Events, Formatting.Indented,
-                new JsonSerializerSettings {TypeNameHandling = TypeNameHandling.Objects});
             TraceHelper.TraceInstance(TraceEventType.Information, runtimeState.OrchestrationInstance,
-                () => Utils.EscapeJson(history));
+                () => Utils.EscapeJson(DataConverter.Serialize(runtimeState.Events, true)));
 
             // Check to see if we need to start a new execution
             if (completeOrchestratorAction.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew)
@@ -487,7 +480,7 @@ namespace DurableTask
 
         protected override int GetDelayInSecondsAfterOnProcessException(Exception exception)
         {
-            if (exception is MessagingException)
+            if (orchestrationService.IsTransientException(exception))  
             {
                 return settings.TaskOrchestrationDispatcherSettings.TransientErrorBackOffSecs;
             }
@@ -503,10 +496,11 @@ namespace DurableTask
             }
 
             int delay = settings.TaskOrchestrationDispatcherSettings.NonTransientErrorBackOffSecs;
-            if (exception is MessagingException && (exception as MessagingException).IsTransient)
+            if (orchestrationService.IsTransientException(exception))
             {
                 delay = settings.TaskOrchestrationDispatcherSettings.TransientErrorBackOffSecs;
             }
+
             return delay;
         }
 

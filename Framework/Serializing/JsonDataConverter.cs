@@ -33,15 +33,16 @@ namespace DurableTask.Serializing
             serializer = JsonSerializer.Create(settings);
         }
 
-        public override string Serialize(object value)
+        public override string Serialize(object value, bool formatted = false)
         {
             var sb = new StringBuilder(0x100);
             var textWriter = new StringWriter(sb, CultureInfo.InvariantCulture);
             using (var writer = new JsonTextWriter(textWriter))
             {
-                writer.Formatting = Formatting.None;
+                writer.Formatting = (formatted ? Formatting.Indented : Formatting.None);
                 serializer.Serialize(writer, value);
             }
+
             return textWriter.ToString();
         }
 

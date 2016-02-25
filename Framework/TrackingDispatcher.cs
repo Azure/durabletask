@@ -22,8 +22,9 @@ namespace DurableTask
     using DurableTask.Common;
     using DurableTask.Tracing;
     using DurableTask.Tracking;
-    using Newtonsoft.Json;
+    using DurableTask.Serializing;
 
+    [Obsolete]
     internal sealed class TrackingDispatcher : DispatcherBase<SessionWorkItem>
     {
         const int PrefetchCount = 50;
@@ -40,6 +41,7 @@ namespace DurableTask
         readonly TaskHubDescription taskHubDescription;
         readonly string trackingEntityName;
         QueueClient trackingQueueClient;
+        private static readonly DataConverter DataConverter = new JsonDataConverter();
 
         internal TrackingDispatcher(MessagingFactory messagingFactory,
             TaskHubDescription taskHubDescription,
@@ -208,7 +210,7 @@ namespace DurableTask
 
         string GetNormalizedStateEntityTrace(int index, string message, OrchestrationStateEntity stateEntity)
         {
-            string serializedHistoryEvent = Utils.EscapeJson(JsonConvert.SerializeObject(stateEntity.State));
+            string serializedHistoryEvent = Utils.EscapeJson(DataConverter.Serialize(stateEntity.State));
             int historyEventLength = serializedHistoryEvent.Length;
 
             if (historyEventLength > MaxDisplayStringLengthForAzureTableColumn)
@@ -233,7 +235,7 @@ namespace DurableTask
 
         string GetNormalizedHistoryEventEntityTrace(int index, string message, OrchestrationHistoryEventEntity entity)
         {
-            string serializedHistoryEvent = Utils.EscapeJson(JsonConvert.SerializeObject(entity.HistoryEvent));
+            string serializedHistoryEvent = Utils.EscapeJson(DataConverter.Serialize(entity.HistoryEvent));
             int historyEventLength = serializedHistoryEvent.Length;
 
             if (historyEventLength > MaxDisplayStringLengthForAzureTableColumn)

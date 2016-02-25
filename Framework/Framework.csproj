@@ -91,6 +91,7 @@
     <Compile Include="OrchestrationRuntimeStateDump.cs" />
     <Compile Include="Common\ServiceBusUtils.cs" />
     <Compile Include="Command\OrchestratorActionConverter.cs" />
+    <Compile Include="ServiceBusOrchestrationService.cs" />
     <Compile Include="TaskOrchestrationWorkItem.cs" />
     <Compile Include="TaskActivityWorkItem.cs" />
     <Compile Include="IOrchestrationServiceClient.cs" />

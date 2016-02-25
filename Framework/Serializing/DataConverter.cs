@@ -17,7 +17,7 @@ namespace DurableTask.Serializing
 
     public abstract class DataConverter
     {
-        public abstract string Serialize(object value);
+        public abstract string Serialize(object value, bool formatted = false);
         public abstract object Deserialize(string data, Type objectType);
 
         public T Deserialize<T>(string data)
