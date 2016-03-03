@@ -57,6 +57,25 @@ namespace DurableTask.Common
             objectStream.Position = 0;
         }
 
+        public static Stream WriteStringToStream(string input, bool compress, out long originalStreamSize)
+        {
+            Stream resultStream = new MemoryStream();
+
+            byte[] bytes = Encoding.UTF8.GetBytes(input);
+
+            resultStream.Write(bytes, 0, bytes.Length);
+            originalStreamSize = resultStream.Length;
+
+            if (compress)
+            {
+                var compressedStream = GetCompressedStream(resultStream);
+                resultStream.Dispose();
+                resultStream = compressedStream;
+            }
+
+            return resultStream;
+        }
+
         public static T ReadObjectFromStream<T>(Stream objectStream)
         {
             if (objectStream == null || !objectStream.CanRead || !objectStream.CanSeek)

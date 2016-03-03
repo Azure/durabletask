@@ -65,7 +65,7 @@ namespace DurableTask
 
         Task<TaskOrchestrationWorkItem> LockNextTaskOrchestrationWorkItemAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken);
 
-        Task<TaskOrchestrationWorkItem> RenewTaskOrchestrationWorkItemLockAsync(TaskOrchestrationWorkItem workItem);
+        Task RenewTaskOrchestrationWorkItemLockAsync(TaskOrchestrationWorkItem workItem);
 
         Task CompleteTaskOrchestrationWorkItemAsync(
             TaskOrchestrationWorkItem workItem,
@@ -73,6 +73,7 @@ namespace DurableTask
             IList<TaskMessage> outboundMessages, 
             IList<TaskMessage> orchestratorMessages, 
             IList<TaskMessage> timerMessages,
+            TaskMessage continuedAsNewMessage,
             OrchestrationState orchestrationState);
 
         Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem);

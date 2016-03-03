@@ -27,19 +27,20 @@ namespace DurableTask.Common
 
     internal static class ServiceBusUtils
     {
-        public static BrokeredMessage GetBrokeredMessageFromObject(object serializableObject,
-            CompressionSettings compressionSettings)
+        public static BrokeredMessage GetBrokeredMessageFromObject(object serializableObject, CompressionSettings compressionSettings)
         {
             return GetBrokeredMessageFromObject(serializableObject, compressionSettings, null, null);
         }
 
-        public static BrokeredMessage GetBrokeredMessageFromObject(object serializableObject,
+        public static BrokeredMessage GetBrokeredMessageFromObject(
+            object serializableObject,
             CompressionSettings compressionSettings,
-            OrchestrationInstance instance, string messageType)
+            OrchestrationInstance instance, 
+            string messageType)
         {
             if (serializableObject == null)
             {
-                throw new ArgumentNullException("serializableObject");
+                throw new ArgumentNullException(nameof(serializableObject));
             }
 
             if (compressionSettings.Style == CompressionStyle.Legacy)
@@ -93,7 +94,7 @@ namespace DurableTask.Common
         {
             if (message == null)
             {
-                throw new ArgumentNullException("message");
+                throw new ArgumentNullException(nameof(message));
             }
 
             T deserializedObject;

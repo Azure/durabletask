@@ -1,5 +1,6 @@
 ﻿namespace DurableTaskSamples.ErrorHandling
 {
+    using System;
     using System.Threading.Tasks;
     using DurableTask;
     using DurableTask.Exceptions;
@@ -21,6 +22,7 @@
             catch (TaskFailedException)
             {
                 hasError = true;
+                Console.WriteLine("TaskFailedException caught as expected");
             }
 
             if (hasError && !string.IsNullOrEmpty(goodResult))
@@ -28,6 +30,7 @@
                 result = await context.ScheduleTask<string>(typeof(CleanupTask));
             }
 
+            Console.WriteLine($"Orchestration Complete, result: {result}");
             return result;
         }
     }

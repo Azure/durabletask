@@ -46,9 +46,8 @@ namespace FrameworkUnitTests
                 fakeTaskHub = TestHelpers2.CreateTaskHub();
 
                 taskHubNoCompression = TestHelpers2.CreateTaskHubNoCompression();
-                // TODO : siport : move to service bus code
-                // taskHub.DeleteHub();
-                // taskHub.CreateHubIfNotExists();
+                // TODO : siport : validate this is how we should call this
+                taskHub.orchestrationService.CreateIfNotExistsAsync().Wait();
             }
         }
 
@@ -60,8 +59,8 @@ namespace FrameworkUnitTests
                 taskHub.Stop(true);
                 taskHubNoCompression.Stop();
                 fakeTaskHub.Stop(true);
-                // TODO : siport : move to service bus code
-                // taskHub.DeleteHub();
+                // TODO : siport : validate this is how we should call this
+                taskHub.orchestrationService.DeleteAsync().Wait();
             }
         }
 

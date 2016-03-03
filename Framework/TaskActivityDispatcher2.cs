@@ -26,7 +26,7 @@ namespace DurableTask
     {
         readonly NameVersionObjectManager<TaskActivity> objectManager;
         readonly TaskHubWorkerSettings settings;
-        IOrchestrationService orchestrationService;
+        readonly IOrchestrationService orchestrationService;
         
         internal TaskActivityDispatcher2(
             TaskHubWorkerSettings workerSettings,
@@ -41,7 +41,7 @@ namespace DurableTask
             maxConcurrentWorkItems = settings.TaskActivityDispatcherSettings.MaxConcurrentActivities;
         }
 
-        public bool IncludeDetails { get; set; }
+        public bool IncludeDetails { get; set;} 
 
         protected override Task<TaskActivityWorkItem> OnFetchWorkItemAsync(TimeSpan receiveTimeout)
         {
@@ -60,7 +60,7 @@ namespace DurableTask
             {
                 TaskMessage taskMessage = workItem.TaskMessage;
                 OrchestrationInstance orchestrationInstance = taskMessage.OrchestrationInstance;
-                if (orchestrationInstance == null || string.IsNullOrWhiteSpace(orchestrationInstance.InstanceId))
+                if (string.IsNullOrWhiteSpace(orchestrationInstance?.InstanceId))
                 {
                     throw TraceHelper.TraceException(TraceEventType.Error,
                         new InvalidOperationException("Message does not contain any OrchestrationInstance information"));
@@ -77,8 +77,7 @@ namespace DurableTask
                 TaskActivity taskActivity = objectManager.GetObject(scheduledEvent.Name, scheduledEvent.Version);
                 if (taskActivity == null)
                 {
-                    throw new TypeMissingException("TaskActivity " + scheduledEvent.Name + " version " +
-                                                   scheduledEvent.Version + " was not found");
+                    throw new TypeMissingException($"TaskActivity {scheduledEvent.Name} version {scheduledEvent.Version} was not found");
                 }
 
                 renewTask = Task.Factory.StartNew(() => RenewUntil(workItem, renewCancellationTokenSource.Token));
@@ -102,7 +101,7 @@ namespace DurableTask
                 {
                     TraceHelper.TraceExceptionInstance(TraceEventType.Error, taskMessage.OrchestrationInstance, e);
                     string details = IncludeDetails
-                        ? string.Format("Unhandled exception while executing task: {0}\n\t{1}", e, e.StackTrace)
+                        ? $"Unhandled exception while executing task: {e}\n\t{e.StackTrace}"
                         : null;
                     eventToRespond = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details);
                 }
@@ -144,25 +143,24 @@ namespace DurableTask
                 {
                     await Task.Delay(TimeSpan.FromSeconds(5));
 
-                    if (DateTime.UtcNow >= renewAt)
+                    if (DateTime.UtcNow < renewAt)
                     {
-                        try
-                        {
-                            TraceHelper.Trace(TraceEventType.Information, "Renewing lock for workitem id {0}",
-                                workItem.Id);
-                            workItem = await this.orchestrationService.RenewTaskActivityWorkItemLockAsync(workItem);
-                            renewAt = workItem.LockedUntilUtc.Subtract(TimeSpan.FromSeconds(30));
-                            renewAt = AdjustRenewAt(renewAt);
-                            TraceHelper.Trace(TraceEventType.Information, "Next renew for workitem id '{0}' at '{1}'",
-                                workItem.Id, renewAt);
-                        }
-                        catch (Exception exception)
-                        {
-                            // might have been completed
-                            TraceHelper.TraceException(TraceEventType.Information, exception,
-                                "Failed to renew lock for workitem {0}", workItem.Id);
-                            break;
-                        }
+                        continue;
+                    }
+
+                    try
+                    {
+                        TraceHelper.Trace(TraceEventType.Information, "Renewing lock for workitem id {0}", workItem.Id);
+                        workItem = await this.orchestrationService.RenewTaskActivityWorkItemLockAsync(workItem);
+                        renewAt = workItem.LockedUntilUtc.Subtract(TimeSpan.FromSeconds(30));
+                        renewAt = AdjustRenewAt(renewAt);
+                        TraceHelper.Trace(TraceEventType.Information, "Next renew for workitem id '{0}' at '{1}'", workItem.Id, renewAt);
+                    }
+                    catch (Exception exception)
+                    {
+                        // might have been completed
+                        TraceHelper.TraceException(TraceEventType.Information, exception, "Failed to renew lock for workitem {0}", workItem.Id);
+                        break;
                     }
                 }
             }
@@ -176,13 +174,7 @@ namespace DurableTask
         DateTime AdjustRenewAt(DateTime renewAt)
         {
             DateTime maxRenewAt = DateTime.UtcNow.Add(TimeSpan.FromSeconds(30));
-
-            if (renewAt > maxRenewAt)
-            {
-                return maxRenewAt;
-            }
-
-            return renewAt;
+            return renewAt > maxRenewAt ? maxRenewAt : renewAt;
         }
 
         // AFFANDAR : TODO : all of this crap has to go away, have to redo dispatcher base

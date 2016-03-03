@@ -296,11 +296,5 @@ namespace DurableTask
 
             return returnedEvent;
         }
-
-        public class OrchestrationRuntimeStateDump
-        {
-            public IList<HistoryEvent> Events;
-            public IList<HistoryEvent> NewEvents;
-        }
     }
 }
