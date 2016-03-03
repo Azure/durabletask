@@ -19,6 +19,8 @@ namespace DurableTask.Tracking
     using System.Linq;
     using System.Threading.Tasks;
     using System.Xml;
+    using DurableTask.Common;
+    using DurableTask.Exceptions;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.RetryPolicies;
     using Microsoft.WindowsAzure.Storage.Table;

@@ -15,6 +15,7 @@ namespace DurableTask.Tracking
 {
     using System;
     using System.Collections.Generic;
+    using DurableTask.Common;
     using DurableTask.History;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Table;
@@ -129,7 +130,6 @@ namespace DurableTask.Tracking
                     .GetValueOrDefault()
                     .DateTime;
 
-            OrchestrationStatus orchestrationStatus;
             string orchestrationStatusStr = GetValue("OrchestrationStatus", properties, property => property.StringValue);
             if (!Enum.TryParse(orchestrationStatusStr, out State.OrchestrationStatus))
             {

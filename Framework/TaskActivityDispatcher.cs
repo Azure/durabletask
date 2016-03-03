@@ -18,7 +18,9 @@ namespace DurableTask
     using System.Threading;
     using System.Threading.Tasks;
     using System.Transactions;
-    using History;
+    using DurableTask.Common;
+    using DurableTask.Exceptions;
+    using DurableTask.History;
     using Microsoft.ServiceBus.Messaging;
     using Tracing;
 
@@ -70,14 +72,14 @@ namespace DurableTask
 
         protected override async Task OnProcessWorkItemAsync(BrokeredMessage message)
         {
-            Utils.CheckAndLogDeliveryCount(message, taskHubDescription.MaxTaskActivityDeliveryCount);
+            ServiceBusUtils.CheckAndLogDeliveryCount(message, taskHubDescription.MaxTaskActivityDeliveryCount);
 
             Task renewTask = null;
             var renewCancellationTokenSource = new CancellationTokenSource();
 
             try
             {
-                TaskMessage taskMessage = await Utils.GetObjectFromBrokeredMessageAsync<TaskMessage>(message);
+                TaskMessage taskMessage = await ServiceBusUtils.GetObjectFromBrokeredMessageAsync<TaskMessage>(message);
                 OrchestrationInstance orchestrationInstance = taskMessage.OrchestrationInstance;
                 if (orchestrationInstance == null || string.IsNullOrWhiteSpace(orchestrationInstance.InstanceId))
                 {
@@ -130,7 +132,7 @@ namespace DurableTask
                 responseTaskMessage.Event = eventToRespond;
                 responseTaskMessage.OrchestrationInstance = orchestrationInstance;
 
-                BrokeredMessage responseMessage = Utils.GetBrokeredMessageFromObject(responseTaskMessage,
+                BrokeredMessage responseMessage = ServiceBusUtils.GetBrokeredMessageFromObject(responseTaskMessage,
                     settings.MessageCompressionSettings,
                     orchestrationInstance, "Response for " + message.MessageId);
                 responseMessage.SessionId = orchestrationInstance.InstanceId;

@@ -11,31 +11,18 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask
+namespace DurableTask.Serializing
 {
-    /// <summary>
-    /// Compression style
-    /// </summary>
-    public enum CompressionStyle
+    using System;
+
+    public abstract class DataConverter
     {
-        /// <summary>
-        ///     Revert to pre-message compression behavior (not recommended)
-        /// </summary>
-        Legacy = 0,
+        public abstract string Serialize(object value, bool formatted = false);
+        public abstract object Deserialize(string data, Type objectType);
 
-        /// <summary>
-        ///     Never compress messages
-        /// </summary>
-        Never,
-
-        /// <summary>
-        ///     Always compress messages
-        /// </summary>
-        Always,
-
-        /// <summary>
-        ///     Only compress messages if they are above the threshold
-        /// </summary>
-        Threshold,
+        public T Deserialize<T>(string data)
+        {
+            return (T) Deserialize(data, typeof (T));
+        }
     }
 }

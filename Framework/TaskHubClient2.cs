@@ -13,12 +13,13 @@
 
 namespace DurableTask
 {
-    using History;
     using System;
     using System.Collections.Generic;
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
+    using DurableTask.History;
+    using DurableTask.Serializing;
 
     /// <summary>
     ///     Client used to manage and query orchestration instances
@@ -211,6 +212,8 @@ namespace DurableTask
         ///     Wait for an orchestration to reach any terminal state within the given timeout
         /// </summary>
         /// <param name="orchestrationInstance">Instance to terminate</param>
+        /// <param name="timeout">Max timeout to wait</param>
+        /// <param name="cancellationToken">Task cancellation token</param>
         public Task<OrchestrationState> WaitForOrchestrationAsync(
             OrchestrationInstance orchestrationInstance,
             TimeSpan timeout,

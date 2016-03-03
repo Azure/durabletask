@@ -121,6 +121,11 @@ namespace FrameworkUnitTests.Mocks
             this.cancellationTokenSource.Cancel();
             return Task.FromResult<object>(null);
         }
+        
+        public bool IsTransientException(Exception exception)
+        {
+            return false;
+        }
 
         /******************************/
         // client methods
@@ -193,6 +198,11 @@ namespace FrameworkUnitTests.Mocks
                 {
                     this.orchestrationWaiters.TryGetValue(key, out tcs);
                 }
+
+                if (tcs == null)
+                {
+                    throw new InvalidOperationException("Unable to get tcs from orchestrationWaiters");
+                }
             }
 
             // might have finished already
@@ -244,28 +254,34 @@ namespace FrameworkUnitTests.Mocks
 
         public async Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)
         {
-            lock(this.thisLock)
+            OrchestrationState response = null;
+            lock (this.thisLock)
             {
-                if(this.instanceStore[instanceId] == null)
+                if(this.instanceStore[instanceId] != null)
                 {
-                    return null;
+                    response = this.instanceStore[instanceId][executionId];
                 }
-
-                return this.instanceStore[instanceId][executionId];
             }
+
+            return await Task.FromResult(response);
         }
 
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
         {
+            IList<OrchestrationState> response = null;
             lock (this.thisLock)
             {
-                if (this.instanceStore[instanceId] == null)
+                if (this.instanceStore[instanceId] != null)
                 {
-                    return new List<OrchestrationState>();
+                    response = this.instanceStore[instanceId].Values.ToList();
                 }
-
-                return (IList<OrchestrationState>)this.instanceStore[instanceId].ToList();
+                else
+                {
+                    response = new List<OrchestrationState>();
+                }
             }
+
+            return await Task.FromResult(response);
         }
 
         public Task<string> GetOrchestrationHistoryAsync(string instanceId, string executionId)
@@ -306,12 +322,12 @@ namespace FrameworkUnitTests.Mocks
             return wi;
         }
 
-        public async Task CompleteTaskOrchestrationWorkItemAsync(
+        public Task CompleteTaskOrchestrationWorkItemAsync(
             TaskOrchestrationWorkItem workItem, 
             OrchestrationRuntimeState newOrchestrationRuntimeState, 
             IList<TaskMessage> outboundMessages, 
             IList<TaskMessage> orchestratorMessages, 
-            IList<TaskMessage> timerMessages,
+            IList<TaskMessage> workItemTimerMessages,
             OrchestrationState state)
         {
             lock(this.thisLock)
@@ -332,9 +348,9 @@ namespace FrameworkUnitTests.Mocks
                     }
                 }
 
-                if (timerMessages != null)
+                if (workItemTimerMessages != null)
                 {
-                    foreach (TaskMessage m in timerMessages)
+                    foreach (TaskMessage m in workItemTimerMessages)
                     {
                         this.timerMessages.Add(m);
                     }
@@ -361,10 +377,12 @@ namespace FrameworkUnitTests.Mocks
 
                     string key1 = workItem.OrchestrationRuntimeState.OrchestrationInstance.InstanceId + "_";
 
+                    var tasks = new List<Task>();
+
                     if (state.OrchestrationStatus != OrchestrationStatus.Running 
                         && this.orchestrationWaiters.TryGetValue(key, out tcs))
                     {
-                        Task.Run(() => tcs.TrySetResult(state));
+                        tasks.Add(Task.Run(() => tcs.TrySetResult(state)));
                     }
 
                     // for instanceid level waiters, we will not consider continueasnew as a terminal state because
@@ -372,12 +390,17 @@ namespace FrameworkUnitTests.Mocks
                     if ((state.OrchestrationStatus != OrchestrationStatus.Running && state.OrchestrationStatus != OrchestrationStatus.ContinuedAsNew)
                         && this.orchestrationWaiters.TryGetValue(key1, out tcs1))
                     {
-                        Task.Run(() => tcs1.TrySetResult(state));
+                        tasks.Add(Task.Run(() => tcs1.TrySetResult(state)));
+                    }
+
+                    if (tasks.Count > 0)
+                    {
+                        Task.WaitAll(tasks.ToArray());
                     }
                 }
             }
 
-            return;
+            return Task.FromResult(0);
         }
 
         public Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)

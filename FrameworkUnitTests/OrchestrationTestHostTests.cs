@@ -17,7 +17,10 @@ namespace FrameworkUnitTests
     using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
+    using System.Linq;
+
     using DurableTask;
+    using DurableTask.Exceptions;
     using DurableTask.Test;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -557,7 +560,7 @@ namespace FrameworkUnitTests
         {
             public static int Count;
 
-            public override async Task<string> RunTask(OrchestrationContext context, int numberOfGenerations)
+            public override Task<string> RunTask(OrchestrationContext context, int numberOfGenerations)
             {
                 numberOfGenerations--;
                 if (numberOfGenerations > 0)
@@ -572,7 +575,7 @@ namespace FrameworkUnitTests
 
                 Interlocked.Increment(ref Count);
 
-                return "done";
+                return Task.FromResult("done");
             }
         }
 
@@ -814,15 +817,16 @@ namespace FrameworkUnitTests
                 .AddTaskActivities(new SendGreetingTask());
 
             var instance = new OrchestrationInstance {InstanceId = "Test"};
-            Task.Factory.StartNew(() =>
+            var hostTask = Task.Factory.StartNew(() =>
             {
-                testHost.Delay(2*1000).Wait();
+                testHost.Delay(2 * 1000).Wait();
                 testHost.RaiseEvent(instance, "GetUser", "Gabbar");
-            }
-                );
+            });
+
             string result = await testHost.RunOrchestration<string>(instance, typeof (SignalOrchestration), null);
             Assert.AreEqual("Greeting send to Gabbar", result, "Orchestration Result is wrong!!!");
             Assert.AreEqual("Greeting send to Gabbar", SignalOrchestration.Result, "Orchestration Result is wrong!!!");
+            Assert.IsNull(hostTask.Exception, string.Format("hostTask threw exception: {0}", hostTask.Exception));
         }
 
         public class SignalOrchestration : TaskOrchestration<string, string>
@@ -956,6 +960,7 @@ namespace FrameworkUnitTests
                 .AddTaskActivities(new CronTask(() => { testHost.Delay(2*1000).Wait(); }));
 
             CronTask.Result = 0;
+            CronOrchestration.Tasks.Clear();
             string result = await testHost.RunOrchestration<string>(typeof (CronOrchestration), new CronJob
             {
                 Frequency = RecurrenceFrequency.Second,
@@ -965,6 +970,8 @@ namespace FrameworkUnitTests
             Assert.AreEqual(5, CronTask.Result, "Orchestration Result is wrong!!!");
             Assert.AreEqual("Done", result, "Orchestration Result is wrong!!!");
             Assert.AreEqual(5, CronOrchestration.Result, "Orchestration Result is wrong!!!");
+            int taskExceptions = CronOrchestration.Tasks.Count(task => task.Exception != null);
+            Assert.AreEqual(0, taskExceptions, $"Orchestration Result contains {taskExceptions} exceptions!!!");
         }
 
         public class CronJob
@@ -977,6 +984,7 @@ namespace FrameworkUnitTests
         public class CronOrchestration : TaskOrchestration<string, CronJob>
         {
             public static int Result;
+            public static List<Task<string>> Tasks = new List<Task<string>>();
 
             public override async Task<string> RunTask(OrchestrationContext context, CronJob job)
             {
@@ -999,7 +1007,7 @@ namespace FrameworkUnitTests
 
                     string attempt = await context.CreateTimer(fireAt, i.ToString());
 
-                    context.ScheduleTask<string>(typeof (CronTask), attempt);
+                    Tasks.Add(context.ScheduleTask<string>(typeof (CronTask), attempt));
                 }
 
                 Result = i - 1;
@@ -1060,9 +1068,9 @@ namespace FrameworkUnitTests
 
         public class ChildWorkflow : TaskOrchestration<string, int>
         {
-            public override async Task<string> RunTask(OrchestrationContext context, int input)
+            public override Task<string> RunTask(OrchestrationContext context, int input)
             {
-                return "Child '" + input + "' completed.";
+                return Task.FromResult($"Child '{input}' completed.");
             }
         }
 
@@ -1120,7 +1128,7 @@ namespace FrameworkUnitTests
         {
             public static int Count;
 
-            public override async Task<string> RunTask(OrchestrationContext context, int input)
+            public override Task<string> RunTask(OrchestrationContext context, int input)
             {
                 Count++;
                 throw new InvalidOperationException("Test");

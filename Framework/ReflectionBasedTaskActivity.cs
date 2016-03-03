@@ -16,6 +16,9 @@ namespace DurableTask
     using System;
     using System.Reflection;
     using System.Threading.Tasks;
+    using DurableTask.Common;
+    using DurableTask.Exceptions;
+    using DurableTask.Serializing;
     using Newtonsoft.Json.Linq;
 
     public class ReflectionBasedTaskActivity : TaskActivity

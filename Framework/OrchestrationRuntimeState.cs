@@ -16,7 +16,8 @@ namespace DurableTask
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
-    using History;
+    using DurableTask.Common;
+    using DurableTask.History;
 
     public class OrchestrationRuntimeState
     {

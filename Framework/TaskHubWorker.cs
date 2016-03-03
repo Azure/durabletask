@@ -18,14 +18,16 @@ namespace DurableTask
     using System.Linq;
     using System.Reflection;
     using System.Threading.Tasks;
+    using DurableTask.Common;
+    using DurableTask.Tracking;
     using Microsoft.ServiceBus;
     using Microsoft.ServiceBus.Messaging;
-    using Tracking;
 
     /// <summary>
     ///     Allows users to load the TaskOrchestration and TaskActivity classes and start
     ///     dispatching to these. Also allows CRUD operations on the Task Hub itself.
     /// </summary>
+    [Obsolete]
     public sealed class TaskHubWorker
     {
         readonly NameVersionObjectManager<TaskActivity> activityManager;
@@ -59,6 +61,7 @@ namespace DurableTask
         /// </summary>
         /// <param name="hubName">Name of the Task Hub</param>
         /// <param name="connectionString">Service Bus connection string</param>
+        /// <param name="workerSettings">configuration for task hub options</param>
         public TaskHubWorker(string hubName, string connectionString, TaskHubWorkerSettings workerSettings)
             : this(hubName, connectionString, null, workerSettings)
         {
@@ -174,11 +177,11 @@ namespace DurableTask
                 TaskHubDescription taskHubDescription = GetTaskHubDescription();
 
                 orchestrationDispatcher =
-                    new TaskOrchestrationDispatcher(Utils.CreateMessagingFactory(connectionString),
+                    new TaskOrchestrationDispatcher(ServiceBusUtils.CreateMessagingFactory(connectionString),
                         string.IsNullOrEmpty(tableStoreConnectionString)
                             ? null
                             : new TrackingDispatcher(
-                                Utils.CreateMessagingFactory(connectionString),
+                                ServiceBusUtils.CreateMessagingFactory(connectionString),
                                 taskHubDescription,
                                 workerSettings,
                                 tableStoreConnectionString, hubName,
@@ -190,7 +193,7 @@ namespace DurableTask
 
                 activityDispatcher =
                     new TaskActivityDispatcher(
-                        Utils.CreateMessagingFactory(connectionString),
+                        ServiceBusUtils.CreateMessagingFactory(connectionString),
                         taskHubDescription,
                         workerSettings,
                         orchestratorEntityName,

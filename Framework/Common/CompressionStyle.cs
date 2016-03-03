@@ -11,16 +11,31 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask
+namespace DurableTask.Common
 {
-    using System;
-
-    [Serializable]
-    public sealed class TaskFailedExceptionDeserializationException : Exception
+    /// <summary>
+    /// Compression style
+    /// </summary>
+    public enum CompressionStyle
     {
-        public TaskFailedExceptionDeserializationException(string details, Exception deserializationException)
-            : base("Failed to deserialize exception from TaskActivity: " + details, deserializationException)
-        {
-        }
+        /// <summary>
+        ///     Revert to pre-message compression behavior (not recommended)
+        /// </summary>
+        Legacy = 0,
+
+        /// <summary>
+        ///     Never compress messages
+        /// </summary>
+        Never,
+
+        /// <summary>
+        ///     Always compress messages
+        /// </summary>
+        Always,
+
+        /// <summary>
+        ///     Only compress messages if they are above the threshold
+        /// </summary>
+        Threshold,
     }
 }

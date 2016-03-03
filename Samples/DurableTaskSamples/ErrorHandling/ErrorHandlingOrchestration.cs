@@ -2,6 +2,7 @@
 {
     using System.Threading.Tasks;
     using DurableTask;
+    using DurableTask.Exceptions;
 
     public class ErrorHandlingOrchestration : TaskOrchestration<string, string>
     {

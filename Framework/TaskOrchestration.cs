@@ -15,6 +15,9 @@ namespace DurableTask
 {
     using System;
     using System.Threading.Tasks;
+    using DurableTask.Common;
+    using DurableTask.Exceptions;
+    using DurableTask.Serializing;
 
     public abstract class TaskOrchestration
     {

@@ -15,6 +15,7 @@ namespace DurableTask.Tracing
 {
     using System;
     using System.Diagnostics;
+    using DurableTask.Common;
 
     internal class TraceHelper
     {
@@ -199,23 +200,16 @@ namespace DurableTask.Tracing
             {
                 innerFunc();
             }
-            catch (Exception exception)
+            catch (Exception exception) when (!Utils.IsFatal(exception))
             {
-                if (Utils.IsFatal(exception))
-                {
-                    throw;
-                }
                 try
                 {
                     source.TraceEvent(TraceEventType.Critical, 0,
                         "Failed to log actual trace because one or more trace listeners threw an exception.");
                 }
-                catch (Exception anotherException)
+                catch (Exception anotherException) when (!Utils.IsFatal(anotherException))
                 {
-                    if (Utils.IsFatal(anotherException))
-                    {
-                        throw;
-                    }
+
                 }
             }
         }

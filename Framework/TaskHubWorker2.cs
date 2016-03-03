@@ -14,13 +14,7 @@
 namespace DurableTask
 {
     using System;
-    using System.Collections.Generic;
-    using System.Linq;
     using System.Reflection;
-    using System.Threading.Tasks;
-    using Microsoft.ServiceBus;
-    using Microsoft.ServiceBus.Messaging;
-    using Tracking;
 
     /// <summary>
     ///     Allows users to load the TaskOrchestration and TaskActivity classes and start
@@ -46,9 +40,8 @@ namespace DurableTask
         /// <summary>
         ///     Create a new TaskHubWorker with given name, Service Bus and Azure Storage connection string
         /// </summary>
+        /// <param name="orchestrationService">Reference the orchestration service implmentaion</param>
         /// <param name="hubName">Name of the Task Hub</param>
-        /// <param name="connectionString">Service Bus connection string</param>
-        /// <param name="tableStoreConnectionString">Azure Storage connection string</param>
         /// <param name="workerSettings">Settings for various task hub worker options</param>
         public TaskHubWorker2(IOrchestrationService orchestrationService, string hubName, TaskHubWorkerSettings workerSettings)
         {

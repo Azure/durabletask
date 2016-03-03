@@ -17,17 +17,17 @@ namespace DurableTask
     using System.Diagnostics;
     using System.Threading;
     using System.Threading.Tasks;
-    using System.Transactions;
-    using History;
-    using Microsoft.ServiceBus.Messaging;
-    using Tracing;
+    using DurableTask.Exceptions;
+    using DurableTask.History;
+    using DurableTask.Serializing;
+    using DurableTask.Tracing;
 
     public sealed class TaskActivityDispatcher2 : DispatcherBase<TaskActivityWorkItem>
     {
         readonly NameVersionObjectManager<TaskActivity> objectManager;
         readonly TaskHubWorkerSettings settings;
         IOrchestrationService orchestrationService;
-
+        
         internal TaskActivityDispatcher2(
             TaskHubWorkerSettings workerSettings,
             IOrchestrationService orchestrationService,
@@ -210,7 +210,7 @@ namespace DurableTask
 
         protected override int GetDelayInSecondsAfterOnProcessException(Exception exception)
         {
-            if (exception is MessagingException)
+            if (orchestrationService.IsTransientException(exception))
             {
                 return settings.TaskActivityDispatcherSettings.TransientErrorBackOffSecs;
             }
@@ -221,7 +221,7 @@ namespace DurableTask
         protected override int GetDelayInSecondsAfterOnFetchException(Exception exception)
         {
             int delay = settings.TaskActivityDispatcherSettings.NonTransientErrorBackOffSecs;
-            if (exception is MessagingException && (exception as MessagingException).IsTransient)
+            if (orchestrationService.IsTransientException(exception))
             {
                 delay = settings.TaskActivityDispatcherSettings.TransientErrorBackOffSecs;
             }

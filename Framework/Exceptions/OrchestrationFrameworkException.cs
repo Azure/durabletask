@@ -11,22 +11,24 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask
+namespace DurableTask.Exceptions
 {
     using System;
-    using System.Runtime.Serialization;
 
-    [Serializable]
-    public class NonDeterministicOrchestrationException : OrchestrationException
+    public class OrchestrationFrameworkException : Exception
     {
-        public NonDeterministicOrchestrationException(int eventId, string eventDetails)
-            : base("Non-Deterministic workflow detected: " + eventDetails)
+        public OrchestrationFrameworkException(string message)
+            : base(message)
         {
-            EventId = eventId;
         }
 
-        protected NonDeterministicOrchestrationException(SerializationInfo info, StreamingContext context)
-            : base(info, context)
+        public OrchestrationFrameworkException(Exception innerException)
+            : base(innerException.Message, innerException)
+        {
+        }
+
+        public OrchestrationFrameworkException(string message, Exception innerException)
+            : base(message, innerException)
         {
         }
     }

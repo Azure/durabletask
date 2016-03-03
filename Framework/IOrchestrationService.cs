@@ -29,13 +29,13 @@ namespace DurableTask
     //      + task hub description
     //      + change TaskOrchestrationDispatcher2 to use this
     //      + implement ServiceBusOrchestrationService
-    //      + build trackingdispatcher2 inside the serivce bus layer
+    //      + build trackingdispatcher2 inside the service bus layer
     //      + clean up XML doc comments in public classes
     //
     //  DONE:
     //      + write tests for terminate, raise event, suborch and exception passing
     //      + write tests for generations
-    //      + implement LocalOrchestrationService and LocalOchestrationServiceClient
+    //      + implement LocalOrchestrationService and LocalOrchestrationServiceClient
     //      + fix up taskhubworker
     //      + add TaskActivityDispatcher2
     //      + test checkpoint
@@ -56,6 +56,9 @@ namespace DurableTask
         Task CreateIfNotExistsAsync();
 
         Task DeleteAsync();
+
+        // Provider reliant methods
+        bool IsTransientException(Exception exception);
 
         // TaskOrchestrationDispatcher methods
         bool IsMaxMessageCountExceeded(int currentMessageCount, OrchestrationRuntimeState runtimeState);

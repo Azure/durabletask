@@ -20,12 +20,15 @@ namespace DurableTask
     using System.Linq;
     using System.Threading.Tasks;
     using System.Transactions;
-    using Command;
-    using History;
+    using DurableTask.Common;
+    using DurableTask.Command;
+    using DurableTask.Exceptions;
+    using DurableTask.History;
     using Microsoft.ServiceBus.Messaging;
     using Newtonsoft.Json;
     using Tracing;
 
+    [Obsolete]
     public class TaskOrchestrationDispatcher : DispatcherBase<SessionWorkItem>
     {
         const int PrefetchCount = 50;
@@ -202,7 +205,7 @@ namespace DurableTask
                             TaskMessage taskMessage =
                                 ProcessScheduleTaskDecision((ScheduleTaskOrchestratorAction) decision, runtimeState,
                                     IncludeParameters);
-                            BrokeredMessage brokeredMessage = Utils.GetBrokeredMessageFromObject(
+                            BrokeredMessage brokeredMessage = ServiceBusUtils.GetBrokeredMessageFromObject(
                                 taskMessage, settings.MessageCompressionSettings, runtimeState.OrchestrationInstance,
                                 "ScheduleTask");
                             brokeredMessage.SessionId = session.SessionId;
@@ -211,7 +214,7 @@ namespace DurableTask
                         case OrchestratorActionType.CreateTimer:
                             var timerOrchestratorAction = (CreateTimerOrchestratorAction) decision;
                             TaskMessage timerMessage = ProcessCreateTimerDecision(timerOrchestratorAction, runtimeState);
-                            BrokeredMessage brokeredTimerMessage = Utils.GetBrokeredMessageFromObject(
+                            BrokeredMessage brokeredTimerMessage = ServiceBusUtils.GetBrokeredMessageFromObject(
                                 timerMessage, settings.MessageCompressionSettings, runtimeState.OrchestrationInstance,
                                 "Timer");
                             brokeredTimerMessage.ScheduledEnqueueTimeUtc = timerOrchestratorAction.FireAt;
@@ -223,7 +226,7 @@ namespace DurableTask
                             TaskMessage createSubOrchestrationInstanceMessage =
                                 ProcessCreateSubOrchestrationInstanceDecision(createSubOrchestrationAction,
                                     runtimeState, IncludeParameters);
-                            BrokeredMessage createSubOrchestrationMessage = Utils.GetBrokeredMessageFromObject(
+                            BrokeredMessage createSubOrchestrationMessage = ServiceBusUtils.GetBrokeredMessageFromObject(
                                 createSubOrchestrationInstanceMessage, settings.MessageCompressionSettings,
                                 runtimeState.OrchestrationInstance, "Schedule Suborchestration");
                             createSubOrchestrationMessage.SessionId =
@@ -237,7 +240,7 @@ namespace DurableTask
                             if (workflowInstanceCompletedMessage != null)
                             {
                                 // Send complete message to parent workflow or to itself to start a new execution
-                                BrokeredMessage workflowCompletedBrokeredMessage = Utils.GetBrokeredMessageFromObject(
+                                BrokeredMessage workflowCompletedBrokeredMessage = ServiceBusUtils.GetBrokeredMessageFromObject(
                                     workflowInstanceCompletedMessage, settings.MessageCompressionSettings,
                                     runtimeState.OrchestrationInstance, "Complete Suborchestration");
                                 workflowCompletedBrokeredMessage.SessionId =
@@ -289,7 +292,7 @@ namespace DurableTask
                             FireAt = DateTime.UtcNow
                         };
                         TaskMessage timerMessage = ProcessCreateTimerDecision(dummyTimer, runtimeState);
-                        BrokeredMessage brokeredTimerMessage = Utils.GetBrokeredMessageFromObject(
+                        BrokeredMessage brokeredTimerMessage = ServiceBusUtils.GetBrokeredMessageFromObject(
                             timerMessage, settings.MessageCompressionSettings, runtimeState.OrchestrationInstance,
                             "MaxMessageCount Timer");
                         brokeredTimerMessage.ScheduledEnqueueTimeUtc = dummyTimer.FireAt;
@@ -457,7 +460,7 @@ namespace DurableTask
                 Event = new ExecutionTerminatedEvent(-1, reason)
             };
 
-            BrokeredMessage message = Utils.GetBrokeredMessageFromObject(
+            BrokeredMessage message = ServiceBusUtils.GetBrokeredMessageFromObject(
                 taskMessage, settings.MessageCompressionSettings, new OrchestrationInstance {InstanceId = instanceId},
                 "Forced Terminate");
             message.SessionId = instanceId;
@@ -487,7 +490,7 @@ namespace DurableTask
                     OrchestrationInstance = runtimeState.OrchestrationInstance
                 };
 
-                BrokeredMessage trackingMessage = Utils.GetBrokeredMessageFromObject(
+                BrokeredMessage trackingMessage = ServiceBusUtils.GetBrokeredMessageFromObject(
                     taskMessage, settings.MessageCompressionSettings, runtimeState.OrchestrationInstance,
                     "History Tracking Message");
                 trackingMessage.ContentType = FrameworkConstants.TaskMessageContentType;
@@ -498,7 +501,7 @@ namespace DurableTask
 
             var stateMessage = new StateMessage {State = BuildOrchestrationState(runtimeState)};
 
-            BrokeredMessage brokeredStateMessage = Utils.GetBrokeredMessageFromObject(
+            BrokeredMessage brokeredStateMessage = ServiceBusUtils.GetBrokeredMessageFromObject(
                 stateMessage, settings.MessageCompressionSettings, runtimeState.OrchestrationInstance,
                 "State Tracking Message");
             brokeredStateMessage.SessionId = runtimeState.OrchestrationInstance.InstanceId;
@@ -548,10 +551,10 @@ namespace DurableTask
         {
             foreach (BrokeredMessage message in messages)
             {
-                Utils.CheckAndLogDeliveryCount(sessionId, message,
+                ServiceBusUtils.CheckAndLogDeliveryCount(sessionId, message,
                     taskHubDescription.MaxTaskOrchestrationDeliveryCount);
 
-                TaskMessage taskMessage = await Utils.GetObjectFromBrokeredMessageAsync<TaskMessage>(message);
+                TaskMessage taskMessage = await ServiceBusUtils.GetObjectFromBrokeredMessageAsync<TaskMessage>(message);
                 OrchestrationInstance orchestrationInstance = taskMessage.OrchestrationInstance;
                 if (orchestrationInstance == null || string.IsNullOrWhiteSpace(orchestrationInstance.InstanceId))
                 {

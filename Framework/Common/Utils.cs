@@ -11,7 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask
+namespace DurableTask.Common
 {
     using System;
     using System.Diagnostics;
@@ -20,9 +20,9 @@ namespace DurableTask
     using System.Runtime.ExceptionServices;
     using System.Text;
     using System.Threading.Tasks;
-    using Microsoft.ServiceBus;
-    using Microsoft.ServiceBus.Messaging;
     using Newtonsoft.Json;
+    using DurableTask.Exceptions;
+    using DurableTask.Serializing;
     using Tracing;
 
     internal static class Utils
@@ -43,127 +43,7 @@ namespace DurableTask
             return input;
         }
 
-        public static BrokeredMessage GetBrokeredMessageFromObject(object serializableObject,
-            CompressionSettings compressionSettings)
-        {
-            return GetBrokeredMessageFromObject(serializableObject, compressionSettings, null, null);
-        }
-
-        public static BrokeredMessage GetBrokeredMessageFromObject(object serializableObject,
-            CompressionSettings compressionSettings,
-            OrchestrationInstance instance, string messageType)
-        {
-            if (serializableObject == null)
-            {
-                throw new ArgumentNullException("serializableObject");
-            }
-
-            if (compressionSettings.Style == CompressionStyle.Legacy)
-            {
-                return new BrokeredMessage(serializableObject);
-            }
-
-            bool disposeStream = true;
-            var rawStream = new MemoryStream();
-            WriteObjectToStream(rawStream, serializableObject);
-
-            try
-            {
-                BrokeredMessage brokeredMessage = null;
-
-                if (compressionSettings.Style == CompressionStyle.Always ||
-                    (compressionSettings.Style == CompressionStyle.Threshold && rawStream.Length >
-                     compressionSettings.ThresholdInBytes))
-                {
-                    Stream compressedStream = GetCompressedStream(rawStream);
-
-                    brokeredMessage = new BrokeredMessage(compressedStream, true);
-                    brokeredMessage.Properties[FrameworkConstants.CompressionTypePropertyName] =
-                        FrameworkConstants.CompressionTypeGzipPropertyValue;
-
-                    TraceHelper.TraceInstance(TraceEventType.Information, instance,
-                        () =>
-                            "Compression stats for " + (messageType ?? string.Empty) + " : " + brokeredMessage.MessageId +
-                            ", uncompressed " + rawStream.Length + " -> compressed " + compressedStream.Length);
-                }
-                else
-                {
-                    brokeredMessage = new BrokeredMessage(rawStream, true);
-                    disposeStream = false;
-                    brokeredMessage.Properties[FrameworkConstants.CompressionTypePropertyName] =
-                        FrameworkConstants.CompressionTypeNonePropertyValue;
-                }
-
-                return brokeredMessage;
-            }
-            finally
-            {
-                if (disposeStream)
-                {
-                    rawStream.Dispose();
-                }
-            }
-        }
-
-        public static async Task<T> GetObjectFromBrokeredMessageAsync<T>(BrokeredMessage message)
-        {
-            if (message == null)
-            {
-                throw new ArgumentNullException("message");
-            }
-
-            T deserializedObject;
-
-            object compressionTypeObj = null;
-            string compressionType = string.Empty;
-
-            if (message.Properties.TryGetValue(FrameworkConstants.CompressionTypePropertyName, out compressionTypeObj))
-            {
-                compressionType = (string) compressionTypeObj;
-            }
-
-            if (string.IsNullOrEmpty(compressionType))
-            {
-                // no compression, legacy style
-                deserializedObject = message.GetBody<T>();
-            }
-            else if (string.Equals(compressionType, FrameworkConstants.CompressionTypeGzipPropertyValue,
-                StringComparison.OrdinalIgnoreCase))
-            {
-                using (var compressedStream = message.GetBody<Stream>())
-                {
-                    if (!IsGzipStream(compressedStream))
-                    {
-                        throw new ArgumentException(
-                            "message specifies a CompressionType of " + compressionType +
-                            " but content is not compressed",
-                            "message");
-                    }
-
-                    using (Stream objectStream = await GetDecompressedStreamAsync(compressedStream))
-                    {
-                        deserializedObject = ReadObjectFromStream<T>(objectStream);
-                    }
-                }
-            }
-            else if (string.Equals(compressionType, FrameworkConstants.CompressionTypeNonePropertyValue,
-                StringComparison.OrdinalIgnoreCase))
-            {
-                using (var rawStream = message.GetBody<Stream>())
-                {
-                    deserializedObject = ReadObjectFromStream<T>(rawStream);
-                }
-            }
-            else
-            {
-                throw new ArgumentException("message specifies an invalid CompressionType: " + compressionType,
-                    "message");
-            }
-
-            return deserializedObject;
-        }
-
-        static void WriteObjectToStream(Stream objectStream, object obj)
+        public static void WriteObjectToStream(Stream objectStream, object obj)
         {
             if (objectStream == null || !objectStream.CanWrite || !objectStream.CanSeek)
             {
@@ -177,7 +57,7 @@ namespace DurableTask
             objectStream.Position = 0;
         }
 
-        static T ReadObjectFromStream<T>(Stream objectStream)
+        public static T ReadObjectFromStream<T>(Stream objectStream)
         {
             if (objectStream == null || !objectStream.CanRead || !objectStream.CanSeek)
             {
@@ -195,7 +75,7 @@ namespace DurableTask
                 new JsonSerializerSettings {TypeNameHandling = TypeNameHandling.All});
         }
 
-        static bool IsGzipStream(Stream stream)
+        public static bool IsGzipStream(Stream stream)
         {
             if (stream == null || !stream.CanRead || !stream.CanSeek || stream.Length < FullGzipHeaderLength)
             {
@@ -295,37 +175,6 @@ namespace DurableTask
             {
                 ExceptionDispatchInfo.Capture(exception.Flatten().InnerException).Throw();
             }
-        }
-
-        public static void CheckAndLogDeliveryCount(BrokeredMessage message, int maxDeliverycount)
-        {
-            CheckAndLogDeliveryCount(null, message, maxDeliverycount);
-        }
-
-        public static void CheckAndLogDeliveryCount(string sessionId, BrokeredMessage message, int maxDeliveryCount)
-        {
-            if (message.DeliveryCount >= maxDeliveryCount - 2)
-            {
-                if (!string.IsNullOrEmpty(sessionId))
-                {
-                    TraceHelper.TraceSession(TraceEventType.Critical, sessionId,
-                        "Delivery count for message with id {0} is {1}. Message will be deadlettered if processing continues to fail.",
-                        message.MessageId, message.DeliveryCount);
-                }
-                else
-                {
-                    TraceHelper.Trace(TraceEventType.Critical,
-                        "Delivery count for message with id {0} is {1}. Message will be deadlettered if processing continues to fail.",
-                        message.MessageId, message.DeliveryCount);
-                }
-            }
-        }
-
-        public static MessagingFactory CreateMessagingFactory(string connectionString)
-        {
-            MessagingFactory factory = MessagingFactory.CreateFromConnectionString(connectionString);
-            factory.RetryPolicy = RetryPolicy.Default;
-            return factory;
         }
 
         public static Boolean IsFatal(Exception exception)

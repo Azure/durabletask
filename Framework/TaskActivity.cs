@@ -15,12 +15,15 @@ namespace DurableTask
 {
     using System;
     using System.Threading.Tasks;
+    using DurableTask.Common;
+    using DurableTask.Exceptions;
+    using DurableTask.Serializing;
     using Newtonsoft.Json.Linq;
 
     /// <summary>
     ///     Base class for TaskActivity.
     ///     User activity should almost always derive from either TypedTaskActivity
-    ///     <TInput, TResult> or TaskActivity<TInput, TResult>
+    ///     &lt;TInput, TResult&gt; or TaskActivity&lt;TInput, TResult&gt;
     /// </summary>
     public abstract class TaskActivity
     {

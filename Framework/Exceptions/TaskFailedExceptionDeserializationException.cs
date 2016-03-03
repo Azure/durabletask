@@ -11,18 +11,16 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask
+namespace DurableTask.Exceptions
 {
     using System;
 
-    public abstract class DataConverter
+    [Serializable]
+    public sealed class TaskFailedExceptionDeserializationException : Exception
     {
-        public abstract string Serialize(object value);
-        public abstract object Deserialize(string data, Type objectType);
-
-        public T Deserialize<T>(string data)
+        public TaskFailedExceptionDeserializationException(string details, Exception deserializationException)
+            : base("Failed to deserialize exception from TaskActivity: " + details, deserializationException)
         {
-            return (T) Deserialize(data, typeof (T));
         }
     }
 }

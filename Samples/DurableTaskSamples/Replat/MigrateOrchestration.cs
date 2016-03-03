@@ -86,7 +86,7 @@
                     }
                 }
             }
-            catch (Exception e)
+            catch (Exception)
             {
                 //this.LogOrchestrationEvent(TraceEventType.Error, "Failed to Migrate Subscription '{0}'".FormatInvariant(
                 //    subscriptionId), e.ToString());

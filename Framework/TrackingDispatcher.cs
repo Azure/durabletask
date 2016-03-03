@@ -19,10 +19,12 @@ namespace DurableTask
     using System.Linq;
     using System.Threading.Tasks;
     using Microsoft.ServiceBus.Messaging;
-    using Newtonsoft.Json;
-    using Tracing;
-    using Tracking;
+    using DurableTask.Common;
+    using DurableTask.Tracing;
+    using DurableTask.Tracking;
+    using DurableTask.Serializing;
 
+    [Obsolete]
     internal sealed class TrackingDispatcher : DispatcherBase<SessionWorkItem>
     {
         const int PrefetchCount = 50;
@@ -39,6 +41,7 @@ namespace DurableTask
         readonly TaskHubDescription taskHubDescription;
         readonly string trackingEntityName;
         QueueClient trackingQueueClient;
+        private static readonly DataConverter DataConverter = new JsonDataConverter();
 
         internal TrackingDispatcher(MessagingFactory messagingFactory,
             TaskHubDescription taskHubDescription,
@@ -106,7 +109,7 @@ namespace DurableTask
             var stateEntities = new List<OrchestrationStateEntity>();
             foreach (BrokeredMessage message in newMessages)
             {
-                Utils.CheckAndLogDeliveryCount(message, taskHubDescription.MaxTrackingDeliveryCount);
+                ServiceBusUtils.CheckAndLogDeliveryCount(message, taskHubDescription.MaxTrackingDeliveryCount);
 
                 if (message.ContentType.Equals(FrameworkConstants.TaskMessageContentType,
                     StringComparison.OrdinalIgnoreCase))
@@ -124,7 +127,7 @@ namespace DurableTask
 
                     var historyEventIndex = (int) historyEventIndexObj;
 
-                    TaskMessage taskMessage = await Utils.GetObjectFromBrokeredMessageAsync<TaskMessage>(message);
+                    TaskMessage taskMessage = await ServiceBusUtils.GetObjectFromBrokeredMessageAsync<TaskMessage>(message);
                     historyEntities.Add(new OrchestrationHistoryEventEntity(
                         taskMessage.OrchestrationInstance.InstanceId,
                         taskMessage.OrchestrationInstance.ExecutionId,
@@ -135,7 +138,7 @@ namespace DurableTask
                 else if (message.ContentType.Equals(FrameworkConstants.StateMessageContentType,
                     StringComparison.OrdinalIgnoreCase))
                 {
-                    StateMessage stateMessage = await Utils.GetObjectFromBrokeredMessageAsync<StateMessage>(message);
+                    StateMessage stateMessage = await ServiceBusUtils.GetObjectFromBrokeredMessageAsync<StateMessage>(message);
                     stateEntities.Add(new OrchestrationStateEntity(stateMessage.State));
                 }
                 else
@@ -207,7 +210,7 @@ namespace DurableTask
 
         string GetNormalizedStateEntityTrace(int index, string message, OrchestrationStateEntity stateEntity)
         {
-            string serializedHistoryEvent = Utils.EscapeJson(JsonConvert.SerializeObject(stateEntity.State));
+            string serializedHistoryEvent = Utils.EscapeJson(DataConverter.Serialize(stateEntity.State));
             int historyEventLength = serializedHistoryEvent.Length;
 
             if (historyEventLength > MaxDisplayStringLengthForAzureTableColumn)
@@ -232,7 +235,7 @@ namespace DurableTask
 
         string GetNormalizedHistoryEventEntityTrace(int index, string message, OrchestrationHistoryEventEntity entity)
         {
-            string serializedHistoryEvent = Utils.EscapeJson(JsonConvert.SerializeObject(entity.HistoryEvent));
+            string serializedHistoryEvent = Utils.EscapeJson(DataConverter.Serialize(entity.HistoryEvent));
             int historyEventLength = serializedHistoryEvent.Length;
 
             if (historyEventLength > MaxDisplayStringLengthForAzureTableColumn)
