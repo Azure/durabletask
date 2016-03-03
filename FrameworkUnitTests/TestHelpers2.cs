@@ -11,8 +11,6 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System.Net.NetworkInformation;
-
 namespace FrameworkUnitTests
 {
     using System;
@@ -72,22 +70,22 @@ namespace FrameworkUnitTests
 
         public static IOrchestrationService CreateOrchestrationServiceWorker()
         {
-            return new ServiceBusOrchestrationService();
+            return new ServiceBusOrchestrationService(ServiceBusConnectionString, TaskHubName, null);
         }
 
         public static IOrchestrationServiceClient CreateOrchestrationServiceClient()
         {
-            return new ServiceBusOrchestrationService();
+            return new ServiceBusOrchestrationService(ServiceBusConnectionString, TaskHubName, null);
         }
 
         public static TaskHubClient2 CreateTaskHubClient2NoCompression(bool createInstanceStore = true)
         {
             if (createInstanceStore)
             {
-                return new TaskHubClient2(CreateOrchestrationServiceClient(), TaskHubName, null);
+                return new TaskHubClient2(CreateOrchestrationServiceClient(), null);
             }
 
-            return new TaskHubClient2(CreateOrchestrationServiceClient(), TaskHubName, null);
+            return new TaskHubClient2(CreateOrchestrationServiceClient(), null);
         }
 
         public static TaskHubClient2 CreateTaskHubClient(bool createInstanceStore = true)
@@ -96,10 +94,10 @@ namespace FrameworkUnitTests
 
             if (createInstanceStore)
             {
-                return new TaskHubClient2(CreateOrchestrationServiceClient(), TaskHubName, clientSettings);
+                return new TaskHubClient2(CreateOrchestrationServiceClient(), clientSettings);
             }
 
-            return new TaskHubClient2(CreateOrchestrationServiceClient(), TaskHubName, clientSettings);
+            return new TaskHubClient2(CreateOrchestrationServiceClient(), clientSettings);
         }
 
         public static TaskHubWorker2 CreateTaskHubNoCompression(bool createInstanceStore = true)
@@ -108,10 +106,10 @@ namespace FrameworkUnitTests
 
             if (createInstanceStore)
             {
-                return new TaskHubWorker2(CreateOrchestrationServiceWorker(), TaskHubName, workerSettings);
+                return new TaskHubWorker2(CreateOrchestrationServiceWorker(), workerSettings);
             }
 
-            return new TaskHubWorker2(CreateOrchestrationServiceWorker(), TaskHubName, workerSettings);
+            return new TaskHubWorker2(CreateOrchestrationServiceWorker(), workerSettings);
         }
 
         public static TaskHubWorker2 CreateTaskHubLegacyCompression(bool createInstanceStore = true)
@@ -120,10 +118,10 @@ namespace FrameworkUnitTests
 
             if (createInstanceStore)
             {
-                return new TaskHubWorker2(CreateOrchestrationServiceWorker(), TaskHubName, workerSettings);
+                return new TaskHubWorker2(CreateOrchestrationServiceWorker(), workerSettings);
             }
 
-            return new TaskHubWorker2(CreateOrchestrationServiceWorker(), TaskHubName, workerSettings);
+            return new TaskHubWorker2(CreateOrchestrationServiceWorker(), workerSettings);
         }
 
         public static TaskHubWorker2 CreateTaskHubAlwaysCompression(bool createInstanceStore = true)
@@ -132,10 +130,10 @@ namespace FrameworkUnitTests
 
             if (createInstanceStore)
             {
-                return new TaskHubWorker2(CreateOrchestrationServiceWorker(), TaskHubName, workerSettings);
+                return new TaskHubWorker2(CreateOrchestrationServiceWorker(), workerSettings);
             }
 
-            return new TaskHubWorker2(CreateOrchestrationServiceWorker(), TaskHubName, workerSettings);
+            return new TaskHubWorker2(CreateOrchestrationServiceWorker(), workerSettings);
         }
 
 
@@ -145,10 +143,10 @@ namespace FrameworkUnitTests
 
             if (createInstanceStore)
             {
-                return new TaskHubWorker2(CreateOrchestrationServiceWorker(), TaskHubName, workerSettings);
+                return new TaskHubWorker2(CreateOrchestrationServiceWorker(), workerSettings);
             }
 
-            return new TaskHubWorker2(CreateOrchestrationServiceWorker(), TaskHubName, workerSettings);
+            return new TaskHubWorker2(CreateOrchestrationServiceWorker(), workerSettings);
         }
 
         public static long GetOrchestratorQueueSizeInBytes()

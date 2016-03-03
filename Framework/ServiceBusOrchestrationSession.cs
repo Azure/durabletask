@@ -13,34 +13,13 @@
 
 namespace DurableTask
 {
-    using System.Runtime.Serialization;
+    using System;
+    using System.Collections.Generic;
+    using Microsoft.ServiceBus.Messaging;
 
-    [DataContract]
-    public class OrchestrationInstance
+    class ServiceBusOrchestrationSession
     {
-        [DataMember]
-        public string InstanceId { get; set; }
-
-        [DataMember]
-        public string ExecutionId { get; set; }
-
-        internal OrchestrationInstance Clone()
-        {
-            return new OrchestrationInstance
-            {
-                ExecutionId = ExecutionId,
-                InstanceId = InstanceId
-            };
-        }
-
-        public override int GetHashCode()
-        {
-            return (InstanceId ?? string.Empty).GetHashCode() ^ (ExecutionId ?? string.Empty).GetHashCode();
-        }
-
-        public override string ToString()
-        {
-            return $"[InstanceId: {InstanceId}, ExecutionId: {ExecutionId}]";
-        }
+        public MessageSession Session;
+        public Dictionary<Guid, bool> LockTokens;
     }
 }

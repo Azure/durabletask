@@ -22,5 +22,6 @@ namespace DurableTask
         public OrchestrationRuntimeState OrchestrationRuntimeState;
         public DateTime LockedUntilUtc;
         public IList<TaskMessage> NewMessages;
+        public object SessionInstance;
     }
 }

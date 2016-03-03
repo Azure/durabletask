@@ -167,6 +167,7 @@ namespace FrameworkUnitTests.Mocks
 
                 ed.Add(creationMessage.OrchestrationInstance.ExecutionId, newState);
             }
+
             return Task.FromResult<object>(null);
         }
 
@@ -415,10 +416,10 @@ namespace FrameworkUnitTests.Mocks
             throw new NotImplementedException();
         }
 
-        public Task<TaskOrchestrationWorkItem> RenewTaskOrchestrationWorkItemLockAsync(TaskOrchestrationWorkItem workItem)
+        public Task RenewTaskOrchestrationWorkItemLockAsync(TaskOrchestrationWorkItem workItem)
         {
             workItem.LockedUntilUtc = workItem.LockedUntilUtc.AddMinutes(5);
-            return Task.FromResult(workItem);
+            return Task.FromResult(0);
         }
 
         public bool IsMaxMessageCountExceeded(int currentMessageCount, OrchestrationRuntimeState runtimeState)

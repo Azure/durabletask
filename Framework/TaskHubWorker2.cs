@@ -23,13 +23,12 @@ namespace DurableTask
     public sealed class TaskHubWorker2
     {
         readonly NameVersionObjectManager<TaskActivity> activityManager;
-        readonly string hubName;
         readonly NameVersionObjectManager<TaskOrchestration> orchestrationManager;
 
         readonly object thisLock = new object();
 
         readonly TaskHubWorkerSettings workerSettings;
-        readonly IOrchestrationService orchestrationService;
+        public readonly IOrchestrationService orchestrationService;
 
         volatile bool isStarted;
 
@@ -38,18 +37,21 @@ namespace DurableTask
         TaskOrchestrationDispatcher2 orchestrationDispatcher;
 
         /// <summary>
-        ///     Create a new TaskHubWorker with given name, Service Bus and Azure Storage connection string
+        ///     Create a new TaskHubWorker with the given OrchestrationService with default settings.
+        /// </summary>
+        /// <param name="orchestrationService">Object implementing the <see cref="IOrchestrationService"/> interface </param>
+        public TaskHubWorker2(IOrchestrationService orchestrationService)
+            : this(orchestrationService, new TaskHubWorkerSettings())
+        {
+        }
+
+        /// <summary>
+        ///     Create a new TaskHubWorker with given OrchestrationService and settings
         /// </summary>
         /// <param name="orchestrationService">Reference the orchestration service implmentaion</param>
-        /// <param name="hubName">Name of the Task Hub</param>
         /// <param name="workerSettings">Settings for various task hub worker options</param>
-        public TaskHubWorker2(IOrchestrationService orchestrationService, string hubName, TaskHubWorkerSettings workerSettings)
+        public TaskHubWorker2(IOrchestrationService orchestrationService, TaskHubWorkerSettings workerSettings)
         {
-            if (string.IsNullOrEmpty(hubName))
-            {
-                throw new ArgumentException("hubName");
-            }
-
             if (orchestrationService == null)
             {
                 throw new ArgumentException("orchestrationService");
@@ -60,7 +62,6 @@ namespace DurableTask
                 throw new ArgumentException("workerSettings");
             }
 
-            this.hubName = hubName.ToLower();
             this.orchestrationManager = new NameVersionObjectManager<TaskOrchestration>();
             this.activityManager = new NameVersionObjectManager<TaskActivity>();
             this.orchestrationService = orchestrationService;
@@ -139,6 +140,7 @@ namespace DurableTask
 
                 isStarted = true;
             }
+
             return this;
         }
 

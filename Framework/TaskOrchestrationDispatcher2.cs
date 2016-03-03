@@ -77,6 +77,7 @@ namespace DurableTask
             bool continuedAsNew = false;
 
             ExecutionStartedEvent continueAsNewExecutionStarted = null;
+            TaskMessage continuedAsNewMessage = null;
 
             OrchestrationRuntimeState runtimeState = workItem.OrchestrationRuntimeState;
 
@@ -85,7 +86,7 @@ namespace DurableTask
             if (!ReconcileMessagesWithState(workItem))
             {
                 // TODO : mark an orchestration as faulted if there is data corruption
-                TraceHelper.TraceSession(TraceEventType.Error, runtimeState.OrchestrationInstance.InstanceId,
+                TraceHelper.TraceSession(TraceEventType.Error, runtimeState.OrchestrationInstance?.InstanceId,
                     "Received result for a deleted orchestration");
                 isCompleted = true;
             }
@@ -97,7 +98,7 @@ namespace DurableTask
                     "Executing user orchestration: {0}",
                     DataConverter.Serialize(runtimeState.GetOrchestrationRuntimeStateDump(), true));
 
-                IEnumerable<OrchestratorAction> decisions = ExecuteOrchestration(runtimeState);
+                IList<OrchestratorAction> decisions = ExecuteOrchestration(runtimeState).ToList();
 
                 TraceHelper.TraceInstance(TraceEventType.Information,
                     runtimeState.OrchestrationInstance,
@@ -127,20 +128,27 @@ namespace DurableTask
                                     runtimeState, IncludeParameters));
                             break;
                         case OrchestratorActionType.OrchestrationComplete:
+                            // todo : restore logic from original for certain cases
                             TaskMessage workflowInstanceCompletedMessage =
-                                ProcessWorkflowCompletedTaskDecision((OrchestrationCompleteOrchestratorAction) decision,
-                                    runtimeState, IncludeDetails, out continuedAsNew);
+                                ProcessWorkflowCompletedTaskDecision((OrchestrationCompleteOrchestratorAction) decision, runtimeState, IncludeDetails, out continuedAsNew);
                             if (workflowInstanceCompletedMessage != null)
                             {
                                 // Send complete message to parent workflow or to itself to start a new execution
-                                subOrchestrationMessages.Add(workflowInstanceCompletedMessage);
+                                // moved into else to match old 
+                                // subOrchestrationMessages.Add(workflowInstanceCompletedMessage);
 
                                 // Store the event so we can rebuild the state
                                 if (continuedAsNew)
                                 {
+                                    continuedAsNewMessage = workflowInstanceCompletedMessage;
                                     continueAsNewExecutionStarted = workflowInstanceCompletedMessage.Event as ExecutionStartedEvent;
                                 }
+                                else
+                                {
+                                    subOrchestrationMessages.Add(workflowInstanceCompletedMessage);
+                                }
                             }
+
                             isCompleted = !continuedAsNew;
                             break;
                         default:
@@ -173,6 +181,7 @@ namespace DurableTask
                             Id = FrameworkConstants.FakeTimerIdToSplitDecision,
                             FireAt = DateTime.UtcNow
                         };
+
                         timerMessages.Add(ProcessCreateTimerDecision(dummyTimer, runtimeState));
                         break;
                     }
@@ -187,7 +196,8 @@ namespace DurableTask
 
             OrchestrationRuntimeState newOrchestrationRuntimeState = workItem.OrchestrationRuntimeState;
 
-            OrchestrationState instanceState = BuildOrchestrationState(newOrchestrationRuntimeState);
+            // todo : figure out if this is correct, BuildOrchestrationState fails when iscompleted is true
+            OrchestrationState instanceState = null;
 
             if (isCompleted)
             {
@@ -196,6 +206,8 @@ namespace DurableTask
             }
             else
             {
+                instanceState = BuildOrchestrationState(newOrchestrationRuntimeState);
+
                 if (continuedAsNew)
                 {
                     TraceHelper.TraceSession(TraceEventType.Information, workItem.InstanceId,
@@ -216,6 +228,7 @@ namespace DurableTask
                     continuedAsNew ? null : messagesToSend,
                     subOrchestrationMessages,
                     continuedAsNew ? null : timerMessages,
+                    continuedAsNewMessage,
                     instanceState);
             }
             catch(Exception)
@@ -252,8 +265,7 @@ namespace DurableTask
             if (taskOrchestration == null)
             {
                 throw TraceHelper.TraceExceptionInstance(TraceEventType.Error, runtimeState.OrchestrationInstance,
-                    new TypeMissingException(string.Format("Orchestration not found: ({0}, {1})", runtimeState.Name,
-                        runtimeState.Version)));
+                    new TypeMissingException($"Orchestration not found: ({runtimeState.Name}, {runtimeState.Version})"));
             }
 
             var taskOrchestrationExecutor = new TaskOrchestrationExecutor(runtimeState, taskOrchestration);
@@ -266,7 +278,7 @@ namespace DurableTask
             foreach (TaskMessage message in workItem.NewMessages)
             {
                 OrchestrationInstance orchestrationInstance = message.OrchestrationInstance;
-                if (orchestrationInstance == null || string.IsNullOrWhiteSpace(orchestrationInstance.InstanceId))
+                if (string.IsNullOrWhiteSpace(orchestrationInstance?.InstanceId))
                 {
                     throw TraceHelper.TraceException(TraceEventType.Error,
                         new InvalidOperationException("Message does not contain any OrchestrationInstance information"));
@@ -309,12 +321,15 @@ namespace DurableTask
 
                 workItem.OrchestrationRuntimeState.AddEvent(message.Event);
             }
+
             return true;
         }
 
         static TaskMessage ProcessWorkflowCompletedTaskDecision(
-            OrchestrationCompleteOrchestratorAction completeOrchestratorAction, OrchestrationRuntimeState runtimeState,
-            bool includeDetails, out bool continuedAsNew)
+            OrchestrationCompleteOrchestratorAction completeOrchestratorAction, 
+            OrchestrationRuntimeState runtimeState,
+            bool includeDetails, 
+            out bool continuedAsNew)
         {
             ExecutionCompletedEvent executionCompletedEvent;
             continuedAsNew = (completeOrchestratorAction.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew);

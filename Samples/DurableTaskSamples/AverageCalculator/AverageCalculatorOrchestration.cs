@@ -42,6 +42,8 @@
                 sum += result;
             }
 
+            Console.WriteLine($"Completed Average: for sum: {sum}, total: {total} = {sum/total}");
+
             return sum/total;
         }
     }

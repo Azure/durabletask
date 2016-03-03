@@ -190,21 +190,21 @@ namespace DurableTask
                 workItemId = workItemIdentifier(workItem);
 
                 TraceHelper.Trace(TraceEventType.Information,
-                    GetFormattedLog(string.Format("Starting to process workItem {0}", workItemId)));
+                    GetFormattedLog($"Starting to process workItem {workItemId}"));
 
                 await OnProcessWorkItemAsync(workItem);
 
                 AdjustDelayModifierOnSuccess();
 
                 TraceHelper.Trace(TraceEventType.Information,
-                    GetFormattedLog(string.Format("Finished processing workItem {0}", workItemId)));
+                    GetFormattedLog($"Finished processing workItem {workItemId}"));
 
                 abortWorkItem = false;
             }
             catch (TypeMissingException exception)
             {
                 TraceHelper.TraceException(TraceEventType.Error, exception,
-                    GetFormattedLog(string.Format("Exception while processing workItem {0}", workItemId)));
+                    GetFormattedLog($"Exception while processing workItem {workItemId}"));
                 TraceHelper.Trace(TraceEventType.Error,
                     "Backing off after invalid operation by " + BackoffIntervalOnInvalidOperationSecs);
 
@@ -214,7 +214,7 @@ namespace DurableTask
             catch (Exception exception) when (!Utils.IsFatal(exception))
             {
                 TraceHelper.TraceException(TraceEventType.Error, exception,
-                    GetFormattedLog(string.Format("Exception while processing workItem {0}", workItemId)));
+                    GetFormattedLog($"Exception while processing workItem {workItemId}"));
 
                 int delayInSecs = GetDelayInSecondsAfterOnProcessException(exception);
                 if (delayInSecs > 0)
