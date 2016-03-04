@@ -329,6 +329,7 @@ namespace FrameworkUnitTests.Mocks
             IList<TaskMessage> outboundMessages, 
             IList<TaskMessage> orchestratorMessages, 
             IList<TaskMessage> workItemTimerMessages,
+            TaskMessage continuedAsNewMessage,
             OrchestrationState state)
         {
             lock(this.thisLock)

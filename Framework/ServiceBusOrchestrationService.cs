@@ -160,23 +160,7 @@ namespace DurableTask
             IList<TaskMessage> newTaskMessages =
                 newMessages.Select(message => ServiceBusUtils.GetObjectFromBrokeredMessageAsync<TaskMessage>(message).Result).ToList();
 
-            // todo : is this correct here or does it belong in processworkitem or even in this class?????
-            long rawSessionStateSize;
-            long newSessionStateSize;
-            OrchestrationRuntimeState runtimeState;
-
-            using (Stream rawSessionStream = await session.GetStateAsync())
-            using (Stream sessionStream = await Utils.GetDecompressedStreamAsync(rawSessionStream))
-            {
-                bool isEmptySession = sessionStream == null;
-                rawSessionStateSize = isEmptySession ? 0 : rawSessionStream.Length;
-                newSessionStateSize = isEmptySession ? 0 : sessionStream.Length;
-
-                runtimeState = GetOrCreateInstanceState(sessionStream, session.SessionId);
-            }
-
-            TraceHelper.TraceSession(TraceEventType.Information, session.SessionId,
-                $"Size of session state is {newSessionStateSize}, compressed {rawSessionStateSize}");
+            var runtimeState = await GetSessionState(session);
 
             var lockTokens = newMessages.ToDictionary(m => m.LockToken, m => true);
             var sessionState = new ServiceBusOrchestrationSession
@@ -255,31 +239,53 @@ namespace DurableTask
                     // todo : in CR please validate use of 'SendBatchAsync', previously was 'Send'
                     if (outboundMessages?.Count > 0)
                     {
-                        await workerSender.SendBatchAsync(outboundMessages.Select(m => ServiceBusUtils.GetBrokeredMessageFromObject(m, settings.MessageCompressionSettings)));
+                        await workerSender.SendBatchAsync(outboundMessages.Select(m => ServiceBusUtils.GetBrokeredMessageFromObject(m, settings.MessageCompressionSettings, null, "Worker outbound message")));
                     }
 
                     if (timerMessages?.Count > 0)
                     {
-                        await orchestratorQueueClient.SendBatchAsync(timerMessages.Select(m => ServiceBusUtils.GetBrokeredMessageFromObject(m, settings.MessageCompressionSettings)));
+                        await orchestratorQueueClient.SendBatchAsync(timerMessages.Select(m => ServiceBusUtils.GetBrokeredMessageFromObject(m, settings.MessageCompressionSettings, newOrchestrationRuntimeState.OrchestrationInstance, "Timer Message")));
                     }
 
                     if (orchestratorMessages?.Count > 0)
                     {
-                        await orchestratorQueueClient.SendBatchAsync(orchestratorMessages.Select(m => ServiceBusUtils.GetBrokeredMessageFromObject(m, settings.MessageCompressionSettings)));
+                        await orchestratorQueueClient.SendBatchAsync(orchestratorMessages.Select(m => ServiceBusUtils.GetBrokeredMessageFromObject(m, settings.MessageCompressionSettings, newOrchestrationRuntimeState.OrchestrationInstance, "Sub Orchestration")));
                     }
 
                     if (continuedAsNewMessage != null)
                     {
-                        await orchestratorQueueClient.SendAsync(ServiceBusUtils.GetBrokeredMessageFromObject(continuedAsNewMessage, settings.MessageCompressionSettings));
+                        await orchestratorQueueClient.SendAsync(ServiceBusUtils.GetBrokeredMessageFromObject(continuedAsNewMessage, settings.MessageCompressionSettings, newOrchestrationRuntimeState.OrchestrationInstance, "Continue as new"));
                     }
 
                     // todo : add tracking here
                 }
 
                 await session.CompleteBatchAsync(sessionState.LockTokens.Keys);
-
+                await session.CloseAsync();
                 ts.Complete();
             }
+        }
+
+        private static async Task<OrchestrationRuntimeState> GetSessionState(MessageSession session)
+        {
+            long rawSessionStateSize;
+            long newSessionStateSize;
+            OrchestrationRuntimeState runtimeState;
+
+            using (Stream rawSessionStream = await session.GetStateAsync())
+            using (Stream sessionStream = await Utils.GetDecompressedStreamAsync(rawSessionStream))
+            {
+                bool isEmptySession = sessionStream == null;
+                rawSessionStateSize = isEmptySession ? 0 : rawSessionStream.Length;
+                newSessionStateSize = isEmptySession ? 0 : sessionStream.Length;
+
+                runtimeState = GetOrCreateInstanceState(sessionStream, session.SessionId);
+            }
+
+            TraceHelper.TraceSession(TraceEventType.Information, session.SessionId,
+                $"Size of session state is {newSessionStateSize}, compressed {rawSessionStateSize}");
+
+            return runtimeState;
         }
 
         private async Task<bool> TrySetSessionState(
@@ -412,7 +418,7 @@ namespace DurableTask
                 workItem.TaskMessage.OrchestrationInstance, 
                 $"Response for {workItem.TaskMessage.OrchestrationInstance.InstanceId}");
 
-            brokeredResponseMessage.SessionId = responseMessage.OrchestrationInstance.InstanceId;
+            // brokeredResponseMessage.SessionId = responseMessage.OrchestrationInstance.InstanceId;
 
             var originalMessage = workItem.MessageState as BrokeredMessage;
             if (originalMessage == null)
@@ -420,7 +426,7 @@ namespace DurableTask
                 //todo : figure out the correct action here, this is bad
                 throw new ArgumentNullException("originalMessage");
             }
-            
+
             using (var ts = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled))
             {
                 // todo: see if we can combine these to a task.whenall or do they need to be sequential?
@@ -463,8 +469,10 @@ namespace DurableTask
         {
             BrokeredMessage brokeredMessage = ServiceBusUtils.GetBrokeredMessageFromObject(
                 message,
-                this.settings.MessageCompressionSettings);
-            brokeredMessage.SessionId = message.OrchestrationInstance.InstanceId;
+                this.settings.MessageCompressionSettings,
+                message.OrchestrationInstance,
+                "SendTaskOrchestrationMessage");
+            // brokeredMessage.SessionId = message.OrchestrationInstance.InstanceId;
 
             MessageSender sender = await messagingFactory.CreateMessageSenderAsync(orchestratorEntityName).ConfigureAwait(false);
             await sender.SendAsync(brokeredMessage).ConfigureAwait(false);
@@ -555,17 +563,19 @@ namespace DurableTask
 
         private BrokeredMessage CreateForcedTerminateMessage(string instanceId, string reason)
         {
-            //todo : validate we want this method 
+            var newOrchestrationInstance = new OrchestrationInstance {InstanceId = instanceId};
             var taskMessage = new TaskMessage
             {
-                OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId },
+                OrchestrationInstance = newOrchestrationInstance,
                 Event = new ExecutionTerminatedEvent(-1, reason)
             };
 
             BrokeredMessage message = ServiceBusUtils.GetBrokeredMessageFromObject(
-                taskMessage, settings.MessageCompressionSettings, new OrchestrationInstance { InstanceId = instanceId },
+                taskMessage,
+                settings.MessageCompressionSettings, 
+                newOrchestrationInstance,
                 "Forced Terminate");
-            message.SessionId = instanceId;
+            // message.SessionId = instanceId;
             return message;
         }
 

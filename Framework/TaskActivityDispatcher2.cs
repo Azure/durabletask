@@ -106,9 +106,11 @@ namespace DurableTask
                     eventToRespond = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details);
                 }
 
-                var responseTaskMessage = new TaskMessage();
-                responseTaskMessage.Event = eventToRespond;
-                responseTaskMessage.OrchestrationInstance = orchestrationInstance;
+                var responseTaskMessage = new TaskMessage
+                {
+                    Event = eventToRespond,
+                    OrchestrationInstance = orchestrationInstance
+                };
 
                 await this.orchestrationService.CompleteTaskActivityWorkItemAsync(workItem, responseTaskMessage);
             }

@@ -13,16 +13,32 @@
             string badResult = null;
             string result = null;
             bool hasError = false;
+
             try
             {
                 goodResult = await context.ScheduleTask<string>(typeof(GoodTask));
+                result = goodResult;
+            }
+            catch (Exception e)
+            {
+                hasError = true;
+                Console.WriteLine($"GoodTask unexpected exception: {e}");
+            }
+
+            try
+            {
                 badResult = await context.ScheduleTask<string>(typeof(BadTask));
-                result = goodResult + badResult;
+                result += badResult;
             }
             catch (TaskFailedException)
             {
                 hasError = true;
-                Console.WriteLine("TaskFailedException caught as expected");
+                Console.WriteLine("BadTask TaskFailedException caught as expected");
+            }
+            catch (Exception e)
+            {
+                hasError = true;
+                Console.WriteLine($"BadTask unexpected exception: {e}");
             }
 
             if (hasError && !string.IsNullOrEmpty(goodResult))

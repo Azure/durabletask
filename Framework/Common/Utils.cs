@@ -271,12 +271,12 @@ namespace DurableTask.Common
         {
             if (originalException == null)
             {
-                throw new ArgumentNullException("originalException");
+                throw new ArgumentNullException(nameof(originalException));
             }
 
             if (converter == null)
             {
-                throw new ArgumentNullException("converter");
+                throw new ArgumentNullException(nameof(converter));
             }
 
             string details = null;
@@ -297,7 +297,7 @@ namespace DurableTask.Common
         {
             if (converter == null)
             {
-                throw new ArgumentNullException("converter");
+                throw new ArgumentNullException(nameof(converter));
             }
 
             Exception cause = null;

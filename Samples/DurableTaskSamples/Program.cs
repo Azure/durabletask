@@ -30,9 +30,10 @@
 
                 //TaskHubClient taskHubClientOld = new TaskHubClient(taskHubName, servicebusConnectionString, storageConnectionString);
                 TaskHubClient2 taskHubClient = new TaskHubClient2(orchestrationServiceAndClient);
-                TaskHubWorker taskHubO = new TaskHubWorker(taskHubName, servicebusConnectionString, storageConnectionString);
-                TaskHubWorker2 taskHub = new TaskHubWorker2(orchestrationServiceAndClient);
-
+                TaskHubWorker taskHubOld = new TaskHubWorker(taskHubName, servicebusConnectionString, storageConnectionString);
+                TaskHubWorker2 taskHubNew = new TaskHubWorker2(orchestrationServiceAndClient);
+                var taskHub = taskHubNew;
+                
                 if (options.CreateHub)
                 {
                     orchestrationServiceAndClient.CreateIfNotExistsAsync().Wait();
@@ -42,6 +43,7 @@
                 {
                     string instanceId = options.InstanceId;
                     OrchestrationInstance instance = null;
+                    Console.WriteLine($"Start Orchestration: {options.StartInstance}");
                     switch (options.StartInstance)
                     {
                         case "Greetings":
@@ -87,9 +89,11 @@
                 }
                 else if (!string.IsNullOrWhiteSpace(options.Signal))
                 {
+                    Console.WriteLine("Run RaiseEvent");
+
                     if (string.IsNullOrWhiteSpace(options.InstanceId)) 
                     {
-                        throw new ArgumentException("instantceId");
+                        throw new ArgumentException("instanceId");
                     }
                     if (options.Parameters == null || options.Parameters.Length != 1)
                     {
@@ -129,6 +133,10 @@
                         // silently eat any unhadled exceptions.
                         Console.WriteLine($"worker exception: {e}");
                     }
+                }
+                else
+                {
+                    Console.WriteLine("Skip Worker");
                 }
             }
         }

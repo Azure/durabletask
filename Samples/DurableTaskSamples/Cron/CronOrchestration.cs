@@ -15,6 +15,8 @@
 
             for (int i = 1; i <= numberOfTimes; i++)
             {
+                Console.WriteLine($"Schedule CronTask({i}) start");
+
                 DateTime currentTime = context.CurrentUtcDateTime;
                 DateTime fireAt;
                 if (string.IsNullOrWhiteSpace(cronSchedule))
@@ -28,6 +30,7 @@
                 }
                 
                 var attempt = await context.CreateTimer<string>(fireAt, i.ToString());
+                Console.WriteLine($"Schedule CronTask({i}) at {fireAt}");
 
                 Task<string> resultTask = context.ScheduleTask<string>(typeof(CronTask), attempt);
 

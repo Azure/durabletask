@@ -57,8 +57,8 @@ namespace DurableTask.Common
                 BrokeredMessage brokeredMessage = null;
 
                 if (compressionSettings.Style == CompressionStyle.Always ||
-                    (compressionSettings.Style == CompressionStyle.Threshold && rawStream.Length >
-                     compressionSettings.ThresholdInBytes))
+                    (compressionSettings.Style == CompressionStyle.Threshold && 
+                     rawStream.Length > compressionSettings.ThresholdInBytes))
                 {
                     Stream compressedStream = Utils.GetCompressedStream(rawStream);
 
@@ -66,10 +66,11 @@ namespace DurableTask.Common
                     brokeredMessage.Properties[FrameworkConstants.CompressionTypePropertyName] =
                         FrameworkConstants.CompressionTypeGzipPropertyValue;
 
+                    var rawLen = rawStream.Length;
                     TraceHelper.TraceInstance(TraceEventType.Information, instance,
                         () =>
                             "Compression stats for " + (messageType ?? string.Empty) + " : " + brokeredMessage.MessageId +
-                            ", uncompressed " + rawStream.Length + " -> compressed " + compressedStream.Length);
+                            ", uncompressed " + rawLen + " -> compressed " + compressedStream.Length);
                 }
                 else
                 {
@@ -78,6 +79,8 @@ namespace DurableTask.Common
                     brokeredMessage.Properties[FrameworkConstants.CompressionTypePropertyName] =
                         FrameworkConstants.CompressionTypeNonePropertyValue;
                 }
+
+                brokeredMessage.SessionId = instance?.InstanceId;
 
                 return brokeredMessage;
             }
