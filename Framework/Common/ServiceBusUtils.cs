@@ -50,6 +50,7 @@ namespace DurableTask.Common
 
             bool disposeStream = true;
             var rawStream = new MemoryStream();
+
             Utils.WriteObjectToStream(rawStream, serializableObject);
 
             try

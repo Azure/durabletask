@@ -78,6 +78,8 @@ namespace DurableTask
 
         Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem);
 
+        Task ReleaseTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem);
+
         // TaskActivityDispatcher methods
         Task<TaskActivityWorkItem> LockNextTaskActivityWorkItem(TimeSpan receiveTimeout, CancellationToken cancellationToken);
 

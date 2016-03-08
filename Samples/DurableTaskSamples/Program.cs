@@ -2,6 +2,7 @@
 {
     using System;
     using System.Configuration;
+    using System.IO;
     using System.Linq;
     using DurableTask;
     using DurableTaskSamples.AverageCalculator;
@@ -12,6 +13,7 @@
     using DurableTaskSamples.Greetings2;
     using DurableTaskSamples.Replat;
     using DurableTaskSamples.Signal;
+    using DurableTaskSamples.SumOfSquares;
 
     class Program
     {
@@ -74,6 +76,9 @@
                         case "ErrorHandling":
                             instance = taskHubClient.CreateOrchestrationInstanceAsync(typeof(ErrorHandlingOrchestration), instanceId, null).Result;
                             break;
+                        case "SumOfSquares":
+                            instance = taskHubClient.CreateOrchestrationInstanceAsync(typeof(SumOfSquaresOrchestration), instanceId, File.ReadAllText("SumofSquares\\BagOfNumbers.json")).Result;
+                            break;
                         case "Signal":
                             instance = taskHubClient.CreateOrchestrationInstanceAsync(typeof(SignalOrchestration), instanceId, null).Result;
                             break;
@@ -112,12 +117,30 @@
                 {
                     try
                     {
-                        taskHub.AddTaskOrchestrations(typeof(GreetingsOrchestration), typeof(GreetingsOrchestration2), typeof(CronOrchestration),
-                                                            typeof (AverageCalculatorOrchestration), typeof (ErrorHandlingOrchestration), typeof (SignalOrchestration));
-                        taskHub.AddTaskOrchestrations(typeof(MigrateOrchestration));
+                        taskHub.AddTaskOrchestrations(
+                            typeof(GreetingsOrchestration),
+                            typeof(GreetingsOrchestration2), 
+                            typeof(CronOrchestration),
+                            typeof(AverageCalculatorOrchestration), 
+                            typeof(ErrorHandlingOrchestration), 
+                            typeof(SignalOrchestration),
+                            typeof(MigrateOrchestration),
+                            typeof(SumOfSquaresOrchestration),
+                            typeof(SumOfSquaresOrchestrationAsTask)
+                            );
 
-                        taskHub.AddTaskActivities(new GetUserTask(), new SendGreetingTask(), new CronTask(), new ComputeSumTask(), new GoodTask(), new BadTask(), new CleanupTask(),
-                                                             new EmailTask());
+                        taskHub.AddTaskActivities(
+                            new GetUserTask(), 
+                            new SendGreetingTask(), 
+                            new CronTask(), 
+                            new ComputeSumTask(), 
+                            new GoodTask(), 
+                            new BadTask(), 
+                            new CleanupTask(),
+                            new EmailTask(),
+                            new SumOfSquaresTask()
+                            );
+
                         taskHub.AddTaskActivitiesFromInterface<IManagementSqlOrchestrationTasks>(new ManagementSqlOrchestrationTasks());
                         taskHub.AddTaskActivitiesFromInterface<IMigrationTasks>(new MigrationTasks());
 

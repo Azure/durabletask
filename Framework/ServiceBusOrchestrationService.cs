@@ -156,7 +156,7 @@ namespace DurableTask
             // TODO: use getformattedlog equiv / standardize log format
             TraceHelper.TraceSession(TraceEventType.Information, session.SessionId,
                 $"{newMessages.Count()} new messages to process: {string.Join(",", newMessages.Select(m => m.MessageId))}");
-
+            
             IList<TaskMessage> newTaskMessages =
                 newMessages.Select(message => ServiceBusUtils.GetObjectFromBrokeredMessageAsync<TaskMessage>(message).Result).ToList();
 
@@ -237,19 +237,20 @@ namespace DurableTask
                     }
 
                     // todo : in CR please validate use of 'SendBatchAsync', previously was 'Send'
+                    // We need to .ToList() the IEnumerable otherwise GetBrokeredMessageFromObject gets called 5 times per message due to a SB bug doing multiple enumeration
                     if (outboundMessages?.Count > 0)
                     {
-                        await workerSender.SendBatchAsync(outboundMessages.Select(m => ServiceBusUtils.GetBrokeredMessageFromObject(m, settings.MessageCompressionSettings, null, "Worker outbound message")));
+                        await workerSender.SendBatchAsync(outboundMessages.Select(m => ServiceBusUtils.GetBrokeredMessageFromObject(m, settings.MessageCompressionSettings, null, "Worker outbound message")).ToList());
                     }
 
                     if (timerMessages?.Count > 0)
                     {
-                        await orchestratorQueueClient.SendBatchAsync(timerMessages.Select(m => ServiceBusUtils.GetBrokeredMessageFromObject(m, settings.MessageCompressionSettings, newOrchestrationRuntimeState.OrchestrationInstance, "Timer Message")));
+                        await orchestratorQueueClient.SendBatchAsync(timerMessages.Select(m => ServiceBusUtils.GetBrokeredMessageFromObject(m, settings.MessageCompressionSettings, newOrchestrationRuntimeState.OrchestrationInstance, "Timer Message")).ToList());
                     }
 
                     if (orchestratorMessages?.Count > 0)
                     {
-                        await orchestratorQueueClient.SendBatchAsync(orchestratorMessages.Select(m => ServiceBusUtils.GetBrokeredMessageFromObject(m, settings.MessageCompressionSettings, newOrchestrationRuntimeState.OrchestrationInstance, "Sub Orchestration")));
+                        await orchestratorQueueClient.SendBatchAsync(orchestratorMessages.Select(m => ServiceBusUtils.GetBrokeredMessageFromObject(m, settings.MessageCompressionSettings, m.OrchestrationInstance, "Sub Orchestration")).ToList());
                     }
 
                     if (continuedAsNewMessage != null)
@@ -261,79 +262,30 @@ namespace DurableTask
                 }
 
                 await session.CompleteBatchAsync(sessionState.LockTokens.Keys);
-                await session.CloseAsync();
                 ts.Complete();
             }
         }
 
-        private static async Task<OrchestrationRuntimeState> GetSessionState(MessageSession session)
+        /// <summary>
+        ///     Release the lock on an orchestration, releases the session, decoupled from CompleteTaskOrchestrationWorkItemAsync to handle nested orchestrations
+        /// </summary>
+        /// <param name="workItem">The task orchestration to abandon</param>
+        public async Task ReleaseTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
-            long rawSessionStateSize;
-            long newSessionStateSize;
-            OrchestrationRuntimeState runtimeState;
-
-            using (Stream rawSessionStream = await session.GetStateAsync())
-            using (Stream sessionStream = await Utils.GetDecompressedStreamAsync(rawSessionStream))
+            var sessionState = workItem?.SessionInstance as ServiceBusOrchestrationSession;
+            if (sessionState?.Session == null)
             {
-                bool isEmptySession = sessionStream == null;
-                rawSessionStateSize = isEmptySession ? 0 : rawSessionStream.Length;
-                newSessionStateSize = isEmptySession ? 0 : sessionStream.Length;
-
-                runtimeState = GetOrCreateInstanceState(sessionStream, session.SessionId);
+                return;
             }
 
-            TraceHelper.TraceSession(TraceEventType.Information, session.SessionId,
-                $"Size of session state is {newSessionStateSize}, compressed {rawSessionStateSize}");
-
-            return runtimeState;
-        }
-
-        private async Task<bool> TrySetSessionState(
-            TaskOrchestrationWorkItem workItem,
-            OrchestrationRuntimeState newOrchestrationRuntimeState, 
-            OrchestrationRuntimeState runtimeState,
-            MessageSession session)
-        {
-            bool isSessionSizeThresholdExceeded = false;
-
-            string serializedState = DataConverter.Serialize(newOrchestrationRuntimeState);
-            long originalStreamSize = 0;
-            using (
-                Stream compressedState = Utils.WriteStringToStream(
-                    serializedState,
-                    settings.TaskOrchestrationDispatcherSettings.CompressOrchestrationState,
-                    out originalStreamSize))
+            try
             {
-                runtimeState.Size = originalStreamSize;
-                runtimeState.CompressedSize = compressedState.Length;
-                if (runtimeState.CompressedSize > SessionStreamTerminationThresholdInBytes)
-                {
-                    // basic idea is to simply enqueue a terminate message just like how we do it from taskhubclient
-                    // it is possible to have other messages in front of the queue and those will get processed before
-                    // the terminate message gets processed. but that is ok since in the worst case scenario we will 
-                    // simply land in this if-block again and end up queuing up another terminate message.
-                    //
-                    // the interesting scenario is when the second time we *dont* land in this if-block because e.g.
-                    // the new messages that we processed caused a new generation to be created. in that case
-                    // it is still ok because the worst case scenario is that we will terminate a newly created generation
-                    // which shouldn't have been created at all in the first place
-
-                    isSessionSizeThresholdExceeded = true;
-
-                    string reason = $"Session state size of {runtimeState.CompressedSize} exceeded the termination threshold of {SessionStreamTerminationThresholdInBytes} bytes";
-                    TraceHelper.TraceSession(TraceEventType.Critical, workItem.InstanceId, reason);
-
-                    BrokeredMessage forcedTerminateMessage = CreateForcedTerminateMessage(runtimeState.OrchestrationInstance.InstanceId, reason);
-
-                    await orchestratorQueueClient.SendAsync(forcedTerminateMessage);
-                }
-                else
-                {
-                    session.SetState(compressedState);
-                }
+                await sessionState.Session.CloseAsync();
             }
-
-            return !isSessionSizeThresholdExceeded;
+            catch (Exception ex)
+            {
+                TraceHelper.TraceExceptionSession(TraceEventType.Warning, sessionState.Session.SessionId, ex, "Error while closing session");
+            }
         }
 
         /// <summary>
@@ -399,10 +351,16 @@ namespace DurableTask
         ///    Renew the lock on a still processing work item
         /// </summary>
         /// <param name="workItem">Work item to renew the lock on</param>
-        public Task<TaskActivityWorkItem> RenewTaskActivityWorkItemLockAsync(TaskActivityWorkItem workItem)
+        public async Task<TaskActivityWorkItem> RenewTaskActivityWorkItemLockAsync(TaskActivityWorkItem workItem)
         {
-            // message.renewLock();
-            throw new NotImplementedException();
+            var message = workItem?.MessageState as BrokeredMessage;
+            if (message != null)
+            {
+                await message?.RenewLockAsync();
+                workItem.LockedUntilUtc = message.LockedUntilUtc;
+            }
+
+            return workItem;
         }
 
         /// <summary>
@@ -417,8 +375,6 @@ namespace DurableTask
                 settings.MessageCompressionSettings,
                 workItem.TaskMessage.OrchestrationInstance, 
                 $"Response for {workItem.TaskMessage.OrchestrationInstance.InstanceId}");
-
-            // brokeredResponseMessage.SessionId = responseMessage.OrchestrationInstance.InstanceId;
 
             var originalMessage = workItem.MessageState as BrokeredMessage;
             if (originalMessage == null)
@@ -442,13 +398,9 @@ namespace DurableTask
         /// <param name="workItem">The work item to abandon</param>
         public Task AbandonTaskActivityWorkItemAsync(TaskActivityWorkItem workItem)
         {
-            // if (workItem != null)
-            // {
-            //     TraceHelper.Trace(TraceEventType.Information, "Abandoing message " + workItem.MessageId);
-            //     await workItem.AbandonAsync();
-            // }
-
-            throw new NotImplementedException();
+            var message = workItem?.MessageState as BrokeredMessage;
+            TraceHelper.Trace(TraceEventType.Information, $"Abandoning message {workItem?.Id}");
+            return message?.AbandonAsync();
         }
 
         /// <summary>
@@ -472,7 +424,6 @@ namespace DurableTask
                 this.settings.MessageCompressionSettings,
                 message.OrchestrationInstance,
                 "SendTaskOrchestrationMessage");
-            // brokeredMessage.SessionId = message.OrchestrationInstance.InstanceId;
 
             MessageSender sender = await messagingFactory.CreateMessageSenderAsync(orchestratorEntityName).ConfigureAwait(false);
             await sender.SendAsync(brokeredMessage).ConfigureAwait(false);
@@ -521,7 +472,77 @@ namespace DurableTask
         {
             throw new NotImplementedException();
         }
-        
+
+        private static async Task<OrchestrationRuntimeState> GetSessionState(MessageSession session)
+        {
+            long rawSessionStateSize;
+            long newSessionStateSize;
+            OrchestrationRuntimeState runtimeState;
+
+            using (Stream rawSessionStream = await session.GetStateAsync())
+            using (Stream sessionStream = await Utils.GetDecompressedStreamAsync(rawSessionStream))
+            {
+                bool isEmptySession = sessionStream == null;
+                rawSessionStateSize = isEmptySession ? 0 : rawSessionStream.Length;
+                newSessionStateSize = isEmptySession ? 0 : sessionStream.Length;
+
+                runtimeState = GetOrCreateInstanceState(sessionStream, session.SessionId);
+            }
+
+            TraceHelper.TraceSession(TraceEventType.Information, session.SessionId,
+                $"Size of session state is {newSessionStateSize}, compressed {rawSessionStateSize}");
+
+            return runtimeState;
+        }
+
+        private async Task<bool> TrySetSessionState(
+            TaskOrchestrationWorkItem workItem,
+            OrchestrationRuntimeState newOrchestrationRuntimeState,
+            OrchestrationRuntimeState runtimeState,
+            MessageSession session)
+        {
+            bool isSessionSizeThresholdExceeded = false;
+
+            string serializedState = DataConverter.Serialize(newOrchestrationRuntimeState);
+            long originalStreamSize = 0;
+            using (
+                Stream compressedState = Utils.WriteStringToStream(
+                    serializedState,
+                    settings.TaskOrchestrationDispatcherSettings.CompressOrchestrationState,
+                    out originalStreamSize))
+            {
+                runtimeState.Size = originalStreamSize;
+                runtimeState.CompressedSize = compressedState.Length;
+                if (runtimeState.CompressedSize > SessionStreamTerminationThresholdInBytes)
+                {
+                    // basic idea is to simply enqueue a terminate message just like how we do it from taskhubclient
+                    // it is possible to have other messages in front of the queue and those will get processed before
+                    // the terminate message gets processed. but that is ok since in the worst case scenario we will 
+                    // simply land in this if-block again and end up queuing up another terminate message.
+                    //
+                    // the interesting scenario is when the second time we *dont* land in this if-block because e.g.
+                    // the new messages that we processed caused a new generation to be created. in that case
+                    // it is still ok because the worst case scenario is that we will terminate a newly created generation
+                    // which shouldn't have been created at all in the first place
+
+                    isSessionSizeThresholdExceeded = true;
+
+                    string reason = $"Session state size of {runtimeState.CompressedSize} exceeded the termination threshold of {SessionStreamTerminationThresholdInBytes} bytes";
+                    TraceHelper.TraceSession(TraceEventType.Critical, workItem.InstanceId, reason);
+
+                    BrokeredMessage forcedTerminateMessage = CreateForcedTerminateMessage(runtimeState.OrchestrationInstance.InstanceId, reason);
+
+                    await orchestratorQueueClient.SendAsync(forcedTerminateMessage);
+                }
+                else
+                {
+                    session.SetState(compressedState);
+                }
+            }
+
+            return !isSessionSizeThresholdExceeded;
+        }
+
         private static Task SafeDeleteQueueAsync(NamespaceManager namespaceManager, string path)
         {
             try
@@ -575,7 +596,7 @@ namespace DurableTask
                 settings.MessageCompressionSettings, 
                 newOrchestrationInstance,
                 "Forced Terminate");
-            // message.SessionId = instanceId;
+
             return message;
         }
 

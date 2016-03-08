@@ -536,8 +536,7 @@ namespace DurableTask
 
         protected override Task SafeReleaseWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
-            // no need, 
-            return Task.FromResult<object>(null);
+            return this.orchestrationService.ReleaseTaskOrchestrationWorkItemAsync(workItem);
         }
     }
 }

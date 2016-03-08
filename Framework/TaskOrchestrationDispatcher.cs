@@ -184,7 +184,7 @@ namespace DurableTask
                         new JsonSerializerSettings
                         {
                             TypeNameHandling = TypeNameHandling.Auto,
-                            Formatting = Formatting.Indented
+                            Formatting = Formatting.None
                         }));
 
                 IEnumerable<OrchestratorAction> decisions = ExecuteOrchestration(runtimeState);
@@ -228,7 +228,7 @@ namespace DurableTask
                                     runtimeState, IncludeParameters);
                             BrokeredMessage createSubOrchestrationMessage = ServiceBusUtils.GetBrokeredMessageFromObject(
                                 createSubOrchestrationInstanceMessage, settings.MessageCompressionSettings,
-                                runtimeState.OrchestrationInstance, "Schedule Suborchestration");
+                                runtimeState.OrchestrationInstance, "Sub Orchestration");
                             createSubOrchestrationMessage.SessionId =
                                 createSubOrchestrationInstanceMessage.OrchestrationInstance.InstanceId;
                             subOrchestrationMessages.Add(createSubOrchestrationMessage);
@@ -556,6 +556,7 @@ namespace DurableTask
 
                 TaskMessage taskMessage = await ServiceBusUtils.GetObjectFromBrokeredMessageAsync<TaskMessage>(message);
                 OrchestrationInstance orchestrationInstance = taskMessage.OrchestrationInstance;
+
                 if (orchestrationInstance == null || string.IsNullOrWhiteSpace(orchestrationInstance.InstanceId))
                 {
                     throw TraceHelper.TraceException(TraceEventType.Error,

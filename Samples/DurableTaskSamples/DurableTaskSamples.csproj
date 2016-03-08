@@ -96,6 +96,9 @@
   <ItemGroup>
     <Compile Include="AverageCalculator\AverageCalculatorOrchestration.cs" />
     <Compile Include="AverageCalculator\ComputeSumTask.cs" />
+    <Compile Include="SumOfSquares\SumOfSquaresOrchestrationAsTask.cs" />
+    <Compile Include="SumOfSquares\SumOfSquaresOrchestration.cs" />
+    <Compile Include="SumOfSquares\SumOfSquaresTask.cs" />
     <Compile Include="Common.WorkItems\EmailTask.cs" />
     <Compile Include="Cron\CronOrchestration.cs" />
     <Compile Include="Cron\CronTask.cs" />
@@ -126,6 +129,9 @@
   <ItemGroup>
     <None Include="App.config">
       <SubType>Designer</SubType>
+    </None>
+    <None Include="SumOfSquares\BagofNumbers.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
     <None Include="packages.config">
       <SubType>Designer</SubType>
