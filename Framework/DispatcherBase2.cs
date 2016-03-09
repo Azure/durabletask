@@ -21,9 +21,9 @@ namespace DurableTask
     using DurableTask.Exceptions;
     using Tracing;
 
+    // TODO : This class need to be refactored
 
-    //[Obsolete]
-    public abstract class DispatcherBase<T>
+    public abstract class DispatcherBase2<T>
     {
         const int DefaultMaxConcurrentWorkItems = 20;
 
@@ -34,71 +34,93 @@ namespace DurableTask
         readonly string id;
         readonly string name;
         readonly object thisLock = new object();
+        readonly SemaphoreSlim slimLock = new SemaphoreSlim(1, 1);
         readonly WorkItemIdentifier workItemIdentifier;
 
         volatile int concurrentWorkItemCount;
         volatile int countDownToZeroDelay;
         volatile int delayOverrideSecs;
-        volatile bool isFetching;
-        volatile int isStarted;
+        volatile bool isFetching = false;
+        private bool isStarted = false;
 
         protected int maxConcurrentWorkItems;
 
-        protected DispatcherBase(string name, WorkItemIdentifier workItemIdentifier)
+        /// <summary>
+        /// Creates a new Work Item Dispatcher with givne name and identifier method
+        /// </summary>
+        /// <param name="name">Name identifying this dispatcher for logging and diagnostics</param>
+        /// <param name="workItemIdentifier"></param>
+        protected DispatcherBase2(string name, WorkItemIdentifier workItemIdentifier)
         {
-            isStarted = 0;
-            isFetching = false;
             this.name = name;
             id = Guid.NewGuid().ToString("N");
             maxConcurrentWorkItems = DefaultMaxConcurrentWorkItems;
             this.workItemIdentifier = workItemIdentifier;
         }
 
-        public void Start()
+        /// <summary>
+        /// Starts the workitem dispatcher
+        /// </summary>
+        /// <exception cref="InvalidOperationException">Exception if dispatcher has already been started</exception>
+        public async Task StartAsync()
         {
-            if (Interlocked.CompareExchange(ref isStarted, 1, 0) != 0)
+            if (!isStarted)
             {
-                throw TraceHelper.TraceException(TraceEventType.Error,
-                    new InvalidOperationException("TaskOrchestrationDispatcher has already started"));
+                await slimLock.WaitAsync();
+                try
+                {
+                    if (isStarted)
+                    {
+                        throw TraceHelper.TraceException(TraceEventType.Error, new InvalidOperationException($"WorkItemDispatcher '{name}' has already started"));
+                    }
+
+                    isStarted = true;
+
+                    TraceHelper.Trace(TraceEventType.Information, $"{name} starting. Id {id}.");
+                    await Task.Factory.StartNew(() => DispatchAsync());
+                }
+                finally
+                {
+                    slimLock.Release();
+                }
             }
-
-            TraceHelper.Trace(TraceEventType.Information, "{0} starting. Id {1}.", name, id);
-            OnStart();
-            Task.Factory.StartNew(() => DispatchAsync());
         }
 
-        public void Stop()
+        public async Task StopAsync(bool forced)
         {
-            Stop(false);
-        }
-
-        public void Stop(bool forced)
-        {
-            if (Interlocked.CompareExchange(ref isStarted, 0, 1) != 1)
+            if (!isStarted)
             {
-                //idempotent
                 return;
             }
 
-            TraceHelper.Trace(TraceEventType.Information, "{0} stopping. Id {1}.", name, id);
-            OnStopping(forced);
-
-            if (!forced)
+            await slimLock.WaitAsync();
+            try
             {
-                int retryCount = 7;
-                while ((concurrentWorkItemCount > 0 || isFetching) && retryCount-- >= 0)
+                if (!isStarted)
                 {
-                    Thread.Sleep(4000);
+                    return;
                 }
+
+                isStarted = false;
+
+
+                TraceHelper.Trace(TraceEventType.Information, $"{name} stopping. Id {id}.");
+                if (!forced)
+                {
+                    int retryCount = 7;
+                    while ((concurrentWorkItemCount > 0 || isFetching) && retryCount-- >= 0)
+                    {
+                        Thread.Sleep(4000);
+                    }
+                }
+
+                TraceHelper.Trace(TraceEventType.Information, $"{name} stopping. Id {id}.");
             }
-
-            OnStopped(forced);
-            TraceHelper.Trace(TraceEventType.Information, "{0} stopped. Id {1}.", name, id);
+            finally
+            {
+                slimLock.Release();
+            }
         }
-
-        protected abstract void OnStart();
-        protected abstract void OnStopping(bool isForced);
-        protected abstract void OnStopped(bool isForced);
 
         protected abstract Task<T> OnFetchWorkItemAsync(TimeSpan receiveTimeout);
         protected abstract Task OnProcessWorkItemAsync(T workItem);
@@ -110,7 +132,7 @@ namespace DurableTask
         // TODO : dispatcher refactoring between worker, orchestrator, tacker & DLQ
         public async Task DispatchAsync()
         {
-            while (isStarted == 1)
+            while (isStarted)
             {
                 if (concurrentWorkItemCount >= maxConcurrentWorkItems)
                 {
@@ -141,7 +163,7 @@ namespace DurableTask
                 }
                 catch (Exception exception)
                 {
-                    if (isStarted == 0)
+                    if (!isStarted)
                     {
                         TraceHelper.Trace(TraceEventType.Information,
                             GetFormattedLog($"Harmless exception while fetching workItem after Stop(): {exception.Message}"));
@@ -161,7 +183,7 @@ namespace DurableTask
 
                 if (!(Equals(workItem, default(T))))
                 {
-                    if (isStarted == 0)
+                    if (!isStarted)
                     {
                         await SafeReleaseWorkItemAsync(workItem);
                     }

@@ -48,9 +48,9 @@ namespace FrameworkUnitTests
 
             TaskHubWorker2 worker = new TaskHubWorker2(orchService, new TaskHubWorkerSettings());
 
-            worker.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
+            await worker.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
                 .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
-                .Start();
+                .StartAsync();
 
             TaskHubClient2 client = new TaskHubClient2(orchService, new TaskHubClientSettings());
 
@@ -62,7 +62,7 @@ namespace FrameworkUnitTests
             Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,
                 "Orchestration Result is wrong!!!");
 
-            worker.Stop();
+            await worker.StopAsync();
         }
 
         [TestMethod]
@@ -72,9 +72,9 @@ namespace FrameworkUnitTests
 
             TaskHubWorker2 worker = new TaskHubWorker2(orchService, new TaskHubWorkerSettings());
 
-            worker.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
+            await worker.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
                 .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
-                .Start();
+                .StartAsync();
 
             TaskHubClient2 client = new TaskHubClient2(orchService, new TaskHubClientSettings());
 
@@ -89,7 +89,7 @@ namespace FrameworkUnitTests
             Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,
                 "Orchestration Result is wrong!!!");
 
-            worker.Stop();
+            await worker.StopAsync();
         }
 
         [TestMethod]
@@ -103,9 +103,9 @@ namespace FrameworkUnitTests
             TaskHubWorker2 worker = new TaskHubWorker2(orchService, new TaskHubWorkerSettings());
             TaskHubClient2 client = new TaskHubClient2(orchService, new TaskHubClientSettings());
 
-            worker.AddTaskOrchestrations(typeof(GenerationBasicOrchestration))
+            await worker.AddTaskOrchestrations(typeof(GenerationBasicOrchestration))
                 .AddTaskActivities(new GenerationBasicTask())
-                .Start();
+                .StartAsync();
 
             OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof(GenerationBasicOrchestration), 4);
 
@@ -130,8 +130,8 @@ namespace FrameworkUnitTests
             TaskHubWorker2 worker = new TaskHubWorker2(orchService, new TaskHubWorkerSettings());
             TaskHubClient2 client = new TaskHubClient2(orchService, new TaskHubClientSettings());
 
-            worker.AddTaskOrchestrations(typeof(ParentWorkflow), typeof(ChildWorkflow))
-                .Start();
+            await worker.AddTaskOrchestrations(typeof(ParentWorkflow), typeof(ChildWorkflow))
+                .StartAsync();
 
             OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof(ParentWorkflow), true);
 
@@ -154,7 +154,7 @@ namespace FrameworkUnitTests
                 "Child '0' completed.Child '1' completed.Child '2' completed.Child '3' completed.Child '4' completed.",
                 ParentWorkflow.Result, "Orchestration Result is wrong!!!");
 
-            worker.Stop();
+            await worker.StopAsync();
         }
 
         [TestMethod]
@@ -165,8 +165,8 @@ namespace FrameworkUnitTests
             TaskHubWorker2 worker = new TaskHubWorker2(orchService, new TaskHubWorkerSettings());
             TaskHubClient2 client = new TaskHubClient2(orchService, new TaskHubClientSettings());
 
-            worker.AddTaskOrchestrations(typeof(GenerationSignalOrchestration))
-                .Start();
+            await worker.AddTaskOrchestrations(typeof(GenerationSignalOrchestration))
+                .StartAsync();
 
             OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(
                 typeof(GenerationSignalOrchestration), 5);

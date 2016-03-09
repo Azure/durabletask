@@ -17,12 +17,13 @@ namespace DurableTask
     using System.Diagnostics;
     using System.Threading;
     using System.Threading.Tasks;
+    using DurableTask.Common;
     using DurableTask.Exceptions;
     using DurableTask.History;
     using DurableTask.Serializing;
     using DurableTask.Tracing;
 
-    public sealed class TaskActivityDispatcher2 : DispatcherBase<TaskActivityWorkItem>
+    public sealed class TaskActivityDispatcher2 : DispatcherBase2<TaskActivityWorkItem>
     {
         readonly NameVersionObjectManager<TaskActivity> objectManager;
         readonly TaskHubWorkerSettings settings;
@@ -97,7 +98,7 @@ namespace DurableTask
                     string details = IncludeDetails ? e.Details : null;
                     eventToRespond = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details);
                 }
-                catch (Exception e)
+                catch (Exception e) when (!Utils.IsFatal(e))
                 {
                     TraceHelper.TraceExceptionInstance(TraceEventType.Error, taskMessage.OrchestrationInstance, e);
                     string details = IncludeDetails
@@ -158,7 +159,7 @@ namespace DurableTask
                         renewAt = AdjustRenewAt(renewAt);
                         TraceHelper.Trace(TraceEventType.Information, "Next renew for workitem id '{0}' at '{1}'", workItem.Id, renewAt);
                     }
-                    catch (Exception exception)
+                    catch (Exception exception) when (!Utils.IsFatal(exception))
                     {
                         // might have been completed
                         TraceHelper.TraceException(TraceEventType.Information, exception, "Failed to renew lock for workitem {0}", workItem.Id);
@@ -177,19 +178,6 @@ namespace DurableTask
         {
             DateTime maxRenewAt = DateTime.UtcNow.Add(TimeSpan.FromSeconds(30));
             return renewAt > maxRenewAt ? maxRenewAt : renewAt;
-        }
-
-        // AFFANDAR : TODO : all of this crap has to go away, have to redo dispatcher base
-        protected override void OnStart()
-        {
-        }
-
-        protected override void OnStopping(bool isForced)
-        {
-        }
-
-        protected override void OnStopped(bool isForced)
-        {
         }
 
         protected override Task SafeReleaseWorkItemAsync(TaskActivityWorkItem workItem)

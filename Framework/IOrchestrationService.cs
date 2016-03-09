@@ -19,16 +19,12 @@ namespace DurableTask
     using System.Threading.Tasks;
 
     // AFFANDAR : TODO : MASTER
-    //      + sbus provider: force terminate if session size is greater than supported
     //      + implement batched message receive
     //      + proper exception model for orchestration service providers
     //      + rethink method names?
     //      + rename xxx2 classes to xxx and remove old ones
     //      + fix up all tests to use the new APIs
-    //      + make dispatcher start/stop methods async
-    //      + task hub description
     //      + change TaskOrchestrationDispatcher2 to use this
-    //      + implement ServiceBusOrchestrationService
     //      + build trackingdispatcher2 inside the service bus layer
     //      + clean up XML doc comments in public classes
     //
@@ -42,6 +38,10 @@ namespace DurableTask
     //      + move public classes to separate files
     //      + add instance store methods to IOrchestrationService
     //      + replumb taskhubclient on top of IOrchestrationService
+    //      + sbus provider: force terminate if session size is greater than supported
+    //      + make dispatcher start/stop methods async
+    //      + task hub description
+    //      + implement ServiceBusOrchestrationService
     //      
 
     public interface IOrchestrationService

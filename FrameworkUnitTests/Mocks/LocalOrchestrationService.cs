@@ -411,6 +411,11 @@ namespace FrameworkUnitTests.Mocks
             return Task.FromResult<object>(null);
         }
 
+        public Task ReleaseTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
+        {
+            return Task.FromResult<object>(null);
+        }
+
         public Task ForceTerminateTaskOrchestrationAsync(string instanceId)
         {
             // tricky to implement in-memory as object references are being used instead of clones

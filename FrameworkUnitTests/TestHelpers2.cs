@@ -16,6 +16,7 @@ namespace FrameworkUnitTests
     using System;
     using System.Configuration;
     using System.Threading;
+    using System.Threading.Tasks;
     using DurableTask;
     using DurableTask.Common;
     using DurableTask.Exceptions;
@@ -157,7 +158,7 @@ namespace FrameworkUnitTests
             return queueDesc.SizeInBytes;
         }
 
-        public static bool WaitForInstance(TaskHubClient2 taskHubClient, OrchestrationInstance instance,
+        public static async Task<bool> WaitForInstanceAsync(TaskHubClient2 taskHubClient, OrchestrationInstance instance,
             int timeoutSeconds,
             bool waitForCompletion = true)
         {
@@ -170,10 +171,10 @@ namespace FrameworkUnitTests
 
             while (timeoutSeconds > 0)
             {
-                OrchestrationState state = taskHubClient.GetOrchestrationStateAsync(instance.InstanceId).Result;
+                OrchestrationState state = await taskHubClient.GetOrchestrationStateAsync(instance.InstanceId);
                 if (state == null || (waitForCompletion && state.OrchestrationStatus == OrchestrationStatus.Running))
                 {
-                    Thread.Sleep(sleepForSeconds * 1000);
+                    await Task.Delay(sleepForSeconds*1000);
                     timeoutSeconds -= sleepForSeconds;
                 }
                 else

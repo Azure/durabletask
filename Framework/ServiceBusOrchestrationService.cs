@@ -14,6 +14,7 @@
 namespace DurableTask
 {
     using System;
+    using System.Collections.Concurrent;
     using System.Diagnostics;
     using System.Collections.Generic;
     using System.IO;
@@ -44,7 +45,6 @@ namespace DurableTask
         const int SessionStreamWarningSizeInBytes = 200 * 1024;
         const int SessionStreamTerminationThresholdInBytes = 230 * 1024;
 
-
         private static readonly DataConverter DataConverter = new JsonDataConverter();
         private readonly string connectionString;
         private readonly string hubName;
@@ -56,6 +56,10 @@ namespace DurableTask
         private MessageSender workerSender;
         private readonly string workerEntityName;
         private readonly string orchestratorEntityName;
+        
+        // TODO : Make user of these instead of passing around the object references.
+        // private ConcurrentDictionary<string, ServiceBusOrchestrationSession> orchestrationSessions;
+        // private ConcurrentDictionary<string, MessageSession> orchestrationMessages;
 
         /// <summary>
         ///     Create a new ServiceBusOrchestrationService to the given service bus connection string and hubname
@@ -156,13 +160,13 @@ namespace DurableTask
             // TODO: use getformattedlog equiv / standardize log format
             TraceHelper.TraceSession(TraceEventType.Information, session.SessionId,
                 $"{newMessages.Count()} new messages to process: {string.Join(",", newMessages.Select(m => m.MessageId))}");
-            
-            IList<TaskMessage> newTaskMessages =
-                newMessages.Select(message => ServiceBusUtils.GetObjectFromBrokeredMessageAsync<TaskMessage>(message).Result).ToList();
+
+            IList<TaskMessage> newTaskMessages = await Task.WhenAll(
+                newMessages.Select(async message => await ServiceBusUtils.GetObjectFromBrokeredMessageAsync<TaskMessage>(message)));
 
             var runtimeState = await GetSessionState(session);
 
-            var lockTokens = newMessages.ToDictionary(m => m.LockToken, m => true);
+            var lockTokens = newMessages.ToDictionary(m => m.LockToken, m => m);
             var sessionState = new ServiceBusOrchestrationSession
             {
                 Session = session,
@@ -226,7 +230,6 @@ namespace DurableTask
 
             var session = sessionState.Session;
 
-            // todo : validate updating to .NET 4.5.1 as required for TransactionScopeAsyncFlowOption.Enabled)
             using (var ts = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled))
             {
                 if (await TrySetSessionState(workItem, newOrchestrationRuntimeState, runtimeState, session))
@@ -236,26 +239,55 @@ namespace DurableTask
                         TraceHelper.TraceSession(TraceEventType.Error, workItem.InstanceId, "Size of session state is nearing session size limit of 256KB");
                     }
 
-                    // todo : in CR please validate use of 'SendBatchAsync', previously was 'Send'
-                    // We need to .ToList() the IEnumerable otherwise GetBrokeredMessageFromObject gets called 5 times per message due to a SB bug doing multiple enumeration
+                    // We need to .ToList() the IEnumerable otherwise GetBrokeredMessageFromObject gets called 5 times per message due to Service Bus doing multiple enumeration
                     if (outboundMessages?.Count > 0)
                     {
-                        await workerSender.SendBatchAsync(outboundMessages.Select(m => ServiceBusUtils.GetBrokeredMessageFromObject(m, settings.MessageCompressionSettings, null, "Worker outbound message")).ToList());
+                        await workerSender.SendBatchAsync(
+                            outboundMessages.Select(m => 
+                            ServiceBusUtils.GetBrokeredMessageFromObject(
+                                m, 
+                                settings.MessageCompressionSettings, 
+                                null, 
+                                "Worker outbound message"))
+                            .ToList()
+                            );
                     }
 
                     if (timerMessages?.Count > 0)
                     {
-                        await orchestratorQueueClient.SendBatchAsync(timerMessages.Select(m => ServiceBusUtils.GetBrokeredMessageFromObject(m, settings.MessageCompressionSettings, newOrchestrationRuntimeState.OrchestrationInstance, "Timer Message")).ToList());
+                        await orchestratorQueueClient.SendBatchAsync(
+                            timerMessages.Select(m => 
+                            ServiceBusUtils.GetBrokeredMessageFromObject(
+                                m, 
+                                settings.MessageCompressionSettings, 
+                                newOrchestrationRuntimeState.OrchestrationInstance, 
+                                "Timer Message"))
+                            .ToList()
+                            );
                     }
 
                     if (orchestratorMessages?.Count > 0)
                     {
-                        await orchestratorQueueClient.SendBatchAsync(orchestratorMessages.Select(m => ServiceBusUtils.GetBrokeredMessageFromObject(m, settings.MessageCompressionSettings, m.OrchestrationInstance, "Sub Orchestration")).ToList());
+                        await orchestratorQueueClient.SendBatchAsync(
+                            orchestratorMessages.Select(m => 
+                            ServiceBusUtils.GetBrokeredMessageFromObject(
+                                m, 
+                                settings.MessageCompressionSettings, 
+                                m.OrchestrationInstance, 
+                                "Sub Orchestration"))
+                            .ToList()
+                            );
                     }
 
                     if (continuedAsNewMessage != null)
                     {
-                        await orchestratorQueueClient.SendAsync(ServiceBusUtils.GetBrokeredMessageFromObject(continuedAsNewMessage, settings.MessageCompressionSettings, newOrchestrationRuntimeState.OrchestrationInstance, "Continue as new"));
+                        await orchestratorQueueClient.SendAsync(
+                            ServiceBusUtils.GetBrokeredMessageFromObject(
+                                continuedAsNewMessage, 
+                                settings.MessageCompressionSettings, 
+                                newOrchestrationRuntimeState.OrchestrationInstance, 
+                                "Continue as new")
+                            );
                     }
 
                     // todo : add tracking here
@@ -282,7 +314,7 @@ namespace DurableTask
             {
                 await sessionState.Session.CloseAsync();
             }
-            catch (Exception ex)
+            catch (Exception ex) when (!Utils.IsFatal(ex))
             {
                 TraceHelper.TraceExceptionSession(TraceEventType.Warning, sessionState.Session.SessionId, ex, "Error while closing session");
             }
@@ -311,7 +343,7 @@ namespace DurableTask
             {
                 sessionState.Session.Abort();
             }
-            catch (Exception ex)
+            catch (Exception ex) when (!Utils.IsFatal(ex))
             {
                 TraceHelper.TraceExceptionSession(TraceEventType.Warning, workItem.InstanceId, ex, "Error while aborting session");
             }
@@ -356,7 +388,7 @@ namespace DurableTask
             var message = workItem?.MessageState as BrokeredMessage;
             if (message != null)
             {
-                await message?.RenewLockAsync();
+                await message.RenewLockAsync();
                 workItem.LockedUntilUtc = message.LockedUntilUtc;
             }
 
@@ -385,9 +417,9 @@ namespace DurableTask
 
             using (var ts = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled))
             {
-                // todo: see if we can combine these to a task.whenall or do they need to be sequential?
-                await workerQueueClient.CompleteAsync(originalMessage.LockToken);
-                await deciderSender.SendAsync(brokeredResponseMessage);
+                await Task.WhenAll(
+                    workerQueueClient.CompleteAsync(originalMessage.LockToken),
+                    deciderSender.SendAsync(brokeredResponseMessage));
                 ts.Complete();
             }
         }

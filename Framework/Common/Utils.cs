@@ -218,7 +218,7 @@ namespace DurableTask.Common
                     retVal = await retryAction();
                     break;
                 }
-                catch (Exception exception)
+                catch (Exception exception) when (!Utils.IsFatal(exception))
                 {
                     TraceHelper.TraceSession(TraceEventType.Warning, sessionId,
                         "Error attempting operation {0}. Attempt count = {1}. Exception: {2}\n\t{3}",
@@ -249,7 +249,7 @@ namespace DurableTask.Common
                     retVal = retryAction();
                     break;
                 }
-                catch (Exception exception)
+                catch (Exception exception) when (!Utils.IsFatal(exception))
                 {
                     TraceHelper.TraceSession(TraceEventType.Warning, sessionId,
                         "Error attempting operation {0}. Attempt count = {1}. Exception: {2}\n\t{3}",
@@ -308,7 +308,7 @@ namespace DurableTask.Common
                     cause = converter.Deserialize<Exception>(details);
                 }
             }
-            catch (Exception converterException)
+            catch (Exception converterException) when (!Utils.IsFatal(converterException))
             {
                 cause = new TaskFailedExceptionDeserializationException(details, converterException);
             }

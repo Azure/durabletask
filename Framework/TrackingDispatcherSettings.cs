@@ -11,11 +11,14 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+using System;
+
 namespace DurableTask
 {
     /// <summary>
     ///     Settings to configure the Tracking Dispatcher
     /// </summary>
+    [Obsolete]
     public class TrackingDispatcherSettings
     {
         internal TrackingDispatcherSettings()

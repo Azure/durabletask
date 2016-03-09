@@ -89,6 +89,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="DispatcherBase2.cs" />
     <Compile Include="OrchestrationRuntimeStateDump.cs" />
     <Compile Include="Common\ServiceBusUtils.cs" />
     <Compile Include="Command\OrchestratorActionConverter.cs" />

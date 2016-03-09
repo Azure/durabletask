@@ -17,6 +17,7 @@ namespace DurableTask.Tracing
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Linq;
+    using DurableTask.Common;
 
     internal class OrchestrationConsoleTraceListener : ConsoleTraceListener
     {
@@ -49,7 +50,7 @@ namespace DurableTask.Tracing
                     Debug.WriteLine(toWrite);
                 }
             }
-            catch (Exception exception)
+            catch (Exception exception) when (!Utils.IsFatal(exception))
             {
                 string toWrite = $"Exception while parsing trace:  {exception.Message}\n\t{exception.StackTrace}";
                 Console.WriteLine(toWrite);

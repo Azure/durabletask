@@ -26,7 +26,7 @@ namespace DurableTask
     using DurableTask.Serializing;
     using DurableTask.Tracing;
 
-    public class TaskOrchestrationDispatcher2 : DispatcherBase<TaskOrchestrationWorkItem>
+    public class TaskOrchestrationDispatcher2 : DispatcherBase2<TaskOrchestrationWorkItem>
     {
         readonly NameVersionObjectManager<TaskOrchestration> objectManager;
         readonly TaskHubWorkerSettings settings;
@@ -48,18 +48,6 @@ namespace DurableTask
 
         public bool IncludeDetails { get; set; }
         public bool IncludeParameters { get; set; }
-
-        protected override void OnStart()
-        {
-        }
-
-        protected override void OnStopping(bool isForced)
-        {
-        }
-
-        protected override void OnStopped(bool isForced)
-        {
-        }
 
         protected override async Task<TaskOrchestrationWorkItem> OnFetchWorkItemAsync(TimeSpan receiveTimeout)
         {
@@ -96,7 +84,7 @@ namespace DurableTask
                     TraceEventType.Verbose,
                     runtimeState.OrchestrationInstance,
                     "Executing user orchestration: {0}",
-                    DataConverter.Serialize(runtimeState.GetOrchestrationRuntimeStateDump(), false));
+                    DataConverter.Serialize(runtimeState.GetOrchestrationRuntimeStateDump(), true));
 
                 IList<OrchestratorAction> decisions = ExecuteOrchestration(runtimeState).ToList();
 
@@ -128,15 +116,11 @@ namespace DurableTask
                                     runtimeState, IncludeParameters));
                             break;
                         case OrchestratorActionType.OrchestrationComplete:
-                            // todo : restore logic from original for certain cases
                             TaskMessage workflowInstanceCompletedMessage =
                                 ProcessWorkflowCompletedTaskDecision((OrchestrationCompleteOrchestratorAction) decision, runtimeState, IncludeDetails, out continuedAsNew);
                             if (workflowInstanceCompletedMessage != null)
                             {
                                 // Send complete message to parent workflow or to itself to start a new execution
-                                // moved into else to match old 
-                                // subOrchestrationMessages.Add(workflowInstanceCompletedMessage);
-
                                 // Store the event so we can rebuild the state
                                 if (continuedAsNew)
                                 {
@@ -219,23 +203,14 @@ namespace DurableTask
                 }
             }
 
-            // AFFANDAR : TODO : session state size check, should we let sbus handle it completely?
-            try
-            {
-                await this.orchestrationService.CompleteTaskOrchestrationWorkItemAsync(
-                    workItem,
-                    newOrchestrationRuntimeState,
-                    continuedAsNew ? null : messagesToSend,
-                    subOrchestrationMessages,
-                    continuedAsNew ? null : timerMessages,
-                    continuedAsNewMessage,
-                    instanceState);
-            }
-            catch(Exception)
-            {
-                // AFFANDAR : TODO : if exception is due to session state size then force terminate message
-                throw;
-            }
+            await this.orchestrationService.CompleteTaskOrchestrationWorkItemAsync(
+                workItem,
+                newOrchestrationRuntimeState,
+                continuedAsNew ? null : messagesToSend,
+                subOrchestrationMessages,
+                continuedAsNew ? null : timerMessages,
+                continuedAsNewMessage,
+                instanceState);
         }
 
         static OrchestrationState BuildOrchestrationState(OrchestrationRuntimeState runtimeState)

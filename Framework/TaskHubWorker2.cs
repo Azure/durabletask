@@ -11,6 +11,9 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+using System.Threading;
+using System.Threading.Tasks;
+
 namespace DurableTask
 {
     using System;
@@ -25,14 +28,13 @@ namespace DurableTask
         readonly NameVersionObjectManager<TaskActivity> activityManager;
         readonly NameVersionObjectManager<TaskOrchestration> orchestrationManager;
 
-        readonly object thisLock = new object();
+        readonly SemaphoreSlim slimLock = new SemaphoreSlim(1, 1);
 
         readonly TaskHubWorkerSettings workerSettings;
         public readonly IOrchestrationService orchestrationService;
 
         volatile bool isStarted;
 
-        // AFFANDAR : TODO : replace with TaskActivityDispatcher2
         TaskActivityDispatcher2 activityDispatcher;
         TaskOrchestrationDispatcher2 orchestrationDispatcher;
 
@@ -121,9 +123,10 @@ namespace DurableTask
         ///     Starts the TaskHubWorker so it begins processing orchestrations and activities
         /// </summary>
         /// <returns></returns>
-        public TaskHubWorker2 Start()
+        public async Task<TaskHubWorker2> StartAsync()
         {
-            lock (thisLock)
+            await slimLock.WaitAsync();
+            try
             {
                 if (isStarted)
                 {
@@ -133,13 +136,15 @@ namespace DurableTask
                 this.orchestrationDispatcher = new TaskOrchestrationDispatcher2(this.workerSettings, this.orchestrationService, this.orchestrationManager);
                 this.activityDispatcher = new TaskActivityDispatcher2(this.workerSettings, this.orchestrationService, this.activityManager);
 
-                this.orchestrationService.StartAsync().Wait();
-                // AFFANDAR : TODO : make dispatcher start/stop methods async
-                this.orchestrationDispatcher.Start();
-                this.activityDispatcher.Start();
-
+                await this.orchestrationService.StartAsync();
+                await this.orchestrationDispatcher.StartAsync();
+                await this.activityDispatcher.StartAsync();
 
                 isStarted = true;
+            }
+            finally
+            {
+                slimLock.Release();
             }
 
             return this;
@@ -148,27 +153,32 @@ namespace DurableTask
         /// <summary>
         ///     Gracefully stops the TaskHubWorker
         /// </summary>
-        public void Stop()
+        public async Task StopAsync()
         {
-            Stop(false);
+            await StopAsync(false);
         }
 
         /// <summary>
         ///     Stops the TaskHubWorker
         /// </summary>
         /// <param name="isForced">True if forced shutdown, false if graceful shutdown</param>
-        public void Stop(bool isForced)
+        public async Task StopAsync(bool isForced)
         {
-            lock (thisLock)
+            await slimLock.WaitAsync();
+            try
             {
                 if (isStarted)
                 {
-                    this.orchestrationDispatcher.Stop(isForced);
-                    this.activityDispatcher.Stop(isForced);
-                    this.orchestrationService.StopAsync().Wait();
+                    await this.orchestrationDispatcher.StopAsync(isForced);
+                    await this.activityDispatcher.StopAsync(isForced);
+                    await this.orchestrationService.StopAsync();
 
                     isStarted = false;
                 }
+            }
+            finally
+            {
+                slimLock.Release();
             }
         }
 

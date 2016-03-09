@@ -144,12 +144,12 @@
                         taskHub.AddTaskActivitiesFromInterface<IManagementSqlOrchestrationTasks>(new ManagementSqlOrchestrationTasks());
                         taskHub.AddTaskActivitiesFromInterface<IMigrationTasks>(new MigrationTasks());
 
-                        taskHub.Start();
+                        taskHub.StartAsync().Wait();
 
                         Console.WriteLine("Press any key to quit.");
                         Console.ReadLine();
 
-                        taskHub.Stop(true);
+                        taskHub.StopAsync(true).Wait();
                     }
                     catch (Exception e)
                     {
