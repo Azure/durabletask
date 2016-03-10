@@ -118,12 +118,17 @@ namespace FrameworkUnitTests.Mocks
             return Task.FromResult<object>(null);
         }
 
-        public Task StopAsync()
+        public Task StopAsync(bool isForced)
         {
             this.cancellationTokenSource.Cancel();
             return Task.FromResult<object>(null);
         }
-        
+
+        public Task StopAsync()
+        {
+            return StopAsync(false);
+        }
+
         public bool IsTransientException(Exception exception)
         {
             return false;

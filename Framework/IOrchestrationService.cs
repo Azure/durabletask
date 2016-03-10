@@ -51,6 +51,8 @@ namespace DurableTask
 
         Task StopAsync();
 
+        Task StopAsync(bool isForced);
+
         Task CreateAsync();
 
         Task CreateIfNotExistsAsync();

@@ -171,7 +171,7 @@ namespace DurableTask
                 {
                     await this.orchestrationDispatcher.StopAsync(isForced);
                     await this.activityDispatcher.StopAsync(isForced);
-                    await this.orchestrationService.StopAsync();
+                    await this.orchestrationService.StopAsync(isForced);
 
                     isStarted = false;
                 }

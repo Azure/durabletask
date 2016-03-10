@@ -90,7 +90,6 @@ namespace DurableTask
             if (historyProvider != null)
             {
                 this.historyProvider = historyProvider;
-                // This could use SessionWorkItem but for consistency keep the same abstraction, allows code reuse, simplictity, easier alternat dispatcher etc
                 trackingDispatcher = new WorkItemDispatcher<TaskOrchestrationWorkItem>(
                     "TrackingDispatcher",
                     item => item == null ? string.Empty : item.InstanceId,
@@ -119,11 +118,11 @@ namespace DurableTask
 
         public async Task StopAsync()
         {
-            if (trackingDispatcher != null)
-            {
-                await this.trackingDispatcher.StopAsync(false);
-            }
+            await StopAsync(false);
+        }
 
+        public async Task StopAsync(bool isForced)
+        {
             await Task.WhenAll(
                 this.messagingFactory.CloseAsync(),
                 this.workerSender.CloseAsync(),
@@ -131,7 +130,8 @@ namespace DurableTask
                 this.trackingSender.CloseAsync(),
                 this.orchestratorQueueClient.CloseAsync(),
                 this.trackingQueueClient.CloseAsync(),
-                this.workerQueueClient.CloseAsync()
+                this.workerQueueClient.CloseAsync(),
+                this.trackingDispatcher?.StopAsync(isForced) ?? Task.FromResult(0)
                 );
         }
 
@@ -357,6 +357,18 @@ namespace DurableTask
                     }
 
                     // todo : add tracking here
+                    if (historyProvider != null)
+                    {
+                        List<BrokeredMessage> trackingMessages = CreateTrackingMessages(runtimeState);
+
+                        TraceHelper.TraceInstance(TraceEventType.Information, runtimeState.OrchestrationInstance,
+                            "Created {0} tracking messages", trackingMessages.Count);
+
+                        if (trackingMessages.Count > 0)
+                        {
+                            trackingMessages.ForEach(m => trackingSender.Send(m));
+                        }
+                    }
                 }
 
                 await session.CompleteBatchAsync(sessionState.LockTokens.Keys);
@@ -634,6 +646,49 @@ namespace DurableTask
             };
         }
 
+        List<BrokeredMessage> CreateTrackingMessages(OrchestrationRuntimeState runtimeState)
+        {
+            var trackingMessages = new List<BrokeredMessage>();
+
+            // We cannot create tracking messages if runtime state does not have Orchestration InstanceId
+            // This situation can happen due to corruption of service bus session state or if somehow first message of orchestration is not execution started
+            if (runtimeState == null || runtimeState.OrchestrationInstance == null ||
+                string.IsNullOrWhiteSpace(runtimeState.OrchestrationInstance.InstanceId))
+            {
+                return trackingMessages;
+            }
+
+            // this is to stamp the tracking events with a sequence number so they can be ordered even if
+            // writing to a store like azure table
+            int historyEventIndex = runtimeState.Events.Count - runtimeState.NewEvents.Count;
+            foreach (HistoryEvent he in runtimeState.NewEvents)
+            {
+                var taskMessage = new TaskMessage
+                {
+                    Event = he,
+                    OrchestrationInstance = runtimeState.OrchestrationInstance
+                };
+
+                BrokeredMessage trackingMessage = ServiceBusUtils.GetBrokeredMessageFromObject(
+                    taskMessage, settings.MessageCompressionSettings, runtimeState.OrchestrationInstance,
+                    "History Tracking Message");
+                trackingMessage.ContentType = FrameworkConstants.TaskMessageContentType;
+                trackingMessage.SessionId = runtimeState.OrchestrationInstance.InstanceId;
+                trackingMessage.Properties[FrameworkConstants.HistoryEventIndexPropertyName] = historyEventIndex++;
+                trackingMessages.Add(trackingMessage);
+            }
+
+            var stateMessage = new StateMessage { State = Utils.BuildOrchestrationState(runtimeState) };
+
+            BrokeredMessage brokeredStateMessage = ServiceBusUtils.GetBrokeredMessageFromObject(
+                stateMessage, settings.MessageCompressionSettings, runtimeState.OrchestrationInstance,
+                "State Tracking Message");
+            brokeredStateMessage.SessionId = runtimeState.OrchestrationInstance.InstanceId;
+            brokeredStateMessage.ContentType = FrameworkConstants.StateMessageContentType;
+            trackingMessages.Add(brokeredStateMessage);
+            return trackingMessages;
+        }
+
         /// <summary>
         ///     Process a tracking work item, sending to storage and releasing
         /// </summary>
@@ -698,9 +753,8 @@ namespace DurableTask
                     throw new InvalidOperationException($"Invalid tracking message content type: {message.ContentType}");
                 }
 
-                // TODO : implement
-                // TraceEntities(TraceEventType.Verbose, "Writing tracking history event", historyEntities, GetNormalizedHistoryEventEntityTrace);
-                // TraceEntities(TraceEventType.Verbose, "Writing tracking state event", stateEntities, GetNormalizedStateEntityTrace);
+                TraceEntities(TraceEventType.Verbose, "Writing tracking history event", historyEntities, GetNormalizedWorkItemEvent);
+                TraceEntities(TraceEventType.Verbose, "Writing tracking state event", stateEntities, GetNormalizedStateEvent);
 
                 // TODO : pick a retry strategy, old code wrapped every individual item in a retry
                 try
@@ -709,8 +763,7 @@ namespace DurableTask
                 }
                 catch (Exception e) when (!Utils.IsFatal(e))
                 {
-                    // TODO : implement
-                    // TraceEntities(TraceEventType.Critical, "Failed to write history entity", historyEntities, GetNormalizedHistoryEventEntityTrace);
+                    TraceEntities(TraceEventType.Critical, "Failed to write history entity", historyEntities, GetNormalizedWorkItemEvent);
                     throw;
                 }
 
@@ -724,8 +777,7 @@ namespace DurableTask
                 }
                 catch (Exception e) when (!Utils.IsFatal(e))
                 {
-                    // TODO : implement
-                    // TraceEntities(TraceEventType.Critical, "Failed to write history entity", historyEntities, GetNormalizedHistoryEventEntityTrace);
+                    TraceEntities(TraceEventType.Critical, "Failed to write history entity", stateEntities, GetNormalizedStateEvent);
                     throw;
                 }
 
@@ -733,6 +785,64 @@ namespace DurableTask
                 // TODO : Should we use SyncExecuteWithRetries, old code does
                 await sessionState.Session.CompleteBatchAsync(sessionState.LockTokens.Keys);
             }
+        }
+
+        void TraceEntities<T>(
+            TraceEventType eventType, 
+            string message,
+            IEnumerable<T> entities, 
+            Func<int, string, T, string> traceGenerator)
+        {
+            int index = 0;
+            foreach (T entry in entities)
+            {
+                var idx = index;
+                TraceHelper.Trace(eventType, () => traceGenerator(idx, message, entry));
+                index++;
+            }
+        }
+
+        string GetNormalizedStateEvent(int index, string message, OrchestrationStateHistoryEvent stateEntity)
+        {
+            string serializedHistoryEvent = Utils.EscapeJson(DataConverter.Serialize(stateEntity.State));
+            int historyEventLength = serializedHistoryEvent.Length;
+
+            if (historyEventLength > historyProvider?.MaxHistoryEntryLength())
+            {
+                serializedHistoryEvent =
+                    serializedHistoryEvent.Substring(0, historyProvider?.MaxHistoryEntryLength() ?? Int32.MaxValue) +
+                    " ....(truncated)..]";
+            }
+
+            return GetFormattedLog(
+                    $"{message} - #{index} - Instance Id: {stateEntity.State?.OrchestrationInstance?.InstanceId},"
+                    + $"Execution Id: {stateEntity.State?.OrchestrationInstance?.ExecutionId},"
+                    + $" State Length: {historyEventLength}\n{serializedHistoryEvent}");
+        }
+
+        private string GetNormalizedWorkItemEvent(int index, string message, OrchestrationWorkItemEvent entity)
+        {
+            string serializedHistoryEvent = Utils.EscapeJson(DataConverter.Serialize(entity.HistoryEvent));
+            int historyEventLength = serializedHistoryEvent.Length;
+
+            if (historyEventLength > historyProvider?.MaxHistoryEntryLength())
+            {
+                serializedHistoryEvent =
+                    serializedHistoryEvent.Substring(0, historyProvider?.MaxHistoryEntryLength() ?? Int32.MaxValue) +
+                    " ....(truncated)..]";
+            }
+
+            return
+                GetFormattedLog(
+                    string.Format(
+                        message + " - #{0} - Instance Id: {1}, Execution Id: {2}, HistoryEvent Length: {3}\n{4}",
+                        index, entity.InstanceId, entity.ExecutionId, historyEventLength, serializedHistoryEvent));
+        }
+
+        private string GetFormattedLog(string input)
+        {
+            // todo : fill this method with the correct workitemdispatcher prefix
+            return input;
         }
 
         private static async Task<OrchestrationRuntimeState> GetSessionState(MessageSession session)

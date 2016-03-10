@@ -11,6 +11,8 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+using DurableTask.Tracking;
+
 namespace FrameworkUnitTests
 {
     using System;
@@ -71,12 +73,20 @@ namespace FrameworkUnitTests
 
         public static IOrchestrationService CreateOrchestrationServiceWorker()
         {
-            return new ServiceBusOrchestrationService(ServiceBusConnectionString, TaskHubName, null);
+            return new ServiceBusOrchestrationService(
+                ServiceBusConnectionString, 
+                TaskHubName,
+                new AzureTableHistoryProvider(TaskHubName, StorageConnectionString), 
+                null);
         }
 
         public static IOrchestrationServiceClient CreateOrchestrationServiceClient()
         {
-            return new ServiceBusOrchestrationService(ServiceBusConnectionString, TaskHubName, null);
+            return new ServiceBusOrchestrationService(
+                ServiceBusConnectionString,
+                TaskHubName,
+                new AzureTableHistoryProvider(TaskHubName, StorageConnectionString),
+                null);
         }
 
         public static TaskHubClient2 CreateTaskHubClient2NoCompression(bool createInstanceStore = true)

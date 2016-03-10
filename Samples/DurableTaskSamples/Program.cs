@@ -25,10 +25,10 @@
             if (CommandLine.Parser.Default.ParseArgumentsStrict(args, options))
             {
                 string servicebusConnectionString = Program.GetSetting("ServiceBusConnectionString");
-                string storageConnectionString = Program.GetSetting("StorageConnectionString"); // todo: restore this
+                string storageConnectionString = Program.GetSetting("StorageConnectionString");
                 string taskHubName = ConfigurationManager.AppSettings["taskHubName"];
 
-                IOrchestrationServiceHistoryProvider  historyProvider = new AzureTableHistoryProvider(taskHubName, storageConnectionString);
+                IOrchestrationServiceHistoryProvider historyProvider = new AzureTableHistoryProvider(taskHubName, storageConnectionString);
 
                 ServiceBusOrchestrationService orchestrationServiceAndClient =
                     new ServiceBusOrchestrationService(servicebusConnectionString, taskHubName, historyProvider, null);

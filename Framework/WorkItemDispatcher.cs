@@ -144,7 +144,7 @@ namespace DurableTask
                     }
                 }
 
-                TraceHelper.Trace(TraceEventType.Information, $"{name} stopping. Id {id}.");
+                TraceHelper.Trace(TraceEventType.Information, $"{name} stopped. Id {id}.");
             }
             finally
             {

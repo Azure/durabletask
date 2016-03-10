@@ -16,7 +16,6 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Runtime.Remoting.Metadata.W3cXsd2001;
 using System.Threading.Tasks;
 using DurableTask.Tracing;
 using Microsoft.WindowsAzure.Storage.Table;
@@ -25,7 +24,14 @@ namespace DurableTask.Tracking
 {
     public class AzureTableHistoryProvider : IOrchestrationServiceHistoryProvider
     {
+        const int MaxDisplayStringLengthForAzureTableColumn = 1024 * 24;
+
         private AzureTableClient tableClient;
+
+        public int MaxHistoryEntryLength()
+        {
+            return MaxDisplayStringLengthForAzureTableColumn;
+        }
 
         public AzureTableHistoryProvider(string hubName, string tableConnectionString)
         {

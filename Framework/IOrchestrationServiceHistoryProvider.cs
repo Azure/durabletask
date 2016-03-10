@@ -20,6 +20,8 @@ namespace DurableTask
 
     public interface IOrchestrationServiceHistoryProvider
     {
+        int MaxHistoryEntryLength();
+
         Task<object> WriteEntitesAsync(IEnumerable<OrchestrationHistoryEvent> entities);
 
         Task<object> DeleteEntitesAsync(IEnumerable<OrchestrationHistoryEvent> entities);
