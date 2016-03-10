@@ -77,6 +77,20 @@ namespace DurableTask.Tracking
             }
         }
 
+        internal async Task CreateTableIfNotExistsAsync()
+        {
+            table = tableClient.GetTableReference(TableName);
+            await table.CreateIfNotExistsAsync();
+        }
+
+        internal async Task DeleteTableIfExistsAsync()
+        {
+            if (table != null)
+            {
+                await table.DeleteIfExistsAsync();
+            }
+        }
+
         public Task<IEnumerable<AzureTableOrchestrationStateEntity>> QueryOrchestrationStatesAsync(
             OrchestrationStateQuery stateQuery)
         {

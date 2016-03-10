@@ -22,6 +22,8 @@ namespace DurableTask
     {
         int MaxHistoryEntryLength();
 
+        Task InitializeStorage(bool recreateStorage);
+
         Task<object> WriteEntitesAsync(IEnumerable<OrchestrationHistoryEvent> entities);
 
         Task<object> DeleteEntitesAsync(IEnumerable<OrchestrationHistoryEvent> entities);

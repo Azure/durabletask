@@ -183,6 +183,7 @@ namespace DurableTask
                     //
                     // We also put in a fake timer to force next orchestration task for remaining messages
                     int totalMessages = messagesToSend.Count + subOrchestrationMessages.Count + timerMessages.Count;
+                    // Todo : need to account for tracking/history messages here as well, need to move into orchestration service to do that
 
                     // AFFANDAR : TODO : this should be moved to the service bus orchestration service
                     if (this.orchestrationService.IsMaxMessageCountExceeded(totalMessages, runtimeState))

@@ -11,31 +11,42 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Threading.Tasks;
-using DurableTask.Tracing;
-using Microsoft.WindowsAzure.Storage.Table;
-
 namespace DurableTask.Tracking
 {
+    using System;
+    using System.Collections.Concurrent;
+    using System.Collections.Generic;
+    using System.Diagnostics;
+    using System.Linq;
+    using System.Threading.Tasks;
+    using DurableTask.History;
+    using DurableTask.Tracing;
+    using Microsoft.WindowsAzure.Storage.Table;
+
     public class AzureTableHistoryProvider : IOrchestrationServiceHistoryProvider
     {
-        const int MaxDisplayStringLengthForAzureTableColumn = 1024 * 24;
+        const int MaxDisplayStringLengthForAzureTableColumn = (1024 * 24) - 20;
 
-        private AzureTableClient tableClient;
-
-        public int MaxHistoryEntryLength()
-        {
-            return MaxDisplayStringLengthForAzureTableColumn;
-        }
+        private readonly AzureTableClient tableClient;
 
         public AzureTableHistoryProvider(string hubName, string tableConnectionString)
         {
             this.tableClient = new AzureTableClient(hubName, tableConnectionString);
+        }
+
+        public async Task InitializeStorage(bool recreateStorage)
+        {
+            if (recreateStorage)
+            {
+                await this.tableClient.DeleteTableIfExistsAsync();
+            }
+
+            await this.tableClient.CreateTableIfNotExistsAsync();
+        }
+
+        public int MaxHistoryEntryLength()
+        {
+            return MaxDisplayStringLengthForAzureTableColumn;
         }
 
         public async Task<object> WriteEntitesAsync(IEnumerable<OrchestrationHistoryEvent> entities)
@@ -118,12 +129,50 @@ namespace DurableTask.Tracking
 
         private AzureTableCompositeTableEntity HistoryEventToTableEntity(OrchestrationHistoryEvent historyEvent)
         {
-            throw new NotImplementedException();
+            OrchestrationWorkItemEvent workItemEvent = null;
+            OrchestrationStateHistoryEvent historyStateEvent = null;
+
+            if ((workItemEvent = historyEvent as OrchestrationWorkItemEvent) != null)
+            {
+                return new AzureTableOrchestrationHistoryEventEntity(
+                    workItemEvent.InstanceId,
+                    workItemEvent.ExecutionId,
+                    workItemEvent.SequenceNumber,
+                    workItemEvent.EventTimestamp,
+                    workItemEvent.HistoryEvent);
+            }
+            else if ((historyStateEvent = historyEvent as OrchestrationStateHistoryEvent) != null)
+            {
+                return new AzureTableOrchestrationStateEntity(historyStateEvent.State);
+            }
+            else
+            {
+                throw new InvalidOperationException($"Invalid history event type: {historyEvent.GetType()}");
+            }
         }
 
         private OrchestrationHistoryEvent TableEntityToHistoryEvent(AzureTableCompositeTableEntity entity)
         {
-            throw new NotImplementedException();
+            AzureTableOrchestrationHistoryEventEntity workItemEntity = null;
+            AzureTableOrchestrationStateEntity historyStateEntity = null;
+
+            if ((workItemEntity = entity as AzureTableOrchestrationHistoryEventEntity) != null)
+            {
+                return new OrchestrationWorkItemEvent { 
+                    InstanceId = workItemEntity.InstanceId,
+                    ExecutionId = workItemEntity.ExecutionId,
+                    SequenceNumber = workItemEntity.SequenceNumber,
+                    EventTimestamp = workItemEntity.TaskTimeStamp,
+                    HistoryEvent = workItemEntity.HistoryEvent};
+            }
+            else if ((historyStateEntity = entity as AzureTableOrchestrationStateEntity) != null)
+            {
+                return new OrchestrationStateHistoryEvent { State = historyStateEntity.State };
+            }
+            else
+            {
+                throw new InvalidOperationException($"Invalid entity event type: {entity.GetType()}");
+            }
         }
     }
 }

@@ -194,7 +194,7 @@ namespace DurableTask
                     {
                         // TODO : dump full node context here
                         TraceHelper.TraceException(TraceEventType.Warning, exception,
-                            GetFormattedLog("Exception while fetching workItem"));
+                            GetFormattedLog($"Exception while fetching workItem: {exception.Message}"));
                         delaySecs = GetDelayInSecondsAfterOnFetchException(exception);
                     }
                 }

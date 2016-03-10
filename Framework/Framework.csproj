@@ -89,8 +89,10 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="History\HistoryStateEvent.cs" />
     <Compile Include="IOrchestrationServiceHistoryProvider.cs" />
     <Compile Include="Settings\ServiceBusOrchestrationServiceSettings.cs" />
+    <Compile Include="TrackingWorkItem.cs" />
     <Compile Include="Tracking\AzureTableHistoryProvider.cs" />
     <Compile Include="Tracking\OrchestrationHistoryEvent.cs" />
     <Compile Include="Tracking\OrchestrationStateHistoryEvent.cs" />
