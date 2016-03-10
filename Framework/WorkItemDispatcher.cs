@@ -21,9 +21,7 @@ namespace DurableTask
     using DurableTask.Exceptions;
     using Tracing;
 
-    // TODO : This class need to be refactored
-
-    public abstract class DispatcherBase2<T>
+    public class WorkItemDispatcher<T>
     {
         const int DefaultMaxConcurrentWorkItems = 20;
 
@@ -35,7 +33,6 @@ namespace DurableTask
         readonly string name;
         readonly object thisLock = new object();
         readonly SemaphoreSlim slimLock = new SemaphoreSlim(1, 1);
-        readonly WorkItemIdentifier workItemIdentifier;
 
         volatile int concurrentWorkItemCount;
         volatile int countDownToZeroDelay;
@@ -43,19 +40,52 @@ namespace DurableTask
         volatile bool isFetching = false;
         private bool isStarted = false;
 
-        protected int maxConcurrentWorkItems;
+        public int MaxConcurrentWorkItems { get; set; }
+
+        private readonly Func<T, string> workItemIdentifier;
+
+        private readonly Func<TimeSpan, Task<T>> FetchWorkItem;
+        private readonly Func<T, Task> ProcessWorkItem;
+        public Func<T, Task> SafeReleaseWorkItem;
+        public Func<T, Task> AbortWorkItem;
+        public Func<Exception, int> GetDelayInSecondsAfterOnFetchException = (exception) => 0;
+        public Func<Exception, int> GetDelayInSecondsAfterOnProcessException = (exception) => 0;
 
         /// <summary>
         /// Creates a new Work Item Dispatcher with givne name and identifier method
         /// </summary>
         /// <param name="name">Name identifying this dispatcher for logging and diagnostics</param>
         /// <param name="workItemIdentifier"></param>
-        protected DispatcherBase2(string name, WorkItemIdentifier workItemIdentifier)
+        /// <param name="fetchWorkItem"></param>
+        /// <param name="processWorkItem"></param>
+        public WorkItemDispatcher(
+            string name, 
+            Func<T, string> workItemIdentifier,
+            Func<TimeSpan, Task<T>> fetchWorkItem,
+            Func<T, Task> processWorkItem
+            )
         {
+            if (workItemIdentifier == null)
+            {
+                throw new ArgumentNullException(nameof(workItemIdentifier));
+            }
+
+            if (fetchWorkItem == null)
+            {
+                throw new ArgumentNullException(nameof(fetchWorkItem));
+            }
+
+            if (processWorkItem == null)
+            {
+                throw new ArgumentNullException(nameof(processWorkItem));
+            }
+
             this.name = name;
             id = Guid.NewGuid().ToString("N");
-            maxConcurrentWorkItems = DefaultMaxConcurrentWorkItems;
+            MaxConcurrentWorkItems = DefaultMaxConcurrentWorkItems;
             this.workItemIdentifier = workItemIdentifier;
+            this.FetchWorkItem = fetchWorkItem;
+            this.ProcessWorkItem = processWorkItem;
         }
 
         /// <summary>
@@ -110,7 +140,7 @@ namespace DurableTask
                     int retryCount = 7;
                     while ((concurrentWorkItemCount > 0 || isFetching) && retryCount-- >= 0)
                     {
-                        Thread.Sleep(4000);
+                        await Task.Delay(4000);
                     }
                 }
 
@@ -122,19 +152,11 @@ namespace DurableTask
             }
         }
 
-        protected abstract Task<T> OnFetchWorkItemAsync(TimeSpan receiveTimeout);
-        protected abstract Task OnProcessWorkItemAsync(T workItem);
-        protected abstract Task SafeReleaseWorkItemAsync(T workItem);
-        protected abstract Task AbortWorkItemAsync(T workItem);
-        protected abstract int GetDelayInSecondsAfterOnFetchException(Exception exception);
-        protected abstract int GetDelayInSecondsAfterOnProcessException(Exception exception);
-
-        // TODO : dispatcher refactoring between worker, orchestrator, tacker & DLQ
-        public async Task DispatchAsync()
+        private async Task DispatchAsync()
         {
             while (isStarted)
             {
-                if (concurrentWorkItemCount >= maxConcurrentWorkItems)
+                if (concurrentWorkItemCount >= MaxConcurrentWorkItems)
                 {
                     TraceHelper.Trace(TraceEventType.Information,
                         GetFormattedLog($"Max concurrent operations are already in progress. Waiting for {WaitIntervalOnMaxSessions}s for next accept."));
@@ -149,7 +171,7 @@ namespace DurableTask
                     isFetching = true;
                     TraceHelper.Trace(TraceEventType.Information,
                         GetFormattedLog($"Starting fetch with timeout of {DefaultReceiveTimeout}"));
-                    workItem = await OnFetchWorkItemAsync(DefaultReceiveTimeout);
+                    workItem = await FetchWorkItem(DefaultReceiveTimeout);
                 }
                 catch (TimeoutException)
                 {
@@ -185,7 +207,10 @@ namespace DurableTask
                 {
                     if (!isStarted)
                     {
-                        await SafeReleaseWorkItemAsync(workItem);
+                        if (SafeReleaseWorkItem != null)
+                        {
+                            await SafeReleaseWorkItem(workItem);
+                        }
                     }
                     else
                     {
@@ -203,7 +228,7 @@ namespace DurableTask
             }
         }
 
-        protected virtual async Task ProcessWorkItemAsync(object workItemObj)
+        private async Task ProcessWorkItemAsync(object workItemObj)
         {
             var workItem = (T) workItemObj;
             bool abortWorkItem = true;
@@ -216,7 +241,7 @@ namespace DurableTask
                 TraceHelper.Trace(TraceEventType.Information,
                     GetFormattedLog($"Starting to process workItem {workItemId}"));
 
-                await OnProcessWorkItemAsync(workItem);
+                await ProcessWorkItem(workItem);
 
                 AdjustDelayModifierOnSuccess();
 
@@ -261,12 +286,15 @@ namespace DurableTask
                 Interlocked.Decrement(ref concurrentWorkItemCount);
             }
 
-            if (abortWorkItem)
+            if (abortWorkItem && AbortWorkItem != null)
             {
-                await ExceptionTraceWrapperAsync(() => AbortWorkItemAsync(workItem));
+                await ExceptionTraceWrapperAsync(() => AbortWorkItem(workItem));
             }
 
-            await ExceptionTraceWrapperAsync(() => SafeReleaseWorkItemAsync(workItem));
+            if (SafeReleaseWorkItem != null)
+            {
+                await ExceptionTraceWrapperAsync(() => SafeReleaseWorkItem(workItem));
+            }
         }
 
         void AdjustDelayModifierOnSuccess()
@@ -311,7 +339,5 @@ namespace DurableTask
         {
             return $"{name}-{id}: {message}";
         }
-
-        protected delegate string WorkItemIdentifier(T workItem);
     }
 }

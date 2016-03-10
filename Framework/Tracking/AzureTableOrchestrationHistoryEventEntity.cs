@@ -20,13 +20,13 @@ namespace DurableTask.Tracking
     using Microsoft.WindowsAzure.Storage.Table;
     using Newtonsoft.Json;
 
-    public class OrchestrationHistoryEventEntity : CompositeTableEntity
+    public class AzureTableOrchestrationHistoryEventEntity : AzureTableCompositeTableEntity
     {
-        public OrchestrationHistoryEventEntity()
+        public AzureTableOrchestrationHistoryEventEntity()
         {
         }
 
-        public OrchestrationHistoryEventEntity(string instanceId, string executionId, int sequenceNumber,
+        public AzureTableOrchestrationHistoryEventEntity(string instanceId, string executionId, int sequenceNumber,
             DateTime taskTimeStamp, HistoryEvent historyEvent)
         {
             InstanceId = instanceId;
@@ -35,9 +35,9 @@ namespace DurableTask.Tracking
             TaskTimeStamp = taskTimeStamp;
             HistoryEvent = historyEvent;
 
-            PartitionKey = TableConstants.InstanceHistoryEventPrefix +
-                           TableConstants.JoinDelimiter + InstanceId;
-            RowKey = ExecutionId + TableConstants.JoinDelimiter + SequenceNumber;
+            PartitionKey = AzureTableConstants.InstanceHistoryEventPrefix +
+                           AzureTableConstants.JoinDelimiter + InstanceId;
+            RowKey = ExecutionId + AzureTableConstants.JoinDelimiter + SequenceNumber;
         }
 
         public string InstanceId { get; set; }
@@ -47,17 +47,17 @@ namespace DurableTask.Tracking
 
         internal override IEnumerable<ITableEntity> BuildDenormalizedEntities()
         {
-            var entity = new OrchestrationHistoryEventEntity(InstanceId,
+            var entity = new AzureTableOrchestrationHistoryEventEntity(InstanceId,
                 ExecutionId,
                 SequenceNumber,
                 TaskTimeStamp, HistoryEvent);
-            entity.PartitionKey = TableConstants.InstanceHistoryEventPrefix +
-                                  TableConstants.JoinDelimiter + InstanceId;
-            entity.RowKey = TableConstants.InstanceHistoryEventRowPrefix +
-                            TableConstants.JoinDelimiter +
-                            ExecutionId + TableConstants.JoinDelimiter + SequenceNumber;
+            entity.PartitionKey = AzureTableConstants.InstanceHistoryEventPrefix +
+                                  AzureTableConstants.JoinDelimiter + InstanceId;
+            entity.RowKey = AzureTableConstants.InstanceHistoryEventRowPrefix +
+                            AzureTableConstants.JoinDelimiter +
+                            ExecutionId + AzureTableConstants.JoinDelimiter + SequenceNumber;
 
-            return new OrchestrationHistoryEventEntity[1] {entity};
+            return new AzureTableOrchestrationHistoryEventEntity[1] {entity};
         }
 
         public override IDictionary<string, EntityProperty> WriteEntity(OperationContext operationContext)

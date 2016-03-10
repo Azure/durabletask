@@ -21,13 +21,13 @@ namespace DurableTask.Tracking
     using Microsoft.WindowsAzure.Storage.Table;
     using Newtonsoft.Json;
 
-    public class OrchestrationStateEntity : CompositeTableEntity
+    public class AzureTableOrchestrationStateEntity : AzureTableCompositeTableEntity
     {
-        public OrchestrationStateEntity()
+        public AzureTableOrchestrationStateEntity()
         {
         }
 
-        public OrchestrationStateEntity(OrchestrationState state)
+        public AzureTableOrchestrationStateEntity(OrchestrationState state)
         {
             State = state;
             TaskTimeStamp = state.CompletedTime;
@@ -37,14 +37,14 @@ namespace DurableTask.Tracking
 
         internal override IEnumerable<ITableEntity> BuildDenormalizedEntities()
         {
-            var entity1 = new OrchestrationStateEntity(State);
+            var entity1 = new AzureTableOrchestrationStateEntity(State);
 
-            entity1.PartitionKey = TableConstants.InstanceStatePrefix;
-            entity1.RowKey = TableConstants.InstanceStateExactRowPrefix +
-                             TableConstants.JoinDelimiter + State.OrchestrationInstance.InstanceId +
-                             TableConstants.JoinDelimiter + State.OrchestrationInstance.ExecutionId;
+            entity1.PartitionKey = AzureTableConstants.InstanceStatePrefix;
+            entity1.RowKey = AzureTableConstants.InstanceStateExactRowPrefix +
+                             AzureTableConstants.JoinDelimiter + State.OrchestrationInstance.InstanceId +
+                             AzureTableConstants.JoinDelimiter + State.OrchestrationInstance.ExecutionId;
 
-            return new OrchestrationStateEntity[1] {entity1};
+            return new AzureTableOrchestrationStateEntity[1] {entity1};
 
             // TODO : additional indexes for efficient querying in the future
         }

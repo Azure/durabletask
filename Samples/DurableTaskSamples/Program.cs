@@ -5,6 +5,7 @@
     using System.IO;
     using System.Linq;
     using DurableTask;
+    using DurableTask.Tracking;
     using DurableTaskSamples.AverageCalculator;
     using DurableTaskSamples.Common.WorkItems;
     using DurableTaskSamples.Cron;
@@ -24,15 +25,17 @@
             if (CommandLine.Parser.Default.ParseArgumentsStrict(args, options))
             {
                 string servicebusConnectionString = Program.GetSetting("ServiceBusConnectionString");
-                string storageConnectionString = "";//Program.GetSetting("StorageConnectionString"); // todo: restore this
+                string storageConnectionString = Program.GetSetting("StorageConnectionString"); // todo: restore this
                 string taskHubName = ConfigurationManager.AppSettings["taskHubName"];
 
+                IOrchestrationServiceHistoryProvider  historyProvider = new AzureTableHistoryProvider(taskHubName, storageConnectionString);
+
                 ServiceBusOrchestrationService orchestrationServiceAndClient =
-                    new ServiceBusOrchestrationService(servicebusConnectionString, taskHubName, null);
+                    new ServiceBusOrchestrationService(servicebusConnectionString, taskHubName, historyProvider, null);
 
                 //TaskHubClient taskHubClientOld = new TaskHubClient(taskHubName, servicebusConnectionString, storageConnectionString);
                 TaskHubClient2 taskHubClient = new TaskHubClient2(orchestrationServiceAndClient);
-                TaskHubWorker taskHubOld = new TaskHubWorker(taskHubName, servicebusConnectionString, storageConnectionString);
+                //TaskHubWorker taskHubOld = new TaskHubWorker(taskHubName, servicebusConnectionString, storageConnectionString);
                 TaskHubWorker2 taskHubNew = new TaskHubWorker2(orchestrationServiceAndClient);
                 var taskHub = taskHubNew;
                 

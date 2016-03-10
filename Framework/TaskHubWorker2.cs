@@ -133,8 +133,8 @@ namespace DurableTask
                     throw new InvalidOperationException("Worker is already started");
                 }
 
-                this.orchestrationDispatcher = new TaskOrchestrationDispatcher2(this.workerSettings, this.orchestrationService, this.orchestrationManager);
-                this.activityDispatcher = new TaskActivityDispatcher2(this.workerSettings, this.orchestrationService, this.activityManager);
+                this.orchestrationDispatcher = new TaskOrchestrationDispatcher2(this.orchestrationService, this.orchestrationManager);
+                this.activityDispatcher = new TaskActivityDispatcher2(this.orchestrationService, this.activityManager);
 
                 await this.orchestrationService.StartAsync();
                 await this.orchestrationDispatcher.StartAsync();

@@ -37,7 +37,7 @@ namespace DurableTask
         readonly MessagingFactory messagingFactory;
         readonly TrackingDispatcherSettings settings;
 
-        readonly TableClient tableClient;
+        readonly AzureTableClient tableClient;
         readonly TaskHubDescription taskHubDescription;
         readonly string trackingEntityName;
         QueueClient trackingQueueClient;
@@ -56,7 +56,7 @@ namespace DurableTask
             this.trackingEntityName = trackingEntityName;
             this.messagingFactory = messagingFactory;
             this.messagingFactory.PrefetchCount = PrefetchCount;
-            tableClient = new TableClient(hubName, tableConnectionString);
+            tableClient = new AzureTableClient(hubName, tableConnectionString);
             maxConcurrentWorkItems = settings.MaxConcurrentTrackingSessions;
         }
 
@@ -105,8 +105,8 @@ namespace DurableTask
             MessageSession session = sessionWorkItem.Session;
             IEnumerable<BrokeredMessage> newMessages = sessionWorkItem.Messages;
 
-            var historyEntities = new List<OrchestrationHistoryEventEntity>();
-            var stateEntities = new List<OrchestrationStateEntity>();
+            var historyEntities = new List<AzureTableOrchestrationHistoryEventEntity>();
+            var stateEntities = new List<AzureTableOrchestrationStateEntity>();
             foreach (BrokeredMessage message in newMessages)
             {
                 ServiceBusUtils.CheckAndLogDeliveryCount(message, taskHubDescription.MaxTrackingDeliveryCount);
@@ -128,7 +128,7 @@ namespace DurableTask
                     var historyEventIndex = (int) historyEventIndexObj;
 
                     TaskMessage taskMessage = await ServiceBusUtils.GetObjectFromBrokeredMessageAsync<TaskMessage>(message);
-                    historyEntities.Add(new OrchestrationHistoryEventEntity(
+                    historyEntities.Add(new AzureTableOrchestrationHistoryEventEntity(
                         taskMessage.OrchestrationInstance.InstanceId,
                         taskMessage.OrchestrationInstance.ExecutionId,
                         historyEventIndex,
@@ -139,7 +139,7 @@ namespace DurableTask
                     StringComparison.OrdinalIgnoreCase))
                 {
                     StateMessage stateMessage = await ServiceBusUtils.GetObjectFromBrokeredMessageAsync<StateMessage>(message);
-                    stateEntities.Add(new OrchestrationStateEntity(stateMessage.State));
+                    stateEntities.Add(new AzureTableOrchestrationStateEntity(stateMessage.State));
                 }
                 else
                 {
@@ -169,10 +169,10 @@ namespace DurableTask
 
             try
             {
-                foreach (OrchestrationStateEntity stateEntity in stateEntities)
+                foreach (AzureTableOrchestrationStateEntity stateEntity in stateEntities)
                 {
                     await Utils.ExecuteWithRetries(
-                        () => tableClient.WriteEntitesAsync(new List<OrchestrationStateEntity> {stateEntity}),
+                        () => tableClient.WriteEntitesAsync(new List<AzureTableOrchestrationStateEntity> {stateEntity}),
                         session.SessionId, string.Format("WriteStateEntities:{0}", session.SessionId),
                         MaxRetriesTableStore,
                         IntervalBetweenRetriesSecs);
@@ -208,7 +208,7 @@ namespace DurableTask
             }
         }
 
-        string GetNormalizedStateEntityTrace(int index, string message, OrchestrationStateEntity stateEntity)
+        string GetNormalizedStateEntityTrace(int index, string message, AzureTableOrchestrationStateEntity stateEntity)
         {
             string serializedHistoryEvent = Utils.EscapeJson(DataConverter.Serialize(stateEntity.State));
             int historyEventLength = serializedHistoryEvent.Length;
@@ -233,7 +233,7 @@ namespace DurableTask
                         historyEventLength, serializedHistoryEvent));
         }
 
-        string GetNormalizedHistoryEventEntityTrace(int index, string message, OrchestrationHistoryEventEntity entity)
+        string GetNormalizedHistoryEventEntityTrace(int index, string message, AzureTableOrchestrationHistoryEventEntity entity)
         {
             string serializedHistoryEvent = Utils.EscapeJson(DataConverter.Serialize(entity.HistoryEvent));
             int historyEventLength = serializedHistoryEvent.Length;

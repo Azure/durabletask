@@ -325,5 +325,26 @@ namespace DurableTask.Common
 
             return inputJson;
         }
+
+        public static OrchestrationState BuildOrchestrationState(OrchestrationRuntimeState runtimeState)
+        {
+            return new OrchestrationState
+            {
+                OrchestrationInstance = runtimeState.OrchestrationInstance,
+                ParentInstance = runtimeState.ParentInstance,
+                Name = runtimeState.Name,
+                Version = runtimeState.Version,
+                Status = runtimeState.Status,
+                Tags = runtimeState.Tags,
+                OrchestrationStatus = runtimeState.OrchestrationStatus,
+                CreatedTime = runtimeState.CreatedTime,
+                CompletedTime = runtimeState.CompletedTime,
+                LastUpdatedTime = DateTime.UtcNow,
+                Size = runtimeState.Size,
+                CompressedSize = runtimeState.CompressedSize,
+                Input = runtimeState.Input,
+                Output = runtimeState.Output
+            };
+        }
     }
 }

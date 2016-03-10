@@ -58,10 +58,16 @@ namespace DurableTask
         Task DeleteAsync();
 
         // Provider reliant methods
-        bool IsTransientException(Exception exception);
+        //bool IsTransientException(Exception exception);
 
         // TaskOrchestrationDispatcher methods
         bool IsMaxMessageCountExceeded(int currentMessageCount, OrchestrationRuntimeState runtimeState);
+
+        int GetDelayInSecondsAfterOnProcessException(Exception exception);
+
+        int GetDelayInSecondsAfterOnFetchException(Exception exception);
+
+        int MaxConcurrentTaskOrchestrationWorkItems();
 
         Task<TaskOrchestrationWorkItem> LockNextTaskOrchestrationWorkItemAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken);
 
@@ -81,6 +87,8 @@ namespace DurableTask
         Task ReleaseTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem);
 
         // TaskActivityDispatcher methods
+        int MaxConcurrentTaskActivityWorkItems();
+
         Task<TaskActivityWorkItem> LockNextTaskActivityWorkItem(TimeSpan receiveTimeout, CancellationToken cancellationToken);
 
         Task<TaskActivityWorkItem> RenewTaskActivityWorkItemLockAsync(TaskActivityWorkItem workItem);

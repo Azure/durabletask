@@ -89,7 +89,13 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="DispatcherBase2.cs" />
+    <Compile Include="IOrchestrationServiceHistoryProvider.cs" />
+    <Compile Include="Settings\ServiceBusOrchestrationServiceSettings.cs" />
+    <Compile Include="Tracking\AzureTableHistoryProvider.cs" />
+    <Compile Include="Tracking\OrchestrationHistoryEvent.cs" />
+    <Compile Include="Tracking\OrchestrationStateHistoryEvent.cs" />
+    <Compile Include="Tracking\OrchestrationWorkItemEvent.cs" />
+    <Compile Include="WorkItemDispatcher.cs" />
     <Compile Include="OrchestrationRuntimeStateDump.cs" />
     <Compile Include="Common\ServiceBusUtils.cs" />
     <Compile Include="Command\OrchestratorActionConverter.cs" />
@@ -193,11 +199,11 @@
     <Compile Include="TaskMessage.cs" />
     <Compile Include="TaskOrchestration.cs" />
     <Compile Include="NameVersionObjectManager.cs" />
-    <Compile Include="Tracking\CompositeTableEntity.cs" />
-    <Compile Include="Tracking\OrchestrationHistoryEventEntity.cs" />
-    <Compile Include="Tracking\TableClient.cs" />
-    <Compile Include="Tracking\TableConstants.cs" />
-    <Compile Include="Tracking\OrchestrationStateEntity.cs" />
+    <Compile Include="Tracking\AzureTableCompositeTableEntity.cs" />
+    <Compile Include="Tracking\AzureTableOrchestrationHistoryEventEntity.cs" />
+    <Compile Include="Tracking\AzureTableClient.cs" />
+    <Compile Include="Tracking\AzureTableConstants.cs" />
+    <Compile Include="Tracking\AzureTableOrchestrationStateEntity.cs" />
     <Compile Include="Test\FakeOrchestrationContext.cs" />
     <Compile Include="Test\OrchestrationTestHost.cs" />
     <Compile Include="Common\CompressionStyle.cs" />
