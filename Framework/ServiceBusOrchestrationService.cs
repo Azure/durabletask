@@ -121,7 +121,7 @@ namespace DurableTask
         {
             if (trackingDispatcher != null)
             {
-                await this.trackingDispatcher.StartAsync();
+                await this.trackingDispatcher.StopAsync(false);
             }
 
             await Task.WhenAll(
