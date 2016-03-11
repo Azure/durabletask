@@ -155,7 +155,7 @@ namespace DurableTaskSamples
                         Console.WriteLine("Waiting up to 60 seconds for completion.");
 
                         var taskResult = taskHubClient.WaitForOrchestrationAsync(instance, TimeSpan.FromSeconds(60), CancellationToken.None).Result;
-                        Console.WriteLine($"Task done: {taskResult.OrchestrationStatus}");
+                        Console.WriteLine($"Task done: {taskResult?.OrchestrationStatus}");
 
                         Console.WriteLine("Press any key to quit.");
                         Console.ReadLine();

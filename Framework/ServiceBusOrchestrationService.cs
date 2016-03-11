@@ -134,7 +134,7 @@ namespace DurableTask
                 );
             if (this.trackingDispatcher != null)
             {
-                this.trackingDispatcher.StopAsync(isForced);
+                await this.trackingDispatcher.StopAsync(isForced);
             }
         }
 
@@ -157,7 +157,7 @@ namespace DurableTask
             }
 
 
-            // TODO : siport : pull these from settings
+            // TODO : siport : pull MaxDeliveryCount from settings
             await Task.WhenAll(
                 CreateQueueAsync(namespaceManager, orchestratorEntityName, true, FrameworkConstants.MaxDeliveryCount),
                 CreateQueueAsync(namespaceManager, workerEntityName, false, FrameworkConstants.MaxDeliveryCount)
@@ -597,7 +597,6 @@ namespace DurableTask
             while (timeoutSeconds > 0)
             {
                 OrchestrationState state = await GetOrchestrationStateAsync(instanceId, executionId);
-                Console.WriteLine($"WaitForOrchestrationAsync::state({state?.OrchestrationStatus})");
                 if (state == null || (state.OrchestrationStatus == OrchestrationStatus.Running))
                 {
                     await Task.Delay(sleepForSeconds * 1000, cancellationToken);
@@ -756,6 +755,7 @@ namespace DurableTask
         /// <param name="workItem">The tracking work item to process</param>
         private async Task ProcessTrackingWorkItemAsync(TrackingWorkItem workItem)
         {
+
             var runtimeState = workItem.OrchestrationRuntimeState;
             var sessionState = workItem.SessionInstance as ServiceBusOrchestrationSession;
             if (sessionState == null)
@@ -763,6 +763,7 @@ namespace DurableTask
                 // todo : figure out what this means, its a terminal error for the orchestration
                 throw new ArgumentNullException("SessionInstance");
             }
+
 
             var historyEntities = new List<OrchestrationWorkItemEvent>();
             var stateEntities = new List<OrchestrationStateHistoryEvent>();
@@ -820,6 +821,7 @@ namespace DurableTask
             // Cleanup our session
             // TODO : Should we use SyncExecuteWithRetries, old code does but no other places do
             await sessionState.Session.CompleteBatchAsync(sessionState.LockTokens.Keys);
+            await sessionState.Session.CloseAsync();
         }
 
         void TraceEntities<T>(
