@@ -16,9 +16,10 @@ namespace DurableTask
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
-    using History;
+    using DurableTask.Common;
+    using DurableTask.History;
 
-    internal class OrchestrationRuntimeState
+    public class OrchestrationRuntimeState
     {
         public readonly IList<HistoryEvent> Events;
 
@@ -294,12 +295,6 @@ namespace DurableTask
             // ContinueAsNewEvent is covered by the ExecutionCompletedEvent block
 
             return returnedEvent;
-        }
-
-        internal class OrchestrationRuntimeStateDump
-        {
-            public IList<HistoryEvent> Events;
-            public IList<HistoryEvent> NewEvents;
         }
     }
 }

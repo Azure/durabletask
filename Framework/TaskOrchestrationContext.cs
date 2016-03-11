@@ -17,8 +17,11 @@ namespace DurableTask
     using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
-    using Command;
-    using History;
+    using DurableTask.Command;
+    using DurableTask.Common;
+    using DurableTask.Exceptions;
+    using DurableTask.History;
+    using DurableTask.Serializing;
 
     internal class TaskOrchestrationContext : OrchestrationContext
     {

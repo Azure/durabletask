@@ -26,7 +26,6 @@ namespace FrameworkUnitTests
     public class InstanceStoreQueryTests
     {
         TaskHubClient client;
-        TableClient tableClient;
         TaskHubWorker taskHub;
 
         [TestInitialize]
@@ -701,17 +700,14 @@ namespace FrameworkUnitTests
 
         public class InstanceStoreTestOrchestration2 : TaskOrchestration<string, string>
         {
-            public override async Task<string> RunTask(OrchestrationContext context, string input)
+            public override Task<string> RunTask(OrchestrationContext context, string input)
             {
-                return "SOME_RESULT";
+                return Task.FromResult("SOME_RESULT");
             }
         }
 
         public class TestCreator : ObjectCreator<InstanceStoreTestOrchestration>
         {
-            public string Name;
-            public string Version;
-
             public override InstanceStoreTestOrchestration Create()
             {
                 return new InstanceStoreTestOrchestration();

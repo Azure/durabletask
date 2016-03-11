@@ -71,10 +71,9 @@ namespace DurableTask
         /// <typeparam name="T">
         ///     Task version of the client interface.
         ///     This is similar to the actual interface implemented by the client but with the
-        ///     return types always of the form Task
-        ///     <TOriginal>
-        ///         where TOriginal was the return
-        ///         type for the same method in the original interface
+        ///     return types always of the form Task&lt;TOriginal&gt;
+        ///     where TOriginal was the return
+        ///     type for the same method in the original interface
         /// </typeparam>
         /// <param name="retryOptions">Retry policies</param>
         /// <returns>Dynamic proxy that can be used to schedule the remote tasks</returns>
@@ -193,8 +192,8 @@ namespace DurableTask
         /// <summary>
         ///     Schedule a TaskActivity by type.
         /// </summary>
-        /// <typeparam name="T">Return Type of the TaskActivity.Exeute method</typeparam>
-        /// <param name="taskActivityType">Type that dervices from TaskActivity class</param>
+        /// <typeparam name="TResult">Return Type of the TaskActivity.Execute method</typeparam>
+        /// <param name="activityType">Type that dervices from TaskActivity class</param>
         /// <param name="parameters">Parameters for the TaskActivity.Execute method</param>
         /// <returns>Task that represents the execution of the specified TaskActivity</returns>
         public virtual Task<TResult> ScheduleTask<TResult>(Type activityType, params object[] parameters)
@@ -206,7 +205,7 @@ namespace DurableTask
         /// <summary>
         ///     Schedule a TaskActivity by name and version.
         /// </summary>
-        /// <typeparam name="T">Return Type of the TaskActivity.Exeute method</typeparam>
+        /// <typeparam name="TResult">Return Type of the TaskActivity.Execute method</typeparam>
         /// <param name="name">Name of the orchestration as specified by the ObjectCreator</param>
         /// <param name="version">Name of the orchestration as specified by the ObjectCreator</param>
         /// <param name="parameters">Parameters for the TaskActivity.Execute method</param>
@@ -301,10 +300,11 @@ namespace DurableTask
         /// </summary>
         /// <param name="newVersion">
         ///     New version of the orchestration to start
-        ///     <param name="input">
-        ///         Input to the new execution of this instance. This is the same type as the one used to start
-        ///         the first execution of this orchestration instance.
-        ///     </param>
+        /// </param>
+        /// <param name="input">
+        ///     Input to the new execution of this instance. This is the same type as the one used to start
+        ///     the first execution of this orchestration instance.
+        /// </param>
         public abstract void ContinueAsNew(string newVersion, object input);
     }
 }

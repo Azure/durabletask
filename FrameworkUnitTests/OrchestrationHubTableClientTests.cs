@@ -26,14 +26,14 @@ namespace FrameworkUnitTests
     public class OrchestrationHubTableClientTests
     {
         TaskHubClient client;
-        TableClient tableClient;
+        AzureTableClient tableClient;
         TaskHubWorker taskHub;
 
         [TestInitialize]
         public void TestInitialize()
         {
             var r = new Random();
-            tableClient = new TableClient("test00" + r.Next(0, 10000),
+            tableClient = new AzureTableClient("test00" + r.Next(0, 10000),
                 "UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://127.0.0.1:10002/");
             tableClient.CreateTableIfNotExists();
 
@@ -176,22 +176,22 @@ namespace FrameworkUnitTests
         [TestMethod]
         public void OrchestrationEventHistoryTest()
         {
-            IEnumerable<OrchestrationHistoryEventEntity> entitiesInst0Gen0 = CreateHistoryEntities(tableClient, "0", "0",
+            IEnumerable<AzureTableOrchestrationHistoryEventEntity> entitiesInst0Gen0 = CreateHistoryEntities(tableClient, "0", "0",
                 10);
-            IEnumerable<OrchestrationHistoryEventEntity> entitiesInst0Gen1 = CreateHistoryEntities(tableClient, "0", "1",
+            IEnumerable<AzureTableOrchestrationHistoryEventEntity> entitiesInst0Gen1 = CreateHistoryEntities(tableClient, "0", "1",
                 10);
-            IEnumerable<OrchestrationHistoryEventEntity> entitiesInst1Gen0 = CreateHistoryEntities(tableClient, "1", "0",
+            IEnumerable<AzureTableOrchestrationHistoryEventEntity> entitiesInst1Gen0 = CreateHistoryEntities(tableClient, "1", "0",
                 10);
-            IEnumerable<OrchestrationHistoryEventEntity> entitiesInst1Gen1 = CreateHistoryEntities(tableClient, "1", "1",
+            IEnumerable<AzureTableOrchestrationHistoryEventEntity> entitiesInst1Gen1 = CreateHistoryEntities(tableClient, "1", "1",
                 10);
 
-            IEnumerable<OrchestrationHistoryEventEntity> histInst0Gen0Returned =
+            IEnumerable<AzureTableOrchestrationHistoryEventEntity> histInst0Gen0Returned =
                 tableClient.ReadOrchestrationHistoryEventsAsync("0", "0").Result;
-            IEnumerable<OrchestrationHistoryEventEntity> histInst0Gen1Returned =
+            IEnumerable<AzureTableOrchestrationHistoryEventEntity> histInst0Gen1Returned =
                 tableClient.ReadOrchestrationHistoryEventsAsync("0", "1").Result;
-            IEnumerable<OrchestrationHistoryEventEntity> histInst1Gen0Returned =
+            IEnumerable<AzureTableOrchestrationHistoryEventEntity> histInst1Gen0Returned =
                 tableClient.ReadOrchestrationHistoryEventsAsync("1", "0").Result;
-            IEnumerable<OrchestrationHistoryEventEntity> histInst1Gen1Returned =
+            IEnumerable<AzureTableOrchestrationHistoryEventEntity> histInst1Gen1Returned =
                 tableClient.ReadOrchestrationHistoryEventsAsync("1", "1").Result;
 
             Assert.IsTrue(CompareEnumerations(entitiesInst0Gen0, histInst0Gen0Returned));
@@ -203,21 +203,21 @@ namespace FrameworkUnitTests
         [TestMethod]
         public void OrchestrationStateTest()
         {
-            IEnumerable<OrchestrationStateEntity> entitiesInst0Gen0 = CreateStateEntities(tableClient, "0", "0");
-            IEnumerable<OrchestrationStateEntity> entitiesInst0Gen1 = CreateStateEntities(tableClient, "0", "1");
-            IEnumerable<OrchestrationStateEntity> entitiesInst1Gen0 = CreateStateEntities(tableClient, "1", "0");
-            IEnumerable<OrchestrationStateEntity> entitiesInst1Gen1 = CreateStateEntities(tableClient, "1", "1");
+            IEnumerable<AzureTableOrchestrationStateEntity> entitiesInst0Gen0 = CreateStateEntities(tableClient, "0", "0");
+            IEnumerable<AzureTableOrchestrationStateEntity> entitiesInst0Gen1 = CreateStateEntities(tableClient, "0", "1");
+            IEnumerable<AzureTableOrchestrationStateEntity> entitiesInst1Gen0 = CreateStateEntities(tableClient, "1", "0");
+            IEnumerable<AzureTableOrchestrationStateEntity> entitiesInst1Gen1 = CreateStateEntities(tableClient, "1", "1");
 
-            IEnumerable<OrchestrationStateEntity> histInst0Gen0Returned = tableClient.QueryOrchestrationStatesAsync(
+            IEnumerable<AzureTableOrchestrationStateEntity> histInst0Gen0Returned = tableClient.QueryOrchestrationStatesAsync(
                 new OrchestrationStateQuery().AddInstanceFilter("0", "0")).Result;
 
-            IEnumerable<OrchestrationStateEntity> histInst0Gen1Returned = tableClient.QueryOrchestrationStatesAsync(
+            IEnumerable<AzureTableOrchestrationStateEntity> histInst0Gen1Returned = tableClient.QueryOrchestrationStatesAsync(
                 new OrchestrationStateQuery().AddInstanceFilter("0", "1")).Result;
 
-            IEnumerable<OrchestrationStateEntity> histInst1Gen0Returned = tableClient.QueryOrchestrationStatesAsync(
+            IEnumerable<AzureTableOrchestrationStateEntity> histInst1Gen0Returned = tableClient.QueryOrchestrationStatesAsync(
                 new OrchestrationStateQuery().AddInstanceFilter("1", "0")).Result;
 
-            IEnumerable<OrchestrationStateEntity> histInst1Gen1Returned = tableClient.QueryOrchestrationStatesAsync(
+            IEnumerable<AzureTableOrchestrationStateEntity> histInst1Gen1Returned = tableClient.QueryOrchestrationStatesAsync(
                 new OrchestrationStateQuery().AddInstanceFilter("1", "1")).Result;
 
             Assert.IsTrue(CompareEnumerations(entitiesInst0Gen0, histInst0Gen0Returned));
@@ -226,11 +226,11 @@ namespace FrameworkUnitTests
             Assert.IsTrue(CompareEnumerations(entitiesInst1Gen1, histInst1Gen1Returned));
         }
 
-        bool CompareEnumerations(IEnumerable<CompositeTableEntity> expected,
-            IEnumerable<CompositeTableEntity> actual)
+        bool CompareEnumerations(IEnumerable<AzureTableCompositeTableEntity> expected,
+            IEnumerable<AzureTableCompositeTableEntity> actual)
         {
-            IEnumerator<CompositeTableEntity> expectedEnumerator = expected.GetEnumerator();
-            IEnumerator<CompositeTableEntity> actualEnumerator = actual.GetEnumerator();
+            IEnumerator<AzureTableCompositeTableEntity> expectedEnumerator = expected.GetEnumerator();
+            IEnumerator<AzureTableCompositeTableEntity> actualEnumerator = actual.GetEnumerator();
 
             while (expectedEnumerator.MoveNext())
             {
@@ -243,15 +243,15 @@ namespace FrameworkUnitTests
                 bool match = false;
                 Trace.WriteLine("Expected: " + expectedEnumerator.Current);
                 Trace.WriteLine("Actual: " + actualEnumerator.Current);
-                if (expectedEnumerator.Current is OrchestrationHistoryEventEntity)
+                if (expectedEnumerator.Current is AzureTableOrchestrationHistoryEventEntity)
                 {
-                    match = CompareHistoryEntity(expectedEnumerator.Current as OrchestrationHistoryEventEntity,
-                        actualEnumerator.Current as OrchestrationHistoryEventEntity);
+                    match = CompareHistoryEntity(expectedEnumerator.Current as AzureTableOrchestrationHistoryEventEntity,
+                        actualEnumerator.Current as AzureTableOrchestrationHistoryEventEntity);
                 }
                 else
                 {
-                    match = CompareStateEntity(expectedEnumerator.Current as OrchestrationStateEntity,
-                        actualEnumerator.Current as OrchestrationStateEntity);
+                    match = CompareStateEntity(expectedEnumerator.Current as AzureTableOrchestrationStateEntity,
+                        actualEnumerator.Current as AzureTableOrchestrationStateEntity);
                 }
 
                 if (!match)
@@ -271,14 +271,14 @@ namespace FrameworkUnitTests
             return true;
         }
 
-        bool CompareHistoryEntity(OrchestrationHistoryEventEntity expected, OrchestrationHistoryEventEntity actual)
+        bool CompareHistoryEntity(AzureTableOrchestrationHistoryEventEntity expected, AzureTableOrchestrationHistoryEventEntity actual)
         {
             // TODO : history comparison!
             return expected.InstanceId.Equals(actual.InstanceId) && expected.ExecutionId.Equals(actual.ExecutionId) &&
                    expected.SequenceNumber == actual.SequenceNumber;
         }
 
-        bool CompareStateEntity(OrchestrationStateEntity expected, OrchestrationStateEntity actual)
+        bool CompareStateEntity(AzureTableOrchestrationStateEntity expected, AzureTableOrchestrationStateEntity actual)
         {
             return
                 expected.State.OrchestrationInstance.InstanceId.Equals(actual.State.OrchestrationInstance.InstanceId) &&
@@ -294,24 +294,24 @@ namespace FrameworkUnitTests
                  expected.State.Output.Equals(actual.State.Output));
         }
 
-        IEnumerable<OrchestrationHistoryEventEntity> CreateHistoryEntities(TableClient client, string instanceId,
+        IEnumerable<AzureTableOrchestrationHistoryEventEntity> CreateHistoryEntities(AzureTableClient client, string instanceId,
             string genId, int count)
         {
-            var historyEntities = new List<OrchestrationHistoryEventEntity>();
+            var historyEntities = new List<AzureTableOrchestrationHistoryEventEntity>();
             for (int i = 0; i < count; i++)
             {
                 var eeStartedEvent = new ExecutionStartedEvent(-1, "EVENT_" + instanceId + "_" + genId + "_" + i);
 
-                historyEntities.Add(new OrchestrationHistoryEventEntity(instanceId, genId, i, DateTime.Now,
+                historyEntities.Add(new AzureTableOrchestrationHistoryEventEntity(instanceId, genId, i, DateTime.Now,
                     eeStartedEvent));
             }
             client.WriteEntitesAsync(historyEntities).Wait();
             return historyEntities;
         }
 
-        IEnumerable<OrchestrationStateEntity> CreateStateEntities(TableClient client, string instanceId, string genId)
+        IEnumerable<AzureTableOrchestrationStateEntity> CreateStateEntities(AzureTableClient client, string instanceId, string genId)
         {
-            var entities = new List<OrchestrationStateEntity>();
+            var entities = new List<AzureTableOrchestrationStateEntity>();
             var runtimeState = new OrchestrationState
             {
                 OrchestrationInstance = new OrchestrationInstance
@@ -329,7 +329,7 @@ namespace FrameworkUnitTests
                 Output = null
             };
 
-            entities.Add(new OrchestrationStateEntity(runtimeState));
+            entities.Add(new AzureTableOrchestrationStateEntity(runtimeState));
             client.WriteEntitesAsync(entities).Wait();
             return entities;
         }

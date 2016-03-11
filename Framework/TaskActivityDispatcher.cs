@@ -18,7 +18,9 @@ namespace DurableTask
     using System.Threading;
     using System.Threading.Tasks;
     using System.Transactions;
-    using History;
+    using DurableTask.Common;
+    using DurableTask.Exceptions;
+    using DurableTask.History;
     using Microsoft.ServiceBus.Messaging;
     using Tracing;
 
@@ -53,7 +55,7 @@ namespace DurableTask
 
         public bool IncludeDetails { get; set; }
 
-        protected override async Task<BrokeredMessage> OnFetchWorkItem(TimeSpan receiveTimeout)
+        protected override async Task<BrokeredMessage> OnFetchWorkItemAsync(TimeSpan receiveTimeout)
         {
             BrokeredMessage receivedMessage = await workerQueueClient.ReceiveAsync(receiveTimeout);
 
@@ -68,16 +70,16 @@ namespace DurableTask
             return receivedMessage;
         }
 
-        protected override async Task OnProcessWorkItem(BrokeredMessage message)
+        protected override async Task OnProcessWorkItemAsync(BrokeredMessage message)
         {
-            Utils.CheckAndLogDeliveryCount(message, taskHubDescription.MaxTaskActivityDeliveryCount);
+            ServiceBusUtils.CheckAndLogDeliveryCount(message, taskHubDescription.MaxTaskActivityDeliveryCount);
 
             Task renewTask = null;
             var renewCancellationTokenSource = new CancellationTokenSource();
 
             try
             {
-                TaskMessage taskMessage = await Utils.GetObjectFromBrokeredMessageAsync<TaskMessage>(message);
+                TaskMessage taskMessage = await ServiceBusUtils.GetObjectFromBrokeredMessageAsync<TaskMessage>(message);
                 OrchestrationInstance orchestrationInstance = taskMessage.OrchestrationInstance;
                 if (orchestrationInstance == null || string.IsNullOrWhiteSpace(orchestrationInstance.InstanceId))
                 {
@@ -130,7 +132,7 @@ namespace DurableTask
                 responseTaskMessage.Event = eventToRespond;
                 responseTaskMessage.OrchestrationInstance = orchestrationInstance;
 
-                BrokeredMessage responseMessage = Utils.GetBrokeredMessageFromObject(responseTaskMessage,
+                BrokeredMessage responseMessage = ServiceBusUtils.GetBrokeredMessageFromObject(responseTaskMessage,
                     settings.MessageCompressionSettings,
                     orchestrationInstance, "Response for " + message.MessageId);
                 responseMessage.SessionId = orchestrationInstance.InstanceId;
@@ -231,7 +233,7 @@ namespace DurableTask
             messagingFactory.Close();
         }
 
-        protected override Task SafeReleaseWorkItem(BrokeredMessage workItem)
+        protected override Task SafeReleaseWorkItemAsync(BrokeredMessage workItem)
         {
             if (workItem != null)
             {
@@ -241,7 +243,7 @@ namespace DurableTask
             return Task.FromResult<Object>(null);
         }
 
-        protected override async Task AbortWorkItem(BrokeredMessage workItem)
+        protected override async Task AbortWorkItemAsync(BrokeredMessage workItem)
         {
             if (workItem != null)
             {

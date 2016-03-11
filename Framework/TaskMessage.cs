@@ -13,13 +13,15 @@
 
 namespace DurableTask
 {
+    using System;
     using System.Runtime.Serialization;
-    using History;
+    using DurableTask.History;
 
     [DataContract]
     public class TaskMessage
     {
         [DataMember] public HistoryEvent Event;
+        [DataMember] public long SequenceNumber;
         [DataMember] public OrchestrationInstance OrchestrationInstance;
     }
 }

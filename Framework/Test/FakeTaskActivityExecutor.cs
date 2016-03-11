@@ -16,6 +16,9 @@ namespace DurableTask.Test
     using System;
     using System.Threading;
     using System.Threading.Tasks;
+    using DurableTask.Common;
+    using DurableTask.Exceptions;
+    using DurableTask.Serializing;
 
     internal class FakeTaskActivityExecutor
     {

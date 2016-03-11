@@ -16,6 +16,9 @@ namespace DurableTask
     using System;
     using System.Reflection;
     using System.Threading.Tasks;
+    using DurableTask.Common;
+    using DurableTask.Exceptions;
+    using DurableTask.Serializing;
     using Newtonsoft.Json.Linq;
 
     public class ReflectionBasedTaskActivity : TaskActivity
@@ -106,7 +109,7 @@ namespace DurableTask
                 string details = Utils.SerializeCause(realException, DataConverter);
                 throw new TaskFailureException(realException.Message, details);
             }
-            catch (Exception e)
+            catch (Exception e) when (!Utils.IsFatal(e))
             {
                 string details = Utils.SerializeCause(e, DataConverter);
                 throw new TaskFailureException(e.Message, details);

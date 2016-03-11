@@ -19,10 +19,12 @@ namespace DurableTask
     using System.Linq;
     using System.Threading.Tasks;
     using Microsoft.ServiceBus.Messaging;
-    using Newtonsoft.Json;
-    using Tracing;
-    using Tracking;
+    using DurableTask.Common;
+    using DurableTask.Tracing;
+    using DurableTask.Tracking;
+    using DurableTask.Serializing;
 
+    [Obsolete]
     internal sealed class TrackingDispatcher : DispatcherBase<SessionWorkItem>
     {
         const int PrefetchCount = 50;
@@ -35,10 +37,11 @@ namespace DurableTask
         readonly MessagingFactory messagingFactory;
         readonly TrackingDispatcherSettings settings;
 
-        readonly TableClient tableClient;
+        readonly AzureTableClient tableClient;
         readonly TaskHubDescription taskHubDescription;
         readonly string trackingEntityName;
         QueueClient trackingQueueClient;
+        private static readonly DataConverter DataConverter = new JsonDataConverter();
 
         internal TrackingDispatcher(MessagingFactory messagingFactory,
             TaskHubDescription taskHubDescription,
@@ -53,7 +56,7 @@ namespace DurableTask
             this.trackingEntityName = trackingEntityName;
             this.messagingFactory = messagingFactory;
             this.messagingFactory.PrefetchCount = PrefetchCount;
-            tableClient = new TableClient(hubName, tableConnectionString);
+            tableClient = new AzureTableClient(hubName, tableConnectionString);
             maxConcurrentWorkItems = settings.MaxConcurrentTrackingSessions;
         }
 
@@ -72,7 +75,7 @@ namespace DurableTask
             messagingFactory.Close();
         }
 
-        protected override async Task<SessionWorkItem> OnFetchWorkItem(TimeSpan receiveTimeout)
+        protected override async Task<SessionWorkItem> OnFetchWorkItemAsync(TimeSpan receiveTimeout)
         {
             IEnumerable<BrokeredMessage> newMessages = null;
 
@@ -97,16 +100,16 @@ namespace DurableTask
             return new SessionWorkItem {Session = session, Messages = newMessages};
         }
 
-        protected override async Task OnProcessWorkItem(SessionWorkItem sessionWorkItem)
+        protected override async Task OnProcessWorkItemAsync(SessionWorkItem sessionWorkItem)
         {
             MessageSession session = sessionWorkItem.Session;
             IEnumerable<BrokeredMessage> newMessages = sessionWorkItem.Messages;
 
-            var historyEntities = new List<OrchestrationHistoryEventEntity>();
-            var stateEntities = new List<OrchestrationStateEntity>();
+            var historyEntities = new List<AzureTableOrchestrationHistoryEventEntity>();
+            var stateEntities = new List<AzureTableOrchestrationStateEntity>();
             foreach (BrokeredMessage message in newMessages)
             {
-                Utils.CheckAndLogDeliveryCount(message, taskHubDescription.MaxTrackingDeliveryCount);
+                ServiceBusUtils.CheckAndLogDeliveryCount(message, taskHubDescription.MaxTrackingDeliveryCount);
 
                 if (message.ContentType.Equals(FrameworkConstants.TaskMessageContentType,
                     StringComparison.OrdinalIgnoreCase))
@@ -124,8 +127,8 @@ namespace DurableTask
 
                     var historyEventIndex = (int) historyEventIndexObj;
 
-                    TaskMessage taskMessage = await Utils.GetObjectFromBrokeredMessageAsync<TaskMessage>(message);
-                    historyEntities.Add(new OrchestrationHistoryEventEntity(
+                    TaskMessage taskMessage = await ServiceBusUtils.GetObjectFromBrokeredMessageAsync<TaskMessage>(message);
+                    historyEntities.Add(new AzureTableOrchestrationHistoryEventEntity(
                         taskMessage.OrchestrationInstance.InstanceId,
                         taskMessage.OrchestrationInstance.ExecutionId,
                         historyEventIndex,
@@ -135,8 +138,8 @@ namespace DurableTask
                 else if (message.ContentType.Equals(FrameworkConstants.StateMessageContentType,
                     StringComparison.OrdinalIgnoreCase))
                 {
-                    StateMessage stateMessage = await Utils.GetObjectFromBrokeredMessageAsync<StateMessage>(message);
-                    stateEntities.Add(new OrchestrationStateEntity(stateMessage.State));
+                    StateMessage stateMessage = await ServiceBusUtils.GetObjectFromBrokeredMessageAsync<StateMessage>(message);
+                    stateEntities.Add(new AzureTableOrchestrationStateEntity(stateMessage.State));
                 }
                 else
                 {
@@ -166,10 +169,10 @@ namespace DurableTask
 
             try
             {
-                foreach (OrchestrationStateEntity stateEntity in stateEntities)
+                foreach (AzureTableOrchestrationStateEntity stateEntity in stateEntities)
                 {
                     await Utils.ExecuteWithRetries(
-                        () => tableClient.WriteEntitesAsync(new List<OrchestrationStateEntity> {stateEntity}),
+                        () => tableClient.WriteEntitesAsync(new List<AzureTableOrchestrationStateEntity> {stateEntity}),
                         session.SessionId, string.Format("WriteStateEntities:{0}", session.SessionId),
                         MaxRetriesTableStore,
                         IntervalBetweenRetriesSecs);
@@ -205,9 +208,9 @@ namespace DurableTask
             }
         }
 
-        string GetNormalizedStateEntityTrace(int index, string message, OrchestrationStateEntity stateEntity)
+        string GetNormalizedStateEntityTrace(int index, string message, AzureTableOrchestrationStateEntity stateEntity)
         {
-            string serializedHistoryEvent = Utils.EscapeJson(JsonConvert.SerializeObject(stateEntity.State));
+            string serializedHistoryEvent = Utils.EscapeJson(DataConverter.Serialize(stateEntity.State));
             int historyEventLength = serializedHistoryEvent.Length;
 
             if (historyEventLength > MaxDisplayStringLengthForAzureTableColumn)
@@ -230,9 +233,9 @@ namespace DurableTask
                         historyEventLength, serializedHistoryEvent));
         }
 
-        string GetNormalizedHistoryEventEntityTrace(int index, string message, OrchestrationHistoryEventEntity entity)
+        string GetNormalizedHistoryEventEntityTrace(int index, string message, AzureTableOrchestrationHistoryEventEntity entity)
         {
-            string serializedHistoryEvent = Utils.EscapeJson(JsonConvert.SerializeObject(entity.HistoryEvent));
+            string serializedHistoryEvent = Utils.EscapeJson(DataConverter.Serialize(entity.HistoryEvent));
             int historyEventLength = serializedHistoryEvent.Length;
 
             if (historyEventLength > MaxDisplayStringLengthForAzureTableColumn)
@@ -249,7 +252,7 @@ namespace DurableTask
                         index, entity.InstanceId, entity.ExecutionId, historyEventLength, serializedHistoryEvent));
         }
 
-        protected override async Task SafeReleaseWorkItem(SessionWorkItem workItem)
+        protected override async Task SafeReleaseWorkItemAsync(SessionWorkItem workItem)
         {
             if (workItem != null && workItem.Session != null)
             {
@@ -265,7 +268,7 @@ namespace DurableTask
             }
         }
 
-        protected override async Task AbortWorkItem(SessionWorkItem workItem)
+        protected override async Task AbortWorkItemAsync(SessionWorkItem workItem)
         {
             if (workItem != null && workItem.Session != null)
             {

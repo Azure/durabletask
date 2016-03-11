@@ -11,11 +11,14 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+using System;
+
 namespace DurableTask
 {
     /// <summary>
     ///     Configuration for various TaskHub settings
     /// </summary>
+    [Obsolete]
     public sealed class TaskHubDescription
     {
         /// <summary>

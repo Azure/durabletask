@@ -13,6 +13,7 @@
 
 namespace DurableTask.History
 {
+    using System;
     using System.Runtime.Serialization;
 
     [DataContract]
@@ -30,5 +31,9 @@ namespace DurableTask.History
 
         [DataMember]
         public int TimerId { get; set; }
+
+        // AFFANDAR : TODO : wire format change. 
+        [DataMember]
+        public DateTime FireAt { get; set; }
     }
 }
