@@ -18,7 +18,7 @@ namespace DurableTask
     /// <summary>
     ///     Configuration for various TaskHub settings
     /// </summary>
-    //[Obsolete]
+    [Obsolete]
     public sealed class TaskHubDescription
     {
         /// <summary>

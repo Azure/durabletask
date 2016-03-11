@@ -59,25 +59,46 @@ namespace DurableTask.Tracking
             return await this.tableClient.DeleteEntitesAsync(entities.Select(HistoryEventToTableEntity));
         }
 
-        public async Task<IEnumerable<OrchestrationHistoryEvent>> ReadOrchestrationHistoryEventsAsync(string instanceId, string executionId)
+        public async Task<IEnumerable<OrchestrationStateHistoryEvent>> GetOrchestrationStateAsync(string instanceId, bool allInstances)
+        {
+            var results = (await this.tableClient.QueryOrchestrationStatesAsync(
+                new OrchestrationStateQuery().AddInstanceFilter(instanceId)).ConfigureAwait(false));
+
+            if (allInstances)
+            {
+                return results.Select(TableStateToStateEvent);
+            }
+            else
+            {
+                foreach (AzureTableOrchestrationStateEntity stateEntity in results)
+                {
+                    if (stateEntity.State.OrchestrationStatus != OrchestrationStatus.ContinuedAsNew)
+                    {
+                        return new List<OrchestrationStateHistoryEvent>() { TableStateToStateEvent(stateEntity) };
+                    }
+                }
+
+                return null;
+            }
+        }
+
+        public async Task<OrchestrationStateHistoryEvent> GetOrchestrationStateAsync(string instanceId, string executionId)
+        {
+            var result = (await this.tableClient.QueryOrchestrationStatesAsync(
+                new OrchestrationStateQuery().AddInstanceFilter(instanceId, executionId)).ConfigureAwait(false)).FirstOrDefault();
+
+            return (result != null) ? TableStateToStateEvent(result) : null;
+        }
+
+        public async Task<IEnumerable<OrchestrationWorkItemEvent>> GetOrchestrationHistoryEventsAsync(string instanceId, string executionId)
         {
             var entities = await this.tableClient.ReadOrchestrationHistoryEventsAsync(instanceId, executionId);
-            return entities.Select(TableEntityToHistoryEvent);
+            return entities.Select(TableHistoryEntityToWorkItemEvent).OrderBy(ee => ee.SequenceNumber);
         }
 
-        public async Task<IEnumerable<OrchestrationHistoryEvent>> ReadOrchestrationHistoryEventsAsync(string instanceId, bool allInstances)
-        {
-            var entities = await this.tableClient.ReadOrchestrationHistoryEventsAsync(instanceId, string.Empty);
-            return entities.Select(TableEntityToHistoryEvent);
-        }
-
-        public async Task PurgeOrchestrationHistoryEventsAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType)
+        public async Task<int> PurgeOrchestrationHistoryEventsAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType)
         {
             TableContinuationToken continuationToken = null;
-
-            TraceHelper.Trace(TraceEventType.Information,
-                () =>
-                    "Purging orchestration instances before: " + thresholdDateTimeUtc + ", Type: " + timeRangeFilterType);
 
             int purgeCount = 0;
             do
@@ -98,7 +119,7 @@ namespace DurableTask.Tracking
                 }
             } while (continuationToken != null);
 
-            TraceHelper.Trace(TraceEventType.Information, () => "Purged " + purgeCount + " orchestration histories");
+            return purgeCount;
         }
 
         private async Task PurgeOrchestrationHistorySegmentAsync(
@@ -173,6 +194,23 @@ namespace DurableTask.Tracking
             {
                 throw new InvalidOperationException($"Invalid entity event type: {entity.GetType()}");
             }
+        }
+
+        private OrchestrationStateHistoryEvent TableStateToStateEvent(AzureTableOrchestrationStateEntity entity)
+        {
+            return new OrchestrationStateHistoryEvent { State = entity.State };
+        }
+
+        private OrchestrationWorkItemEvent TableHistoryEntityToWorkItemEvent(AzureTableOrchestrationHistoryEventEntity entity)
+        {
+            return new OrchestrationWorkItemEvent
+                {
+                    InstanceId = entity.InstanceId,
+                    ExecutionId = entity.ExecutionId,
+                    SequenceNumber = entity.SequenceNumber,
+                    EventTimestamp = entity.TaskTimeStamp,
+                    HistoryEvent = entity.HistoryEvent
+                };
         }
     }
 }

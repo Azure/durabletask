@@ -130,9 +130,12 @@ namespace DurableTask
                 this.trackingSender.CloseAsync(),
                 this.orchestratorQueueClient.CloseAsync(),
                 this.trackingQueueClient.CloseAsync(),
-                this.workerQueueClient.CloseAsync(),
-                this.trackingDispatcher?.StopAsync(isForced) ?? Task.FromResult(0)
+                this.workerQueueClient.CloseAsync()
                 );
+            if (this.trackingDispatcher != null)
+            {
+                this.trackingDispatcher.StopAsync(isForced);
+            }
         }
 
         public Task CreateAsync()
@@ -146,16 +149,23 @@ namespace DurableTask
 
             await Task.WhenAll(
                 SafeDeleteQueueAsync(namespaceManager, orchestratorEntityName),
-                SafeDeleteQueueAsync(namespaceManager, workerEntityName),
-                (historyProvider != null) ? SafeDeleteQueueAsync(namespaceManager, trackingEntityName) : Task.FromResult(0)
+                SafeDeleteQueueAsync(namespaceManager, workerEntityName)
                 );
+            if (historyProvider != null)
+            {
+                await SafeDeleteQueueAsync(namespaceManager, trackingEntityName);
+            }
+
 
             // TODO : siport : pull these from settings
             await Task.WhenAll(
                 CreateQueueAsync(namespaceManager, orchestratorEntityName, true, FrameworkConstants.MaxDeliveryCount),
-                CreateQueueAsync(namespaceManager, workerEntityName, false, FrameworkConstants.MaxDeliveryCount),
-                (historyProvider != null) ? CreateQueueAsync(namespaceManager, trackingEntityName, true, FrameworkConstants.MaxDeliveryCount) : Task.FromResult(0)
+                CreateQueueAsync(namespaceManager, workerEntityName, false, FrameworkConstants.MaxDeliveryCount)
                 );
+            if (historyProvider != null)
+            {
+                await CreateQueueAsync(namespaceManager, trackingEntityName, true, FrameworkConstants.MaxDeliveryCount);
+            }
 
             // TODO : backward compat, add support for createInstanceStore flag 
             if (historyProvider != null)
@@ -555,6 +565,10 @@ namespace DurableTask
             await sender.SendAsync(brokeredMessage).ConfigureAwait(false);
             await sender.CloseAsync().ConfigureAwait(false);
         }
+        public Task ForceTerminateTaskOrchestrationAsync(string instanceId)
+        {
+            throw new NotImplementedException();
+        }
 
         /// <summary>
         ///     Wait for an orchestration to reach any terminal state within the given timeout
@@ -563,45 +577,76 @@ namespace DurableTask
         /// <param name="executionId">The execution id of the orchestration</param>
         /// <param name="timeout">Max timeout to wait</param>
         /// <param name="cancellationToken">Task cancellation token</param>
-        public Task<OrchestrationState> WaitForOrchestrationAsync(
+        public async Task<OrchestrationState> WaitForOrchestrationAsync(
             string instanceId, 
             string executionId, 
             TimeSpan timeout,
             CancellationToken cancellationToken)
         {
-            throw new NotImplementedException();
-        }
+            ThrowIfInstanceStoreNotConfigured();
 
-        public Task ForceTerminateTaskOrchestrationAsync(string instanceId)
-        {
-            throw new NotImplementedException();
+            if (string.IsNullOrWhiteSpace(instanceId))
+            {
+                throw new ArgumentException("instanceId");
+            }
+
+            int sleepForSeconds = 2;
+
+            var timeoutSeconds = timeout.TotalSeconds;
+
+            while (timeoutSeconds > 0)
+            {
+                OrchestrationState state = await GetOrchestrationStateAsync(instanceId, executionId);
+                Console.WriteLine($"WaitForOrchestrationAsync::state({state?.OrchestrationStatus})");
+                if (state == null || (state.OrchestrationStatus == OrchestrationStatus.Running))
+                {
+                    await Task.Delay(sleepForSeconds * 1000, cancellationToken);
+                    timeoutSeconds -= sleepForSeconds;
+                }
+                else
+                {
+                    return state;
+                }
+            }
+
+            return null;
         }
 
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
         {
             ThrowIfInstanceStoreNotConfigured();
-            // return await historyProvider.ReadOrchestrationHistoryEventsAsync(instanceId, allExecutions);
-            throw new NotImplementedException();
+            IEnumerable<OrchestrationStateHistoryEvent> states = await historyProvider.GetOrchestrationStateAsync(instanceId, allExecutions);
+            return states?.Select(s => s.State).ToList();
         }
 
-        public Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)
+        public async Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)
         {
             ThrowIfInstanceStoreNotConfigured();
-            throw new NotImplementedException();
+            OrchestrationStateHistoryEvent state = await historyProvider.GetOrchestrationStateAsync(instanceId, executionId);
+            return state?.State;
         }
 
-        public Task<string> GetOrchestrationHistoryAsync(string instanceId, string executionId)
+        public async Task<string> GetOrchestrationHistoryAsync(string instanceId, string executionId)
         {
             ThrowIfInstanceStoreNotConfigured();
-            throw new NotImplementedException();
+            var historyEvents = await historyProvider.GetOrchestrationHistoryEventsAsync(instanceId, executionId);
+
+            var events = new List<HistoryEvent>(historyEvents.Select(historyEventEntity => historyEventEntity.HistoryEvent));
+
+            return DataConverter.Serialize(events);
         }
 
-        public Task PurgeOrchestrationInstanceHistoryAsync(
+        public async Task PurgeOrchestrationInstanceHistoryAsync(
             DateTime thresholdDateTimeUtc,
             OrchestrationStateTimeRangeFilterType timeRangeFilterType)
         {
             ThrowIfInstanceStoreNotConfigured();
-            throw new NotImplementedException();
+
+            TraceHelper.Trace(TraceEventType.Information, $"Purging orchestration instances before: {thresholdDateTimeUtc}, Type: {timeRangeFilterType}");
+
+            var purgedEvents = await historyProvider.PurgeOrchestrationHistoryEventsAsync(thresholdDateTimeUtc, timeRangeFilterType);
+
+            TraceHelper.Trace(TraceEventType.Information, $"Purged {purgedEvents} orchestration histories");
         }
 
         /// <summary>
@@ -926,7 +971,7 @@ namespace DurableTask
             }
         }
 
-        private Task CreateQueueAsync(
+        private async Task CreateQueueAsync(
             NamespaceManager namespaceManager, 
             string path, 
             bool requiresSessions,
@@ -937,7 +982,8 @@ namespace DurableTask
                 RequiresSession = requiresSessions,
                 MaxDeliveryCount = maxDeliveryCount
             };
-            return namespaceManager.CreateQueueAsync(description);
+
+            await namespaceManager.CreateQueueAsync(description);
         }
 
         private BrokeredMessage CreateForcedTerminateMessage(string instanceId, string reason)

@@ -36,7 +36,7 @@ namespace FrameworkUnitTests
         public TestContext TestContext { get; set; }
 
         [TestInitialize]
-        public async Task TestInitialize()
+        public async void TestInitialize()
         {
             if (!TestContext.TestName.Contains("TestHost"))
             {
@@ -47,12 +47,12 @@ namespace FrameworkUnitTests
 
                 taskHubNoCompression = TestHelpers2.CreateTaskHubNoCompression();
                 // TODO : siport : validate this is how we should call this
-                await taskHub.orchestrationService.CreateIfNotExistsAsync();
+                //await taskHub.orchestrationService.CreateIfNotExistsAsync();
             }
         }
 
         [TestCleanup]
-        public async Task TestCleanup()
+        public async void TestCleanup()
         {
             if (!TestContext.TestName.Contains("TestHost"))
             {
@@ -60,7 +60,7 @@ namespace FrameworkUnitTests
                 await taskHubNoCompression.StopAsync();
                 await fakeTaskHub.StopAsync(true);
                 // TODO : siport : validate this is how we should call this
-                await taskHub.orchestrationService.DeleteAsync();
+                //await taskHub.orchestrationService.DeleteAsync();
             }
         }
 

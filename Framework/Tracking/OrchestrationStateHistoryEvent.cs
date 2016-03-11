@@ -13,7 +13,7 @@
 
 namespace DurableTask.Tracking
 {
-    class OrchestrationStateHistoryEvent : OrchestrationHistoryEvent
+    public class OrchestrationStateHistoryEvent : OrchestrationHistoryEvent
     {
         public OrchestrationState State;
     }

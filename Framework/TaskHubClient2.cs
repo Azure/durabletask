@@ -248,7 +248,7 @@ namespace DurableTask
 
         // Instance query methods
         // Orchestration states
-
+        // TODO : Fix summaries to not talk about azure storage (and not reutnr those exceptions, they should be wrapped)
         /// <summary>
         ///     Get a list of orchestration states from the instance storage table for the
         ///     most current execution (generation) of the specified instance.
@@ -258,7 +258,8 @@ namespace DurableTask
         /// <returns>The OrchestrationState of the specified instanceId or null if not found</returns>
         public async Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId)
         {
-            return (await GetOrchestrationStateAsync(instanceId, false).ConfigureAwait(false)).FirstOrDefault();
+            var state = await GetOrchestrationStateAsync(instanceId, false);
+            return state?.FirstOrDefault();
         }
 
         /// <summary>
@@ -316,10 +317,10 @@ namespace DurableTask
         /// <returns>String with formatted JSON representing the execution history</returns>
         public Task<string> GetOrchestrationHistoryAsync(OrchestrationInstance instance)
         {
-            if (instance == null || string.IsNullOrEmpty(instance.InstanceId) ||
+            if (string.IsNullOrEmpty(instance?.InstanceId) ||
                 string.IsNullOrEmpty(instance.ExecutionId))
             {
-                throw new ArgumentNullException("instance");
+                throw new ArgumentNullException(nameof(instance));
             }
 
             return this.serviceClient.GetOrchestrationHistoryAsync(instance.InstanceId, instance.ExecutionId);

@@ -1,4 +1,6 @@
-﻿namespace DurableTaskSamples
+﻿using System.Threading;
+
+namespace DurableTaskSamples
 {
     using System;
     using System.Configuration;
@@ -44,10 +46,11 @@
                     orchestrationServiceAndClient.CreateIfNotExistsAsync().Wait();
                 }
 
+                OrchestrationInstance instance = null;
+
                 if (!string.IsNullOrWhiteSpace(options.StartInstance))
                 {
                     string instanceId = options.InstanceId;
-                    OrchestrationInstance instance = null;
                     Console.WriteLine($"Start Orchestration: {options.StartInstance}");
                     switch (options.StartInstance)
                     {
@@ -109,7 +112,7 @@
 
                     }
                     string instanceId = options.InstanceId;
-                    OrchestrationInstance instance = new OrchestrationInstance { InstanceId = instanceId };
+                    instance = new OrchestrationInstance { InstanceId = instanceId };
                     taskHubClient.RaiseEventAsync(instance, options.Signal, options.Parameters[0]).Wait();
 
                     Console.WriteLine("Press any key to quit.");
@@ -148,6 +151,11 @@
                         taskHub.AddTaskActivitiesFromInterface<IMigrationTasks>(new MigrationTasks());
 
                         taskHub.StartAsync().Wait();
+
+                        Console.WriteLine("Waiting up to 60 seconds for completion.");
+
+                        var taskResult = taskHubClient.WaitForOrchestrationAsync(instance, TimeSpan.FromSeconds(60), CancellationToken.None).Result;
+                        Console.WriteLine($"Task done: {taskResult.OrchestrationStatus}");
 
                         Console.WriteLine("Press any key to quit.");
                         Console.ReadLine();

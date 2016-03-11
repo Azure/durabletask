@@ -22,7 +22,7 @@ namespace DurableTask
     using Tracing;
 
 
-    //[Obsolete]
+    [Obsolete]
     public abstract class DispatcherBase<T>
     {
         const int DefaultMaxConcurrentWorkItems = 20;

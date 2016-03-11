@@ -71,32 +71,36 @@ namespace FrameworkUnitTests
             return settings;
         }
 
-        public static IOrchestrationService CreateOrchestrationServiceWorker()
+        static async Task<IOrchestrationService> CreateOrchestrationServiceWorkerAsync()
         {
-            return new ServiceBusOrchestrationService(
-                ServiceBusConnectionString, 
-                TaskHubName,
-                new AzureTableHistoryProvider(TaskHubName, StorageConnectionString), 
-                null);
-        }
-
-        public static IOrchestrationServiceClient CreateOrchestrationServiceClient()
-        {
-            return new ServiceBusOrchestrationService(
+            var service = new ServiceBusOrchestrationService(
                 ServiceBusConnectionString,
                 TaskHubName,
                 new AzureTableHistoryProvider(TaskHubName, StorageConnectionString),
                 null);
+            await service.CreateIfNotExistsAsync();
+            return service;
+        }
+
+        static async Task<IOrchestrationServiceClient> CreateOrchestrationServiceClientAsync()
+        {
+            var service =  new ServiceBusOrchestrationService(
+                ServiceBusConnectionString,
+                TaskHubName,
+                new AzureTableHistoryProvider(TaskHubName, StorageConnectionString),
+                null);
+            await service.CreateIfNotExistsAsync();
+            return service;
         }
 
         public static TaskHubClient2 CreateTaskHubClient2NoCompression(bool createInstanceStore = true)
         {
             if (createInstanceStore)
             {
-                return new TaskHubClient2(CreateOrchestrationServiceClient(), null);
+                return new TaskHubClient2(CreateOrchestrationServiceClientAsync().Result, null);
             }
 
-            return new TaskHubClient2(CreateOrchestrationServiceClient(), null);
+            return new TaskHubClient2(CreateOrchestrationServiceClientAsync().Result, null);
         }
 
         public static TaskHubClient2 CreateTaskHubClient(bool createInstanceStore = true)
@@ -105,10 +109,10 @@ namespace FrameworkUnitTests
 
             if (createInstanceStore)
             {
-                return new TaskHubClient2(CreateOrchestrationServiceClient(), clientSettings);
+                return new TaskHubClient2(CreateOrchestrationServiceClientAsync().Result, clientSettings);
             }
 
-            return new TaskHubClient2(CreateOrchestrationServiceClient(), clientSettings);
+            return new TaskHubClient2(CreateOrchestrationServiceClientAsync().Result, clientSettings);
         }
 
         public static TaskHubWorker2 CreateTaskHubNoCompression(bool createInstanceStore = true)
@@ -117,10 +121,10 @@ namespace FrameworkUnitTests
 
             if (createInstanceStore)
             {
-                return new TaskHubWorker2(CreateOrchestrationServiceWorker(), workerSettings);
+                return new TaskHubWorker2(CreateOrchestrationServiceWorkerAsync().Result, workerSettings);
             }
 
-            return new TaskHubWorker2(CreateOrchestrationServiceWorker(), workerSettings);
+            return new TaskHubWorker2(CreateOrchestrationServiceWorkerAsync().Result, workerSettings);
         }
 
         public static TaskHubWorker2 CreateTaskHubLegacyCompression(bool createInstanceStore = true)
@@ -129,10 +133,10 @@ namespace FrameworkUnitTests
 
             if (createInstanceStore)
             {
-                return new TaskHubWorker2(CreateOrchestrationServiceWorker(), workerSettings);
+                return new TaskHubWorker2(CreateOrchestrationServiceWorkerAsync().Result, workerSettings);
             }
 
-            return new TaskHubWorker2(CreateOrchestrationServiceWorker(), workerSettings);
+            return new TaskHubWorker2(CreateOrchestrationServiceWorkerAsync().Result, workerSettings);
         }
 
         public static TaskHubWorker2 CreateTaskHubAlwaysCompression(bool createInstanceStore = true)
@@ -141,10 +145,10 @@ namespace FrameworkUnitTests
 
             if (createInstanceStore)
             {
-                return new TaskHubWorker2(CreateOrchestrationServiceWorker(), workerSettings);
+                return new TaskHubWorker2(CreateOrchestrationServiceWorkerAsync().Result, workerSettings);
             }
 
-            return new TaskHubWorker2(CreateOrchestrationServiceWorker(), workerSettings);
+            return new TaskHubWorker2(CreateOrchestrationServiceWorkerAsync().Result, workerSettings);
         }
 
 
@@ -154,10 +158,10 @@ namespace FrameworkUnitTests
 
             if (createInstanceStore)
             {
-                return new TaskHubWorker2(CreateOrchestrationServiceWorker(), workerSettings);
+                return new TaskHubWorker2(CreateOrchestrationServiceWorkerAsync().Result, workerSettings);
             }
 
-            return new TaskHubWorker2(CreateOrchestrationServiceWorker(), workerSettings);
+            return new TaskHubWorker2(CreateOrchestrationServiceWorkerAsync().Result, workerSettings);
         }
 
         public static long GetOrchestratorQueueSizeInBytes()
