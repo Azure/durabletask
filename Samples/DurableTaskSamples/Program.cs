@@ -30,10 +30,10 @@ namespace DurableTaskSamples
                 string storageConnectionString = Program.GetSetting("StorageConnectionString");
                 string taskHubName = ConfigurationManager.AppSettings["taskHubName"];
 
-                IOrchestrationServiceHistoryProvider historyProvider = new AzureTableHistoryProvider(taskHubName, storageConnectionString);
+                IOrchestrationServiceInstanceStore instanceStore = new AzureTableInstanceStore(taskHubName, storageConnectionString);
 
                 ServiceBusOrchestrationService orchestrationServiceAndClient =
-                    new ServiceBusOrchestrationService(servicebusConnectionString, taskHubName, historyProvider, null);
+                    new ServiceBusOrchestrationService(servicebusConnectionString, taskHubName, instanceStore, null);
 
                 //TaskHubClient taskHubClientOld = new TaskHubClient(taskHubName, servicebusConnectionString, storageConnectionString);
                 TaskHubClient2 taskHubClient = new TaskHubClient2(orchestrationServiceAndClient);

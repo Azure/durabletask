@@ -24,9 +24,9 @@ namespace FrameworkUnitTests
     [TestClass]
     public class FunctionalTests
     {
-        TaskHubClient client;
-        TaskHubWorker taskHub;
-        TaskHubWorker taskHubNoCompression;
+        TaskHubClient2 client;
+        TaskHubWorker2 taskHub;
+        TaskHubWorker2 taskHubNoCompression;
 
         public TestContext TestContext { get; set; }
 
@@ -35,11 +35,12 @@ namespace FrameworkUnitTests
         {
             if (!TestContext.TestName.Contains("TestHost"))
             {
-                client = TestHelpers.CreateTaskHubClient();
-                taskHub = TestHelpers.CreateTaskHub();
-                taskHubNoCompression = TestHelpers.CreateTaskHubNoCompression();
-                taskHub.DeleteHub();
-                taskHub.CreateHubIfNotExists();
+                client = TestHelpers2.CreateTaskHubClient();
+                taskHub = TestHelpers2.CreateTaskHub();
+                taskHubNoCompression = TestHelpers2.CreateTaskHubNoCompression();
+                //todo : verify not needed
+                //taskHub.DeleteHub();
+                //taskHub.CreateHubIfNotExists();
             }
         }
 
@@ -48,64 +49,65 @@ namespace FrameworkUnitTests
         {
             if (!TestContext.TestName.Contains("TestHost"))
             {
-                taskHub.Stop(true);
-                taskHubNoCompression.Stop(true);
-                taskHub.DeleteHub();
+                taskHub.StopAsync(true).Wait();
+                taskHubNoCompression.StopAsync(true).Wait();
+                //todo : verify not needed
+                //taskHub.DeleteHub();
             }
         }
 
         #region Generation Basic Test
 
         [TestMethod]
-        public void GenerationBasicTest()
+        public async Task GenerationBasicTest()
         {
             GenerationBasicOrchestration.Result = 0;
             GenerationBasicTask.GenerationCount = 0;
 
-            taskHub.AddTaskOrchestrations(typeof (GenerationBasicOrchestration))
+            await taskHub.AddTaskOrchestrations(typeof (GenerationBasicOrchestration))
                 .AddTaskActivities(new GenerationBasicTask())
-                .Start();
+                .StartAsync();
 
-            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof (GenerationBasicOrchestration), 4);
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (GenerationBasicOrchestration), 4);
 
-            bool isCompleted = TestHelpers.WaitForInstance(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
             Assert.AreEqual(4, GenerationBasicOrchestration.Result, "Orchestration Result is wrong!!!");
         }
 
         [TestMethod]
-        public void SessionStateDeleteTest()
+        public async Task SessionStateDeleteTest()
         {
             GenerationBasicOrchestration.Result = 0;
             GenerationBasicTask.GenerationCount = 0;
 
-            taskHub.AddTaskOrchestrations(typeof (GenerationBasicOrchestration))
+            await taskHub.AddTaskOrchestrations(typeof (GenerationBasicOrchestration))
                 .AddTaskActivities(new GenerationBasicTask())
-                .Start();
+                .StartAsync();
 
-            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof (GenerationBasicOrchestration), 4);
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (GenerationBasicOrchestration), 4);
 
-            bool isCompleted = TestHelpers.WaitForInstance(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
             Assert.AreEqual(4, GenerationBasicOrchestration.Result, "Orchestration Result is wrong!!!");
 
             Assert.AreEqual(0, TestHelpers.GetOrchestratorQueueSizeInBytes());
         }
 
         [TestMethod]
-        public void GenerationBasicNoCompressionTest()
+        public async Task GenerationBasicNoCompressionTest()
         {
             GenerationBasicOrchestration.Result = 0;
             GenerationBasicTask.GenerationCount = 0;
 
-            taskHubNoCompression.AddTaskOrchestrations(typeof (GenerationBasicOrchestration))
+            await taskHubNoCompression.AddTaskOrchestrations(typeof (GenerationBasicOrchestration))
                 .AddTaskActivities(new GenerationBasicTask())
-                .Start();
+                .StartAsync();
 
-            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof (GenerationBasicOrchestration), 4);
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (GenerationBasicOrchestration), 4);
 
-            bool isCompleted = TestHelpers.WaitForInstance(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
             Assert.AreEqual(4, GenerationBasicOrchestration.Result, "Orchestration Result is wrong!!!");
         }
 
@@ -146,38 +148,38 @@ namespace FrameworkUnitTests
         #region Generation with sub orchestration test 
 
         [TestMethod]
-        public void GenerationSubTest()
+        public async Task GenerationSubTest()
         {
             GenerationParentOrchestration.Result = 0;
             GenerationSubTask.GenerationCount = 0;
 
-            taskHub.AddTaskOrchestrations(typeof (GenerationParentOrchestration), typeof (GenerationChildOrchestration))
+            await taskHub.AddTaskOrchestrations(typeof (GenerationParentOrchestration), typeof (GenerationChildOrchestration))
                 .AddTaskActivities(new GenerationSubTask())
-                .Start();
+                .StartAsync();
 
-            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof (GenerationParentOrchestration), 4);
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (GenerationParentOrchestration), 4);
 
-            bool isCompleted = TestHelpers.WaitForInstance(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
             Assert.AreEqual(4, GenerationParentOrchestration.Result, "Orchestration Result is wrong!!!");
             Assert.AreEqual(4, GenerationSubTask.GenerationCount, "Orchestration Result is wrong!!!");
         }
 
         [TestMethod]
-        public void GenerationSubNoCompressionTest()
+        public async Task GenerationSubNoCompressionTest()
         {
             GenerationParentOrchestration.Result = 0;
             GenerationSubTask.GenerationCount = 0;
 
-            taskHubNoCompression.AddTaskOrchestrations(typeof (GenerationParentOrchestration),
+            await taskHubNoCompression.AddTaskOrchestrations(typeof (GenerationParentOrchestration),
                 typeof (GenerationChildOrchestration))
                 .AddTaskActivities(new GenerationSubTask())
-                .Start();
+                .StartAsync();
 
-            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof (GenerationParentOrchestration), 4);
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (GenerationParentOrchestration), 4);
 
-            bool isCompleted = TestHelpers.WaitForInstance(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
             Assert.AreEqual(4, GenerationParentOrchestration.Result, "Orchestration Result is wrong!!!");
             Assert.AreEqual(4, GenerationSubTask.GenerationCount, "Orchestration Result is wrong!!!");
         }
@@ -232,31 +234,31 @@ namespace FrameworkUnitTests
         #region Generation with SubOrchestrationInstance Failure Test
 
         [TestMethod]
-        public void GenerationSubFailedTest()
+        public async Task GenerationSubFailedTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (GenerationSubFailedParentOrchestration),
+            await taskHub.AddTaskOrchestrations(typeof (GenerationSubFailedParentOrchestration),
                 typeof (GenerationSubFailedChildOrchestration))
                 .AddTaskActivities(new GenerationBasicTask())
-                .Start();
+                .StartAsync();
             taskHub.TaskOrchestrationDispatcher.IncludeDetails = true;
 
             GenerationSubFailedChildOrchestration.Count = 0;
             GenerationSubFailedParentOrchestration.Result = null;
             OrchestrationInstance id =
-                client.CreateOrchestrationInstance(typeof (GenerationSubFailedParentOrchestration), true);
+                await client.CreateOrchestrationInstanceAsync(typeof (GenerationSubFailedParentOrchestration), true);
 
-            bool isCompleted = TestHelpers.WaitForInstance(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
 
             Assert.AreEqual("Test", GenerationSubFailedParentOrchestration.Result, "Orchestration Result is wrong!!!");
             Assert.AreEqual(1, GenerationSubFailedChildOrchestration.Count, "Child Workflow Count invalid.");
 
             GenerationSubFailedChildOrchestration.Count = 0;
             GenerationSubFailedParentOrchestration.Result = null;
-            id = client.CreateOrchestrationInstance(typeof (GenerationSubFailedParentOrchestration), false);
+            id = await client.CreateOrchestrationInstanceAsync(typeof (GenerationSubFailedParentOrchestration), false);
 
-            isCompleted = TestHelpers.WaitForInstance(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
             Assert.AreEqual("Test", GenerationSubFailedParentOrchestration.Result, "Orchestration Result is wrong!!!");
             Assert.AreEqual(5, GenerationSubFailedChildOrchestration.Count, "Child Workflow Count invalid.");
         }
@@ -327,37 +329,37 @@ namespace FrameworkUnitTests
         #region Generation Signal Test
 
         [TestMethod]
-        public void GenerationSignalOrchestrationTest()
+        public async Task GenerationSignalOrchestrationTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (GenerationSignalOrchestration))
-                .Start();
+            await taskHub.AddTaskOrchestrations(typeof (GenerationSignalOrchestration))
+                .StartAsync();
 
-            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof (GenerationSignalOrchestration), 5);
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (GenerationSignalOrchestration), 5);
 
             var signalId = new OrchestrationInstance {InstanceId = id.InstanceId};
 
-            Thread.Sleep(2*1000);
-            client.RaiseEvent(signalId, "Count", "1");
+            await Task.Delay(2*1000);
+            await client.RaiseEventAsync(signalId, "Count", "1");
             GenerationSignalOrchestration.signal.Set();
 
-            Thread.Sleep(2*1000);
+            await Task.Delay(2*1000);
             GenerationSignalOrchestration.signal.Reset();
-            client.RaiseEvent(signalId, "Count", "2");
-            Thread.Sleep(2*1000);
-            client.RaiseEvent(signalId, "Count", "3"); // will be recieved by next generation
+            await client.RaiseEventAsync(signalId, "Count", "2");
+            await Task.Delay(2*1000);
+            await client.RaiseEventAsync(signalId, "Count", "3"); // will be recieved by next generation
             GenerationSignalOrchestration.signal.Set();
 
-            Thread.Sleep(2*1000);
+            await Task.Delay(2*1000);
             GenerationSignalOrchestration.signal.Reset();
-            client.RaiseEvent(signalId, "Count", "4");
-            Thread.Sleep(2*1000);
-            client.RaiseEvent(signalId, "Count", "5"); // will be recieved by next generation
-            client.RaiseEvent(signalId, "Count", "6"); // lost
-            client.RaiseEvent(signalId, "Count", "7"); // lost
+            await client.RaiseEventAsync(signalId, "Count", "4");
+            await Task.Delay(2*1000);
+            await client.RaiseEventAsync(signalId, "Count", "5"); // will be recieved by next generation
+            await client.RaiseEventAsync(signalId, "Count", "6"); // lost
+            await client.RaiseEventAsync(signalId, "Count", "7"); // lost
             GenerationSignalOrchestration.signal.Set();
 
-            bool isCompleted = TestHelpers.WaitForInstance(client, signalId, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, signalId, 60);
+            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
             Assert.AreEqual("5", GenerationSignalOrchestration.Result, "Orchestration Result is wrong!!!");
         }
 
@@ -407,7 +409,7 @@ namespace FrameworkUnitTests
         #region Generation New Version Test
 
         [TestMethod]
-        public void GenerationVersionTest()
+        public async Task GenerationVersionTest()
         {
             var c1 = new NameValueObjectCreator<TaskOrchestration>("GenerationOrchestration",
                 "V1", typeof (GenerationV1Orchestration));
@@ -418,13 +420,13 @@ namespace FrameworkUnitTests
             var c3 = new NameValueObjectCreator<TaskOrchestration>("GenerationOrchestration",
                 "V3", typeof (GenerationV3Orchestration));
 
-            taskHub.AddTaskOrchestrations(c1, c2, c3)
-                .Start();
+            await taskHub.AddTaskOrchestrations(c1, c2, c3)
+                .StartAsync();
 
-            OrchestrationInstance id = client.CreateOrchestrationInstance("GenerationOrchestration", "V1", null);
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync("GenerationOrchestration", "V1", null);
 
-            bool isCompleted = TestHelpers.WaitForInstance(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
             Assert.IsTrue(GenerationV1Orchestration.WasRun);
             Assert.IsTrue(GenerationV2Orchestration.WasRun);
             Assert.IsTrue(GenerationV3Orchestration.WasRun);

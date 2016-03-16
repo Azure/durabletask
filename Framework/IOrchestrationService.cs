@@ -23,9 +23,6 @@ namespace DurableTask
     //      + proper exception model for orchestration service providers
     //      + rethink method names?
     //      + rename xxx2 classes to xxx and remove old ones
-    //      + fix up all tests to use the new APIs
-    //      + change TaskOrchestrationDispatcher2 to use this
-    //      + build trackingdispatcher2 inside the service bus layer
     //      + clean up XML doc comments in public classes
     //
     //  DONE:
@@ -42,6 +39,9 @@ namespace DurableTask
     //      + make dispatcher start/stop methods async
     //      + task hub description
     //      + implement ServiceBusOrchestrationService
+    //      + fix up all tests to use the new APIs
+    //      + change TaskOrchestrationDispatcher2 to use this
+    //      + build trackingdispatcher2 inside the service bus layer
     //      
 
     public interface IOrchestrationService
@@ -59,9 +59,6 @@ namespace DurableTask
 
         Task DeleteAsync();
 
-        // Provider reliant methods
-        //bool IsTransientException(Exception exception);
-
         // TaskOrchestrationDispatcher methods
         bool IsMaxMessageCountExceeded(int currentMessageCount, OrchestrationRuntimeState runtimeState);
 
@@ -69,7 +66,7 @@ namespace DurableTask
 
         int GetDelayInSecondsAfterOnFetchException(Exception exception);
 
-        int MaxConcurrentTaskOrchestrationWorkItems();
+        int MaxConcurrentTaskOrchestrationWorkItems { get; }
 
         Task<TaskOrchestrationWorkItem> LockNextTaskOrchestrationWorkItemAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken);
 
@@ -89,7 +86,7 @@ namespace DurableTask
         Task ReleaseTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem);
 
         // TaskActivityDispatcher methods
-        int MaxConcurrentTaskActivityWorkItems();
+        int MaxConcurrentTaskActivityWorkItems { get; }
 
         Task<TaskActivityWorkItem> LockNextTaskActivityWorkItem(TimeSpan receiveTimeout, CancellationToken cancellationToken);
 

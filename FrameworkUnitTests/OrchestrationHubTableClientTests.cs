@@ -25,9 +25,9 @@ namespace FrameworkUnitTests
     [TestClass]
     public class OrchestrationHubTableClientTests
     {
-        TaskHubClient client;
+        TaskHubClient2 client;
         AzureTableClient tableClient;
-        TaskHubWorker taskHub;
+        TaskHubWorker2 taskHub;
 
         [TestInitialize]
         public void TestInitialize()
@@ -37,35 +37,37 @@ namespace FrameworkUnitTests
                 "UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://127.0.0.1:10002/");
             tableClient.CreateTableIfNotExists();
 
-            client = TestHelpers.CreateTaskHubClient();
+            client = TestHelpers2.CreateTaskHubClient();
 
-            taskHub = TestHelpers.CreateTaskHub();
+            taskHub = TestHelpers2.CreateTaskHub();
 
-            taskHub.DeleteHub();
-            taskHub.CreateHubIfNotExists();
+            // todo : validate not needed
+            //taskHub.DeleteHub();
+            //taskHub.CreateHubIfNotExists();
         }
 
         [TestCleanup]
         public void TestCleanup()
         {
             tableClient.DeleteTableIfExists();
-            taskHub.Stop(true);
-            taskHub.DeleteHub();
+            taskHub.StopAsync(true).Wait();
+            // todo : validate not needed
+            //taskHub.DeleteHub();
         }
 
         [TestMethod]
-        public void BasicInstanceStoreTest()
+        public async Task BasicInstanceStoreTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration))
+            await taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration))
                 .AddTaskActivities(new Activity1())
-                .Start();
+                .StartAsync();
 
-            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof (InstanceStoreTestOrchestration),
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
                 "DONT_THROW");
 
-            bool isCompleted = TestHelpers.WaitForInstance(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
-            OrchestrationState runtimeState = client.GetOrchestrationState(id);
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
+            OrchestrationState runtimeState = await client.GetOrchestrationStateAsync(id);
             Assert.AreEqual(runtimeState.OrchestrationStatus, OrchestrationStatus.Completed);
             Assert.AreEqual(runtimeState.OrchestrationInstance.InstanceId, id.InstanceId);
             Assert.AreEqual(runtimeState.OrchestrationInstance.ExecutionId, id.ExecutionId);
@@ -75,73 +77,73 @@ namespace FrameworkUnitTests
             Assert.AreEqual(runtimeState.Input, "\"DONT_THROW\"");
             Assert.AreEqual(runtimeState.Output, "\"Spartacus\"");
 
-            string history = client.GetOrchestrationHistory(id);
+            string history = await client.GetOrchestrationHistoryAsync(id);
             Assert.IsTrue(!string.IsNullOrEmpty(history));
             Assert.IsTrue(history.Contains("ExecutionStartedEvent"));
         }
 
         [TestMethod]
-        public void MultipleInstanceStoreTest()
+        public async Task MultipleInstanceStoreTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration))
+            await taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration))
                 .AddTaskActivities(new Activity1())
-                .Start();
+                .StartAsync();
 
-            OrchestrationInstance id1 = client.CreateOrchestrationInstance(typeof (InstanceStoreTestOrchestration),
+            OrchestrationInstance id1 = await client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
                 "WAIT_THROW");
-            OrchestrationInstance id2 = client.CreateOrchestrationInstance(typeof (InstanceStoreTestOrchestration),
+            OrchestrationInstance id2 = await client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
                 "WAIT_DONTTHROW");
 
-            TestHelpers.WaitForInstance(client, id1, 60, false);
-            TestHelpers.WaitForInstance(client, id2, 60, false);
+            await TestHelpers2.WaitForInstanceAsync(client, id1, 60, false);
+            await TestHelpers2.WaitForInstanceAsync(client, id2, 60, false);
 
-            OrchestrationState runtimeState1 = client.GetOrchestrationState(id1);
-            OrchestrationState runtimeState2 = client.GetOrchestrationState(id2);
+            OrchestrationState runtimeState1 = await client.GetOrchestrationStateAsync(id1);
+            OrchestrationState runtimeState2 = await client.GetOrchestrationStateAsync(id2);
             Assert.AreEqual(runtimeState1.OrchestrationStatus, OrchestrationStatus.Running);
             Assert.AreEqual(runtimeState2.OrchestrationStatus, OrchestrationStatus.Running);
 
-            TestHelpers.WaitForInstance(client, id1, 60);
-            TestHelpers.WaitForInstance(client, id2, 60);
+            await TestHelpers2.WaitForInstanceAsync(client, id1, 60);
+            await TestHelpers2.WaitForInstanceAsync(client, id2, 60);
 
-            runtimeState1 = client.GetOrchestrationState(id1);
-            runtimeState2 = client.GetOrchestrationState(id2);
+            runtimeState1 = await client.GetOrchestrationStateAsync(id1);
+            runtimeState2 = await client.GetOrchestrationStateAsync(id2);
             Assert.AreEqual(runtimeState1.OrchestrationStatus, OrchestrationStatus.Failed);
             Assert.AreEqual(runtimeState2.OrchestrationStatus, OrchestrationStatus.Completed);
         }
 
         [TestMethod]
-        public void TerminateInstanceStoreTest()
+        public async Task TerminateInstanceStoreTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration))
+            await taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration))
                 .AddTaskActivities(new Activity1())
-                .Start();
+                .StartAsync();
 
-            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof (InstanceStoreTestOrchestration),
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
                 "WAIT");
 
-            TestHelpers.WaitForInstance(client, id, 60, false);
-            OrchestrationState runtimeState = client.GetOrchestrationState(id);
+            await TestHelpers2.WaitForInstanceAsync(client, id, 60, false);
+            OrchestrationState runtimeState = await client.GetOrchestrationStateAsync(id);
             Assert.AreEqual(OrchestrationStatus.Running, runtimeState.OrchestrationStatus);
 
-            client.TerminateInstance(id);
-            TestHelpers.WaitForInstance(client, id, 60);
-            runtimeState = client.GetOrchestrationState(id);
+            await client.TerminateInstanceAsync(id);
+            await TestHelpers2.WaitForInstanceAsync(client, id, 60);
+            runtimeState = await client.GetOrchestrationStateAsync(id);
             Assert.AreEqual(OrchestrationStatus.Terminated, runtimeState.OrchestrationStatus);
         }
 
         [TestMethod]
-        public void IntermediateStateInstanceStoreTest()
+        public async Task IntermediateStateInstanceStoreTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration))
+            await taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration))
                 .AddTaskActivities(new Activity1())
-                .Start();
+                .StartAsync();
 
-            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof (InstanceStoreTestOrchestration),
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
                 "WAIT");
 
-            TestHelpers.WaitForInstance(client, id, 60, false);
+            await TestHelpers2.WaitForInstanceAsync(client, id, 60, false);
 
-            OrchestrationState runtimeState = client.GetOrchestrationState(id);
+            OrchestrationState runtimeState = await client.GetOrchestrationStateAsync(id);
             Assert.IsNotNull(runtimeState);
             Assert.AreEqual(runtimeState.OrchestrationStatus, OrchestrationStatus.Running);
             Assert.AreEqual(runtimeState.OrchestrationInstance.InstanceId, id.InstanceId);
@@ -152,29 +154,30 @@ namespace FrameworkUnitTests
             Assert.AreEqual(runtimeState.Input, "\"WAIT\"");
             Assert.AreEqual(runtimeState.Output, null);
 
-            bool isCompleted = TestHelpers.WaitForInstance(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
-            runtimeState = client.GetOrchestrationState(id);
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
+            runtimeState = await client.GetOrchestrationStateAsync(id);
             Assert.AreEqual(runtimeState.OrchestrationStatus, OrchestrationStatus.Completed);
         }
 
         [TestMethod]
-        public void FailingInstanceStoreTest()
+        public async Task FailingInstanceStoreTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration))
+            await taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration))
                 .AddTaskActivities(new Activity1())
-                .Start();
+                .StartAsync();
 
-            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof (InstanceStoreTestOrchestration),
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
                 "THROW");
 
-            bool isCompleted = TestHelpers.WaitForInstance(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
-            Assert.IsTrue(client.GetOrchestrationState(id).OrchestrationStatus == OrchestrationStatus.Failed);
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
+            var status = await client.GetOrchestrationStateAsync(id);
+            Assert.IsTrue(status.OrchestrationStatus == OrchestrationStatus.Failed);
         }
 
         [TestMethod]
-        public void OrchestrationEventHistoryTest()
+        public async Task OrchestrationEventHistoryTest()
         {
             IEnumerable<AzureTableOrchestrationHistoryEventEntity> entitiesInst0Gen0 = CreateHistoryEntities(tableClient, "0", "0",
                 10);
@@ -186,13 +189,13 @@ namespace FrameworkUnitTests
                 10);
 
             IEnumerable<AzureTableOrchestrationHistoryEventEntity> histInst0Gen0Returned =
-                tableClient.ReadOrchestrationHistoryEventsAsync("0", "0").Result;
+                await tableClient.ReadOrchestrationHistoryEventsAsync("0", "0");
             IEnumerable<AzureTableOrchestrationHistoryEventEntity> histInst0Gen1Returned =
-                tableClient.ReadOrchestrationHistoryEventsAsync("0", "1").Result;
+                await tableClient.ReadOrchestrationHistoryEventsAsync("0", "1");
             IEnumerable<AzureTableOrchestrationHistoryEventEntity> histInst1Gen0Returned =
-                tableClient.ReadOrchestrationHistoryEventsAsync("1", "0").Result;
+                await tableClient.ReadOrchestrationHistoryEventsAsync("1", "0");
             IEnumerable<AzureTableOrchestrationHistoryEventEntity> histInst1Gen1Returned =
-                tableClient.ReadOrchestrationHistoryEventsAsync("1", "1").Result;
+                await tableClient.ReadOrchestrationHistoryEventsAsync("1", "1");
 
             Assert.IsTrue(CompareEnumerations(entitiesInst0Gen0, histInst0Gen0Returned));
             Assert.IsTrue(CompareEnumerations(entitiesInst0Gen1, histInst0Gen1Returned));
@@ -201,24 +204,24 @@ namespace FrameworkUnitTests
         }
 
         [TestMethod]
-        public void OrchestrationStateTest()
+        public async Task OrchestrationStateTest()
         {
             IEnumerable<AzureTableOrchestrationStateEntity> entitiesInst0Gen0 = CreateStateEntities(tableClient, "0", "0");
             IEnumerable<AzureTableOrchestrationStateEntity> entitiesInst0Gen1 = CreateStateEntities(tableClient, "0", "1");
             IEnumerable<AzureTableOrchestrationStateEntity> entitiesInst1Gen0 = CreateStateEntities(tableClient, "1", "0");
             IEnumerable<AzureTableOrchestrationStateEntity> entitiesInst1Gen1 = CreateStateEntities(tableClient, "1", "1");
 
-            IEnumerable<AzureTableOrchestrationStateEntity> histInst0Gen0Returned = tableClient.QueryOrchestrationStatesAsync(
-                new OrchestrationStateQuery().AddInstanceFilter("0", "0")).Result;
+            IEnumerable<AzureTableOrchestrationStateEntity> histInst0Gen0Returned = await tableClient.QueryOrchestrationStatesAsync(
+                new OrchestrationStateQuery().AddInstanceFilter("0", "0"));
 
-            IEnumerable<AzureTableOrchestrationStateEntity> histInst0Gen1Returned = tableClient.QueryOrchestrationStatesAsync(
-                new OrchestrationStateQuery().AddInstanceFilter("0", "1")).Result;
+            IEnumerable<AzureTableOrchestrationStateEntity> histInst0Gen1Returned = await tableClient.QueryOrchestrationStatesAsync(
+                new OrchestrationStateQuery().AddInstanceFilter("0", "1"));
 
-            IEnumerable<AzureTableOrchestrationStateEntity> histInst1Gen0Returned = tableClient.QueryOrchestrationStatesAsync(
-                new OrchestrationStateQuery().AddInstanceFilter("1", "0")).Result;
+            IEnumerable<AzureTableOrchestrationStateEntity> histInst1Gen0Returned = await tableClient.QueryOrchestrationStatesAsync(
+                new OrchestrationStateQuery().AddInstanceFilter("1", "0"));
 
-            IEnumerable<AzureTableOrchestrationStateEntity> histInst1Gen1Returned = tableClient.QueryOrchestrationStatesAsync(
-                new OrchestrationStateQuery().AddInstanceFilter("1", "1")).Result;
+            IEnumerable<AzureTableOrchestrationStateEntity> histInst1Gen1Returned = await tableClient.QueryOrchestrationStatesAsync(
+                new OrchestrationStateQuery().AddInstanceFilter("1", "1"));
 
             Assert.IsTrue(CompareEnumerations(entitiesInst0Gen0, histInst0Gen0Returned));
             Assert.IsTrue(CompareEnumerations(entitiesInst0Gen1, histInst0Gen1Returned));

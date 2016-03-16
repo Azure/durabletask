@@ -27,9 +27,9 @@ namespace FrameworkUnitTests
 
     public static class TestHelpers2
     {
-        private static string ServiceBusConnectionString;
-        private static string StorageConnectionString;
-        private static string TaskHubName;
+        static string ServiceBusConnectionString;
+        static string StorageConnectionString;
+        static string TaskHubName;
 
         static TestHelpers2()
         {
@@ -76,7 +76,7 @@ namespace FrameworkUnitTests
             var service = new ServiceBusOrchestrationService(
                 ServiceBusConnectionString,
                 TaskHubName,
-                new AzureTableHistoryProvider(TaskHubName, StorageConnectionString),
+                new AzureTableInstanceStore(TaskHubName, StorageConnectionString), 
                 null);
             await service.CreateIfNotExistsAsync();
             return service;
@@ -87,13 +87,13 @@ namespace FrameworkUnitTests
             var service =  new ServiceBusOrchestrationService(
                 ServiceBusConnectionString,
                 TaskHubName,
-                new AzureTableHistoryProvider(TaskHubName, StorageConnectionString),
+                new AzureTableInstanceStore(TaskHubName, StorageConnectionString),
                 null);
             await service.CreateIfNotExistsAsync();
             return service;
         }
 
-        public static TaskHubClient2 CreateTaskHubClient2NoCompression(bool createInstanceStore = true)
+        public static TaskHubClient2 CreateTaskHubClientNoCompression(bool createInstanceStore = true)
         {
             if (createInstanceStore)
             {

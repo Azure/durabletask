@@ -33,7 +33,7 @@ namespace FrameworkUnitTests.Mocks
         Dictionary<string, byte[]> sessionState;
         List<TaskMessage> timerMessages;
 
-        private int MaxConcurrentWorkItems = 20;
+        int MaxConcurrentWorkItems = 20;
 
         // dictionary<instanceid, dictionary<executionid, orchestrationstate>>
         //Dictionary<string, Dictionary<string, OrchestrationState>> instanceStore;
@@ -305,10 +305,7 @@ namespace FrameworkUnitTests.Mocks
         /******************************/
         // Task orchestration methods
         /******************************/
-        public int MaxConcurrentTaskOrchestrationWorkItems()
-        {
-            return MaxConcurrentWorkItems;
-        }
+        public int MaxConcurrentTaskOrchestrationWorkItems => MaxConcurrentWorkItems;
 
         public async Task<TaskOrchestrationWorkItem> LockNextTaskOrchestrationWorkItemAsync(
             TimeSpan receiveTimeout, 
@@ -428,12 +425,9 @@ namespace FrameworkUnitTests.Mocks
             return Task.FromResult<object>(null);
         }
 
-        public int MaxConcurrentTaskActivityWorkItems()
-        {
-            return MaxConcurrentWorkItems;
-        }
+        public int MaxConcurrentTaskActivityWorkItems => MaxConcurrentWorkItems;
 
-        public Task ForceTerminateTaskOrchestrationAsync(string instanceId)
+        public Task ForceTerminateTaskOrchestrationAsync(string instanceId, string message)
         {
             // tricky to implement in-memory as object references are being used instead of clones
             throw new NotImplementedException();

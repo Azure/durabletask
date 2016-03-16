@@ -41,7 +41,7 @@ namespace DurableTask
         readonly TaskHubDescription taskHubDescription;
         readonly string trackingEntityName;
         QueueClient trackingQueueClient;
-        private static readonly DataConverter DataConverter = new JsonDataConverter();
+        static readonly DataConverter DataConverter = new JsonDataConverter();
 
         internal TrackingDispatcher(MessagingFactory messagingFactory,
             TaskHubDescription taskHubDescription,

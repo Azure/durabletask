@@ -210,15 +210,7 @@ namespace DurableTask
                 throw new ArgumentException("orchestrationInstance");
             }
 
-            string instanceId = orchestrationInstance.InstanceId;
-
-            var taskMessage = new TaskMessage
-            {
-                OrchestrationInstance = orchestrationInstance,
-                Event = new ExecutionTerminatedEvent(-1, reason)
-            };
-
-            await this.serviceClient.SendTaskOrchestrationMessage(taskMessage);
+            await this.serviceClient.ForceTerminateTaskOrchestrationAsync(orchestrationInstance.InstanceId, reason);
         }
 
         // AFFANDAR : TODO : just scan this file and fix up xml comments
@@ -248,7 +240,7 @@ namespace DurableTask
 
         // Instance query methods
         // Orchestration states
-        // TODO : Fix summaries to not talk about azure storage (and not reutnr those exceptions, they should be wrapped)
+        // TODO : Fix summaries to not talk about azure storage (and not return those exceptions, they should be wrapped)
         /// <summary>
         ///     Get a list of orchestration states from the instance storage table for the
         ///     most current execution (generation) of the specified instance.

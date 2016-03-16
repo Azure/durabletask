@@ -26,25 +26,17 @@ namespace DurableTask
     using DurableTask.Serializing;
     using DurableTask.Tracing;
 
-    public class TaskOrchestrationDispatcher2 //: DispatcherBase2<TaskOrchestrationWorkItem>
+    public class TaskOrchestrationDispatcher2 
     {
         readonly NameVersionObjectManager<TaskOrchestration> objectManager;
-        //readonly TaskHubWorkerSettings settings;
         readonly IOrchestrationService orchestrationService;
-        private readonly WorkItemDispatcher<TaskOrchestrationWorkItem> dispatcher;
-        private static readonly DataConverter DataConverter = new JsonDataConverter();
+        readonly WorkItemDispatcher<TaskOrchestrationWorkItem> dispatcher;
+        static readonly DataConverter DataConverter = new JsonDataConverter();
 
         internal TaskOrchestrationDispatcher2(
-            //TaskHubWorkerSettings workerSettings,
             IOrchestrationService orchestrationService,
             NameVersionObjectManager<TaskOrchestration> objectManager)
-            //: base("TaskOrchestration Dispatcher", item => item == null  ? string.Empty : item.InstanceId)  // AFFANDAR : TODO : revisit this abstraction
         {
-            //if (settings == null)
-            //{
-            //    throw new ArgumentNullException(nameof(settings));
-            //}
-
             if (orchestrationService == null)
             {
                 throw new ArgumentNullException(nameof(orchestrationService));
@@ -55,7 +47,6 @@ namespace DurableTask
                 throw new ArgumentNullException(nameof(objectManager));
             }
 
-            //this.settings = workerSettings.Clone();
             this.objectManager = objectManager;
 
             this.orchestrationService = orchestrationService;
@@ -69,7 +60,7 @@ namespace DurableTask
                 GetDelayInSecondsAfterOnProcessException = orchestrationService.GetDelayInSecondsAfterOnProcessException,
                 SafeReleaseWorkItem = orchestrationService.ReleaseTaskOrchestrationWorkItemAsync,
                 AbortWorkItem = orchestrationService.AbandonTaskOrchestrationWorkItemAsync,
-                MaxConcurrentWorkItems = orchestrationService.MaxConcurrentTaskOrchestrationWorkItems()
+                MaxConcurrentWorkItems = orchestrationService.MaxConcurrentTaskOrchestrationWorkItems
             };
         }
 
@@ -183,9 +174,6 @@ namespace DurableTask
                     //
                     // We also put in a fake timer to force next orchestration task for remaining messages
                     int totalMessages = messagesToSend.Count + subOrchestrationMessages.Count + timerMessages.Count;
-                    // Todo : need to account for tracking/history messages here as well, need to move into orchestration service to do that
-
-                    // AFFANDAR : TODO : this should be moved to the service bus orchestration service
                     if (this.orchestrationService.IsMaxMessageCountExceeded(totalMessages, runtimeState))
                     {
                         TraceHelper.TraceInstance(TraceEventType.Information, runtimeState.OrchestrationInstance,
@@ -495,42 +483,5 @@ namespace DurableTask
 
             return taskMessage;
         }
-        /*
-        protected Task AbortWorkItemAsync(TaskOrchestrationWorkItem workItem)
-        {
-            return this.orchestrationService.AbandonTaskOrchestrationWorkItemAsync(workItem);
-        }
-        
-        protected int GetDelayInSecondsAfterOnProcessException(Exception exception)
-        {
-            if (orchestrationService.IsTransientException(exception))  
-            {
-                return settings.TaskOrchestrationDispatcherSettings.TransientErrorBackOffSecs;
-            }
-
-            return 0;
-        }
-
-        protected int GetDelayInSecondsAfterOnFetchException(Exception exception)
-        {
-            if (exception is TimeoutException)
-            {
-                return 0;
-            }
-
-            int delay = settings.TaskOrchestrationDispatcherSettings.NonTransientErrorBackOffSecs;
-            if (orchestrationService.IsTransientException(exception))
-            {
-                delay = settings.TaskOrchestrationDispatcherSettings.TransientErrorBackOffSecs;
-            }
-
-            return delay;
-        }
-
-        protected Task SafeReleaseWorkItemAsync(TaskOrchestrationWorkItem workItem)
-        {
-            return this.orchestrationService.ReleaseTaskOrchestrationWorkItemAsync(workItem);
-        }
-        */
     }
 }

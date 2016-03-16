@@ -45,39 +45,40 @@ namespace DurableTask
         const int MaxMessageCount = 80;
         const int SessionStreamWarningSizeInBytes = 200 * 1024;
         const int SessionStreamTerminationThresholdInBytes = 230 * 1024;
+        const int StatusPollingIntervalInSeconds = 2;
 
-        private static readonly DataConverter DataConverter = new JsonDataConverter();
-        private readonly string connectionString;
-        private readonly string hubName;
-        private readonly ServiceBusOrchestrationServiceSettings settings;
-        private readonly MessagingFactory messagingFactory;
-        private QueueClient workerQueueClient;
-        private MessageSender deciderSender;
-        private QueueClient orchestratorQueueClient;
-        private MessageSender workerSender;
-        private QueueClient trackingQueueClient;
-        private MessageSender trackingSender;
-        private readonly string workerEntityName;
-        private readonly string orchestratorEntityName;
-        private readonly string trackingEntityName;
-        private WorkItemDispatcher<TrackingWorkItem> trackingDispatcher;
-        private IOrchestrationServiceHistoryProvider historyProvider;
+        static readonly DataConverter DataConverter = new JsonDataConverter();
+        readonly string connectionString;
+        readonly string hubName;
+        readonly ServiceBusOrchestrationServiceSettings settings;
+        readonly MessagingFactory messagingFactory;
+        QueueClient workerQueueClient;
+        MessageSender orchestratorSender;
+        QueueClient orchestratorQueueClient;
+        MessageSender workerSender;
+        QueueClient trackingQueueClient;
+        MessageSender trackingSender;
+        readonly string workerEntityName;
+        readonly string orchestratorEntityName;
+        readonly string trackingEntityName;
+        WorkItemDispatcher<TrackingWorkItem> trackingDispatcher;
+        IOrchestrationServiceInstanceStore instanceStore;
 
         // TODO : Make user of these instead of passing around the object references.
-        // private ConcurrentDictionary<string, ServiceBusOrchestrationSession> orchestrationSessions;
-        // private ConcurrentDictionary<string, MessageSession> orchestrationMessages;
+        // ConcurrentDictionary<string, ServiceBusOrchestrationSession> orchestrationSessions;
+        // ConcurrentDictionary<string, MessageSession> orchestrationMessages;
 
         /// <summary>
         ///     Create a new ServiceBusOrchestrationService to the given service bus connection string and hubname
         /// </summary>
         /// <param name="connectionString">Service Bus connection string</param>
         /// <param name="hubName">Hubname to use with the connection string</param>
-        /// <param name="historyProvider">History Provider, when supplied history messages will be tracked</param>
+        /// <param name="instanceStore">History Provider, when supplied history messages will be tracked</param>
         /// <param name="settings">Settings object for service and client</param>
         public ServiceBusOrchestrationService(
             string connectionString, 
             string hubName,
-            IOrchestrationServiceHistoryProvider historyProvider,
+            IOrchestrationServiceInstanceStore instanceStore,
             ServiceBusOrchestrationServiceSettings settings)
         {
             this.connectionString = connectionString;
@@ -87,9 +88,9 @@ namespace DurableTask
             orchestratorEntityName = string.Format(FrameworkConstants.OrchestratorEndpointFormat, this.hubName);
             trackingEntityName = string.Format(FrameworkConstants.TrackingEndpointFormat, this.hubName);
             this.settings = settings ?? new ServiceBusOrchestrationServiceSettings();
-            if (historyProvider != null)
+            if (instanceStore != null)
             {
-                this.historyProvider = historyProvider;
+                this.instanceStore = instanceStore;
                 trackingDispatcher = new WorkItemDispatcher<TrackingWorkItem>(
                     "TrackingDispatcher",
                     item => item == null ? string.Empty : item.InstanceId,
@@ -104,7 +105,7 @@ namespace DurableTask
 
         public async Task StartAsync()
         {
-            deciderSender = await messagingFactory.CreateMessageSenderAsync(orchestratorEntityName, workerEntityName);
+            orchestratorSender = await messagingFactory.CreateMessageSenderAsync(orchestratorEntityName, workerEntityName);
             workerSender = await messagingFactory.CreateMessageSenderAsync(workerEntityName, orchestratorEntityName);
             trackingSender = await messagingFactory.CreateMessageSenderAsync(trackingEntityName, orchestratorEntityName);
             workerQueueClient = messagingFactory.CreateQueueClient(workerEntityName);
@@ -124,9 +125,8 @@ namespace DurableTask
         public async Task StopAsync(bool isForced)
         {
             await Task.WhenAll(
-                this.messagingFactory.CloseAsync(),
                 this.workerSender.CloseAsync(),
-                this.deciderSender.CloseAsync(),
+                this.orchestratorSender.CloseAsync(),
                 this.trackingSender.CloseAsync(),
                 this.orchestratorQueueClient.CloseAsync(),
                 this.trackingQueueClient.CloseAsync(),
@@ -136,6 +136,8 @@ namespace DurableTask
             {
                 await this.trackingDispatcher.StopAsync(isForced);
             }
+
+            await this.messagingFactory.CloseAsync();
         }
 
         public Task CreateAsync()
@@ -151,7 +153,7 @@ namespace DurableTask
                 SafeDeleteQueueAsync(namespaceManager, orchestratorEntityName),
                 SafeDeleteQueueAsync(namespaceManager, workerEntityName)
                 );
-            if (historyProvider != null)
+            if (instanceStore != null)
             {
                 await SafeDeleteQueueAsync(namespaceManager, trackingEntityName);
             }
@@ -162,15 +164,15 @@ namespace DurableTask
                 CreateQueueAsync(namespaceManager, orchestratorEntityName, true, FrameworkConstants.MaxDeliveryCount),
                 CreateQueueAsync(namespaceManager, workerEntityName, false, FrameworkConstants.MaxDeliveryCount)
                 );
-            if (historyProvider != null)
+            if (instanceStore != null)
             {
                 await CreateQueueAsync(namespaceManager, trackingEntityName, true, FrameworkConstants.MaxDeliveryCount);
             }
 
             // TODO : backward compat, add support for createInstanceStore flag 
-            if (historyProvider != null)
+            if (instanceStore != null)
             {
-                await historyProvider.InitializeStorage(true);
+                await instanceStore.InitializeStorage(true);
             }
         }
 
@@ -186,7 +188,9 @@ namespace DurableTask
         /// <param name="runtimeState">The Orchestration runtime state this message count is associated with</param>
         public bool IsMaxMessageCountExceeded(int currentMessageCount, OrchestrationRuntimeState runtimeState)
         {
-            return currentMessageCount > MaxMessageCount;
+            return currentMessageCount
+                + ((instanceStore != null) ? runtimeState.NewEvents.Count + 1 : 0) // one history message per new message + 1 for the orchestration
+                > MaxMessageCount;
         }
 
         public int GetDelayInSecondsAfterOnProcessException(Exception exception)
@@ -215,10 +219,7 @@ namespace DurableTask
             return delay;
         }
 
-        public int MaxConcurrentTaskOrchestrationWorkItems()
-        {
-            return this.settings.TaskOrchestrationDispatcherSettings.MaxConcurrentOrchestrations;
-        }
+        public int MaxConcurrentTaskOrchestrationWorkItems => this.settings.TaskOrchestrationDispatcherSettings.MaxConcurrentOrchestrations;
 
         /// <summary>
         ///     Wait for the next orchestration work item and return the orchestration work item
@@ -235,6 +236,7 @@ namespace DurableTask
                 return null;
             }
 
+            // TODO : Here an elsewhere, consider standard rerty block instead of our own hand rolled version
             IList<BrokeredMessage> newMessages =
                 (await Utils.ExecuteWithRetries(() => session.ReceiveBatchAsync(PrefetchCount),
                     session.SessionId, "Receive Session Message Batch", MaxRetries, IntervalBetweenRetriesSecs)).ToList();
@@ -246,7 +248,7 @@ namespace DurableTask
             IList<TaskMessage> newTaskMessages = await Task.WhenAll(
                 newMessages.Select(async message => await ServiceBusUtils.GetObjectFromBrokeredMessageAsync<TaskMessage>(message)));
 
-            var runtimeState = await GetSessionState(session);
+            OrchestrationRuntimeState runtimeState = await GetSessionState(session);
 
             var lockTokens = newMessages.ToDictionary(m => m.LockToken, m => m);
             var sessionState = new ServiceBusOrchestrationSession
@@ -338,12 +340,16 @@ namespace DurableTask
                     if (timerMessages?.Count > 0)
                     {
                         await orchestratorQueueClient.SendBatchAsync(
-                            timerMessages.Select(m => 
-                            ServiceBusUtils.GetBrokeredMessageFromObject(
-                                m, 
-                                settings.MessageCompressionSettings, 
-                                newOrchestrationRuntimeState.OrchestrationInstance, 
-                                "Timer Message"))
+                            timerMessages.Select(m =>
+                            {
+                                BrokeredMessage message = ServiceBusUtils.GetBrokeredMessageFromObject(
+                                m,
+                                settings.MessageCompressionSettings,
+                                newOrchestrationRuntimeState.OrchestrationInstance,
+                                "Timer Message");
+                                message.ScheduledEnqueueTimeUtc = ((TimerFiredEvent)m.Event).FireAt;
+                                return message;
+                            })
                             .ToList()
                             );
                     }
@@ -372,8 +378,7 @@ namespace DurableTask
                             );
                     }
 
-                    // todo : add tracking here
-                    if (historyProvider != null)
+                    if (instanceStore != null)
                     {
                         List<BrokeredMessage> trackingMessages = CreateTrackingMessages(runtimeState);
 
@@ -388,8 +393,10 @@ namespace DurableTask
                 }
 
                 await session.CompleteBatchAsync(sessionState.LockTokens.Keys);
-                await sessionState.Session.CloseAsync();
                 ts.Complete();
+
+                // This is just outside the transaction to avoid a possible race condition (e.g. a session got unlocked and then the txn was committed).
+                await sessionState.Session.CloseAsync();
             }
         }
 
@@ -399,23 +406,7 @@ namespace DurableTask
         /// <param name="workItem">The task orchestration to abandon</param>
         public Task ReleaseTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
-            return Task.FromResult(0);
-            /*
-            var sessionState = workItem?.SessionInstance as ServiceBusOrchestrationSession;
-            if (sessionState?.Session == null)
-            {
-                return;
-            }
-
-            try
-            {
-                await sessionState.Session.CloseAsync();
-            }
-            catch (Exception ex) when (!Utils.IsFatal(ex))
-            {
-                TraceHelper.TraceExceptionSession(TraceEventType.Warning, sessionState.Session.SessionId, ex, "Error while closing session");
-            }
-            */
+            return Task.FromResult(0); // This provider does not need to anything here
         }
 
         /// <summary>
@@ -430,7 +421,6 @@ namespace DurableTask
                 return;
             }
 
-            // todo: old code does not have this in a transaction, should this?
             TraceHelper.TraceSession(TraceEventType.Error, workItem.InstanceId, "Abandoning {0} messages due to workitem abort", sessionState.LockTokens.Keys.Count());
             foreach (var lockToken in sessionState.LockTokens.Keys)
             {
@@ -448,10 +438,7 @@ namespace DurableTask
         }
 
 
-        public int MaxConcurrentTaskActivityWorkItems()
-        {
-            return this.settings.TaskActivityDispatcherSettings.MaxConcurrentActivities;
-        }
+        public int MaxConcurrentTaskActivityWorkItems => this.settings.TaskActivityDispatcherSettings.MaxConcurrentActivities;
 
         /// <summary>
         ///    Wait for an lock the next task activity to be processed 
@@ -523,7 +510,7 @@ namespace DurableTask
             {
                 await Task.WhenAll(
                     workerQueueClient.CompleteAsync(originalMessage.LockToken),
-                    deciderSender.SendAsync(brokeredResponseMessage));
+                    orchestratorSender.SendAsync(brokeredResponseMessage));
                 ts.Complete();
             }
         }
@@ -565,9 +552,16 @@ namespace DurableTask
             await sender.SendAsync(brokeredMessage).ConfigureAwait(false);
             await sender.CloseAsync().ConfigureAwait(false);
         }
-        public Task ForceTerminateTaskOrchestrationAsync(string instanceId)
+
+        public async Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason)
         {
-            throw new NotImplementedException();
+            var taskMessage = new TaskMessage
+            {
+                OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId },
+                Event = new ExecutionTerminatedEvent(-1, reason)
+            };
+
+            await SendTaskOrchestrationMessage(taskMessage);
         }
 
         /// <summary>
@@ -590,8 +584,6 @@ namespace DurableTask
                 throw new ArgumentException("instanceId");
             }
 
-            int sleepForSeconds = 2;
-
             var timeoutSeconds = timeout.TotalSeconds;
 
             while (timeoutSeconds > 0)
@@ -599,8 +591,8 @@ namespace DurableTask
                 OrchestrationState state = await GetOrchestrationStateAsync(instanceId, executionId);
                 if (state == null || (state.OrchestrationStatus == OrchestrationStatus.Running))
                 {
-                    await Task.Delay(sleepForSeconds * 1000, cancellationToken);
-                    timeoutSeconds -= sleepForSeconds;
+                    await Task.Delay(StatusPollingIntervalInSeconds * 1000, cancellationToken);
+                    timeoutSeconds -= StatusPollingIntervalInSeconds;
                 }
                 else
                 {
@@ -614,25 +606,24 @@ namespace DurableTask
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
         {
             ThrowIfInstanceStoreNotConfigured();
-            IEnumerable<OrchestrationStateHistoryEvent> states = await historyProvider.GetOrchestrationStateAsync(instanceId, allExecutions);
+            IEnumerable<OrchestrationStateHistoryEvent> states = await instanceStore.GetOrchestrationStateAsync(instanceId, allExecutions);
             return states?.Select(s => s.State).ToList();
         }
 
         public async Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)
         {
             ThrowIfInstanceStoreNotConfigured();
-            OrchestrationStateHistoryEvent state = await historyProvider.GetOrchestrationStateAsync(instanceId, executionId);
+            OrchestrationStateHistoryEvent state = await instanceStore.GetOrchestrationStateAsync(instanceId, executionId);
             return state?.State;
         }
 
         public async Task<string> GetOrchestrationHistoryAsync(string instanceId, string executionId)
         {
             ThrowIfInstanceStoreNotConfigured();
-            var historyEvents = await historyProvider.GetOrchestrationHistoryEventsAsync(instanceId, executionId);
+            IEnumerable<OrchestrationWorkItemEvent> historyEvents =
+                await instanceStore.GetOrchestrationHistoryEventsAsync(instanceId, executionId);
 
-            var events = new List<HistoryEvent>(historyEvents.Select(historyEventEntity => historyEventEntity.HistoryEvent));
-
-            return DataConverter.Serialize(events);
+            return DataConverter.Serialize(historyEvents.Select(historyEventEntity => historyEventEntity.HistoryEvent));
         }
 
         public async Task PurgeOrchestrationInstanceHistoryAsync(
@@ -643,7 +634,7 @@ namespace DurableTask
 
             TraceHelper.Trace(TraceEventType.Information, $"Purging orchestration instances before: {thresholdDateTimeUtc}, Type: {timeRangeFilterType}");
 
-            var purgedEvents = await historyProvider.PurgeOrchestrationHistoryEventsAsync(thresholdDateTimeUtc, timeRangeFilterType);
+            int purgedEvents = await instanceStore.PurgeOrchestrationHistoryEventsAsync(thresholdDateTimeUtc, timeRangeFilterType);
 
             TraceHelper.Trace(TraceEventType.Information, $"Purged {purgedEvents} orchestration histories");
         }
@@ -652,7 +643,7 @@ namespace DurableTask
         ///     Inspect an exception to see if it's a transient exception that may apply different delays
         /// </summary>
         /// <param name="exception">Exception to inspect</param>
-        private static bool IsTransientException(Exception exception)
+        static bool IsTransientException(Exception exception)
         {
             return (exception as MessagingException)?.IsTransient ?? false;
         }
@@ -661,7 +652,7 @@ namespace DurableTask
         ///     Wait for the next orchestration work item and return the orchestration work item
         /// </summary>
         /// <param name="receiveTimeout">The timespan to wait for new messages before timing out</param>
-        private async Task<TrackingWorkItem> FetchTrackingWorkItemAsync(TimeSpan receiveTimeout)
+        async Task<TrackingWorkItem> FetchTrackingWorkItemAsync(TimeSpan receiveTimeout)
         {
             //todo: this method should use a more generic method to avoid the dupe code
             MessageSession session = await trackingQueueClient.AcceptMessageSessionAsync(receiveTimeout);
@@ -682,8 +673,6 @@ namespace DurableTask
             IList<TaskMessage> newTaskMessages = await Task.WhenAll(
                 newMessages.Select(async message => await ServiceBusUtils.GetObjectFromBrokeredMessageAsync<TaskMessage>(message)));
 
-            var runtimeState = await GetSessionState(session);
-
             var lockTokens = newMessages.ToDictionary(m => m.LockToken, m => m);
             var sessionState = new ServiceBusOrchestrationSession
             {
@@ -696,7 +685,6 @@ namespace DurableTask
                 InstanceId = session.SessionId,
                 LockedUntilUtc = session.LockedUntilUtc,
                 NewMessages = newTaskMessages,
-                OrchestrationRuntimeState = runtimeState,
                 SessionInstance = sessionState
             };
         }
@@ -753,10 +741,9 @@ namespace DurableTask
         ///     Process a tracking work item, sending to storage and releasing
         /// </summary>
         /// <param name="workItem">The tracking work item to process</param>
-        private async Task ProcessTrackingWorkItemAsync(TrackingWorkItem workItem)
+        async Task ProcessTrackingWorkItemAsync(TrackingWorkItem workItem)
         {
 
-            var runtimeState = workItem.OrchestrationRuntimeState;
             var sessionState = workItem.SessionInstance as ServiceBusOrchestrationSession;
             if (sessionState == null)
             {
@@ -796,7 +783,7 @@ namespace DurableTask
             // TODO : pick a retry strategy, old code wrapped every individual item in a retry
             try
             {
-                await historyProvider.WriteEntitesAsync(historyEntities);
+                await instanceStore.WriteEntitesAsync(historyEntities);
             }
             catch (Exception e) when (!Utils.IsFatal(e))
             {
@@ -809,7 +796,7 @@ namespace DurableTask
                 // TODO : Original code has this as a loop, why not just a batch??
                 foreach (OrchestrationStateHistoryEvent stateEntity in stateEntities)
                 {
-                    await historyProvider.WriteEntitesAsync(new List<OrchestrationStateHistoryEvent> { stateEntity });
+                    await instanceStore.WriteEntitesAsync(new List<OrchestrationStateHistoryEvent> { stateEntity });
                 }
             }
             catch (Exception e) when (!Utils.IsFatal(e))
@@ -819,7 +806,6 @@ namespace DurableTask
             }
 
             // Cleanup our session
-            // TODO : Should we use SyncExecuteWithRetries, old code does but no other places do
             await sessionState.Session.CompleteBatchAsync(sessionState.LockTokens.Keys);
             await sessionState.Session.CloseAsync();
         }
@@ -844,7 +830,7 @@ namespace DurableTask
             string serializedHistoryEvent = Utils.EscapeJson(DataConverter.Serialize(stateEntity.State));
             int historyEventLength = serializedHistoryEvent.Length;
 
-            int maxLen = historyProvider?.MaxHistoryEntryLength() ?? int.MaxValue;
+            int maxLen = instanceStore?.MaxHistoryEntryLength?? int.MaxValue;
 
             if (historyEventLength > maxLen)
             {
@@ -857,11 +843,11 @@ namespace DurableTask
                 + $" State Length: {historyEventLength}\n{serializedHistoryEvent}");
         }
 
-        private string GetNormalizedWorkItemEvent(int index, string message, OrchestrationWorkItemEvent entity)
+        string GetNormalizedWorkItemEvent(int index, string message, OrchestrationWorkItemEvent entity)
         {
             string serializedHistoryEvent = Utils.EscapeJson(DataConverter.Serialize(entity.HistoryEvent));
             int historyEventLength = serializedHistoryEvent.Length;
-            int maxLen = historyProvider?.MaxHistoryEntryLength() ?? int.MaxValue;
+            int maxLen = instanceStore?.MaxHistoryEntryLength?? int.MaxValue;
 
             if (historyEventLength > maxLen)
             {
@@ -872,13 +858,13 @@ namespace DurableTask
                 $"{message} - #{index} - Instance Id: {entity.InstanceId}, Execution Id: {entity.ExecutionId}, HistoryEvent Length: {historyEventLength}\n{serializedHistoryEvent}");
         }
 
-        private string GetFormattedLog(string input)
+        string GetFormattedLog(string input)
         {
             // todo : fill this method with the correct workitemdispatcher prefix
             return input;
         }
 
-        private static async Task<OrchestrationRuntimeState> GetSessionState(MessageSession session)
+        static async Task<OrchestrationRuntimeState> GetSessionState(MessageSession session)
         {
             long rawSessionStateSize;
             long newSessionStateSize;
@@ -900,7 +886,7 @@ namespace DurableTask
             return runtimeState;
         }
 
-        private async Task<bool> TrySetSessionState(
+        async Task<bool> TrySetSessionState(
             TaskOrchestrationWorkItem workItem,
             OrchestrationRuntimeState newOrchestrationRuntimeState,
             OrchestrationRuntimeState runtimeState,
@@ -908,7 +894,14 @@ namespace DurableTask
         {
             bool isSessionSizeThresholdExceeded = false;
 
+            if (newOrchestrationRuntimeState == null)
+            {
+                session.SetState(null);
+                return true;
+            }
+
             string serializedState = DataConverter.Serialize(newOrchestrationRuntimeState);
+
             long originalStreamSize = 0;
             using (
                 Stream compressedState = Utils.WriteStringToStream(
@@ -948,7 +941,7 @@ namespace DurableTask
             return !isSessionSizeThresholdExceeded;
         }
 
-        private static Task SafeDeleteQueueAsync(NamespaceManager namespaceManager, string path)
+        static Task SafeDeleteQueueAsync(NamespaceManager namespaceManager, string path)
         {
             try
             {
@@ -960,7 +953,7 @@ namespace DurableTask
             }
         }
 
-        private Task SafeCreateQueueAsync(NamespaceManager namespaceManager, string path, bool requiresSessions,
+        Task SafeCreateQueueAsync(NamespaceManager namespaceManager, string path, bool requiresSessions,
             int maxDeliveryCount)
         {
             try
@@ -973,7 +966,7 @@ namespace DurableTask
             }
         }
 
-        private async Task CreateQueueAsync(
+        async Task CreateQueueAsync(
             NamespaceManager namespaceManager, 
             string path, 
             bool requiresSessions,
@@ -988,7 +981,7 @@ namespace DurableTask
             await namespaceManager.CreateQueueAsync(description);
         }
 
-        private BrokeredMessage CreateForcedTerminateMessage(string instanceId, string reason)
+        BrokeredMessage CreateForcedTerminateMessage(string instanceId, string reason)
         {
             var newOrchestrationInstance = new OrchestrationInstance {InstanceId = instanceId};
             var taskMessage = new TaskMessage
@@ -1006,7 +999,7 @@ namespace DurableTask
             return message;
         }
 
-        private static OrchestrationRuntimeState GetOrCreateInstanceState(Stream stateStream, string sessionId)
+        static OrchestrationRuntimeState GetOrCreateInstanceState(Stream stateStream, string sessionId)
         {
             // todo : find the correct home for this method
             OrchestrationRuntimeState runtimeState;
@@ -1040,7 +1033,7 @@ namespace DurableTask
 
         void ThrowIfInstanceStoreNotConfigured()
         {
-            if (historyProvider == null)
+            if (instanceStore == null)
             {
                 throw new InvalidOperationException("Instance store is not configured");
             }

@@ -23,23 +23,25 @@ namespace FrameworkUnitTests
     [TestClass]
     public class DynamicProxyTests
     {
-        TaskHubClient client;
-        TaskHubWorker taskHub;
+        TaskHubClient2 client;
+        TaskHubWorker2 taskHub;
 
         [TestInitialize]
         public void TestInitialize()
         {
-            client = TestHelpers.CreateTaskHubClient();
+            client = TestHelpers2.CreateTaskHubClient();
 
-            taskHub = TestHelpers.CreateTaskHub();
-            taskHub.CreateHub();
+            taskHub = TestHelpers2.CreateTaskHub();
+            // todo : verify not needed
+            //taskHub.CreateHub();
         }
 
         [TestCleanup]
         public void TestCleanup()
         {
-            taskHub.Stop(true);
-            taskHub.DeleteHub();
+            taskHub.StopAsync(true).Wait();
+            // todo : verify not needed
+            // taskHub.DeleteHub();
         }
 
         #region Common TaskActivities
@@ -63,19 +65,19 @@ namespace FrameworkUnitTests
         static readonly string GET_USER_VERSION = string.Empty;
 
         [TestMethod]
-        public void GreetingsDynamicProxyTest()
+        public async Task GreetingsDynamicProxyTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (GreetingsOrchestration))
+            await taskHub.AddTaskOrchestrations(typeof (GreetingsOrchestration))
                 .AddTaskActivities(
                     new NameValueObjectCreator<TaskActivity>(GET_USER_NAME, GET_USER_VERSION, new GetUserTask()),
                     new NameValueObjectCreator<TaskActivity>(SEND_GREETING_NAME, SEND_GREETING_VERSION,
                         new SendGreetingTask()))
-                .Start();
+                .StartAsync();
 
-            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof (GreetingsOrchestration), null);
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (GreetingsOrchestration), null);
 
-            bool isCompleted = TestHelpers.WaitForInstance(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
             Assert.AreEqual("Greeting send to Gabbar", GreetingsOrchestration.Result, "Orchestration Result is wrong!!!");
         }
 
@@ -118,18 +120,18 @@ namespace FrameworkUnitTests
         static readonly string COMPUTE_SUM_VERSION = string.Empty;
 
         [TestMethod]
-        public void AverageCalculatorDynamicProxyTest()
+        public async Task AverageCalculatorDynamicProxyTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (AverageCalculatorOrchestration))
+            await taskHub.AddTaskOrchestrations(typeof (AverageCalculatorOrchestration))
                 .AddTaskActivities(new NameValueObjectCreator<TaskActivity>(COMPUTE_SUM_NAME, COMPUTE_SUM_VERSION,
                     new ComputeSumTask()))
-                .Start();
+                .StartAsync();
 
-            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof (AverageCalculatorOrchestration),
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (AverageCalculatorOrchestration),
                 new[] {1, 50, 10});
 
-            bool isCompleted = TestHelpers.WaitForInstance(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
             Assert.AreEqual(25, AverageCalculatorOrchestration.Result, "Orchestration Result is wrong!!!");
         }
 
@@ -217,39 +219,39 @@ namespace FrameworkUnitTests
         static readonly string RETRY_VERSION = "1.0";
 
         [TestMethod]
-        public void RetryProxyTest()
+        public async Task RetryProxyTest()
         {
             var retryOptions = new RetryOptions(TimeSpan.FromSeconds(3), 4);
             var retryTask = new RetryTask(3);
 
-            taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
+            await taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
                 () => new RetryOrchestration(retryOptions)))
                 .AddTaskActivitiesFromInterface<IRetryTask>(retryTask)
-                .Start();
+                .StartAsync();
 
             RetryOrchestration.Result = null;
-            OrchestrationInstance id = client.CreateOrchestrationInstance(RETRY_NAME, RETRY_VERSION, null);
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(RETRY_NAME, RETRY_VERSION, null);
 
-            bool isCompleted = TestHelpers.WaitForInstance(client, id, 120);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 120));
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 120);
+            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 120));
             Assert.AreEqual("Attempts: 3", RetryOrchestration.Result, "Orchestration Result is wrong!!!");
         }
 
         [TestMethod]
-        public void RetryFailProxyTest()
+        public async Task RetryFailProxyTest()
         {
             var retryOptions = new RetryOptions(TimeSpan.FromSeconds(3), 3);
             var retryTask = new RetryTask(3);
-            taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
+            await taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
                 () => new RetryOrchestration(retryOptions)))
                 .AddTaskActivitiesFromInterface<IRetryTask>(retryTask)
-                .Start();
+                .StartAsync();
 
             RetryOrchestration.Result = null;
-            OrchestrationInstance id = client.CreateOrchestrationInstance(RETRY_NAME, RETRY_VERSION, null);
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(RETRY_NAME, RETRY_VERSION, null);
 
-            bool isCompleted = TestHelpers.WaitForInstance(client, id, 120);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 120));
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 120);
+            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 120));
             Assert.AreEqual("RetryCount is: 3", RetryOrchestration.Result, "Orchestration Result is wrong!!!");
         }
 

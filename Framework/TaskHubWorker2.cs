@@ -70,15 +70,9 @@ namespace DurableTask
             this.workerSettings = workerSettings;
         }
 
-        public TaskOrchestrationDispatcher2 TaskOrchestrationDispatcher
-        {
-            get { return orchestrationDispatcher; }
-        }
+        public TaskOrchestrationDispatcher2 TaskOrchestrationDispatcher => orchestrationDispatcher;
 
-        public TaskActivityDispatcher2 TaskActivityDispatcher
-        {
-            get { return activityDispatcher; }
-        }
+        public TaskActivityDispatcher2 TaskActivityDispatcher => activityDispatcher;
 
         // AFFANDAR : TODO : is this useful at all?
 

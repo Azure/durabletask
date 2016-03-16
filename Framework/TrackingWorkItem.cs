@@ -19,7 +19,6 @@ namespace DurableTask
     public class TrackingWorkItem
     {
         public string InstanceId;
-        public OrchestrationRuntimeState OrchestrationRuntimeState;
         public DateTime LockedUntilUtc;
         public IList<TaskMessage> NewMessages;
         public object SessionInstance;

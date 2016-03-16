@@ -20,27 +20,18 @@ namespace DurableTask
     using DurableTask.Common;
     using DurableTask.Exceptions;
     using DurableTask.History;
-    using DurableTask.Serializing;
     using DurableTask.Tracing;
 
-    public sealed class TaskActivityDispatcher2 //: DispatcherBase2<TaskActivityWorkItem>
+    public sealed class TaskActivityDispatcher2
     {
         readonly NameVersionObjectManager<TaskActivity> objectManager;
-        //readonly TaskHubWorkerSettings settings;
-        private readonly WorkItemDispatcher<TaskActivityWorkItem> dispatcher; 
+        readonly WorkItemDispatcher<TaskActivityWorkItem> dispatcher; 
         readonly IOrchestrationService orchestrationService;
         
         internal TaskActivityDispatcher2(
-            //TaskHubWorkerSettings workerSettings,
             IOrchestrationService orchestrationService,
             NameVersionObjectManager<TaskActivity> objectManager)
-            //: base("TaskActivityDispatcher", item => item.Id)
         {
-            //if (settings == null)
-            //{
-            //    throw new ArgumentNullException(nameof(settings));
-            //}
-
             if (orchestrationService == null)
             {
                 throw new ArgumentNullException(nameof(orchestrationService));
@@ -51,8 +42,6 @@ namespace DurableTask
                 throw new ArgumentNullException(nameof(objectManager));
             }
 
-            //settings = workerSettings.Clone();
-
             this.orchestrationService = orchestrationService;
             this.objectManager = objectManager;
 
@@ -62,9 +51,10 @@ namespace DurableTask
                 this.OnFetchWorkItemAsync,
                 this.OnProcessWorkItemAsync)
             {
+                AbortWorkItem = orchestrationService.AbandonTaskActivityWorkItemAsync,
                 GetDelayInSecondsAfterOnFetchException = orchestrationService.GetDelayInSecondsAfterOnFetchException,
                 GetDelayInSecondsAfterOnProcessException = orchestrationService.GetDelayInSecondsAfterOnProcessException,
-                MaxConcurrentWorkItems = orchestrationService.MaxConcurrentTaskOrchestrationWorkItems()
+                MaxConcurrentWorkItems = orchestrationService.MaxConcurrentTaskOrchestrationWorkItems
             };
         }
 
@@ -80,12 +70,12 @@ namespace DurableTask
 
         public bool IncludeDetails { get; set;} 
 
-        private Task<TaskActivityWorkItem> OnFetchWorkItemAsync(TimeSpan receiveTimeout)
+        Task<TaskActivityWorkItem> OnFetchWorkItemAsync(TimeSpan receiveTimeout)
         {
             return this.orchestrationService.LockNextTaskActivityWorkItem(receiveTimeout, CancellationToken.None);
         }
 
-        private async Task OnProcessWorkItemAsync(TaskActivityWorkItem workItem)
+        async Task OnProcessWorkItemAsync(TaskActivityWorkItem workItem)
         {
             // AFFANDAR : TODO : add this to the orchestration service impl
             //Utils.CheckAndLogDeliveryCount(message, taskHubDescription.MaxTaskActivityDeliveryCount);
@@ -215,26 +205,5 @@ namespace DurableTask
             DateTime maxRenewAt = DateTime.UtcNow.Add(TimeSpan.FromSeconds(30));
             return renewAt > maxRenewAt ? maxRenewAt : renewAt;
         }
-        /*
-        private int GetDelayInSecondsAfterOnProcessException(Exception exception)
-        {
-            if (orchestrationService.IsTransientException(exception))
-            {
-                return settings.TaskActivityDispatcherSettings.TransientErrorBackOffSecs;
-            }
-
-            return 0;
-        }
-
-        private int GetDelayInSecondsAfterOnFetchException(Exception exception)
-        {
-            int delay = settings.TaskActivityDispatcherSettings.NonTransientErrorBackOffSecs;
-            if (orchestrationService.IsTransientException(exception))
-            {
-                delay = settings.TaskActivityDispatcherSettings.TransientErrorBackOffSecs;
-            }
-            return delay;
-        }
-        */
     }
 }

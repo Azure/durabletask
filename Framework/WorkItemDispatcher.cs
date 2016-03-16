@@ -38,14 +38,14 @@ namespace DurableTask
         volatile int countDownToZeroDelay;
         volatile int delayOverrideSecs;
         volatile bool isFetching = false;
-        private bool isStarted = false;
+        bool isStarted = false;
 
         public int MaxConcurrentWorkItems { get; set; }
 
-        private readonly Func<T, string> workItemIdentifier;
+        readonly Func<T, string> workItemIdentifier;
 
-        private readonly Func<TimeSpan, Task<T>> FetchWorkItem;
-        private readonly Func<T, Task> ProcessWorkItem;
+        readonly Func<TimeSpan, Task<T>> FetchWorkItem;
+        readonly Func<T, Task> ProcessWorkItem;
         public Func<T, Task> SafeReleaseWorkItem;
         public Func<T, Task> AbortWorkItem;
         public Func<Exception, int> GetDelayInSecondsAfterOnFetchException = (exception) => 0;
@@ -152,7 +152,7 @@ namespace DurableTask
             }
         }
 
-        private async Task DispatchAsync()
+        async Task DispatchAsync()
         {
             while (isStarted)
             {
@@ -220,7 +220,6 @@ namespace DurableTask
                 }
 
                 delaySecs = Math.Max(delayOverrideSecs, delaySecs);
-
                 if (delaySecs > 0)
                 {
                     await Task.Delay(TimeSpan.FromSeconds(delaySecs));
@@ -228,7 +227,7 @@ namespace DurableTask
             }
         }
 
-        private async Task ProcessWorkItemAsync(object workItemObj)
+        async Task ProcessWorkItemAsync(object workItemObj)
         {
             var workItem = (T) workItemObj;
             bool abortWorkItem = true;

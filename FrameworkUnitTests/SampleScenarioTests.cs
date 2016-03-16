@@ -36,7 +36,7 @@ namespace FrameworkUnitTests
         public TestContext TestContext { get; set; }
 
         [TestInitialize]
-        public async void TestInitialize()
+        public void TestInitialize()
         {
             if (!TestContext.TestName.Contains("TestHost"))
             {

@@ -24,9 +24,9 @@ namespace FrameworkUnitTests
 
     public static class TestHelpers
     {
-        private static string ServiceBusConnectionString;
-        private static string StorageConnectionString;
-        private static string TaskHubName;
+        static string ServiceBusConnectionString;
+        static string StorageConnectionString;
+        static string TaskHubName;
 
         static TestHelpers()
         {

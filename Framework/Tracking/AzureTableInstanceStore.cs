@@ -23,13 +23,13 @@ namespace DurableTask.Tracking
     using DurableTask.Tracing;
     using Microsoft.WindowsAzure.Storage.Table;
 
-    public class AzureTableHistoryProvider : IOrchestrationServiceHistoryProvider
+    public class AzureTableInstanceStore : IOrchestrationServiceInstanceStore
     {
         const int MaxDisplayStringLengthForAzureTableColumn = (1024 * 24) - 20;
 
-        private readonly AzureTableClient tableClient;
+        readonly AzureTableClient tableClient;
 
-        public AzureTableHistoryProvider(string hubName, string tableConnectionString)
+        public AzureTableInstanceStore(string hubName, string tableConnectionString)
         {
             this.tableClient = new AzureTableClient(hubName, tableConnectionString);
         }
@@ -44,10 +44,7 @@ namespace DurableTask.Tracking
             await this.tableClient.CreateTableIfNotExistsAsync();
         }
 
-        public int MaxHistoryEntryLength()
-        {
-            return MaxDisplayStringLengthForAzureTableColumn;
-        }
+        public int MaxHistoryEntryLength => MaxDisplayStringLengthForAzureTableColumn;
 
         public async Task<object> WriteEntitesAsync(IEnumerable<OrchestrationHistoryEvent> entities)
         {
@@ -122,7 +119,7 @@ namespace DurableTask.Tracking
             return purgeCount;
         }
 
-        private async Task PurgeOrchestrationHistorySegmentAsync(
+        async Task PurgeOrchestrationHistorySegmentAsync(
             TableQuerySegment<AzureTableOrchestrationStateEntity> orchestrationStateEntitySegment)
         {
             var stateEntitiesToDelete = new List<AzureTableOrchestrationStateEntity>(orchestrationStateEntitySegment.Results);
@@ -148,7 +145,7 @@ namespace DurableTask.Tracking
             await Task.WhenAll(tableClient.DeleteEntitesAsync(stateEntitiesToDelete)).ConfigureAwait(false);
         }
 
-        private AzureTableCompositeTableEntity HistoryEventToTableEntity(OrchestrationHistoryEvent historyEvent)
+        AzureTableCompositeTableEntity HistoryEventToTableEntity(OrchestrationHistoryEvent historyEvent)
         {
             OrchestrationWorkItemEvent workItemEvent = null;
             OrchestrationStateHistoryEvent historyStateEvent = null;
@@ -172,7 +169,7 @@ namespace DurableTask.Tracking
             }
         }
 
-        private OrchestrationHistoryEvent TableEntityToHistoryEvent(AzureTableCompositeTableEntity entity)
+        OrchestrationHistoryEvent TableEntityToHistoryEvent(AzureTableCompositeTableEntity entity)
         {
             AzureTableOrchestrationHistoryEventEntity workItemEntity = null;
             AzureTableOrchestrationStateEntity historyStateEntity = null;
@@ -196,12 +193,12 @@ namespace DurableTask.Tracking
             }
         }
 
-        private OrchestrationStateHistoryEvent TableStateToStateEvent(AzureTableOrchestrationStateEntity entity)
+        OrchestrationStateHistoryEvent TableStateToStateEvent(AzureTableOrchestrationStateEntity entity)
         {
             return new OrchestrationStateHistoryEvent { State = entity.State };
         }
 
-        private OrchestrationWorkItemEvent TableHistoryEntityToWorkItemEvent(AzureTableOrchestrationHistoryEventEntity entity)
+        OrchestrationWorkItemEvent TableHistoryEntityToWorkItemEvent(AzureTableOrchestrationHistoryEventEntity entity)
         {
             return new OrchestrationWorkItemEvent
                 {

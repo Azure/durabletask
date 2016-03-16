@@ -22,27 +22,30 @@ namespace FrameworkUnitTests
     [TestClass]
     public class ErrorHandlingTests
     {
-        TaskHubClient client;
-        TaskHubWorker taskHub;
-        TaskHubWorker taskHubNoCompression;
+        TaskHubClient2 client;
+        TaskHubWorker2 taskHub;
+        TaskHubWorker2 taskHubNoCompression;
 
         [TestInitialize]
         public void TestInitialize()
         {
-            client = TestHelpers.CreateTaskHubClient();
+            client = TestHelpers2.CreateTaskHubClient();
 
-            taskHub = TestHelpers.CreateTaskHub();
-            taskHub.CreateHub();
+            taskHub = TestHelpers2.CreateTaskHub();
 
-            taskHubNoCompression = TestHelpers.CreateTaskHubNoCompression();
+            // todo : verify we don't need
+            //taskHub.CreateHub();
+
+            taskHubNoCompression = TestHelpers2.CreateTaskHubNoCompression();
         }
 
         [TestCleanup]
         public void TestCleanup()
         {
-            taskHub.Stop(true);
-            taskHubNoCompression.Stop(true);
-            taskHub.DeleteHub();
+            taskHub.StopAsync(true).Wait();
+            taskHubNoCompression.StopAsync(true).Wait();
+            // todo : verify we don't need
+            //taskHub.DeleteHub();
         }
 
         #region Retry Interceptor Tests
@@ -55,67 +58,67 @@ namespace FrameworkUnitTests
         static readonly string DO_WORK_VERSION = string.Empty;
 
         [TestMethod]
-        public void BasicRetryTest()
+        public async Task BasicRetryTest()
         {
             var retryOptions = new RetryOptions(TimeSpan.FromSeconds(3), 4);
             var retryTask = new RetryTask(3);
 
-            taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
+            await taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
                 () => new RetryOrchestration(retryOptions)))
                 .AddTaskActivitiesFromInterface<IRetryTask>(retryTask)
-                .Start();
+                .StartAsync();
 
             RetryOrchestration.Result = null;
-            OrchestrationInstance id = client.CreateOrchestrationInstance(RETRY_NAME, RETRY_VERSION, false);
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(RETRY_NAME, RETRY_VERSION, false);
 
-            bool isCompleted = TestHelpers.WaitForInstance(client, id, 120);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 120));
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 120);
+            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 120));
             Assert.AreEqual("DoWork Succeeded. Attempts: 3", RetryOrchestration.Result,
                 "Orchestration Result is wrong!!!");
         }
 
         [TestMethod]
-        public void BasicRetryFailTest()
+        public async Task BasicRetryFailTest()
         {
             var retryOptions = new RetryOptions(TimeSpan.FromSeconds(3), 3);
             var retryTask = new RetryTask(3);
 
-            taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
+            await taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
                 () => new RetryOrchestration(retryOptions)))
                 .AddTaskActivitiesFromInterface<IRetryTask>(retryTask)
-                .Start();
+                .StartAsync();
 
             RetryOrchestration.Result = null;
-            OrchestrationInstance id = client.CreateOrchestrationInstance(RETRY_NAME, RETRY_VERSION, false);
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(RETRY_NAME, RETRY_VERSION, false);
 
-            bool isCompleted = TestHelpers.WaitForInstance(client, id, 90);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 90));
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 90);
+            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 90));
             Assert.AreEqual("DoWork Failed. RetryCount is: 3", RetryOrchestration.Result,
                 "Orchestration Result is wrong!!!");
         }
 
         [TestMethod]
-        public void BasicRetryFailNoCompressionTest()
+        public async Task BasicRetryFailNoCompressionTest()
         {
             var retryOptions = new RetryOptions(TimeSpan.FromSeconds(3), 3);
             var retryTask = new RetryTask(3);
 
-            taskHubNoCompression.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME,
+            await taskHubNoCompression.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME,
                 RETRY_VERSION, () => new RetryOrchestration(retryOptions)))
                 .AddTaskActivitiesFromInterface<IRetryTask>(retryTask)
-                .Start();
+                .StartAsync();
 
             RetryOrchestration.Result = null;
-            OrchestrationInstance id = client.CreateOrchestrationInstance(RETRY_NAME, RETRY_VERSION, false);
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(RETRY_NAME, RETRY_VERSION, false);
 
-            bool isCompleted = TestHelpers.WaitForInstance(client, id, 90);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 90));
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 90);
+            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 90));
             Assert.AreEqual("DoWork Failed. RetryCount is: 3", RetryOrchestration.Result,
                 "Orchestration Result is wrong!!!");
         }
 
         [TestMethod]
-        public void RetryCustomHandlerFailThroughProxyTest()
+        public async Task RetryCustomHandlerFailThroughProxyTest()
         {
             var retryOptions = new RetryOptions(TimeSpan.FromSeconds(3), 3);
             retryOptions.Handle = e =>
@@ -128,23 +131,23 @@ namespace FrameworkUnitTests
 
             var retryTask = new RetryTask(2);
 
-            taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
+            await taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
                 () => new RetryOrchestration(retryOptions)))
                 .AddTaskActivitiesFromInterface<IRetryTask>(retryTask)
-                .Start();
+                .StartAsync();
 
             RetryOrchestration.Result = null;
-            OrchestrationInstance id = client.CreateOrchestrationInstance(RETRY_NAME, RETRY_VERSION, true);
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(RETRY_NAME, RETRY_VERSION, true);
 
-            bool isCompleted = TestHelpers.WaitForInstance(client, id, 90);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 90));
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 90);
+            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 90));
             Assert.AreEqual("DoWork Failed. RetryCount is: 1", RetryOrchestration.Result,
                 "Orchestration Result is wrong!!!");
             Assert.AreEqual(1, retryTask.RetryCount, "Retry Count is wrong");
         }
 
         [TestMethod]
-        public void RetryCustomHandlerFailTest()
+        public async Task RetryCustomHandlerFailTest()
         {
             var retryOptions = new RetryOptions(TimeSpan.FromSeconds(3), 3);
             retryOptions.Handle = e =>
@@ -156,23 +159,23 @@ namespace FrameworkUnitTests
             };
 
             var retryTask = new RetryTask(2);
-            taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
+            await taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
                 () => new RetryOrchestration(retryOptions)))
                 .AddTaskActivitiesFromInterface<IRetryTask>(retryTask)
-                .Start();
+                .StartAsync();
 
             RetryOrchestration.Result = null;
-            OrchestrationInstance id = client.CreateOrchestrationInstance(RETRY_NAME, RETRY_VERSION, false);
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(RETRY_NAME, RETRY_VERSION, false);
 
-            bool isCompleted = TestHelpers.WaitForInstance(client, id, 90);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 90));
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 90);
+            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 90));
             Assert.AreEqual("DoWork Failed. RetryCount is: 1", RetryOrchestration.Result,
                 "Orchestration Result is wrong!!!");
             Assert.AreEqual(1, retryTask.RetryCount, "Retry Count is wrong");
         }
 
         [TestMethod]
-        public void RetryCustomHandlerPassThroughProxyTest()
+        public async Task RetryCustomHandlerPassThroughProxyTest()
         {
             var retryOptions = new RetryOptions(TimeSpan.FromSeconds(3), 3);
             retryOptions.Handle = e =>
@@ -185,24 +188,24 @@ namespace FrameworkUnitTests
 
             var retryTask = new RetryTask(2);
 
-            taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
+            await taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
                 () => new RetryOrchestration(retryOptions)))
                 .AddTaskActivitiesFromInterface<IRetryTask>(retryTask)
-                .Start();
+                .StartAsync();
             taskHub.TaskActivityDispatcher.IncludeDetails = true;
 
             RetryOrchestration.Result = null;
-            OrchestrationInstance id = client.CreateOrchestrationInstance(RETRY_NAME, RETRY_VERSION, true);
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(RETRY_NAME, RETRY_VERSION, true);
 
-            bool isCompleted = TestHelpers.WaitForInstance(client, id, 90);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 90));
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 90);
+            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 90));
             Assert.AreEqual("DoWork Succeeded. Attempts: 2", RetryOrchestration.Result,
                 "Orchestration Result is wrong!!!");
             Assert.AreEqual(2, retryTask.RetryCount, "Retry Count is wrong");
         }
 
         [TestMethod]
-        public void RetryCustomHandlerPassTest()
+        public async Task RetryCustomHandlerPassTest()
         {
             var retryOptions = new RetryOptions(TimeSpan.FromSeconds(3), 3);
             retryOptions.Handle = e =>
@@ -214,24 +217,24 @@ namespace FrameworkUnitTests
             };
 
             var retryTask = new RetryTask(2);
-            taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
+            await taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
                 () => new RetryOrchestration(retryOptions)))
                 .AddTaskActivitiesFromInterface<IRetryTask>(retryTask)
-                .Start();
+                .StartAsync();
             taskHub.TaskActivityDispatcher.IncludeDetails = true;
 
             RetryOrchestration.Result = null;
-            OrchestrationInstance id = client.CreateOrchestrationInstance(RETRY_NAME, RETRY_VERSION, false);
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(RETRY_NAME, RETRY_VERSION, false);
 
-            bool isCompleted = TestHelpers.WaitForInstance(client, id, 90);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 90));
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 90);
+            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 90));
             Assert.AreEqual("DoWork Succeeded. Attempts: 2", RetryOrchestration.Result,
                 "Orchestration Result is wrong!!!");
             Assert.AreEqual(2, retryTask.RetryCount, "Retry Count is wrong");
         }
 
         [TestMethod]
-        public void RetryOnReasonCustomHandlerThroughProxyTest()
+        public async Task RetryOnReasonCustomHandlerThroughProxyTest()
         {
             var retryOptions = new RetryOptions(TimeSpan.FromSeconds(3), 3);
             retryOptions.Handle = e =>
@@ -244,24 +247,24 @@ namespace FrameworkUnitTests
             };
 
             var retryTask = new RetryTask(2);
-            taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
+            await taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
                 () => new RetryOrchestration(retryOptions)))
                 .AddTaskActivitiesFromInterface<IRetryTask>(retryTask)
-                .Start();
+                .StartAsync();
             taskHub.TaskActivityDispatcher.IncludeDetails = true;
 
             RetryOrchestration.Result = null;
-            OrchestrationInstance id = client.CreateOrchestrationInstance(RETRY_NAME, RETRY_VERSION, true);
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(RETRY_NAME, RETRY_VERSION, true);
 
-            bool isCompleted = TestHelpers.WaitForInstance(client, id, 90);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 90));
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 90);
+            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 90));
             Assert.AreEqual("DoWork Succeeded. Attempts: 2", RetryOrchestration.Result,
                 "Orchestration Result is wrong!!!");
             Assert.AreEqual(2, retryTask.RetryCount, "Retry Count is wrong");
         }
 
         [TestMethod]
-        public void RetryOnReasonCustomHandlerTest()
+        public async Task RetryOnReasonCustomHandlerTest()
         {
             var retryOptions = new RetryOptions(TimeSpan.FromSeconds(3), 3);
             retryOptions.Handle = e =>
@@ -274,24 +277,24 @@ namespace FrameworkUnitTests
             };
 
             var retryTask = new RetryTask(2);
-            taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
+            await taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
                 () => new RetryOrchestration(retryOptions)))
                 .AddTaskActivitiesFromInterface<IRetryTask>(retryTask)
-                .Start();
+                .StartAsync();
             taskHub.TaskActivityDispatcher.IncludeDetails = true;
 
             RetryOrchestration.Result = null;
-            OrchestrationInstance id = client.CreateOrchestrationInstance(RETRY_NAME, RETRY_VERSION, false);
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(RETRY_NAME, RETRY_VERSION, false);
 
-            bool isCompleted = TestHelpers.WaitForInstance(client, id, 90);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 90));
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 90);
+            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 90));
             Assert.AreEqual("DoWork Succeeded. Attempts: 2", RetryOrchestration.Result,
                 "Orchestration Result is wrong!!!");
             Assert.AreEqual(2, retryTask.RetryCount, "Retry Count is wrong");
         }
 
         [TestMethod]
-        public void RetryTimeoutThroughProxyTest()
+        public async Task RetryTimeoutThroughProxyTest()
         {
             var retryOptions = new RetryOptions(TimeSpan.FromSeconds(5), 10);
             retryOptions.BackoffCoefficient = 2;
@@ -299,92 +302,92 @@ namespace FrameworkUnitTests
 
             var retryTask = new RetryTask(3);
 
-            taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
+            await taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
                 () => new RetryOrchestration(retryOptions)))
                 .AddTaskActivitiesFromInterface<IRetryTask>(retryTask)
-                .Start();
+                .StartAsync();
 
             RetryOrchestration.Result = null;
-            OrchestrationInstance id = client.CreateOrchestrationInstance(RETRY_NAME, RETRY_VERSION, true);
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(RETRY_NAME, RETRY_VERSION, true);
 
-            bool isCompleted = TestHelpers.WaitForInstance(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
             Assert.IsTrue(RetryOrchestration.Result.StartsWith("DoWork Failed. RetryCount is:"),
                 "Orchestration Result is wrong!!!. Result: " + RetryOrchestration.Result);
             Assert.IsTrue(retryTask.RetryCount < 4, "Retry Count is wrong. Count: " + retryTask.RetryCount);
         }
 
         [TestMethod]
-        public void RetryTimeoutTest()
+        public async Task RetryTimeoutTest()
         {
             var retryOptions = new RetryOptions(TimeSpan.FromSeconds(5), 10);
             retryOptions.BackoffCoefficient = 2;
             retryOptions.RetryTimeout = TimeSpan.FromSeconds(10);
 
             var retryTask = new RetryTask(3);
-            taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
+            await taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
                 () => new RetryOrchestration(retryOptions)))
                 .AddTaskActivitiesFromInterface<IRetryTask>(retryTask)
-                .Start();
+                .StartAsync();
 
             RetryOrchestration.Result = null;
-            OrchestrationInstance id = client.CreateOrchestrationInstance(RETRY_NAME, RETRY_VERSION, false);
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(RETRY_NAME, RETRY_VERSION, false);
 
-            bool isCompleted = TestHelpers.WaitForInstance(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
             Assert.IsTrue(RetryOrchestration.Result.StartsWith("DoWork Failed. RetryCount is:"),
                 "Orchestration Result is wrong!!!. Result: " + RetryOrchestration.Result);
             Assert.IsTrue(retryTask.RetryCount < 4, "Retry Count is wrong. Count: " + retryTask.RetryCount);
         }
 
         [TestMethod]
-        public void RetryMaxIntervalThroughProxyTest()
+        public async Task RetryMaxIntervalThroughProxyTest()
         {
             var retryOptions = new RetryOptions(TimeSpan.FromSeconds(3), 3);
             retryOptions.BackoffCoefficient = 10;
             retryOptions.MaxRetryInterval = TimeSpan.FromSeconds(5);
 
             var retryTask = new RetryTask(2);
-            taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
+            await taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
                 () => new RetryOrchestration(retryOptions)))
                 .AddTaskActivitiesFromInterface<IRetryTask>(retryTask)
-                .Start();
+                .StartAsync();
 
             RetryOrchestration.Result = null;
-            OrchestrationInstance id = client.CreateOrchestrationInstance(RETRY_NAME, RETRY_VERSION, true);
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(RETRY_NAME, RETRY_VERSION, true);
 
-            bool isCompleted = TestHelpers.WaitForInstance(client, id, 90);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 90));
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 90);
+            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 90));
             Assert.AreEqual("DoWork Succeeded. Attempts: 2", RetryOrchestration.Result,
                 "Orchestration Result is wrong!!!");
             Assert.AreEqual(2, retryTask.RetryCount, "Retry Count is wrong");
         }
 
         [TestMethod]
-        public void RetryMaxIntervalTest()
+        public async Task RetryMaxIntervalTest()
         {
             var retryOptions = new RetryOptions(TimeSpan.FromSeconds(3), 3);
             retryOptions.BackoffCoefficient = 10;
             retryOptions.MaxRetryInterval = TimeSpan.FromSeconds(5);
 
             var retryTask = new RetryTask(2);
-            taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
+            await taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
                 () => new RetryOrchestration(retryOptions)))
                 .AddTaskActivitiesFromInterface<IRetryTask>(retryTask)
-                .Start();
+                .StartAsync();
 
             RetryOrchestration.Result = null;
-            OrchestrationInstance id = client.CreateOrchestrationInstance(RETRY_NAME, RETRY_VERSION, false);
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(RETRY_NAME, RETRY_VERSION, false);
 
-            bool isCompleted = TestHelpers.WaitForInstance(client, id, 90);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 90));
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 90);
+            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 90));
             Assert.AreEqual("DoWork Succeeded. Attempts: 2", RetryOrchestration.Result,
                 "Orchestration Result is wrong!!!");
             Assert.AreEqual(2, retryTask.RetryCount, "Retry Count is wrong");
         }
 
         [TestMethod]
-        public void BasicSubOrchestrationRetryTest()
+        public async Task BasicSubOrchestrationRetryTest()
         {
             var parentRetryOptions = new RetryOptions(TimeSpan.FromSeconds(3), 2)
             {
@@ -395,25 +398,25 @@ namespace FrameworkUnitTests
             var retryTask = new RetryTask(4);
             RetryOrchestration.rethrowException = true;
 
-            taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
+            await taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
                 () => new RetryOrchestration(retryOptions)))
                 .AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_PARENT_NAME, RETRY_PARENT_VERSION,
                     () => new ParentOrchestration(parentRetryOptions)))
                 .AddTaskActivitiesFromInterface<IRetryTask>(retryTask)
-                .Start();
+                .StartAsync();
 
             ParentOrchestration.Result = null;
             RetryOrchestration.Result = null;
-            OrchestrationInstance id = client.CreateOrchestrationInstance(RETRY_PARENT_NAME, RETRY_PARENT_VERSION, false);
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(RETRY_PARENT_NAME, RETRY_PARENT_VERSION, false);
 
-            bool isCompleted = TestHelpers.WaitForInstance(client, id, 90);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 90));
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 90);
+            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 90));
             Assert.AreEqual("DoWork Succeeded. Attempts: 4", ParentOrchestration.Result,
                 "Orchestration Result is wrong!!!");
         }
 
         [TestMethod]
-        public void SubOrchestrationRetryExhaustedTest()
+        public async Task SubOrchestrationRetryExhaustedTest()
         {
             ArgumentException argumentException = null;
             try
@@ -439,19 +442,19 @@ namespace FrameworkUnitTests
             var retryTask = new RetryTask(4);
             RetryOrchestration.rethrowException = true;
 
-            taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
+            await taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
                 () => new RetryOrchestration(retryOptions)))
                 .AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_PARENT_NAME, RETRY_PARENT_VERSION,
                     () => new ParentOrchestration(parentRetryOptions)))
                 .AddTaskActivitiesFromInterface<IRetryTask>(retryTask)
-                .Start();
+                .StartAsync();
 
             ParentOrchestration.Result = null;
             RetryOrchestration.Result = null;
-            OrchestrationInstance id = client.CreateOrchestrationInstance(RETRY_PARENT_NAME, RETRY_PARENT_VERSION, false);
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(RETRY_PARENT_NAME, RETRY_PARENT_VERSION, false);
 
-            bool isCompleted = TestHelpers.WaitForInstance(client, id, 90);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 90));
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 90);
+            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 90));
             Assert.AreEqual("DoWork Failed. RetryCount is: 4", ParentOrchestration.Result,
                 "Orchestration Result is wrong!!!");
         }
