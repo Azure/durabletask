@@ -136,31 +136,41 @@ namespace DurableTask
         public async Task StopAsync(bool isForced)
         {
             await Task.WhenAll(
-                this.workerSender.CloseAsync(),
-                this.orchestratorSender.CloseAsync(),
-                this.trackingSender.CloseAsync(),
-                this.orchestratorQueueClient.CloseAsync(),
-                this.trackingQueueClient.CloseAsync(),
-                this.workerQueueClient.CloseAsync()
+                workerSender.CloseAsync(),
+                orchestratorSender.CloseAsync(),
+                trackingSender.CloseAsync(),
+                orchestratorQueueClient.CloseAsync(),
+                trackingQueueClient.CloseAsync(),
+                workerQueueClient.CloseAsync()
                 );
-            if (this.trackingDispatcher != null)
+            if (trackingDispatcher != null)
             {
-                await this.trackingDispatcher.StopAsync(isForced);
+                await trackingDispatcher.StopAsync(isForced);
             }
 
-            this.messagingFactory.CloseAsync().Wait();
+            messagingFactory.CloseAsync().Wait();
         }
 
+        /// <summary>
+        /// Creates the neccesary resources for the orchestration service
+        /// </summary>
         public Task CreateAsync()
         {
             return CreateAsync(null, false);
         }
 
+        /// <summary>
+        /// Creates the neccesary resources for the orchestration service and the instance store
+        /// </summary>
+        /// <param name="recreateInstanceStore">Flag indicating whether to drop and create instance store</param>
         public Task CreateAsync(bool recreateInstanceStore)
         {
             return CreateAsync(null, recreateInstanceStore);
         }
 
+        /// <summary>
+        /// Internal create for the neccesary resources for the orchestration service
+        /// </summary>
         async Task CreateAsync(NamespaceManager namespaceManager, bool recreateInstanceStore)
         {
             if (namespaceManager == null)
@@ -181,11 +191,18 @@ namespace DurableTask
             }
         }
 
+        /// <summary>
+        /// Drops and creates the neccesary resources for the orchestration service and the instance store
+        /// </summary>
         public Task CreateIfNotExistsAsync()
         {
             return CreateIfNotExistsAsync(true);
         }
 
+        /// <summary>
+        /// Drops and creates the neccesary resources for the orchestration service and the instance store
+        /// </summary>
+        /// <param name="recreateInstanceStore">Flag indicating whether to drop and create instance store</param>
         public async Task CreateIfNotExistsAsync(bool recreateInstanceStore)
         {
             NamespaceManager namespaceManager = NamespaceManager.CreateFromConnectionString(connectionString);
@@ -202,11 +219,18 @@ namespace DurableTask
             await CreateAsync(namespaceManager, recreateInstanceStore);
         }
 
+        /// <summary>
+        /// Deletes the resources for the orchestration service and the instance store
+        /// </summary>
         public Task DeleteAsync()
         {
             return DeleteAsync(true);
         }
 
+        /// <summary>
+        /// Deletes the resources for the orchestration service and the instance store
+        /// </summary>
+        /// <param name="deleteInstanceStore">Flag indicating whether to drop instance store</param>
         public async Task DeleteAsync(bool deleteInstanceStore)
         {
             NamespaceManager namespaceManager = NamespaceManager.CreateFromConnectionString(connectionString);
@@ -261,6 +285,9 @@ namespace DurableTask
             return GetQueueCount(workerEntityName);
         }
 
+        /// <summary>
+        ///     Internal method for getting the number of items in a queue
+        /// </summary>
         long GetQueueCount(string entityName)
         {
             NamespaceManager namespaceManager = NamespaceManager.CreateFromConnectionString(connectionString);
@@ -273,6 +300,9 @@ namespace DurableTask
             return queueDescription.MessageCount;
         }
 
+        /// <summary>
+        ///     Internal method for getting the max delivery counts for each queue
+        /// </summary>
         internal async Task<Dictionary<string, int>> GetHubQueueMaxDeliveryCountsAsync()
         {
             NamespaceManager namespaceManager = NamespaceManager.CreateFromConnectionString(connectionString);
@@ -301,6 +331,11 @@ namespace DurableTask
                 > MaxMessageCount;
         }
 
+        /// <summary>
+        /// Inspects an exception to get a custom delay based on the exception (e.g. transient) properties for a process exception
+        /// </summary>
+        /// <param name="exception">The exception to inspect</param>
+        /// <returns>Delay in seconds</returns>
         public int GetDelayInSecondsAfterOnProcessException(Exception exception)
         {
             if (IsTransientException(exception))
@@ -311,6 +346,11 @@ namespace DurableTask
             return 0;
         }
 
+        /// <summary>
+        /// Inspects an exception to get a custom delay based on the exception (e.g. transient) properties for a fetch exception
+        /// </summary>
+        /// <param name="exception">The exception to inspect</param>
+        /// <returns>Delay in seconds</returns>
         public int GetDelayInSecondsAfterOnFetchException(Exception exception)
         {
             if (exception is TimeoutException)
@@ -327,6 +367,9 @@ namespace DurableTask
             return delay;
         }
 
+        /// <summary>
+        /// Gets the maximum number of concurrent task orchestration items
+        /// </summary>
         public int MaxConcurrentTaskOrchestrationWorkItems => this.Settings.TaskOrchestrationDispatcherSettings.MaxConcurrentOrchestrations;
 
         /// <summary>
@@ -542,6 +585,9 @@ namespace DurableTask
             }
         }
 
+        /// <summary>
+        /// Gets the maximum number of concurrent task activity items
+        /// </summary>
         public int MaxConcurrentTaskActivityWorkItems => this.Settings.TaskActivityDispatcherSettings.MaxConcurrentActivities;
 
         /// <summary>
@@ -646,7 +692,7 @@ namespace DurableTask
         {
             BrokeredMessage brokeredMessage = ServiceBusUtils.GetBrokeredMessageFromObject(
                 message,
-                this.Settings.MessageCompressionSettings,
+                Settings.MessageCompressionSettings,
                 message.OrchestrationInstance,
                 "SendTaskOrchestrationMessage");
 
@@ -655,6 +701,11 @@ namespace DurableTask
             await sender.CloseAsync().ConfigureAwait(false);
         }
 
+        /// <summary>
+        ///    Force terminates an orchestration by sending a execution terminated event
+        /// </summary>
+        /// <param name="instanceId">The instance id to terminate</param>
+        /// <param name="reason">The string reason for terminating</param>
         public async Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason)
         {
             var taskMessage = new TaskMessage
@@ -705,6 +756,12 @@ namespace DurableTask
             return null;
         }
 
+        /// <summary>
+        /// Get a list of orchestration states from the instance storage for the most current execution (generation) of the specified instance.
+        /// </summary>
+        /// <param name="instanceId">Instance id</param>
+        /// <param name="allExecutions">True if method should fetch all executions of the instance, false if the method should only fetch the most recent execution</param>
+        /// <returns>List of OrchestrationState objects that represents the list of orchestrations in the instance store</returns>
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
         {
             ThrowIfInstanceStoreNotConfigured();
@@ -712,6 +769,12 @@ namespace DurableTask
             return states?.Select(s => s.State).ToList();
         }
 
+        /// <summary>
+        /// Get a list of orchestration states from the instance storage for the specified execution (generation) of the specified instance.
+        /// </summary>
+        /// <param name="instanceId">Instance id</param>
+        /// <param name="executionId">Exectuion id</param>
+        /// <returns>The OrchestrationState of the specified instanceId or null if not found</returns>
         public async Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)
         {
             ThrowIfInstanceStoreNotConfigured();
@@ -719,6 +782,12 @@ namespace DurableTask
             return state?.State;
         }
 
+        /// <summary>
+        /// Get a string dump of the execution history of the specified orchestration instance specified execution (generation) of the specified instance
+        /// </summary>
+        /// <param name="instanceId">Instance id</param>
+        /// <param name="executionId">Exectuion id</param>
+        /// <returns>String with formatted JSON representing the execution history</returns>
         public async Task<string> GetOrchestrationHistoryAsync(string instanceId, string executionId)
         {
             ThrowIfInstanceStoreNotConfigured();
@@ -728,6 +797,11 @@ namespace DurableTask
             return DataConverter.Serialize(historyEvents.Select(historyEventEntity => historyEventEntity.HistoryEvent));
         }
 
+        /// <summary>
+        /// Purges orchestration instance state and history for orchestrations older than the specified threshold time.
+        /// </summary>
+        /// <param name="thresholdDateTimeUtc">Threshold date time in UTC</param>
+        /// <param name="timeRangeFilterType">What to compare the threshold date time against</param>
         public async Task PurgeOrchestrationInstanceHistoryAsync(
             DateTime thresholdDateTimeUtc,
             OrchestrationStateTimeRangeFilterType timeRangeFilterType)
@@ -747,6 +821,7 @@ namespace DurableTask
         /// <param name="exception">Exception to inspect</param>
         static bool IsTransientException(Exception exception)
         {
+            // TODO : Once we change the exception model, check for inner exception
             return (exception as MessagingException)?.IsTransient ?? false;
         }
 
@@ -789,6 +864,10 @@ namespace DurableTask
             };
         }
 
+        /// <summary>
+        ///     Creates a list of tracking message for the supplied orchestration state
+        /// </summary>
+        /// <param name="runtimeState">The orchestation runtime state</param>
         List<BrokeredMessage> CreateTrackingMessages(OrchestrationRuntimeState runtimeState)
         {
             var trackingMessages = new List<BrokeredMessage>();
@@ -842,14 +921,12 @@ namespace DurableTask
         /// <param name="workItem">The tracking work item to process</param>
         async Task ProcessTrackingWorkItemAsync(TrackingWorkItem workItem)
         {
-
             var sessionState = workItem.SessionInstance as ServiceBusOrchestrationSession;
             if (sessionState == null)
             {
                 throw new ArgumentNullException("SessionInstance");
             }
-
-
+            
             var historyEntities = new List<OrchestrationWorkItemEvent>();
             var stateEntities = new List<OrchestrationStateHistoryEvent>();
 
@@ -891,7 +968,7 @@ namespace DurableTask
 
             try
             {
-                // TODO : Original code has this as a loop, why not just a batch??
+                // TODO : send batch to instance store, it can write it as individual if it chooses
                 foreach (OrchestrationStateHistoryEvent stateEntity in stateEntities)
                 {
                     await InstanceStore.WriteEntitesAsync(new List<OrchestrationStateHistoryEvent> { stateEntity });
@@ -899,7 +976,7 @@ namespace DurableTask
             }
             catch (Exception e) when (!Utils.IsFatal(e))
             {
-                TraceEntities(TraceEventType.Critical, "Failed to write history entity", stateEntities, GetNormalizedStateEvent);
+                TraceEntities(TraceEventType.Critical, "Failed to write state entity", stateEntities, GetNormalizedStateEvent);
                 throw;
             }
 

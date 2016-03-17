@@ -654,7 +654,6 @@ namespace FrameworkUnitTests
                 .AddTaskActivities(typeof (LargeSessionTaskActivity))
                 .StartAsync();
 
-            // todo : this test fails because it breaks the size, validate removing extra session info will resolve.
             OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (LargeSessionOrchestration), 15);
 
             bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 90, true);

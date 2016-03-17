@@ -50,8 +50,7 @@ namespace FrameworkUnitTests
         {
             var settings = new ServiceBusOrchestrationServiceSettings
             {
-                // TODO : Fix this, tests fail when enabled
-                //TaskOrchestrationDispatcherSettings = { CompressOrchestrationState = true },
+                TaskOrchestrationDispatcherSettings = { CompressOrchestrationState = true },
                 MessageCompressionSettings = new CompressionSettings { Style = style, ThresholdInBytes = 1024 }
             };
 

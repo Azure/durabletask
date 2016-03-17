@@ -64,6 +64,7 @@ namespace DurableTask.Common
             byte[] bytes = Encoding.UTF8.GetBytes(input);
 
             resultStream.Write(bytes, 0, bytes.Length);
+            resultStream.Position = 0;
             originalStreamSize = resultStream.Length;
 
             if (compress)
@@ -80,7 +81,7 @@ namespace DurableTask.Common
         {
             if (objectStream == null || !objectStream.CanRead || !objectStream.CanSeek)
             {
-                throw new ArgumentException("stream is not seekable or readable", "objectStream");
+                throw new ArgumentException("stream is not seekable or readable", nameof(objectStream));
             }
 
             objectStream.Position = 0;

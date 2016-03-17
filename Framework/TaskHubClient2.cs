@@ -201,8 +201,6 @@ namespace DurableTask
             await this.serviceClient.ForceTerminateTaskOrchestrationAsync(orchestrationInstance.InstanceId, reason);
         }
 
-        // AFFANDAR : TODO : just scan this file and fix up xml comments
-
         /// <summary>
         ///     Wait for an orchestration to reach any terminal state within the given timeout
         /// </summary>
@@ -228,14 +226,13 @@ namespace DurableTask
 
         // Instance query methods
         // Orchestration states
-        // TODO : Fix summaries to not talk about azure storage (and not return those exceptions, they should be wrapped)
         /// <summary>
         ///     Get a list of orchestration states from the instance storage table for the
         ///     most current execution (generation) of the specified instance.
-        ///     Throws if an Azure Storage account was not specified in the constructor.
         /// </summary>
         /// <param name="instanceId">Instance id</param>
         /// <returns>The OrchestrationState of the specified instanceId or null if not found</returns>
+        /// <exception cref="InvalidOperationException">Thrown if instance store not configured</exception>
         public async Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId)
         {
             var state = await GetOrchestrationStateAsync(instanceId, false);
@@ -245,7 +242,6 @@ namespace DurableTask
         /// <summary>
         ///     Get a list of orchestration states from the instance storage table for either the most current
         ///     or all executions (generations) of the specified instance.
-        ///     Throws if an Azure Storage account was not specified in the constructor.
         /// </summary>
         /// <param name="instanceId">Instance id</param>
         /// <param name="allExecutions">
@@ -256,6 +252,7 @@ namespace DurableTask
         ///     List of OrchestrationState objects that represents the list of
         ///     orchestrations in the instance store
         /// </returns>
+        /// <exception cref="InvalidOperationException">Thrown if instance store not configured</exception>
         public Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
         {
             return this.serviceClient.GetOrchestrationStateAsync(instanceId, allExecutions);
@@ -264,10 +261,10 @@ namespace DurableTask
         /// <summary>
         ///     Get a list of orchestration states from the instance storage table for the
         ///     most current execution (generation) of the specified instance.
-        ///     Throws if an Azure Storage account was not specified in the constructor.
         /// </summary>
         /// <param name="instance">Instance</param>
         /// <returns>The OrchestrationState of the specified instanceId or null if not found</returns>
+        /// <exception cref="InvalidOperationException">Thrown if instance store not configured</exception>
         public Task<OrchestrationState> GetOrchestrationStateAsync(OrchestrationInstance instance)
         {
             return GetOrchestrationStateAsync(instance.InstanceId, instance.ExecutionId);
@@ -276,11 +273,11 @@ namespace DurableTask
         /// <summary>
         ///     Get a list of orchestration states from the instance storage table for the
         ///     specified execution (generation) of the specified instance.
-        ///     Throws if an Azure Storage account was not specified in the constructor.
         /// </summary>
         /// <param name="instanceId">Instance id</param>
         /// <param name="executionId">Exectuion id</param>
         /// <returns>The OrchestrationState of the specified instanceId or null if not found</returns>
+        /// <exception cref="InvalidOperationException">Thrown if instance store not configured</exception>
         public Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)
         {
             return this.serviceClient.GetOrchestrationStateAsync(instanceId, executionId);
@@ -291,10 +288,10 @@ namespace DurableTask
         /// <summary>
         ///     Get a string dump of the execution history of the specified orchestration instance
         ///     specified execution (generation) of the specified instance.
-        ///     Throws if an Azure Storage account was not specified in the constructor.
         /// </summary>
         /// <param name="instance">Instance</param>
         /// <returns>String with formatted JSON representing the execution history</returns>
+        /// <exception cref="InvalidOperationException">Thrown if instance store not configured</exception>
         public Task<string> GetOrchestrationHistoryAsync(OrchestrationInstance instance)
         {
             if (string.IsNullOrEmpty(instance?.InstanceId) ||
@@ -312,6 +309,7 @@ namespace DurableTask
         /// <param name="thresholdDateTimeUtc">Threshold date time in UTC</param>
         /// <param name="timeRangeFilterType">What to compare the threshold date time against</param>
         /// <returns></returns>
+        /// <exception cref="InvalidOperationException">Thrown if instance store not configured</exception>
         public Task PurgeOrchestrationInstanceHistoryAsync(DateTime thresholdDateTimeUtc,
             OrchestrationStateTimeRangeFilterType timeRangeFilterType)
         {

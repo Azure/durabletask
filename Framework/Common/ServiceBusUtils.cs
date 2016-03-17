@@ -42,7 +42,7 @@ namespace DurableTask.Common
 
             if (compressionSettings.Style == CompressionStyle.Legacy)
             {
-                return new BrokeredMessage(serializableObject);
+                return new BrokeredMessage(serializableObject) {SessionId = instance?.InstanceId};
             }
 
             bool disposeStream = true;
@@ -121,9 +121,8 @@ namespace DurableTask.Common
                     if (!Utils.IsGzipStream(compressedStream))
                     {
                         throw new ArgumentException(
-                            "message specifies a CompressionType of " + compressionType +
-                            " but content is not compressed",
-                            "message");
+                            $"message specifies a CompressionType of {compressionType} but content is not compressed",
+                            nameof(message));
                     }
 
                     using (Stream objectStream = await Utils.GetDecompressedStreamAsync(compressedStream))
@@ -142,8 +141,9 @@ namespace DurableTask.Common
             }
             else
             {
-                throw new ArgumentException("message specifies an invalid CompressionType: " + compressionType,
-                    "message");
+                throw new ArgumentException(
+                    $"message specifies an invalid CompressionType: {compressionType}",
+                    nameof(message));
             }
 
             return deserializedObject;
