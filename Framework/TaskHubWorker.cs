@@ -20,6 +20,7 @@ namespace DurableTask
     using System.Threading.Tasks;
     using DurableTask.Common;
     using DurableTask.Tracking;
+    using DurableTask.Settings;
     using Microsoft.ServiceBus;
     using Microsoft.ServiceBus.Messaging;
 

@@ -106,7 +106,7 @@ namespace DurableTask
 
                     isStarted = true;
 
-                    TraceHelper.Trace(TraceEventType.Information, $"{name} starting. Id {id}.");
+                    TraceHelper.Trace(TraceEventType.Information, $"WorkItemDispatcher('{name}') starting. Id {id}.");
                     await Task.Factory.StartNew(() => DispatchAsync());
                 }
                 finally
@@ -134,7 +134,7 @@ namespace DurableTask
                 isStarted = false;
 
 
-                TraceHelper.Trace(TraceEventType.Information, $"{name} stopping. Id {id}.");
+                TraceHelper.Trace(TraceEventType.Information, $"WorkItemDispatcher('{name}') stopping. Id {id}.");
                 if (!forced)
                 {
                     int retryCount = 7;
@@ -144,7 +144,7 @@ namespace DurableTask
                     }
                 }
 
-                TraceHelper.Trace(TraceEventType.Information, $"{name} stopped. Id {id}.");
+                TraceHelper.Trace(TraceEventType.Information, $"WorkItemDispatcher('{name}') stopped. Id {id}.");
             }
             finally
             {

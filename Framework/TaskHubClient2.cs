@@ -20,6 +20,7 @@ namespace DurableTask
     using System.Threading.Tasks;
     using DurableTask.History;
     using DurableTask.Serializing;
+    using DurableTask.Settings;
 
     /// <summary>
     ///     Client used to manage and query orchestration instances
@@ -27,24 +28,13 @@ namespace DurableTask
     public sealed class TaskHubClient2
     {
         readonly DataConverter defaultConverter;
-        readonly TaskHubClientSettings settings;
-        readonly IOrchestrationServiceClient serviceClient;
+        public readonly IOrchestrationServiceClient serviceClient;
 
         /// <summary>
-        ///     Create a new TaskHubClient with the given OrchestrationServiceClient and hubname with default settings.
+        ///     Create a new TaskHubClient with the given OrchestrationServiceClient
         /// </summary>
         /// <param name="serviceClient">Object implementing the <see cref="IOrchestrationServiceClient"/> interface </param>
         public TaskHubClient2(IOrchestrationServiceClient serviceClient)
-            : this(serviceClient, new TaskHubClientSettings())
-        {
-        }
-
-        /// <summary>
-        ///     Create a new TaskHubClient with the given OrchestrationServiceClient, hubname and settings.
-        /// </summary>
-        /// <param name="serviceClient">Object implementing the <see cref="IOrchestrationServiceClient"/> interface </param>
-        /// <param name="settings">The client settings</param>
-        public TaskHubClient2(IOrchestrationServiceClient serviceClient, TaskHubClientSettings settings)
         {
             if(serviceClient == null)
             {
@@ -52,9 +42,7 @@ namespace DurableTask
             }
 
             this.serviceClient = serviceClient;
-            // AFFANDAR : TODO : expose?
             this.defaultConverter = new JsonDataConverter();
-            this.settings = settings ?? new TaskHubClientSettings();
         }
 
         /// <summary>

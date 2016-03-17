@@ -16,14 +16,11 @@ namespace DurableTask.Common
     using System;
     using System.Diagnostics;
     using System.IO;
-    using System.IO.Compression;
-    using System.Runtime.ExceptionServices;
-    using System.Text;
     using System.Threading.Tasks;
+    using DurableTask.Settings;
+    using DurableTask.Tracing;
     using Microsoft.ServiceBus;
     using Microsoft.ServiceBus.Messaging;
-    using Newtonsoft.Json;
-    using Tracing;
 
     internal static class ServiceBusUtils
     {

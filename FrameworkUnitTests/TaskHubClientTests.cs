@@ -11,83 +11,96 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+
 namespace FrameworkUnitTests
 {
+    using System.Collections.Generic;
+    using System.Threading.Tasks;
     using DurableTask;
+    using DurableTask.Settings;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]
     public class TaskHubClientTests
     {
-        TaskHubClient client;
-        TaskHubWorker taskHub;
+        TaskHubClient2 client;
+        TaskHubWorker2 taskHub;
 
-        [TestInitialize]
-        public void TestInitialize()
+        [TestMethod]
+        public async Task TestCreateIfNew()
         {
-            client = TestHelpers.CreateTaskHubClient();
-            taskHub = TestHelpers.CreateTaskHub();
+            taskHub = TestHelpers2.CreateTaskHub();
+            var service = taskHub.orchestrationService as ServiceBusOrchestrationService;
+            Assert.IsNotNull(service);
+
+            await service.CreateAsync();
+            await service.CreateIfNotExistsAsync();
+            Assert.IsTrue(await service.HubExistsAsync());
+            await service.DeleteAsync();
+            Assert.IsFalse(await service.HubExistsAsync());
         }
 
         [TestMethod]
-        public void TestCreateIfNew()
+        public async Task TestOrchestrationCount()
         {
-            taskHub.CreateHub();
-            taskHub.CreateHubIfNotExists();
-            Assert.IsTrue(taskHub.HubExists());
-            taskHub.DeleteHub();
-            Assert.IsFalse(taskHub.HubExists());
+            taskHub = TestHelpers2.CreateTaskHub();
+            client = TestHelpers2.CreateTaskHubClient();
+            var service = taskHub.orchestrationService as ServiceBusOrchestrationService;
+            Assert.IsNotNull(service);
+            await service.CreateAsync();
+            await client.CreateOrchestrationInstanceAsync("foo", "1.0", null);
+            await client.CreateOrchestrationInstanceAsync("foo1", "1.0", null);
+            await client.CreateOrchestrationInstanceAsync("foo2", "1.0", null);
+            Assert.IsTrue(service.GetPendingOrchestrationsCount() == 3);
+            await service.DeleteAsync();
         }
 
         [TestMethod]
-        public void TestOrchestrationCount()
+        public async Task TestMaxDeliveryCount()
         {
-            taskHub.CreateHub();
-            client.CreateOrchestrationInstance("foo", "1.0", null);
-            client.CreateOrchestrationInstance("foo1", "1.0", null);
-            client.CreateOrchestrationInstance("foo2", "1.0", null);
-            Assert.IsTrue(client.GetPendingOrchestrationsCount() == 3);
-            taskHub.DeleteHub();
-        }
-
-        [TestMethod]
-        public void TestMaxDeliveryCount()
-        {
-            var desc = new TaskHubDescription
+            var settings = new ServiceBusOrchestrationServiceSettings
             {
                 MaxTaskActivityDeliveryCount = 100,
                 MaxTaskOrchestrationDeliveryCount = 100,
-                MaxTrackingDeliveryCount = 100,
+                MaxTrackingDeliveryCount = 100
             };
 
-            taskHub.CreateHub(desc);
-            TaskHubDescription retDesc = taskHub.GetTaskHubDescriptionAsync().Result;
+            taskHub = TestHelpers2.CreateTaskHub(settings);
+            var service = taskHub.orchestrationService as ServiceBusOrchestrationService;
+            Assert.IsNotNull(service);
+            await service.CreateAsync();
 
-            Assert.AreEqual(desc.MaxTaskActivityDeliveryCount, retDesc.MaxTaskActivityDeliveryCount);
-            Assert.AreEqual(desc.MaxTaskOrchestrationDeliveryCount, retDesc.MaxTaskOrchestrationDeliveryCount);
-            Assert.AreEqual(desc.MaxTrackingDeliveryCount, retDesc.MaxTrackingDeliveryCount);
+            Dictionary<string, int> retQueues = await service.GetHubQueueMaxDeliveryCountsAsync();
 
-            taskHub.DeleteHub();
+            Assert.AreEqual(settings.MaxTaskActivityDeliveryCount, retQueues["TaskOrchestration"]);
+            Assert.AreEqual(settings.MaxTaskOrchestrationDeliveryCount, retQueues["TaskActivity"]);
+            Assert.AreEqual(settings.MaxTrackingDeliveryCount, retQueues["Tracking"]);
+
+            await service.DeleteAsync();
         }
 
         [TestMethod]
-        public void TestMaxDeliveryCountIfNew()
+        public async Task TestMaxDeliveryCountIfNew()
         {
-            var desc = new TaskHubDescription
+            var settings = new ServiceBusOrchestrationServiceSettings
             {
                 MaxTaskActivityDeliveryCount = 100,
                 MaxTaskOrchestrationDeliveryCount = 100,
-                MaxTrackingDeliveryCount = 100,
+                MaxTrackingDeliveryCount = 100
             };
 
-            taskHub.CreateHubIfNotExists(desc);
-            TaskHubDescription retDesc = taskHub.GetTaskHubDescriptionAsync().Result;
+            taskHub = TestHelpers2.CreateTaskHub(settings);
+            var service = taskHub.orchestrationService as ServiceBusOrchestrationService;
+            Assert.IsNotNull(service);
+            await service.CreateIfNotExistsAsync();
 
-            Assert.AreEqual(desc.MaxTaskActivityDeliveryCount, retDesc.MaxTaskActivityDeliveryCount);
-            Assert.AreEqual(desc.MaxTaskOrchestrationDeliveryCount, retDesc.MaxTaskOrchestrationDeliveryCount);
-            Assert.AreEqual(desc.MaxTrackingDeliveryCount, retDesc.MaxTrackingDeliveryCount);
+            Dictionary<string, int> retQueues = await service.GetHubQueueMaxDeliveryCountsAsync();
 
-            taskHub.DeleteHub();
+            Assert.AreEqual(settings.MaxTaskActivityDeliveryCount, retQueues["TaskOrchestration"]);
+            Assert.AreEqual(settings.MaxTaskOrchestrationDeliveryCount, retQueues["TaskActivity"]);
+            Assert.AreEqual(settings.MaxTrackingDeliveryCount, retQueues["Tracking"]);
+
+            await service.DeleteAsync();
         }
 
 //        [TestMethod]
@@ -100,10 +113,5 @@ namespace FrameworkUnitTests
 //            Assert.IsTrue(this.client.GetOrchestrationCount() == 1);
 //            this.client.Delete();
 //        }
-
-        [TestCleanup]
-        public void TestCleanup()
-        {
-        }
     }
 }

@@ -99,15 +99,30 @@ namespace FrameworkUnitTests.Mocks
         /******************************/
         public Task CreateAsync()
         {
+            return CreateAsync(true);
+        }
+
+        public Task CreateAsync(bool recreateInstanceStore)
+        {
             return Task.FromResult<object>(null);
         }
 
         public Task CreateIfNotExistsAsync()
         {
+            return CreateIfNotExistsAsync(true);
+        }
+
+        public Task CreateIfNotExistsAsync(bool recreateInstanceStore)
+        {
             return Task.FromResult<object>(null);
         }
 
         public Task DeleteAsync()
+        {
+            return DeleteAsync(true);
+        }
+
+        public Task DeleteAsync(bool deleteInstanceStore)
         {
             return Task.FromResult<object>(null);
         }

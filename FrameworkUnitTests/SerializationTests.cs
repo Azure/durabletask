@@ -30,17 +30,14 @@ namespace FrameworkUnitTests
             client = TestHelpers2.CreateTaskHubClient();
 
             taskHub = TestHelpers2.CreateTaskHub();
-            // todo: verify not needed
-            //taskHub.DeleteHub();
-            //taskHub.CreateHubIfNotExists();
+            taskHub.orchestrationService.CreateIfNotExistsAsync(true).Wait();
         }
 
         [TestCleanup]
         public void TestCleanup()
         {
             taskHub.StopAsync(true).Wait();
-            // todo: verify not needed
-            //taskHub.DeleteHub();
+            taskHub.orchestrationService.DeleteAsync(true).Wait();
         }
 
         #region Interface based activity serialization tests

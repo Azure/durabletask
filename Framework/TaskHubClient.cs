@@ -24,6 +24,7 @@ namespace DurableTask
     using DurableTask.Common;
     using DurableTask.History;
     using DurableTask.Serializing;
+    using DurableTask.Settings;
     using DurableTask.Tracing;
     using DurableTask.Tracking;
     using Microsoft.ServiceBus;

@@ -55,9 +55,15 @@ namespace DurableTask
 
         Task CreateAsync();
 
+        Task CreateAsync(bool recreateInstanceStore);
+
         Task CreateIfNotExistsAsync();
 
+        Task CreateIfNotExistsAsync(bool recreateInstanceStore);
+
         Task DeleteAsync();
+
+        Task DeleteAsync(bool deleteInstanceStore);
 
         // TaskOrchestrationDispatcher methods
         bool IsMaxMessageCountExceeded(int currentMessageCount, OrchestrationRuntimeState runtimeState);

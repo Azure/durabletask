@@ -41,9 +41,7 @@ namespace FrameworkUnitTests
 
             taskHub = TestHelpers2.CreateTaskHub();
 
-            // todo : validate not needed
-            //taskHub.DeleteHub();
-            //taskHub.CreateHubIfNotExists();
+            taskHub.orchestrationService.CreateIfNotExistsAsync(true).Wait();
         }
 
         [TestCleanup]
@@ -51,8 +49,7 @@ namespace FrameworkUnitTests
         {
             tableClient.DeleteTableIfExists();
             taskHub.StopAsync(true).Wait();
-            // todo : validate not needed
-            //taskHub.DeleteHub();
+            taskHub.orchestrationService.DeleteAsync(true).Wait();
         }
 
         [TestMethod]

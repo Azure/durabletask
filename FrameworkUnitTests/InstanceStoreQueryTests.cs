@@ -25,33 +25,36 @@ namespace FrameworkUnitTests
     [TestClass]
     public class InstanceStoreQueryTests
     {
-        TaskHubClient client;
-        TaskHubWorker taskHub;
+        TaskHubClient2 client;
+        TaskHubWorker2 taskHub;
+        ServiceBusOrchestrationService orchestrationService;
+        AzureTableInstanceStore queryClient;
 
         [TestInitialize]
         public void TestInitialize()
         {
-            client = TestHelpers.CreateTaskHubClient();
+            client = TestHelpers2.CreateTaskHubClient();
+            orchestrationService = client.serviceClient as ServiceBusOrchestrationService;
+            queryClient = orchestrationService?.InstanceStore as AzureTableInstanceStore;
 
-            taskHub = TestHelpers.CreateTaskHub();
+            taskHub = TestHelpers2.CreateTaskHub();
 
-            taskHub.DeleteHub();
-            taskHub.CreateHubIfNotExists();
+            taskHub.orchestrationService.CreateIfNotExistsAsync(true).Wait();
         }
 
         [TestCleanup]
         public void TestCleanup()
         {
-            taskHub.Stop(true);
-            taskHub.DeleteHub();
+            taskHub.StopAsync(true).Wait();
+            taskHub.orchestrationService.DeleteAsync(true).Wait();
         }
 
         [TestMethod]
-        public void QueryByInstanceIdTest()
+        public async Task QueryByInstanceIdTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration))
+            await taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration))
                 .AddTaskActivities(new Activity1())
-                .Start();
+                .StartAsync();
 
             string instanceId1 = "apiservice1_activate";
             string instanceId2 = "apiservice1_terminate";
@@ -59,22 +62,22 @@ namespace FrameworkUnitTests
             string instanceId4 = "system_upgrade";
             string instanceId5 = "apiservice2_upgrade";
 
-            OrchestrationInstance id1 = client.CreateOrchestrationInstance(typeof (InstanceStoreTestOrchestration),
+            OrchestrationInstance id1 = await client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
                 instanceId1, "DONTTHROW");
-            OrchestrationInstance id2 = client.CreateOrchestrationInstance(typeof (InstanceStoreTestOrchestration),
+            OrchestrationInstance id2 = await client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
                 instanceId2, "DONTTHROW");
-            OrchestrationInstance id3 = client.CreateOrchestrationInstance(typeof (InstanceStoreTestOrchestration),
+            OrchestrationInstance id3 = await client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
                 instanceId3, "DONTTHROW");
-            OrchestrationInstance id4 = client.CreateOrchestrationInstance(typeof (InstanceStoreTestOrchestration),
+            OrchestrationInstance id4 = await client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
                 instanceId4, "DONTTHROW");
-            OrchestrationInstance id5 = client.CreateOrchestrationInstance(typeof (InstanceStoreTestOrchestration),
+            OrchestrationInstance id5 = await client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
                 instanceId5, "DONTTHROW");
 
-            TestHelpers.WaitForInstance(client, id1, 60);
-            TestHelpers.WaitForInstance(client, id2, 60);
-            TestHelpers.WaitForInstance(client, id3, 60);
-            TestHelpers.WaitForInstance(client, id4, 60);
-            TestHelpers.WaitForInstance(client, id5, 60);
+            await TestHelpers2.WaitForInstanceAsync(client, id1, 60);
+            await TestHelpers2.WaitForInstanceAsync(client, id2, 60);
+            await TestHelpers2.WaitForInstanceAsync(client, id3, 60);
+            await TestHelpers2.WaitForInstanceAsync(client, id4, 60);
+            await TestHelpers2.WaitForInstanceAsync(client, id5, 60);
 
             OrchestrationStateQuery apiservice1ExactQuery = new OrchestrationStateQuery().
                 AddInstanceFilter("apiservice1_activate", id1.ExecutionId);
@@ -89,15 +92,15 @@ namespace FrameworkUnitTests
             var allQuery = new OrchestrationStateQuery();
 
 
-            IEnumerable<OrchestrationState> allResponse = client.QueryOrchestrationStates(allQuery);
+            IEnumerable<OrchestrationState> allResponse = await queryClient.QueryOrchestrationStatesAsync(allQuery);
             IEnumerable<OrchestrationState> apiservice1ExactResponse =
-                client.QueryOrchestrationStates(apiservice1ExactQuery);
+                await queryClient.QueryOrchestrationStatesAsync(apiservice1ExactQuery);
             IEnumerable<OrchestrationState> apiservice1ExecutionIdExactResponse =
-                client.QueryOrchestrationStates(apiservice1ExecutionIdExactQuery);
-            IEnumerable<OrchestrationState> apiservice1AllResponse = client.QueryOrchestrationStates(apiservice1AllQuery);
-            IEnumerable<OrchestrationState> systemAllResponse = client.QueryOrchestrationStates(systemAllQuery);
-            IEnumerable<OrchestrationState> emptyAllResponse = client.QueryOrchestrationStates(emptyExactQuery);
-            IEnumerable<OrchestrationState> emptyExactResponse = client.QueryOrchestrationStates(emptyAllQuery);
+                await queryClient.QueryOrchestrationStatesAsync(apiservice1ExecutionIdExactQuery);
+            IEnumerable<OrchestrationState> apiservice1AllResponse = await queryClient.QueryOrchestrationStatesAsync(apiservice1AllQuery);
+            IEnumerable<OrchestrationState> systemAllResponse = await queryClient.QueryOrchestrationStatesAsync(systemAllQuery);
+            IEnumerable<OrchestrationState> emptyAllResponse = await queryClient.QueryOrchestrationStatesAsync(emptyExactQuery);
+            IEnumerable<OrchestrationState> emptyExactResponse = await queryClient.QueryOrchestrationStatesAsync(emptyAllQuery);
 
             Assert.IsTrue(allResponse.Count() == 5);
             Assert.IsTrue(apiservice1ExactResponse.Count() == 1);
@@ -117,17 +120,17 @@ namespace FrameworkUnitTests
         }
 
         [TestMethod]
-        public void SegmentedQueryUnequalCountsTest()
+        public async Task SegmentedQueryUnequalCountsTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration),
+            await taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration),
                 typeof (InstanceStoreTestOrchestration2))
                 .AddTaskActivities(new Activity1())
-                .Start();
+                .StartAsync();
 
             for (int i = 0; i < 15; i++)
             {
                 string instanceId = "apiservice" + i;
-                client.CreateOrchestrationInstance(
+                await client.CreateOrchestrationInstanceAsync(
                     i%2 == 0 ? typeof (InstanceStoreTestOrchestration) : typeof (InstanceStoreTestOrchestration2),
                     instanceId, "DONTTHROW");
             }
@@ -140,32 +143,32 @@ namespace FrameworkUnitTests
 
             var results = new List<OrchestrationState>();
 
-            seg = client.QueryOrchestrationStatesSegmentedAsync(query, null, 2).Result;
+            seg = await queryClient.QueryOrchestrationStatesSegmentedAsync(query, null, 2);
             results.AddRange(seg.Results);
             Assert.AreEqual(2, results.Count);
 
-            seg = client.QueryOrchestrationStatesSegmentedAsync(query, seg.ContinuationToken, 5).Result;
+            seg = await queryClient.QueryOrchestrationStatesSegmentedAsync(query, seg.ContinuationToken, 5);
             results.AddRange(seg.Results);
             Assert.AreEqual(7, results.Count);
 
-            seg = client.QueryOrchestrationStatesSegmentedAsync(query, seg.ContinuationToken, 10).Result;
+            seg = await queryClient.QueryOrchestrationStatesSegmentedAsync(query, seg.ContinuationToken, 10);
             results.AddRange(seg.Results);
             Assert.AreEqual(15, results.Count);
             Assert.IsNull(seg.ContinuationToken);
         }
 
         [TestMethod]
-        public void PurgeOrchestrationHistoryTest()
+        public async Task PurgeOrchestrationHistoryTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration),
+            await taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration),
                 typeof (InstanceStoreTestOrchestration2))
                 .AddTaskActivities(new Activity1())
-                .Start();
+                .StartAsync();
 
             for (int i = 0; i < 25; i++)
             {
                 string instanceId = "apiservice" + i;
-                client.CreateOrchestrationInstance(
+                await client.CreateOrchestrationInstanceAsync(
                     i%2 == 0 ? typeof (InstanceStoreTestOrchestration) : typeof (InstanceStoreTestOrchestration2),
                     instanceId, "DONTTHROW");
             }
@@ -174,19 +177,19 @@ namespace FrameworkUnitTests
 
             var query = new OrchestrationStateQuery();
 
-            IEnumerable<OrchestrationState> states = client.QueryOrchestrationStates(query);
+            IEnumerable<OrchestrationState> states = await queryClient.QueryOrchestrationStatesAsync(query);
             Assert.AreEqual(25, states.Count());
 
-            client.PurgeOrchestrationInstanceHistoryAsync
-                (DateTime.UtcNow, OrchestrationStateTimeRangeFilterType.OrchestrationCreatedTimeFilter).Wait();
+            await client.PurgeOrchestrationInstanceHistoryAsync
+                (DateTime.UtcNow, OrchestrationStateTimeRangeFilterType.OrchestrationCreatedTimeFilter);
 
-            states = client.QueryOrchestrationStates(query);
+            states = await queryClient.QueryOrchestrationStatesAsync(query);
             Assert.AreEqual(0, states.Count());
 
             for (int i = 0; i < 10; i++)
             {
                 string instanceId = "apiservice" + i;
-                client.CreateOrchestrationInstance(typeof (InstanceStoreTestOrchestration), instanceId, "DONTTHROW");
+                await client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration), instanceId, "DONTTHROW");
             }
 
             Thread.Sleep(TimeSpan.FromSeconds(10));
@@ -195,18 +198,18 @@ namespace FrameworkUnitTests
             for (int i = 10; i < 20; i++)
             {
                 string instanceId = "apiservice" + i;
-                client.CreateOrchestrationInstance(typeof (InstanceStoreTestOrchestration), instanceId, "DONTTHROW");
+                await client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration), instanceId, "DONTTHROW");
             }
 
             Thread.Sleep(TimeSpan.FromSeconds(30));
 
-            states = client.QueryOrchestrationStates(query);
+            states = await queryClient.QueryOrchestrationStatesAsync(query);
             Assert.AreEqual(20, states.Count());
 
-            client.PurgeOrchestrationInstanceHistoryAsync
-                (cutoff, OrchestrationStateTimeRangeFilterType.OrchestrationCreatedTimeFilter).Wait();
+            await client.PurgeOrchestrationInstanceHistoryAsync
+                (cutoff, OrchestrationStateTimeRangeFilterType.OrchestrationCreatedTimeFilter);
 
-            states = client.QueryOrchestrationStates(query);
+            states = await queryClient.QueryOrchestrationStatesAsync(query);
             Assert.AreEqual(10, states.Count());
 
             foreach (OrchestrationState s in states)
@@ -216,45 +219,45 @@ namespace FrameworkUnitTests
         }
 
         [TestMethod]
-        public void PurgeManyOrchestrationHistoryTest()
+        public async Task PurgeManyOrchestrationHistoryTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration),
+            await taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration),
                 typeof (InstanceStoreTestOrchestration2))
                 .AddTaskActivities(new Activity1())
-                .Start();
+                .StartAsync();
 
             for (int i = 0; i < 110; i++)
             {
                 string instanceId = "apiservice" + i;
-                client.CreateOrchestrationInstance(typeof (InstanceStoreTestOrchestration), instanceId, "DONTTHROW");
+                await client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration), instanceId, "DONTTHROW");
             }
 
             Thread.Sleep(TimeSpan.FromSeconds(50));
 
             var query = new OrchestrationStateQuery();
 
-            IEnumerable<OrchestrationState> states = client.QueryOrchestrationStates(query);
+            IEnumerable<OrchestrationState> states = await queryClient.QueryOrchestrationStatesAsync(query);
             Assert.AreEqual(110, states.Count());
 
-            client.PurgeOrchestrationInstanceHistoryAsync
-                (DateTime.UtcNow, OrchestrationStateTimeRangeFilterType.OrchestrationCreatedTimeFilter).Wait();
+            await client.PurgeOrchestrationInstanceHistoryAsync
+                (DateTime.UtcNow, OrchestrationStateTimeRangeFilterType.OrchestrationCreatedTimeFilter);
 
-            states = client.QueryOrchestrationStates(query);
+            states = await queryClient.QueryOrchestrationStatesAsync(query);
             Assert.AreEqual(0, states.Count());
         }
 
         [TestMethod]
-        public void SegmentedQueryTest()
+        public async Task SegmentedQueryTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration),
+            await taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration),
                 typeof (InstanceStoreTestOrchestration2))
                 .AddTaskActivities(new Activity1())
-                .Start();
+                .StartAsync();
 
             for (int i = 0; i < 15; i++)
             {
                 string instanceId = "apiservice" + i;
-                client.CreateOrchestrationInstance(
+                await client.CreateOrchestrationInstanceAsync(
                     i%2 == 0 ? typeof (InstanceStoreTestOrchestration) : typeof (InstanceStoreTestOrchestration2),
                     instanceId, "DONTTHROW");
             }
@@ -269,8 +272,7 @@ namespace FrameworkUnitTests
             do
             {
                 seg =
-                    client.QueryOrchestrationStatesSegmentedAsync(query, seg == null ? null : seg.ContinuationToken, 2)
-                        .Result;
+                    await queryClient.QueryOrchestrationStatesSegmentedAsync(query, seg == null ? null : seg.ContinuationToken, 2);
                 results.AddRange(seg.Results);
             } while (seg.ContinuationToken != null);
 
@@ -284,8 +286,7 @@ namespace FrameworkUnitTests
             do
             {
                 seg =
-                    client.QueryOrchestrationStatesSegmentedAsync(query, seg == null ? null : seg.ContinuationToken, 2)
-                        .Result;
+                    await queryClient.QueryOrchestrationStatesSegmentedAsync(query, seg == null ? null : seg.ContinuationToken, 2);
                 results.AddRange(seg.Results);
             } while (seg.ContinuationToken != null);
             Assert.AreEqual(8, results.Count);
@@ -298,8 +299,7 @@ namespace FrameworkUnitTests
             do
             {
                 seg =
-                    client.QueryOrchestrationStatesSegmentedAsync(query, seg == null ? null : seg.ContinuationToken, 2)
-                        .Result;
+                    await queryClient.QueryOrchestrationStatesSegmentedAsync(query, seg == null ? null : seg.ContinuationToken, 2);
                 results.AddRange(seg.Results);
             } while (seg.ContinuationToken != null);
             Assert.AreEqual(7, results.Count);
@@ -309,38 +309,38 @@ namespace FrameworkUnitTests
                 .AddNameVersionFilter("FrameworkUnitTests.InstanceStoreQueryTests+InstanceStoreTestOrchestration2");
 
             seg =
-                client.QueryOrchestrationStatesSegmentedAsync(query, seg == null ? null : seg.ContinuationToken).Result;
+                await queryClient.QueryOrchestrationStatesSegmentedAsync(query, seg == null ? null : seg.ContinuationToken);
 
             Assert.IsTrue(seg.ContinuationToken == null);
             Assert.AreEqual(7, seg.Results.Count());
         }
 
         [TestMethod]
-        public void QueryByTimeTest()
+        public async Task QueryByTimeTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration))
+            await taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration))
                 .AddTaskActivities(new Activity1())
-                .Start();
+                .StartAsync();
 
             string instanceId1 = "first";
             string instanceId2 = "second";
             string instanceId3 = "third";
 
             DateTime firstBatchStart = DateTime.UtcNow;
-            OrchestrationInstance id1 = client.CreateOrchestrationInstance(typeof (InstanceStoreTestOrchestration),
+            OrchestrationInstance id1 = await client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
                 instanceId1, "WAIT_DONTTHROW");
-            TestHelpers.WaitForInstance(client, id1, 60);
+            await TestHelpers2.WaitForInstanceAsync(client, id1, 60);
             DateTime firstBatchEnd = DateTime.UtcNow;
 
 
             DateTime secondBatchStart = DateTime.UtcNow;
-            OrchestrationInstance id2 = client.CreateOrchestrationInstance(typeof (InstanceStoreTestOrchestration),
+            OrchestrationInstance id2 = await client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
                 instanceId2, "WAIT_DONTTHROW");
-            OrchestrationInstance id3 = client.CreateOrchestrationInstance(typeof (InstanceStoreTestOrchestration),
+            OrchestrationInstance id3 = await client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
                 instanceId3, "WAIT_DONTTHROW");
 
-            TestHelpers.WaitForInstance(client, id2, 60);
-            TestHelpers.WaitForInstance(client, id3, 60);
+            await TestHelpers2.WaitForInstanceAsync(client, id2, 60);
+            await TestHelpers2.WaitForInstanceAsync(client, id3, 60);
             DateTime secondBatchEnd = DateTime.UtcNow;
 
             // timespan during which only first batch was created
@@ -348,7 +348,7 @@ namespace FrameworkUnitTests
                 firstBatchStart.AddSeconds(5),
                 OrchestrationStateTimeRangeFilterType.OrchestrationCreatedTimeFilter);
 
-            IEnumerable<OrchestrationState> response = client.QueryOrchestrationStates(query);
+            IEnumerable<OrchestrationState> response = await queryClient.QueryOrchestrationStatesAsync(query);
             Assert.IsTrue(response.Count() == 1);
             Assert.AreEqual(instanceId1, response.First().OrchestrationInstance.InstanceId);
 
@@ -357,7 +357,7 @@ namespace FrameworkUnitTests
                 firstBatchEnd.AddSeconds(5),
                 OrchestrationStateTimeRangeFilterType.OrchestrationCompletedTimeFilter);
 
-            response = client.QueryOrchestrationStates(query);
+            response = await queryClient.QueryOrchestrationStatesAsync(query);
             Assert.IsTrue(response.Count() == 1);
             Assert.AreEqual(instanceId1, response.First().OrchestrationInstance.InstanceId);
 
@@ -366,73 +366,73 @@ namespace FrameworkUnitTests
                 firstBatchEnd.AddSeconds(5),
                 OrchestrationStateTimeRangeFilterType.OrchestrationCreatedTimeFilter);
 
-            response = client.QueryOrchestrationStates(query);
+            response = await queryClient.QueryOrchestrationStatesAsync(query);
             Assert.IsTrue(response.Count() == 2);
             Assert.AreEqual(instanceId2, response.First().OrchestrationInstance.InstanceId);
             Assert.AreEqual(instanceId3, response.ElementAt(1).OrchestrationInstance.InstanceId);
         }
 
         [TestMethod]
-        public void QueryByTimeForRunningOrchestrationsTest()
+        public async Task QueryByTimeForRunningOrchestrationsTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration))
+            await taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration))
                 .AddTaskActivities(new Activity1())
-                .Start();
+                .StartAsync();
 
             string instanceId1 = "first";
 
             DateTime firstBatchStart = DateTime.UtcNow;
-            OrchestrationInstance id1 = client.CreateOrchestrationInstance(typeof (InstanceStoreTestOrchestration),
+            OrchestrationInstance id1 = await client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
                 instanceId1, "WAIT_DONTTHROW");
-            TestHelpers.WaitForInstance(client, id1, 60, false);
+            await TestHelpers2.WaitForInstanceAsync(client, id1, 60, false);
 
             // running orchestrations never get reported in any CompletedTimeFilter query
             OrchestrationStateQuery query = new OrchestrationStateQuery().AddTimeRangeFilter(DateTime.MinValue,
                 DateTime.MaxValue,
                 OrchestrationStateTimeRangeFilterType.OrchestrationCompletedTimeFilter);
 
-            IEnumerable<OrchestrationState> response = client.QueryOrchestrationStates(query);
+            IEnumerable<OrchestrationState> response = await queryClient.QueryOrchestrationStatesAsync(query);
             Assert.IsTrue(response.Count() == 0);
 
-            TestHelpers.WaitForInstance(client, id1, 60);
+            await TestHelpers2.WaitForInstanceAsync(client, id1, 60);
 
             // now we should get a result
-            response = client.QueryOrchestrationStates(query);
+            response = await queryClient.QueryOrchestrationStatesAsync(query);
             Assert.IsTrue(response.Count() == 1);
         }
 
         [TestMethod]
-        public void QueryByLastUpdatedTimeTest()
+        public async Task QueryByLastUpdatedTimeTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration))
+            await taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration))
                 .AddTaskActivities(new Activity1())
-                .Start();
+                .StartAsync();
 
             string instanceId1 = "first";
 
             DateTime firstBatchStart = DateTime.UtcNow;
-            OrchestrationInstance id1 = client.CreateOrchestrationInstance(typeof (InstanceStoreTestOrchestration),
+            OrchestrationInstance id1 = await client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
                 instanceId1, "WAIT_AND_WAIT_DONTTHROW");
-            TestHelpers.WaitForInstance(client, id1, 60, false);
+            await TestHelpers2.WaitForInstanceAsync(client, id1, 60, false);
 
             // running orchestrations never get reported in any CompletedTimeFilter query
             OrchestrationStateQuery query = new OrchestrationStateQuery().AddTimeRangeFilter(firstBatchStart,
                 firstBatchStart.AddSeconds(5),
                 OrchestrationStateTimeRangeFilterType.OrchestrationLastUpdatedTimeFilter);
 
-            IEnumerable<OrchestrationState> response = client.QueryOrchestrationStates(query);
+            IEnumerable<OrchestrationState> response = await queryClient.QueryOrchestrationStatesAsync(query);
             Assert.IsTrue(response.Count() == 1);
 
-            TestHelpers.WaitForInstance(client, id1, 60);
+            await TestHelpers2.WaitForInstanceAsync(client, id1, 60);
 
-            response = client.QueryOrchestrationStates(query);
+            response = await queryClient.QueryOrchestrationStatesAsync(query);
             Assert.IsTrue(response.Count() == 0);
 
             query = new OrchestrationStateQuery().AddTimeRangeFilter(firstBatchStart.AddSeconds(15), DateTime.MaxValue,
                 OrchestrationStateTimeRangeFilterType.OrchestrationLastUpdatedTimeFilter);
 
             // now we should get a result
-            response = client.QueryOrchestrationStates(query);
+            response = await queryClient.QueryOrchestrationStatesAsync(query);
             Assert.IsTrue(response.Count() == 1);
         }
 
@@ -468,15 +468,15 @@ namespace FrameworkUnitTests
         }
 
         [TestMethod]
-        public void QueryByStatusTest()
+        public async Task QueryByStatusTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration))
+            await taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration))
                 .AddTaskActivities(new Activity1())
-                .Start();
+                .StartAsync();
 
-            OrchestrationInstance id1 = client.CreateOrchestrationInstance(typeof (InstanceStoreTestOrchestration),
+            OrchestrationInstance id1 = await client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
                 "WAIT_THROW");
-            OrchestrationInstance id2 = client.CreateOrchestrationInstance(typeof (InstanceStoreTestOrchestration),
+            OrchestrationInstance id2 = await client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
                 "WAIT_DONTTHROW");
 
             OrchestrationStateQuery completedQuery =
@@ -486,23 +486,23 @@ namespace FrameworkUnitTests
             OrchestrationStateQuery failedQuery =
                 new OrchestrationStateQuery().AddStatusFilter(OrchestrationStatus.Failed);
 
-            TestHelpers.WaitForInstance(client, id1, 60, false);
-            TestHelpers.WaitForInstance(client, id2, 60, false);
+            await TestHelpers2.WaitForInstanceAsync(client, id1, 60, false);
+            await TestHelpers2.WaitForInstanceAsync(client, id2, 60, false);
 
-            IEnumerable<OrchestrationState> runningStates = client.QueryOrchestrationStates(runningQuery);
-            IEnumerable<OrchestrationState> completedStates = client.QueryOrchestrationStates(completedQuery);
-            IEnumerable<OrchestrationState> failedStates = client.QueryOrchestrationStates(failedQuery);
+            IEnumerable<OrchestrationState> runningStates = await queryClient.QueryOrchestrationStatesAsync(runningQuery);
+            IEnumerable<OrchestrationState> completedStates = await queryClient.QueryOrchestrationStatesAsync(completedQuery);
+            IEnumerable<OrchestrationState> failedStates = await queryClient.QueryOrchestrationStatesAsync(failedQuery);
 
             Assert.IsTrue(runningStates.Count() == 2);
             Assert.IsTrue(completedStates.Count() == 0);
             Assert.IsTrue(failedStates.Count() == 0);
 
-            TestHelpers.WaitForInstance(client, id1, 60);
-            TestHelpers.WaitForInstance(client, id2, 60);
+            await TestHelpers2.WaitForInstanceAsync(client, id1, 60);
+            await TestHelpers2.WaitForInstanceAsync(client, id2, 60);
 
-            runningStates = client.QueryOrchestrationStates(runningQuery);
-            completedStates = client.QueryOrchestrationStates(completedQuery);
-            failedStates = client.QueryOrchestrationStates(failedQuery);
+            runningStates = await queryClient.QueryOrchestrationStatesAsync(runningQuery);
+            completedStates = await queryClient.QueryOrchestrationStatesAsync(completedQuery);
+            failedStates = await queryClient.QueryOrchestrationStatesAsync(failedQuery);
 
             Assert.IsTrue(runningStates.Count() == 0);
             Assert.IsTrue(completedStates.Count() == 1);
@@ -513,33 +513,33 @@ namespace FrameworkUnitTests
         }
 
         [TestMethod]
-        public void QueryWithMultipleFiltersTest()
+        public async Task QueryWithMultipleFiltersTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration))
+            await taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration))
                 .AddTaskActivities(new Activity1())
-                .Start();
+                .StartAsync();
 
             string instance1 = "apiservice1_upgrade1";
             string instance2 = "apiservice1_upgrade2";
             string instance3 = "system_gc";
 
-            OrchestrationInstance id1 = client.CreateOrchestrationInstance(typeof (InstanceStoreTestOrchestration),
+            OrchestrationInstance id1 = await client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
                 instance1, "WAIT_THROW");
-            OrchestrationInstance id2 = client.CreateOrchestrationInstance(typeof (InstanceStoreTestOrchestration),
+            OrchestrationInstance id2 = await client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
                 instance2, "WAIT_DONTTHROW");
-            OrchestrationInstance id3 = client.CreateOrchestrationInstance(typeof (InstanceStoreTestOrchestration),
+            OrchestrationInstance id3 = await client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
                 instance3, "WAIT_DONTTHROW");
 
-            TestHelpers.WaitForInstance(client, id1, 60);
-            TestHelpers.WaitForInstance(client, id2, 60);
-            TestHelpers.WaitForInstance(client, id3, 60);
+            await TestHelpers2.WaitForInstanceAsync(client, id1, 60);
+            await TestHelpers2.WaitForInstanceAsync(client, id2, 60);
+            await TestHelpers2.WaitForInstanceAsync(client, id3, 60);
 
             // completed apiservice1 --> 1 result
             OrchestrationStateQuery query = new OrchestrationStateQuery().
                 AddInstanceFilter("apiservice1", true).
                 AddStatusFilter(OrchestrationStatus.Completed);
 
-            IEnumerable<OrchestrationState> response = client.QueryOrchestrationStates(query);
+            IEnumerable<OrchestrationState> response = await queryClient.QueryOrchestrationStatesAsync(query);
             Assert.IsTrue(response.Count() == 1);
             Assert.AreEqual(id2.InstanceId, response.First().OrchestrationInstance.InstanceId);
 
@@ -548,7 +548,7 @@ namespace FrameworkUnitTests
                 AddInstanceFilter("apiservice1", true).
                 AddStatusFilter(OrchestrationStatus.Failed);
 
-            response = client.QueryOrchestrationStates(query);
+            response = await queryClient.QueryOrchestrationStatesAsync(query);
             Assert.IsTrue(response.Count() == 1);
             Assert.AreEqual(id1.InstanceId, response.First().OrchestrationInstance.InstanceId);
 
@@ -557,30 +557,30 @@ namespace FrameworkUnitTests
                 AddInstanceFilter("system", true).
                 AddStatusFilter(OrchestrationStatus.Failed);
 
-            response = client.QueryOrchestrationStates(query);
+            response = await queryClient.QueryOrchestrationStatesAsync(query);
             Assert.IsTrue(response.Count() == 0);
         }
 
         [TestMethod]
-        public void QueryMultiGenerationalTest()
+        public async Task QueryMultiGenerationalTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration))
+            await taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration))
                 .AddTaskActivities(new Activity1())
-                .Start();
+                .StartAsync();
 
             string instance1 = "apiservice1_upgrade1";
 
-            OrchestrationInstance id1 = client.CreateOrchestrationInstance(typeof (InstanceStoreTestOrchestration),
+            OrchestrationInstance id1 = await client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
                 instance1, "WAIT_NEWGEN");
 
-            TestHelpers.WaitForInstance(client, id1, 60);
+            await TestHelpers2.WaitForInstanceAsync(client, id1, 60);
 
             // completed apiservice1 --> 1 result
             OrchestrationStateQuery query = new OrchestrationStateQuery().
                 AddInstanceFilter("apiservice1", true).
                 AddStatusFilter(OrchestrationStatus.Completed);
 
-            IEnumerable<OrchestrationState> response = client.QueryOrchestrationStates(query);
+            IEnumerable<OrchestrationState> response = await queryClient.QueryOrchestrationStatesAsync(query);
             Assert.IsTrue(response.Count() == 1);
             Assert.AreEqual(id1.InstanceId, response.First().OrchestrationInstance.InstanceId);
 
@@ -589,12 +589,12 @@ namespace FrameworkUnitTests
                 AddInstanceFilter("apiservice1", true).
                 AddStatusFilter(OrchestrationStatus.ContinuedAsNew);
 
-            response = client.QueryOrchestrationStates(query);
+            response = await queryClient.QueryOrchestrationStatesAsync(query);
             Assert.IsTrue(response.Count() == 2);
         }
 
         [TestMethod]
-        public void QueryByNameVersionTest()
+        public async Task QueryByNameVersionTest()
         {
             ObjectCreator<TaskOrchestration> c1 = new NameValueObjectCreator<TaskOrchestration>(
                 "orch1", "1.0", typeof (InstanceStoreTestOrchestration));
@@ -605,23 +605,23 @@ namespace FrameworkUnitTests
             ObjectCreator<TaskOrchestration> c3 = new NameValueObjectCreator<TaskOrchestration>(
                 "orch2", string.Empty, typeof (InstanceStoreTestOrchestration));
 
-            taskHub.AddTaskOrchestrations(c1, c2, c3)
+            await taskHub.AddTaskOrchestrations(c1, c2, c3)
                 .AddTaskActivities(new Activity1())
-                .Start();
+                .StartAsync();
 
-            OrchestrationInstance id1 = client.CreateOrchestrationInstance("orch1", "1.0", "DONTTHROW");
+            OrchestrationInstance id1 = await client.CreateOrchestrationInstanceAsync("orch1", "1.0", "DONTTHROW");
 
-            OrchestrationInstance id2 = client.CreateOrchestrationInstance("orch1", "2.0", "DONTTHROW");
+            OrchestrationInstance id2 = await client.CreateOrchestrationInstanceAsync("orch1", "2.0", "DONTTHROW");
 
-            OrchestrationInstance id3 = client.CreateOrchestrationInstance("orch2", string.Empty, "DONTTHROW");
+            OrchestrationInstance id3 = await client.CreateOrchestrationInstanceAsync("orch2", string.Empty, "DONTTHROW");
 
-            TestHelpers.WaitForInstance(client, id1, 60);
-            TestHelpers.WaitForInstance(client, id2, 60);
-            TestHelpers.WaitForInstance(client, id3, 60);
+            await TestHelpers2.WaitForInstanceAsync(client, id1, 60);
+            await TestHelpers2.WaitForInstanceAsync(client, id2, 60);
+            await TestHelpers2.WaitForInstanceAsync(client, id3, 60);
 
             OrchestrationStateQuery query = new OrchestrationStateQuery().AddNameVersionFilter("orch1");
 
-            IEnumerable<OrchestrationState> response = client.QueryOrchestrationStates(query);
+            IEnumerable<OrchestrationState> response = await queryClient.QueryOrchestrationStatesAsync(query);
             Assert.IsTrue(response.Count() == 2);
 
             // TODO : for some reason sometimes the order gets inverted
@@ -630,18 +630,18 @@ namespace FrameworkUnitTests
 
             query = new OrchestrationStateQuery().AddNameVersionFilter("orch1", "2.0");
 
-            response = client.QueryOrchestrationStates(query);
+            response = await queryClient.QueryOrchestrationStatesAsync(query);
             Assert.AreEqual(1, response.Count());
             Assert.AreEqual(id2.InstanceId, response.First().OrchestrationInstance.InstanceId);
 
             query = new OrchestrationStateQuery().AddNameVersionFilter("orch1", string.Empty);
 
-            response = client.QueryOrchestrationStates(query);
+            response = await queryClient.QueryOrchestrationStatesAsync(query);
             Assert.IsTrue(response.Count() == 0);
 
             query = new OrchestrationStateQuery().AddNameVersionFilter("orch2", string.Empty);
 
-            response = client.QueryOrchestrationStates(query);
+            response = await queryClient.QueryOrchestrationStatesAsync(query);
             Assert.IsTrue(response.Count() == 1);
             Assert.AreEqual(id3.InstanceId, response.First().OrchestrationInstance.InstanceId);
         }

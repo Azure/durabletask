@@ -33,7 +33,12 @@ namespace DurableTask
         /// Runs initialization to prepare the storage for use
         /// </summary>
         /// <param name="recreateStorage">Flag to indicate whether the storage should be recreated.</param>
-        Task InitializeStorage(bool recreateStorage);
+        Task InitializeStorageAsync(bool recreateStorage);
+
+        /// <summary>
+        /// Deletes instances storage
+        /// </summary>
+        Task DeleteStorageAsync();
 
         /// <summary>
         /// Writes a list of history events to storage

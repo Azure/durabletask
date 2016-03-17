@@ -79,7 +79,6 @@ namespace DurableTask
 
         protected async Task<TaskOrchestrationWorkItem> OnFetchWorkItemAsync(TimeSpan receiveTimeout)
         {
-            // AFFANDAR : TODO : do we really need this abstract method anymore?
             // AFFANDAR : TODO : wire-up cancellation tokens
             return await this.orchestrationService.LockNextTaskOrchestrationWorkItemAsync(receiveTimeout, CancellationToken.None);
         }
@@ -206,7 +205,6 @@ namespace DurableTask
 
             OrchestrationRuntimeState newOrchestrationRuntimeState = workItem.OrchestrationRuntimeState;
 
-            // todo : figure out if this is correct, BuildOrchestrationState fails when iscompleted is true
             OrchestrationState instanceState = null;
 
             if (isCompleted)

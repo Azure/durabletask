@@ -23,6 +23,7 @@ namespace DurableTask
     using DurableTask.Tracing;
     using DurableTask.Tracking;
     using DurableTask.Serializing;
+    using DurableTask.Settings;
 
     [Obsolete]
     internal sealed class TrackingDispatcher : DispatcherBase<SessionWorkItem>

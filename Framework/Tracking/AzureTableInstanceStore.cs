@@ -19,13 +19,17 @@ namespace DurableTask.Tracking
     using System.Diagnostics;
     using System.Linq;
     using System.Threading.Tasks;
+    using System.Text;
     using DurableTask.History;
+    using DurableTask.Serializing;
     using DurableTask.Tracing;
     using Microsoft.WindowsAzure.Storage.Table;
 
     public class AzureTableInstanceStore : IOrchestrationServiceInstanceStore
     {
         const int MaxDisplayStringLengthForAzureTableColumn = (1024 * 24) - 20;
+
+        static readonly DataConverter DataConverter = new JsonDataConverter();
 
         readonly AzureTableClient tableClient;
 
@@ -34,7 +38,7 @@ namespace DurableTask.Tracking
             this.tableClient = new AzureTableClient(hubName, tableConnectionString);
         }
 
-        public async Task InitializeStorage(bool recreateStorage)
+        public async Task InitializeStorageAsync(bool recreateStorage)
         {
             if (recreateStorage)
             {
@@ -44,6 +48,14 @@ namespace DurableTask.Tracking
             await this.tableClient.CreateTableIfNotExistsAsync();
         }
 
+        /// <summary>
+        /// Deletes instances storage
+        /// </summary>
+        public async Task DeleteStorageAsync()
+        {
+            await this.tableClient.DeleteTableIfExistsAsync();
+        }
+        
         public int MaxHistoryEntryLength => MaxDisplayStringLengthForAzureTableColumn;
 
         public async Task<object> WriteEntitesAsync(IEnumerable<OrchestrationHistoryEvent> entities)
@@ -58,7 +70,8 @@ namespace DurableTask.Tracking
 
         public async Task<IEnumerable<OrchestrationStateHistoryEvent>> GetOrchestrationStateAsync(string instanceId, bool allInstances)
         {
-            var results = (await this.tableClient.QueryOrchestrationStatesAsync(
+            IEnumerable<AzureTableOrchestrationStateEntity> results = 
+                (await this.tableClient.QueryOrchestrationStatesAsync(
                 new OrchestrationStateQuery().AddInstanceFilter(instanceId)).ConfigureAwait(false));
 
             if (allInstances)
@@ -81,7 +94,8 @@ namespace DurableTask.Tracking
 
         public async Task<OrchestrationStateHistoryEvent> GetOrchestrationStateAsync(string instanceId, string executionId)
         {
-            var result = (await this.tableClient.QueryOrchestrationStatesAsync(
+            AzureTableOrchestrationStateEntity result = 
+                (await this.tableClient.QueryOrchestrationStatesAsync(
                 new OrchestrationStateQuery().AddInstanceFilter(instanceId, executionId)).ConfigureAwait(false)).FirstOrDefault();
 
             return (result != null) ? TableStateToStateEvent(result) : null;
@@ -89,8 +103,68 @@ namespace DurableTask.Tracking
 
         public async Task<IEnumerable<OrchestrationWorkItemEvent>> GetOrchestrationHistoryEventsAsync(string instanceId, string executionId)
         {
-            var entities = await this.tableClient.ReadOrchestrationHistoryEventsAsync(instanceId, executionId);
+            IEnumerable<AzureTableOrchestrationHistoryEventEntity> entities = 
+                await this.tableClient.ReadOrchestrationHistoryEventsAsync(instanceId, executionId);
             return entities.Select(TableHistoryEntityToWorkItemEvent).OrderBy(ee => ee.SequenceNumber);
+        }
+
+        /// <summary>
+        ///     Get a list of orchestration states from the instance storage table which match the specified
+        ///     orchestration state query.
+        /// </summary>
+        /// <param name="stateQuery">Orchestration state query to execute</param>
+        /// <returns></returns>
+        public async Task<IEnumerable<OrchestrationState>> QueryOrchestrationStatesAsync(
+            OrchestrationStateQuery stateQuery)
+        {
+            IEnumerable<AzureTableOrchestrationStateEntity> result =
+                await tableClient.QueryOrchestrationStatesAsync(stateQuery).ConfigureAwait(false);
+            return new List<OrchestrationState>(result.Select(stateEntity => stateEntity.State));
+        }
+
+        /// <summary>
+        ///     Get a segmented list of orchestration states from the instance storage table which match the specified
+        ///     orchestration state query. Segment size is controlled by the service.
+        /// </summary>
+        /// <param name="stateQuery">Orchestration state query to execute</param>
+        /// <param name="continuationToken">The token returned from the last query execution. Can be null for the first time.</param>
+        /// <returns></returns>
+        public Task<OrchestrationStateQuerySegment> QueryOrchestrationStatesSegmentedAsync(
+            OrchestrationStateQuery stateQuery, string continuationToken)
+        {
+            return QueryOrchestrationStatesSegmentedAsync(stateQuery, continuationToken, -1);
+        }
+
+        /// <summary>
+        ///     Get a segmented list of orchestration states from the instance storage table which match the specified
+        ///     orchestration state query.
+        /// </summary>
+        /// <param name="stateQuery">Orchestration state query to execute</param>
+        /// <param name="continuationToken">The token returned from the last query execution. Can be null for the first time.</param>
+        /// <param name="count">Count of elements to return. Service will decide how many to return if set to -1.</param>
+        /// <returns></returns>
+        public async Task<OrchestrationStateQuerySegment> QueryOrchestrationStatesSegmentedAsync(
+            OrchestrationStateQuery stateQuery, string continuationToken, int count)
+        {
+            TableContinuationToken tokenObj = null;
+
+            if (continuationToken != null)
+            {
+                tokenObj = DeserializeTableContinuationToken(continuationToken);
+            }
+
+            TableQuerySegment<AzureTableOrchestrationStateEntity> results =
+                await
+                    tableClient.QueryOrchestrationStatesSegmentedAsync(stateQuery, tokenObj, count)
+                        .ConfigureAwait(false);
+
+            return new OrchestrationStateQuerySegment
+            {
+                Results = results.Results.Select(s => s.State),
+                ContinuationToken = results.ContinuationToken == null
+                    ? null
+                    : SerializeTableContinuationToken(results.ContinuationToken)
+            };
         }
 
         public async Task<int> PurgeOrchestrationHistoryEventsAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType)
@@ -208,6 +282,29 @@ namespace DurableTask.Tracking
                     EventTimestamp = entity.TaskTimeStamp,
                     HistoryEvent = entity.HistoryEvent
                 };
+        }
+
+        string SerializeTableContinuationToken(TableContinuationToken continuationToken)
+        {
+            if (continuationToken == null)
+            {
+                throw new ArgumentNullException(nameof(continuationToken));
+            }
+
+            string serializedToken = DataConverter.Serialize(continuationToken);
+            return Convert.ToBase64String(Encoding.Unicode.GetBytes(serializedToken));
+        }
+
+        TableContinuationToken DeserializeTableContinuationToken(string serializedContinuationToken)
+        {
+            if (string.IsNullOrWhiteSpace(serializedContinuationToken))
+            {
+                throw new ArgumentException("Invalid serializedContinuationToken");
+            }
+
+            byte[] tokenBytes = Convert.FromBase64String(serializedContinuationToken);
+
+            return DataConverter.Deserialize<TableContinuationToken>(Encoding.Unicode.GetString(tokenBytes));
         }
     }
 }

@@ -11,34 +11,24 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask
+namespace DurableTask.Settings
 {
     using DurableTask.Common;
 
     /// <summary>
-    ///     Configuration for various TaskHubClient options
+    /// Compression settings
     /// </summary>
-    public sealed class TaskHubClientSettings
+    public struct CompressionSettings
     {
         /// <summary>
-        ///     Create a TaskHubClientSettings object with default settings
+        ///     Type of compression
         /// </summary>
-        public TaskHubClientSettings()
-        {
-            MessageCompressionSettings = new CompressionSettings
-            {
-                Style = CompressionStyle.Never,
-                ThresholdInBytes = 0
-            };
-        }
+        public CompressionStyle Style { get; set; }
 
-        public CompressionSettings MessageCompressionSettings { get; set; }
-
-        internal TaskHubClientSettings Clone()
-        {
-            var clonedSettings = new TaskHubClientSettings();
-            clonedSettings.MessageCompressionSettings = MessageCompressionSettings;
-            return clonedSettings;
-        }
+        /// <summary>
+        ///     Compression threshold in bytes; if specified by compression criteria, compression will not be done
+        ///     if size is below this value
+        /// </summary>
+        public int ThresholdInBytes { get; set; }
     }
 }

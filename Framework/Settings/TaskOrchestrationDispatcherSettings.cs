@@ -11,21 +11,19 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-
-namespace DurableTask
+namespace DurableTask.Settings
 {
     /// <summary>
-    ///     Settings to configure the Tracking Dispatcher
+    ///     Settings to configure the Task Orchestration Dispatcher
     /// </summary>
-    [Obsolete]
-    public class TrackingDispatcherSettings
+    public class TaskOrchestrationDispatcherSettings
     {
-        internal TrackingDispatcherSettings()
+        internal TaskOrchestrationDispatcherSettings()
         {
-            TransientErrorBackOffSecs = FrameworkConstants.TrackingTransientErrorBackOffSecs;
-            NonTransientErrorBackOffSecs = FrameworkConstants.TrackingNonTransientErrorBackOffSecs;
-            MaxConcurrentTrackingSessions = FrameworkConstants.TrackingDefaultMaxConcurrentItems;
+            TransientErrorBackOffSecs = FrameworkConstants.OrchestrationTransientErrorBackOffSecs;
+            NonTransientErrorBackOffSecs = FrameworkConstants.OrchestrationNonTransientErrorBackOffSecs;
+            MaxConcurrentOrchestrations = FrameworkConstants.OrchestrationDefaultMaxConcurrentItems;
+            CompressOrchestrationState = false;
         }
 
         /// <summary>
@@ -39,17 +37,23 @@ namespace DurableTask
         public int NonTransientErrorBackOffSecs { get; set; }
 
         /// <summary>
-        ///     How many tracking sessions to process concurrently. Default is 20.
+        ///     How many orchestrations to process concurrently. Default is 100.
         /// </summary>
-        public int MaxConcurrentTrackingSessions { get; set; }
+        public int MaxConcurrentOrchestrations { get; set; }
 
-        internal TrackingDispatcherSettings Clone()
+        /// <summary>
+        ///     Compress the orchestration state to enable more complex orchestrations at the cost of throughput. Default is False.
+        /// </summary>
+        public bool CompressOrchestrationState { get; set; }
+
+        internal TaskOrchestrationDispatcherSettings Clone()
         {
-            return new TrackingDispatcherSettings
+            return new TaskOrchestrationDispatcherSettings
             {
                 TransientErrorBackOffSecs = TransientErrorBackOffSecs,
                 NonTransientErrorBackOffSecs = NonTransientErrorBackOffSecs,
-                MaxConcurrentTrackingSessions = MaxConcurrentTrackingSessions,
+                MaxConcurrentOrchestrations = MaxConcurrentOrchestrations,
+                CompressOrchestrationState = CompressOrchestrationState,
             };
         }
     }

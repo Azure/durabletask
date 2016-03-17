@@ -25,6 +25,9 @@ namespace DurableTask.Settings
         /// </summary>
         public ServiceBusOrchestrationServiceSettings()
         {
+            MaxTaskOrchestrationDeliveryCount = FrameworkConstants.MaxDeliveryCount;
+            MaxTaskActivityDeliveryCount = FrameworkConstants.MaxDeliveryCount;
+            MaxTrackingDeliveryCount = FrameworkConstants.MaxDeliveryCount;
             TaskOrchestrationDispatcherSettings = new TaskOrchestrationDispatcherSettings();
             TaskActivityDispatcherSettings = new TaskActivityDispatcherSettings();
             TrackingDispatcherSettings = new TrackingDispatcherSettings();
@@ -34,6 +37,39 @@ namespace DurableTask.Settings
                 ThresholdInBytes = 0
             };
         }
+
+        /// <summary>
+        ///     Maximum number of times the task orchestration dispatcher will try to
+        ///     process an orchestration message before giving up
+        /// </summary>
+        public int MaxTaskOrchestrationDeliveryCount { get; set; }
+
+        /// <summary>
+        ///     Maximum number of times the task activity dispatcher will try to
+        ///     process an orchestration message before giving up
+        /// </summary>
+        public int MaxTaskActivityDeliveryCount { get; set; }
+
+        /// <summary>
+        ///     Maximum number of times the tracking dispatcher will try to
+        ///     process an orchestration message before giving up
+        /// </summary>
+        public int MaxTrackingDeliveryCount { get; set; }
+
+        /// <summary>
+        /// Gets the message prefetch count
+        /// </summary>
+        public int PrefetchCount { get; } = 50;
+
+        /// <summary>
+        /// Gets the default interval in settings between retries
+        /// </summary>
+        public int IntervalBetweenRetriesSecs { get; } = 5;
+
+        /// <summary>
+        /// Gets the max retries
+        /// </summary>
+        public int MaxRetries { get; } = 5;
 
         /// <summary>
         ///     Settings to configure the Task Orchestration Dispatcher
@@ -56,18 +92,5 @@ namespace DurableTask.Settings
         ///     Default is false.
         /// </summary>
         public CompressionSettings MessageCompressionSettings { get; set; }
-
-        internal ServiceBusOrchestrationServiceSettings Clone()
-        {
-            var clonedSettings = new ServiceBusOrchestrationServiceSettings();
-
-            clonedSettings.TaskOrchestrationDispatcherSettings = TaskOrchestrationDispatcherSettings.Clone();
-            clonedSettings.TaskActivityDispatcherSettings = TaskActivityDispatcherSettings.Clone();
-            clonedSettings.TrackingDispatcherSettings = TrackingDispatcherSettings.Clone();
-
-            clonedSettings.MessageCompressionSettings = MessageCompressionSettings;
-
-            return clonedSettings;
-        }
     }
 }

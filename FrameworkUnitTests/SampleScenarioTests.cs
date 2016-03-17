@@ -46,21 +46,19 @@ namespace FrameworkUnitTests
                 fakeTaskHub = TestHelpers2.CreateTaskHub();
 
                 taskHubNoCompression = TestHelpers2.CreateTaskHubNoCompression();
-                // TODO : siport : validate this is how we should call this
-                //await taskHub.orchestrationService.CreateIfNotExistsAsync();
+                taskHub.orchestrationService.CreateIfNotExistsAsync(true).Wait();
             }
         }
 
         [TestCleanup]
-        public async void TestCleanup()
+        public void TestCleanup()
         {
             if (!TestContext.TestName.Contains("TestHost"))
             {
-                await taskHub.StopAsync(true);
-                await taskHubNoCompression.StopAsync();
-                await fakeTaskHub.StopAsync(true);
-                // TODO : siport : validate this is how we should call this
-                //await taskHub.orchestrationService.DeleteAsync();
+                taskHub.StopAsync(true).Wait();
+                taskHubNoCompression.StopAsync().Wait();
+                fakeTaskHub.StopAsync(true).Wait();
+                taskHub.orchestrationService.DeleteAsync(true).Wait();
             }
         }
 

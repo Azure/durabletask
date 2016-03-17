@@ -11,13 +11,13 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System.Threading;
-using System.Threading.Tasks;
-
 namespace DurableTask
 {
     using System;
     using System.Reflection;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using DurableTask.Settings;
 
     /// <summary>
     ///     Allows users to load the TaskOrchestration and TaskActivity classes and start
@@ -30,7 +30,6 @@ namespace DurableTask
 
         readonly SemaphoreSlim slimLock = new SemaphoreSlim(1, 1);
 
-        readonly TaskHubWorkerSettings workerSettings;
         public readonly IOrchestrationService orchestrationService;
 
         volatile bool isStarted;
@@ -39,79 +38,24 @@ namespace DurableTask
         TaskOrchestrationDispatcher2 orchestrationDispatcher;
 
         /// <summary>
-        ///     Create a new TaskHubWorker with the given OrchestrationService with default settings.
-        /// </summary>
-        /// <param name="orchestrationService">Object implementing the <see cref="IOrchestrationService"/> interface </param>
-        public TaskHubWorker2(IOrchestrationService orchestrationService)
-            : this(orchestrationService, new TaskHubWorkerSettings())
-        {
-        }
-
-        /// <summary>
         ///     Create a new TaskHubWorker with given OrchestrationService and settings
         /// </summary>
         /// <param name="orchestrationService">Reference the orchestration service implmentaion</param>
-        /// <param name="workerSettings">Settings for various task hub worker options</param>
-        public TaskHubWorker2(IOrchestrationService orchestrationService, TaskHubWorkerSettings workerSettings)
+        public TaskHubWorker2(IOrchestrationService orchestrationService)
         {
             if (orchestrationService == null)
             {
                 throw new ArgumentException("orchestrationService");
             }
 
-            if (workerSettings == null)
-            {
-                throw new ArgumentException("workerSettings");
-            }
-
             this.orchestrationManager = new NameVersionObjectManager<TaskOrchestration>();
             this.activityManager = new NameVersionObjectManager<TaskActivity>();
             this.orchestrationService = orchestrationService;
-            this.workerSettings = workerSettings;
         }
 
         public TaskOrchestrationDispatcher2 TaskOrchestrationDispatcher => orchestrationDispatcher;
 
         public TaskActivityDispatcher2 TaskActivityDispatcher => activityDispatcher;
-
-        // AFFANDAR : TODO : is this useful at all?
-
-        ///// <summary>
-        /////     Gets the TaskHubDescription for the configured TaskHub
-        ///// </summary>
-        ///// <returns></returns>
-        //public TaskHubDescription GetTaskHubDescription()
-        //{
-        //    return Utils.AsyncExceptionWrapper(() => GetTaskHubDescriptionAsync().Result);
-        //}
-
-        ///// <summary>
-        /////     Gets the TaskHubDescription for the configured TaskHub
-        ///// </summary>
-        ///// <returns></returns>
-        //public async Task<TaskHubDescription> GetTaskHubDescriptionAsync()
-        //{
-        //    NamespaceManager namespaceManager = NamespaceManager.CreateFromConnectionString(connectionString);
-
-        //    var description = new TaskHubDescription();
-
-        //    IEnumerable<QueueDescription> queueDescriptions =
-        //        await namespaceManager.GetQueuesAsync("startswith(path, '" + hubName + "') eq TRUE");
-
-        //    List<QueueDescription> descriptions = queueDescriptions.ToList();
-
-        //    QueueDescription orchestratorQueueDescription =
-        //        descriptions.Single(q => string.Equals(q.Path, orchestratorEntityName));
-        //    QueueDescription activityQueueDescription = descriptions.Single(q => string.Equals(q.Path, workerEntityName));
-        //    QueueDescription trackingQueueDescription =
-        //        descriptions.Single(q => string.Equals(q.Path, trackingEntityName));
-
-        //    description.MaxTaskOrchestrationDeliveryCount = orchestratorQueueDescription.MaxDeliveryCount;
-        //    description.MaxTaskActivityDeliveryCount = activityQueueDescription.MaxDeliveryCount;
-        //    description.MaxTrackingDeliveryCount = trackingQueueDescription.MaxDeliveryCount;
-
-        //    return description;
-        //}
 
         /// <summary>
         ///     Starts the TaskHubWorker so it begins processing orchestrations and activities

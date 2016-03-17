@@ -51,9 +51,7 @@ namespace FrameworkUnitTests
                 taskHubAlwaysCompression = TestHelpers2.CreateTaskHubAlwaysCompression();
                 clientNoCompression = TestHelpers2.CreateTaskHubClientNoCompression();
 
-                //todo validate we don't need delete
-                //taskHub.StopAsync(true).Wait();
-                //taskHub.CreateIfNotExists();
+                taskHub.orchestrationService.CreateIfNotExistsAsync(true).Wait();
             }
         }
 
@@ -67,8 +65,7 @@ namespace FrameworkUnitTests
                 taskHubAlwaysCompression.StopAsync(true).Wait();
                 taskHubLegacyCompression.StopAsync(true).Wait();
                 fakeTaskHub.StopAsync(true).Wait();
-                //todo check we don't need this
-                //taskHub.DeleteHub();
+                taskHub.orchestrationService.DeleteAsync(true).Wait();
             }
         }
 

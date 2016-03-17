@@ -19,9 +19,11 @@ namespace FrameworkUnitTests
     using DurableTask;
     using DurableTask.Common;
     using DurableTask.Exceptions;
+    using DurableTask.Settings;
     using Microsoft.ServiceBus;
     using Microsoft.ServiceBus.Messaging;
 
+    [Obsolete]
     public static class TestHelpers
     {
         static string ServiceBusConnectionString;

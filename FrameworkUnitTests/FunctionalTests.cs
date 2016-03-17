@@ -38,9 +38,7 @@ namespace FrameworkUnitTests
                 client = TestHelpers2.CreateTaskHubClient();
                 taskHub = TestHelpers2.CreateTaskHub();
                 taskHubNoCompression = TestHelpers2.CreateTaskHubNoCompression();
-                //todo : verify not needed
-                //taskHub.DeleteHub();
-                //taskHub.CreateHubIfNotExists();
+                taskHub.orchestrationService.CreateIfNotExistsAsync(true).Wait();
             }
         }
 
@@ -51,8 +49,7 @@ namespace FrameworkUnitTests
             {
                 taskHub.StopAsync(true).Wait();
                 taskHubNoCompression.StopAsync(true).Wait();
-                //todo : verify not needed
-                //taskHub.DeleteHub();
+                taskHub.orchestrationService.DeleteAsync(true).Wait();
             }
         }
 
@@ -91,7 +88,7 @@ namespace FrameworkUnitTests
             Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
             Assert.AreEqual(4, GenerationBasicOrchestration.Result, "Orchestration Result is wrong!!!");
 
-            Assert.AreEqual(0, TestHelpers.GetOrchestratorQueueSizeInBytes());
+            Assert.AreEqual(0, TestHelpers2.GetOrchestratorQueueSizeInBytes());
         }
 
         [TestMethod]

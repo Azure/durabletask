@@ -33,8 +33,7 @@ namespace FrameworkUnitTests
 
             taskHub = TestHelpers2.CreateTaskHub();
 
-            // todo : verify we don't need
-            //taskHub.CreateHub();
+            taskHub.orchestrationService.CreateIfNotExistsAsync(true).Wait();
 
             taskHubNoCompression = TestHelpers2.CreateTaskHubNoCompression();
         }
@@ -44,8 +43,7 @@ namespace FrameworkUnitTests
         {
             taskHub.StopAsync(true).Wait();
             taskHubNoCompression.StopAsync(true).Wait();
-            // todo : verify we don't need
-            //taskHub.DeleteHub();
+            taskHub.orchestrationService.DeleteAsync(true).Wait();
         }
 
         #region Retry Interceptor Tests
