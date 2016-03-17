@@ -20,24 +20,39 @@ namespace DurableTask.Tracking
     using System.Linq;
     using System.Threading.Tasks;
     using System.Text;
+    using DurableTask.Common;
     using DurableTask.History;
     using DurableTask.Serializing;
     using DurableTask.Tracing;
     using Microsoft.WindowsAzure.Storage.Table;
 
+    /// <summary>
+    /// Azure Table Instance store provider to allow storage and lookup for orchestration state event history with query support
+    /// </summary>
     public class AzureTableInstanceStore : IOrchestrationServiceInstanceStore
     {
         const int MaxDisplayStringLengthForAzureTableColumn = (1024 * 24) - 20;
+        const int MaxRetriesTableStore = 5;
+        const int IntervalBetweenRetriesSecs = 5;
 
         static readonly DataConverter DataConverter = new JsonDataConverter();
 
         readonly AzureTableClient tableClient;
 
+        /// <summary>
+        /// Creates a new AzureTableInstanceStore using the supplied hub name and table connection string
+        /// </summary>
+        /// <param name="hubName">The hubname for this instance store</param>
+        /// <param name="tableConnectionString">Azure table connection string</param>
         public AzureTableInstanceStore(string hubName, string tableConnectionString)
         {
             this.tableClient = new AzureTableClient(hubName, tableConnectionString);
         }
 
+        /// <summary>
+        /// Runs initialization to prepare the storage for use
+        /// </summary>
+        /// <param name="recreateStorage">Flag to indicate whether the storage should be recreated.</param>
         public async Task InitializeStorageAsync(bool recreateStorage)
         {
             if (recreateStorage)
@@ -55,19 +70,45 @@ namespace DurableTask.Tracking
         {
             await this.tableClient.DeleteTableIfExistsAsync();
         }
-        
+
+        /// <summary>
+        /// Gets the maximum length a history entry can be so it can be truncated if neccesary
+        /// </summary>
+        /// <returns>The maximum length</returns>
         public int MaxHistoryEntryLength => MaxDisplayStringLengthForAzureTableColumn;
 
+        /// <summary>
+        /// Writes a list of history events to storage with retries for transient errors
+        /// </summary>
+        /// <param name="entities">List of history events to write</param>
         public async Task<object> WriteEntitesAsync(IEnumerable<OrchestrationHistoryEvent> entities)
         {
-            return await this.tableClient.WriteEntitesAsync(entities.Select(HistoryEventToTableEntity));
+            return await Utils.ExecuteWithRetries(() => this.tableClient.WriteEntitesAsync(entities.Select(HistoryEventToTableEntity)),
+                                string.Empty,
+                                "WriteEntitesAsync",
+                                MaxRetriesTableStore,
+                                IntervalBetweenRetriesSecs);
         }
 
+        /// <summary>
+        /// Deletes a list of history events from storage with retries for transient errors
+        /// </summary>
+        /// <param name="entities">List of history events to delete</param>
         public async Task<object> DeleteEntitesAsync(IEnumerable<OrchestrationHistoryEvent> entities)
         {
-            return await this.tableClient.DeleteEntitesAsync(entities.Select(HistoryEventToTableEntity));
+            return await Utils.ExecuteWithRetries(() => this.tableClient.DeleteEntitesAsync(entities.Select(HistoryEventToTableEntity)),
+                                string.Empty,
+                                "DeleteEntitesAsync",
+                                MaxRetriesTableStore,
+                                IntervalBetweenRetriesSecs);
         }
 
+        /// <summary>
+        /// Gets a list of orchestration states for a given instance
+        /// </summary>
+        /// <param name="instanceId">The instance id to return state for</param>
+        /// <param name="allInstances">Flag indiciation whether to get all history execution ids or just the most recent</param>
+        /// <returns>List of matching orchestration states</returns>
         public async Task<IEnumerable<OrchestrationStateHistoryEvent>> GetOrchestrationStateAsync(string instanceId, bool allInstances)
         {
             IEnumerable<AzureTableOrchestrationStateEntity> results = 
@@ -92,6 +133,12 @@ namespace DurableTask.Tracking
             }
         }
 
+        /// <summary>
+        /// Gets the orchestration state for a given instance and execution id
+        /// </summary>
+        /// <param name="instanceId">The instance id to return state for</param>
+        /// <param name="executionId">The execution id to return state for</param>
+        /// <returns>The matching orchestation state or null if not found</returns>
         public async Task<OrchestrationStateHistoryEvent> GetOrchestrationStateAsync(string instanceId, string executionId)
         {
             AzureTableOrchestrationStateEntity result = 
@@ -101,6 +148,12 @@ namespace DurableTask.Tracking
             return (result != null) ? TableStateToStateEvent(result) : null;
         }
 
+        /// <summary>
+        /// Gets the list of history events for a given instance and execution id
+        /// </summary>
+        /// <param name="instanceId">The instance id to return history for</param>
+        /// <param name="executionId">The execution id to return history for</param>
+        /// <returns>List of history events</returns>
         public async Task<IEnumerable<OrchestrationWorkItemEvent>> GetOrchestrationHistoryEventsAsync(string instanceId, string executionId)
         {
             IEnumerable<AzureTableOrchestrationHistoryEventEntity> entities = 
@@ -167,6 +220,12 @@ namespace DurableTask.Tracking
             };
         }
 
+        /// <summary>
+        /// Purges history from storage for given time range
+        /// </summary>
+        /// <param name="thresholdDateTimeUtc">The datetime in UTC to use as the threshold for purging history</param>
+        /// <param name="timeRangeFilterType">What to compare the threshold date time against</param>
+        /// <returns>The number of history events purged.</returns>
         public async Task<int> PurgeOrchestrationHistoryEventsAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType)
         {
             TableContinuationToken continuationToken = null;

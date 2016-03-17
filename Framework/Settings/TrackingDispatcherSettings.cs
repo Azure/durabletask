@@ -18,7 +18,6 @@ namespace DurableTask.Settings
     /// <summary>
     ///     Settings to configure the Tracking Dispatcher
     /// </summary>
-    [Obsolete]
     public class TrackingDispatcherSettings
     {
         internal TrackingDispatcherSettings()

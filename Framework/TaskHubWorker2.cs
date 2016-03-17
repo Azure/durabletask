@@ -30,6 +30,9 @@ namespace DurableTask
 
         readonly SemaphoreSlim slimLock = new SemaphoreSlim(1, 1);
 
+        /// <summary>
+        /// Reference to the orchestration service used by the task hub worker
+        /// </summary>
         public readonly IOrchestrationService orchestrationService;
 
         volatile bool isStarted;
@@ -48,13 +51,19 @@ namespace DurableTask
                 throw new ArgumentException("orchestrationService");
             }
 
-            this.orchestrationManager = new NameVersionObjectManager<TaskOrchestration>();
-            this.activityManager = new NameVersionObjectManager<TaskActivity>();
+            orchestrationManager = new NameVersionObjectManager<TaskOrchestration>();
+            activityManager = new NameVersionObjectManager<TaskActivity>();
             this.orchestrationService = orchestrationService;
         }
 
+        /// <summary>
+        /// Gets the orchestration dispatcher
+        /// </summary>
         public TaskOrchestrationDispatcher2 TaskOrchestrationDispatcher => orchestrationDispatcher;
 
+        /// <summary>
+        /// Gets the task activity dispatcher
+        /// </summary>
         public TaskActivityDispatcher2 TaskActivityDispatcher => activityDispatcher;
 
         /// <summary>
@@ -71,12 +80,12 @@ namespace DurableTask
                     throw new InvalidOperationException("Worker is already started");
                 }
 
-                this.orchestrationDispatcher = new TaskOrchestrationDispatcher2(this.orchestrationService, this.orchestrationManager);
-                this.activityDispatcher = new TaskActivityDispatcher2(this.orchestrationService, this.activityManager);
+                orchestrationDispatcher = new TaskOrchestrationDispatcher2(orchestrationService, orchestrationManager);
+                activityDispatcher = new TaskActivityDispatcher2(orchestrationService, activityManager);
 
-                await this.orchestrationService.StartAsync();
-                await this.orchestrationDispatcher.StartAsync();
-                await this.activityDispatcher.StartAsync();
+                await orchestrationService.StartAsync();
+                await orchestrationDispatcher.StartAsync();
+                await activityDispatcher.StartAsync();
 
                 isStarted = true;
             }
@@ -107,9 +116,9 @@ namespace DurableTask
             {
                 if (isStarted)
                 {
-                    await this.orchestrationDispatcher.StopAsync(isForced);
-                    await this.activityDispatcher.StopAsync(isForced);
-                    await this.orchestrationService.StopAsync(isForced);
+                    await orchestrationDispatcher.StopAsync(isForced);
+                    await activityDispatcher.StopAsync(isForced);
+                    await orchestrationService.StopAsync(isForced);
 
                     isStarted = false;
                 }
@@ -143,7 +152,6 @@ namespace DurableTask
         ///     User specified ObjectCreators that will
         ///     create classes deriving TaskOrchestrations with specific names and versions
         /// </param>
-        /// <returns></returns>
         public TaskHubWorker2 AddTaskOrchestrations(params ObjectCreator<TaskOrchestration>[] taskOrchestrationCreators)
         {
             foreach (var creator in taskOrchestrationCreators)
@@ -158,7 +166,6 @@ namespace DurableTask
         ///     Loads user defined TaskActivity objects in the TaskHubWorker
         /// </summary>
         /// <param name="taskActivityObjects">Objects of with TaskActivity base type</param>
-        /// <returns></returns>
         public TaskHubWorker2 AddTaskActivities(params TaskActivity[] taskActivityObjects)
         {
             foreach (TaskActivity instance in taskActivityObjects)
@@ -174,7 +181,6 @@ namespace DurableTask
         ///     Loads user defined TaskActivity classes in the TaskHubWorker
         /// </summary>
         /// <param name="taskActivityTypes">Types deriving from TaskOrchestration class</param>
-        /// <returns></returns>
         public TaskHubWorker2 AddTaskActivities(params Type[] taskActivityTypes)
         {
             foreach (Type type in taskActivityTypes)
@@ -193,7 +199,6 @@ namespace DurableTask
         ///     User specified ObjectCreators that will
         ///     create classes deriving TaskActivity with specific names and versions
         /// </param>
-        /// <returns></returns>
         public TaskHubWorker2 AddTaskActivities(params ObjectCreator<TaskActivity>[] taskActivityCreators)
         {
             foreach (var creator in taskActivityCreators)
@@ -212,7 +217,6 @@ namespace DurableTask
         /// </summary>
         /// <typeparam name="T">Interface</typeparam>
         /// <param name="activities">Object that implements this interface</param>
-        /// <returns></returns>
         public TaskHubWorker2 AddTaskActivitiesFromInterface<T>(T activities)
         {
             return AddTaskActivitiesFromInterface(activities, false);
@@ -230,7 +234,6 @@ namespace DurableTask
         ///     If true, the method name translation from the interface contains
         ///     the interface name, if false then only the method name is used
         /// </param>
-        /// <returns></returns>
         public TaskHubWorker2 AddTaskActivitiesFromInterface<T>(T activities, bool useFullyQualifiedMethodNames)
         {
             Type @interface = typeof (T);

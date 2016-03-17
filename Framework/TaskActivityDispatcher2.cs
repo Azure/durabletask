@@ -77,9 +77,6 @@ namespace DurableTask
 
         async Task OnProcessWorkItemAsync(TaskActivityWorkItem workItem)
         {
-            // AFFANDAR : TODO : add this to the orchestration service impl
-            //Utils.CheckAndLogDeliveryCount(message, taskHubDescription.MaxTaskActivityDeliveryCount);
-
             Task renewTask = null;
             var renewCancellationTokenSource = new CancellationTokenSource();
 

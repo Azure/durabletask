@@ -11,6 +11,8 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+using System.Collections.Generic;
+
 namespace DurableTask.Common
 {
     using System;
@@ -147,6 +149,22 @@ namespace DurableTask.Common
             }
 
             return deserializedObject;
+        }
+
+        public static void CheckAndLogDeliveryCount(string sessionId, IEnumerable<BrokeredMessage> messages, int maxDeliverycount)
+        {
+            foreach (BrokeredMessage message in messages)
+            {
+                CheckAndLogDeliveryCount(sessionId, message, maxDeliverycount);
+            }
+        }
+
+        public static void CheckAndLogDeliveryCount(IEnumerable<BrokeredMessage> messages, int maxDeliverycount)
+        {
+            foreach (BrokeredMessage message in messages)
+            {
+                CheckAndLogDeliveryCount(message, maxDeliverycount);
+            }
         }
 
         public static void CheckAndLogDeliveryCount(BrokeredMessage message, int maxDeliverycount)

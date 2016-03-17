@@ -24,6 +24,7 @@ namespace DurableTask
     using System.Transactions;
 
     using DurableTask.Common;
+    using DurableTask.Exceptions;
     using DurableTask.History;
     using DurableTask.Tracing;
     using DurableTask.Tracking;
@@ -66,8 +67,8 @@ namespace DurableTask
         readonly WorkItemDispatcher<TrackingWorkItem> trackingDispatcher;
 
         // TODO : Make user of these instead of passing around the object references.
-        // ConcurrentDictionary<string, ServiceBusOrchestrationSession> orchestrationSessions;
-        // ConcurrentDictionary<string, MessageSession> orchestrationMessages;
+        ConcurrentDictionary<string, ServiceBusOrchestrationSession> orchestrationSessions;
+        ConcurrentDictionary<string, BrokeredMessage> orchestrationMessages;
 
         /// <summary>
         ///     Create a new ServiceBusOrchestrationService to the given service bus connection string and hubname
@@ -109,6 +110,9 @@ namespace DurableTask
         /// </summary>
         public async Task StartAsync()
         {
+            orchestrationSessions = new ConcurrentDictionary<string, ServiceBusOrchestrationSession>();
+            orchestrationMessages = new ConcurrentDictionary<string, BrokeredMessage>();
+
             orchestratorSender = await messagingFactory.CreateMessageSenderAsync(orchestratorEntityName, workerEntityName);
             workerSender = await messagingFactory.CreateMessageSenderAsync(workerEntityName, orchestratorEntityName);
             trackingSender = await messagingFactory.CreateMessageSenderAsync(trackingEntityName, orchestratorEntityName);
@@ -135,6 +139,8 @@ namespace DurableTask
         /// <param name="isForced">Flag when true stops resources agresssively, when false stops gracefully</param>
         public async Task StopAsync(bool isForced)
         {
+            // TODO : call shutdown of any remaining orchestrationSessions and orchestrationMessages
+
             await Task.WhenAll(
                 workerSender.CloseAsync(),
                 orchestratorSender.CloseAsync(),
@@ -148,6 +154,7 @@ namespace DurableTask
                 await trackingDispatcher.StopAsync(isForced);
             }
 
+            // TODO : Move this, we don't open in start so calling close then start yields a broken reference
             messagingFactory.CloseAsync().Wait();
         }
 
@@ -228,7 +235,7 @@ namespace DurableTask
         }
 
         /// <summary>
-        /// Deletes the resources for the orchestration service and the instance store
+        /// Deletes the resources for the orchestration service and optionally the instance store
         /// </summary>
         /// <param name="deleteInstanceStore">Flag indicating whether to drop instance store</param>
         public async Task DeleteAsync(bool deleteInstanceStore)
@@ -386,13 +393,15 @@ namespace DurableTask
                 return null;
             }
 
-            // TODO : Here an elsewhere, consider standard retry block instead of our own hand rolled version
+            // TODO : Here and elsewhere, consider standard retry block instead of our own hand rolled version
             IList<BrokeredMessage> newMessages =
                 (await Utils.ExecuteWithRetries(() => session.ReceiveBatchAsync(Settings.PrefetchCount),
                     session.SessionId, "Receive Session Message Batch", Settings.MaxRetries, Settings.IntervalBetweenRetriesSecs)).ToList();
 
             TraceHelper.TraceSession(TraceEventType.Information, session.SessionId,
                 GetFormattedLog($"{newMessages.Count()} new messages to process: {string.Join(",", newMessages.Select(m => m.MessageId))}"));
+
+            ServiceBusUtils.CheckAndLogDeliveryCount(session.SessionId, newMessages, Settings.MaxTaskOrchestrationDeliveryCount);
 
             IList<TaskMessage> newTaskMessages = await Task.WhenAll(
                 newMessages.Select(async message => await ServiceBusUtils.GetObjectFromBrokeredMessageAsync<TaskMessage>(message)));
@@ -406,14 +415,42 @@ namespace DurableTask
                 LockTokens = lockTokens
             };
 
+            if (!orchestrationSessions.TryAdd(session.SessionId, sessionState))
+            {
+                var error = $"Duplicate orchestration session id '{session.SessionId}', id already exists in session list.";
+                TraceHelper.Trace(TraceEventType.Error, error);
+                throw new OrchestrationFrameworkException(error);
+            }
+
             return new TaskOrchestrationWorkItem
             {
                 InstanceId = session.SessionId,
                 LockedUntilUtc = session.LockedUntilUtc,
                 NewMessages = newTaskMessages,
-                OrchestrationRuntimeState = runtimeState,
-                SessionInstance = sessionState
+                OrchestrationRuntimeState = runtimeState
             };
+        }
+
+        ServiceBusOrchestrationSession GetSessionInstanceForWorkItem(TaskOrchestrationWorkItem workItem)
+        {
+            if (string.IsNullOrEmpty(workItem?.InstanceId))
+            {
+                return null;
+            }
+
+            return orchestrationSessions[workItem.InstanceId];
+        }
+
+        ServiceBusOrchestrationSession GetAndDeleteSessionInstanceForWorkItem(TaskOrchestrationWorkItem workItem)
+        {
+            if (string.IsNullOrEmpty(workItem?.InstanceId))
+            {
+                return null;
+            }
+
+            ServiceBusOrchestrationSession sessionInstance;
+            orchestrationSessions.TryRemove(workItem.InstanceId, out sessionInstance);
+            return sessionInstance;
         }
 
         /// <summary>
@@ -422,7 +459,7 @@ namespace DurableTask
         /// <param name="workItem">The task orchestration to renew the lock on</param>
         public async Task RenewTaskOrchestrationWorkItemLockAsync(TaskOrchestrationWorkItem workItem)
         {
-            var sessionState = workItem?.SessionInstance as ServiceBusOrchestrationSession;
+            var sessionState = GetSessionInstanceForWorkItem(workItem);
             if (sessionState?.Session == null)
             {
                 return;
@@ -454,7 +491,7 @@ namespace DurableTask
         {
 
             var runtimeState = workItem.OrchestrationRuntimeState;
-            var sessionState = workItem.SessionInstance as ServiceBusOrchestrationSession;
+            var sessionState = GetSessionInstanceForWorkItem(workItem);
             if (sessionState == null)
             {
                 throw new ArgumentNullException("SessionInstance");
@@ -542,9 +579,6 @@ namespace DurableTask
 
                 await session.CompleteBatchAsync(sessionState.LockTokens.Keys);
                 ts.Complete();
-
-                // This is just outside the transaction to avoid a possible race condition (e.g. a session got unlocked and then the txn was committed).
-                await sessionState.Session.CloseAsync();
             }
         }
 
@@ -552,9 +586,15 @@ namespace DurableTask
         ///     Release the lock on an orchestration, releases the session, decoupled from CompleteTaskOrchestrationWorkItemAsync to handle nested orchestrations
         /// </summary>
         /// <param name="workItem">The task orchestration to abandon</param>
-        public Task ReleaseTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
+        public async Task ReleaseTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
-            return Task.FromResult(0); // This provider does not need to anything here
+            var sessionState = GetAndDeleteSessionInstanceForWorkItem(workItem);
+            if (sessionState == null)
+            {
+                throw new ArgumentNullException("SessionInstance");
+            }
+
+            await sessionState.Session.CloseAsync();
         }
 
         /// <summary>
@@ -563,7 +603,7 @@ namespace DurableTask
         /// <param name="workItem">The task orchestration to abandon</param>
         public async Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
-            var sessionState = workItem?.SessionInstance as ServiceBusOrchestrationSession;
+            var sessionState = GetAndDeleteSessionInstanceForWorkItem(workItem);
             if (sessionState?.Session == null)
             {
                 return;
@@ -610,13 +650,43 @@ namespace DurableTask
 
             TaskMessage taskMessage = await ServiceBusUtils.GetObjectFromBrokeredMessageAsync<TaskMessage>(receivedMessage);
 
+            ServiceBusUtils.CheckAndLogDeliveryCount(receivedMessage, Settings.MaxTaskActivityDeliveryCount);
+
+            if (!orchestrationMessages.TryAdd(receivedMessage.MessageId, receivedMessage))
+            {
+                var error = $"Duplicate orchestration message id '{receivedMessage.MessageId}', id already exists in message list.";
+                TraceHelper.Trace(TraceEventType.Error, error);
+                throw new OrchestrationFrameworkException(error);
+            }
+            
             return new TaskActivityWorkItem
             {
                 Id = receivedMessage.MessageId,
                 LockedUntilUtc = receivedMessage.LockedUntilUtc,
-                TaskMessage = taskMessage,
-                MessageState = receivedMessage
+                TaskMessage = taskMessage
             };
+        }
+
+        BrokeredMessage GetBrokeredMessageForWorkItem(TaskActivityWorkItem workItem)
+        {
+            if (string.IsNullOrEmpty(workItem?.Id))
+            {
+                return null;
+            }
+
+            return orchestrationMessages[workItem.Id];
+        }
+
+        BrokeredMessage GetAndDeleteBrokeredMessageForWorkItem(TaskActivityWorkItem workItem)
+        {
+            if (string.IsNullOrEmpty(workItem?.Id))
+            {
+                return null;
+            }
+
+            BrokeredMessage existingMessage;
+            orchestrationMessages.TryRemove(workItem.Id, out existingMessage);
+            return existingMessage;
         }
 
         /// <summary>
@@ -625,7 +695,7 @@ namespace DurableTask
         /// <param name="workItem">Work item to renew the lock on</param>
         public async Task<TaskActivityWorkItem> RenewTaskActivityWorkItemLockAsync(TaskActivityWorkItem workItem)
         {
-            var message = workItem?.MessageState as BrokeredMessage;
+            var message = GetBrokeredMessageForWorkItem(workItem);
             if (message != null)
             {
                 await message.RenewLockAsync();
@@ -648,7 +718,7 @@ namespace DurableTask
                 workItem.TaskMessage.OrchestrationInstance, 
                 $"Response for {workItem.TaskMessage.OrchestrationInstance.InstanceId}");
 
-            var originalMessage = workItem.MessageState as BrokeredMessage;
+            var originalMessage = GetAndDeleteBrokeredMessageForWorkItem(workItem);
             if (originalMessage == null)
             {
                 throw new ArgumentNullException("originalMessage");
@@ -669,7 +739,7 @@ namespace DurableTask
         /// <param name="workItem">The work item to abandon</param>
         public Task AbandonTaskActivityWorkItemAsync(TaskActivityWorkItem workItem)
         {
-            var message = workItem?.MessageState as BrokeredMessage;
+            var message = GetAndDeleteBrokeredMessageForWorkItem(workItem);
             TraceHelper.Trace(TraceEventType.Information, $"Abandoning message {workItem?.Id}");
             return message?.AbandonAsync();
         }
@@ -845,6 +915,8 @@ namespace DurableTask
             TraceHelper.TraceSession(TraceEventType.Information, session.SessionId,
                 GetFormattedLog($"{newMessages.Count()} new tracking messages to process: {string.Join(",", newMessages.Select(m => m.MessageId))}"));
 
+            ServiceBusUtils.CheckAndLogDeliveryCount(newMessages, Settings.MaxTrackingDeliveryCount);
+
             IList<TaskMessage> newTaskMessages = await Task.WhenAll(
                 newMessages.Select(async message => await ServiceBusUtils.GetObjectFromBrokeredMessageAsync<TaskMessage>(message)));
 
@@ -955,7 +1027,6 @@ namespace DurableTask
             TraceEntities(TraceEventType.Verbose, "Writing tracking history event", historyEntities, GetNormalizedWorkItemEvent);
             TraceEntities(TraceEventType.Verbose, "Writing tracking state event", stateEntities, GetNormalizedStateEvent);
 
-            // TODO : pick a retry strategy, old code wrapped every individual item in a retry
             try
             {
                 await InstanceStore.WriteEntitesAsync(historyEntities);

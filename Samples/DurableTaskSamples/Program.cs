@@ -1,11 +1,10 @@
-﻿using System.Threading;
-
-namespace DurableTaskSamples
+﻿namespace DurableTaskSamples
 {
     using System;
     using System.Configuration;
     using System.IO;
     using System.Linq;
+    using System.Threading;
     using DurableTask;
     using DurableTask.Tracking;
     using DurableTaskSamples.AverageCalculator;

@@ -19,7 +19,7 @@ namespace DurableTask
     using DurableTask.Tracking;
 
     /// <summary>
-    /// History provider interface to allow storage and lookup for orchestration state and event history
+    /// Instance Store provider interface to allow storage and lookup for orchestration state and event history
     /// </summary>
     public interface IOrchestrationServiceInstanceStore
     {

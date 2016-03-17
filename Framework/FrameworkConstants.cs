@@ -15,6 +15,8 @@ namespace DurableTask
 {
     internal class FrameworkConstants
     {
+        // TODO : Split these constants into provider specific classes
+
         // name format constants
         public const string OrchestratorEndpointFormat = "{0}/orchestrator";
         public const string WorkerEndpointFormat = "{0}/worker";
