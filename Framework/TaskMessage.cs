@@ -17,11 +17,25 @@ namespace DurableTask
     using System.Runtime.Serialization;
     using DurableTask.History;
 
+    /// <summary>
+    /// Wire level transport object for task messages containing events and orchestration instance information
+    /// </summary>
     [DataContract]
     public class TaskMessage
     {
+        /// <summary>
+        /// Even information for this taks message
+        /// </summary>
         [DataMember] public HistoryEvent Event;
+
+        /// <summary>
+        /// Sequence number for ordering of messages in history tracking
+        /// </summary>
         [DataMember] public long SequenceNumber;
+
+        /// <summary>
+        /// The orchestration instance information
+        /// </summary>
         [DataMember] public OrchestrationInstance OrchestrationInstance;
     }
 }
