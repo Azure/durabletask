@@ -11,20 +11,23 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask
+namespace DurableTask.Settings
 {
     using DurableTask.Common;
 
     /// <summary>
     ///     Configuration for various TaskHubWorker options
     /// </summary>
-    public sealed class TaskHubWorkerSettings
+    public sealed class ServiceBusOrchestrationServiceSettings
     {
         /// <summary>
         ///     Create a TaskHubWorkerSettings object with default settings
         /// </summary>
-        public TaskHubWorkerSettings()
+        public ServiceBusOrchestrationServiceSettings()
         {
+            MaxTaskOrchestrationDeliveryCount = FrameworkConstants.MaxDeliveryCount;
+            MaxTaskActivityDeliveryCount = FrameworkConstants.MaxDeliveryCount;
+            MaxTrackingDeliveryCount = FrameworkConstants.MaxDeliveryCount;
             TaskOrchestrationDispatcherSettings = new TaskOrchestrationDispatcherSettings();
             TaskActivityDispatcherSettings = new TaskActivityDispatcherSettings();
             TrackingDispatcherSettings = new TrackingDispatcherSettings();
@@ -34,6 +37,39 @@ namespace DurableTask
                 ThresholdInBytes = 0
             };
         }
+
+        /// <summary>
+        ///     Maximum number of times the task orchestration dispatcher will try to
+        ///     process an orchestration message before giving up
+        /// </summary>
+        public int MaxTaskOrchestrationDeliveryCount { get; set; }
+
+        /// <summary>
+        ///     Maximum number of times the task activity dispatcher will try to
+        ///     process an orchestration message before giving up
+        /// </summary>
+        public int MaxTaskActivityDeliveryCount { get; set; }
+
+        /// <summary>
+        ///     Maximum number of times the tracking dispatcher will try to
+        ///     process an orchestration message before giving up
+        /// </summary>
+        public int MaxTrackingDeliveryCount { get; set; }
+
+        /// <summary>
+        /// Gets the message prefetch count
+        /// </summary>
+        public int PrefetchCount { get; } = 50;
+
+        /// <summary>
+        /// Gets the default interval in settings between retries
+        /// </summary>
+        public int IntervalBetweenRetriesSecs { get; } = 5;
+
+        /// <summary>
+        /// Gets the max retries
+        /// </summary>
+        public int MaxRetries { get; } = 5;
 
         /// <summary>
         ///     Settings to configure the Task Orchestration Dispatcher
@@ -56,18 +92,5 @@ namespace DurableTask
         ///     Default is false.
         /// </summary>
         public CompressionSettings MessageCompressionSettings { get; set; }
-
-        internal TaskHubWorkerSettings Clone()
-        {
-            var clonedSettings = new TaskHubWorkerSettings();
-
-            clonedSettings.TaskOrchestrationDispatcherSettings = TaskOrchestrationDispatcherSettings.Clone();
-            clonedSettings.TaskActivityDispatcherSettings = TaskActivityDispatcherSettings.Clone();
-            clonedSettings.TrackingDispatcherSettings = TrackingDispatcherSettings.Clone();
-
-            clonedSettings.MessageCompressionSettings = MessageCompressionSettings;
-
-            return clonedSettings;
-        }
     }
 }

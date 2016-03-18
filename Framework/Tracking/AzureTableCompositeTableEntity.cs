@@ -18,7 +18,7 @@ namespace DurableTask.Tracking
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Table;
 
-    public abstract class CompositeTableEntity : ITableEntity
+    public abstract class AzureTableCompositeTableEntity : ITableEntity
     {
         public DateTime TaskTimeStamp { get; set; }
         public string PartitionKey { get; set; }

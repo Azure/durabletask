@@ -103,7 +103,7 @@ namespace DurableTask
             {
                 result = await ExecuteAsync(context, parameter);
             }
-            catch (Exception e)
+            catch (Exception e) when (!Utils.IsFatal(e))
             {
                 string details = Utils.SerializeCause(e, DataConverter);
                 throw new TaskFailureException(e.Message, details);

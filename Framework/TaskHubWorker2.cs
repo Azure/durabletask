@@ -15,6 +15,9 @@ namespace DurableTask
 {
     using System;
     using System.Reflection;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using DurableTask.Settings;
 
     /// <summary>
     ///     Allows users to load the TaskOrchestration and TaskActivity classes and start
@@ -25,121 +28,70 @@ namespace DurableTask
         readonly NameVersionObjectManager<TaskActivity> activityManager;
         readonly NameVersionObjectManager<TaskOrchestration> orchestrationManager;
 
-        readonly object thisLock = new object();
+        readonly SemaphoreSlim slimLock = new SemaphoreSlim(1, 1);
 
-        readonly TaskHubWorkerSettings workerSettings;
+        /// <summary>
+        /// Reference to the orchestration service used by the task hub worker
+        /// </summary>
         public readonly IOrchestrationService orchestrationService;
 
         volatile bool isStarted;
 
-        // AFFANDAR : TODO : replace with TaskActivityDispatcher2
         TaskActivityDispatcher2 activityDispatcher;
         TaskOrchestrationDispatcher2 orchestrationDispatcher;
-
-        /// <summary>
-        ///     Create a new TaskHubWorker with the given OrchestrationService with default settings.
-        /// </summary>
-        /// <param name="orchestrationService">Object implementing the <see cref="IOrchestrationService"/> interface </param>
-        public TaskHubWorker2(IOrchestrationService orchestrationService)
-            : this(orchestrationService, new TaskHubWorkerSettings())
-        {
-        }
 
         /// <summary>
         ///     Create a new TaskHubWorker with given OrchestrationService and settings
         /// </summary>
         /// <param name="orchestrationService">Reference the orchestration service implmentaion</param>
-        /// <param name="workerSettings">Settings for various task hub worker options</param>
-        public TaskHubWorker2(IOrchestrationService orchestrationService, TaskHubWorkerSettings workerSettings)
+        public TaskHubWorker2(IOrchestrationService orchestrationService)
         {
             if (orchestrationService == null)
             {
                 throw new ArgumentException("orchestrationService");
             }
 
-            if (workerSettings == null)
-            {
-                throw new ArgumentException("workerSettings");
-            }
-
-            this.orchestrationManager = new NameVersionObjectManager<TaskOrchestration>();
-            this.activityManager = new NameVersionObjectManager<TaskActivity>();
+            orchestrationManager = new NameVersionObjectManager<TaskOrchestration>();
+            activityManager = new NameVersionObjectManager<TaskActivity>();
             this.orchestrationService = orchestrationService;
-            this.workerSettings = workerSettings;
         }
 
-        public TaskOrchestrationDispatcher2 TaskOrchestrationDispatcher
-        {
-            get { return orchestrationDispatcher; }
-        }
+        /// <summary>
+        /// Gets the orchestration dispatcher
+        /// </summary>
+        public TaskOrchestrationDispatcher2 TaskOrchestrationDispatcher => orchestrationDispatcher;
 
-        public TaskActivityDispatcher2 TaskActivityDispatcher
-        {
-            get { return activityDispatcher; }
-        }
-
-        // AFFANDAR : TODO : is this useful at all?
-
-        ///// <summary>
-        /////     Gets the TaskHubDescription for the configured TaskHub
-        ///// </summary>
-        ///// <returns></returns>
-        //public TaskHubDescription GetTaskHubDescription()
-        //{
-        //    return Utils.AsyncExceptionWrapper(() => GetTaskHubDescriptionAsync().Result);
-        //}
-
-        ///// <summary>
-        /////     Gets the TaskHubDescription for the configured TaskHub
-        ///// </summary>
-        ///// <returns></returns>
-        //public async Task<TaskHubDescription> GetTaskHubDescriptionAsync()
-        //{
-        //    NamespaceManager namespaceManager = NamespaceManager.CreateFromConnectionString(connectionString);
-
-        //    var description = new TaskHubDescription();
-
-        //    IEnumerable<QueueDescription> queueDescriptions =
-        //        await namespaceManager.GetQueuesAsync("startswith(path, '" + hubName + "') eq TRUE");
-
-        //    List<QueueDescription> descriptions = queueDescriptions.ToList();
-
-        //    QueueDescription orchestratorQueueDescription =
-        //        descriptions.Single(q => string.Equals(q.Path, orchestratorEntityName));
-        //    QueueDescription activityQueueDescription = descriptions.Single(q => string.Equals(q.Path, workerEntityName));
-        //    QueueDescription trackingQueueDescription =
-        //        descriptions.Single(q => string.Equals(q.Path, trackingEntityName));
-
-        //    description.MaxTaskOrchestrationDeliveryCount = orchestratorQueueDescription.MaxDeliveryCount;
-        //    description.MaxTaskActivityDeliveryCount = activityQueueDescription.MaxDeliveryCount;
-        //    description.MaxTrackingDeliveryCount = trackingQueueDescription.MaxDeliveryCount;
-
-        //    return description;
-        //}
+        /// <summary>
+        /// Gets the task activity dispatcher
+        /// </summary>
+        public TaskActivityDispatcher2 TaskActivityDispatcher => activityDispatcher;
 
         /// <summary>
         ///     Starts the TaskHubWorker so it begins processing orchestrations and activities
         /// </summary>
         /// <returns></returns>
-        public TaskHubWorker2 Start()
+        public async Task<TaskHubWorker2> StartAsync()
         {
-            lock (thisLock)
+            await slimLock.WaitAsync();
+            try
             {
                 if (isStarted)
                 {
                     throw new InvalidOperationException("Worker is already started");
                 }
 
-                this.orchestrationDispatcher = new TaskOrchestrationDispatcher2(this.workerSettings, this.orchestrationService, this.orchestrationManager);
-                this.activityDispatcher = new TaskActivityDispatcher2(this.workerSettings, this.orchestrationService, this.activityManager);
+                orchestrationDispatcher = new TaskOrchestrationDispatcher2(orchestrationService, orchestrationManager);
+                activityDispatcher = new TaskActivityDispatcher2(orchestrationService, activityManager);
 
-                this.orchestrationService.StartAsync().Wait();
-                // AFFANDAR : TODO : make dispatcher start/stop methods async
-                this.orchestrationDispatcher.Start();
-                this.activityDispatcher.Start();
-
+                await orchestrationService.StartAsync();
+                await orchestrationDispatcher.StartAsync();
+                await activityDispatcher.StartAsync();
 
                 isStarted = true;
+            }
+            finally
+            {
+                slimLock.Release();
             }
 
             return this;
@@ -148,27 +100,32 @@ namespace DurableTask
         /// <summary>
         ///     Gracefully stops the TaskHubWorker
         /// </summary>
-        public void Stop()
+        public async Task StopAsync()
         {
-            Stop(false);
+            await StopAsync(false);
         }
 
         /// <summary>
         ///     Stops the TaskHubWorker
         /// </summary>
         /// <param name="isForced">True if forced shutdown, false if graceful shutdown</param>
-        public void Stop(bool isForced)
+        public async Task StopAsync(bool isForced)
         {
-            lock (thisLock)
+            await slimLock.WaitAsync();
+            try
             {
                 if (isStarted)
                 {
-                    this.orchestrationDispatcher.Stop(isForced);
-                    this.activityDispatcher.Stop(isForced);
-                    this.orchestrationService.StopAsync().Wait();
+                    await orchestrationDispatcher.StopAsync(isForced);
+                    await activityDispatcher.StopAsync(isForced);
+                    await orchestrationService.StopAsync(isForced);
 
                     isStarted = false;
                 }
+            }
+            finally
+            {
+                slimLock.Release();
             }
         }
 
@@ -195,7 +152,6 @@ namespace DurableTask
         ///     User specified ObjectCreators that will
         ///     create classes deriving TaskOrchestrations with specific names and versions
         /// </param>
-        /// <returns></returns>
         public TaskHubWorker2 AddTaskOrchestrations(params ObjectCreator<TaskOrchestration>[] taskOrchestrationCreators)
         {
             foreach (var creator in taskOrchestrationCreators)
@@ -210,7 +166,6 @@ namespace DurableTask
         ///     Loads user defined TaskActivity objects in the TaskHubWorker
         /// </summary>
         /// <param name="taskActivityObjects">Objects of with TaskActivity base type</param>
-        /// <returns></returns>
         public TaskHubWorker2 AddTaskActivities(params TaskActivity[] taskActivityObjects)
         {
             foreach (TaskActivity instance in taskActivityObjects)
@@ -226,7 +181,6 @@ namespace DurableTask
         ///     Loads user defined TaskActivity classes in the TaskHubWorker
         /// </summary>
         /// <param name="taskActivityTypes">Types deriving from TaskOrchestration class</param>
-        /// <returns></returns>
         public TaskHubWorker2 AddTaskActivities(params Type[] taskActivityTypes)
         {
             foreach (Type type in taskActivityTypes)
@@ -245,7 +199,6 @@ namespace DurableTask
         ///     User specified ObjectCreators that will
         ///     create classes deriving TaskActivity with specific names and versions
         /// </param>
-        /// <returns></returns>
         public TaskHubWorker2 AddTaskActivities(params ObjectCreator<TaskActivity>[] taskActivityCreators)
         {
             foreach (var creator in taskActivityCreators)
@@ -264,7 +217,6 @@ namespace DurableTask
         /// </summary>
         /// <typeparam name="T">Interface</typeparam>
         /// <param name="activities">Object that implements this interface</param>
-        /// <returns></returns>
         public TaskHubWorker2 AddTaskActivitiesFromInterface<T>(T activities)
         {
             return AddTaskActivitiesFromInterface(activities, false);
@@ -282,7 +234,6 @@ namespace DurableTask
         ///     If true, the method name translation from the interface contains
         ///     the interface name, if false then only the method name is used
         /// </param>
-        /// <returns></returns>
         public TaskHubWorker2 AddTaskActivitiesFromInterface<T>(T activities, bool useFullyQualifiedMethodNames)
         {
             Type @interface = typeof (T);

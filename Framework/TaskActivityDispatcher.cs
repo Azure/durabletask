@@ -21,8 +21,9 @@ namespace DurableTask
     using DurableTask.Common;
     using DurableTask.Exceptions;
     using DurableTask.History;
+    using DurableTask.Settings;
+    using DurableTask.Tracing;
     using Microsoft.ServiceBus.Messaging;
-    using Tracing;
 
     public sealed class TaskActivityDispatcher : DispatcherBase<BrokeredMessage>
     {

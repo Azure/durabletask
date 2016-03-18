@@ -15,8 +15,6 @@
                 throw new ArgumentException(nameof(input));
             }
 
-            Console.WriteLine($"SumOfSquaresOrchestrationAsTask::Start::{input}");
-
             int chunk = Convert.ToInt32(input.Replace("[", "").Replace("]", ""));
 
             DateTime currentTime = context.CurrentUtcDateTime;
@@ -24,7 +22,6 @@
             await context.CreateTimer<string>(fireAt, "done");
 
             Console.WriteLine($"Square(Orch)::{chunk}::{chunk * chunk}");
-            Console.WriteLine($"SumOfSquaresOrchestrationAsTask::End");
 
             return chunk * chunk;
         }

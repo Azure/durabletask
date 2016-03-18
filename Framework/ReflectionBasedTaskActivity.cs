@@ -109,7 +109,7 @@ namespace DurableTask
                 string details = Utils.SerializeCause(realException, DataConverter);
                 throw new TaskFailureException(realException.Message, details);
             }
-            catch (Exception e)
+            catch (Exception e) when (!Utils.IsFatal(e))
             {
                 string details = Utils.SerializeCause(e, DataConverter);
                 throw new TaskFailureException(e.Message, details);

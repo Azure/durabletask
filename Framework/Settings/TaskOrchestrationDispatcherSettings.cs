@@ -11,18 +11,19 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask
+namespace DurableTask.Settings
 {
     /// <summary>
-    ///     Settings to configure the Task Activity Dispatcher
+    ///     Settings to configure the Task Orchestration Dispatcher
     /// </summary>
-    public class TaskActivityDispatcherSettings
+    public class TaskOrchestrationDispatcherSettings
     {
-        internal TaskActivityDispatcherSettings()
+        internal TaskOrchestrationDispatcherSettings()
         {
-            TransientErrorBackOffSecs = FrameworkConstants.ActivityTransientErrorBackOffSecs;
-            NonTransientErrorBackOffSecs = FrameworkConstants.ActivityNonTransientErrorBackOffSecs;
-            MaxConcurrentActivities = FrameworkConstants.ActivityDefaultMaxConcurrentItems;
+            TransientErrorBackOffSecs = FrameworkConstants.OrchestrationTransientErrorBackOffSecs;
+            NonTransientErrorBackOffSecs = FrameworkConstants.OrchestrationNonTransientErrorBackOffSecs;
+            MaxConcurrentOrchestrations = FrameworkConstants.OrchestrationDefaultMaxConcurrentItems;
+            CompressOrchestrationState = false;
         }
 
         /// <summary>
@@ -36,17 +37,23 @@ namespace DurableTask
         public int NonTransientErrorBackOffSecs { get; set; }
 
         /// <summary>
-        ///     How many activities to process concurrently. Default is 10.
+        ///     How many orchestrations to process concurrently. Default is 100.
         /// </summary>
-        public int MaxConcurrentActivities { get; set; }
+        public int MaxConcurrentOrchestrations { get; set; }
 
-        internal TaskActivityDispatcherSettings Clone()
+        /// <summary>
+        ///     Compress the orchestration state to enable more complex orchestrations at the cost of throughput. Default is False.
+        /// </summary>
+        public bool CompressOrchestrationState { get; set; }
+
+        internal TaskOrchestrationDispatcherSettings Clone()
         {
-            return new TaskActivityDispatcherSettings
+            return new TaskOrchestrationDispatcherSettings
             {
                 TransientErrorBackOffSecs = TransientErrorBackOffSecs,
                 NonTransientErrorBackOffSecs = NonTransientErrorBackOffSecs,
-                MaxConcurrentActivities = MaxConcurrentActivities,
+                MaxConcurrentOrchestrations = MaxConcurrentOrchestrations,
+                CompressOrchestrationState = CompressOrchestrationState,
             };
         }
     }

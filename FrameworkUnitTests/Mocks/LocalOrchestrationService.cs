@@ -33,6 +33,8 @@ namespace FrameworkUnitTests.Mocks
         Dictionary<string, byte[]> sessionState;
         List<TaskMessage> timerMessages;
 
+        int MaxConcurrentWorkItems = 20;
+
         // dictionary<instanceid, dictionary<executionid, orchestrationstate>>
         //Dictionary<string, Dictionary<string, OrchestrationState>> instanceStore;
 
@@ -97,15 +99,30 @@ namespace FrameworkUnitTests.Mocks
         /******************************/
         public Task CreateAsync()
         {
+            return CreateAsync(true);
+        }
+
+        public Task CreateAsync(bool recreateInstanceStore)
+        {
             return Task.FromResult<object>(null);
         }
 
         public Task CreateIfNotExistsAsync()
         {
+            return CreateIfNotExistsAsync(true);
+        }
+
+        public Task CreateIfNotExistsAsync(bool recreateInstanceStore)
+        {
             return Task.FromResult<object>(null);
         }
 
         public Task DeleteAsync()
+        {
+            return DeleteAsync(true);
+        }
+
+        public Task DeleteAsync(bool deleteInstanceStore)
         {
             return Task.FromResult<object>(null);
         }
@@ -116,12 +133,17 @@ namespace FrameworkUnitTests.Mocks
             return Task.FromResult<object>(null);
         }
 
-        public Task StopAsync()
+        public Task StopAsync(bool isForced)
         {
             this.cancellationTokenSource.Cancel();
             return Task.FromResult<object>(null);
         }
-        
+
+        public Task StopAsync()
+        {
+            return StopAsync(false);
+        }
+
         public bool IsTransientException(Exception exception)
         {
             return false;
@@ -298,6 +320,8 @@ namespace FrameworkUnitTests.Mocks
         /******************************/
         // Task orchestration methods
         /******************************/
+        public int MaxConcurrentTaskOrchestrationWorkItems => MaxConcurrentWorkItems;
+
         public async Task<TaskOrchestrationWorkItem> LockNextTaskOrchestrationWorkItemAsync(
             TimeSpan receiveTimeout, 
             CancellationToken cancellationToken)
@@ -411,7 +435,14 @@ namespace FrameworkUnitTests.Mocks
             return Task.FromResult<object>(null);
         }
 
-        public Task ForceTerminateTaskOrchestrationAsync(string instanceId)
+        public Task ReleaseTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
+        {
+            return Task.FromResult<object>(null);
+        }
+
+        public int MaxConcurrentTaskActivityWorkItems => MaxConcurrentWorkItems;
+
+        public Task ForceTerminateTaskOrchestrationAsync(string instanceId, string message)
         {
             // tricky to implement in-memory as object references are being used instead of clones
             throw new NotImplementedException();
@@ -426,6 +457,16 @@ namespace FrameworkUnitTests.Mocks
         public bool IsMaxMessageCountExceeded(int currentMessageCount, OrchestrationRuntimeState runtimeState)
         {
             return false;
+        }
+
+        public int GetDelayInSecondsAfterOnProcessException(Exception exception)
+        {
+            return 0;
+        }
+
+        public int GetDelayInSecondsAfterOnFetchException(Exception exception)
+        {
+            return 0;
         }
 
         /******************************/

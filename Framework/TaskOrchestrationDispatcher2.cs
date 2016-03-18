@@ -26,49 +26,64 @@ namespace DurableTask
     using DurableTask.Serializing;
     using DurableTask.Tracing;
 
-    public class TaskOrchestrationDispatcher2 : DispatcherBase<TaskOrchestrationWorkItem>
+    public class TaskOrchestrationDispatcher2 
     {
         readonly NameVersionObjectManager<TaskOrchestration> objectManager;
-        readonly TaskHubWorkerSettings settings;
         readonly IOrchestrationService orchestrationService;
-        private static readonly DataConverter DataConverter = new JsonDataConverter();
+        readonly WorkItemDispatcher<TaskOrchestrationWorkItem> dispatcher;
+        static readonly DataConverter DataConverter = new JsonDataConverter();
 
         internal TaskOrchestrationDispatcher2(
-            TaskHubWorkerSettings workerSettings,
             IOrchestrationService orchestrationService,
             NameVersionObjectManager<TaskOrchestration> objectManager)
-            : base("TaskOrchestration Dispatcher", item => item == null  ? string.Empty : item.InstanceId)  // AFFANDAR : TODO : revisit this abstraction
         {
-            this.settings = workerSettings.Clone();
+            if (orchestrationService == null)
+            {
+                throw new ArgumentNullException(nameof(orchestrationService));
+            }
+
+            if (objectManager == null)
+            {
+                throw new ArgumentNullException(nameof(objectManager));
+            }
+
             this.objectManager = objectManager;
 
             this.orchestrationService = orchestrationService;
-            maxConcurrentWorkItems = settings.TaskOrchestrationDispatcherSettings.MaxConcurrentOrchestrations;
+            this.dispatcher = new WorkItemDispatcher<TaskOrchestrationWorkItem>(
+                "TaskOrchestrationDispatcher",
+                item => item == null ? string.Empty : item.InstanceId,
+                this.OnFetchWorkItemAsync,
+                this.OnProcessWorkItemAsync)
+            {
+                GetDelayInSecondsAfterOnFetchException = orchestrationService.GetDelayInSecondsAfterOnFetchException,
+                GetDelayInSecondsAfterOnProcessException = orchestrationService.GetDelayInSecondsAfterOnProcessException,
+                SafeReleaseWorkItem = orchestrationService.ReleaseTaskOrchestrationWorkItemAsync,
+                AbortWorkItem = orchestrationService.AbandonTaskOrchestrationWorkItemAsync,
+                MaxConcurrentWorkItems = orchestrationService.MaxConcurrentTaskOrchestrationWorkItems
+            };
+        }
+
+        public async Task StartAsync()
+        {
+            await dispatcher.StartAsync();
+        }
+
+        public async Task StopAsync(bool forced)
+        {
+            await dispatcher.StopAsync(forced);
         }
 
         public bool IncludeDetails { get; set; }
         public bool IncludeParameters { get; set; }
 
-        protected override void OnStart()
+        protected async Task<TaskOrchestrationWorkItem> OnFetchWorkItemAsync(TimeSpan receiveTimeout)
         {
-        }
-
-        protected override void OnStopping(bool isForced)
-        {
-        }
-
-        protected override void OnStopped(bool isForced)
-        {
-        }
-
-        protected override async Task<TaskOrchestrationWorkItem> OnFetchWorkItemAsync(TimeSpan receiveTimeout)
-        {
-            // AFFANDAR : TODO : do we really need this abstract method anymore?
             // AFFANDAR : TODO : wire-up cancellation tokens
             return await this.orchestrationService.LockNextTaskOrchestrationWorkItemAsync(receiveTimeout, CancellationToken.None);
         }
 
-        protected override async Task OnProcessWorkItemAsync(TaskOrchestrationWorkItem workItem)
+        protected async Task OnProcessWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
             var messagesToSend = new List<TaskMessage>();
             var timerMessages = new List<TaskMessage>();
@@ -96,7 +111,7 @@ namespace DurableTask
                     TraceEventType.Verbose,
                     runtimeState.OrchestrationInstance,
                     "Executing user orchestration: {0}",
-                    DataConverter.Serialize(runtimeState.GetOrchestrationRuntimeStateDump(), false));
+                    DataConverter.Serialize(runtimeState.GetOrchestrationRuntimeStateDump(), true));
 
                 IList<OrchestratorAction> decisions = ExecuteOrchestration(runtimeState).ToList();
 
@@ -128,15 +143,11 @@ namespace DurableTask
                                     runtimeState, IncludeParameters));
                             break;
                         case OrchestratorActionType.OrchestrationComplete:
-                            // todo : restore logic from original for certain cases
                             TaskMessage workflowInstanceCompletedMessage =
                                 ProcessWorkflowCompletedTaskDecision((OrchestrationCompleteOrchestratorAction) decision, runtimeState, IncludeDetails, out continuedAsNew);
                             if (workflowInstanceCompletedMessage != null)
                             {
                                 // Send complete message to parent workflow or to itself to start a new execution
-                                // moved into else to match old 
-                                // subOrchestrationMessages.Add(workflowInstanceCompletedMessage);
-
                                 // Store the event so we can rebuild the state
                                 if (continuedAsNew)
                                 {
@@ -162,8 +173,6 @@ namespace DurableTask
                     //
                     // We also put in a fake timer to force next orchestration task for remaining messages
                     int totalMessages = messagesToSend.Count + subOrchestrationMessages.Count + timerMessages.Count;
-
-                    // AFFANDAR : TODO : this should be moved to the service bus orchestration service
                     if (this.orchestrationService.IsMaxMessageCountExceeded(totalMessages, runtimeState))
                     {
                         TraceHelper.TraceInstance(TraceEventType.Information, runtimeState.OrchestrationInstance,
@@ -196,7 +205,6 @@ namespace DurableTask
 
             OrchestrationRuntimeState newOrchestrationRuntimeState = workItem.OrchestrationRuntimeState;
 
-            // todo : figure out if this is correct, BuildOrchestrationState fails when iscompleted is true
             OrchestrationState instanceState = null;
 
             if (isCompleted)
@@ -206,7 +214,7 @@ namespace DurableTask
             }
             else
             {
-                instanceState = BuildOrchestrationState(newOrchestrationRuntimeState);
+                instanceState = Utils.BuildOrchestrationState(newOrchestrationRuntimeState);
 
                 if (continuedAsNew)
                 {
@@ -219,45 +227,16 @@ namespace DurableTask
                 }
             }
 
-            // AFFANDAR : TODO : session state size check, should we let sbus handle it completely?
-            try
-            {
-                await this.orchestrationService.CompleteTaskOrchestrationWorkItemAsync(
-                    workItem,
-                    newOrchestrationRuntimeState,
-                    continuedAsNew ? null : messagesToSend,
-                    subOrchestrationMessages,
-                    continuedAsNew ? null : timerMessages,
-                    continuedAsNewMessage,
-                    instanceState);
-            }
-            catch(Exception)
-            {
-                // AFFANDAR : TODO : if exception is due to session state size then force terminate message
-                throw;
-            }
+            await this.orchestrationService.CompleteTaskOrchestrationWorkItemAsync(
+                workItem,
+                newOrchestrationRuntimeState,
+                continuedAsNew ? null : messagesToSend,
+                subOrchestrationMessages,
+                continuedAsNew ? null : timerMessages,
+                continuedAsNewMessage,
+                instanceState);
         }
 
-        static OrchestrationState BuildOrchestrationState(OrchestrationRuntimeState runtimeState)
-        {
-            return new OrchestrationState
-            {
-                OrchestrationInstance = runtimeState.OrchestrationInstance,
-                ParentInstance = runtimeState.ParentInstance,
-                Name = runtimeState.Name,
-                Version = runtimeState.Version,
-                Status = runtimeState.Status,
-                Tags = runtimeState.Tags,
-                OrchestrationStatus = runtimeState.OrchestrationStatus,
-                CreatedTime = runtimeState.CreatedTime,
-                CompletedTime = runtimeState.CompletedTime,
-                LastUpdatedTime = DateTime.UtcNow,
-                Size = runtimeState.Size,
-                CompressedSize = runtimeState.CompressedSize,
-                Input = runtimeState.Input,
-                Output = runtimeState.Output
-            };
-        }
 
         internal virtual IEnumerable<OrchestratorAction> ExecuteOrchestration(OrchestrationRuntimeState runtimeState)
         {
@@ -501,42 +480,6 @@ namespace DurableTask
             taskMessage.Event = startedEvent;
 
             return taskMessage;
-        }
-
-        protected override Task AbortWorkItemAsync(TaskOrchestrationWorkItem workItem)
-        {
-            return this.orchestrationService.AbandonTaskOrchestrationWorkItemAsync(workItem);
-        }
-
-        protected override int GetDelayInSecondsAfterOnProcessException(Exception exception)
-        {
-            if (orchestrationService.IsTransientException(exception))  
-            {
-                return settings.TaskOrchestrationDispatcherSettings.TransientErrorBackOffSecs;
-            }
-
-            return 0;
-        }
-
-        protected override int GetDelayInSecondsAfterOnFetchException(Exception exception)
-        {
-            if (exception is TimeoutException)
-            {
-                return 0;
-            }
-
-            int delay = settings.TaskOrchestrationDispatcherSettings.NonTransientErrorBackOffSecs;
-            if (orchestrationService.IsTransientException(exception))
-            {
-                delay = settings.TaskOrchestrationDispatcherSettings.TransientErrorBackOffSecs;
-            }
-
-            return delay;
-        }
-
-        protected override Task SafeReleaseWorkItemAsync(TaskOrchestrationWorkItem workItem)
-        {
-            return this.orchestrationService.ReleaseTaskOrchestrationWorkItemAsync(workItem);
         }
     }
 }

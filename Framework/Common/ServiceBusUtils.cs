@@ -11,19 +11,18 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+using System.Collections.Generic;
+
 namespace DurableTask.Common
 {
     using System;
     using System.Diagnostics;
     using System.IO;
-    using System.IO.Compression;
-    using System.Runtime.ExceptionServices;
-    using System.Text;
     using System.Threading.Tasks;
+    using DurableTask.Settings;
+    using DurableTask.Tracing;
     using Microsoft.ServiceBus;
     using Microsoft.ServiceBus.Messaging;
-    using Newtonsoft.Json;
-    using Tracing;
 
     internal static class ServiceBusUtils
     {
@@ -45,7 +44,7 @@ namespace DurableTask.Common
 
             if (compressionSettings.Style == CompressionStyle.Legacy)
             {
-                return new BrokeredMessage(serializableObject);
+                return new BrokeredMessage(serializableObject) {SessionId = instance?.InstanceId};
             }
 
             bool disposeStream = true;
@@ -124,9 +123,8 @@ namespace DurableTask.Common
                     if (!Utils.IsGzipStream(compressedStream))
                     {
                         throw new ArgumentException(
-                            "message specifies a CompressionType of " + compressionType +
-                            " but content is not compressed",
-                            "message");
+                            $"message specifies a CompressionType of {compressionType} but content is not compressed",
+                            nameof(message));
                     }
 
                     using (Stream objectStream = await Utils.GetDecompressedStreamAsync(compressedStream))
@@ -145,11 +143,28 @@ namespace DurableTask.Common
             }
             else
             {
-                throw new ArgumentException("message specifies an invalid CompressionType: " + compressionType,
-                    "message");
+                throw new ArgumentException(
+                    $"message specifies an invalid CompressionType: {compressionType}",
+                    nameof(message));
             }
 
             return deserializedObject;
+        }
+
+        public static void CheckAndLogDeliveryCount(string sessionId, IEnumerable<BrokeredMessage> messages, int maxDeliverycount)
+        {
+            foreach (BrokeredMessage message in messages)
+            {
+                CheckAndLogDeliveryCount(sessionId, message, maxDeliverycount);
+            }
+        }
+
+        public static void CheckAndLogDeliveryCount(IEnumerable<BrokeredMessage> messages, int maxDeliverycount)
+        {
+            foreach (BrokeredMessage message in messages)
+            {
+                CheckAndLogDeliveryCount(message, maxDeliverycount);
+            }
         }
 
         public static void CheckAndLogDeliveryCount(BrokeredMessage message, int maxDeliverycount)

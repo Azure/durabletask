@@ -11,17 +11,24 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask
+namespace DurableTask.Settings
 {
-    using System;
-    using System.Runtime.Serialization;
-    using DurableTask.History;
+    using DurableTask.Common;
 
-    [DataContract]
-    public class TaskMessage
+    /// <summary>
+    /// Compression settings
+    /// </summary>
+    public struct CompressionSettings
     {
-        [DataMember] public HistoryEvent Event;
-        [DataMember] public long SequenceNumber;
-        [DataMember] public OrchestrationInstance OrchestrationInstance;
+        /// <summary>
+        ///     Type of compression
+        /// </summary>
+        public CompressionStyle Style { get; set; }
+
+        /// <summary>
+        ///     Compression threshold in bytes; if specified by compression criteria, compression will not be done
+        ///     if size is below this value
+        /// </summary>
+        public int ThresholdInBytes { get; set; }
     }
 }

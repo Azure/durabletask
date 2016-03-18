@@ -15,12 +15,13 @@
 namespace FrameworkUnitTests
 {
     using System;
+    using System.Diagnostics;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask;
+    using DurableTask.Settings;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Mocks;
-    using System.Diagnostics;
 
     /// <summary>
     /// Test the core dtfx via a mock orchestration service and client provider
@@ -46,13 +47,13 @@ namespace FrameworkUnitTests
         {
             LocalOrchestrationService orchService = new LocalOrchestrationService();
 
-            TaskHubWorker2 worker = new TaskHubWorker2(orchService, new TaskHubWorkerSettings());
+            TaskHubWorker2 worker = new TaskHubWorker2(orchService);
 
-            worker.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
+            await worker.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
                 .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
-                .Start();
+                .StartAsync();
 
-            TaskHubClient2 client = new TaskHubClient2(orchService, new TaskHubClientSettings());
+            TaskHubClient2 client = new TaskHubClient2(orchService);
 
             OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), null);
 
@@ -62,7 +63,7 @@ namespace FrameworkUnitTests
             Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,
                 "Orchestration Result is wrong!!!");
 
-            worker.Stop();
+            await worker.StopAsync();
         }
 
         [TestMethod]
@@ -70,13 +71,13 @@ namespace FrameworkUnitTests
         {
             LocalOrchestrationService orchService = new LocalOrchestrationService();
 
-            TaskHubWorker2 worker = new TaskHubWorker2(orchService, new TaskHubWorkerSettings());
+            TaskHubWorker2 worker = new TaskHubWorker2(orchService);
 
-            worker.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
+            await worker.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
                 .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
-                .Start();
+                .StartAsync();
 
-            TaskHubClient2 client = new TaskHubClient2(orchService, new TaskHubClientSettings());
+            TaskHubClient2 client = new TaskHubClient2(orchService);
 
             OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), "30");
 
@@ -89,7 +90,7 @@ namespace FrameworkUnitTests
             Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,
                 "Orchestration Result is wrong!!!");
 
-            worker.Stop();
+            await worker.StopAsync();
         }
 
         [TestMethod]
@@ -100,12 +101,12 @@ namespace FrameworkUnitTests
 
             LocalOrchestrationService orchService = new LocalOrchestrationService();
 
-            TaskHubWorker2 worker = new TaskHubWorker2(orchService, new TaskHubWorkerSettings());
-            TaskHubClient2 client = new TaskHubClient2(orchService, new TaskHubClientSettings());
+            TaskHubWorker2 worker = new TaskHubWorker2(orchService);
+            TaskHubClient2 client = new TaskHubClient2(orchService);
 
-            worker.AddTaskOrchestrations(typeof(GenerationBasicOrchestration))
+            await worker.AddTaskOrchestrations(typeof(GenerationBasicOrchestration))
                 .AddTaskActivities(new GenerationBasicTask())
-                .Start();
+                .StartAsync();
 
             OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof(GenerationBasicOrchestration), 4);
 
@@ -127,11 +128,11 @@ namespace FrameworkUnitTests
         {
             LocalOrchestrationService orchService = new LocalOrchestrationService();
 
-            TaskHubWorker2 worker = new TaskHubWorker2(orchService, new TaskHubWorkerSettings());
-            TaskHubClient2 client = new TaskHubClient2(orchService, new TaskHubClientSettings());
+            TaskHubWorker2 worker = new TaskHubWorker2(orchService);
+            TaskHubClient2 client = new TaskHubClient2(orchService);
 
-            worker.AddTaskOrchestrations(typeof(ParentWorkflow), typeof(ChildWorkflow))
-                .Start();
+            await worker.AddTaskOrchestrations(typeof(ParentWorkflow), typeof(ChildWorkflow))
+                .StartAsync();
 
             OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof(ParentWorkflow), true);
 
@@ -154,7 +155,7 @@ namespace FrameworkUnitTests
                 "Child '0' completed.Child '1' completed.Child '2' completed.Child '3' completed.Child '4' completed.",
                 ParentWorkflow.Result, "Orchestration Result is wrong!!!");
 
-            worker.Stop();
+            await worker.StopAsync();
         }
 
         [TestMethod]
@@ -162,11 +163,11 @@ namespace FrameworkUnitTests
         {
             LocalOrchestrationService orchService = new LocalOrchestrationService();
 
-            TaskHubWorker2 worker = new TaskHubWorker2(orchService, new TaskHubWorkerSettings());
-            TaskHubClient2 client = new TaskHubClient2(orchService, new TaskHubClientSettings());
+            TaskHubWorker2 worker = new TaskHubWorker2(orchService);
+            TaskHubClient2 client = new TaskHubClient2(orchService);
 
-            worker.AddTaskOrchestrations(typeof(GenerationSignalOrchestration))
-                .Start();
+            await worker.AddTaskOrchestrations(typeof(GenerationSignalOrchestration))
+                .StartAsync();
 
             OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(
                 typeof(GenerationSignalOrchestration), 5);

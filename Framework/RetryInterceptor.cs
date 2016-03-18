@@ -16,7 +16,8 @@ namespace DurableTask
     using System;
     using System.Diagnostics;
     using System.Threading.Tasks;
-    using Tracing;
+    using DurableTask.Common;
+    using DurableTask.Tracing;
 
     public class RetryInterceptor<T>
     {
@@ -41,7 +42,7 @@ namespace DurableTask
                 {
                     return await retryCall();
                 }
-                catch (Exception e)
+                catch (Exception e) when (!Utils.IsFatal(e))
                 {
                     lastException = e;
                 }
@@ -75,7 +76,7 @@ namespace DurableTask
                     }
                 }
             }
-            catch (Exception e)
+            catch (Exception e) when (!Utils.IsFatal(e))
             {
                 // Catch any exceptions during ComputeNextDelay so we don't override original error with new error
                 TraceHelper.TraceExceptionInstance(TraceEventType.Error, context.OrchestrationInstance, e);

@@ -11,17 +11,12 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask
+namespace DurableTask.Tracking
 {
     using System;
-    using System.Runtime.Serialization;
     using DurableTask.History;
 
-    [DataContract]
-    public class TaskMessage
+    public class OrchestrationHistoryEvent
     {
-        [DataMember] public HistoryEvent Event;
-        [DataMember] public long SequenceNumber;
-        [DataMember] public OrchestrationInstance OrchestrationInstance;
     }
 }

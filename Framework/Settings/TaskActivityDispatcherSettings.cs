@@ -11,18 +11,18 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask
+namespace DurableTask.Settings
 {
     /// <summary>
-    ///     Settings to configure the Tracking Dispatcher
+    ///     Settings to configure the Task Activity Dispatcher
     /// </summary>
-    public class TrackingDispatcherSettings
+    public class TaskActivityDispatcherSettings
     {
-        internal TrackingDispatcherSettings()
+        internal TaskActivityDispatcherSettings()
         {
-            TransientErrorBackOffSecs = FrameworkConstants.TrackingTransientErrorBackOffSecs;
-            NonTransientErrorBackOffSecs = FrameworkConstants.TrackingNonTransientErrorBackOffSecs;
-            MaxConcurrentTrackingSessions = FrameworkConstants.TrackingDefaultMaxConcurrentItems;
+            TransientErrorBackOffSecs = FrameworkConstants.ActivityTransientErrorBackOffSecs;
+            NonTransientErrorBackOffSecs = FrameworkConstants.ActivityNonTransientErrorBackOffSecs;
+            MaxConcurrentActivities = FrameworkConstants.ActivityDefaultMaxConcurrentItems;
         }
 
         /// <summary>
@@ -36,17 +36,17 @@ namespace DurableTask
         public int NonTransientErrorBackOffSecs { get; set; }
 
         /// <summary>
-        ///     How many tracking sessions to process concurrently. Default is 20.
+        ///     How many activities to process concurrently. Default is 10.
         /// </summary>
-        public int MaxConcurrentTrackingSessions { get; set; }
+        public int MaxConcurrentActivities { get; set; }
 
-        internal TrackingDispatcherSettings Clone()
+        internal TaskActivityDispatcherSettings Clone()
         {
-            return new TrackingDispatcherSettings
+            return new TaskActivityDispatcherSettings
             {
                 TransientErrorBackOffSecs = TransientErrorBackOffSecs,
                 NonTransientErrorBackOffSecs = NonTransientErrorBackOffSecs,
-                MaxConcurrentTrackingSessions = MaxConcurrentTrackingSessions,
+                MaxConcurrentActivities = MaxConcurrentActivities,
             };
         }
     }

@@ -32,6 +32,7 @@ namespace DurableTask.History
     [KnownType(typeof (OrchestratorCompletedEvent))]
     [KnownType(typeof (EventRaisedEvent))]
     [KnownType(typeof (ContinueAsNewEvent))]
+    [KnownType(typeof (HistoryStateEvent))]
     public abstract class HistoryEvent
     {
         public HistoryEvent(int eventId)

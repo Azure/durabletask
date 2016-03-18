@@ -20,6 +20,6 @@ namespace DurableTask
     class ServiceBusOrchestrationSession
     {
         public MessageSession Session;
-        public Dictionary<Guid, bool> LockTokens;
+        public Dictionary<Guid, BrokeredMessage> LockTokens;
     }
 }

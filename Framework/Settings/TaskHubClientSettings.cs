@@ -11,13 +11,15 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask
+namespace DurableTask.Settings
 {
+    using System;
     using DurableTask.Common;
 
     /// <summary>
     ///     Configuration for various TaskHubClient options
     /// </summary>
+    [Obsolete]
     public sealed class TaskHubClientSettings
     {
         /// <summary>

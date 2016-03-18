@@ -4,7 +4,9 @@
     using System.Configuration;
     using System.IO;
     using System.Linq;
+    using System.Threading;
     using DurableTask;
+    using DurableTask.Tracking;
     using DurableTaskSamples.AverageCalculator;
     using DurableTaskSamples.Common.WorkItems;
     using DurableTaskSamples.Cron;
@@ -24,15 +26,17 @@
             if (CommandLine.Parser.Default.ParseArgumentsStrict(args, options))
             {
                 string servicebusConnectionString = Program.GetSetting("ServiceBusConnectionString");
-                string storageConnectionString = "";//Program.GetSetting("StorageConnectionString"); // todo: restore this
+                string storageConnectionString = Program.GetSetting("StorageConnectionString");
                 string taskHubName = ConfigurationManager.AppSettings["taskHubName"];
 
+                IOrchestrationServiceInstanceStore instanceStore = new AzureTableInstanceStore(taskHubName, storageConnectionString);
+
                 ServiceBusOrchestrationService orchestrationServiceAndClient =
-                    new ServiceBusOrchestrationService(servicebusConnectionString, taskHubName, null);
+                    new ServiceBusOrchestrationService(servicebusConnectionString, taskHubName, instanceStore, null);
 
                 //TaskHubClient taskHubClientOld = new TaskHubClient(taskHubName, servicebusConnectionString, storageConnectionString);
                 TaskHubClient2 taskHubClient = new TaskHubClient2(orchestrationServiceAndClient);
-                TaskHubWorker taskHubOld = new TaskHubWorker(taskHubName, servicebusConnectionString, storageConnectionString);
+                //TaskHubWorker taskHubOld = new TaskHubWorker(taskHubName, servicebusConnectionString, storageConnectionString);
                 TaskHubWorker2 taskHubNew = new TaskHubWorker2(orchestrationServiceAndClient);
                 var taskHub = taskHubNew;
                 
@@ -41,10 +45,11 @@
                     orchestrationServiceAndClient.CreateIfNotExistsAsync().Wait();
                 }
 
+                OrchestrationInstance instance = null;
+
                 if (!string.IsNullOrWhiteSpace(options.StartInstance))
                 {
                     string instanceId = options.InstanceId;
-                    OrchestrationInstance instance = null;
                     Console.WriteLine($"Start Orchestration: {options.StartInstance}");
                     switch (options.StartInstance)
                     {
@@ -106,7 +111,7 @@
 
                     }
                     string instanceId = options.InstanceId;
-                    OrchestrationInstance instance = new OrchestrationInstance { InstanceId = instanceId };
+                    instance = new OrchestrationInstance { InstanceId = instanceId };
                     taskHubClient.RaiseEventAsync(instance, options.Signal, options.Parameters[0]).Wait();
 
                     Console.WriteLine("Press any key to quit.");
@@ -144,12 +149,17 @@
                         taskHub.AddTaskActivitiesFromInterface<IManagementSqlOrchestrationTasks>(new ManagementSqlOrchestrationTasks());
                         taskHub.AddTaskActivitiesFromInterface<IMigrationTasks>(new MigrationTasks());
 
-                        taskHub.Start();
+                        taskHub.StartAsync().Wait();
+
+                        Console.WriteLine("Waiting up to 60 seconds for completion.");
+
+                        var taskResult = taskHubClient.WaitForOrchestrationAsync(instance, TimeSpan.FromSeconds(60), CancellationToken.None).Result;
+                        Console.WriteLine($"Task done: {taskResult?.OrchestrationStatus}");
 
                         Console.WriteLine("Press any key to quit.");
                         Console.ReadLine();
 
-                        taskHub.Stop(true);
+                        taskHub.StopAsync(true).Wait();
                     }
                     catch (Exception e)
                     {

@@ -20,6 +20,5 @@ namespace DurableTask
         public string Id;
         public DateTime LockedUntilUtc;
         public TaskMessage TaskMessage;
-        public object MessageState;
     }
 }

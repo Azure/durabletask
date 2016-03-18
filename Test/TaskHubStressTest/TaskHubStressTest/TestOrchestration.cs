@@ -20,7 +20,7 @@ namespace TaskHubStressTest
                 results.Add(context.ScheduleTask<int>(typeof(TestTask), new TestTaskData
                 {
                     TaskId = "ParallelTask: " + i.ToString(),
-                    MaxDelayInMinutes = data.MaxDelayInSeconds,
+                    MaxDelayInMinutes = data.MaxDelayInMinutes,
                 }));
             }
 
@@ -32,7 +32,7 @@ namespace TaskHubStressTest
                 int c = await context.ScheduleTask<int>(typeof(TestTask), new TestTaskData
                 {
                     TaskId = "SerialTask" + (i + j).ToString(),
-                    MaxDelayInMinutes = data.MaxDelayInSeconds,
+                    MaxDelayInMinutes = data.MaxDelayInMinutes,
                 });
                 result = Math.Max(result, c);
             }

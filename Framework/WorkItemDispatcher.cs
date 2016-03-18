@@ -21,9 +21,7 @@ namespace DurableTask
     using DurableTask.Exceptions;
     using Tracing;
 
-
-    [Obsolete]
-    public abstract class DispatcherBase<T>
+    public class WorkItemDispatcher<T>
     {
         const int DefaultMaxConcurrentWorkItems = 20;
 
@@ -34,85 +32,131 @@ namespace DurableTask
         readonly string id;
         readonly string name;
         readonly object thisLock = new object();
-        readonly WorkItemIdentifier workItemIdentifier;
+        readonly SemaphoreSlim slimLock = new SemaphoreSlim(1, 1);
 
         volatile int concurrentWorkItemCount;
         volatile int countDownToZeroDelay;
         volatile int delayOverrideSecs;
-        volatile bool isFetching;
-        volatile int isStarted;
+        volatile bool isFetching = false;
+        bool isStarted = false;
 
-        protected int maxConcurrentWorkItems;
+        public int MaxConcurrentWorkItems { get; set; }
 
-        protected DispatcherBase(string name, WorkItemIdentifier workItemIdentifier)
+        readonly Func<T, string> workItemIdentifier;
+
+        readonly Func<TimeSpan, Task<T>> FetchWorkItem;
+        readonly Func<T, Task> ProcessWorkItem;
+        public Func<T, Task> SafeReleaseWorkItem;
+        public Func<T, Task> AbortWorkItem;
+        public Func<Exception, int> GetDelayInSecondsAfterOnFetchException = (exception) => 0;
+        public Func<Exception, int> GetDelayInSecondsAfterOnProcessException = (exception) => 0;
+
+        /// <summary>
+        /// Creates a new Work Item Dispatcher with givne name and identifier method
+        /// </summary>
+        /// <param name="name">Name identifying this dispatcher for logging and diagnostics</param>
+        /// <param name="workItemIdentifier"></param>
+        /// <param name="fetchWorkItem"></param>
+        /// <param name="processWorkItem"></param>
+        public WorkItemDispatcher(
+            string name, 
+            Func<T, string> workItemIdentifier,
+            Func<TimeSpan, Task<T>> fetchWorkItem,
+            Func<T, Task> processWorkItem
+            )
         {
-            isStarted = 0;
-            isFetching = false;
-            this.name = name;
-            id = Guid.NewGuid().ToString("N");
-            maxConcurrentWorkItems = DefaultMaxConcurrentWorkItems;
-            this.workItemIdentifier = workItemIdentifier;
-        }
-
-        public void Start()
-        {
-            if (Interlocked.CompareExchange(ref isStarted, 1, 0) != 0)
+            if (workItemIdentifier == null)
             {
-                throw TraceHelper.TraceException(TraceEventType.Error,
-                    new InvalidOperationException("TaskOrchestrationDispatcher has already started"));
+                throw new ArgumentNullException(nameof(workItemIdentifier));
             }
 
-            TraceHelper.Trace(TraceEventType.Information, "{0} starting. Id {1}.", name, id);
-            OnStart();
-            Task.Factory.StartNew(() => DispatchAsync());
-        }
-
-        public void Stop()
-        {
-            Stop(false);
-        }
-
-        public void Stop(bool forced)
-        {
-            if (Interlocked.CompareExchange(ref isStarted, 0, 1) != 1)
+            if (fetchWorkItem == null)
             {
-                //idempotent
+                throw new ArgumentNullException(nameof(fetchWorkItem));
+            }
+
+            if (processWorkItem == null)
+            {
+                throw new ArgumentNullException(nameof(processWorkItem));
+            }
+
+            this.name = name;
+            id = Guid.NewGuid().ToString("N");
+            MaxConcurrentWorkItems = DefaultMaxConcurrentWorkItems;
+            this.workItemIdentifier = workItemIdentifier;
+            this.FetchWorkItem = fetchWorkItem;
+            this.ProcessWorkItem = processWorkItem;
+        }
+
+        /// <summary>
+        /// Starts the workitem dispatcher
+        /// </summary>
+        /// <exception cref="InvalidOperationException">Exception if dispatcher has already been started</exception>
+        public async Task StartAsync()
+        {
+            if (!isStarted)
+            {
+                await slimLock.WaitAsync();
+                try
+                {
+                    if (isStarted)
+                    {
+                        throw TraceHelper.TraceException(TraceEventType.Error, new InvalidOperationException($"WorkItemDispatcher '{name}' has already started"));
+                    }
+
+                    isStarted = true;
+
+                    TraceHelper.Trace(TraceEventType.Information, $"WorkItemDispatcher('{name}') starting. Id {id}.");
+                    await Task.Factory.StartNew(() => DispatchAsync());
+                }
+                finally
+                {
+                    slimLock.Release();
+                }
+            }
+        }
+
+        public async Task StopAsync(bool forced)
+        {
+            if (!isStarted)
+            {
                 return;
             }
 
-            TraceHelper.Trace(TraceEventType.Information, "{0} stopping. Id {1}.", name, id);
-            OnStopping(forced);
-
-            if (!forced)
+            await slimLock.WaitAsync();
+            try
             {
-                int retryCount = 7;
-                while ((concurrentWorkItemCount > 0 || isFetching) && retryCount-- >= 0)
+                if (!isStarted)
                 {
-                    Thread.Sleep(4000);
+                    return;
                 }
-            }
 
-            OnStopped(forced);
-            TraceHelper.Trace(TraceEventType.Information, "{0} stopped. Id {1}.", name, id);
+                isStarted = false;
+
+
+                TraceHelper.Trace(TraceEventType.Information, $"WorkItemDispatcher('{name}') stopping. Id {id}.");
+                if (!forced)
+                {
+                    int retryCount = 7;
+                    while ((concurrentWorkItemCount > 0 || isFetching) && retryCount-- >= 0)
+                    {
+                        await Task.Delay(4000);
+                    }
+                }
+
+                TraceHelper.Trace(TraceEventType.Information, $"WorkItemDispatcher('{name}') stopped. Id {id}.");
+            }
+            finally
+            {
+                slimLock.Release();
+            }
         }
 
-        protected abstract void OnStart();
-        protected abstract void OnStopping(bool isForced);
-        protected abstract void OnStopped(bool isForced);
-
-        protected abstract Task<T> OnFetchWorkItemAsync(TimeSpan receiveTimeout);
-        protected abstract Task OnProcessWorkItemAsync(T workItem);
-        protected abstract Task SafeReleaseWorkItemAsync(T workItem);
-        protected abstract Task AbortWorkItemAsync(T workItem);
-        protected abstract int GetDelayInSecondsAfterOnFetchException(Exception exception);
-        protected abstract int GetDelayInSecondsAfterOnProcessException(Exception exception);
-
-        // TODO : dispatcher refactoring between worker, orchestrator, tacker & DLQ
-        public async Task DispatchAsync()
+        async Task DispatchAsync()
         {
-            while (isStarted == 1)
+            while (isStarted)
             {
-                if (concurrentWorkItemCount >= maxConcurrentWorkItems)
+                if (concurrentWorkItemCount >= MaxConcurrentWorkItems)
                 {
                     TraceHelper.Trace(TraceEventType.Information,
                         GetFormattedLog($"Max concurrent operations are already in progress. Waiting for {WaitIntervalOnMaxSessions}s for next accept."));
@@ -127,7 +171,7 @@ namespace DurableTask
                     isFetching = true;
                     TraceHelper.Trace(TraceEventType.Information,
                         GetFormattedLog($"Starting fetch with timeout of {DefaultReceiveTimeout}"));
-                    workItem = await OnFetchWorkItemAsync(DefaultReceiveTimeout);
+                    workItem = await FetchWorkItem(DefaultReceiveTimeout);
                 }
                 catch (TimeoutException)
                 {
@@ -141,7 +185,7 @@ namespace DurableTask
                 }
                 catch (Exception exception)
                 {
-                    if (isStarted == 0)
+                    if (!isStarted)
                     {
                         TraceHelper.Trace(TraceEventType.Information,
                             GetFormattedLog($"Harmless exception while fetching workItem after Stop(): {exception.Message}"));
@@ -150,7 +194,7 @@ namespace DurableTask
                     {
                         // TODO : dump full node context here
                         TraceHelper.TraceException(TraceEventType.Warning, exception,
-                            GetFormattedLog("Exception while fetching workItem"));
+                            GetFormattedLog($"Exception while fetching workItem: {exception.Message}"));
                         delaySecs = GetDelayInSecondsAfterOnFetchException(exception);
                     }
                 }
@@ -161,9 +205,12 @@ namespace DurableTask
 
                 if (!(Equals(workItem, default(T))))
                 {
-                    if (isStarted == 0)
+                    if (!isStarted)
                     {
-                        await SafeReleaseWorkItemAsync(workItem);
+                        if (SafeReleaseWorkItem != null)
+                        {
+                            await SafeReleaseWorkItem(workItem);
+                        }
                     }
                     else
                     {
@@ -173,7 +220,6 @@ namespace DurableTask
                 }
 
                 delaySecs = Math.Max(delayOverrideSecs, delaySecs);
-
                 if (delaySecs > 0)
                 {
                     await Task.Delay(TimeSpan.FromSeconds(delaySecs));
@@ -181,7 +227,7 @@ namespace DurableTask
             }
         }
 
-        protected virtual async Task ProcessWorkItemAsync(object workItemObj)
+        async Task ProcessWorkItemAsync(object workItemObj)
         {
             var workItem = (T) workItemObj;
             bool abortWorkItem = true;
@@ -194,7 +240,7 @@ namespace DurableTask
                 TraceHelper.Trace(TraceEventType.Information,
                     GetFormattedLog($"Starting to process workItem {workItemId}"));
 
-                await OnProcessWorkItemAsync(workItem);
+                await ProcessWorkItem(workItem);
 
                 AdjustDelayModifierOnSuccess();
 
@@ -239,12 +285,15 @@ namespace DurableTask
                 Interlocked.Decrement(ref concurrentWorkItemCount);
             }
 
-            if (abortWorkItem)
+            if (abortWorkItem && AbortWorkItem != null)
             {
-                await ExceptionTraceWrapperAsync(() => AbortWorkItemAsync(workItem));
+                await ExceptionTraceWrapperAsync(() => AbortWorkItem(workItem));
             }
 
-            await ExceptionTraceWrapperAsync(() => SafeReleaseWorkItemAsync(workItem));
+            if (SafeReleaseWorkItem != null)
+            {
+                await ExceptionTraceWrapperAsync(() => SafeReleaseWorkItem(workItem));
+            }
         }
 
         void AdjustDelayModifierOnSuccess()
@@ -289,7 +338,5 @@ namespace DurableTask
         {
             return $"{name}-{id}: {message}";
         }
-
-        protected delegate string WorkItemIdentifier(T workItem);
     }
 }

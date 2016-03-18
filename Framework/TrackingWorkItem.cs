@@ -14,14 +14,13 @@
 namespace DurableTask
 {
     using System;
-    using System.Runtime.Serialization;
-    using DurableTask.History;
+    using System.Collections.Generic;
 
-    [DataContract]
-    public class TaskMessage
+    public class TrackingWorkItem
     {
-        [DataMember] public HistoryEvent Event;
-        [DataMember] public long SequenceNumber;
-        [DataMember] public OrchestrationInstance OrchestrationInstance;
+        public string InstanceId;
+        public DateTime LockedUntilUtc;
+        public IList<TaskMessage> NewMessages;
+        public object SessionInstance;
     }
 }

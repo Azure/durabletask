@@ -20,6 +20,7 @@ namespace DurableTask
     using System.Threading.Tasks;
     using DurableTask.History;
     using DurableTask.Serializing;
+    using DurableTask.Settings;
 
     /// <summary>
     ///     Client used to manage and query orchestration instances
@@ -27,24 +28,13 @@ namespace DurableTask
     public sealed class TaskHubClient2
     {
         readonly DataConverter defaultConverter;
-        readonly TaskHubClientSettings settings;
-        readonly IOrchestrationServiceClient serviceClient;
+        public readonly IOrchestrationServiceClient serviceClient;
 
         /// <summary>
-        ///     Create a new TaskHubClient with the given OrchestrationServiceClient and hubname with default settings.
+        ///     Create a new TaskHubClient with the given OrchestrationServiceClient
         /// </summary>
         /// <param name="serviceClient">Object implementing the <see cref="IOrchestrationServiceClient"/> interface </param>
         public TaskHubClient2(IOrchestrationServiceClient serviceClient)
-            : this(serviceClient, new TaskHubClientSettings())
-        {
-        }
-
-        /// <summary>
-        ///     Create a new TaskHubClient with the given OrchestrationServiceClient, hubname and settings.
-        /// </summary>
-        /// <param name="serviceClient">Object implementing the <see cref="IOrchestrationServiceClient"/> interface </param>
-        /// <param name="settings">The client settings</param>
-        public TaskHubClient2(IOrchestrationServiceClient serviceClient, TaskHubClientSettings settings)
         {
             if(serviceClient == null)
             {
@@ -52,9 +42,7 @@ namespace DurableTask
             }
 
             this.serviceClient = serviceClient;
-            // AFFANDAR : TODO : expose?
             this.defaultConverter = new JsonDataConverter();
-            this.settings = settings ?? new TaskHubClientSettings();
         }
 
         /// <summary>
@@ -210,18 +198,8 @@ namespace DurableTask
                 throw new ArgumentException("orchestrationInstance");
             }
 
-            string instanceId = orchestrationInstance.InstanceId;
-
-            var taskMessage = new TaskMessage
-            {
-                OrchestrationInstance = orchestrationInstance,
-                Event = new ExecutionTerminatedEvent(-1, reason)
-            };
-
-            await this.serviceClient.SendTaskOrchestrationMessage(taskMessage);
+            await this.serviceClient.ForceTerminateTaskOrchestrationAsync(orchestrationInstance.InstanceId, reason);
         }
-
-        // AFFANDAR : TODO : just scan this file and fix up xml comments
 
         /// <summary>
         ///     Wait for an orchestration to reach any terminal state within the given timeout
@@ -248,23 +226,22 @@ namespace DurableTask
 
         // Instance query methods
         // Orchestration states
-
         /// <summary>
         ///     Get a list of orchestration states from the instance storage table for the
         ///     most current execution (generation) of the specified instance.
-        ///     Throws if an Azure Storage account was not specified in the constructor.
         /// </summary>
         /// <param name="instanceId">Instance id</param>
         /// <returns>The OrchestrationState of the specified instanceId or null if not found</returns>
+        /// <exception cref="InvalidOperationException">Thrown if instance store not configured</exception>
         public async Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId)
         {
-            return (await GetOrchestrationStateAsync(instanceId, false).ConfigureAwait(false)).FirstOrDefault();
+            var state = await GetOrchestrationStateAsync(instanceId, false);
+            return state?.FirstOrDefault();
         }
 
         /// <summary>
         ///     Get a list of orchestration states from the instance storage table for either the most current
         ///     or all executions (generations) of the specified instance.
-        ///     Throws if an Azure Storage account was not specified in the constructor.
         /// </summary>
         /// <param name="instanceId">Instance id</param>
         /// <param name="allExecutions">
@@ -275,6 +252,7 @@ namespace DurableTask
         ///     List of OrchestrationState objects that represents the list of
         ///     orchestrations in the instance store
         /// </returns>
+        /// <exception cref="InvalidOperationException">Thrown if instance store not configured</exception>
         public Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
         {
             return this.serviceClient.GetOrchestrationStateAsync(instanceId, allExecutions);
@@ -283,10 +261,10 @@ namespace DurableTask
         /// <summary>
         ///     Get a list of orchestration states from the instance storage table for the
         ///     most current execution (generation) of the specified instance.
-        ///     Throws if an Azure Storage account was not specified in the constructor.
         /// </summary>
         /// <param name="instance">Instance</param>
         /// <returns>The OrchestrationState of the specified instanceId or null if not found</returns>
+        /// <exception cref="InvalidOperationException">Thrown if instance store not configured</exception>
         public Task<OrchestrationState> GetOrchestrationStateAsync(OrchestrationInstance instance)
         {
             return GetOrchestrationStateAsync(instance.InstanceId, instance.ExecutionId);
@@ -295,11 +273,11 @@ namespace DurableTask
         /// <summary>
         ///     Get a list of orchestration states from the instance storage table for the
         ///     specified execution (generation) of the specified instance.
-        ///     Throws if an Azure Storage account was not specified in the constructor.
         /// </summary>
         /// <param name="instanceId">Instance id</param>
         /// <param name="executionId">Exectuion id</param>
         /// <returns>The OrchestrationState of the specified instanceId or null if not found</returns>
+        /// <exception cref="InvalidOperationException">Thrown if instance store not configured</exception>
         public Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)
         {
             return this.serviceClient.GetOrchestrationStateAsync(instanceId, executionId);
@@ -310,16 +288,16 @@ namespace DurableTask
         /// <summary>
         ///     Get a string dump of the execution history of the specified orchestration instance
         ///     specified execution (generation) of the specified instance.
-        ///     Throws if an Azure Storage account was not specified in the constructor.
         /// </summary>
         /// <param name="instance">Instance</param>
         /// <returns>String with formatted JSON representing the execution history</returns>
+        /// <exception cref="InvalidOperationException">Thrown if instance store not configured</exception>
         public Task<string> GetOrchestrationHistoryAsync(OrchestrationInstance instance)
         {
-            if (instance == null || string.IsNullOrEmpty(instance.InstanceId) ||
+            if (string.IsNullOrEmpty(instance?.InstanceId) ||
                 string.IsNullOrEmpty(instance.ExecutionId))
             {
-                throw new ArgumentNullException("instance");
+                throw new ArgumentNullException(nameof(instance));
             }
 
             return this.serviceClient.GetOrchestrationHistoryAsync(instance.InstanceId, instance.ExecutionId);
@@ -331,6 +309,7 @@ namespace DurableTask
         /// <param name="thresholdDateTimeUtc">Threshold date time in UTC</param>
         /// <param name="timeRangeFilterType">What to compare the threshold date time against</param>
         /// <returns></returns>
+        /// <exception cref="InvalidOperationException">Thrown if instance store not configured</exception>
         public Task PurgeOrchestrationInstanceHistoryAsync(DateTime thresholdDateTimeUtc,
             OrchestrationStateTimeRangeFilterType timeRangeFilterType)
         {

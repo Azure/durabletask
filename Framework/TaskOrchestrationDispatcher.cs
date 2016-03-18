@@ -24,9 +24,10 @@ namespace DurableTask
     using DurableTask.Command;
     using DurableTask.Exceptions;
     using DurableTask.History;
+    using DurableTask.Settings;
+    using DurableTask.Tracing;
     using Microsoft.ServiceBus.Messaging;
     using Newtonsoft.Json;
-    using Tracing;
 
     [Obsolete]
     public class TaskOrchestrationDispatcher : DispatcherBase<SessionWorkItem>

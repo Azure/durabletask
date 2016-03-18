@@ -11,17 +11,22 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask
+namespace DurableTask.History
 {
-    using System;
     using System.Runtime.Serialization;
-    using DurableTask.History;
 
     [DataContract]
-    public class TaskMessage
+    internal class HistoryStateEvent : HistoryEvent
     {
-        [DataMember] public HistoryEvent Event;
-        [DataMember] public long SequenceNumber;
-        [DataMember] public OrchestrationInstance OrchestrationInstance;
+        public HistoryStateEvent(int eventId, OrchestrationState state)
+            : base(eventId)
+        {
+            State = state;
+        }
+
+        public override EventType EventType => EventType.HistoryState;
+
+        [DataMember]
+        public OrchestrationState State { get; set; }
     }
 }

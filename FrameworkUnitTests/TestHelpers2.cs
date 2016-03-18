@@ -15,18 +15,19 @@ namespace FrameworkUnitTests
 {
     using System;
     using System.Configuration;
-    using System.Threading;
+    using System.Threading.Tasks;
     using DurableTask;
     using DurableTask.Common;
-    using DurableTask.Exceptions;
+    using DurableTask.Settings;
+    using DurableTask.Tracking;
     using Microsoft.ServiceBus;
     using Microsoft.ServiceBus.Messaging;
 
     public static class TestHelpers2
     {
-        private static string ServiceBusConnectionString;
-        private static string StorageConnectionString;
-        private static string TaskHubName;
+        static string ServiceBusConnectionString;
+        static string StorageConnectionString;
+        static string TaskHubName;
 
         static TestHelpers2()
         {
@@ -45,108 +46,86 @@ namespace FrameworkUnitTests
             TaskHubName = ConfigurationManager.AppSettings.Get("TaskHubName");
         }
 
-        public static TaskHubWorkerSettings CreateTestWorkerSettings(CompressionStyle style = CompressionStyle.Threshold)
+        public static ServiceBusOrchestrationServiceSettings CreateTestWorkerSettings(CompressionStyle style = CompressionStyle.Threshold)
         {
-            var settings = new TaskHubWorkerSettings
+            var settings = new ServiceBusOrchestrationServiceSettings
             {
-                TaskOrchestrationDispatcherSettings = {CompressOrchestrationState = true},
-                MessageCompressionSettings = new CompressionSettings {Style = style, ThresholdInBytes = 1024}
+                TaskOrchestrationDispatcherSettings = { CompressOrchestrationState = true },
+                MessageCompressionSettings = new CompressionSettings { Style = style, ThresholdInBytes = 1024 }
             };
 
             return settings;
         }
 
-        public static TaskHubClientSettings CreateTestClientSettings()
+        public static ServiceBusOrchestrationServiceSettings CreateTestClientSettings()
         {
-            var settings = new TaskHubClientSettings();
-            settings.MessageCompressionSettings = new CompressionSettings
+            var settings = new ServiceBusOrchestrationServiceSettings
             {
-                Style = CompressionStyle.Threshold,
-                ThresholdInBytes = 1024
+                MessageCompressionSettings = new CompressionSettings
+                {
+                    Style = CompressionStyle.Threshold,
+                    ThresholdInBytes = 1024
+                }
             };
 
             return settings;
         }
 
-        public static IOrchestrationService CreateOrchestrationServiceWorker()
+        static IOrchestrationService CreateOrchestrationServiceWorker(
+            ServiceBusOrchestrationServiceSettings settings)
         {
-            return new ServiceBusOrchestrationService(ServiceBusConnectionString, TaskHubName, null);
+            var service = new ServiceBusOrchestrationService(
+                ServiceBusConnectionString,
+                TaskHubName,
+                new AzureTableInstanceStore(TaskHubName, StorageConnectionString),
+                settings);
+            return service;
         }
 
-        public static IOrchestrationServiceClient CreateOrchestrationServiceClient()
+        static IOrchestrationServiceClient CreateOrchestrationServiceClient(
+            ServiceBusOrchestrationServiceSettings settings)
         {
-            return new ServiceBusOrchestrationService(ServiceBusConnectionString, TaskHubName, null);
+            var service = new ServiceBusOrchestrationService(
+                ServiceBusConnectionString,
+                TaskHubName,
+                new AzureTableInstanceStore(TaskHubName, StorageConnectionString),
+                settings);
+            return service;
         }
 
-        public static TaskHubClient2 CreateTaskHubClient2NoCompression(bool createInstanceStore = true)
+        public static TaskHubClient2 CreateTaskHubClientNoCompression()
         {
-            if (createInstanceStore)
-            {
-                return new TaskHubClient2(CreateOrchestrationServiceClient(), null);
-            }
-
-            return new TaskHubClient2(CreateOrchestrationServiceClient(), null);
+            return new TaskHubClient2(CreateOrchestrationServiceClient(null));
         }
 
-        public static TaskHubClient2 CreateTaskHubClient(bool createInstanceStore = true)
+        public static TaskHubClient2 CreateTaskHubClient()
         {
-            TaskHubClientSettings clientSettings = CreateTestClientSettings();
-
-            if (createInstanceStore)
-            {
-                return new TaskHubClient2(CreateOrchestrationServiceClient(), clientSettings);
-            }
-
-            return new TaskHubClient2(CreateOrchestrationServiceClient(), clientSettings);
+            return new TaskHubClient2(CreateOrchestrationServiceClient(CreateTestClientSettings()));
         }
 
-        public static TaskHubWorker2 CreateTaskHubNoCompression(bool createInstanceStore = true)
+        public static TaskHubWorker2 CreateTaskHubNoCompression()
         {
-            TaskHubWorkerSettings workerSettings = CreateTestWorkerSettings(CompressionStyle.Never);
-
-            if (createInstanceStore)
-            {
-                return new TaskHubWorker2(CreateOrchestrationServiceWorker(), workerSettings);
-            }
-
-            return new TaskHubWorker2(CreateOrchestrationServiceWorker(), workerSettings);
+            return new TaskHubWorker2(CreateOrchestrationServiceWorker(null));
         }
 
-        public static TaskHubWorker2 CreateTaskHubLegacyCompression(bool createInstanceStore = true)
+        public static TaskHubWorker2 CreateTaskHubLegacyCompression()
         {
-            TaskHubWorkerSettings workerSettings = CreateTestWorkerSettings(CompressionStyle.Legacy);
-
-            if (createInstanceStore)
-            {
-                return new TaskHubWorker2(CreateOrchestrationServiceWorker(), workerSettings);
-            }
-
-            return new TaskHubWorker2(CreateOrchestrationServiceWorker(), workerSettings);
+            return new TaskHubWorker2(CreateOrchestrationServiceWorker(CreateTestWorkerSettings(CompressionStyle.Legacy)));
         }
 
-        public static TaskHubWorker2 CreateTaskHubAlwaysCompression(bool createInstanceStore = true)
+        public static TaskHubWorker2 CreateTaskHubAlwaysCompression()
         {
-            TaskHubWorkerSettings workerSettings = CreateTestWorkerSettings(CompressionStyle.Always);
-
-            if (createInstanceStore)
-            {
-                return new TaskHubWorker2(CreateOrchestrationServiceWorker(), workerSettings);
-            }
-
-            return new TaskHubWorker2(CreateOrchestrationServiceWorker(), workerSettings);
+            return new TaskHubWorker2(CreateOrchestrationServiceWorker(CreateTestWorkerSettings(CompressionStyle.Always)));
         }
 
-
-        public static TaskHubWorker2 CreateTaskHub(bool createInstanceStore = true)
+        public static TaskHubWorker2 CreateTaskHub()
         {
-            TaskHubWorkerSettings workerSettings = CreateTestWorkerSettings();
+            return new TaskHubWorker2(CreateOrchestrationServiceWorker(CreateTestWorkerSettings()));
+        }
 
-            if (createInstanceStore)
-            {
-                return new TaskHubWorker2(CreateOrchestrationServiceWorker(), workerSettings);
-            }
-
-            return new TaskHubWorker2(CreateOrchestrationServiceWorker(), workerSettings);
+        public static TaskHubWorker2 CreateTaskHub(ServiceBusOrchestrationServiceSettings settings)
+        {
+            return new TaskHubWorker2(CreateOrchestrationServiceWorker(settings));
         }
 
         public static long GetOrchestratorQueueSizeInBytes()
@@ -157,7 +136,7 @@ namespace FrameworkUnitTests
             return queueDesc.SizeInBytes;
         }
 
-        public static bool WaitForInstance(TaskHubClient2 taskHubClient, OrchestrationInstance instance,
+        public static async Task<bool> WaitForInstanceAsync(TaskHubClient2 taskHubClient, OrchestrationInstance instance,
             int timeoutSeconds,
             bool waitForCompletion = true)
         {
@@ -170,10 +149,10 @@ namespace FrameworkUnitTests
 
             while (timeoutSeconds > 0)
             {
-                OrchestrationState state = taskHubClient.GetOrchestrationStateAsync(instance.InstanceId).Result;
+                OrchestrationState state = await taskHubClient.GetOrchestrationStateAsync(instance.InstanceId);
                 if (state == null || (waitForCompletion && state.OrchestrationStatus == OrchestrationStatus.Running))
                 {
-                    Thread.Sleep(sleepForSeconds * 1000);
+                    await Task.Delay(sleepForSeconds * 1000);
                     timeoutSeconds -= sleepForSeconds;
                 }
                 else
@@ -191,7 +170,9 @@ namespace FrameworkUnitTests
             return taskHubClient.GetOrchestrationHistoryAsync(instance).Result;
         }
 
-        public static string GetInstanceNotCompletedMessage(TaskHubClient2 taskHubClient, OrchestrationInstance instance,
+        public static string GetInstanceNotCompletedMessage(
+            TaskHubClient2 taskHubClient,
+            OrchestrationInstance instance,
             int timeWaited)
         {
             if (string.IsNullOrWhiteSpace(instance?.InstanceId))

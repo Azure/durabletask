@@ -18,26 +18,74 @@ namespace DurableTask
     using System.Threading;
     using System.Threading.Tasks;
 
+    /// <summary>
+    /// Interface to allow creation of new task orchestrations and query their status.
+    /// </summary>
     public interface IOrchestrationServiceClient
     {
+        /// <summary>
+        /// Creates a new orchestration
+        /// </summary>
+        /// <param name="creationMessage">Orchestration creation message</param>
+        /// <returns></returns>
         Task CreateTaskOrchestrationAsync(TaskMessage creationMessage);
 
+        /// <summary>
+        /// Send a new message for an orchestration
+        /// </summary>
+        /// <param name="message">Message to send</param>
+        /// <returns></returns>
         Task SendTaskOrchestrationMessage(TaskMessage message);
 
+        /// <summary>
+        /// Wait for an orchestration to reach any terminal state within the given timeout
+        /// </summary>
+        /// <param name="instanceId">Instance id of the orchestration</param>
+        /// <param name="executionId">Execution id of the orchestration</param>
+        /// <param name="timeout">Maximum amount of time to wait</param>
+        /// <param name="cancellationToken">Task cancellation token</param>
         Task<OrchestrationState> WaitForOrchestrationAsync(
             string instanceId, 
             string executionId,
             TimeSpan timeout, 
             CancellationToken cancellationToken);
 
-        Task ForceTerminateTaskOrchestrationAsync(string instanceId);
+        /// <summary>
+        /// Forcefully terminate the specified orchestration instance
+        /// </summary>
+        /// <param name="instanceId">Instance to terminate</param>
+        /// <param name="reason">Reason for termination</param>
+        Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason);
 
+        /// <summary>
+        /// Get a list of orchestration states from the instance storage for the most current execution (generation) of the specified instance.
+        /// </summary>
+        /// <param name="instanceId">Instance id</param>
+        /// <param name="allExecutions">True if method should fetch all executions of the instance, false if the method should only fetch the most recent execution</param>
+        /// <returns>List of OrchestrationState objects that represents the list of orchestrations in the instance store</returns>
         Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions);
 
+        /// <summary>
+        /// Get a list of orchestration states from the instance storage for the specified execution (generation) of the specified instance.
+        /// </summary>
+        /// <param name="instanceId">Instance id</param>
+        /// <param name="executionId">Exectuion id</param>
+        /// <returns>The OrchestrationState of the specified instanceId or null if not found</returns>
         Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId);
 
+        /// <summary>
+        /// Get a string dump of the execution history of the specified orchestration instance specified execution (generation) of the specified instance
+        /// </summary>
+        /// <param name="instanceId">Instance id</param>
+        /// <param name="executionId">Exectuion id</param>
+        /// <returns>String with formatted JSON representing the execution history</returns>
         Task<string> GetOrchestrationHistoryAsync(string instanceId, string executionId);
 
+        /// <summary>
+        /// Purges orchestration instance state and history for orchestrations older than the specified threshold time.
+        /// </summary>
+        /// <param name="thresholdDateTimeUtc">Threshold date time in UTC</param>
+        /// <param name="timeRangeFilterType">What to compare the threshold date time against</param>
         Task PurgeOrchestrationInstanceHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType);
     }
 }

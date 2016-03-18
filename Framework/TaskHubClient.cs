@@ -24,6 +24,7 @@ namespace DurableTask
     using DurableTask.Common;
     using DurableTask.History;
     using DurableTask.Serializing;
+    using DurableTask.Settings;
     using DurableTask.Tracing;
     using DurableTask.Tracking;
     using Microsoft.ServiceBus;
@@ -44,7 +45,7 @@ namespace DurableTask
         readonly string orchestratorEntityName;
 
         readonly TaskHubClientSettings settings;
-        readonly TableClient tableClient;
+        readonly AzureTableClient tableClient;
         readonly string tableStoreConnectionString;
         readonly string workerEntityName;
 
@@ -103,7 +104,7 @@ namespace DurableTask
             this.tableStoreConnectionString = tableStoreConnectionString;
             if (!string.IsNullOrEmpty(this.tableStoreConnectionString))
             {
-                tableClient = new TableClient(this.hubName, this.tableStoreConnectionString);
+                tableClient = new AzureTableClient(this.hubName, this.tableStoreConnectionString);
             }
         }
 
@@ -399,7 +400,7 @@ namespace DurableTask
         {
             ThrowIfInstanceStoreNotConfigured();
 
-            IEnumerable<OrchestrationStateEntity> result = Utils.AsyncExceptionWrapper(() =>
+            IEnumerable<AzureTableOrchestrationStateEntity> result = Utils.AsyncExceptionWrapper(() =>
                 tableClient.QueryOrchestrationStatesAsync(new OrchestrationStateQuery()).Result);
 
             return new List<OrchestrationState>(result.Select(stateEntity => stateEntity.State));
@@ -416,7 +417,7 @@ namespace DurableTask
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync()
         {
             ThrowIfInstanceStoreNotConfigured();
-            IEnumerable<OrchestrationStateEntity> result =
+            IEnumerable<AzureTableOrchestrationStateEntity> result =
                 await tableClient.QueryOrchestrationStatesAsync(new OrchestrationStateQuery()).ConfigureAwait(false);
             return new List<OrchestrationState>(result.Select(stateEntity => stateEntity.State));
         }
@@ -466,7 +467,7 @@ namespace DurableTask
             OrchestrationStateQuery stateQuery)
         {
             ThrowIfInstanceStoreNotConfigured();
-            IEnumerable<OrchestrationStateEntity> result =
+            IEnumerable<AzureTableOrchestrationStateEntity> result =
                 await tableClient.QueryOrchestrationStatesAsync(stateQuery).ConfigureAwait(false);
             return new List<OrchestrationState>(result.Select(stateEntity => stateEntity.State));
         }
@@ -535,7 +536,7 @@ namespace DurableTask
                 tokenObj = DeserializeTableContinuationToken(continuationToken);
             }
 
-            TableQuerySegment<OrchestrationStateEntity> results =
+            TableQuerySegment<AzureTableOrchestrationStateEntity> results =
                 await
                     tableClient.QueryOrchestrationStatesSegmentedAsync(stateQuery, tokenObj, count)
                         .ConfigureAwait(false);
@@ -586,7 +587,7 @@ namespace DurableTask
         {
             ThrowIfInstanceStoreNotConfigured();
 
-            IEnumerable<OrchestrationStateEntity> states =
+            IEnumerable<AzureTableOrchestrationStateEntity> states =
                 await tableClient.QueryOrchestrationStatesAsync(new OrchestrationStateQuery()
                     .AddInstanceFilter(instanceId)).ConfigureAwait(false);
 
@@ -661,7 +662,7 @@ namespace DurableTask
             }
 
             ThrowIfInstanceStoreNotConfigured();
-            OrchestrationStateEntity stateEntity = (await tableClient.QueryOrchestrationStatesAsync(
+            AzureTableOrchestrationStateEntity stateEntity = (await tableClient.QueryOrchestrationStatesAsync(
                 new OrchestrationStateQuery()
                     .AddInstanceFilter(instanceId, executionId)).ConfigureAwait(false))
                 .FirstOrDefault();
@@ -700,7 +701,7 @@ namespace DurableTask
 
             ThrowIfInstanceStoreNotConfigured();
 
-            IEnumerable<OrchestrationHistoryEventEntity> eventEntities =
+            IEnumerable<AzureTableOrchestrationHistoryEventEntity> eventEntities =
                 await
                     tableClient.ReadOrchestrationHistoryEventsAsync(instance.InstanceId, instance.ExecutionId)
                         .ConfigureAwait(false);
@@ -736,7 +737,7 @@ namespace DurableTask
             int purgeCount = 0;
             do
             {
-                TableQuerySegment<OrchestrationStateEntity> resultSegment =
+                TableQuerySegment<AzureTableOrchestrationStateEntity> resultSegment =
                     (await tableClient.QueryOrchestrationStatesSegmentedAsync(
                         new OrchestrationStateQuery()
                             .AddTimeRangeFilter(DateTime.MinValue, thresholdDateTimeUtc, timeRangeFilterType),
@@ -756,15 +757,15 @@ namespace DurableTask
         }
 
         async Task PurgeOrchestrationHistorySegmentAsync(
-            TableQuerySegment<OrchestrationStateEntity> orchestrationStateEntitySegment)
+            TableQuerySegment<AzureTableOrchestrationStateEntity> orchestrationStateEntitySegment)
         {
-            var stateEntitiesToDelete = new List<OrchestrationStateEntity>(orchestrationStateEntitySegment.Results);
+            var stateEntitiesToDelete = new List<AzureTableOrchestrationStateEntity>(orchestrationStateEntitySegment.Results);
 
-            var historyEntitiesToDelete = new ConcurrentBag<IEnumerable<OrchestrationHistoryEventEntity>>();
+            var historyEntitiesToDelete = new ConcurrentBag<IEnumerable<AzureTableOrchestrationHistoryEventEntity>>();
             await Task.WhenAll(orchestrationStateEntitySegment.Results.Select(
                 entity => Task.Run(async () =>
                 {
-                    IEnumerable<OrchestrationHistoryEventEntity> historyEntities =
+                    IEnumerable<AzureTableOrchestrationHistoryEventEntity> historyEntities =
                         await
                             tableClient.ReadOrchestrationHistoryEventsAsync(
                                 entity.State.OrchestrationInstance.InstanceId,
@@ -781,9 +782,9 @@ namespace DurableTask
             await Task.WhenAll(tableClient.DeleteEntitesAsync(stateEntitiesToDelete)).ConfigureAwait(false);
         }
 
-        static OrchestrationState FindLatestExecution(IEnumerable<OrchestrationStateEntity> stateEntities)
+        static OrchestrationState FindLatestExecution(IEnumerable<AzureTableOrchestrationStateEntity> stateEntities)
         {
-            foreach (OrchestrationStateEntity stateEntity in stateEntities)
+            foreach (AzureTableOrchestrationStateEntity stateEntity in stateEntities)
             {
                 if (stateEntity.State.OrchestrationStatus != OrchestrationStatus.ContinuedAsNew)
                 {

@@ -1,14 +1,17 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Configuration;
-using System.Diagnostics;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using DurableTask;
+﻿using DurableTask.Tracking;
 
 namespace TaskHubStressTest
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Configuration;
+    using System.Diagnostics;
+    using System.Linq;
+    using System.Text;
+    using System.Threading.Tasks;
+    using DurableTask;
+    using DurableTask.Settings;
+
     class Program
     {
         static Options options = new Options();
@@ -20,17 +23,44 @@ namespace TaskHubStressTest
             {
                 string connectionString = ConfigurationManager.ConnectionStrings["Microsoft.ServiceBus.ConnectionString"].ConnectionString;
                 string taskHubName = ConfigurationManager.AppSettings["TaskHubName"];
-
+                /*
                 TaskHubClient taskHubClient = new TaskHubClient(taskHubName, connectionString, tableConnectionString);
                 TaskHubWorkerSettings settings = new TaskHubWorkerSettings();
                 settings.TaskOrchestrationDispatcherSettings.CompressOrchestrationState = bool.Parse(ConfigurationManager.AppSettings["CompressOrchestrationState"]);
                 settings.TaskActivityDispatcherSettings.MaxConcurrentActivities = int.Parse(ConfigurationManager.AppSettings["MaxConcurrentActivities"]);
                 settings.TaskOrchestrationDispatcherSettings.MaxConcurrentOrchestrations = int.Parse(ConfigurationManager.AppSettings["MaxConcurrentOrchestrations"]);
                 TaskHubWorker taskHub = new TaskHubWorker(taskHubName, connectionString, tableConnectionString, settings);
-
+                
                 if (options.CreateHub)
                 {
                     taskHub.CreateHub();
+                }
+                */
+                IOrchestrationServiceInstanceStore instanceStore = new AzureTableInstanceStore(taskHubName, tableConnectionString);
+
+                ServiceBusOrchestrationServiceSettings settings = new ServiceBusOrchestrationServiceSettings
+                {
+                    TaskOrchestrationDispatcherSettings =
+                    {
+                        CompressOrchestrationState = bool.Parse(ConfigurationManager.AppSettings["CompressOrchestrationState"]),
+                        MaxConcurrentOrchestrations = int.Parse(ConfigurationManager.AppSettings["MaxConcurrentOrchestrations"])
+                    },
+                    TaskActivityDispatcherSettings =
+                    {
+                        MaxConcurrentActivities = int.Parse(ConfigurationManager.AppSettings["MaxConcurrentActivities"])
+                    }
+                };
+
+                ServiceBusOrchestrationService orchestrationServiceAndClient =
+                    new ServiceBusOrchestrationService(connectionString, taskHubName, instanceStore, settings);
+
+
+                TaskHubClient2 taskHubClient = new TaskHubClient2(orchestrationServiceAndClient);
+                TaskHubWorker2 taskHub = new TaskHubWorker2(orchestrationServiceAndClient);
+
+                if (options.CreateHub)
+                {
+                    orchestrationServiceAndClient.CreateIfNotExistsAsync().Wait();
                 }
 
                 OrchestrationInstance instance = null;
@@ -38,7 +68,7 @@ namespace TaskHubStressTest
 
                 if (!string.IsNullOrWhiteSpace(instanceId))
                 {
-                    instance = taskHubClient.CreateOrchestrationInstance(typeof(DriverOrchestration), instanceId, new DriverOrchestrationData
+                    var driverConfig = new DriverOrchestrationData
                     {
                         NumberOfIteration = int.Parse(ConfigurationManager.AppSettings["DriverOrchestrationIterations"]),
                         NumberOfParallelTasks = int.Parse(ConfigurationManager.AppSettings["DriverOrchestrationParallelTasks"]),
@@ -46,46 +76,47 @@ namespace TaskHubStressTest
                         {
                             NumberOfParallelTasks = int.Parse(ConfigurationManager.AppSettings["ChildOrchestrationParallelTasks"]),
                             NumberOfSerialTasks = int.Parse(ConfigurationManager.AppSettings["ChildOrchestrationSerialTasks"]),
-                            MaxDelayInSeconds = int.Parse(ConfigurationManager.AppSettings["TestTaskMaxDelayInMinutes"]),
-                        },
-                    });
+                            MaxDelayInMinutes = int.Parse(ConfigurationManager.AppSettings["TestTaskMaxDelayInMinutes"]),
+                        }
+                    };
+
+                    instance = taskHubClient.CreateOrchestrationInstanceAsync(typeof(DriverOrchestration), instanceId, driverConfig).Result;
                 }
                 else
                 {
                     instance = new OrchestrationInstance { InstanceId = options.InstanceId };
                 }
 
-                Stopwatch stopWatch = new Stopwatch();
-                stopWatch.Start();
+                Console.WriteLine($"Orchestration starting: {DateTime.Now}");
+                Stopwatch stopWatch = Stopwatch.StartNew();
 
                 TestTask testTask = new TestTask();
                 taskHub.AddTaskActivities(testTask);
                 taskHub.AddTaskOrchestrations(typeof(DriverOrchestration));
                 taskHub.AddTaskOrchestrations(typeof(TestOrchestration));
-                taskHub.Start();
+                taskHub.StartAsync().Wait();
 
                 int testTimeoutInSeconds = int.Parse(ConfigurationManager.AppSettings["TestTimeoutInSeconds"]);
                 OrchestrationState state = WaitForInstance(taskHubClient, instance, testTimeoutInSeconds);
                 stopWatch.Stop();
-                Console.WriteLine("Orchestration Status: " + state.OrchestrationStatus.ToString());
-                Console.WriteLine("Orchestration Result: " + state.Output);
-                Console.WriteLine("Counter: " + testTask.counter);
+                Console.WriteLine($"Orchestration Status: {state.OrchestrationStatus}");
+                Console.WriteLine($"Orchestration Result: {state.Output}");
+                Console.WriteLine($"Counter: {testTask.counter}");
 
                 TimeSpan totalTime = stopWatch.Elapsed;
-                string elapsedTime = String.Format("{0:00}:{1:00}:{2:00}.{3:00}",
-                    totalTime.Hours, totalTime.Minutes, totalTime.Seconds,
-                    totalTime.Milliseconds / 10);
-                Console.WriteLine("Total Time: " + elapsedTime);
+                string elapsedTime = $"{totalTime.Hours:00}:{totalTime.Minutes:00}:{totalTime.Seconds:00}.{totalTime.Milliseconds/10:00}";
+                Console.WriteLine($"Total Time: {elapsedTime}");
+                Console.ReadLine();
 
-                taskHub.Stop();
+                taskHub.StopAsync().Wait();
             }
 
         }
 
-        public static OrchestrationState WaitForInstance(TaskHubClient taskHubClient, OrchestrationInstance instance, int timeoutSeconds)
+        public static OrchestrationState WaitForInstance(TaskHubClient2 taskHubClient, OrchestrationInstance instance, int timeoutSeconds)
         {
             OrchestrationStatus status = OrchestrationStatus.Running;
-            if (instance == null || string.IsNullOrWhiteSpace(instance.InstanceId))
+            if (string.IsNullOrWhiteSpace(instance?.InstanceId))
             {
                 throw new ArgumentException("instance");
             }
@@ -95,7 +126,7 @@ namespace TaskHubStressTest
             {
                 try
                 {
-                    var state = taskHubClient.GetOrchestrationState(instance.InstanceId);
+                    var state = taskHubClient.GetOrchestrationStateAsync(instance.InstanceId).Result;
                     if (state != null) status = state.OrchestrationStatus;
                     if (status == OrchestrationStatus.Running)
                     {
@@ -110,7 +141,7 @@ namespace TaskHubStressTest
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine(string.Format("Error retrieving state for instance [instanceId: '{0}', executionId: '{1}'].", instance.InstanceId, instance.ExecutionId));
+                    Console.WriteLine($"Error retrieving state for instance [instanceId: '{instance.InstanceId}', executionId: '{instance.ExecutionId}'].");
                     Console.WriteLine(ex.ToString());
                 }
             }
