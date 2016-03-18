@@ -87,9 +87,9 @@ namespace FrameworkUnitTests
                 .AddTaskActivities(typeof (SimpleTask))
                 .StartAsync();
 
-            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
+            var state = await client.WaitForOrchestrationAsync(id, TimeSpan.FromSeconds(60), CancellationToken.None);
 
-            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
+            Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
         }
 
         [TestMethod]
