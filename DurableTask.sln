@@ -1,11 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 2013
-VisualStudioVersion = 12.0.30324.0
+# Visual Studio 14
+VisualStudioVersion = 14.0.24720.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Framework", "Framework\Framework.csproj", "{6F5D2EAD-726D-4FE5-A575-AEB96D1CCE37}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTaskFramework", "Framework\DurableTaskFramework.csproj", "{6F5D2EAD-726D-4FE5-A575-AEB96D1CCE37}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FrameworkUnitTests", "FrameworkUnitTests\FrameworkUnitTests.csproj", "{6639DA74-9063-4A7C-9484-0A71C4FB5C18}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTaskFrameworkUnitTests", "FrameworkUnitTests\DurableTaskFrameworkUnitTests.csproj", "{6639DA74-9063-4A7C-9484-0A71C4FB5C18}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".nuget", ".nuget", "{501E1168-418C-4832-B88C-617735BD02C9}"
 	ProjectSection(SolutionItems) = preProject
