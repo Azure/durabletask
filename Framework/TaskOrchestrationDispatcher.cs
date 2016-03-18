@@ -26,14 +26,14 @@ namespace DurableTask
     using DurableTask.Serializing;
     using DurableTask.Tracing;
 
-    public class TaskOrchestrationDispatcher2 
+    public class TaskOrchestrationDispatcher 
     {
         readonly NameVersionObjectManager<TaskOrchestration> objectManager;
         readonly IOrchestrationService orchestrationService;
         readonly WorkItemDispatcher<TaskOrchestrationWorkItem> dispatcher;
         static readonly DataConverter DataConverter = new JsonDataConverter();
 
-        internal TaskOrchestrationDispatcher2(
+        internal TaskOrchestrationDispatcher(
             IOrchestrationService orchestrationService,
             NameVersionObjectManager<TaskOrchestration> objectManager)
         {

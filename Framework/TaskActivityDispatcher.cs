@@ -22,13 +22,13 @@ namespace DurableTask
     using DurableTask.History;
     using DurableTask.Tracing;
 
-    public sealed class TaskActivityDispatcher2
+    public sealed class TaskActivityDispatcher
     {
         readonly NameVersionObjectManager<TaskActivity> objectManager;
         readonly WorkItemDispatcher<TaskActivityWorkItem> dispatcher; 
         readonly IOrchestrationService orchestrationService;
         
-        internal TaskActivityDispatcher2(
+        internal TaskActivityDispatcher(
             IOrchestrationService orchestrationService,
             NameVersionObjectManager<TaskActivity> objectManager)
         {

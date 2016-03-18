@@ -23,19 +23,8 @@ namespace TaskHubStressTest
             {
                 string connectionString = ConfigurationManager.ConnectionStrings["Microsoft.ServiceBus.ConnectionString"].ConnectionString;
                 string taskHubName = ConfigurationManager.AppSettings["TaskHubName"];
-                /*
-                TaskHubClient taskHubClient = new TaskHubClient(taskHubName, connectionString, tableConnectionString);
-                TaskHubWorkerSettings settings = new TaskHubWorkerSettings();
-                settings.TaskOrchestrationDispatcherSettings.CompressOrchestrationState = bool.Parse(ConfigurationManager.AppSettings["CompressOrchestrationState"]);
-                settings.TaskActivityDispatcherSettings.MaxConcurrentActivities = int.Parse(ConfigurationManager.AppSettings["MaxConcurrentActivities"]);
-                settings.TaskOrchestrationDispatcherSettings.MaxConcurrentOrchestrations = int.Parse(ConfigurationManager.AppSettings["MaxConcurrentOrchestrations"]);
-                TaskHubWorker taskHub = new TaskHubWorker(taskHubName, connectionString, tableConnectionString, settings);
-                
-                if (options.CreateHub)
-                {
-                    taskHub.CreateHub();
-                }
-                */
+           
+
                 IOrchestrationServiceInstanceStore instanceStore = new AzureTableInstanceStore(taskHubName, tableConnectionString);
 
                 ServiceBusOrchestrationServiceSettings settings = new ServiceBusOrchestrationServiceSettings
@@ -55,8 +44,8 @@ namespace TaskHubStressTest
                     new ServiceBusOrchestrationService(connectionString, taskHubName, instanceStore, settings);
 
 
-                TaskHubClient2 taskHubClient = new TaskHubClient2(orchestrationServiceAndClient);
-                TaskHubWorker2 taskHub = new TaskHubWorker2(orchestrationServiceAndClient);
+                TaskHubClient taskHubClient = new TaskHubClient(orchestrationServiceAndClient);
+                TaskHubWorker taskHub = new TaskHubWorker(orchestrationServiceAndClient);
 
                 if (options.CreateHub)
                 {
@@ -113,7 +102,7 @@ namespace TaskHubStressTest
 
         }
 
-        public static OrchestrationState WaitForInstance(TaskHubClient2 taskHubClient, OrchestrationInstance instance, int timeoutSeconds)
+        public static OrchestrationState WaitForInstance(TaskHubClient taskHubClient, OrchestrationInstance instance, int timeoutSeconds)
         {
             OrchestrationStatus status = OrchestrationStatus.Running;
             if (string.IsNullOrWhiteSpace(instance?.InstanceId))

@@ -30,7 +30,7 @@ namespace DurableTask
     //      + write tests for generations
     //      + implement LocalOrchestrationService and LocalOrchestrationServiceClient
     //      + fix up taskhubworker
-    //      + add TaskActivityDispatcher2
+    //      + add TaskActivityDispatcher
     //      + test checkpoint
     //      + move public classes to separate files
     //      + add instance store methods to IOrchestrationService
@@ -40,7 +40,7 @@ namespace DurableTask
     //      + task hub description
     //      + implement ServiceBusOrchestrationService
     //      + fix up all tests to use the new APIs
-    //      + change TaskOrchestrationDispatcher2 to use this
+    //      + change TaskOrchestrationDispatcher to use this
     //      + build trackingdispatcher2 inside the service bus layer
     //      
 

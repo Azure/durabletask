@@ -26,13 +26,13 @@ namespace FrameworkUnitTests
     [TestClass]
     public class DispatcherTests
     {
-        TaskHubClient2 client;
-        TaskHubClient2 clientNoCompression;
-        TaskHubWorker2 fakeTaskHub;
-        TaskHubWorker2 taskHub;
-        TaskHubWorker2 taskHubAlwaysCompression;
-        TaskHubWorker2 taskHubLegacyCompression;
-        TaskHubWorker2 taskHubNoCompression;
+        TaskHubClient client;
+        TaskHubClient clientNoCompression;
+        TaskHubWorker fakeTaskHub;
+        TaskHubWorker taskHub;
+        TaskHubWorker taskHubAlwaysCompression;
+        TaskHubWorker taskHubLegacyCompression;
+        TaskHubWorker taskHubNoCompression;
 
         public TestContext TestContext { get; set; }
 
@@ -41,15 +41,15 @@ namespace FrameworkUnitTests
         {
             if (!TestContext.TestName.Contains("TestHost"))
             {
-                client = TestHelpers2.CreateTaskHubClient();
+                client = TestHelpers.CreateTaskHubClient();
 
-                taskHub = TestHelpers2.CreateTaskHub();
-                fakeTaskHub = TestHelpers2.CreateTaskHub();
+                taskHub = TestHelpers.CreateTaskHub();
+                fakeTaskHub = TestHelpers.CreateTaskHub();
 
-                taskHubNoCompression = TestHelpers2.CreateTaskHubNoCompression();
-                taskHubLegacyCompression = TestHelpers2.CreateTaskHubLegacyCompression();
-                taskHubAlwaysCompression = TestHelpers2.CreateTaskHubAlwaysCompression();
-                clientNoCompression = TestHelpers2.CreateTaskHubClientNoCompression();
+                taskHubNoCompression = TestHelpers.CreateTaskHubNoCompression();
+                taskHubLegacyCompression = TestHelpers.CreateTaskHubLegacyCompression();
+                taskHubAlwaysCompression = TestHelpers.CreateTaskHubAlwaysCompression();
+                clientNoCompression = TestHelpers.CreateTaskHubClientNoCompression();
 
                 taskHub.orchestrationService.CreateIfNotExistsAsync(true).Wait();
             }
@@ -78,7 +78,7 @@ namespace FrameworkUnitTests
 
             OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (CompressionCompatTest), null);
 
-            await TestHelpers2.WaitForInstanceAsync(client, id, 60, false);
+            await TestHelpers.WaitForInstanceAsync(client, id, 60, false);
             await Task.Delay(5000);
 
             await taskHubNoCompression.StopAsync(true);
@@ -89,7 +89,7 @@ namespace FrameworkUnitTests
 
             var state = await client.WaitForOrchestrationAsync(id, TimeSpan.FromSeconds(60), CancellationToken.None);
 
-            Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
+            Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
         }
 
         [TestMethod]
@@ -110,9 +110,9 @@ namespace FrameworkUnitTests
                 .AddTaskActivities(typeof (AlternatingPayloadTask))
                 .StartAsync();
 
-            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
 
-            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
 
             OrchestrationState state = await client.GetOrchestrationStateAsync(id);
 
@@ -136,9 +136,9 @@ namespace FrameworkUnitTests
                 .AddTaskActivities(typeof (AlternatingPayloadTask))
                 .StartAsync();
 
-            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
 
-            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
 
             OrchestrationState state = await client.GetOrchestrationStateAsync(id);
 
@@ -162,9 +162,9 @@ namespace FrameworkUnitTests
                 .AddTaskActivities(typeof (AlternatingPayloadTask))
                 .StartAsync();
 
-            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
 
-            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
 
             OrchestrationState state = await client.GetOrchestrationStateAsync(id);
 
@@ -188,9 +188,9 @@ namespace FrameworkUnitTests
                 .AddTaskActivities(typeof (AlternatingPayloadTask))
                 .StartAsync();
 
-            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
 
-            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
 
             OrchestrationState state = await client.GetOrchestrationStateAsync(id);
 
@@ -210,28 +210,28 @@ namespace FrameworkUnitTests
             OrchestrationInstance instance = await client.CreateOrchestrationInstanceAsync(typeof (NonDeterministicOrchestration),
                 "FAILTIMER");
 
-            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, instance, 60);
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, instance, 60);
             OrchestrationState state = await client.GetOrchestrationStateAsync(instance);
             Assert.AreEqual(OrchestrationStatus.Failed, state.OrchestrationStatus);
             Assert.IsTrue(state.Output.Contains("TimerCreatedEvent"));
 
             instance = await client.CreateOrchestrationInstanceAsync(typeof (NonDeterministicOrchestration), "FAILTASK");
 
-            isCompleted = await TestHelpers2.WaitForInstanceAsync(client, instance, 60);
+            isCompleted = await TestHelpers.WaitForInstanceAsync(client, instance, 60);
             state = await client.GetOrchestrationStateAsync(instance);
             Assert.AreEqual(OrchestrationStatus.Failed, state.OrchestrationStatus);
             Assert.IsTrue(state.Output.Contains("TaskScheduledEvent"));
 
             instance = await client.CreateOrchestrationInstanceAsync(typeof (NonDeterministicOrchestration), "FAILSUBORCH");
 
-            isCompleted = await TestHelpers2.WaitForInstanceAsync(client, instance, 60);
+            isCompleted = await TestHelpers.WaitForInstanceAsync(client, instance, 60);
             state = await client.GetOrchestrationStateAsync(instance);
             Assert.AreEqual(OrchestrationStatus.Failed, state.OrchestrationStatus);
             Assert.IsTrue(state.Output.Contains("SubOrchestrationInstanceCreatedEvent"));
 
             instance = await client.CreateOrchestrationInstanceAsync(typeof (NonDeterministicOrchestration), "PARENTORCH");
 
-            isCompleted = await TestHelpers2.WaitForInstanceAsync(client, instance, 60);
+            isCompleted = await TestHelpers.WaitForInstanceAsync(client, instance, 60);
             state = await client.GetOrchestrationStateAsync(instance);
             Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
             Assert.IsTrue(state.Output.Contains("Non-Deterministic workflow detected"));
@@ -302,16 +302,16 @@ namespace FrameworkUnitTests
                 .StartAsync();
 
             OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (TypeMissingOrchestration), "test");
-            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 10);
-            Assert.IsFalse(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 10));
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 10);
+            Assert.IsFalse(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 10));
             
             // Bring up the correct orchestration worker
             await taskHub.AddTaskOrchestrations(typeof (TypeMissingOrchestration))
                 .AddTaskActivities(typeof (TypeMissingTask))
                 .StartAsync();
 
-            isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 20);
-            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
+            isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 20);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
             Assert.AreEqual("done", TypeMissingOrchestration.Result, "Orchestration Result is wrong!!!");
         }
 
@@ -375,8 +375,8 @@ namespace FrameworkUnitTests
 
             OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (MaxMessagesLimitOrchestration), null);
 
-            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 120);
-            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 120));
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 120);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 120));
 
             Assert.AreEqual(19900, MaxMessagesLimitOrchestration.Result, "Orchestration Result is wrong!!!");
         }
@@ -430,8 +430,8 @@ namespace FrameworkUnitTests
 
             OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (AsyncGreetingsOrchestration), null);
 
-            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
             Assert.AreEqual("Greeting send to Gabbar", AsyncGreetingsOrchestration.Result,
                 "Orchestration Result is wrong!!!");
         }
@@ -510,8 +510,8 @@ namespace FrameworkUnitTests
             OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (AsyncDynamicGreetingsOrchestration),
                 null);
 
-            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
             Assert.AreEqual("Greeting send to Gabbar", AsyncDynamicGreetingsOrchestration.Result,
                 "Orchestration Result is wrong!!!");
             Assert.AreEqual("Greeting NOT sent to Samba", AsyncDynamicGreetingsOrchestration.Result2,
@@ -637,7 +637,7 @@ namespace FrameworkUnitTests
 
             OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (LargeSessionOrchestration), 50);
 
-            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60, true);
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60, true);
 
             await Task.Delay(20000);
 
@@ -656,7 +656,7 @@ namespace FrameworkUnitTests
 
             OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (LargeSessionOrchestration), 15);
 
-            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 90, true);
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 90, true);
 
             await Task.Delay(20000);
 
@@ -674,7 +674,7 @@ namespace FrameworkUnitTests
 
             OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (LargeSessionOrchestration), 15);
 
-            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60, true);
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60, true);
 
             await Task.Delay(20000);
 
@@ -725,7 +725,7 @@ namespace FrameworkUnitTests
 
             OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (CompressionCompatTest), null);
 
-            await TestHelpers2.WaitForInstanceAsync(client, id, 60, false);
+            await TestHelpers.WaitForInstanceAsync(client, id, 60, false);
             await Task.Delay(5000);
 
             await taskHub.StopAsync(true);
@@ -734,9 +734,9 @@ namespace FrameworkUnitTests
                 .AddTaskActivities(typeof (SimpleTask))
                 .StartAsync();
 
-            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
 
-            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
         }
 
         public sealed class AlternatingPayloadTask : TaskActivity<bool, byte[]>

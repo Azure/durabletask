@@ -23,15 +23,15 @@ namespace FrameworkUnitTests
     [TestClass]
     public class DynamicProxyTests
     {
-        TaskHubClient2 client;
-        TaskHubWorker2 taskHub;
+        TaskHubClient client;
+        TaskHubWorker taskHub;
 
         [TestInitialize]
         public void TestInitialize()
         {
-            client = TestHelpers2.CreateTaskHubClient();
+            client = TestHelpers.CreateTaskHubClient();
 
-            taskHub = TestHelpers2.CreateTaskHub();
+            taskHub = TestHelpers.CreateTaskHub();
             taskHub.orchestrationService.CreateIfNotExistsAsync(true).Wait();
         }
 
@@ -74,8 +74,8 @@ namespace FrameworkUnitTests
 
             OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (GreetingsOrchestration), null);
 
-            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
             Assert.AreEqual("Greeting send to Gabbar", GreetingsOrchestration.Result, "Orchestration Result is wrong!!!");
         }
 
@@ -128,8 +128,8 @@ namespace FrameworkUnitTests
             OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (AverageCalculatorOrchestration),
                 new[] {1, 50, 10});
 
-            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
             Assert.AreEqual(25, AverageCalculatorOrchestration.Result, "Orchestration Result is wrong!!!");
         }
 
@@ -230,8 +230,8 @@ namespace FrameworkUnitTests
             RetryOrchestration.Result = null;
             OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(RETRY_NAME, RETRY_VERSION, null);
 
-            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 120);
-            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 120));
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 120);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 120));
             Assert.AreEqual("Attempts: 3", RetryOrchestration.Result, "Orchestration Result is wrong!!!");
         }
 
@@ -248,8 +248,8 @@ namespace FrameworkUnitTests
             RetryOrchestration.Result = null;
             OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(RETRY_NAME, RETRY_VERSION, null);
 
-            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 120);
-            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 120));
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 120);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 120));
             Assert.AreEqual("RetryCount is: 3", RetryOrchestration.Result, "Orchestration Result is wrong!!!");
         }
 

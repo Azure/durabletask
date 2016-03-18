@@ -25,13 +25,13 @@ namespace FrameworkUnitTests
     using Microsoft.ServiceBus;
     using Microsoft.ServiceBus.Messaging;
 
-    public static class TestHelpers2
+    public static class TestHelpers
     {
         static string ServiceBusConnectionString;
         static string StorageConnectionString;
         static string TaskHubName;
 
-        static TestHelpers2()
+        static TestHelpers()
         {
             ServiceBusConnectionString = GetTestSetting("ServiceBusConnectionString");
             if (string.IsNullOrEmpty(ServiceBusConnectionString))
@@ -95,39 +95,39 @@ namespace FrameworkUnitTests
             return service;
         }
 
-        public static TaskHubClient2 CreateTaskHubClientNoCompression()
+        public static TaskHubClient CreateTaskHubClientNoCompression()
         {
-            return new TaskHubClient2(CreateOrchestrationServiceClient(null));
+            return new TaskHubClient(CreateOrchestrationServiceClient(null));
         }
 
-        public static TaskHubClient2 CreateTaskHubClient()
+        public static TaskHubClient CreateTaskHubClient()
         {
-            return new TaskHubClient2(CreateOrchestrationServiceClient(CreateTestClientSettings()));
+            return new TaskHubClient(CreateOrchestrationServiceClient(CreateTestClientSettings()));
         }
 
-        public static TaskHubWorker2 CreateTaskHubNoCompression()
+        public static TaskHubWorker CreateTaskHubNoCompression()
         {
-            return new TaskHubWorker2(CreateOrchestrationServiceWorker(null));
+            return new TaskHubWorker(CreateOrchestrationServiceWorker(null));
         }
 
-        public static TaskHubWorker2 CreateTaskHubLegacyCompression()
+        public static TaskHubWorker CreateTaskHubLegacyCompression()
         {
-            return new TaskHubWorker2(CreateOrchestrationServiceWorker(CreateTestWorkerSettings(CompressionStyle.Legacy)));
+            return new TaskHubWorker(CreateOrchestrationServiceWorker(CreateTestWorkerSettings(CompressionStyle.Legacy)));
         }
 
-        public static TaskHubWorker2 CreateTaskHubAlwaysCompression()
+        public static TaskHubWorker CreateTaskHubAlwaysCompression()
         {
-            return new TaskHubWorker2(CreateOrchestrationServiceWorker(CreateTestWorkerSettings(CompressionStyle.Always)));
+            return new TaskHubWorker(CreateOrchestrationServiceWorker(CreateTestWorkerSettings(CompressionStyle.Always)));
         }
 
-        public static TaskHubWorker2 CreateTaskHub()
+        public static TaskHubWorker CreateTaskHub()
         {
-            return new TaskHubWorker2(CreateOrchestrationServiceWorker(CreateTestWorkerSettings()));
+            return new TaskHubWorker(CreateOrchestrationServiceWorker(CreateTestWorkerSettings()));
         }
 
-        public static TaskHubWorker2 CreateTaskHub(ServiceBusOrchestrationServiceSettings settings)
+        public static TaskHubWorker CreateTaskHub(ServiceBusOrchestrationServiceSettings settings)
         {
-            return new TaskHubWorker2(CreateOrchestrationServiceWorker(settings));
+            return new TaskHubWorker(CreateOrchestrationServiceWorker(settings));
         }
 
         public static long GetOrchestratorQueueSizeInBytes()
@@ -138,7 +138,7 @@ namespace FrameworkUnitTests
             return queueDesc.SizeInBytes;
         }
 
-        public static async Task<bool> WaitForInstanceAsync(TaskHubClient2 taskHubClient, OrchestrationInstance instance,
+        public static async Task<bool> WaitForInstanceAsync(TaskHubClient taskHubClient, OrchestrationInstance instance,
             int timeoutSeconds,
             bool waitForCompletion = true)
         {
@@ -167,13 +167,13 @@ namespace FrameworkUnitTests
             return false;
         }
 
-        public static string PrintHistory(TaskHubClient2 taskHubClient, OrchestrationInstance instance)
+        public static string PrintHistory(TaskHubClient taskHubClient, OrchestrationInstance instance)
         {
             return taskHubClient.GetOrchestrationHistoryAsync(instance).Result;
         }
 
         public static string GetInstanceNotCompletedMessage(
-            TaskHubClient2 taskHubClient,
+            TaskHubClient taskHubClient,
             OrchestrationInstance instance,
             int timeWaited)
         {

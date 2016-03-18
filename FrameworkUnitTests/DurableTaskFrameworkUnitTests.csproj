@@ -120,7 +120,7 @@
     <Compile Include="OrchestrationHubTableClientTests.cs" />
     <Compile Include="SampleScenarioTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="TestHelpers2.cs" />
+    <Compile Include="TestHelpers.cs" />
     <Compile Include="TestObjectCreator.cs" />
   </ItemGroup>
   <ItemGroup>

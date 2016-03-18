@@ -25,7 +25,7 @@ namespace DurableTask
     /// <summary>
     ///     Client used to manage and query orchestration instances
     /// </summary>
-    public sealed class TaskHubClient2
+    public sealed class TaskHubClient
     {
         readonly DataConverter defaultConverter;
         public readonly IOrchestrationServiceClient serviceClient;
@@ -34,7 +34,7 @@ namespace DurableTask
         ///     Create a new TaskHubClient with the given OrchestrationServiceClient
         /// </summary>
         /// <param name="serviceClient">Object implementing the <see cref="IOrchestrationServiceClient"/> interface </param>
-        public TaskHubClient2(IOrchestrationServiceClient serviceClient)
+        public TaskHubClient(IOrchestrationServiceClient serviceClient)
         {
             if(serviceClient == null)
             {

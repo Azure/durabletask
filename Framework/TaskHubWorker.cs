@@ -23,7 +23,7 @@ namespace DurableTask
     ///     Allows users to load the TaskOrchestration and TaskActivity classes and start
     ///     dispatching to these. Also allows CRUD operations on the Task Hub itself.
     /// </summary>
-    public sealed class TaskHubWorker2
+    public sealed class TaskHubWorker
     {
         readonly NameVersionObjectManager<TaskActivity> activityManager;
         readonly NameVersionObjectManager<TaskOrchestration> orchestrationManager;
@@ -37,14 +37,14 @@ namespace DurableTask
 
         volatile bool isStarted;
 
-        TaskActivityDispatcher2 activityDispatcher;
-        TaskOrchestrationDispatcher2 orchestrationDispatcher;
+        TaskActivityDispatcher activityDispatcher;
+        TaskOrchestrationDispatcher orchestrationDispatcher;
 
         /// <summary>
         ///     Create a new TaskHubWorker with given OrchestrationService and settings
         /// </summary>
         /// <param name="orchestrationService">Reference the orchestration service implmentaion</param>
-        public TaskHubWorker2(IOrchestrationService orchestrationService)
+        public TaskHubWorker(IOrchestrationService orchestrationService)
         {
             if (orchestrationService == null)
             {
@@ -59,18 +59,18 @@ namespace DurableTask
         /// <summary>
         /// Gets the orchestration dispatcher
         /// </summary>
-        public TaskOrchestrationDispatcher2 TaskOrchestrationDispatcher => orchestrationDispatcher;
+        public TaskOrchestrationDispatcher TaskOrchestrationDispatcher => orchestrationDispatcher;
 
         /// <summary>
         /// Gets the task activity dispatcher
         /// </summary>
-        public TaskActivityDispatcher2 TaskActivityDispatcher => activityDispatcher;
+        public TaskActivityDispatcher TaskActivityDispatcher => activityDispatcher;
 
         /// <summary>
         ///     Starts the TaskHubWorker so it begins processing orchestrations and activities
         /// </summary>
         /// <returns></returns>
-        public async Task<TaskHubWorker2> StartAsync()
+        public async Task<TaskHubWorker> StartAsync()
         {
             await slimLock.WaitAsync();
             try
@@ -80,8 +80,8 @@ namespace DurableTask
                     throw new InvalidOperationException("Worker is already started");
                 }
 
-                orchestrationDispatcher = new TaskOrchestrationDispatcher2(orchestrationService, orchestrationManager);
-                activityDispatcher = new TaskActivityDispatcher2(orchestrationService, activityManager);
+                orchestrationDispatcher = new TaskOrchestrationDispatcher(orchestrationService, orchestrationManager);
+                activityDispatcher = new TaskActivityDispatcher(orchestrationService, activityManager);
 
                 await orchestrationService.StartAsync();
                 await orchestrationDispatcher.StartAsync();
@@ -134,7 +134,7 @@ namespace DurableTask
         /// </summary>
         /// <param name="taskOrchestrationTypes">Types deriving from TaskOrchestration class</param>
         /// <returns></returns>
-        public TaskHubWorker2 AddTaskOrchestrations(params Type[] taskOrchestrationTypes)
+        public TaskHubWorker AddTaskOrchestrations(params Type[] taskOrchestrationTypes)
         {
             foreach (Type type in taskOrchestrationTypes)
             {
@@ -152,7 +152,7 @@ namespace DurableTask
         ///     User specified ObjectCreators that will
         ///     create classes deriving TaskOrchestrations with specific names and versions
         /// </param>
-        public TaskHubWorker2 AddTaskOrchestrations(params ObjectCreator<TaskOrchestration>[] taskOrchestrationCreators)
+        public TaskHubWorker AddTaskOrchestrations(params ObjectCreator<TaskOrchestration>[] taskOrchestrationCreators)
         {
             foreach (var creator in taskOrchestrationCreators)
             {
@@ -166,7 +166,7 @@ namespace DurableTask
         ///     Loads user defined TaskActivity objects in the TaskHubWorker
         /// </summary>
         /// <param name="taskActivityObjects">Objects of with TaskActivity base type</param>
-        public TaskHubWorker2 AddTaskActivities(params TaskActivity[] taskActivityObjects)
+        public TaskHubWorker AddTaskActivities(params TaskActivity[] taskActivityObjects)
         {
             foreach (TaskActivity instance in taskActivityObjects)
             {
@@ -181,7 +181,7 @@ namespace DurableTask
         ///     Loads user defined TaskActivity classes in the TaskHubWorker
         /// </summary>
         /// <param name="taskActivityTypes">Types deriving from TaskOrchestration class</param>
-        public TaskHubWorker2 AddTaskActivities(params Type[] taskActivityTypes)
+        public TaskHubWorker AddTaskActivities(params Type[] taskActivityTypes)
         {
             foreach (Type type in taskActivityTypes)
             {
@@ -199,7 +199,7 @@ namespace DurableTask
         ///     User specified ObjectCreators that will
         ///     create classes deriving TaskActivity with specific names and versions
         /// </param>
-        public TaskHubWorker2 AddTaskActivities(params ObjectCreator<TaskActivity>[] taskActivityCreators)
+        public TaskHubWorker AddTaskActivities(params ObjectCreator<TaskActivity>[] taskActivityCreators)
         {
             foreach (var creator in taskActivityCreators)
             {
@@ -217,7 +217,7 @@ namespace DurableTask
         /// </summary>
         /// <typeparam name="T">Interface</typeparam>
         /// <param name="activities">Object that implements this interface</param>
-        public TaskHubWorker2 AddTaskActivitiesFromInterface<T>(T activities)
+        public TaskHubWorker AddTaskActivitiesFromInterface<T>(T activities)
         {
             return AddTaskActivitiesFromInterface(activities, false);
         }
@@ -234,7 +234,7 @@ namespace DurableTask
         ///     If true, the method name translation from the interface contains
         ///     the interface name, if false then only the method name is used
         /// </param>
-        public TaskHubWorker2 AddTaskActivitiesFromInterface<T>(T activities, bool useFullyQualifiedMethodNames)
+        public TaskHubWorker AddTaskActivitiesFromInterface<T>(T activities, bool useFullyQualifiedMethodNames)
         {
             Type @interface = typeof (T);
             if (!@interface.IsInterface)
