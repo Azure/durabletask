@@ -1,4 +1,6 @@
-﻿namespace TaskHubStressTest
+﻿using DurableTask.Tracking;
+
+namespace TaskHubStressTest
 {
     using System;
     using System.Collections.Generic;
@@ -21,17 +23,44 @@
             {
                 string connectionString = ConfigurationManager.ConnectionStrings["Microsoft.ServiceBus.ConnectionString"].ConnectionString;
                 string taskHubName = ConfigurationManager.AppSettings["TaskHubName"];
-
+                /*
                 TaskHubClient taskHubClient = new TaskHubClient(taskHubName, connectionString, tableConnectionString);
                 TaskHubWorkerSettings settings = new TaskHubWorkerSettings();
                 settings.TaskOrchestrationDispatcherSettings.CompressOrchestrationState = bool.Parse(ConfigurationManager.AppSettings["CompressOrchestrationState"]);
                 settings.TaskActivityDispatcherSettings.MaxConcurrentActivities = int.Parse(ConfigurationManager.AppSettings["MaxConcurrentActivities"]);
                 settings.TaskOrchestrationDispatcherSettings.MaxConcurrentOrchestrations = int.Parse(ConfigurationManager.AppSettings["MaxConcurrentOrchestrations"]);
                 TaskHubWorker taskHub = new TaskHubWorker(taskHubName, connectionString, tableConnectionString, settings);
-
+                
                 if (options.CreateHub)
                 {
                     taskHub.CreateHub();
+                }
+                */
+                IOrchestrationServiceInstanceStore instanceStore = new AzureTableInstanceStore(taskHubName, tableConnectionString);
+
+                ServiceBusOrchestrationServiceSettings settings = new ServiceBusOrchestrationServiceSettings
+                {
+                    TaskOrchestrationDispatcherSettings =
+                    {
+                        CompressOrchestrationState = bool.Parse(ConfigurationManager.AppSettings["CompressOrchestrationState"]),
+                        MaxConcurrentOrchestrations = int.Parse(ConfigurationManager.AppSettings["MaxConcurrentOrchestrations"])
+                    },
+                    TaskActivityDispatcherSettings =
+                    {
+                        MaxConcurrentActivities = int.Parse(ConfigurationManager.AppSettings["MaxConcurrentActivities"])
+                    }
+                };
+
+                ServiceBusOrchestrationService orchestrationServiceAndClient =
+                    new ServiceBusOrchestrationService(connectionString, taskHubName, instanceStore, settings);
+
+
+                TaskHubClient2 taskHubClient = new TaskHubClient2(orchestrationServiceAndClient);
+                TaskHubWorker2 taskHub = new TaskHubWorker2(orchestrationServiceAndClient);
+
+                if (options.CreateHub)
+                {
+                    orchestrationServiceAndClient.CreateIfNotExistsAsync().Wait();
                 }
 
                 OrchestrationInstance instance = null;
@@ -39,7 +68,7 @@
 
                 if (!string.IsNullOrWhiteSpace(instanceId))
                 {
-                    instance = taskHubClient.CreateOrchestrationInstance(typeof(DriverOrchestration), instanceId, new DriverOrchestrationData
+                    var driverConfig = new DriverOrchestrationData
                     {
                         NumberOfIteration = int.Parse(ConfigurationManager.AppSettings["DriverOrchestrationIterations"]),
                         NumberOfParallelTasks = int.Parse(ConfigurationManager.AppSettings["DriverOrchestrationParallelTasks"]),
@@ -48,8 +77,10 @@
                             NumberOfParallelTasks = int.Parse(ConfigurationManager.AppSettings["ChildOrchestrationParallelTasks"]),
                             NumberOfSerialTasks = int.Parse(ConfigurationManager.AppSettings["ChildOrchestrationSerialTasks"]),
                             MaxDelayInMinutes = int.Parse(ConfigurationManager.AppSettings["TestTaskMaxDelayInMinutes"]),
-                        },
-                    });
+                        }
+                    };
+
+                    instance = taskHubClient.CreateOrchestrationInstanceAsync(typeof(DriverOrchestration), instanceId, driverConfig).Result;
                 }
                 else
                 {
@@ -63,7 +94,7 @@
                 taskHub.AddTaskActivities(testTask);
                 taskHub.AddTaskOrchestrations(typeof(DriverOrchestration));
                 taskHub.AddTaskOrchestrations(typeof(TestOrchestration));
-                taskHub.Start();
+                taskHub.StartAsync().Wait();
 
                 int testTimeoutInSeconds = int.Parse(ConfigurationManager.AppSettings["TestTimeoutInSeconds"]);
                 OrchestrationState state = WaitForInstance(taskHubClient, instance, testTimeoutInSeconds);
@@ -77,12 +108,12 @@
                 Console.WriteLine($"Total Time: {elapsedTime}");
                 Console.ReadLine();
 
-                taskHub.Stop();
+                taskHub.StopAsync().Wait();
             }
 
         }
 
-        public static OrchestrationState WaitForInstance(TaskHubClient taskHubClient, OrchestrationInstance instance, int timeoutSeconds)
+        public static OrchestrationState WaitForInstance(TaskHubClient2 taskHubClient, OrchestrationInstance instance, int timeoutSeconds)
         {
             OrchestrationStatus status = OrchestrationStatus.Running;
             if (string.IsNullOrWhiteSpace(instance?.InstanceId))
@@ -95,7 +126,7 @@
             {
                 try
                 {
-                    var state = taskHubClient.GetOrchestrationState(instance.InstanceId);
+                    var state = taskHubClient.GetOrchestrationStateAsync(instance.InstanceId).Result;
                     if (state != null) status = state.OrchestrationStatus;
                     if (status == OrchestrationStatus.Running)
                     {
