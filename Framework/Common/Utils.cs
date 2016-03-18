@@ -47,7 +47,7 @@ namespace DurableTask.Common
         {
             if (objectStream == null || !objectStream.CanWrite || !objectStream.CanSeek)
             {
-                throw new ArgumentException("stream is not seekable or writable", "objectStream");
+                throw new ArgumentException("stream is not seekable or writable", nameof(objectStream));
             }
 
             byte[] serializedBytes = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(obj,

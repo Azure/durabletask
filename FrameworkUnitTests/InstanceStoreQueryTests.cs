@@ -25,19 +25,19 @@ namespace FrameworkUnitTests
     [TestClass]
     public class InstanceStoreQueryTests
     {
-        TaskHubClient2 client;
-        TaskHubWorker2 taskHub;
+        TaskHubClient client;
+        TaskHubWorker taskHub;
         ServiceBusOrchestrationService orchestrationService;
         AzureTableInstanceStore queryClient;
 
         [TestInitialize]
         public void TestInitialize()
         {
-            client = TestHelpers2.CreateTaskHubClient();
+            client = TestHelpers.CreateTaskHubClient();
             orchestrationService = client.serviceClient as ServiceBusOrchestrationService;
             queryClient = orchestrationService?.InstanceStore as AzureTableInstanceStore;
 
-            taskHub = TestHelpers2.CreateTaskHub();
+            taskHub = TestHelpers.CreateTaskHub();
 
             taskHub.orchestrationService.CreateIfNotExistsAsync(true).Wait();
         }
@@ -73,11 +73,11 @@ namespace FrameworkUnitTests
             OrchestrationInstance id5 = await client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
                 instanceId5, "DONTTHROW");
 
-            await TestHelpers2.WaitForInstanceAsync(client, id1, 60);
-            await TestHelpers2.WaitForInstanceAsync(client, id2, 60);
-            await TestHelpers2.WaitForInstanceAsync(client, id3, 60);
-            await TestHelpers2.WaitForInstanceAsync(client, id4, 60);
-            await TestHelpers2.WaitForInstanceAsync(client, id5, 60);
+            await TestHelpers.WaitForInstanceAsync(client, id1, 60);
+            await TestHelpers.WaitForInstanceAsync(client, id2, 60);
+            await TestHelpers.WaitForInstanceAsync(client, id3, 60);
+            await TestHelpers.WaitForInstanceAsync(client, id4, 60);
+            await TestHelpers.WaitForInstanceAsync(client, id5, 60);
 
             OrchestrationStateQuery apiservice1ExactQuery = new OrchestrationStateQuery().
                 AddInstanceFilter("apiservice1_activate", id1.ExecutionId);
@@ -329,7 +329,7 @@ namespace FrameworkUnitTests
             DateTime firstBatchStart = DateTime.UtcNow;
             OrchestrationInstance id1 = await client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
                 instanceId1, "WAIT_DONTTHROW");
-            await TestHelpers2.WaitForInstanceAsync(client, id1, 60);
+            await TestHelpers.WaitForInstanceAsync(client, id1, 60);
             DateTime firstBatchEnd = DateTime.UtcNow;
 
 
@@ -339,8 +339,8 @@ namespace FrameworkUnitTests
             OrchestrationInstance id3 = await client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
                 instanceId3, "WAIT_DONTTHROW");
 
-            await TestHelpers2.WaitForInstanceAsync(client, id2, 60);
-            await TestHelpers2.WaitForInstanceAsync(client, id3, 60);
+            await TestHelpers.WaitForInstanceAsync(client, id2, 60);
+            await TestHelpers.WaitForInstanceAsync(client, id3, 60);
             DateTime secondBatchEnd = DateTime.UtcNow;
 
             // timespan during which only first batch was created
@@ -384,7 +384,7 @@ namespace FrameworkUnitTests
             DateTime firstBatchStart = DateTime.UtcNow;
             OrchestrationInstance id1 = await client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
                 instanceId1, "WAIT_DONTTHROW");
-            await TestHelpers2.WaitForInstanceAsync(client, id1, 60, false);
+            await TestHelpers.WaitForInstanceAsync(client, id1, 60, false);
 
             // running orchestrations never get reported in any CompletedTimeFilter query
             OrchestrationStateQuery query = new OrchestrationStateQuery().AddTimeRangeFilter(DateTime.MinValue,
@@ -394,7 +394,7 @@ namespace FrameworkUnitTests
             IEnumerable<OrchestrationState> response = await queryClient.QueryOrchestrationStatesAsync(query);
             Assert.IsTrue(response.Count() == 0);
 
-            await TestHelpers2.WaitForInstanceAsync(client, id1, 60);
+            await TestHelpers.WaitForInstanceAsync(client, id1, 60);
 
             // now we should get a result
             response = await queryClient.QueryOrchestrationStatesAsync(query);
@@ -413,7 +413,7 @@ namespace FrameworkUnitTests
             DateTime firstBatchStart = DateTime.UtcNow;
             OrchestrationInstance id1 = await client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
                 instanceId1, "WAIT_AND_WAIT_DONTTHROW");
-            await TestHelpers2.WaitForInstanceAsync(client, id1, 60, false);
+            await TestHelpers.WaitForInstanceAsync(client, id1, 60, false);
 
             // running orchestrations never get reported in any CompletedTimeFilter query
             OrchestrationStateQuery query = new OrchestrationStateQuery().AddTimeRangeFilter(firstBatchStart,
@@ -423,7 +423,7 @@ namespace FrameworkUnitTests
             IEnumerable<OrchestrationState> response = await queryClient.QueryOrchestrationStatesAsync(query);
             Assert.IsTrue(response.Count() == 1);
 
-            await TestHelpers2.WaitForInstanceAsync(client, id1, 60);
+            await TestHelpers.WaitForInstanceAsync(client, id1, 60);
 
             response = await queryClient.QueryOrchestrationStatesAsync(query);
             Assert.IsTrue(response.Count() == 0);
@@ -486,8 +486,8 @@ namespace FrameworkUnitTests
             OrchestrationStateQuery failedQuery =
                 new OrchestrationStateQuery().AddStatusFilter(OrchestrationStatus.Failed);
 
-            await TestHelpers2.WaitForInstanceAsync(client, id1, 60, false);
-            await TestHelpers2.WaitForInstanceAsync(client, id2, 60, false);
+            await TestHelpers.WaitForInstanceAsync(client, id1, 60, false);
+            await TestHelpers.WaitForInstanceAsync(client, id2, 60, false);
 
             IEnumerable<OrchestrationState> runningStates = await queryClient.QueryOrchestrationStatesAsync(runningQuery);
             IEnumerable<OrchestrationState> completedStates = await queryClient.QueryOrchestrationStatesAsync(completedQuery);
@@ -497,8 +497,8 @@ namespace FrameworkUnitTests
             Assert.IsTrue(completedStates.Count() == 0);
             Assert.IsTrue(failedStates.Count() == 0);
 
-            await TestHelpers2.WaitForInstanceAsync(client, id1, 60);
-            await TestHelpers2.WaitForInstanceAsync(client, id2, 60);
+            await TestHelpers.WaitForInstanceAsync(client, id1, 60);
+            await TestHelpers.WaitForInstanceAsync(client, id2, 60);
 
             runningStates = await queryClient.QueryOrchestrationStatesAsync(runningQuery);
             completedStates = await queryClient.QueryOrchestrationStatesAsync(completedQuery);
@@ -530,9 +530,9 @@ namespace FrameworkUnitTests
             OrchestrationInstance id3 = await client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
                 instance3, "WAIT_DONTTHROW");
 
-            await TestHelpers2.WaitForInstanceAsync(client, id1, 60);
-            await TestHelpers2.WaitForInstanceAsync(client, id2, 60);
-            await TestHelpers2.WaitForInstanceAsync(client, id3, 60);
+            await TestHelpers.WaitForInstanceAsync(client, id1, 60);
+            await TestHelpers.WaitForInstanceAsync(client, id2, 60);
+            await TestHelpers.WaitForInstanceAsync(client, id3, 60);
 
             // completed apiservice1 --> 1 result
             OrchestrationStateQuery query = new OrchestrationStateQuery().
@@ -573,7 +573,7 @@ namespace FrameworkUnitTests
             OrchestrationInstance id1 = await client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
                 instance1, "WAIT_NEWGEN");
 
-            await TestHelpers2.WaitForInstanceAsync(client, id1, 60);
+            await TestHelpers.WaitForInstanceAsync(client, id1, 60);
 
             // completed apiservice1 --> 1 result
             OrchestrationStateQuery query = new OrchestrationStateQuery().
@@ -615,9 +615,9 @@ namespace FrameworkUnitTests
 
             OrchestrationInstance id3 = await client.CreateOrchestrationInstanceAsync("orch2", string.Empty, "DONTTHROW");
 
-            await TestHelpers2.WaitForInstanceAsync(client, id1, 60);
-            await TestHelpers2.WaitForInstanceAsync(client, id2, 60);
-            await TestHelpers2.WaitForInstanceAsync(client, id3, 60);
+            await TestHelpers.WaitForInstanceAsync(client, id1, 60);
+            await TestHelpers.WaitForInstanceAsync(client, id2, 60);
+            await TestHelpers.WaitForInstanceAsync(client, id3, 60);
 
             OrchestrationStateQuery query = new OrchestrationStateQuery().AddNameVersionFilter("orch1");
 

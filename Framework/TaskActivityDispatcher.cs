@@ -17,72 +17,74 @@ namespace DurableTask
     using System.Diagnostics;
     using System.Threading;
     using System.Threading.Tasks;
-    using System.Transactions;
     using DurableTask.Common;
     using DurableTask.Exceptions;
     using DurableTask.History;
-    using DurableTask.Settings;
     using DurableTask.Tracing;
-    using Microsoft.ServiceBus.Messaging;
 
-    public sealed class TaskActivityDispatcher : DispatcherBase<BrokeredMessage>
+    public sealed class TaskActivityDispatcher
     {
-        readonly MessagingFactory messagingFactory;
-
         readonly NameVersionObjectManager<TaskActivity> objectManager;
-        readonly string orchestratorQueueName;
-        readonly TaskHubWorkerSettings settings;
-        readonly TaskHubDescription taskHubDescription;
-        readonly string workerQueueName;
-        MessageSender deciderSender;
-        QueueClient workerQueueClient;
-
-        internal TaskActivityDispatcher(MessagingFactory messagingFactory,
-            TaskHubDescription taskHubDescription,
-            TaskHubWorkerSettings workerSettings,
-            string orchestratorQueueName,
-            string workerQueueName,
+        readonly WorkItemDispatcher<TaskActivityWorkItem> dispatcher; 
+        readonly IOrchestrationService orchestrationService;
+        
+        internal TaskActivityDispatcher(
+            IOrchestrationService orchestrationService,
             NameVersionObjectManager<TaskActivity> objectManager)
-            : base("TaskActivityDispatcher", item => item.MessageId)
         {
-            this.taskHubDescription = taskHubDescription;
-            settings = workerSettings.Clone();
-            this.orchestratorQueueName = orchestratorQueueName;
-            this.workerQueueName = workerQueueName;
-            this.messagingFactory = messagingFactory;
-            this.objectManager = objectManager;
-            maxConcurrentWorkItems = settings.TaskActivityDispatcherSettings.MaxConcurrentActivities;
-        }
-
-        public bool IncludeDetails { get; set; }
-
-        protected override async Task<BrokeredMessage> OnFetchWorkItemAsync(TimeSpan receiveTimeout)
-        {
-            BrokeredMessage receivedMessage = await workerQueueClient.ReceiveAsync(receiveTimeout);
-
-            if (receivedMessage != null)
+            if (orchestrationService == null)
             {
-                TraceHelper.TraceSession(TraceEventType.Information,
-                    receivedMessage.SessionId,
-                    GetFormattedLog("New message to process: " + receivedMessage.MessageId + " [" +
-                                    receivedMessage.SequenceNumber + "]"));
+                throw new ArgumentNullException(nameof(orchestrationService));
             }
 
-            return receivedMessage;
+            if (objectManager == null)
+            {
+                throw new ArgumentNullException(nameof(objectManager));
+            }
+
+            this.orchestrationService = orchestrationService;
+            this.objectManager = objectManager;
+
+            this.dispatcher = new WorkItemDispatcher<TaskActivityWorkItem>(
+                "TaskActivityDispatcher",
+                item => item.Id,
+                this.OnFetchWorkItemAsync,
+                this.OnProcessWorkItemAsync)
+            {
+                AbortWorkItem = orchestrationService.AbandonTaskActivityWorkItemAsync,
+                GetDelayInSecondsAfterOnFetchException = orchestrationService.GetDelayInSecondsAfterOnFetchException,
+                GetDelayInSecondsAfterOnProcessException = orchestrationService.GetDelayInSecondsAfterOnProcessException,
+                MaxConcurrentWorkItems = orchestrationService.MaxConcurrentTaskActivityWorkItems
+            };
         }
 
-        protected override async Task OnProcessWorkItemAsync(BrokeredMessage message)
+        public async Task StartAsync()
         {
-            ServiceBusUtils.CheckAndLogDeliveryCount(message, taskHubDescription.MaxTaskActivityDeliveryCount);
+            await dispatcher.StartAsync();
+        }
 
+        public async Task StopAsync(bool forced)
+        {
+            await dispatcher.StopAsync(forced);
+        }
+
+        public bool IncludeDetails { get; set;} 
+
+        Task<TaskActivityWorkItem> OnFetchWorkItemAsync(TimeSpan receiveTimeout)
+        {
+            return this.orchestrationService.LockNextTaskActivityWorkItem(receiveTimeout, CancellationToken.None);
+        }
+
+        async Task OnProcessWorkItemAsync(TaskActivityWorkItem workItem)
+        {
             Task renewTask = null;
             var renewCancellationTokenSource = new CancellationTokenSource();
 
             try
             {
-                TaskMessage taskMessage = await ServiceBusUtils.GetObjectFromBrokeredMessageAsync<TaskMessage>(message);
+                TaskMessage taskMessage = workItem.TaskMessage;
                 OrchestrationInstance orchestrationInstance = taskMessage.OrchestrationInstance;
-                if (orchestrationInstance == null || string.IsNullOrWhiteSpace(orchestrationInstance.InstanceId))
+                if (string.IsNullOrWhiteSpace(orchestrationInstance?.InstanceId))
                 {
                     throw TraceHelper.TraceException(TraceEventType.Error,
                         new InvalidOperationException("Message does not contain any OrchestrationInstance information"));
@@ -99,11 +101,10 @@ namespace DurableTask
                 TaskActivity taskActivity = objectManager.GetObject(scheduledEvent.Name, scheduledEvent.Version);
                 if (taskActivity == null)
                 {
-                    throw new TypeMissingException("TaskActivity " + scheduledEvent.Name + " version " +
-                                                   scheduledEvent.Version + " was not found");
+                    throw new TypeMissingException($"TaskActivity {scheduledEvent.Name} version {scheduledEvent.Version} was not found");
                 }
 
-                renewTask = Task.Factory.StartNew(() => RenewUntil(message, renewCancellationTokenSource.Token));
+                renewTask = Task.Factory.StartNew(() => RenewUntil(workItem, renewCancellationTokenSource.Token));
 
                 // TODO : pass workflow instance data
                 var context = new TaskContext(taskMessage.OrchestrationInstance);
@@ -120,30 +121,22 @@ namespace DurableTask
                     string details = IncludeDetails ? e.Details : null;
                     eventToRespond = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details);
                 }
-                catch (Exception e)
+                catch (Exception e) when (!Utils.IsFatal(e))
                 {
                     TraceHelper.TraceExceptionInstance(TraceEventType.Error, taskMessage.OrchestrationInstance, e);
                     string details = IncludeDetails
-                        ? string.Format("Unhandled exception while executing task: {0}\n\t{1}", e, e.StackTrace)
+                        ? $"Unhandled exception while executing task: {e}\n\t{e.StackTrace}"
                         : null;
                     eventToRespond = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details);
                 }
 
-                var responseTaskMessage = new TaskMessage();
-                responseTaskMessage.Event = eventToRespond;
-                responseTaskMessage.OrchestrationInstance = orchestrationInstance;
-
-                BrokeredMessage responseMessage = ServiceBusUtils.GetBrokeredMessageFromObject(responseTaskMessage,
-                    settings.MessageCompressionSettings,
-                    orchestrationInstance, "Response for " + message.MessageId);
-                responseMessage.SessionId = orchestrationInstance.InstanceId;
-
-                using (var ts = new TransactionScope())
+                var responseTaskMessage = new TaskMessage
                 {
-                    workerQueueClient.Complete(message.LockToken);
-                    deciderSender.Send(responseMessage);
-                    ts.Complete();
-                }
+                    Event = eventToRespond,
+                    OrchestrationInstance = orchestrationInstance
+                };
+
+                await this.orchestrationService.CompleteTaskActivityWorkItemAsync(workItem, responseTaskMessage);
             }
             finally
             {
@@ -155,16 +148,16 @@ namespace DurableTask
             }
         }
 
-        async void RenewUntil(BrokeredMessage message, CancellationToken cancellationToken)
+        async void RenewUntil(TaskActivityWorkItem workItem, CancellationToken cancellationToken)
         {
             try
             {
-                if (message.LockedUntilUtc < DateTime.UtcNow)
+                if (workItem.LockedUntilUtc < DateTime.UtcNow)
                 {
                     return;
                 }
 
-                DateTime renewAt = message.LockedUntilUtc.Subtract(TimeSpan.FromSeconds(30));
+                DateTime renewAt = workItem.LockedUntilUtc.Subtract(TimeSpan.FromSeconds(30));
 
                 // service bus clock sku can really mess us up so just always renew every 30 secs regardless of 
                 // what the message.LockedUntilUtc says. if the sku is negative then in the worst case we will be
@@ -176,25 +169,24 @@ namespace DurableTask
                 {
                     await Task.Delay(TimeSpan.FromSeconds(5));
 
-                    if (DateTime.UtcNow >= renewAt)
+                    if (DateTime.UtcNow < renewAt)
                     {
-                        try
-                        {
-                            TraceHelper.Trace(TraceEventType.Information, "Renewing lock for message id {0}",
-                                message.MessageId);
-                            message.RenewLock();
-                            renewAt = message.LockedUntilUtc.Subtract(TimeSpan.FromSeconds(30));
-                            renewAt = AdjustRenewAt(renewAt);
-                            TraceHelper.Trace(TraceEventType.Information, "Next renew for message id '{0}' at '{1}'",
-                                message.MessageId, renewAt);
-                        }
-                        catch (Exception exception)
-                        {
-                            // might have been completed
-                            TraceHelper.TraceException(TraceEventType.Information, exception,
-                                "Failed to renew lock for message {0}", message.MessageId);
-                            break;
-                        }
+                        continue;
+                    }
+
+                    try
+                    {
+                        TraceHelper.Trace(TraceEventType.Information, "Renewing lock for workitem id {0}", workItem.Id);
+                        workItem = await this.orchestrationService.RenewTaskActivityWorkItemLockAsync(workItem);
+                        renewAt = workItem.LockedUntilUtc.Subtract(TimeSpan.FromSeconds(30));
+                        renewAt = AdjustRenewAt(renewAt);
+                        TraceHelper.Trace(TraceEventType.Information, "Next renew for workitem id '{0}' at '{1}'", workItem.Id, renewAt);
+                    }
+                    catch (Exception exception) when (!Utils.IsFatal(exception))
+                    {
+                        // might have been completed
+                        TraceHelper.TraceException(TraceEventType.Information, exception, "Failed to renew lock for workitem {0}", workItem.Id);
+                        break;
                     }
                 }
             }
@@ -208,69 +200,7 @@ namespace DurableTask
         DateTime AdjustRenewAt(DateTime renewAt)
         {
             DateTime maxRenewAt = DateTime.UtcNow.Add(TimeSpan.FromSeconds(30));
-
-            if (renewAt > maxRenewAt)
-            {
-                return maxRenewAt;
-            }
-
-            return renewAt;
-        }
-
-        protected override void OnStart()
-        {
-            workerQueueClient = messagingFactory.CreateQueueClient(workerQueueName);
-            deciderSender = messagingFactory.CreateMessageSender(orchestratorQueueName, workerQueueName);
-        }
-
-        protected override void OnStopping(bool isForced)
-        {
-        }
-
-        protected override void OnStopped(bool isForced)
-        {
-            workerQueueClient.Close();
-            deciderSender.Close();
-            messagingFactory.Close();
-        }
-
-        protected override Task SafeReleaseWorkItemAsync(BrokeredMessage workItem)
-        {
-            if (workItem != null)
-            {
-                workItem.Dispose();
-            }
-
-            return Task.FromResult<Object>(null);
-        }
-
-        protected override async Task AbortWorkItemAsync(BrokeredMessage workItem)
-        {
-            if (workItem != null)
-            {
-                TraceHelper.Trace(TraceEventType.Information, "Abandoing message " + workItem.MessageId);
-                await workItem.AbandonAsync();
-            }
-        }
-
-        protected override int GetDelayInSecondsAfterOnProcessException(Exception exception)
-        {
-            if (exception is MessagingException)
-            {
-                return settings.TaskActivityDispatcherSettings.TransientErrorBackOffSecs;
-            }
-
-            return 0;
-        }
-
-        protected override int GetDelayInSecondsAfterOnFetchException(Exception exception)
-        {
-            int delay = settings.TaskActivityDispatcherSettings.NonTransientErrorBackOffSecs;
-            if (exception is MessagingException && (exception as MessagingException).IsTransient)
-            {
-                delay = settings.TaskActivityDispatcherSettings.TransientErrorBackOffSecs;
-            }
-            return delay;
+            return renewAt > maxRenewAt ? maxRenewAt : renewAt;
         }
     }
 }

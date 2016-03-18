@@ -22,7 +22,7 @@ namespace FrameworkUnitTests
     using DurableTask.Settings;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Mocks;
-
+    
     /// <summary>
     /// Test the core dtfx via a mock orchestration service and client provider
     /// </summary>
@@ -47,13 +47,13 @@ namespace FrameworkUnitTests
         {
             LocalOrchestrationService orchService = new LocalOrchestrationService();
 
-            TaskHubWorker2 worker = new TaskHubWorker2(orchService);
+            TaskHubWorker worker = new TaskHubWorker(orchService);
 
             await worker.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
                 .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
                 .StartAsync();
 
-            TaskHubClient2 client = new TaskHubClient2(orchService);
+            TaskHubClient client = new TaskHubClient(orchService);
 
             OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), null);
 
@@ -71,13 +71,13 @@ namespace FrameworkUnitTests
         {
             LocalOrchestrationService orchService = new LocalOrchestrationService();
 
-            TaskHubWorker2 worker = new TaskHubWorker2(orchService);
+            TaskHubWorker worker = new TaskHubWorker(orchService);
 
             await worker.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
                 .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
                 .StartAsync();
 
-            TaskHubClient2 client = new TaskHubClient2(orchService);
+            TaskHubClient client = new TaskHubClient(orchService);
 
             OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), "30");
 
@@ -101,8 +101,8 @@ namespace FrameworkUnitTests
 
             LocalOrchestrationService orchService = new LocalOrchestrationService();
 
-            TaskHubWorker2 worker = new TaskHubWorker2(orchService);
-            TaskHubClient2 client = new TaskHubClient2(orchService);
+            TaskHubWorker worker = new TaskHubWorker(orchService);
+            TaskHubClient client = new TaskHubClient(orchService);
 
             await worker.AddTaskOrchestrations(typeof(GenerationBasicOrchestration))
                 .AddTaskActivities(new GenerationBasicTask())
@@ -128,8 +128,8 @@ namespace FrameworkUnitTests
         {
             LocalOrchestrationService orchService = new LocalOrchestrationService();
 
-            TaskHubWorker2 worker = new TaskHubWorker2(orchService);
-            TaskHubClient2 client = new TaskHubClient2(orchService);
+            TaskHubWorker worker = new TaskHubWorker(orchService);
+            TaskHubClient client = new TaskHubClient(orchService);
 
             await worker.AddTaskOrchestrations(typeof(ParentWorkflow), typeof(ChildWorkflow))
                 .StartAsync();
@@ -163,8 +163,8 @@ namespace FrameworkUnitTests
         {
             LocalOrchestrationService orchService = new LocalOrchestrationService();
 
-            TaskHubWorker2 worker = new TaskHubWorker2(orchService);
-            TaskHubClient2 client = new TaskHubClient2(orchService);
+            TaskHubWorker worker = new TaskHubWorker(orchService);
+            TaskHubClient client = new TaskHubClient(orchService);
 
             await worker.AddTaskOrchestrations(typeof(GenerationSignalOrchestration))
                 .StartAsync();
@@ -316,13 +316,13 @@ namespace FrameworkUnitTests
 
         //    await orchService.StartAsync();
 
-        //    TaskHubWorker2 worker = new TaskHubWorker2(orchService, "test", new TaskHubWorkerSettings());
+        //    TaskHubWorker worker = new TaskHubWorker(orchService, "test", new TaskHubWorkerSettings());
 
         //    worker.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
         //        .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
         //        .Start();
 
-        //    TaskHubClient2 client = new TaskHubClient2(orchService, "test", new TaskHubClientSettings());
+        //    TaskHubClient client = new TaskHubClient(orchService, "test", new TaskHubClientSettings());
 
         //    OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), "60");
 

@@ -21,15 +21,15 @@ namespace FrameworkUnitTests
     [TestClass]
     public class SerializationTests
     {
-        TaskHubClient2 client;
-        TaskHubWorker2 taskHub;
+        TaskHubClient client;
+        TaskHubWorker taskHub;
 
         [TestInitialize]
         public void TestInitialize()
         {
-            client = TestHelpers2.CreateTaskHubClient();
+            client = TestHelpers.CreateTaskHubClient();
 
-            taskHub = TestHelpers2.CreateTaskHub();
+            taskHub = TestHelpers.CreateTaskHub();
             taskHub.orchestrationService.CreateIfNotExistsAsync(true).Wait();
         }
 
@@ -78,8 +78,8 @@ namespace FrameworkUnitTests
             OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(
                 typeof (PrimitiveTypeActivitiesOrchestration), input);
 
-            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 120);
-            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 120));
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 120);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 120));
 
             Assert.AreEqual(input.Byte, PrimitiveTypeActivitiesOrchestration.Byte);
             Assert.AreEqual(input.SByte, PrimitiveTypeActivitiesOrchestration.SByte);
@@ -619,8 +619,8 @@ namespace FrameworkUnitTests
             OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (MoreParamsOrchestration),
                 new MoreParamsOrchestrationInput {Str = "Hello"});
 
-            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
 
             Assert.AreEqual("Hello00Hello1015", MoreParamsOrchestration.Result);
         }

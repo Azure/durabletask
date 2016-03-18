@@ -34,11 +34,8 @@
                 ServiceBusOrchestrationService orchestrationServiceAndClient =
                     new ServiceBusOrchestrationService(servicebusConnectionString, taskHubName, instanceStore, null);
 
-                //TaskHubClient taskHubClientOld = new TaskHubClient(taskHubName, servicebusConnectionString, storageConnectionString);
-                TaskHubClient2 taskHubClient = new TaskHubClient2(orchestrationServiceAndClient);
-                //TaskHubWorker taskHubOld = new TaskHubWorker(taskHubName, servicebusConnectionString, storageConnectionString);
-                TaskHubWorker2 taskHubNew = new TaskHubWorker2(orchestrationServiceAndClient);
-                var taskHub = taskHubNew;
+                TaskHubClient taskHubClient = new TaskHubClient(orchestrationServiceAndClient);
+                TaskHubWorker taskHub = new TaskHubWorker(orchestrationServiceAndClient);
                 
                 if (options.CreateHub)
                 {

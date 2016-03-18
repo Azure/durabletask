@@ -23,13 +23,13 @@ namespace FrameworkUnitTests
     [TestClass]
     public class TaskHubClientTests
     {
-        TaskHubClient2 client;
-        TaskHubWorker2 taskHub;
+        TaskHubClient client;
+        TaskHubWorker taskHub;
 
         [TestMethod]
         public async Task TestCreateIfNew()
         {
-            taskHub = TestHelpers2.CreateTaskHub();
+            taskHub = TestHelpers.CreateTaskHub();
             var service = taskHub.orchestrationService as ServiceBusOrchestrationService;
             Assert.IsNotNull(service);
 
@@ -43,8 +43,8 @@ namespace FrameworkUnitTests
         [TestMethod]
         public async Task TestOrchestrationCount()
         {
-            taskHub = TestHelpers2.CreateTaskHub();
-            client = TestHelpers2.CreateTaskHubClient();
+            taskHub = TestHelpers.CreateTaskHub();
+            client = TestHelpers.CreateTaskHubClient();
             var service = taskHub.orchestrationService as ServiceBusOrchestrationService;
             Assert.IsNotNull(service);
             await service.CreateAsync();
@@ -65,7 +65,7 @@ namespace FrameworkUnitTests
                 MaxTrackingDeliveryCount = 100
             };
 
-            taskHub = TestHelpers2.CreateTaskHub(settings);
+            taskHub = TestHelpers.CreateTaskHub(settings);
             var service = taskHub.orchestrationService as ServiceBusOrchestrationService;
             Assert.IsNotNull(service);
             await service.CreateAsync();
@@ -89,7 +89,7 @@ namespace FrameworkUnitTests
                 MaxTrackingDeliveryCount = 100
             };
 
-            taskHub = TestHelpers2.CreateTaskHub(settings);
+            taskHub = TestHelpers.CreateTaskHub(settings);
             var service = taskHub.orchestrationService as ServiceBusOrchestrationService;
             Assert.IsNotNull(service);
             await service.CreateIfNotExistsAsync();
