@@ -17,6 +17,7 @@ namespace DurableTask.Tracing
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Linq;
+    using DurableTask.Common;
 
     internal class OrchestrationConsoleTraceListener : ConsoleTraceListener
     {
@@ -29,23 +30,29 @@ namespace DurableTask.Tracing
                     .Select(part => part.Split('='))
                     .ToDictionary(split => split[0], split => split.Length > 1 ? split[1] : string.Empty);
                 string iid;
-                if (dict.TryGetValue("iid", out iid))
+                string msg;
+                if (dict.TryGetValue("iid", out iid) && dict.TryGetValue("msg", out msg))
                 {
-                    string toWrite = string.Format("[{0} {1}] {2}", DateTime.Now, iid, dict["msg"]);
+                    string toWrite = $"[{DateTime.Now} {iid}] {msg}";
+                    Console.WriteLine(toWrite);
+                    Debug.WriteLine(toWrite);
+                }
+                else if (dict.TryGetValue("msg", out msg))
+                {
+                    string toWrite = $"[{DateTime.Now}] {msg}";
                     Console.WriteLine(toWrite);
                     Debug.WriteLine(toWrite);
                 }
                 else
                 {
-                    string toWrite = string.Format("[{0}] {1}", DateTime.Now, dict["msg"]);
+                    string toWrite = $"[{DateTime.Now}] {message}";
                     Console.WriteLine(toWrite);
                     Debug.WriteLine(toWrite);
                 }
             }
-            catch (Exception exception)
+            catch (Exception exception) when (!Utils.IsFatal(exception))
             {
-                string toWrite = string.Format("Exception while parsing trace:  {0}\n\t", exception.Message,
-                    exception.StackTrace);
+                string toWrite = $"Exception while parsing trace:  {exception.Message}\n\t{exception.StackTrace}";
                 Console.WriteLine(toWrite);
                 Debug.WriteLine(toWrite);
             }

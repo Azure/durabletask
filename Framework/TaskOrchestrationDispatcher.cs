@@ -24,9 +24,10 @@ namespace DurableTask
     using DurableTask.Command;
     using DurableTask.Exceptions;
     using DurableTask.History;
+    using DurableTask.Settings;
+    using DurableTask.Tracing;
     using Microsoft.ServiceBus.Messaging;
     using Newtonsoft.Json;
-    using Tracing;
 
     [Obsolete]
     public class TaskOrchestrationDispatcher : DispatcherBase<SessionWorkItem>
@@ -184,7 +185,7 @@ namespace DurableTask
                         new JsonSerializerSettings
                         {
                             TypeNameHandling = TypeNameHandling.Auto,
-                            Formatting = Formatting.Indented
+                            Formatting = Formatting.None
                         }));
 
                 IEnumerable<OrchestratorAction> decisions = ExecuteOrchestration(runtimeState);
@@ -228,7 +229,7 @@ namespace DurableTask
                                     runtimeState, IncludeParameters);
                             BrokeredMessage createSubOrchestrationMessage = ServiceBusUtils.GetBrokeredMessageFromObject(
                                 createSubOrchestrationInstanceMessage, settings.MessageCompressionSettings,
-                                runtimeState.OrchestrationInstance, "Schedule Suborchestration");
+                                runtimeState.OrchestrationInstance, "Sub Orchestration");
                             createSubOrchestrationMessage.SessionId =
                                 createSubOrchestrationInstanceMessage.OrchestrationInstance.InstanceId;
                             subOrchestrationMessages.Add(createSubOrchestrationMessage);
@@ -556,6 +557,7 @@ namespace DurableTask
 
                 TaskMessage taskMessage = await ServiceBusUtils.GetObjectFromBrokeredMessageAsync<TaskMessage>(message);
                 OrchestrationInstance orchestrationInstance = taskMessage.OrchestrationInstance;
+
                 if (orchestrationInstance == null || string.IsNullOrWhiteSpace(orchestrationInstance.InstanceId))
                 {
                     throw TraceHelper.TraceException(TraceEventType.Error,

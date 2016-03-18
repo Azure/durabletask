@@ -11,22 +11,17 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Common
+namespace DurableTask.Tracking
 {
-    /// <summary>
-    /// Compression settings
-    /// </summary>
-    public struct CompressionSettings
-    {
-        /// <summary>
-        ///     Type of compression
-        /// </summary>
-        public CompressionStyle Style { get; set; }
+    using System;
+    using DurableTask.History;
 
-        /// <summary>
-        ///     Compression threshold in bytes; if specified by compression criteria, compression will not be done
-        ///     if size is below this value
-        /// </summary>
-        public int ThresholdInBytes { get; set; }
+    public class OrchestrationWorkItemEvent : OrchestrationHistoryEvent
+    {
+        public string InstanceId;
+        public string ExecutionId;
+        public int SequenceNumber;
+        public DateTime EventTimestamp;
+        public HistoryEvent HistoryEvent;
     }
 }

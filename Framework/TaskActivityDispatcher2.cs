@@ -17,42 +17,66 @@ namespace DurableTask
     using System.Diagnostics;
     using System.Threading;
     using System.Threading.Tasks;
+    using DurableTask.Common;
     using DurableTask.Exceptions;
     using DurableTask.History;
-    using DurableTask.Serializing;
     using DurableTask.Tracing;
 
-    public sealed class TaskActivityDispatcher2 : DispatcherBase<TaskActivityWorkItem>
+    public sealed class TaskActivityDispatcher2
     {
         readonly NameVersionObjectManager<TaskActivity> objectManager;
-        readonly TaskHubWorkerSettings settings;
-        IOrchestrationService orchestrationService;
+        readonly WorkItemDispatcher<TaskActivityWorkItem> dispatcher; 
+        readonly IOrchestrationService orchestrationService;
         
         internal TaskActivityDispatcher2(
-            TaskHubWorkerSettings workerSettings,
             IOrchestrationService orchestrationService,
             NameVersionObjectManager<TaskActivity> objectManager)
-            : base("TaskActivityDispatcher", item => item.Id)
         {
-            // AFFANDAR : TODO : arg checks?
-            settings = workerSettings.Clone();
+            if (orchestrationService == null)
+            {
+                throw new ArgumentNullException(nameof(orchestrationService));
+            }
+
+            if (objectManager == null)
+            {
+                throw new ArgumentNullException(nameof(objectManager));
+            }
+
             this.orchestrationService = orchestrationService;
             this.objectManager = objectManager;
-            maxConcurrentWorkItems = settings.TaskActivityDispatcherSettings.MaxConcurrentActivities;
+
+            this.dispatcher = new WorkItemDispatcher<TaskActivityWorkItem>(
+                "TaskActivityDispatcher",
+                item => item.Id,
+                this.OnFetchWorkItemAsync,
+                this.OnProcessWorkItemAsync)
+            {
+                AbortWorkItem = orchestrationService.AbandonTaskActivityWorkItemAsync,
+                GetDelayInSecondsAfterOnFetchException = orchestrationService.GetDelayInSecondsAfterOnFetchException,
+                GetDelayInSecondsAfterOnProcessException = orchestrationService.GetDelayInSecondsAfterOnProcessException,
+                MaxConcurrentWorkItems = orchestrationService.MaxConcurrentTaskActivityWorkItems
+            };
         }
 
-        public bool IncludeDetails { get; set; }
+        public async Task StartAsync()
+        {
+            await dispatcher.StartAsync();
+        }
 
-        protected override Task<TaskActivityWorkItem> OnFetchWorkItemAsync(TimeSpan receiveTimeout)
+        public async Task StopAsync(bool forced)
+        {
+            await dispatcher.StopAsync(forced);
+        }
+
+        public bool IncludeDetails { get; set;} 
+
+        Task<TaskActivityWorkItem> OnFetchWorkItemAsync(TimeSpan receiveTimeout)
         {
             return this.orchestrationService.LockNextTaskActivityWorkItem(receiveTimeout, CancellationToken.None);
         }
 
-        protected override async Task OnProcessWorkItemAsync(TaskActivityWorkItem workItem)
+        async Task OnProcessWorkItemAsync(TaskActivityWorkItem workItem)
         {
-            // AFFANDAR : TODO : add this to the orchestration service impl
-            //Utils.CheckAndLogDeliveryCount(message, taskHubDescription.MaxTaskActivityDeliveryCount);
-
             Task renewTask = null;
             var renewCancellationTokenSource = new CancellationTokenSource();
 
@@ -60,7 +84,7 @@ namespace DurableTask
             {
                 TaskMessage taskMessage = workItem.TaskMessage;
                 OrchestrationInstance orchestrationInstance = taskMessage.OrchestrationInstance;
-                if (orchestrationInstance == null || string.IsNullOrWhiteSpace(orchestrationInstance.InstanceId))
+                if (string.IsNullOrWhiteSpace(orchestrationInstance?.InstanceId))
                 {
                     throw TraceHelper.TraceException(TraceEventType.Error,
                         new InvalidOperationException("Message does not contain any OrchestrationInstance information"));
@@ -77,8 +101,7 @@ namespace DurableTask
                 TaskActivity taskActivity = objectManager.GetObject(scheduledEvent.Name, scheduledEvent.Version);
                 if (taskActivity == null)
                 {
-                    throw new TypeMissingException("TaskActivity " + scheduledEvent.Name + " version " +
-                                                   scheduledEvent.Version + " was not found");
+                    throw new TypeMissingException($"TaskActivity {scheduledEvent.Name} version {scheduledEvent.Version} was not found");
                 }
 
                 renewTask = Task.Factory.StartNew(() => RenewUntil(workItem, renewCancellationTokenSource.Token));
@@ -98,18 +121,20 @@ namespace DurableTask
                     string details = IncludeDetails ? e.Details : null;
                     eventToRespond = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details);
                 }
-                catch (Exception e)
+                catch (Exception e) when (!Utils.IsFatal(e))
                 {
                     TraceHelper.TraceExceptionInstance(TraceEventType.Error, taskMessage.OrchestrationInstance, e);
                     string details = IncludeDetails
-                        ? string.Format("Unhandled exception while executing task: {0}\n\t{1}", e, e.StackTrace)
+                        ? $"Unhandled exception while executing task: {e}\n\t{e.StackTrace}"
                         : null;
                     eventToRespond = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details);
                 }
 
-                var responseTaskMessage = new TaskMessage();
-                responseTaskMessage.Event = eventToRespond;
-                responseTaskMessage.OrchestrationInstance = orchestrationInstance;
+                var responseTaskMessage = new TaskMessage
+                {
+                    Event = eventToRespond,
+                    OrchestrationInstance = orchestrationInstance
+                };
 
                 await this.orchestrationService.CompleteTaskActivityWorkItemAsync(workItem, responseTaskMessage);
             }
@@ -144,25 +169,24 @@ namespace DurableTask
                 {
                     await Task.Delay(TimeSpan.FromSeconds(5));
 
-                    if (DateTime.UtcNow >= renewAt)
+                    if (DateTime.UtcNow < renewAt)
                     {
-                        try
-                        {
-                            TraceHelper.Trace(TraceEventType.Information, "Renewing lock for workitem id {0}",
-                                workItem.Id);
-                            workItem = await this.orchestrationService.RenewTaskActivityWorkItemLockAsync(workItem);
-                            renewAt = workItem.LockedUntilUtc.Subtract(TimeSpan.FromSeconds(30));
-                            renewAt = AdjustRenewAt(renewAt);
-                            TraceHelper.Trace(TraceEventType.Information, "Next renew for workitem id '{0}' at '{1}'",
-                                workItem.Id, renewAt);
-                        }
-                        catch (Exception exception)
-                        {
-                            // might have been completed
-                            TraceHelper.TraceException(TraceEventType.Information, exception,
-                                "Failed to renew lock for workitem {0}", workItem.Id);
-                            break;
-                        }
+                        continue;
+                    }
+
+                    try
+                    {
+                        TraceHelper.Trace(TraceEventType.Information, "Renewing lock for workitem id {0}", workItem.Id);
+                        workItem = await this.orchestrationService.RenewTaskActivityWorkItemLockAsync(workItem);
+                        renewAt = workItem.LockedUntilUtc.Subtract(TimeSpan.FromSeconds(30));
+                        renewAt = AdjustRenewAt(renewAt);
+                        TraceHelper.Trace(TraceEventType.Information, "Next renew for workitem id '{0}' at '{1}'", workItem.Id, renewAt);
+                    }
+                    catch (Exception exception) when (!Utils.IsFatal(exception))
+                    {
+                        // might have been completed
+                        TraceHelper.TraceException(TraceEventType.Information, exception, "Failed to renew lock for workitem {0}", workItem.Id);
+                        break;
                     }
                 }
             }
@@ -176,56 +200,7 @@ namespace DurableTask
         DateTime AdjustRenewAt(DateTime renewAt)
         {
             DateTime maxRenewAt = DateTime.UtcNow.Add(TimeSpan.FromSeconds(30));
-
-            if (renewAt > maxRenewAt)
-            {
-                return maxRenewAt;
-            }
-
-            return renewAt;
-        }
-
-        // AFFANDAR : TODO : all of this crap has to go away, have to redo dispatcher base
-        protected override void OnStart()
-        {
-        }
-
-        protected override void OnStopping(bool isForced)
-        {
-        }
-
-        protected override void OnStopped(bool isForced)
-        {
-        }
-
-        protected override Task SafeReleaseWorkItemAsync(TaskActivityWorkItem workItem)
-        {
-            return Task.FromResult<object>(null);
-        }
-
-        protected override Task AbortWorkItemAsync(TaskActivityWorkItem workItem)
-        {
-            return this.orchestrationService.AbandonTaskActivityWorkItemAsync(workItem);
-        }
-
-        protected override int GetDelayInSecondsAfterOnProcessException(Exception exception)
-        {
-            if (orchestrationService.IsTransientException(exception))
-            {
-                return settings.TaskActivityDispatcherSettings.TransientErrorBackOffSecs;
-            }
-
-            return 0;
-        }
-
-        protected override int GetDelayInSecondsAfterOnFetchException(Exception exception)
-        {
-            int delay = settings.TaskActivityDispatcherSettings.NonTransientErrorBackOffSecs;
-            if (orchestrationService.IsTransientException(exception))
-            {
-                delay = settings.TaskActivityDispatcherSettings.TransientErrorBackOffSecs;
-            }
-            return delay;
+            return renewAt > maxRenewAt ? maxRenewAt : renewAt;
         }
     }
 }

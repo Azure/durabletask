@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
@@ -9,10 +9,11 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>DurableTask</RootNamespace>
     <AssemblyName>DurableTask</AssemblyName>
-    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.5.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">..\</SolutionDir>
     <RestorePackages>true</RestorePackages>
+    <TargetFrameworkProfile />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -88,16 +89,26 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="History\HistoryStateEvent.cs" />
+    <Compile Include="IOrchestrationServiceInstanceStore.cs" />
+    <Compile Include="Settings\ServiceBusOrchestrationServiceSettings.cs" />
+    <Compile Include="TrackingWorkItem.cs" />
+    <Compile Include="Tracking\AzureTableInstanceStore.cs" />
+    <Compile Include="Tracking\OrchestrationHistoryEvent.cs" />
+    <Compile Include="Tracking\OrchestrationStateHistoryEvent.cs" />
+    <Compile Include="Tracking\OrchestrationWorkItemEvent.cs" />
+    <Compile Include="WorkItemDispatcher.cs" />
     <Compile Include="OrchestrationRuntimeStateDump.cs" />
     <Compile Include="Common\ServiceBusUtils.cs" />
     <Compile Include="Command\OrchestratorActionConverter.cs" />
     <Compile Include="ServiceBusOrchestrationService.cs" />
+    <Compile Include="ServiceBusOrchestrationSession.cs" />
     <Compile Include="TaskOrchestrationWorkItem.cs" />
     <Compile Include="TaskActivityWorkItem.cs" />
     <Compile Include="IOrchestrationServiceClient.cs" />
     <Compile Include="SynchronousTaskScheduler.cs" />
     <Compile Include="History\GenericEvent.cs" />
-    <Compile Include="Common\CompressionSettings.cs" />
+    <Compile Include="Settings\CompressionSettings.cs" />
     <Compile Include="OrchestrationStateQuerySegment.cs" />
     <Compile Include="OrchestrationStateNameVersionFilter.cs" />
     <Compile Include="OrchestrationStateTimeRangeFilterType.cs" />
@@ -122,16 +133,16 @@
     <Compile Include="Exceptions\TaskFailedExceptionDeserializationException.cs" />
     <Compile Include="Exceptions\TaskFailureException.cs" />
     <Compile Include="OrchestrationState.cs" />
-    <Compile Include="TaskActivityDispatcherSettings.cs" />
+    <Compile Include="Settings\TaskActivityDispatcherSettings.cs" />
     <Compile Include="TaskHubClient2.cs" />
-    <Compile Include="TaskHubClientSettings.cs" />
+    <Compile Include="Settings\TaskHubClientSettings.cs" />
     <Compile Include="IOrchestrationService.cs" />
     <Compile Include="TaskHubWorker2.cs" />
     <Compile Include="TaskOrchestrationDispatcher2.cs" />
     <Compile Include="Test\DebugTestHost.cs" />
-    <Compile Include="TrackingDispatcherSettings.cs" />
-    <Compile Include="TaskOrchestrationDispatcherSettings.cs" />
-    <Compile Include="TaskHubWorkerSettings.cs" />
+    <Compile Include="Settings\TrackingDispatcherSettings.cs" />
+    <Compile Include="Settings\TaskOrchestrationDispatcherSettings.cs" />
+    <Compile Include="Settings\TaskHubWorkerSettings.cs" />
     <Compile Include="TaskHubDescription.cs" />
     <Compile Include="TaskHubWorker.cs" />
     <Compile Include="SessionWorkItem.cs" />
@@ -190,11 +201,11 @@
     <Compile Include="TaskMessage.cs" />
     <Compile Include="TaskOrchestration.cs" />
     <Compile Include="NameVersionObjectManager.cs" />
-    <Compile Include="Tracking\CompositeTableEntity.cs" />
-    <Compile Include="Tracking\OrchestrationHistoryEventEntity.cs" />
-    <Compile Include="Tracking\TableClient.cs" />
-    <Compile Include="Tracking\TableConstants.cs" />
-    <Compile Include="Tracking\OrchestrationStateEntity.cs" />
+    <Compile Include="Tracking\AzureTableCompositeTableEntity.cs" />
+    <Compile Include="Tracking\AzureTableOrchestrationHistoryEventEntity.cs" />
+    <Compile Include="Tracking\AzureTableClient.cs" />
+    <Compile Include="Tracking\AzureTableConstants.cs" />
+    <Compile Include="Tracking\AzureTableOrchestrationStateEntity.cs" />
     <Compile Include="Test\FakeOrchestrationContext.cs" />
     <Compile Include="Test\OrchestrationTestHost.cs" />
     <Compile Include="Common\CompressionStyle.cs" />

@@ -40,7 +40,7 @@ namespace DurableTask
 
         public override string ToString()
         {
-            return string.Format("[InstanceId: {0}, ExecutionId: {1}]", InstanceId, ExecutionId);
+            return $"[InstanceId: {InstanceId}, ExecutionId: {ExecutionId}]";
         }
     }
 }

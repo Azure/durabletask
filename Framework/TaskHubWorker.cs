@@ -20,6 +20,7 @@ namespace DurableTask
     using System.Threading.Tasks;
     using DurableTask.Common;
     using DurableTask.Tracking;
+    using DurableTask.Settings;
     using Microsoft.ServiceBus;
     using Microsoft.ServiceBus.Messaging;
 
@@ -416,7 +417,7 @@ namespace DurableTask
 
             if (!string.IsNullOrEmpty(tableStoreConnectionString) && createInstanceStore)
             {
-                var client = new TableClient(hubName, tableStoreConnectionString);
+                var client = new AzureTableClient(hubName, tableStoreConnectionString);
                 client.DeleteTableIfExists();
                 client.CreateTableIfNotExists();
             }
@@ -462,7 +463,7 @@ namespace DurableTask
 
             if (!string.IsNullOrEmpty(tableStoreConnectionString))
             {
-                var client = new TableClient(hubName, tableStoreConnectionString);
+                var client = new AzureTableClient(hubName, tableStoreConnectionString);
                 client.CreateTableIfNotExists();
             }
         }
@@ -491,7 +492,7 @@ namespace DurableTask
             {
                 if (!string.IsNullOrEmpty(tableStoreConnectionString))
                 {
-                    var client = new TableClient(hubName, tableStoreConnectionString);
+                    var client = new AzureTableClient(hubName, tableStoreConnectionString);
                     client.DeleteTableIfExists();
                 }
             }

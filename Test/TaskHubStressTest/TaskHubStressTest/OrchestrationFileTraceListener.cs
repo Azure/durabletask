@@ -26,7 +26,7 @@
                     message = string.Format(format, args);
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 message = "msg=Cannot format message";
             }
@@ -42,20 +42,26 @@
                    .Select(part => part.Split('='))
                    .ToDictionary(split => split[0], split => split[1]);
                 string iid;
-                if (dict.TryGetValue("iid", out iid))
+                string msg;
+                if (dict.TryGetValue("iid", out iid) && dict.TryGetValue("msg", out msg))
                 {
-                    string toWrite = string.Format("[{0} {1}] {2}", DateTime.Now, iid, dict["msg"]);
+                    string toWrite = $"[{DateTime.Now} {iid}] {msg}";
+                    base.WriteLine(toWrite);
+                }
+                else if (dict.TryGetValue("msg", out msg))
+                {
+                    string toWrite = $"[{DateTime.Now}] {msg}";
                     base.WriteLine(toWrite);
                 }
                 else
                 {
-                    string toWrite = string.Format("[{0}] {1}", DateTime.Now, dict["msg"]);
+                    string toWrite = $"[{DateTime.Now}] {message}";
                     base.WriteLine(toWrite);
                 }
             }
             catch (Exception exception)
             {
-                string toWrite = string.Format("Exception while parsing trace:  {0}\n\t", exception.Message, exception.StackTrace);
+                string toWrite = $"Exception while parsing trace:  {exception.Message}\n\t{exception.StackTrace}";
                 base.WriteLine(toWrite);
             }
         }

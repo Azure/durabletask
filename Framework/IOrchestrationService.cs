@@ -19,17 +19,10 @@ namespace DurableTask
     using System.Threading.Tasks;
 
     // AFFANDAR : TODO : MASTER
-    //      + sbus provider: force terminate if session size is greater than supported
     //      + implement batched message receive
     //      + proper exception model for orchestration service providers
     //      + rethink method names?
     //      + rename xxx2 classes to xxx and remove old ones
-    //      + fix up all tests to use the new APIs
-    //      + make dispatcher start/stop methods async
-    //      + task hub description
-    //      + change TaskOrchestrationDispatcher2 to use this
-    //      + implement ServiceBusOrchestrationService
-    //      + build trackingdispatcher2 inside the service bus layer
     //      + clean up XML doc comments in public classes
     //
     //  DONE:
@@ -42,48 +35,147 @@ namespace DurableTask
     //      + move public classes to separate files
     //      + add instance store methods to IOrchestrationService
     //      + replumb taskhubclient on top of IOrchestrationService
+    //      + sbus provider: force terminate if session size is greater than supported
+    //      + make dispatcher start/stop methods async
+    //      + task hub description
+    //      + implement ServiceBusOrchestrationService
+    //      + fix up all tests to use the new APIs
+    //      + change TaskOrchestrationDispatcher2 to use this
+    //      + build trackingdispatcher2 inside the service bus layer
     //      
 
+    /// <summary>
+    /// Orchestration Service interface for performing task hub management operations 
+    /// and handling orchestrations and work items' state
+    /// </summary>
     public interface IOrchestrationService
     {
         // Service management and lifecycle operations
+        
+        /// <summary>
+        /// Starts the service initializing the required resources
+        /// </summary>
         Task StartAsync();
 
+        /// <summary>
+        /// Stops the orchestration service gracefully
+        /// </summary>
         Task StopAsync();
 
+        /// <summary>
+        /// Stops the orchestration service with optional forced flag
+        /// </summary>
+        Task StopAsync(bool isForced);
+
+        /// <summary>
+        /// Creates the neccesary resources for the orchestration service
+        /// </summary>
         Task CreateAsync();
 
+        /// <summary>
+        /// Creates the neccesary resources for the orchestration service and the instance store
+        /// </summary>
+        Task CreateAsync(bool recreateInstanceStore);
+
+        /// <summary>
+        /// Drops and creates the neccesary resources for the orchestration service and the instance store
+        /// </summary>
         Task CreateIfNotExistsAsync();
 
+        /// <summary>
+        /// Drops and creates the neccesary resources for the orchestration service and the instance store
+        /// </summary>
+        Task CreateIfNotExistsAsync(bool recreateInstanceStore);
+
+        /// <summary>
+        /// Deletes the resources for the orchestration service and the instance store
+        /// </summary>
         Task DeleteAsync();
 
-        // Provider reliant methods
-        bool IsTransientException(Exception exception);
+        /// <summary>
+        /// Deletes the resources for the orchestration service and optionally the instance store
+        /// </summary>
+        Task DeleteAsync(bool deleteInstanceStore);
 
         // TaskOrchestrationDispatcher methods
+
+        /// <summary>
+        ///     Checks the message count against the threshold to see if a limit is being exceeded
+        /// </summary>
         bool IsMaxMessageCountExceeded(int currentMessageCount, OrchestrationRuntimeState runtimeState);
 
+        /// <summary>
+        /// Inspects an exception to get a custom delay based on the exception (e.g. transient) properties for a process exception
+        /// </summary>
+        int GetDelayInSecondsAfterOnProcessException(Exception exception);
+
+        /// <summary>
+        /// Inspects an exception to get a custom delay based on the exception (e.g. transient) properties for a fetch exception
+        /// </summary>
+        int GetDelayInSecondsAfterOnFetchException(Exception exception);
+
+        /// <summary>
+        /// Gets the maximum number of concurrent task orchestration items
+        /// </summary>
+        int MaxConcurrentTaskOrchestrationWorkItems { get; }
+
+        /// <summary>
+        ///     Wait for the next orchestration work item and return the orchestration work item
+        /// </summary>
         Task<TaskOrchestrationWorkItem> LockNextTaskOrchestrationWorkItemAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken);
 
-        Task<TaskOrchestrationWorkItem> RenewTaskOrchestrationWorkItemLockAsync(TaskOrchestrationWorkItem workItem);
+        /// <summary>
+        ///     Renew the lock on an orchestration
+        /// </summary>
+        Task RenewTaskOrchestrationWorkItemLockAsync(TaskOrchestrationWorkItem workItem);
 
+        /// <summary>
+        ///     Complete an orchestation, send any outbound messages and completes the session for all current messages
+        /// </summary>
         Task CompleteTaskOrchestrationWorkItemAsync(
             TaskOrchestrationWorkItem workItem,
             OrchestrationRuntimeState newOrchestrationRuntimeState, 
             IList<TaskMessage> outboundMessages, 
             IList<TaskMessage> orchestratorMessages, 
             IList<TaskMessage> timerMessages,
+            TaskMessage continuedAsNewMessage,
             OrchestrationState orchestrationState);
 
+        /// <summary>
+        ///     Abandon an orchestation, this abandons ownership/locking of all messages for an orchestation and it's session
+        /// </summary>
         Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem);
 
+        /// <summary>
+        ///     Release the lock on an orchestration, releases the session, decoupled from CompleteTaskOrchestrationWorkItemAsync to handle nested orchestrations
+        /// </summary>
+        Task ReleaseTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem);
+
         // TaskActivityDispatcher methods
+
+        /// <summary>
+        /// Gets the maximum number of concurrent task activity items
+        /// </summary>
+        int MaxConcurrentTaskActivityWorkItems { get; }
+
+        /// <summary>
+        ///    Wait for an lock the next task activity to be processed 
+        /// </summary>
         Task<TaskActivityWorkItem> LockNextTaskActivityWorkItem(TimeSpan receiveTimeout, CancellationToken cancellationToken);
 
+        /// <summary>
+        ///    Renew the lock on a still processing work item
+        /// </summary>
         Task<TaskActivityWorkItem> RenewTaskActivityWorkItemLockAsync(TaskActivityWorkItem workItem);
 
+        /// <summary>
+        ///    Atomically complete a work item and send the response messages
+        /// </summary>
         Task CompleteTaskActivityWorkItemAsync(TaskActivityWorkItem workItem, TaskMessage responseMessage);
 
+        /// <summary>
+        ///    Abandons a single work item and releases the lock on it
+        /// </summary>
         Task AbandonTaskActivityWorkItemAsync(TaskActivityWorkItem workItem);
     }
 }

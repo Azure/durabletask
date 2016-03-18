@@ -11,44 +11,45 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+using System.Collections.Generic;
+
 namespace DurableTask.Common
 {
     using System;
     using System.Diagnostics;
     using System.IO;
-    using System.IO.Compression;
-    using System.Runtime.ExceptionServices;
-    using System.Text;
     using System.Threading.Tasks;
+    using DurableTask.Settings;
+    using DurableTask.Tracing;
     using Microsoft.ServiceBus;
     using Microsoft.ServiceBus.Messaging;
-    using Newtonsoft.Json;
-    using Tracing;
 
     internal static class ServiceBusUtils
     {
-        public static BrokeredMessage GetBrokeredMessageFromObject(object serializableObject,
-            CompressionSettings compressionSettings)
+        public static BrokeredMessage GetBrokeredMessageFromObject(object serializableObject, CompressionSettings compressionSettings)
         {
             return GetBrokeredMessageFromObject(serializableObject, compressionSettings, null, null);
         }
 
-        public static BrokeredMessage GetBrokeredMessageFromObject(object serializableObject,
+        public static BrokeredMessage GetBrokeredMessageFromObject(
+            object serializableObject,
             CompressionSettings compressionSettings,
-            OrchestrationInstance instance, string messageType)
+            OrchestrationInstance instance, 
+            string messageType)
         {
             if (serializableObject == null)
             {
-                throw new ArgumentNullException("serializableObject");
+                throw new ArgumentNullException(nameof(serializableObject));
             }
 
             if (compressionSettings.Style == CompressionStyle.Legacy)
             {
-                return new BrokeredMessage(serializableObject);
+                return new BrokeredMessage(serializableObject) {SessionId = instance?.InstanceId};
             }
 
             bool disposeStream = true;
             var rawStream = new MemoryStream();
+
             Utils.WriteObjectToStream(rawStream, serializableObject);
 
             try
@@ -56,8 +57,8 @@ namespace DurableTask.Common
                 BrokeredMessage brokeredMessage = null;
 
                 if (compressionSettings.Style == CompressionStyle.Always ||
-                    (compressionSettings.Style == CompressionStyle.Threshold && rawStream.Length >
-                     compressionSettings.ThresholdInBytes))
+                    (compressionSettings.Style == CompressionStyle.Threshold && 
+                     rawStream.Length > compressionSettings.ThresholdInBytes))
                 {
                     Stream compressedStream = Utils.GetCompressedStream(rawStream);
 
@@ -65,10 +66,11 @@ namespace DurableTask.Common
                     brokeredMessage.Properties[FrameworkConstants.CompressionTypePropertyName] =
                         FrameworkConstants.CompressionTypeGzipPropertyValue;
 
+                    var rawLen = rawStream.Length;
                     TraceHelper.TraceInstance(TraceEventType.Information, instance,
                         () =>
                             "Compression stats for " + (messageType ?? string.Empty) + " : " + brokeredMessage.MessageId +
-                            ", uncompressed " + rawStream.Length + " -> compressed " + compressedStream.Length);
+                            ", uncompressed " + rawLen + " -> compressed " + compressedStream.Length);
                 }
                 else
                 {
@@ -77,6 +79,8 @@ namespace DurableTask.Common
                     brokeredMessage.Properties[FrameworkConstants.CompressionTypePropertyName] =
                         FrameworkConstants.CompressionTypeNonePropertyValue;
                 }
+
+                brokeredMessage.SessionId = instance?.InstanceId;
 
                 return brokeredMessage;
             }
@@ -93,7 +97,7 @@ namespace DurableTask.Common
         {
             if (message == null)
             {
-                throw new ArgumentNullException("message");
+                throw new ArgumentNullException(nameof(message));
             }
 
             T deserializedObject;
@@ -119,9 +123,8 @@ namespace DurableTask.Common
                     if (!Utils.IsGzipStream(compressedStream))
                     {
                         throw new ArgumentException(
-                            "message specifies a CompressionType of " + compressionType +
-                            " but content is not compressed",
-                            "message");
+                            $"message specifies a CompressionType of {compressionType} but content is not compressed",
+                            nameof(message));
                     }
 
                     using (Stream objectStream = await Utils.GetDecompressedStreamAsync(compressedStream))
@@ -140,11 +143,28 @@ namespace DurableTask.Common
             }
             else
             {
-                throw new ArgumentException("message specifies an invalid CompressionType: " + compressionType,
-                    "message");
+                throw new ArgumentException(
+                    $"message specifies an invalid CompressionType: {compressionType}",
+                    nameof(message));
             }
 
             return deserializedObject;
+        }
+
+        public static void CheckAndLogDeliveryCount(string sessionId, IEnumerable<BrokeredMessage> messages, int maxDeliverycount)
+        {
+            foreach (BrokeredMessage message in messages)
+            {
+                CheckAndLogDeliveryCount(sessionId, message, maxDeliverycount);
+            }
+        }
+
+        public static void CheckAndLogDeliveryCount(IEnumerable<BrokeredMessage> messages, int maxDeliverycount)
+        {
+            foreach (BrokeredMessage message in messages)
+            {
+                CheckAndLogDeliveryCount(message, maxDeliverycount);
+            }
         }
 
         public static void CheckAndLogDeliveryCount(BrokeredMessage message, int maxDeliverycount)

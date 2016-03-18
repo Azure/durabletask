@@ -32,5 +32,6 @@ namespace DurableTask.History
         EventRaised,
         ContinueAsNew,
         GenericEvent,
+        HistoryState,
     }
 }

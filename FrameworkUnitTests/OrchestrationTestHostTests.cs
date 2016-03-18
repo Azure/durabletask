@@ -826,7 +826,7 @@ namespace FrameworkUnitTests
             string result = await testHost.RunOrchestration<string>(instance, typeof (SignalOrchestration), null);
             Assert.AreEqual("Greeting send to Gabbar", result, "Orchestration Result is wrong!!!");
             Assert.AreEqual("Greeting send to Gabbar", SignalOrchestration.Result, "Orchestration Result is wrong!!!");
-            Assert.IsNull(hostTask.Exception, string.Format("hostTask threw exception: {0}", hostTask.Exception));
+            Assert.IsNull(hostTask.Exception, $"hostTask threw exception: {hostTask.Exception}");
         }
 
         public class SignalOrchestration : TaskOrchestration<string, string>

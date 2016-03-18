@@ -4,6 +4,6 @@
     {
         public int NumberOfParallelTasks { get; set; }
         public int NumberOfSerialTasks { get; set; }
-        public int MaxDelayInSeconds { get; set; }
+        public int MaxDelayInMinutes { get; set; }
     }
 }

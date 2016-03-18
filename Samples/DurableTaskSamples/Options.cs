@@ -48,6 +48,7 @@
             help.AddPreOptionsLine("Usage: DurableTaskSamples.exe -c -s Cron -p \"0 12 * */2 Mon\"");
             help.AddPreOptionsLine("Usage: DurableTaskSamples.exe -c -s Average -p 1 50 10");
             help.AddPreOptionsLine("Usage: DurableTaskSamples.exe -c -s ErrorHandling");
+            help.AddPreOptionsLine("Usage: DurableTaskSamples.exe -c -s SumOfSquares");
             help.AddPreOptionsLine("Usage: DurableTaskSamples.exe -c -s Signal -i 1");
             help.AddPreOptionsLine("Usage: DurableTaskSamples.exe -w -n User -i 1 -p MyName");
             help.AddOptions(this);

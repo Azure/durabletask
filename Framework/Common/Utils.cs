@@ -57,11 +57,31 @@ namespace DurableTask.Common
             objectStream.Position = 0;
         }
 
+        public static Stream WriteStringToStream(string input, bool compress, out long originalStreamSize)
+        {
+            Stream resultStream = new MemoryStream();
+
+            byte[] bytes = Encoding.UTF8.GetBytes(input);
+
+            resultStream.Write(bytes, 0, bytes.Length);
+            resultStream.Position = 0;
+            originalStreamSize = resultStream.Length;
+
+            if (compress)
+            {
+                var compressedStream = GetCompressedStream(resultStream);
+                resultStream.Dispose();
+                resultStream = compressedStream;
+            }
+
+            return resultStream;
+        }
+
         public static T ReadObjectFromStream<T>(Stream objectStream)
         {
             if (objectStream == null || !objectStream.CanRead || !objectStream.CanSeek)
             {
-                throw new ArgumentException("stream is not seekable or readable", "objectStream");
+                throw new ArgumentException("stream is not seekable or readable", nameof(objectStream));
             }
 
             objectStream.Position = 0;
@@ -199,7 +219,7 @@ namespace DurableTask.Common
                     retVal = await retryAction();
                     break;
                 }
-                catch (Exception exception)
+                catch (Exception exception) when (!Utils.IsFatal(exception))
                 {
                     TraceHelper.TraceSession(TraceEventType.Warning, sessionId,
                         "Error attempting operation {0}. Attempt count = {1}. Exception: {2}\n\t{3}",
@@ -230,7 +250,7 @@ namespace DurableTask.Common
                     retVal = retryAction();
                     break;
                 }
-                catch (Exception exception)
+                catch (Exception exception) when (!Utils.IsFatal(exception))
                 {
                     TraceHelper.TraceSession(TraceEventType.Warning, sessionId,
                         "Error attempting operation {0}. Attempt count = {1}. Exception: {2}\n\t{3}",
@@ -252,12 +272,12 @@ namespace DurableTask.Common
         {
             if (originalException == null)
             {
-                throw new ArgumentNullException("originalException");
+                throw new ArgumentNullException(nameof(originalException));
             }
 
             if (converter == null)
             {
-                throw new ArgumentNullException("converter");
+                throw new ArgumentNullException(nameof(converter));
             }
 
             string details = null;
@@ -278,7 +298,7 @@ namespace DurableTask.Common
         {
             if (converter == null)
             {
-                throw new ArgumentNullException("converter");
+                throw new ArgumentNullException(nameof(converter));
             }
 
             Exception cause = null;
@@ -289,7 +309,7 @@ namespace DurableTask.Common
                     cause = converter.Deserialize<Exception>(details);
                 }
             }
-            catch (Exception converterException)
+            catch (Exception converterException) when (!Utils.IsFatal(converterException))
             {
                 cause = new TaskFailedExceptionDeserializationException(details, converterException);
             }
@@ -305,6 +325,27 @@ namespace DurableTask.Common
             inputJson = inputJson.Replace("=", "%3D");
 
             return inputJson;
+        }
+
+        public static OrchestrationState BuildOrchestrationState(OrchestrationRuntimeState runtimeState)
+        {
+            return new OrchestrationState
+            {
+                OrchestrationInstance = runtimeState.OrchestrationInstance,
+                ParentInstance = runtimeState.ParentInstance,
+                Name = runtimeState.Name,
+                Version = runtimeState.Version,
+                Status = runtimeState.Status,
+                Tags = runtimeState.Tags,
+                OrchestrationStatus = runtimeState.OrchestrationStatus,
+                CreatedTime = runtimeState.CreatedTime,
+                CompletedTime = runtimeState.CompletedTime,
+                LastUpdatedTime = DateTime.UtcNow,
+                Size = runtimeState.Size,
+                CompressedSize = runtimeState.CompressedSize,
+                Input = runtimeState.Input,
+                Output = runtimeState.Output
+            };
         }
     }
 }

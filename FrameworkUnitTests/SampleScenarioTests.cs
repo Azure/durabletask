@@ -46,9 +46,7 @@ namespace FrameworkUnitTests
                 fakeTaskHub = TestHelpers2.CreateTaskHub();
 
                 taskHubNoCompression = TestHelpers2.CreateTaskHubNoCompression();
-                // TODO : siport : move to service bus code
-                // taskHub.DeleteHub();
-                // taskHub.CreateHubIfNotExists();
+                taskHub.orchestrationService.CreateIfNotExistsAsync(true).Wait();
             }
         }
 
@@ -57,11 +55,10 @@ namespace FrameworkUnitTests
         {
             if (!TestContext.TestName.Contains("TestHost"))
             {
-                taskHub.Stop(true);
-                taskHubNoCompression.Stop();
-                fakeTaskHub.Stop(true);
-                // TODO : siport : move to service bus code
-                // taskHub.DeleteHub();
+                taskHub.StopAsync(true).Wait();
+                taskHubNoCompression.StopAsync().Wait();
+                fakeTaskHub.StopAsync(true).Wait();
+                taskHub.orchestrationService.DeleteAsync(true).Wait();
             }
         }
 
@@ -80,30 +77,30 @@ namespace FrameworkUnitTests
         #region Simplest Greetings Test
 
         [TestMethod]
-        public void SimplestGreetingsTest()
+        public async Task SimplestGreetingsTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (SimplestGreetingsOrchestration))
+            await taskHub.AddTaskOrchestrations(typeof (SimplestGreetingsOrchestration))
                 .AddTaskActivities(typeof (SimplestGetUserTask), typeof (SimplestSendGreetingTask))
-                .Start();
+                .StartAsync();
 
-            OrchestrationInstance id = client.CreateOrchestrationInstanceAsync(typeof (SimplestGreetingsOrchestration), null).Result;
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (SimplestGreetingsOrchestration), null);
 
-            bool isCompleted = TestHelpers2.WaitForInstance(client, id, 60);
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
             Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
             Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,
                 "Orchestration Result is wrong!!!");
         }
 
         [TestMethod]
-        public void SimplestGreetingsNoCompressionTest()
+        public async Task SimplestGreetingsNoCompressionTest()
         {
-            taskHubNoCompression.AddTaskOrchestrations(typeof (SimplestGreetingsOrchestration))
+            await taskHubNoCompression.AddTaskOrchestrations(typeof (SimplestGreetingsOrchestration))
                 .AddTaskActivities(typeof (SimplestGetUserTask), typeof (SimplestSendGreetingTask))
-                .Start();
+                .StartAsync();
 
-            OrchestrationInstance id = client.CreateOrchestrationInstanceAsync(typeof (SimplestGreetingsOrchestration), null).Result;
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (SimplestGreetingsOrchestration), null);
 
-            bool isCompleted = TestHelpers2.WaitForInstance(client, id, 60);
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
             Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
             Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,
                 "Orchestration Result is wrong!!!");
@@ -146,15 +143,15 @@ namespace FrameworkUnitTests
         #region Greetings Test
 
         [TestMethod]
-        public void GreetingsTest()
+        public async Task GreetingsTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (GreetingsOrchestration))
+            await taskHub.AddTaskOrchestrations(typeof (GreetingsOrchestration))
                 .AddTaskActivities(typeof (GetUserTask), typeof (SendGreetingTask))
-                .Start();
+                .StartAsync();
 
-            OrchestrationInstance id = client.CreateOrchestrationInstanceAsync(typeof (GreetingsOrchestration), null).Result;
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (GreetingsOrchestration), null);
 
-            bool isCompleted = TestHelpers2.WaitForInstance(client, id, 60);
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
             Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
             Assert.AreEqual("Greeting send to Gabbar", GreetingsOrchestration.Result, "Orchestration Result is wrong!!!");
         }
@@ -188,22 +185,22 @@ namespace FrameworkUnitTests
         #region Greetings2 Test
 
         [TestMethod]
-        public void Greetings2Test()
+        public async Task Greetings2Test()
         {
-            taskHub.AddTaskOrchestrations(typeof (GreetingsOrchestration2))
+            await taskHub.AddTaskOrchestrations(typeof (GreetingsOrchestration2))
                 .AddTaskActivities(typeof (GetUserTask2), typeof (SendGreetingTask))
-                .Start();
+                .StartAsync();
 
-            OrchestrationInstance id = client.CreateOrchestrationInstanceAsync(typeof (GreetingsOrchestration2), 20).Result;
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (GreetingsOrchestration2), 20);
 
-            bool isCompleted = TestHelpers2.WaitForInstance(client, id, 60);
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
             Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
             Assert.AreEqual("Greeting send to Gabbar", GreetingsOrchestration2.Result,
                 "Orchestration Result is wrong!!!");
 
             id = client.CreateOrchestrationInstanceAsync(typeof (GreetingsOrchestration2), 2).Result;
 
-            isCompleted = TestHelpers2.WaitForInstance(client, id, 60);
+            isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
             Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
             Assert.AreEqual("Greeting send to TimedOut", GreetingsOrchestration2.Result,
                 "Orchestration Result is wrong!!!");
@@ -243,16 +240,17 @@ namespace FrameworkUnitTests
         #region AverageCalculator Test
 
         [TestMethod]
-        public void AverageCalculatorTest()
+        public async Task AverageCalculatorTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (AverageCalculatorOrchestration))
+            await taskHub.AddTaskOrchestrations(typeof (AverageCalculatorOrchestration))
                 .AddTaskActivities(typeof (ComputeSumTask))
-                .Start();
+                .StartAsync();
 
-            OrchestrationInstance id = client.CreateOrchestrationInstanceAsync(typeof (AverageCalculatorOrchestration),
-                new[] {1, 50, 10}).Result;
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(
+                typeof (AverageCalculatorOrchestration),
+                new[] {1, 50, 10});
 
-            bool isCompleted = TestHelpers2.WaitForInstance(client, id, 60);
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
             Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
             Assert.AreEqual(25, AverageCalculatorOrchestration.Result, "Orchestration Result is wrong!!!");
         }
@@ -332,18 +330,18 @@ namespace FrameworkUnitTests
         #region Signal Test
 
         [TestMethod]
-        public async void SignalTest()
+        public async Task SignalTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (SignalOrchestration))
+            await taskHub.AddTaskOrchestrations(typeof (SignalOrchestration))
                 .AddTaskActivities(typeof (SendGreetingTask))
-                .Start();
+                .StartAsync();
 
             OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (SignalOrchestration), null);
 
             await Task.Delay(2*1000);
             await client.RaiseEventAsync(id, "GetUser", "Gabbar");
 
-            bool isCompleted = TestHelpers2.WaitForInstance(client, id, 60);
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
             Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
             Assert.AreEqual("Greeting send to Gabbar", SignalOrchestration.Result,
                 "Orchestration Result is wrong!!!");
@@ -387,16 +385,16 @@ namespace FrameworkUnitTests
         #region ErrorHandling Test
 
         [TestMethod]
-        public void ErrorHandlingTest()
+        public async Task ErrorHandlingTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (ErrorHandlingOrchestration))
+            await taskHub.AddTaskOrchestrations(typeof (ErrorHandlingOrchestration))
                 .AddTaskActivities(typeof (GoodTask), typeof (BadTask), typeof (CleanupTask))
-                .Start();
+                .StartAsync();
             taskHub.TaskActivityDispatcher.IncludeDetails = true;
 
-            OrchestrationInstance id = client.CreateOrchestrationInstanceAsync(typeof (ErrorHandlingOrchestration), null).Result;
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (ErrorHandlingOrchestration), null);
 
-            bool isCompleted = TestHelpers2.WaitForInstance(client, id, 60);
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
             Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
             Assert.AreEqual("CleanupResult", ErrorHandlingOrchestration.Result,
                 "Orchestration Result is wrong!!!");
@@ -476,11 +474,11 @@ namespace FrameworkUnitTests
         }
 
         [TestMethod]
-        public async void CronTest()
+        public async Task CronTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (CronOrchestration))
+            await taskHub.AddTaskOrchestrations(typeof (CronOrchestration))
                 .AddTaskActivities(typeof (CronTask))
-                .Start();
+                .StartAsync();
 
             CronOrchestration.Tasks.Clear();
             OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (CronOrchestration), new CronJob
@@ -490,7 +488,7 @@ namespace FrameworkUnitTests
                 Interval = 3,
             });
 
-            bool isCompleted = TestHelpers2.WaitForInstance(client, id, 120);
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 120);
             Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 120));
             Assert.AreEqual(5, CronTask.Result, "Orchestration Result is wrong!!!");
             Assert.AreEqual(5, CronOrchestration.Result, "Orchestration Result is wrong!!!");
@@ -557,22 +555,22 @@ namespace FrameworkUnitTests
         #region SubOrchestrationInstance Test
 
         [TestMethod]
-        public void SubOrchestrationTest()
+        public async Task SubOrchestrationTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (ParentWorkflow), typeof (ChildWorkflow))
-                .Start();
+            await taskHub.AddTaskOrchestrations(typeof (ParentWorkflow), typeof (ChildWorkflow))
+                .StartAsync();
 
-            OrchestrationInstance id = client.CreateOrchestrationInstanceAsync(typeof (ParentWorkflow), true).Result;
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (ParentWorkflow), true);
 
-            bool isCompleted = TestHelpers2.WaitForInstance(client, id, 60);
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
             Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
             Assert.AreEqual(
                 "Child '0' completed.Child '1' completed.Child '2' completed.Child '3' completed.Child '4' completed.",
                 ParentWorkflow.Result, "Orchestration Result is wrong!!!");
 
-            id = client.CreateOrchestrationInstanceAsync(typeof (ParentWorkflow), false).Result;
+            id = await client.CreateOrchestrationInstanceAsync(typeof (ParentWorkflow), false);
 
-            isCompleted = TestHelpers2.WaitForInstance(client, id, 60);
+            isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
             Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
             Assert.AreEqual(
                 "Child '0' completed.Child '1' completed.Child '2' completed.Child '3' completed.Child '4' completed.",
@@ -617,17 +615,17 @@ namespace FrameworkUnitTests
         #region SubOrchestrationInstance Failure Test
 
         [TestMethod]
-        public void SubOrchestrationFailedTest()
+        public async Task SubOrchestrationFailedTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (ParentWorkflow2), typeof (ChildWorkflow2))
-                .Start();
+            await taskHub.AddTaskOrchestrations(typeof (ParentWorkflow2), typeof (ChildWorkflow2))
+                .StartAsync();
             taskHub.TaskOrchestrationDispatcher.IncludeDetails = true;
 
             ChildWorkflow2.Count = 0;
             ParentWorkflow2.Result = null;
-            OrchestrationInstance id = client.CreateOrchestrationInstanceAsync(typeof (ParentWorkflow2), true).Result;
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (ParentWorkflow2), true);
 
-            bool isCompleted = TestHelpers2.WaitForInstance(client, id, 60);
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
             Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
 
             Assert.AreEqual("Test", ParentWorkflow2.Result, "Orchestration Result is wrong!!!");
@@ -635,9 +633,9 @@ namespace FrameworkUnitTests
 
             ChildWorkflow2.Count = 0;
             ParentWorkflow2.Result = null;
-            id = client.CreateOrchestrationInstanceAsync(typeof (ParentWorkflow2), false).Result;
+            id = await client.CreateOrchestrationInstanceAsync(typeof (ParentWorkflow2), false);
 
-            isCompleted = TestHelpers2.WaitForInstance(client, id, 60);
+            isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
             Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
             Assert.AreEqual("Test", ParentWorkflow2.Result, "Orchestration Result is wrong!!!");
             Assert.AreEqual(5, ChildWorkflow2.Count, "Child Workflow Count invalid.");
@@ -694,14 +692,14 @@ namespace FrameworkUnitTests
         #region BadOrchestration Test
 
         [TestMethod]
-        public void BadOrchestrationTest()
+        public async Task BadOrchestrationTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (BadOrchestration))
-                .Start();
+            await taskHub.AddTaskOrchestrations(typeof (BadOrchestration))
+                .StartAsync();
 
-            OrchestrationInstance id = client.CreateOrchestrationInstanceAsync(typeof (BadOrchestration), null).Result;
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (BadOrchestration), null);
 
-            bool isCompleted = TestHelpers2.WaitForInstance(client, id, 60);
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
             Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
         }
 
@@ -720,15 +718,15 @@ namespace FrameworkUnitTests
         #region SubOrchestrationInstance Explicit InstanceId Test
 
         [TestMethod]
-        public void SubOrchestrationExplicitIdTest()
+        public async Task SubOrchestrationExplicitIdTest()
         {
             SimpleChildWorkflow.ChildInstanceId = null;
-            taskHub.AddTaskOrchestrations(typeof (SimpleParentWorkflow), typeof (SimpleChildWorkflow))
-                .Start();
+            await taskHub.AddTaskOrchestrations(typeof (SimpleParentWorkflow), typeof (SimpleChildWorkflow))
+                .StartAsync();
 
-            OrchestrationInstance id = client.CreateOrchestrationInstanceAsync(typeof (SimpleParentWorkflow), null).Result;
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (SimpleParentWorkflow), null);
 
-            bool isCompleted = TestHelpers2.WaitForInstance(client, id, 60);
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
             Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
             Assert.AreEqual("foo_instance", SimpleChildWorkflow.ChildInstanceId);
         }

@@ -21,25 +21,23 @@ namespace FrameworkUnitTests
     [TestClass]
     public class SerializationTests
     {
-        TaskHubClient client;
-        TaskHubWorker taskHub;
+        TaskHubClient2 client;
+        TaskHubWorker2 taskHub;
 
         [TestInitialize]
         public void TestInitialize()
         {
-            client = TestHelpers.CreateTaskHubClient();
+            client = TestHelpers2.CreateTaskHubClient();
 
-            taskHub = TestHelpers.CreateTaskHub();
-
-            taskHub.DeleteHub();
-            taskHub.CreateHubIfNotExists();
+            taskHub = TestHelpers2.CreateTaskHub();
+            taskHub.orchestrationService.CreateIfNotExistsAsync(true).Wait();
         }
 
         [TestCleanup]
         public void TestCleanup()
         {
-            taskHub.Stop(true);
-            taskHub.DeleteHub();
+            taskHub.StopAsync(true).Wait();
+            taskHub.orchestrationService.DeleteAsync(true).Wait();
         }
 
         #region Interface based activity serialization tests
@@ -51,11 +49,11 @@ namespace FrameworkUnitTests
         }
 
         [TestMethod]
-        public void PrimitiveTypeActivitiesSerializationTest()
+        public async Task PrimitiveTypeActivitiesSerializationTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (PrimitiveTypeActivitiesOrchestration))
+            await taskHub.AddTaskOrchestrations(typeof (PrimitiveTypeActivitiesOrchestration))
                 .AddTaskActivitiesFromInterface<IPrimitiveTypeActivities>(new PrimitiveTypeActivities())
-                .Start();
+                .StartAsync();
 
             var input = new PrimitiveTypeOrchestrationInput
             {
@@ -77,11 +75,11 @@ namespace FrameworkUnitTests
                 TimeSpan = TimeSpan.FromDays(2),
                 Enum = TestEnum.Val2,
             };
-            OrchestrationInstance id = client.CreateOrchestrationInstance(
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(
                 typeof (PrimitiveTypeActivitiesOrchestration), input);
 
-            bool isCompleted = TestHelpers.WaitForInstance(client, id, 120);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 120));
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 120);
+            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 120));
 
             Assert.AreEqual(input.Byte, PrimitiveTypeActivitiesOrchestration.Byte);
             Assert.AreEqual(input.SByte, PrimitiveTypeActivitiesOrchestration.SByte);
@@ -611,18 +609,18 @@ namespace FrameworkUnitTests
         #region Adding more parameters to Activity and Orchestration input
 
         [TestMethod]
-        public void MoreParamsOrchestrationTest()
+        public async Task MoreParamsOrchestrationTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (MoreParamsOrchestration))
+            await taskHub.AddTaskOrchestrations(typeof (MoreParamsOrchestration))
                 .AddTaskActivitiesFromInterface<IMoreParamsActivities>(new MoreParamsActivities())
-                .Start();
+                .StartAsync();
 
 
-            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof (MoreParamsOrchestration),
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (MoreParamsOrchestration),
                 new MoreParamsOrchestrationInput {Str = "Hello"});
 
-            bool isCompleted = TestHelpers.WaitForInstance(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            bool isCompleted = await TestHelpers2.WaitForInstanceAsync(client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers2.GetInstanceNotCompletedMessage(client, id, 60));
 
             Assert.AreEqual("Hello00Hello1015", MoreParamsOrchestration.Result);
         }
