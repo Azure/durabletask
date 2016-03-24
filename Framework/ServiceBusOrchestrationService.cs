@@ -1008,7 +1008,8 @@ namespace DurableTask
                 {
                     stateEntities.Add(new OrchestrationStateHistoryEvent
                     {
-                        State = (taskMessage.Event as HistoryStateEvent)?.State
+                        State = (taskMessage.Event as HistoryStateEvent)?.State,
+                        SequenceNumber = taskMessage.SequenceNumber
                     });
                 }
                 else
@@ -1017,7 +1018,7 @@ namespace DurableTask
                     {
                         InstanceId = taskMessage.OrchestrationInstance.InstanceId,
                         ExecutionId = taskMessage.OrchestrationInstance.ExecutionId,
-                        SequenceNumber = (int) taskMessage.SequenceNumber,
+                        SequenceNumber = taskMessage.SequenceNumber,
                         EventTimestamp = DateTime.UtcNow,
                         HistoryEvent = taskMessage.Event
                     });

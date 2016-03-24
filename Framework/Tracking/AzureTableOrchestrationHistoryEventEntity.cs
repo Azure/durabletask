@@ -29,13 +29,13 @@ namespace DurableTask.Tracking
         public AzureTableOrchestrationHistoryEventEntity(
             string instanceId, 
             string executionId, 
-            int sequenceNumber,
+            long sequenceNumber,
             DateTime taskTimeStamp, 
             HistoryEvent historyEvent)
         {
             InstanceId = instanceId;
             ExecutionId = executionId;
-            SequenceNumber = sequenceNumber;
+            SequenceNumber = (int) sequenceNumber;
             TaskTimeStamp = taskTimeStamp;
             HistoryEvent = historyEvent;
 

@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2012
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTaskSamples", "Samples\DurableTaskSamples\DurableTaskSamples.csproj", "{BC204374-927C-4A48-8473-F5BF8C97EAEA}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Framework", "Framework\Framework.csproj", "{6F5D2EAD-726D-4FE5-A575-AEB96D1CCE37}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTaskFramework", "Framework\DurableTaskFramework.csproj", "{6F5D2EAD-726D-4FE5-A575-AEB96D1CCE37}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTaskSamplesUnitTests", "Samples\DurableTaskSamplesUnitTests\DurableTaskSamplesUnitTests.csproj", "{1F20B608-0206-4B58-8C0B-CB7430A880FD}"
 EndProject
