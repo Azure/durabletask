@@ -95,6 +95,7 @@
     <Compile Include="TrackingWorkItem.cs" />
     <Compile Include="Tracking\AzureTableInstanceStore.cs" />
     <Compile Include="Tracking\OrchestrationHistoryEvent.cs" />
+    <Compile Include="Tracking\OrchestrationJumpStartEvent.cs" />
     <Compile Include="Tracking\OrchestrationStateHistoryEvent.cs" />
     <Compile Include="Tracking\OrchestrationWorkItemEvent.cs" />
     <Compile Include="WorkItemDispatcher.cs" />
