@@ -14,16 +14,10 @@
 namespace DurableTask.Tracking
 {
     using System;
-    using DurableTask.History;
 
-    /// <summary>
-    /// Base class for history tracking events
-    /// </summary>
-    public class OrchestrationHistoryEvent
+    public class OrchestrationJumpStartEvent : OrchestrationHistoryEvent
     {
-        /// <summary>
-        /// Sequence number for ordering of messages in history tracking
-        /// </summary>
-        public long SequenceNumber;
+        public DateTime JumpStartTime;
+        public OrchestrationState State;
     }
 }

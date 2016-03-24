@@ -20,7 +20,6 @@ namespace DurableTask.Tracking
     {
         public string InstanceId;
         public string ExecutionId;
-        public int SequenceNumber;
         public DateTime EventTimestamp;
         public HistoryEvent HistoryEvent;
     }

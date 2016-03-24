@@ -88,7 +88,7 @@
     <Reference Include="System.Xml" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="Microsoft.CSharp" />
-    <ProjectReference Include="..\..\Framework\Framework.csproj">
+    <ProjectReference Include="..\..\Framework\DurableTaskFramework.csproj">
       <Project>{6f5d2ead-726d-4fe5-a575-aeb96d1cce37}</Project>
       <Name>Framework</Name>
     </ProjectReference>

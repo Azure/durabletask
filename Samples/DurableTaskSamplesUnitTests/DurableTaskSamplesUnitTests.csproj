@@ -57,7 +57,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\Framework\Framework.csproj">
+    <ProjectReference Include="..\..\Framework\DurableTaskFramework.csproj">
       <Project>{6f5d2ead-726d-4fe5-a575-aeb96d1cce37}</Project>
       <Name>Framework</Name>
     </ProjectReference>
