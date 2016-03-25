@@ -68,24 +68,19 @@ namespace DurableTask
         Task StopAsync(bool isForced);
 
         /// <summary>
-        /// Creates the neccesary resources for the orchestration service
+        /// Deletes and Creates the neccesary resources for the orchestration service and the instance store
         /// </summary>
         Task CreateAsync();
 
         /// <summary>
-        /// Creates the neccesary resources for the orchestration service and the instance store
+        /// Deletes and Creates the neccesary resources for the orchestration service and optionally the instance store
         /// </summary>
         Task CreateAsync(bool recreateInstanceStore);
 
         /// <summary>
-        /// Drops and creates the neccesary resources for the orchestration service and the instance store
+        /// Creates the neccesary resources for the orchestration service and the instance store
         /// </summary>
         Task CreateIfNotExistsAsync();
-
-        /// <summary>
-        /// Drops and creates the neccesary resources for the orchestration service and the instance store
-        /// </summary>
-        Task CreateIfNotExistsAsync(bool recreateInstanceStore);
 
         /// <summary>
         /// Deletes the resources for the orchestration service and the instance store

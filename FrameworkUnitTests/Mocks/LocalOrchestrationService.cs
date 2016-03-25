@@ -109,11 +109,6 @@ namespace FrameworkUnitTests.Mocks
 
         public Task CreateIfNotExistsAsync()
         {
-            return CreateIfNotExistsAsync(true);
-        }
-
-        public Task CreateIfNotExistsAsync(bool recreateInstanceStore)
-        {
             return Task.FromResult<object>(null);
         }
 

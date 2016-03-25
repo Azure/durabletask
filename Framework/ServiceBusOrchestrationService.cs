@@ -159,41 +159,29 @@ namespace DurableTask
         }
 
         /// <summary>
-        /// Creates the neccesary resources for the orchestration service
+        /// Deletes and creates the neccesary resources for the orchestration service including the instance store
         /// </summary>
         public Task CreateAsync()
         {
-            return CreateAsync(null, false);
+            return CreateAsync(true);
         }
 
         /// <summary>
-        /// Creates the neccesary resources for the orchestration service and the instance store
+        /// Deletes and creates the neccesary resources for the orchestration service
         /// </summary>
         /// <param name="recreateInstanceStore">Flag indicating whether to drop and create instance store</param>
-        public Task CreateAsync(bool recreateInstanceStore)
+        public async Task CreateAsync(bool recreateInstanceStore)
         {
-            return CreateAsync(null, recreateInstanceStore);
-        }
+            NamespaceManager namespaceManager = NamespaceManager.CreateFromConnectionString(connectionString);
 
-        /// <summary>
-        /// Internal create for the neccesary resources for the orchestration service
-        /// </summary>
-        async Task CreateAsync(NamespaceManager namespaceManager, bool recreateInstanceStore)
-        {
-            if (namespaceManager == null)
-            {
-                namespaceManager = NamespaceManager.CreateFromConnectionString(connectionString);
-            }
-
-            // We use safe create here so if we have multiple nodes starting at the same time we don't need to worry about race conditions
             await Task.WhenAll(
-                SafeCreateQueueAsync(namespaceManager, orchestratorEntityName, true, Settings.MaxTaskOrchestrationDeliveryCount),
-                SafeCreateQueueAsync(namespaceManager, workerEntityName, false, Settings.MaxTaskActivityDeliveryCount)
+                this.SafeDeleteAndCreateQueueAsync(namespaceManager, orchestratorEntityName, true, Settings.MaxTaskOrchestrationDeliveryCount),
+                this.SafeDeleteAndCreateQueueAsync(namespaceManager, workerEntityName, false, Settings.MaxTaskActivityDeliveryCount)
                 );
 
             if (InstanceStore != null)
             {
-                await SafeCreateQueueAsync(namespaceManager, trackingEntityName, true, Settings.MaxTrackingDeliveryCount);
+                await this.SafeDeleteAndCreateQueueAsync(namespaceManager, trackingEntityName, true, Settings.MaxTrackingDeliveryCount);
                 await InstanceStore.InitializeStorageAsync(recreateInstanceStore);
             }
         }
@@ -201,29 +189,19 @@ namespace DurableTask
         /// <summary>
         /// Drops and creates the neccesary resources for the orchestration service and the instance store
         /// </summary>
-        public Task CreateIfNotExistsAsync()
-        {
-            return CreateIfNotExistsAsync(true);
-        }
-
-        /// <summary>
-        /// Drops and creates the neccesary resources for the orchestration service and the instance store
-        /// </summary>
-        /// <param name="recreateInstanceStore">Flag indicating whether to drop and create instance store</param>
-        public async Task CreateIfNotExistsAsync(bool recreateInstanceStore)
+        public async Task CreateIfNotExistsAsync()
         {
             NamespaceManager namespaceManager = NamespaceManager.CreateFromConnectionString(connectionString);
 
             await Task.WhenAll(
-                SafeDeleteQueueAsync(namespaceManager, orchestratorEntityName),
-                SafeDeleteQueueAsync(namespaceManager, workerEntityName)
+                SafeCreateQueueAsync(namespaceManager, orchestratorEntityName, true, Settings.MaxTaskOrchestrationDeliveryCount),
+                SafeCreateQueueAsync(namespaceManager, workerEntityName, false, Settings.MaxTaskActivityDeliveryCount)
                 );
             if (InstanceStore != null)
             {
-                await SafeDeleteQueueAsync(namespaceManager, trackingEntityName);
+                await SafeCreateQueueAsync(namespaceManager, trackingEntityName, true, Settings.MaxTrackingDeliveryCount);
+                await InstanceStore.InitializeStorageAsync(false);
             }
-
-            await CreateAsync(namespaceManager, recreateInstanceStore);
         }
 
         /// <summary>
@@ -1200,8 +1178,7 @@ namespace DurableTask
             }
         }
 
-        async Task SafeCreateQueueAsync(NamespaceManager namespaceManager, string path, bool requiresSessions,
-            int maxDeliveryCount)
+        async Task SafeCreateQueueAsync(NamespaceManager namespaceManager, string path, bool requiresSessions, int maxDeliveryCount)
         {
             try
             {
@@ -1211,6 +1188,12 @@ namespace DurableTask
             {
                 await Task.FromResult(0);
             }
+        }
+
+        async Task SafeDeleteAndCreateQueueAsync(NamespaceManager namespaceManager, string path, bool requiresSessions, int maxDeliveryCount)
+        {
+            await SafeDeleteQueueAsync(namespaceManager, path);
+            await CreateQueueAsync(namespaceManager, path, requiresSessions, maxDeliveryCount);
         }
 
         async Task CreateQueueAsync(

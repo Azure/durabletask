@@ -39,7 +39,7 @@ namespace FrameworkUnitTests
 
             taskHub = TestHelpers.CreateTaskHub();
 
-            taskHub.orchestrationService.CreateIfNotExistsAsync(true).Wait();
+            taskHub.orchestrationService.CreateAsync(true).Wait();
         }
 
         [TestCleanup]
