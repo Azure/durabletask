@@ -46,7 +46,7 @@ namespace FrameworkUnitTests
                 fakeTaskHub = TestHelpers.CreateTaskHub();
 
                 taskHubNoCompression = TestHelpers.CreateTaskHubNoCompression();
-                taskHub.orchestrationService.CreateIfNotExistsAsync(true).Wait();
+                taskHub.orchestrationService.CreateAsync(true).Wait();
             }
         }
 

@@ -51,7 +51,7 @@ namespace FrameworkUnitTests
                 taskHubAlwaysCompression = TestHelpers.CreateTaskHubAlwaysCompression();
                 clientNoCompression = TestHelpers.CreateTaskHubClientNoCompression();
 
-                taskHub.orchestrationService.CreateIfNotExistsAsync(true).Wait();
+                taskHub.orchestrationService.CreateAsync(true).Wait();
             }
         }
 
