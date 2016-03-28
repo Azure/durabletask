@@ -836,7 +836,7 @@ namespace DurableTask
         {
             ThrowIfInstanceStoreNotConfigured();
             IEnumerable<OrchestrationStateHistoryEvent> states = await InstanceStore.GetOrchestrationStateAsync(instanceId, allExecutions);
-            return states?.Select(s => s.State).ToList();
+            return states?.Select(s => s.State).ToList() ?? new List<OrchestrationState>();
         }
 
         /// <summary>
