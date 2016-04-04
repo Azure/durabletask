@@ -20,6 +20,7 @@ namespace FrameworkUnitTests
     using System.Threading.Tasks;
     using DurableTask;
     using DurableTask.Common;
+    using DurableTask.History;
     using DurableTask.Settings;
     using DurableTask.Tracking;
     using Microsoft.ServiceBus;
@@ -74,13 +75,15 @@ namespace FrameworkUnitTests
         }
 
         static IOrchestrationService CreateOrchestrationServiceWorker(
-            ServiceBusOrchestrationServiceSettings settings)
+            ServiceBusOrchestrationServiceSettings settings,
+            TimeSpan jumpStartAttemptInterval)
         {
             var service = new ServiceBusOrchestrationService(
                 ServiceBusConnectionString,
                 TaskHubName,
                 new AzureTableInstanceStore(TaskHubName, StorageConnectionString),
-                settings);
+                settings,
+                jumpStartAttemptInterval);
             return service;
         }
 
@@ -91,7 +94,8 @@ namespace FrameworkUnitTests
                 ServiceBusConnectionString,
                 TaskHubName,
                 new AzureTableInstanceStore(TaskHubName, StorageConnectionString),
-                settings);
+                settings,
+                TimeSpan.FromMinutes(10));
             return service;
         }
 
@@ -107,27 +111,32 @@ namespace FrameworkUnitTests
 
         public static TaskHubWorker CreateTaskHubNoCompression()
         {
-            return new TaskHubWorker(CreateOrchestrationServiceWorker(null));
+            return new TaskHubWorker(CreateOrchestrationServiceWorker(null, TimeSpan.FromMinutes(10)));
         }
 
         public static TaskHubWorker CreateTaskHubLegacyCompression()
         {
-            return new TaskHubWorker(CreateOrchestrationServiceWorker(CreateTestWorkerSettings(CompressionStyle.Legacy)));
+            return new TaskHubWorker(CreateOrchestrationServiceWorker(CreateTestWorkerSettings(CompressionStyle.Legacy), TimeSpan.FromMinutes(10)));
         }
 
         public static TaskHubWorker CreateTaskHubAlwaysCompression()
         {
-            return new TaskHubWorker(CreateOrchestrationServiceWorker(CreateTestWorkerSettings(CompressionStyle.Always)));
+            return new TaskHubWorker(CreateOrchestrationServiceWorker(CreateTestWorkerSettings(CompressionStyle.Always), TimeSpan.FromMinutes(10)));
         }
 
         public static TaskHubWorker CreateTaskHub()
         {
-            return new TaskHubWorker(CreateOrchestrationServiceWorker(CreateTestWorkerSettings()));
+            return new TaskHubWorker(CreateOrchestrationServiceWorker(CreateTestWorkerSettings(), TimeSpan.FromMinutes(10)));
+        }
+
+        public static TaskHubWorker CreateTaskHub(TimeSpan jumpStartAttemptInterval)
+        {
+            return new TaskHubWorker(CreateOrchestrationServiceWorker(CreateTestWorkerSettings(), jumpStartAttemptInterval));
         }
 
         public static TaskHubWorker CreateTaskHub(ServiceBusOrchestrationServiceSettings settings)
         {
-            return new TaskHubWorker(CreateOrchestrationServiceWorker(settings));
+            return new TaskHubWorker(CreateOrchestrationServiceWorker(settings, TimeSpan.FromMinutes(10)));
         }
 
         public static long GetOrchestratorQueueSizeInBytes()
@@ -152,7 +161,14 @@ namespace FrameworkUnitTests
             while (timeoutSeconds > 0)
             {
                 OrchestrationState state = await taskHubClient.GetOrchestrationStateAsync(instance.InstanceId);
-                if (state == null || (waitForCompletion && state.OrchestrationStatus == OrchestrationStatus.Running))
+                if (state == null)
+                {
+                    throw new ArgumentException("OrchestrationState is expected but NULL value returned");
+                }
+
+                if (waitForCompletion &&
+                    (state.OrchestrationStatus == OrchestrationStatus.Running ||
+                     state.OrchestrationStatus == OrchestrationStatus.Pending))
                 {
                     await Task.Delay(sleepForSeconds * 1000);
                     timeoutSeconds -= sleepForSeconds;
@@ -197,6 +213,43 @@ namespace FrameworkUnitTests
             }
 
             return value;
+        }
+
+
+        public static async Task<OrchestrationInstance> CreateJumpStartOnlyOrchestrationInstanceAsync(
+            ServiceBusOrchestrationService sboService,
+            string name,
+            string version,
+            string instanceId)
+        {
+            if (string.IsNullOrWhiteSpace(instanceId))
+            {
+                instanceId = Guid.NewGuid().ToString("N");
+            }
+
+            var orchestrationInstance = new OrchestrationInstance
+            {
+                InstanceId = instanceId,
+                ExecutionId = Guid.NewGuid().ToString("N"),
+            };
+
+            var startedEvent = new ExecutionStartedEvent(-1, null)
+            {
+                Tags = null,
+                Name = name,
+                Version = version,
+                OrchestrationInstance = orchestrationInstance
+            };
+
+            var taskMessage = new TaskMessage
+            {
+                OrchestrationInstance = orchestrationInstance,
+                Event = startedEvent
+            };
+
+            await sboService.UpdateJumpStartStoreAsync(taskMessage);
+
+            return orchestrationInstance;
         }
     }
 }

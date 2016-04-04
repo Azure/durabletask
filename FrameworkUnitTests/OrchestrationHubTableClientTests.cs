@@ -96,16 +96,16 @@ namespace FrameworkUnitTests
 
             OrchestrationState runtimeState1 = await client.GetOrchestrationStateAsync(id1);
             OrchestrationState runtimeState2 = await client.GetOrchestrationStateAsync(id2);
-            Assert.AreEqual(runtimeState1.OrchestrationStatus, OrchestrationStatus.Running);
-            Assert.AreEqual(runtimeState2.OrchestrationStatus, OrchestrationStatus.Running);
+            Assert.AreEqual(OrchestrationStatus.Pending, runtimeState1.OrchestrationStatus);
+            Assert.AreEqual(OrchestrationStatus.Pending, runtimeState2.OrchestrationStatus);
 
             await TestHelpers.WaitForInstanceAsync(client, id1, 60);
             await TestHelpers.WaitForInstanceAsync(client, id2, 60);
 
             runtimeState1 = await client.GetOrchestrationStateAsync(id1);
             runtimeState2 = await client.GetOrchestrationStateAsync(id2);
-            Assert.AreEqual(runtimeState1.OrchestrationStatus, OrchestrationStatus.Failed);
-            Assert.AreEqual(runtimeState2.OrchestrationStatus, OrchestrationStatus.Completed);
+            Assert.AreEqual(OrchestrationStatus.Failed, runtimeState1.OrchestrationStatus);
+            Assert.AreEqual(OrchestrationStatus.Completed, runtimeState2.OrchestrationStatus);
         }
 
         [TestMethod]
@@ -120,7 +120,7 @@ namespace FrameworkUnitTests
 
             await TestHelpers.WaitForInstanceAsync(client, id, 60, false);
             OrchestrationState runtimeState = await client.GetOrchestrationStateAsync(id);
-            Assert.AreEqual(OrchestrationStatus.Running, runtimeState.OrchestrationStatus);
+            Assert.AreEqual(OrchestrationStatus.Pending, runtimeState.OrchestrationStatus);
 
             await client.TerminateInstanceAsync(id);
             await TestHelpers.WaitForInstanceAsync(client, id, 60);
@@ -142,9 +142,9 @@ namespace FrameworkUnitTests
 
             OrchestrationState runtimeState = await client.GetOrchestrationStateAsync(id);
             Assert.IsNotNull(runtimeState);
-            Assert.AreEqual(runtimeState.OrchestrationStatus, OrchestrationStatus.Running);
-            Assert.AreEqual(runtimeState.OrchestrationInstance.InstanceId, id.InstanceId);
-            Assert.AreEqual(runtimeState.OrchestrationInstance.ExecutionId, id.ExecutionId);
+            Assert.AreEqual(OrchestrationStatus.Pending, runtimeState.OrchestrationStatus);
+            Assert.AreEqual(id.InstanceId, runtimeState.OrchestrationInstance.InstanceId);
+            Assert.AreEqual(id.ExecutionId, runtimeState.OrchestrationInstance.ExecutionId);
             Assert.AreEqual(runtimeState.Name,
                 "FrameworkUnitTests.OrchestrationHubTableClientTests+InstanceStoreTestOrchestration");
             Assert.AreEqual(runtimeState.Version, string.Empty);

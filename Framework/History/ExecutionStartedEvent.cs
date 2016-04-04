@@ -16,7 +16,7 @@ namespace DurableTask.History
     using System.Runtime.Serialization;
 
     [DataContract]
-    internal class ExecutionStartedEvent : HistoryEvent
+    public class ExecutionStartedEvent : HistoryEvent
     {
         [DataMember] public OrchestrationInstance OrchestrationInstance;
 
