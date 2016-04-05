@@ -11,29 +11,28 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.History
+namespace DurableTask.Common
 {
-    using System.Runtime.Serialization;
+    using System;
+    using System.Collections.Generic;
 
-    [DataContract]
-    public class ExecutionCompletedEvent : HistoryEvent
+    public class CustomEqualityComparer<T> : IEqualityComparer<T>
     {
-        public ExecutionCompletedEvent(int eventId, string result, OrchestrationStatus orchestrationStatus)
-            : base(eventId)
+        Func<T, T, bool> comparer;
+
+        public CustomEqualityComparer(Func<T, T, bool> comparer)
         {
-            Result = result;
-            OrchestrationStatus = orchestrationStatus;
+            this.comparer = comparer;
         }
 
-        public override EventType EventType
+        public bool Equals(T objectA, T objectB)
         {
-            get { return EventType.ExecutionCompleted; }
+            return this.comparer(objectA, objectB);
         }
 
-        [DataMember]
-        public OrchestrationStatus OrchestrationStatus { get; private set; }
-
-        [DataMember]
-        public string Result { get; private set; }
+        public int GetHashCode(T obj)
+        {
+            return 10;
+        }
     }
 }

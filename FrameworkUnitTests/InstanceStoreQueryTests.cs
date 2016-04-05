@@ -387,18 +387,18 @@ namespace FrameworkUnitTests
             await TestHelpers.WaitForInstanceAsync(client, id1, 60, false);
 
             // running orchestrations never get reported in any CompletedTimeFilter query
-            OrchestrationStateQuery query = new OrchestrationStateQuery().AddTimeRangeFilter(DateTime.MinValue,
-                DateTime.MaxValue,
+            OrchestrationStateQuery query = new OrchestrationStateQuery().AddTimeRangeFilter(firstBatchStart,
+                firstBatchStart.AddSeconds(60),
                 OrchestrationStateTimeRangeFilterType.OrchestrationCompletedTimeFilter);
 
             IEnumerable<OrchestrationState> response = await queryClient.QueryOrchestrationStatesAsync(query);
-            Assert.IsTrue(response.Count() == 0);
+            Assert.AreEqual(0, response.Count());
 
             await TestHelpers.WaitForInstanceAsync(client, id1, 60);
 
             // now we should get a result
             response = await queryClient.QueryOrchestrationStatesAsync(query);
-            Assert.IsTrue(response.Count() == 1);
+            Assert.AreEqual(1, response.Count());
         }
 
         [TestMethod]
@@ -483,30 +483,32 @@ namespace FrameworkUnitTests
                 new OrchestrationStateQuery().AddStatusFilter(OrchestrationStatus.Completed);
             OrchestrationStateQuery runningQuery =
                 new OrchestrationStateQuery().AddStatusFilter(OrchestrationStatus.Running);
+            OrchestrationStateQuery pendingQuery =
+               new OrchestrationStateQuery().AddStatusFilter(OrchestrationStatus.Pending);
             OrchestrationStateQuery failedQuery =
                 new OrchestrationStateQuery().AddStatusFilter(OrchestrationStatus.Failed);
 
             await TestHelpers.WaitForInstanceAsync(client, id1, 60, false);
             await TestHelpers.WaitForInstanceAsync(client, id2, 60, false);
 
-            IEnumerable<OrchestrationState> runningStates = await queryClient.QueryOrchestrationStatesAsync(runningQuery);
+            IEnumerable<OrchestrationState> pendingStates = await queryClient.QueryOrchestrationStatesAsync(pendingQuery);
             IEnumerable<OrchestrationState> completedStates = await queryClient.QueryOrchestrationStatesAsync(completedQuery);
             IEnumerable<OrchestrationState> failedStates = await queryClient.QueryOrchestrationStatesAsync(failedQuery);
 
-            Assert.IsTrue(runningStates.Count() == 2);
-            Assert.IsTrue(completedStates.Count() == 0);
-            Assert.IsTrue(failedStates.Count() == 0);
+            Assert.AreEqual(2, pendingStates.Count());
+            Assert.AreEqual(0, completedStates.Count());
+            Assert.AreEqual(0, failedStates.Count());
 
             await TestHelpers.WaitForInstanceAsync(client, id1, 60);
             await TestHelpers.WaitForInstanceAsync(client, id2, 60);
 
-            runningStates = await queryClient.QueryOrchestrationStatesAsync(runningQuery);
+            IEnumerable<OrchestrationState> runningStates = await queryClient.QueryOrchestrationStatesAsync(runningQuery);
             completedStates = await queryClient.QueryOrchestrationStatesAsync(completedQuery);
             failedStates = await queryClient.QueryOrchestrationStatesAsync(failedQuery);
 
-            Assert.IsTrue(runningStates.Count() == 0);
-            Assert.IsTrue(completedStates.Count() == 1);
-            Assert.IsTrue(failedStates.Count() == 1);
+            Assert.AreEqual(0, runningStates.Count());
+            Assert.AreEqual(1, completedStates.Count());
+            Assert.AreEqual(1, failedStates.Count());
 
             Assert.AreEqual(id1.InstanceId, failedStates.First().OrchestrationInstance.InstanceId);
             Assert.AreEqual(id2.InstanceId, completedStates.First().OrchestrationInstance.InstanceId);

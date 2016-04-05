@@ -188,7 +188,7 @@ namespace FrameworkUnitTests.Mocks
             return Task.FromResult<object>(null);
         }
 
-        public Task SendTaskOrchestrationMessage(TaskMessage message)
+        public Task SendTaskOrchestrationMessageAsync(TaskMessage message)
         {
             this.orchestratorQueue.SendMessage(message);
             return Task.FromResult<object>(null);

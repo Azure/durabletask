@@ -342,14 +342,13 @@ namespace FrameworkUnitTests
             }
         }
 
-        public class SimpleGeneratioOrchestration : TaskOrchestration<string, string>
+        public class SimpleGenerationOrchestration : TaskOrchestration<string, string>
         {
             // HACK: This is just a hack to communicate result of orchestration back to test
             public static string Result;
 
             public override async Task<string> RunTask(OrchestrationContext context, string input)
             {
-                
                 string user = await context.ScheduleTask<string>(typeof(SimplestGetUserTask));
                 int delayInSeconds = string.IsNullOrWhiteSpace(input) ? 0 : Int32.Parse(input);
 

@@ -174,7 +174,7 @@ namespace DurableTask
                 Event = new EventRaisedEvent(-1, serializedInput) {Name = eventName}
             };
 
-            await this.serviceClient.SendTaskOrchestrationMessage(taskMessage);
+            await this.serviceClient.SendTaskOrchestrationMessageAsync(taskMessage);
         }
 
         /// <summary>

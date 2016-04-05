@@ -34,7 +34,7 @@ namespace DurableTask.Common
         public static BrokeredMessage GetBrokeredMessageFromObject(
             object serializableObject,
             CompressionSettings compressionSettings,
-            OrchestrationInstance instance, 
+            OrchestrationInstance instance,
             string messageType)
         {
             if (serializableObject == null)
@@ -44,7 +44,7 @@ namespace DurableTask.Common
 
             if (compressionSettings.Style == CompressionStyle.Legacy)
             {
-                return new BrokeredMessage(serializableObject) {SessionId = instance?.InstanceId};
+                return new BrokeredMessage(serializableObject) { SessionId = instance?.InstanceId };
             }
 
             bool disposeStream = true;
@@ -57,7 +57,7 @@ namespace DurableTask.Common
                 BrokeredMessage brokeredMessage = null;
 
                 if (compressionSettings.Style == CompressionStyle.Always ||
-                    (compressionSettings.Style == CompressionStyle.Threshold && 
+                    (compressionSettings.Style == CompressionStyle.Threshold &&
                      rawStream.Length > compressionSettings.ThresholdInBytes))
                 {
                     Stream compressedStream = Utils.GetCompressedStream(rawStream);

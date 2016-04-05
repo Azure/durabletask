@@ -130,6 +130,7 @@
     <Compile Include="OrchestrationTestHostTests.cs" />
     <Compile Include="DispatcherTests.cs" />
     <Compile Include="SerializationTests.cs" />
+    <Compile Include="ServiceBusOrchestrationServiceTests.cs" />
     <Compile Include="TaskHubClientTests.cs" />
     <Compile Include="DynamicProxyTests.cs" />
     <Compile Include="OrchestrationHubTableClientTests.cs" />
@@ -137,12 +138,6 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="TestHelpers.cs" />
     <Compile Include="TestObjectCreator.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\Framework\DurableTaskFramework.csproj">
-      <Project>{6f5d2ead-726d-4fe5-a575-aeb96d1cce37}</Project>
-      <Name>DurableTaskFramework</Name>
-    </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config">
@@ -160,6 +155,12 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
     <None Include="sign.snk" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Framework\DurableTaskFramework.csproj">
+      <Project>{6f5d2ead-726d-4fe5-a575-aeb96d1cce37}</Project>
+      <Name>DurableTaskFramework</Name>
+    </ProjectReference>
   </ItemGroup>
   <Choose>
     <When Condition="'$(VisualStudioVersion)' == '10.0' And '$(IsCodedUITest)' == 'True'">

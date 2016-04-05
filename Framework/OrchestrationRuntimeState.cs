@@ -29,7 +29,6 @@ namespace DurableTask
         public long CompressedSize;
 
         ExecutionCompletedEvent ExecutionCompletedEvent;
-        ExecutionStartedEvent ExecutionStartedEvent;
 
         public long Size;
         public string Status;
@@ -50,6 +49,11 @@ namespace DurableTask
                     AddEvent(ev, false);
                 }
             }
+        }
+
+        public ExecutionStartedEvent ExecutionStartedEvent
+        {
+            get; private set;
         }
 
         public DateTime CreatedTime
