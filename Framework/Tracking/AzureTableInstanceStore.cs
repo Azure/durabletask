@@ -134,18 +134,18 @@ namespace DurableTask.Tracking
             IEnumerable<AzureTableOrchestrationStateEntity> jumpStartEntities = await this.tableClient.QueryJumpStartOrchestrationsAsync(new OrchestrationStateQuery()
                     .AddInstanceFilter(instanceId)).ConfigureAwait(false);
 
-            IEnumerable<OrchestrationState> states = stateEntities.Select(stateEntity => stateEntity.State);
-            states = states.Union(
-                jumpStartEntities.Select(j => j.State),
-                new CustomEqualityComparer<OrchestrationState>(
-                    (a, b) => a.OrchestrationInstance.InstanceId.Equals(b.OrchestrationInstance.InstanceId, StringComparison.OrdinalIgnoreCase)));
+            IEnumerable <OrchestrationState> states = stateEntities.Select(stateEntity => stateEntity.State);
+            IEnumerable<OrchestrationState> jumpStartStates = jumpStartEntities.Select(j => j.State)
+                .Where(js => !states.Any(s => s.OrchestrationInstance.InstanceId == js.OrchestrationInstance.InstanceId));
+
+            var newStates = states.Concat(jumpStartStates);
 
             if (allInstances)
             {
-                return states.Select(TableStateToStateEvent); ;
+                return newStates.Select(TableStateToStateEvent); ;
             }
 
-            foreach (OrchestrationState state in states)
+            foreach (OrchestrationState state in newStates)
             {
                 // TODO: This will just return the first non-ContinuedAsNew orchestration and not the latest one.
                 if (state.OrchestrationStatus != OrchestrationStatus.ContinuedAsNew)
@@ -209,12 +209,12 @@ namespace DurableTask.Tracking
                 await tableClient.QueryOrchestrationStatesAsync(stateQuery).ConfigureAwait(false);
 
             // Query from JumpStart table
-            var jumpStartEntities = await this.tableClient.QueryJumpStartOrchestrationsAsync(stateQuery).ConfigureAwait(false);
-            result = result.Union(jumpStartEntities,
-                new CustomEqualityComparer<AzureTableOrchestrationStateEntity>(
-                    (a, b) => a.State.OrchestrationInstance.InstanceId.Equals(b.State.OrchestrationInstance.InstanceId, StringComparison.OrdinalIgnoreCase)));
+            IEnumerable<AzureTableOrchestrationStateEntity> jumpStartEntities = await this.tableClient.QueryJumpStartOrchestrationsAsync(stateQuery).ConfigureAwait(false);
 
-            return result.Select(stateEntity => stateEntity.State);
+            IEnumerable<AzureTableOrchestrationStateEntity> newStates = result.Concat(jumpStartEntities
+                .Where(js => !result.Any(s => s.State.OrchestrationInstance.InstanceId == js.State.OrchestrationInstance.InstanceId)));
+
+            return newStates.Select(stateEntity => stateEntity.State);
         }
 
         /// <summary>
