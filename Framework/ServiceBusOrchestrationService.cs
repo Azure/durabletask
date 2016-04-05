@@ -567,9 +567,12 @@ namespace DurableTask
         public async Task ReleaseTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
             var sessionState = GetAndDeleteSessionInstanceForWorkItem(workItem);
+            // This is Ok, if we abandoned the message it will already be gone
             if (sessionState == null)
             {
-                throw new ArgumentNullException("SessionInstance");
+                TraceHelper.TraceSession(TraceEventType.Warning, workItem?.InstanceId,
+                    $"DeleteSessionInstance failed, could already be aborted");
+                return;
             }
 
             await sessionState.Session.CloseAsync();
@@ -768,8 +771,8 @@ namespace DurableTask
         /// <summary>
         ///     Wait for an orchestration to reach any terminal state within the given timeout
         /// </summary>
-        /// <param name="instanceId">Instance to terminate</param>
         /// <param name="executionId">The execution id of the orchestration</param>
+        /// <param name="instanceId">Instance to wait for</param>
         /// <param name="timeout">Max timeout to wait</param>
         /// <param name="cancellationToken">Task cancellation token</param>
         public async Task<OrchestrationState> WaitForOrchestrationAsync(
@@ -787,10 +790,12 @@ namespace DurableTask
 
             var timeoutSeconds = timeout.TotalSeconds;
 
-            while (timeoutSeconds > 0)
+            while (!cancellationToken.IsCancellationRequested && timeoutSeconds > 0)
             {
-                OrchestrationState state = await GetOrchestrationStateAsync(instanceId, executionId);
-                if (state == null || (state.OrchestrationStatus == OrchestrationStatus.Running))
+                OrchestrationState state = (await GetOrchestrationStateAsync(instanceId, false))?.FirstOrDefault();
+                if (state == null
+                    || (state.OrchestrationStatus == OrchestrationStatus.Running)
+                    || (state.OrchestrationStatus == OrchestrationStatus.Pending))
                 {
                     await Task.Delay(StatusPollingIntervalInSeconds * 1000, cancellationToken);
                     timeoutSeconds -= StatusPollingIntervalInSeconds;
@@ -1168,32 +1173,39 @@ namespace DurableTask
 
         static async Task SafeDeleteQueueAsync(NamespaceManager namespaceManager, string path)
         {
-            try
+            await Utils.ExecuteWithRetries(async () =>
             {
-                await namespaceManager.DeleteQueueAsync(path);
-            }
-            catch (MessagingEntityNotFoundException)
-            {
-                await Task.FromResult(0);
-            }
+                try
+                {
+                    await namespaceManager.DeleteQueueAsync(path);
+                }
+                catch (MessagingEntityAlreadyExistsException)
+                {
+                    await Task.FromResult(0);
+                }
+            }, null, "SafeDeleteQueueAsync", 3, 5);
+
         }
 
         async Task SafeCreateQueueAsync(NamespaceManager namespaceManager, string path, bool requiresSessions, int maxDeliveryCount)
         {
-            try
+            await Utils.ExecuteWithRetries(async () =>
             {
-                await CreateQueueAsync(namespaceManager, path, requiresSessions, maxDeliveryCount);
-            }
-            catch (MessagingEntityAlreadyExistsException)
-            {
-                await Task.FromResult(0);
-            }
+                try
+                {
+                    await CreateQueueAsync(namespaceManager, path, requiresSessions, maxDeliveryCount);
+                }
+                catch (MessagingEntityAlreadyExistsException)
+                {
+                    await Task.FromResult(0);
+                }
+            }, null, "SafeCreateQueueAsync", 3, 5);
         }
 
         async Task SafeDeleteAndCreateQueueAsync(NamespaceManager namespaceManager, string path, bool requiresSessions, int maxDeliveryCount)
         {
             await SafeDeleteQueueAsync(namespaceManager, path);
-            await CreateQueueAsync(namespaceManager, path, requiresSessions, maxDeliveryCount);
+            await SafeCreateQueueAsync(namespaceManager, path, requiresSessions, maxDeliveryCount);
         }
 
         async Task CreateQueueAsync(

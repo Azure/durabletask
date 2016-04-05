@@ -11,6 +11,10 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+using System.IO;
+using DurableTask.History;
+using DurableTask.Serializing;
+
 namespace FrameworkUnitTests
 {
     using System;
@@ -46,6 +50,24 @@ namespace FrameworkUnitTests
         {
             Val1,
             Val2
+        }
+
+        [TestMethod]
+        public async Task DataConverterDeserializationTest()
+        {
+            var dataConverter = new JsonDataConverter();
+
+            string serializedState = File.ReadAllText(@"TestData\SerializedExecutionStartedEvent.json");
+            var startedEvent = dataConverter.Deserialize<ExecutionStartedEvent>(serializedState);
+            Assert.IsNotNull(startedEvent);
+
+            serializedState = File.ReadAllText(@"TestData\SerializedOrchestrationState.json");
+            var runtimeState = dataConverter.Deserialize<OrchestrationRuntimeState>(serializedState);
+            Assert.IsNotNull(runtimeState);
+
+            serializedState = File.ReadAllText(@"TestData\SerializedOrchestrationStateWithTags.json");
+            runtimeState = dataConverter.Deserialize<OrchestrationRuntimeState>(serializedState);
+            Assert.IsNotNull(runtimeState);
         }
 
         [TestMethod]

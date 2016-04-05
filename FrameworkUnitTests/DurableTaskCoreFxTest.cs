@@ -26,7 +26,7 @@ namespace FrameworkUnitTests
     /// <summary>
     /// Test the core dtfx via a mock orchestration service and client provider
     /// </summary>
-    [TestClass]
+    // [TestClass]
     public class DurableTaskCoreFxTest
     {
 

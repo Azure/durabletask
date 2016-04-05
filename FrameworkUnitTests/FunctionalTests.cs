@@ -14,10 +14,12 @@
 namespace FrameworkUnitTests
 {
     using System;
+    using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask;
     using DurableTask.Exceptions;
+    using DurableTask.Serializing;
     using DurableTask.Test;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -27,6 +29,7 @@ namespace FrameworkUnitTests
         TaskHubClient client;
         TaskHubWorker taskHub;
         TaskHubWorker taskHubNoCompression;
+        static readonly DataConverter DataConverter = new JsonDataConverter();
 
         public TestContext TestContext { get; set; }
 
@@ -451,6 +454,44 @@ namespace FrameworkUnitTests
             Assert.IsTrue(GenerationV3Orchestration.WasRun);
         }
 
+        [TestMethod]
+        public async Task OrchestrationTagsTest()
+        {
+            var c1 = new NameValueObjectCreator<TaskOrchestration>("GenerationOrchestration",
+                "V1", typeof(GenerationV1Orchestration));
+
+            var c2 = new NameValueObjectCreator<TaskOrchestration>("GenerationOrchestration",
+                "V2", typeof(GenerationV2Orchestration));
+
+            var c3 = new NameValueObjectCreator<TaskOrchestration>("GenerationOrchestration",
+                "V3", typeof(GenerationV3Orchestration));
+
+            await taskHub.AddTaskOrchestrations(c1, c2, c3)
+                .StartAsync();
+
+            const string tagName = "versiontag";
+            const string tagValue = "sample_value";
+
+            OrchestrationInstance instance = await client.CreateOrchestrationInstanceAsync(
+                "GenerationOrchestration",
+                "V1",
+                "TestInstance",
+                null,
+                new Dictionary<string, string>(1) { { tagName, tagValue } });
+
+            OrchestrationState state = await client.WaitForOrchestrationAsync(instance, TimeSpan.FromMinutes(1), CancellationToken.None);
+
+            bool isCompleted = (state?.OrchestrationStatus == OrchestrationStatus.Completed);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, instance, 60));
+            Assert.IsTrue(GenerationV1Orchestration.WasRun);
+            Assert.IsTrue(GenerationV2Orchestration.WasRun);
+            Assert.IsTrue(GenerationV3Orchestration.WasRun);
+            IDictionary<string, string> returnedTags = state.Tags;
+            string returnedValue;
+            Assert.IsTrue(returnedTags.TryGetValue(tagName, out returnedValue));
+            Assert.AreEqual(tagValue, returnedValue);
+        }
+
         public class GenerationV1Orchestration : TaskOrchestration<object, object>
         {
             // HACK: This is just a hack to communicate result of orchestration back to test
@@ -487,6 +528,56 @@ namespace FrameworkUnitTests
                 WasRun = true;
                 return Task.FromResult<object>(null);
             }
+        }
+
+        #endregion
+
+        #region Concurrent Nodes Tests
+
+        [TestMethod]
+        public async Task MultipleConcurrentRoleStartsTestNoInitialHub()
+        {
+            // Make sure we cleanup we start from scratch
+            await taskHub.StopAsync(true);
+            await taskHub.orchestrationService.DeleteAsync();
+
+            const int concurrentClientsAndHubs = 4;
+            var rnd = new Random();
+             
+            var clients = new List<TaskHubClient>(concurrentClientsAndHubs);
+            var workers = new List<TaskHubWorker>(concurrentClientsAndHubs);
+            IList<Task> tasks = new List<Task>();
+            for (int i = 0; i < concurrentClientsAndHubs; i++)
+            {
+                clients.Add(TestHelpers.CreateTaskHubClient());
+                workers.Add(TestHelpers.CreateTaskHub());
+                tasks.Add(workers[i].orchestrationService.CreateIfNotExistsAsync());
+            }
+
+            await Task.WhenAll(tasks);
+
+            GenerationBasicOrchestration.Result = 0;
+            GenerationBasicTask.GenerationCount = 0;
+
+            TaskHubWorker selectedHub = workers[(rnd.Next(concurrentClientsAndHubs))];
+            TaskHubClient selectedClient = clients[(rnd.Next(concurrentClientsAndHubs))];
+
+            tasks.Clear();
+            for (int i = 0; i < concurrentClientsAndHubs; i++)
+            {
+                tasks.Add(workers[i].AddTaskOrchestrations(typeof(GenerationBasicOrchestration))
+                    .AddTaskActivities(new GenerationBasicTask())
+                    .StartAsync());
+            }
+
+            await Task.WhenAll(tasks);
+
+            OrchestrationInstance instance = await selectedClient.CreateOrchestrationInstanceAsync(typeof(GenerationBasicOrchestration), 4);
+
+            var state = await selectedClient.WaitForOrchestrationAsync(instance, TimeSpan.FromSeconds(60), CancellationToken.None);
+            Assert.IsNotNull(state);
+            Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus, TestHelpers.GetInstanceNotCompletedMessage(client, instance, 60));
+            Assert.AreEqual(4, GenerationBasicOrchestration.Result, "Orchestration Result is wrong!!!");
         }
 
         #endregion

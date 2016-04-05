@@ -11,6 +11,8 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+using System.Collections.Generic;
+
 namespace DurableTask.History
 {
     using System.Runtime.Serialization;
@@ -44,6 +46,6 @@ namespace DurableTask.History
         public string Input { get; set; }
 
         [DataMember]
-        public string Tags { get; set; }
+        public Dictionary<string, string> Tags { get; set; }
     }
 }

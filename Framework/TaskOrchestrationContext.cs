@@ -148,10 +148,12 @@ namespace DurableTask
         {
             string serializedInput = dataConverter.Serialize(input);
 
-            continueAsNew = new OrchestrationCompleteOrchestratorAction();
-            continueAsNew.Result = serializedInput;
-            continueAsNew.OrchestrationStatus = OrchestrationStatus.ContinuedAsNew;
-            continueAsNew.NewVersion = newVersion;
+            continueAsNew = new OrchestrationCompleteOrchestratorAction
+            {
+                Result = serializedInput,
+                OrchestrationStatus = OrchestrationStatus.ContinuedAsNew,
+                NewVersion = newVersion
+            };
         }
 
         public override Task<T> CreateTimer<T>(DateTime fireAt, T state)

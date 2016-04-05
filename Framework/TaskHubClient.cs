@@ -132,11 +132,11 @@ namespace DurableTask
             };
 
             string serializedInput = defaultConverter.Serialize(input);
-            string serializedtags = tags != null ? defaultConverter.Serialize(tags) : null;
+            //string serializedtags = tags != null ? defaultConverter.Serialize(tags) : null;
 
             var startedEvent = new ExecutionStartedEvent(-1, serializedInput)
             {
-                Tags = serializedtags,
+                Tags = (Dictionary<string, string>)tags,
                 Name = name,
                 Version = version,
                 OrchestrationInstance = orchestrationInstance
@@ -199,6 +199,27 @@ namespace DurableTask
             }
 
             await this.serviceClient.ForceTerminateTaskOrchestrationAsync(orchestrationInstance.InstanceId, reason);
+        }
+
+        /// <summary>
+        ///     Wait for an orchestration to reach any terminal state within the given timeout
+        /// </summary>
+        /// <param name="orchestrationInstance">Instance to terminate</param>
+        /// <param name="timeout">Max timeout to wait</param>
+        public Task<OrchestrationState> WaitForOrchestrationAsync(
+            OrchestrationInstance orchestrationInstance,
+            TimeSpan timeout)
+        {
+            if (string.IsNullOrWhiteSpace(orchestrationInstance?.InstanceId))
+            {
+                throw new ArgumentException(nameof(orchestrationInstance));
+            }
+
+            return this.serviceClient.WaitForOrchestrationAsync(
+                orchestrationInstance.InstanceId,
+                orchestrationInstance.ExecutionId,
+                timeout,
+                CancellationToken.None);
         }
 
         /// <summary>

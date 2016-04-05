@@ -1,6 +1,7 @@
 ﻿namespace DurableTaskSamples
 {
     using System;
+    using System.Collections.Generic;
     using System.Configuration;
     using System.IO;
     using System.Linq;
@@ -46,7 +47,7 @@
 
                 if (!string.IsNullOrWhiteSpace(options.StartInstance))
                 {
-                    string instanceId = options.InstanceId;
+                    string instanceId = options.InstanceId ?? Guid.NewGuid().ToString();
                     Console.WriteLine($"Start Orchestration: {options.StartInstance}");
                     switch (options.StartInstance)
                     {
@@ -79,7 +80,12 @@
                             instance = taskHubClient.CreateOrchestrationInstanceAsync(typeof(ErrorHandlingOrchestration), instanceId, null).Result;
                             break;
                         case "SumOfSquares":
-                            instance = taskHubClient.CreateOrchestrationInstanceAsync(typeof(SumOfSquaresOrchestration), instanceId, File.ReadAllText("SumofSquares\\BagOfNumbers.json")).Result;
+                            instance = taskHubClient.CreateOrchestrationInstanceAsync(
+                                "SumOfSquaresOrchestration", 
+                                "V1", 
+                                instanceId, 
+                                File.ReadAllText("SumofSquares\\BagOfNumbers.json"),
+                                new Dictionary<string, string>(1) { { "Category", "testing" } }).Result;
                             break;
                         case "Signal":
                             instance = taskHubClient.CreateOrchestrationInstanceAsync(typeof(SignalOrchestration), instanceId, null).Result;
@@ -127,10 +133,12 @@
                             typeof(ErrorHandlingOrchestration), 
                             typeof(SignalOrchestration),
                             typeof(MigrateOrchestration),
-                            typeof(SumOfSquaresOrchestration),
-                            typeof(SumOfSquaresOrchestrationAsTask)
+                            typeof(SumOfSquaresOrchestration)
                             );
 
+                        taskHub.AddTaskOrchestrations(
+                            new NameValueObjectCreator<TaskOrchestration>("SumOfSquaresOrchestration", "V1", typeof(SumOfSquaresOrchestration)));
+                        
                         taskHub.AddTaskActivities(
                             new GetUserTask(), 
                             new SendGreetingTask(), 

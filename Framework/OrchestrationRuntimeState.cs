@@ -103,12 +103,12 @@ namespace DurableTask
             }
         }
 
-        public string Tags
+        public Dictionary<string, string> Tags
         {
             get
             {
-                Debug.Assert(ExecutionStartedEvent != null);
-                return ExecutionStartedEvent.Tags;
+                // This gets called by json.net for deserialization, we can't assert if there is no ExecutionStartedEvent
+                return ExecutionStartedEvent?.Tags;
             }
         }
 

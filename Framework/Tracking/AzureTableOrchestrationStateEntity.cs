@@ -11,6 +11,9 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+using System.Collections;
+using DurableTask.Serializing;
+
 namespace DurableTask.Tracking
 {
     using System;
@@ -23,11 +26,15 @@ namespace DurableTask.Tracking
 
     public class AzureTableOrchestrationStateEntity : AzureTableCompositeTableEntity
     {
+        readonly DataConverter dataConverter;
+
         public AzureTableOrchestrationStateEntity()
         {
+            this.dataConverter = new JsonDataConverter();
         }
 
         public AzureTableOrchestrationStateEntity(OrchestrationState state)
+            :this()
         {
             State = state;
             TaskTimeStamp = state.CompletedTime;
@@ -68,7 +75,7 @@ namespace DurableTask.Tracking
             retVals.Add("Name", new EntityProperty(State.Name));
             retVals.Add("Version", new EntityProperty(State.Version));
             retVals.Add("Status", new EntityProperty(State.Status));
-            retVals.Add("Tags", new EntityProperty(State.Tags));
+            retVals.Add("Tags", new EntityProperty(State.Tags != null ? dataConverter.Serialize(State.Tags) : null));
             retVals.Add("OrchestrationStatus", new EntityProperty(State.OrchestrationStatus.ToString()));
             retVals.Add("CreatedTime", new EntityProperty(State.CreatedTime));
             retVals.Add("CompletedTime", new EntityProperty(State.CompletedTime));
@@ -105,7 +112,7 @@ namespace DurableTask.Tracking
                 Name = GetValue("Name", properties, property => property.StringValue),
                 Version = GetValue("Version", properties, property => property.StringValue),
                 Status = GetValue("Status", properties, property => property.StringValue),
-                Tags = GetValue("Tags", properties, property => property.StringValue),
+                Tags = GetTagsFromString(properties),
                 CreatedTime =
                     GetValue("CreatedTime", properties, property => property.DateTimeOffsetValue)
                         .GetValueOrDefault()
@@ -135,6 +142,17 @@ namespace DurableTask.Tracking
             {
                 throw new InvalidOperationException("Invalid status string in state " + orchestrationStatusStr);
             }
+        }
+
+        private Dictionary<string, string> GetTagsFromString(IDictionary<string, EntityProperty> properties)
+        {
+            string strTags = GetValue("Tags", properties, property => property.StringValue);
+            if (string.IsNullOrEmpty(strTags))
+            {
+                return null;
+            }
+
+            return dataConverter.Deserialize<Dictionary<string, string>>(strTags);
         }
 
         public override string ToString()
