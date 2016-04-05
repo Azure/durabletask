@@ -18,6 +18,9 @@ namespace DurableTask.Tracking
         // Table name: InstanceHistory00<hub_name>
         public const string InstanceHistoryTableNamePrefix = "InstanceHistory";
 
+        // Table name: JumpStart<hub_name>
+        public const string JumpStartTableNamePrefix = "JumpStart";
+
         // HistoryEvent related prefixes, only one row per history event
         public const string InstanceHistoryEventPrefix = "IH";
         public const string InstanceHistoryEventRowPrefix = "EID" + JoinDelimiter + "SEQ";
@@ -56,6 +59,7 @@ namespace DurableTask.Tracking
 
         // primary filters 
         public const string PrimaryFilterTemplate = "(PartitionKey eq 'IS')";
+        public const string PrimaryTimeRangeTemplate = "((PartitionKey ge '{0}') and (PartitionKey lt '{1}'))";
 
         // rowkey format: ID_EID_<instanceId>_<executionId>
         public const string PrimaryInstanceQueryExactTemplate =

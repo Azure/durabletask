@@ -89,11 +89,14 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Common\CustomEqualityComparer.cs" />
     <Compile Include="History\HistoryStateEvent.cs" />
     <Compile Include="IOrchestrationServiceInstanceStore.cs" />
     <Compile Include="Settings\ServiceBusOrchestrationServiceSettings.cs" />
+    <Compile Include="Tracking\AzureTableOrchestrationJumpStartEntity.cs" />
     <Compile Include="TrackingWorkItem.cs" />
     <Compile Include="Tracking\AzureTableInstanceStore.cs" />
+    <Compile Include="Tracking\JumpStartManager.cs" />
     <Compile Include="Tracking\OrchestrationHistoryEvent.cs" />
     <Compile Include="Tracking\OrchestrationJumpStartEvent.cs" />
     <Compile Include="Tracking\OrchestrationStateHistoryEvent.cs" />

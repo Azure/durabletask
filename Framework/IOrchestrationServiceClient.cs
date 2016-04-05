@@ -35,7 +35,7 @@ namespace DurableTask
         /// </summary>
         /// <param name="message">Message to send</param>
         /// <returns></returns>
-        Task SendTaskOrchestrationMessage(TaskMessage message);
+        Task SendTaskOrchestrationMessageAsync(TaskMessage message);
 
         /// <summary>
         /// Wait for an orchestration to reach any terminal state within the given timeout

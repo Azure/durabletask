@@ -21,5 +21,6 @@ namespace DurableTask
         Failed,
         Canceled, // gracefully canceled
         Terminated, // abruptly shut down
+        Pending
     }
 }

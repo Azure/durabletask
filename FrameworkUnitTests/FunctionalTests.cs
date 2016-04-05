@@ -88,7 +88,7 @@ namespace FrameworkUnitTests
             Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
             Assert.AreEqual(4, GenerationBasicOrchestration.Result, "Orchestration Result is wrong!!!");
 
-            Assert.AreEqual(0, TestHelpers.GetOrchestratorQueueSizeInBytes());
+            Assert.AreEqual(0, TestHelpers.GetOrchestratorQueueMessageCount());
         }
 
         [TestMethod]
