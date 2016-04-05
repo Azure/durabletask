@@ -65,7 +65,7 @@ namespace DurableTask.Tracking
         {
             while (isStarted == 1)
             {
-                int delaySecs = 1;
+                int delaySecs = 5;
                 try
                 {
                     TraceHelper.Trace(TraceEventType.Information, "Jump start starting fetch");

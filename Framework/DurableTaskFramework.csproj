@@ -89,7 +89,6 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Common\CustomEqualityComparer.cs" />
     <Compile Include="History\HistoryStateEvent.cs" />
     <Compile Include="IOrchestrationServiceInstanceStore.cs" />
     <Compile Include="Settings\ServiceBusOrchestrationServiceSettings.cs" />
