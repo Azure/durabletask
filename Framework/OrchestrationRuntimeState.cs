@@ -107,7 +107,7 @@ namespace DurableTask
             }
         }
 
-        public Dictionary<string, string> Tags
+        public IDictionary<string, string> Tags
         {
             get
             {

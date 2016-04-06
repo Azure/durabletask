@@ -33,7 +33,7 @@ namespace DurableTask
         [DataMember] public ParentInstance ParentInstance;
         [DataMember] public long Size;
         [DataMember] public string Status;
-        [DataMember] public Dictionary<string, string> Tags;
+        [DataMember] public IDictionary<string, string> Tags;
         [DataMember] public string Version;
     }
 }

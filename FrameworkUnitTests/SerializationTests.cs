@@ -53,7 +53,7 @@ namespace FrameworkUnitTests
         }
 
         [TestMethod]
-        public async Task DataConverterDeserializationTest()
+        public void DataConverterDeserializationTest()
         {
             var dataConverter = new JsonDataConverter();
 

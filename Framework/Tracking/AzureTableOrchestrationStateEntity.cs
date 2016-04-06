@@ -144,7 +144,7 @@ namespace DurableTask.Tracking
             }
         }
 
-        private Dictionary<string, string> GetTagsFromString(IDictionary<string, EntityProperty> properties)
+        private IDictionary<string, string> GetTagsFromString(IDictionary<string, EntityProperty> properties)
         {
             string strTags = GetValue("Tags", properties, property => property.StringValue);
             if (string.IsNullOrEmpty(strTags))
@@ -152,7 +152,7 @@ namespace DurableTask.Tracking
                 return null;
             }
 
-            return dataConverter.Deserialize<Dictionary<string, string>>(strTags);
+            return dataConverter.Deserialize<IDictionary<string, string>>(strTags);
         }
 
         public override string ToString()

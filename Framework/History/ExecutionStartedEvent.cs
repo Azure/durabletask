@@ -46,6 +46,6 @@ namespace DurableTask.History
         public string Input { get; set; }
 
         [DataMember]
-        public Dictionary<string, string> Tags { get; set; }
+        public IDictionary<string, string> Tags { get; set; }
     }
 }

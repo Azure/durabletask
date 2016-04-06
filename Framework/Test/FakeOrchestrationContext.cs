@@ -14,6 +14,7 @@
 namespace DurableTask.Test
 {
     using System;
+    using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
 
@@ -65,6 +66,14 @@ namespace DurableTask.Test
             object input)
         {
             var instance = new OrchestrationInstance {InstanceId = instanceId};
+            return OrchestrationExecutor.ExecuteOrchestration<T>(instance, this, name, version, input);
+        }
+
+        public override Task<T> CreateSubOrchestrationInstance<T>(string name, string version, string instanceId,
+            object input, IDictionary<string, string> tags)
+        {
+            var instance = new OrchestrationInstance { InstanceId = instanceId };
+            // This does not support tags, it only accepts them and ignores them
             return OrchestrationExecutor.ExecuteOrchestration<T>(instance, this, name, version, input);
         }
 

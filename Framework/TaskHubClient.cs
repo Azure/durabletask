@@ -132,11 +132,10 @@ namespace DurableTask
             };
 
             string serializedInput = defaultConverter.Serialize(input);
-            //string serializedtags = tags != null ? defaultConverter.Serialize(tags) : null;
 
             var startedEvent = new ExecutionStartedEvent(-1, serializedInput)
             {
-                Tags = (Dictionary<string, string>)tags,
+                Tags = tags,
                 Name = name,
                 Version = version,
                 OrchestrationInstance = orchestrationInstance
