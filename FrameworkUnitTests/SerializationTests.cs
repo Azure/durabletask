@@ -11,15 +11,14 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System.IO;
-using DurableTask.History;
-using DurableTask.Serializing;
-
 namespace FrameworkUnitTests
 {
     using System;
+    using System.IO;
     using System.Threading.Tasks;
     using DurableTask;
+    using DurableTask.History;
+    using DurableTask.Serializing;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]

@@ -11,18 +11,14 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System.Collections;
-using DurableTask.Serializing;
-
 namespace DurableTask.Tracking
 {
     using System;
     using System.Collections.Generic;
     using DurableTask.Common;
-    using DurableTask.History;
+    using DurableTask.Serializing;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Table;
-    using Newtonsoft.Json;
 
     public class AzureTableOrchestrationStateEntity : AzureTableCompositeTableEntity
     {

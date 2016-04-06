@@ -22,11 +22,13 @@ namespace FrameworkUnitTests
     using DurableTask.Settings;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Mocks;
-    
+
     /// <summary>
     /// Test the core dtfx via a mock orchestration service and client provider
     /// </summary>
-    // [TestClass]
+    // TODO : Enable this again once they working
+    [Ignore]
+    [TestClass]
     public class DurableTaskCoreFxTest
     {
 

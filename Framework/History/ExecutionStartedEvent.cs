@@ -11,10 +11,9 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System.Collections.Generic;
-
 namespace DurableTask.History
 {
+    using System.Collections.Generic;
     using System.Runtime.Serialization;
 
     [DataContract]

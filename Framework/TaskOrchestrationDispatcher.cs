@@ -485,7 +485,7 @@ namespace DurableTask
             return taskMessage;
         }
 
-        private static IDictionary<string, string> MergeTags(
+        static IDictionary<string, string> MergeTags(
             IDictionary<string, string> newTags,
             IDictionary<string, string> existingTags)
         {
