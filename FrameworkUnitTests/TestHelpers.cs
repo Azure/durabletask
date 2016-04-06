@@ -11,8 +11,6 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System.Threading;
-
 namespace FrameworkUnitTests
 {
     using System;

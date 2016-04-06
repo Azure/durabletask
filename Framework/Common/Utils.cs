@@ -171,32 +171,6 @@ namespace DurableTask.Common
             return outputStream;
         }
 
-        public static T AsyncExceptionWrapper<T>(Func<T> method)
-        {
-            T retObj = default(T);
-            try
-            {
-                retObj = method();
-            }
-            catch (AggregateException exception)
-            {
-                ExceptionDispatchInfo.Capture(exception.Flatten().InnerException).Throw();
-            }
-            return retObj;
-        }
-
-        public static void AsyncExceptionWrapper(Action method)
-        {
-            try
-            {
-                method();
-            }
-            catch (AggregateException exception)
-            {
-                ExceptionDispatchInfo.Capture(exception.Flatten().InnerException).Throw();
-            }
-        }
-
         public static Boolean IsFatal(Exception exception)
         {
             if (exception is OutOfMemoryException || exception is StackOverflowException)
@@ -204,6 +178,35 @@ namespace DurableTask.Common
                 return true;
             }
             return false;
+        }
+
+        public static async Task ExecuteWithRetries(Func<Task> retryAction, string sessionId, string operation,
+            int numberOfAttempts, int delayInAttemptsSecs)
+        {
+            int retryCount = numberOfAttempts;
+            Exception lastException = null;
+            while (retryCount-- > 0)
+            {
+                try
+                {
+                    await retryAction();
+                    break;
+                }
+                catch (Exception exception) when (!Utils.IsFatal(exception))
+                {
+                    TraceHelper.TraceSession(TraceEventType.Warning, sessionId,
+                        $"Error attempting operation {operation}. Attempt count = {numberOfAttempts - retryCount}. Exception: {exception.Message}\n\t{exception.StackTrace}");
+                    lastException = exception;
+                }
+
+                await Task.Delay(TimeSpan.FromSeconds(delayInAttemptsSecs));
+            }
+
+            if (retryCount <= 0 && lastException != null)
+            {
+                TraceHelper.Trace(TraceEventType.Error, "Exhausted all retries for operation " + operation);
+                throw TraceHelper.TraceExceptionSession(TraceEventType.Error, sessionId, lastException);
+            }
         }
 
         public static async Task<T> ExecuteWithRetries<T>(Func<Task<T>> retryAction, string sessionId, string operation,
@@ -222,51 +225,22 @@ namespace DurableTask.Common
                 catch (Exception exception) when (!Utils.IsFatal(exception))
                 {
                     TraceHelper.TraceSession(TraceEventType.Warning, sessionId,
-                        "Error attempting operation {0}. Attempt count = {1}. Exception: {2}\n\t{3}",
-                        operation, numberOfAttempts - retryCount, exception.Message,
-                        exception.StackTrace);
+                        $"Error attempting operation {operation}. Attempt count = {numberOfAttempts - retryCount}. Exception: {exception.Message}\n\t{exception.StackTrace}");
                     lastException = exception;
                 }
+
                 await Task.Delay(TimeSpan.FromSeconds(delayInAttemptsSecs));
             }
+
             if (retryCount <= 0 && lastException != null)
             {
                 TraceHelper.Trace(TraceEventType.Error, "Exhausted all retries for operation " + operation);
                 throw TraceHelper.TraceExceptionSession(TraceEventType.Error, sessionId, lastException);
             }
+
             return retVal;
         }
 
-        public static T SyncExecuteWithRetries<T>(Func<T> retryAction, string sessionId, string operation,
-            int numberOfAttempts, int delayInAttemptsSecs)
-        {
-            T retVal = default(T);
-            int retryCount = numberOfAttempts;
-            Exception lastException = null;
-            while (retryCount-- > 0)
-            {
-                try
-                {
-                    retVal = retryAction();
-                    break;
-                }
-                catch (Exception exception) when (!Utils.IsFatal(exception))
-                {
-                    TraceHelper.TraceSession(TraceEventType.Warning, sessionId,
-                        "Error attempting operation {0}. Attempt count = {1}. Exception: {2}\n\t{3}",
-                        operation, numberOfAttempts - retryCount, exception.Message,
-                        exception.StackTrace);
-                    lastException = exception;
-                }
-                Task.Delay(TimeSpan.FromSeconds(delayInAttemptsSecs)).Wait();
-            }
-            if (retryCount <= 0 && lastException != null)
-            {
-                TraceHelper.Trace(TraceEventType.Error, "Exhausted all retries for operation " + operation);
-                throw TraceHelper.TraceExceptionSession(TraceEventType.Error, sessionId, lastException);
-            }
-            return retVal;
-        }
 
         public static string SerializeCause(Exception originalException, DataConverter converter)
         {

@@ -14,10 +14,12 @@
 namespace FrameworkUnitTests
 {
     using System;
+    using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask;
     using DurableTask.Exceptions;
+    using DurableTask.Serializing;
     using DurableTask.Test;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -27,6 +29,7 @@ namespace FrameworkUnitTests
         TaskHubClient client;
         TaskHubWorker taskHub;
         TaskHubWorker taskHubNoCompression;
+        static readonly DataConverter DataConverter = new JsonDataConverter();
 
         public TestContext TestContext { get; set; }
 
@@ -487,6 +490,192 @@ namespace FrameworkUnitTests
                 WasRun = true;
                 return Task.FromResult<object>(null);
             }
+        }
+
+        #endregion
+
+        #region Tags Tests
+
+        [TestMethod]
+        public async Task TagsOrchestrationTest()
+        {
+            GenerationV1Orchestration.WasRun = false;
+            GenerationV2Orchestration.WasRun = false;
+            GenerationV3Orchestration.WasRun = false;
+
+            var c1 = new NameValueObjectCreator<TaskOrchestration>("GenerationOrchestration",
+                "V1", typeof(GenerationV1Orchestration));
+
+            var c2 = new NameValueObjectCreator<TaskOrchestration>("GenerationOrchestration",
+                "V2", typeof(GenerationV2Orchestration));
+
+            var c3 = new NameValueObjectCreator<TaskOrchestration>("GenerationOrchestration",
+                "V3", typeof(GenerationV3Orchestration));
+
+            await taskHub.AddTaskOrchestrations(c1, c2, c3)
+                .StartAsync();
+
+            const string tagName = "versiontag";
+            const string tagValue = "sample_value";
+
+            OrchestrationInstance instance = await client.CreateOrchestrationInstanceAsync(
+                "GenerationOrchestration",
+                "V1",
+                "TestInstance",
+                null,
+                new Dictionary<string, string>(1) { { tagName, tagValue } });
+
+            OrchestrationState state = await client.WaitForOrchestrationAsync(instance, TimeSpan.FromMinutes(1), CancellationToken.None);
+
+            bool isCompleted = (state?.OrchestrationStatus == OrchestrationStatus.Completed);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, instance, 60));
+            Assert.IsTrue(GenerationV1Orchestration.WasRun);
+            Assert.IsTrue(GenerationV2Orchestration.WasRun);
+            Assert.IsTrue(GenerationV3Orchestration.WasRun);
+            IDictionary<string, string> returnedTags = state.Tags;
+            string returnedValue;
+            Assert.IsTrue(returnedTags.TryGetValue(tagName, out returnedValue));
+            Assert.AreEqual(tagValue, returnedValue);
+        }
+
+        [TestMethod]
+        public async Task TagsSubOrchestrationTest()
+        {
+            var c1 = new NameValueObjectCreator<TaskOrchestration>("ParentWorkflow",
+                "V1", typeof(ParentWorkflow));
+
+            var c2 = new NameValueObjectCreator<TaskOrchestration>("ChildWorkflow",
+                "V1", typeof(ChildWorkflow));
+
+            await taskHub.AddTaskOrchestrations(c1, c2)
+                .StartAsync();
+
+            OrchestrationInstance instance = await client.CreateOrchestrationInstanceAsync(
+                "ParentWorkflow",
+                "V1",
+                "TestInstance",
+                true,
+                new Dictionary<string, string>(2) {
+                    { ParentWorkflow.ParentTagName, ParentWorkflow.ParentTagValue },
+                    { ParentWorkflow.SharedTagName, ParentWorkflow.ParentTagValue }
+                });
+
+            OrchestrationState state = await client.WaitForOrchestrationAsync(instance, TimeSpan.FromMinutes(1), CancellationToken.None);
+
+            bool isCompleted = (state?.OrchestrationStatus == OrchestrationStatus.Completed);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, instance, 60));
+            Assert.AreEqual("Child completed.", ParentWorkflow.Result, "Orchestration Result is wrong!!!");
+
+            IDictionary<string, string> returnedTags = state.Tags;
+            string returnedValue;
+            // Check for parent tag untouched
+            Assert.IsTrue(returnedTags.TryGetValue(ParentWorkflow.ParentTagName, out returnedValue));
+            Assert.AreEqual(ParentWorkflow.ParentTagValue, returnedValue);
+            // Check for shared tag on parent with parent value
+            Assert.IsTrue(returnedTags.TryGetValue(ParentWorkflow.SharedTagName, out returnedValue));
+            Assert.AreEqual(ParentWorkflow.ParentTagValue, returnedValue);
+            
+            // Get child state and check completion
+            OrchestrationState childState = await client.GetOrchestrationStateAsync(ParentWorkflow.ChildWorkflowId);
+            isCompleted = (childState?.OrchestrationStatus == OrchestrationStatus.Completed);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, instance, 60));
+
+            returnedTags = childState.Tags;
+            // Check for parent tag untouched
+            Assert.IsTrue(returnedTags.TryGetValue(ParentWorkflow.ParentTagName, out returnedValue));
+            Assert.AreEqual(ParentWorkflow.ParentTagValue, returnedValue);
+            // Check for shared tag on with child value
+            Assert.IsTrue(returnedTags.TryGetValue(ParentWorkflow.SharedTagName, out returnedValue));
+            Assert.AreEqual(ParentWorkflow.ChildTagValue, returnedValue);
+            // Check for child tag
+            Assert.IsTrue(returnedTags.TryGetValue(ParentWorkflow.ChildTagName, out returnedValue));
+            Assert.AreEqual(ParentWorkflow.ChildTagValue, returnedValue);
+        }
+
+        class ChildWorkflow : TaskOrchestration<string, int>
+        {
+            public override Task<string> RunTask(OrchestrationContext context, int input)
+            {
+                return Task.FromResult("Child completed.");
+            }
+        }
+
+        class ParentWorkflow : TaskOrchestration<string, bool>
+        {
+            // HACK: This is just a hack to communicate result of orchestration back to test
+            public static string Result;
+            public const string ParentTagName = "parent_tag";
+            public const string SharedTagName = "shared_tag";
+            public const string ChildTagName = "child_tag";
+            public const string ParentTagValue = "parent's value";
+            public const string ChildTagValue = "child's value";
+            public const string ChildWorkflowId = "childtest";
+
+            public override async Task<string> RunTask(OrchestrationContext context, bool waitForCompletion)
+            {
+                Result = await context.CreateSubOrchestrationInstance<string>(
+                    "ChildWorkflow",
+                    "V1",
+                    ChildWorkflowId,
+                    1,
+                    new Dictionary<string, string>(2)
+                    {
+                        { SharedTagName, ChildTagValue },
+                        { ChildTagName, ChildTagValue }
+                    });
+
+                return Result;
+            }
+        }
+
+        #endregion
+
+        #region Concurrent Nodes Tests
+
+        [TestMethod]
+        public async Task MultipleConcurrentRoleStartsTestNoInitialHub()
+        {
+            // Make sure we cleanup we start from scratch
+            await taskHub.StopAsync(true);
+            await taskHub.orchestrationService.DeleteAsync();
+
+            const int concurrentClientsAndHubs = 4;
+            var rnd = new Random();
+             
+            var clients = new List<TaskHubClient>(concurrentClientsAndHubs);
+            var workers = new List<TaskHubWorker>(concurrentClientsAndHubs);
+            IList<Task> tasks = new List<Task>();
+            for (int i = 0; i < concurrentClientsAndHubs; i++)
+            {
+                clients.Add(TestHelpers.CreateTaskHubClient());
+                workers.Add(TestHelpers.CreateTaskHub());
+                tasks.Add(workers[i].orchestrationService.CreateIfNotExistsAsync());
+            }
+
+            await Task.WhenAll(tasks);
+
+            GenerationBasicOrchestration.Result = 0;
+            GenerationBasicTask.GenerationCount = 0;
+
+            TaskHubWorker selectedHub = workers[(rnd.Next(concurrentClientsAndHubs))];
+            TaskHubClient selectedClient = clients[(rnd.Next(concurrentClientsAndHubs))];
+
+            tasks.Clear();
+            for (int i = 0; i < concurrentClientsAndHubs; i++)
+            {
+                tasks.Add(workers[i].AddTaskOrchestrations(typeof(GenerationBasicOrchestration))
+                    .AddTaskActivities(new GenerationBasicTask())
+                    .StartAsync());
+            }
+
+            await Task.WhenAll(tasks);
+
+            OrchestrationInstance instance = await selectedClient.CreateOrchestrationInstanceAsync(typeof(GenerationBasicOrchestration), 4);
+
+            var state = await selectedClient.WaitForOrchestrationAsync(instance, TimeSpan.FromSeconds(60), CancellationToken.None);
+            Assert.IsNotNull(state);
+            Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus, TestHelpers.GetInstanceNotCompletedMessage(client, instance, 60));
+            Assert.AreEqual(4, GenerationBasicOrchestration.Result, "Orchestration Result is wrong!!!");
         }
 
         #endregion

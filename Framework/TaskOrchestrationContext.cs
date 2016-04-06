@@ -93,18 +93,39 @@ namespace DurableTask
             return dataConverter.Deserialize(serializedResult, resultType);
         }
 
-        public override Task<T> CreateSubOrchestrationInstance<T>(string name, string version, string instanceId,
+        public override Task<T> CreateSubOrchestrationInstance<T>(
+            string name,
+            string version,
+            string instanceId,
             object input)
         {
-            return CreateSubOrchestrationInstanceCore<T>(name, version, instanceId, input);
+            return CreateSubOrchestrationInstanceCore<T>(name, version, instanceId, input, null);
         }
 
-        public override Task<T> CreateSubOrchestrationInstance<T>(string name, string version, object input)
+        public override Task<T> CreateSubOrchestrationInstance<T>(
+            string name,
+            string version,
+            string instanceId,
+            object input,
+            IDictionary<string, string> tags)
         {
-            return CreateSubOrchestrationInstanceCore<T>(name, version, null, input);
+            return CreateSubOrchestrationInstanceCore<T>(name, version, instanceId, input, tags);
         }
 
-        async Task<T> CreateSubOrchestrationInstanceCore<T>(string name, string version, string instanceId, object input)
+        public override Task<T> CreateSubOrchestrationInstance<T>(
+            string name, 
+            string version, 
+            object input)
+        {
+            return CreateSubOrchestrationInstanceCore<T>(name, version, null, input, null);
+        }
+
+        async Task<T> CreateSubOrchestrationInstanceCore<T>(
+            string name, 
+            string version, 
+            string instanceId, 
+            object input, 
+            IDictionary<string, string> tags)
         {
             int id = idCounter++;
             string serializedInput = dataConverter.Serialize(input);
@@ -122,6 +143,7 @@ namespace DurableTask
                 Name = name,
                 Version = version,
                 Input = serializedInput,
+                Tags = tags
             };
 
             orchestratorActionsMap.Add(id, action);
@@ -148,10 +170,12 @@ namespace DurableTask
         {
             string serializedInput = dataConverter.Serialize(input);
 
-            continueAsNew = new OrchestrationCompleteOrchestratorAction();
-            continueAsNew.Result = serializedInput;
-            continueAsNew.OrchestrationStatus = OrchestrationStatus.ContinuedAsNew;
-            continueAsNew.NewVersion = newVersion;
+            continueAsNew = new OrchestrationCompleteOrchestratorAction
+            {
+                Result = serializedInput,
+                OrchestrationStatus = OrchestrationStatus.ContinuedAsNew,
+                NewVersion = newVersion
+            };
         }
 
         public override Task<T> CreateTimer<T>(DateTime fireAt, T state)

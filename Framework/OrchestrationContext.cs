@@ -14,6 +14,7 @@
 namespace DurableTask
 {
     using System;
+    using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
     using ImpromptuInterface;
@@ -279,6 +280,19 @@ namespace DurableTask
         /// <returns>Task that represents the execution of the specified suborchestration</returns>
         public abstract Task<T> CreateSubOrchestrationInstance<T>(string name, string version, string instanceId,
             object input);
+
+        /// <summary>
+        ///     Create a suborchestration of the specified name and version with the specific instance id
+        /// </summary>
+        /// <typeparam name="T">Return Type of the TaskOrchestration.RunTask method</typeparam>
+        /// <param name="name">Name of the orchestration as specified by the ObjectCreator</param>
+        /// <param name="version">Name of the orchestration as specified by the ObjectCreator</param>
+        /// <param name="instanceId">InstanceId of the suborchestration to create</param>
+        /// <param name="input">Input for the TaskOrchestration.RunTask method</param>
+        /// <param name="tags">Dictionary of key/value tags associated with this instance</param>
+        /// <returns>Task that represents the execution of the specified suborchestration</returns>
+        public abstract Task<T> CreateSubOrchestrationInstance<T>(string name, string version, string instanceId,
+            object input, IDictionary<string, string> tags);
 
         /// <summary>
         ///     Checkpoint the orchestration instance by completing the current execution in the ContinueAsNew

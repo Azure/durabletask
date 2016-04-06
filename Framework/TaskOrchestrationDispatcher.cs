@@ -442,7 +442,8 @@ namespace DurableTask
 
         static TaskMessage ProcessCreateSubOrchestrationInstanceDecision(
             CreateSubOrchestrationAction createSubOrchestrationAction,
-            OrchestrationRuntimeState runtimeState, bool includeParameters)
+            OrchestrationRuntimeState runtimeState, 
+            bool includeParameters)
         {
             var historyEvent = new SubOrchestrationInstanceCreatedEvent(createSubOrchestrationAction.Id)
             {
@@ -454,12 +455,14 @@ namespace DurableTask
             {
                 historyEvent.Input = createSubOrchestrationAction.Input;
             }
+
             runtimeState.AddEvent(historyEvent);
 
             var taskMessage = new TaskMessage();
+
             var startedEvent = new ExecutionStartedEvent(-1, createSubOrchestrationAction.Input)
             {
-                Tags = runtimeState.Tags,
+                Tags = MergeTags(createSubOrchestrationAction.Tags, runtimeState.Tags),
                 OrchestrationInstance = new OrchestrationInstance
                 {
                     InstanceId = createSubOrchestrationAction.InstanceId,
@@ -480,6 +483,27 @@ namespace DurableTask
             taskMessage.Event = startedEvent;
 
             return taskMessage;
+        }
+
+        static IDictionary<string, string> MergeTags(
+            IDictionary<string, string> newTags,
+            IDictionary<string, string> existingTags)
+        {
+            IDictionary<string, string> result;
+
+            // We will merge the two dictionaries of tags, tags in the createSubOrchestrationAction overwrite those in runtimeState
+            if (newTags != null && existingTags != null)
+            {
+                result = newTags.Concat(
+                    existingTags.Where(k => !newTags.ContainsKey(k.Key)))
+                    .ToDictionary(x => x.Key, y => y.Value);
+            }
+            else
+            {
+                result = newTags ?? existingTags;
+            }
+
+            return result;
         }
     }
 }

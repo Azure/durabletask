@@ -14,8 +14,11 @@
 namespace FrameworkUnitTests
 {
     using System;
+    using System.IO;
     using System.Threading.Tasks;
     using DurableTask;
+    using DurableTask.History;
+    using DurableTask.Serializing;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]
@@ -46,6 +49,24 @@ namespace FrameworkUnitTests
         {
             Val1,
             Val2
+        }
+
+        [TestMethod]
+        public void DataConverterDeserializationTest()
+        {
+            var dataConverter = new JsonDataConverter();
+
+            string serializedState = File.ReadAllText(@"TestData\SerializedExecutionStartedEvent.json");
+            var startedEvent = dataConverter.Deserialize<ExecutionStartedEvent>(serializedState);
+            Assert.IsNotNull(startedEvent);
+
+            serializedState = File.ReadAllText(@"TestData\SerializedOrchestrationState.json");
+            var runtimeState = dataConverter.Deserialize<OrchestrationRuntimeState>(serializedState);
+            Assert.IsNotNull(runtimeState);
+
+            serializedState = File.ReadAllText(@"TestData\SerializedOrchestrationStateWithTags.json");
+            runtimeState = dataConverter.Deserialize<OrchestrationRuntimeState>(serializedState);
+            Assert.IsNotNull(runtimeState);
         }
 
         [TestMethod]

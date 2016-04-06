@@ -400,7 +400,8 @@ namespace FrameworkUnitTests.Mocks
 
                     var tasks = new List<Task>();
 
-                    if (state.OrchestrationStatus != OrchestrationStatus.Running 
+                    if (state.OrchestrationStatus != OrchestrationStatus.Running
+                        && state.OrchestrationStatus != OrchestrationStatus.Pending
                         && this.orchestrationWaiters.TryGetValue(key, out tcs))
                     {
                         tasks.Add(Task.Run(() => tcs.TrySetResult(state)));
@@ -408,7 +409,9 @@ namespace FrameworkUnitTests.Mocks
 
                     // for instanceid level waiters, we will not consider continueasnew as a terminal state because
                     // the high level orch is still ongoing
-                    if ((state.OrchestrationStatus != OrchestrationStatus.Running && state.OrchestrationStatus != OrchestrationStatus.ContinuedAsNew)
+                    if ((state.OrchestrationStatus != OrchestrationStatus.Running
+                        && state.OrchestrationStatus != OrchestrationStatus.ContinuedAsNew
+                        && state.OrchestrationStatus != OrchestrationStatus.Pending)
                         && this.orchestrationWaiters.TryGetValue(key1, out tcs1))
                     {
                         tasks.Add(Task.Run(() => tcs1.TrySetResult(state)));

@@ -13,16 +13,16 @@
 
 namespace DurableTask.Command
 {
+    using System.Collections.Generic;
+
     internal class CreateSubOrchestrationAction : OrchestratorAction
     {
-        public override OrchestratorActionType OrchestratorActionType
-        {
-            get { return OrchestratorActionType.CreateSubOrchestration; }
-        }
+        public override OrchestratorActionType OrchestratorActionType => OrchestratorActionType.CreateSubOrchestration;
 
         public string Name { get; set; }
         public string Version { get; set; }
         public string InstanceId { get; set; }
         public string Input { get; set; }
+        public IDictionary<string, string> Tags { get; set; }
     }
 }
