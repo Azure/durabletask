@@ -13,8 +13,17 @@
 
 namespace DurableTask.Tracking
 {
-    public class OrchestrationStateHistoryEvent : OrchestrationHistoryEvent
+    using System;
+    using DurableTask.History;
+
+    /// <summary>
+    /// Base class for history tracking events
+    /// </summary>
+    public class InstanceEntityBase
     {
-        public OrchestrationState State;
+        /// <summary>
+        /// Sequence number for ordering of messages in history tracking
+        /// </summary>
+        public long SequenceNumber;
     }
 }
