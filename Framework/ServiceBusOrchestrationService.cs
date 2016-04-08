@@ -593,7 +593,7 @@ namespace DurableTask
 
                     if (InstanceStore != null)
                     {
-                        List<BrokeredMessage> trackingMessages = CreateTrackingMessages(runtimeState, session.LastPeekedSequenceNumber);
+                        List<BrokeredMessage> trackingMessages = CreateTrackingMessages(runtimeState);
 
                         TraceHelper.TraceInstance(TraceEventType.Information, runtimeState.OrchestrationInstance,
                             "Created {0} tracking messages", trackingMessages.Count);
@@ -1029,7 +1029,7 @@ namespace DurableTask
         ///     Creates a list of tracking message for the supplied orchestration state
         /// </summary>
         /// <param name="runtimeState">The orchestation runtime state</param>
-        List<BrokeredMessage> CreateTrackingMessages(OrchestrationRuntimeState runtimeState, long sequenceNumber)
+        List<BrokeredMessage> CreateTrackingMessages(OrchestrationRuntimeState runtimeState)
         {
             var trackingMessages = new List<BrokeredMessage>();
 
@@ -1063,7 +1063,6 @@ namespace DurableTask
             var stateMessage = new TaskMessage
             {
                 Event = new HistoryStateEvent(-1, Utils.BuildOrchestrationState(runtimeState)),
-                SequenceNumber = sequenceNumber,
                 OrchestrationInstance = runtimeState.OrchestrationInstance
             };
 
