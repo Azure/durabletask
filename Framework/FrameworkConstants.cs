@@ -13,6 +13,8 @@
 
 namespace DurableTask
 {
+    using System;
+
     internal class FrameworkConstants
     {
         // TODO : Split these constants into provider specific classes
@@ -44,6 +46,10 @@ namespace DurableTask
         public const int TrackingTransientErrorBackOffSecs = 10;
         public const int TrackingNonTransientErrorBackOffSecs = 120;
         public const int TrackingDefaultMaxConcurrentItems = 20;
+
+        // Jumpstart constants
+        public static TimeSpan JumpStartDefaultInterval = TimeSpan.FromSeconds(5);
+        public static TimeSpan JumpStartDefaultIgnoreWindow = TimeSpan.FromMinutes(10);
 
         // message content type constants
         public const string CompressionTypePropertyName = "CompressionType";

@@ -21,5 +21,6 @@ namespace DurableTask
     {
         public MessageSession Session;
         public Dictionary<Guid, BrokeredMessage> LockTokens;
+        public long SequenceNumber;
     }
 }

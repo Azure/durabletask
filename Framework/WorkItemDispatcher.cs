@@ -159,7 +159,7 @@ namespace DurableTask
                 if (concurrentWorkItemCount >= MaxConcurrentWorkItems)
                 {
                     TraceHelper.Trace(TraceEventType.Information,
-                        GetFormattedLog($"Max concurrent operations are already in progress. Waiting for {WaitIntervalOnMaxSessions}s for next accept."));
+                        GetFormattedLog($"Max concurrent operations ({concurrentWorkItemCount}) are already in progress. Waiting for {WaitIntervalOnMaxSessions}s for next accept."));
                     await Task.Delay(WaitIntervalOnMaxSessions);
                     continue;
                 }
@@ -170,8 +170,11 @@ namespace DurableTask
                 {
                     isFetching = true;
                     TraceHelper.Trace(TraceEventType.Information,
-                        GetFormattedLog($"Starting fetch with timeout of {DefaultReceiveTimeout}"));
+                        GetFormattedLog($"Starting fetch with timeout of {DefaultReceiveTimeout} ({concurrentWorkItemCount}/{MaxConcurrentWorkItems} max)"));
+                    var timer = Stopwatch.StartNew();
                     workItem = await FetchWorkItem(DefaultReceiveTimeout);
+                    TraceHelper.Trace(TraceEventType.Verbose,
+                        GetFormattedLog($"After Fetch ({timer.ElapsedMilliseconds} ms) ({concurrentWorkItemCount}/{MaxConcurrentWorkItems} max)"));
                 }
                 catch (TimeoutException)
                 {

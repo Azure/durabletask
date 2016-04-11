@@ -31,6 +31,7 @@ namespace DurableTask.Settings
             TaskOrchestrationDispatcherSettings = new TaskOrchestrationDispatcherSettings();
             TaskActivityDispatcherSettings = new TaskActivityDispatcherSettings();
             TrackingDispatcherSettings = new TrackingDispatcherSettings();
+            JumpStartSettings = new JumpStartSettings();
             MessageCompressionSettings = new CompressionSettings
             {
                 Style = CompressionStyle.Never,
@@ -70,6 +71,11 @@ namespace DurableTask.Settings
         /// Gets the max retries
         /// </summary>
         public int MaxRetries { get; } = 5;
+
+        /// <summary>
+        /// Settings for the JumpStartManager
+        /// </summary>
+        public JumpStartSettings JumpStartSettings { get; private set; }
 
         /// <summary>
         ///     Settings to configure the Task Orchestration Dispatcher

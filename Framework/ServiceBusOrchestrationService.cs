@@ -79,13 +79,11 @@ namespace DurableTask
         /// <param name="hubName">Hubname to use with the connection string</param>
         /// <param name="instanceStore">Instance store Provider, where state and history messages will be stored</param>
         /// <param name="settings">Settings object for service and client</param>
-        /// <param name="jumpStartAttemptInterval">Time to wait before jumpstarting an unscheduled orchestration</param>
         public ServiceBusOrchestrationService(
             string connectionString,
             string hubName,
             IOrchestrationServiceInstanceStore instanceStore,
-            ServiceBusOrchestrationServiceSettings settings,
-            TimeSpan jumpStartAttemptInterval)
+            ServiceBusOrchestrationServiceSettings settings)
         {
             this.connectionString = connectionString;
             this.hubName = hubName;
@@ -104,10 +102,14 @@ namespace DurableTask
                     this.ProcessTrackingWorkItemAsync)
                 {
                     GetDelayInSecondsAfterOnFetchException = GetDelayInSecondsAfterOnFetchException,
-                    GetDelayInSecondsAfterOnProcessException = GetDelayInSecondsAfterOnProcessException
+                    GetDelayInSecondsAfterOnProcessException = GetDelayInSecondsAfterOnProcessException,
+                    MaxConcurrentWorkItems = this.Settings.TrackingDispatcherSettings.MaxConcurrentTrackingSessions
                 };
 
-                jumpStartManager = new JumpStartManager(this, jumpStartAttemptInterval);
+                if (this.Settings.JumpStartSettings.JumpStartEnabled)
+                {
+                    jumpStartManager = new JumpStartManager(this, this.Settings.JumpStartSettings.Interval, this.Settings.JumpStartSettings.IgnoreWindow);
+                }
             }
         }
 
@@ -380,7 +382,7 @@ namespace DurableTask
         /// <param name="cancellationToken">The cancellation token to cancel execution of the task</param>
         public async Task<TaskOrchestrationWorkItem> LockNextTaskOrchestrationWorkItemAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken)
         {
-            MessageSession session = await orchestratorQueueClient.AcceptMessageSessionAsync(receiveTimeout);
+            MessageSession session = await this.orchestratorQueueClient.AcceptMessageSessionAsync(receiveTimeout);
 
             if (session == null)
             {
@@ -389,27 +391,34 @@ namespace DurableTask
 
             // TODO : Here and elsewhere, consider standard retry block instead of our own hand rolled version
             IList<BrokeredMessage> newMessages =
-                (await Utils.ExecuteWithRetries(() => session.ReceiveBatchAsync(Settings.PrefetchCount),
-                    session.SessionId, "Receive Session Message Batch", Settings.MaxRetries, Settings.IntervalBetweenRetriesSecs)).ToList();
+                (await Utils.ExecuteWithRetries(() => session.ReceiveBatchAsync(this.Settings.PrefetchCount),
+                    session.SessionId, "Receive Session Message Batch", this.Settings.MaxRetries, Settings.IntervalBetweenRetriesSecs)).ToList();
 
             TraceHelper.TraceSession(TraceEventType.Information, session.SessionId,
-                GetFormattedLog($"{newMessages.Count()} new messages to process: {string.Join(",", newMessages.Select(m => m.MessageId))}"));
+                this.GetFormattedLog($@"{newMessages.Count()} new messages to process: {
+                    string.Join(",", newMessages.Select(m => m.MessageId))}"));
 
-            ServiceBusUtils.CheckAndLogDeliveryCount(session.SessionId, newMessages, Settings.MaxTaskOrchestrationDeliveryCount);
+            ServiceBusUtils.CheckAndLogDeliveryCount(session.SessionId, newMessages, this.Settings.MaxTaskOrchestrationDeliveryCount);
 
             IList<TaskMessage> newTaskMessages = await Task.WhenAll(
                 newMessages.Select(async message => await ServiceBusUtils.GetObjectFromBrokeredMessageAsync<TaskMessage>(message)));
 
             OrchestrationRuntimeState runtimeState = await GetSessionState(session);
 
-            var lockTokens = newMessages.ToDictionary(m => m.LockToken, m => m);
+            long maxSequenceNumber = newMessages
+                .OrderByDescending(message => message.SequenceNumber)
+                .Select(message => message.SequenceNumber)
+                .First();
+
+            Dictionary<Guid, BrokeredMessage> lockTokens = newMessages.ToDictionary(m => m.LockToken, m => m);
             var sessionState = new ServiceBusOrchestrationSession
             {
                 Session = session,
-                LockTokens = lockTokens
+                LockTokens = lockTokens,
+                SequenceNumber = maxSequenceNumber
             };
 
-            if (!orchestrationSessions.TryAdd(session.SessionId, sessionState))
+            if (!this.orchestrationSessions.TryAdd(session.SessionId, sessionState))
             {
                 var error = $"Duplicate orchestration session id '{session.SessionId}', id already exists in session list.";
                 TraceHelper.Trace(TraceEventType.Error, error);
@@ -418,11 +427,11 @@ namespace DurableTask
 
             if (this.InstanceStore != null)
             {
-                TaskMessage executionStartedMessage = newTaskMessages.Where(m => m.Event is ExecutionStartedEvent).FirstOrDefault();
+                TaskMessage executionStartedMessage = newTaskMessages.FirstOrDefault(m => m.Event is ExecutionStartedEvent);
 
                 if (executionStartedMessage != null)
                 {
-                    await UpdateInstanceStoreAsync(executionStartedMessage.Event as ExecutionStartedEvent);
+                    await this.UpdateInstanceStoreAsync(executionStartedMessage.Event as ExecutionStartedEvent);
                 }
             }
 
@@ -594,7 +603,7 @@ namespace DurableTask
 
                     if (InstanceStore != null)
                     {
-                        List<BrokeredMessage> trackingMessages = CreateTrackingMessages(runtimeState);
+                        List<BrokeredMessage> trackingMessages = CreateTrackingMessages(runtimeState, sessionState.SequenceNumber);
 
                         TraceHelper.TraceInstance(TraceEventType.Information, runtimeState.OrchestrationInstance,
                             "Created {0} tracking messages", trackingMessages.Count);
@@ -1030,7 +1039,7 @@ namespace DurableTask
         ///     Creates a list of tracking message for the supplied orchestration state
         /// </summary>
         /// <param name="runtimeState">The orchestation runtime state</param>
-        List<BrokeredMessage> CreateTrackingMessages(OrchestrationRuntimeState runtimeState)
+        List<BrokeredMessage> CreateTrackingMessages(OrchestrationRuntimeState runtimeState, long sequenceNumber)
         {
             var trackingMessages = new List<BrokeredMessage>();
 
@@ -1064,6 +1073,7 @@ namespace DurableTask
             var stateMessage = new TaskMessage
             {
                 Event = new HistoryStateEvent(-1, Utils.BuildOrchestrationState(runtimeState)),
+                SequenceNumber = sequenceNumber,
                 OrchestrationInstance = runtimeState.OrchestrationInstance
             };
 

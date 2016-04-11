@@ -81,7 +81,9 @@ namespace DurableTask.Common
                 }
 
                 brokeredMessage.SessionId = instance?.InstanceId;
-
+                // TODO : Test more if this helps, initial tests shows not change in performance
+                // brokeredMessage.ViaPartitionKey = instance?.InstanceId;
+                
                 return brokeredMessage;
             }
             finally

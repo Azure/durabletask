@@ -26,14 +26,20 @@ namespace DurableTask.Tracking
     internal class JumpStartManager
     {
         readonly ServiceBusOrchestrationService service;
-        readonly TimeSpan jumpStartAttemptInterval;
+        readonly TimeSpan interval;
+        readonly TimeSpan intervalOnTimeout = TimeSpan.MinValue;
+        readonly TimeSpan ignoreWindow;
         volatile int isStarted;
 
-        public JumpStartManager(ServiceBusOrchestrationService service, TimeSpan jumpStartAttemptInterval)
+        public JumpStartManager(
+            ServiceBusOrchestrationService service,
+            TimeSpan interval,
+            TimeSpan ignoreWindow)
         {
             isStarted = 0;
             this.service = service;
-            this.jumpStartAttemptInterval = jumpStartAttemptInterval;
+            this.interval = interval;
+            this.ignoreWindow = ignoreWindow;
         }
 
         public Task StartAsync()
@@ -65,7 +71,7 @@ namespace DurableTask.Tracking
         {
             while (isStarted == 1)
             {
-                int delaySecs = 5;
+                TimeSpan delay = this.interval;
                 try
                 {
                     TraceHelper.Trace(TraceEventType.Information, "Jump start starting fetch");
@@ -80,13 +86,13 @@ namespace DurableTask.Tracking
                 }
                 catch (TimeoutException)
                 {
-                    delaySecs = 0;
+                    delay = this.intervalOnTimeout;
                 }
                 catch (TaskCanceledException exception)
                 {
                     TraceHelper.Trace(TraceEventType.Information,
                         $"JumpStartManager: TaskCanceledException while fetching state entities, should be harmless: {exception.Message}");
-                    delaySecs = 5;
+                    delay = this.interval;
                 }
                 catch (Exception exception) when (!Utils.IsFatal(exception))
                 {
@@ -99,25 +105,25 @@ namespace DurableTask.Tracking
                     {
                         TraceHelper.TraceException(TraceEventType.Warning, exception,
                             "JumpStartManager: Exception while fetching/processing state entities");
-                        delaySecs = 5;
+                        delay = this.interval;
                     }
                 }
 
-                await Task.Delay(TimeSpan.FromSeconds(delaySecs));
+                await Task.Delay(delay);
             }
         }
 
         protected async Task JumpStartOrchestrationAsync(OrchestrationJumpStartEvent jumpStartEntity)
         {
             var instance = jumpStartEntity.State.OrchestrationInstance;
-            OrchestrationStateHistoryEvent stateEntity = (await this.service.InstanceStore.GetEntitesAsync(instance.InstanceId, instance.ExecutionId)).FirstOrDefault();
+            OrchestrationStateHistoryEvent stateEntity = (await this.service.InstanceStore.GetEntitesAsync(instance.InstanceId, instance.ExecutionId))?.FirstOrDefault();
             if (stateEntity != null)
             {
                 // It seems orchestration started, delete entity from JumpStart table
                 await this.service.InstanceStore.DeleteJumpStartEntitesAsync(new[] { jumpStartEntity });
             }
             else if (jumpStartEntity.JumpStartTime == DateTime.MinValue &&
-                jumpStartEntity.State.CreatedTime + jumpStartAttemptInterval < DateTime.UtcNow)
+                jumpStartEntity.State.CreatedTime + this.ignoreWindow < DateTime.UtcNow)
             {
                 // JumpStart orchestration
                 var startedEvent = new ExecutionStartedEvent(-1, jumpStartEntity.State.Input)

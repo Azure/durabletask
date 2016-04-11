@@ -52,7 +52,8 @@ namespace FrameworkUnitTests
             var settings = new ServiceBusOrchestrationServiceSettings
             {
                 TaskOrchestrationDispatcherSettings = { CompressOrchestrationState = true },
-                MessageCompressionSettings = new CompressionSettings { Style = style, ThresholdInBytes = 1024 }
+                MessageCompressionSettings = new CompressionSettings { Style = style, ThresholdInBytes = 1024 },
+                JumpStartSettings = { JumpStartEnabled = false }
             };
 
             return settings;
@@ -80,8 +81,7 @@ namespace FrameworkUnitTests
                 ServiceBusConnectionString,
                 TaskHubName,
                 new AzureTableInstanceStore(TaskHubName, StorageConnectionString),
-                settings,
-                jumpStartAttemptInterval);
+                settings);
             return service;
         }
 
@@ -92,8 +92,7 @@ namespace FrameworkUnitTests
                 ServiceBusConnectionString,
                 TaskHubName,
                 new AzureTableInstanceStore(TaskHubName, StorageConnectionString),
-                settings,
-                TimeSpan.FromMinutes(1));
+                settings);
             return service;
         }
 
