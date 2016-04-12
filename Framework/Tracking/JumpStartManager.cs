@@ -71,7 +71,7 @@ namespace DurableTask.Tracking
                     TraceHelper.Trace(TraceEventType.Information, "Jump start starting fetch");
 
                     // TODO: Query in batchces and change timeframe only after curent range is finished
-                    IEnumerable<OrchestrationJumpStartEvent> entities = await this.service.InstanceStore.GetJumpStartEntitesAsync(1000);
+                    IEnumerable<OrchestrationJumpStartInstanceEntity> entities = await this.service.InstanceStore.GetJumpStartEntitesAsync(1000);
                     TraceHelper.Trace(TraceEventType.Information,
                         $"JumpStartManager: Fetched state entities count: {entities.Count()}");
                     var taskList = new List<Task>();
@@ -107,10 +107,10 @@ namespace DurableTask.Tracking
             }
         }
 
-        protected async Task JumpStartOrchestrationAsync(OrchestrationJumpStartEvent jumpStartEntity)
+        protected async Task JumpStartOrchestrationAsync(OrchestrationJumpStartInstanceEntity jumpStartEntity)
         {
             var instance = jumpStartEntity.State.OrchestrationInstance;
-            OrchestrationStateHistoryEvent stateEntity = (await this.service.InstanceStore.GetEntitesAsync(instance.InstanceId, instance.ExecutionId)).FirstOrDefault();
+            OrchestrationStateInstanceEntity stateEntity = (await this.service.InstanceStore.GetEntitesAsync(instance.InstanceId, instance.ExecutionId)).FirstOrDefault();
             if (stateEntity != null)
             {
                 // It seems orchestration started, delete entity from JumpStart table

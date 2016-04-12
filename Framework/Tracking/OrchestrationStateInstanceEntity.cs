@@ -13,11 +13,8 @@
 
 namespace DurableTask.Tracking
 {
-    using System;
-
-    public class OrchestrationJumpStartEvent : OrchestrationHistoryEvent
+    public class OrchestrationStateInstanceEntity : InstanceEntityBase
     {
-        public DateTime JumpStartTime;
         public OrchestrationState State;
     }
 }

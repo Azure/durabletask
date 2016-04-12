@@ -44,7 +44,7 @@ namespace DurableTask
         /// Writes a list of history events to instance store
         /// </summary>
         /// <param name="entities">List of history events to write</param>
-        Task<object> WriteEntitesAsync(IEnumerable<OrchestrationHistoryEvent> entities);
+        Task<object> WriteEntitesAsync(IEnumerable<InstanceEntityBase> entities);
 
         /// <summary>
         /// Get a list of state events from instance store
@@ -52,13 +52,13 @@ namespace DurableTask
         /// <param name="instanceId">The instance id to return state for</param>
         /// <param name="executionId">The execution id to return state for</param>
         /// <returns>The matching orchestation state or null if not found</returns>
-        Task<IEnumerable<OrchestrationStateHistoryEvent>> GetEntitesAsync(string instanceId, string executionId);
+        Task<IEnumerable<OrchestrationStateInstanceEntity>> GetEntitesAsync(string instanceId, string executionId);
 
         /// <summary>
         /// Deletes a list of history events from instance store
         /// </summary>
         /// <param name="entities">List of history events to delete</param>
-        Task<object> DeleteEntitesAsync(IEnumerable<OrchestrationHistoryEvent> entities);
+        Task<object> DeleteEntitesAsync(IEnumerable<InstanceEntityBase> entities);
 
         /// <summary>
         /// Gets a list of orchestration states for a given instance
@@ -66,7 +66,7 @@ namespace DurableTask
         /// <param name="instanceId">The instance id to return state for</param>
         /// <param name="allInstances">Flag indiciation whether to get all history execution ids or just the most recent</param>
         /// <returns>List of matching orchestration states</returns>
-        Task<IEnumerable<OrchestrationStateHistoryEvent>> GetOrchestrationStateAsync(string instanceId, bool allInstances);
+        Task<IEnumerable<OrchestrationStateInstanceEntity>> GetOrchestrationStateAsync(string instanceId, bool allInstances);
 
         /// <summary>
         /// Gets the orchestration state for a given instance and execution id
@@ -74,7 +74,7 @@ namespace DurableTask
         /// <param name="instanceId">The instance id to return state for</param>
         /// <param name="executionId">The execution id to return state for</param>
         /// <returns>The matching orchestation state or null if not found</returns>
-        Task<OrchestrationStateHistoryEvent> GetOrchestrationStateAsync(string instanceId, string executionId);
+        Task<OrchestrationStateInstanceEntity> GetOrchestrationStateAsync(string instanceId, string executionId);
 
         /// <summary>
         /// Gets the list of history events for a given instance and execution id
@@ -82,7 +82,7 @@ namespace DurableTask
         /// <param name="instanceId">The instance id to return history for</param>
         /// <param name="executionId">The execution id to return history for</param>
         /// <returns>List of history events</returns>
-        Task<IEnumerable<OrchestrationWorkItemEvent>> GetOrchestrationHistoryEventsAsync(string instanceId, string executionId);
+        Task<IEnumerable<OrchestrationWorkItemInstanceEntity>> GetOrchestrationHistoryEventsAsync(string instanceId, string executionId);
 
         /// <summary>
         /// Purges history from storage for given time range
@@ -96,18 +96,18 @@ namespace DurableTask
         /// Writes a list of jump start events to instance store
         /// </summary>
         /// <param name="entities">List of jump start events to write</param>
-        Task<object> WriteJumpStartEntitesAsync(IEnumerable<OrchestrationJumpStartEvent> entities);
+        Task<object> WriteJumpStartEntitesAsync(IEnumerable<OrchestrationJumpStartInstanceEntity> entities);
 
         /// <summary>
         /// Deletes a list of jump start events from instance store
         /// </summary>
         /// <param name="entities">List of jump start events to delete</param>
-        Task<object> DeleteJumpStartEntitesAsync(IEnumerable<OrchestrationJumpStartEvent> entities);
+        Task<object> DeleteJumpStartEntitesAsync(IEnumerable<OrchestrationJumpStartInstanceEntity> entities);
 
         /// <summary>
         /// Get a list of jump start events from instance store
         /// </summary>
         /// <returns>List of jump start events</returns>
-        Task<IEnumerable<OrchestrationJumpStartEvent>> GetJumpStartEntitesAsync(int top);
+        Task<IEnumerable<OrchestrationJumpStartInstanceEntity>> GetJumpStartEntitesAsync(int top);
     }
 }

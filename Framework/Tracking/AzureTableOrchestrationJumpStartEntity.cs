@@ -28,17 +28,17 @@ namespace DurableTask.Tracking
         {
         }
 
-        public AzureTableOrchestrationJumpStartEntity(OrchestrationJumpStartEvent jumpStartEvent)
+        public AzureTableOrchestrationJumpStartEntity(OrchestrationJumpStartInstanceEntity jumpStartEvent)
             : base(jumpStartEvent.State)
         {
             this.JumpStartTime = jumpStartEvent.JumpStartTime;
         }
 
-        public OrchestrationJumpStartEvent OrchestrationJumpStartEvent
+        public OrchestrationJumpStartInstanceEntity OrchestrationJumpStartInstanceEntity
         {
             get
             {
-                return new OrchestrationJumpStartEvent()
+                return new OrchestrationJumpStartInstanceEntity()
                 {
                     State = this.State,
                     JumpStartTime = this.JumpStartTime
@@ -48,7 +48,7 @@ namespace DurableTask.Tracking
 
         internal override IEnumerable<ITableEntity> BuildDenormalizedEntities()
         {
-            var entity1 = new AzureTableOrchestrationJumpStartEntity(this.OrchestrationJumpStartEvent);
+            var entity1 = new AzureTableOrchestrationJumpStartEntity(this.OrchestrationJumpStartInstanceEntity);
             entity1.TaskTimeStamp = this.TaskTimeStamp;
             entity1.PartitionKey = GetPartitionKey(entity1.State.CreatedTime);
             entity1.RowKey = AzureTableConstants.InstanceStateExactRowPrefix +

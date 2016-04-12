@@ -110,10 +110,10 @@
     <Compile Include="TrackingWorkItem.cs" />
     <Compile Include="Tracking\AzureTableInstanceStore.cs" />
     <Compile Include="Tracking\JumpStartManager.cs" />
-    <Compile Include="Tracking\OrchestrationHistoryEvent.cs" />
-    <Compile Include="Tracking\OrchestrationJumpStartEvent.cs" />
-    <Compile Include="Tracking\OrchestrationStateHistoryEvent.cs" />
-    <Compile Include="Tracking\OrchestrationWorkItemEvent.cs" />
+    <Compile Include="Tracking\InstanceEntityBase.cs" />
+    <Compile Include="Tracking\OrchestrationJumpStartInstanceEntity.cs" />
+    <Compile Include="Tracking\OrchestrationStateInstanceEntity.cs" />
+    <Compile Include="Tracking\OrchestrationWorkItemInstanceEntity.cs" />
     <Compile Include="WorkItemDispatcher.cs" />
     <Compile Include="OrchestrationRuntimeStateDump.cs" />
     <Compile Include="Common\ServiceBusUtils.cs" />

@@ -16,7 +16,7 @@ namespace DurableTask.Tracking
     using System;
     using DurableTask.History;
 
-    public class OrchestrationWorkItemEvent : OrchestrationHistoryEvent
+    public class OrchestrationWorkItemInstanceEntity : InstanceEntityBase
     {
         public string InstanceId;
         public string ExecutionId;

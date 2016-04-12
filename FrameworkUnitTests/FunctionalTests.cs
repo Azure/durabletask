@@ -15,6 +15,7 @@ namespace FrameworkUnitTests
 {
     using System;
     using System.Collections.Generic;
+    using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask;
@@ -676,6 +677,71 @@ namespace FrameworkUnitTests
             Assert.IsNotNull(state);
             Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus, TestHelpers.GetInstanceNotCompletedMessage(client, instance, 60));
             Assert.AreEqual(4, GenerationBasicOrchestration.Result, "Orchestration Result is wrong!!!");
+        }
+
+        #endregion
+
+        #region Concurrent suborchestrations test
+
+        [TestMethod]
+        public async Task ConcurrentSubOrchestrationsTest()
+        {
+            var c1 = new NameValueObjectCreator<TaskOrchestration>("UberOrchestration",
+                "V1", typeof(UberOrchestration));
+
+            var c2 = new NameValueObjectCreator<TaskOrchestration>("SleeperSubOrchestration",
+                "V1", typeof(SleeperSubOrchestration));
+
+            await taskHub.AddTaskOrchestrations(c1, c2)
+                .StartAsync();
+
+            int numSubOrchestrations = 50;
+
+            OrchestrationInstance instance = await client.CreateOrchestrationInstanceAsync(
+                "UberOrchestration",
+                "V1",
+                "TestInstance",
+                numSubOrchestrations);
+
+            // Waiting for 60 seconds guarantees that to pass the orchestrations must run in parallel
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, instance, 60);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, instance, 60));
+            Assert.AreEqual(numSubOrchestrations, UberOrchestration.Result, "Orchestration Result is wrong!!!");
+        }
+
+        class SleeperSubOrchestration : TaskOrchestration<int, int>
+        {
+            public override async Task<int> RunTask(OrchestrationContext context, int input)
+            {
+                string retState = await context.CreateTimer<string>(context.CurrentUtcDateTime + TimeSpan.FromSeconds(30), $"state: {input}");
+
+                return 1;
+            }
+        }
+
+        class UberOrchestration : TaskOrchestration<int, int>
+        {
+            // HACK: This is just a hack to communicate result of orchestration back to test
+            public static int Result;
+            public const string ChildWorkflowIdBase = "childtest";
+
+            public override async Task<int> RunTask(OrchestrationContext context, int iterations)
+            {
+                var tasks = new List<Task<int>>();
+                for (int i = 0; i < iterations; i++)
+                {
+                    tasks.Add(context.CreateSubOrchestrationInstance<int>(
+                        "SleeperSubOrchestration",
+                        "V1",
+                        $"{ChildWorkflowIdBase}_{i}",
+                        i));
+                }
+
+                int[] data = await Task.WhenAll(tasks);
+
+                Result = data.Sum();
+                return Result;
+            }
         }
 
         #endregion
