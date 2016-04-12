@@ -185,7 +185,7 @@ namespace DurableTask
                     catch (Exception exception) when (!Utils.IsFatal(exception))
                     {
                         // might have been completed
-                        TraceHelper.TraceException(TraceEventType.Information, exception, "Failed to renew lock for workitem {0}", workItem.Id);
+                        TraceHelper.TraceException(TraceEventType.Warning, exception, "Failed to renew lock for workitem {0}", workItem.Id);
                         break;
                     }
                 }

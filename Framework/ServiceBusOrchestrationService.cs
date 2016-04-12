@@ -461,7 +461,7 @@ namespace DurableTask
                 CompletedTime = DateTime.MinValue
             };
 
-            var orchestrationStateEntity = new OrchestrationStateHistoryEvent()
+            var orchestrationStateEntity = new OrchestrationStateInstanceEntity()
             {
                 State = orchestrationState,
             };
@@ -527,7 +527,6 @@ namespace DurableTask
             TaskMessage continuedAsNewMessage,
             OrchestrationState orchestrationState)
         {
-
             var runtimeState = workItem.OrchestrationRuntimeState;
             var sessionState = GetSessionInstanceForWorkItem(workItem);
             if (sessionState == null)
@@ -835,7 +834,7 @@ namespace DurableTask
                 LastUpdatedTime = createTime
             };
 
-            var jumpStartEntity = new OrchestrationJumpStartEvent()
+            var jumpStartEntity = new OrchestrationJumpStartInstanceEntity()
             {
                 State = orchestrationState,
                 JumpStartTime = DateTime.MinValue
@@ -934,7 +933,7 @@ namespace DurableTask
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
         {
             ThrowIfInstanceStoreNotConfigured();
-            IEnumerable<OrchestrationStateHistoryEvent> states = await InstanceStore.GetOrchestrationStateAsync(instanceId, allExecutions);
+            IEnumerable<OrchestrationStateInstanceEntity> states = await InstanceStore.GetOrchestrationStateAsync(instanceId, allExecutions);
             return states?.Select(s => s.State).ToList() ?? new List<OrchestrationState>();
         }
 
@@ -947,7 +946,7 @@ namespace DurableTask
         public async Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)
         {
             ThrowIfInstanceStoreNotConfigured();
-            OrchestrationStateHistoryEvent state = await InstanceStore.GetOrchestrationStateAsync(instanceId, executionId);
+            OrchestrationStateInstanceEntity state = await InstanceStore.GetOrchestrationStateAsync(instanceId, executionId);
             return state?.State;
         }
 
@@ -960,7 +959,7 @@ namespace DurableTask
         public async Task<string> GetOrchestrationHistoryAsync(string instanceId, string executionId)
         {
             ThrowIfInstanceStoreNotConfigured();
-            IEnumerable<OrchestrationWorkItemEvent> historyEvents =
+            IEnumerable<OrchestrationWorkItemInstanceEntity> historyEvents =
                 await InstanceStore.GetOrchestrationHistoryEventsAsync(instanceId, executionId);
 
             return DataConverter.Serialize(historyEvents.Select(historyEventEntity => historyEventEntity.HistoryEvent));
@@ -1099,14 +1098,14 @@ namespace DurableTask
                 throw new ArgumentNullException("SessionInstance");
             }
 
-            var historyEntities = new List<OrchestrationWorkItemEvent>();
-            var stateEntities = new List<OrchestrationStateHistoryEvent>();
+            var historyEntities = new List<OrchestrationWorkItemInstanceEntity>();
+            var stateEntities = new List<OrchestrationStateInstanceEntity>();
 
             foreach (TaskMessage taskMessage in workItem.NewMessages)
             {
                 if (taskMessage.Event.EventType == EventType.HistoryState)
                 {
-                    stateEntities.Add(new OrchestrationStateHistoryEvent
+                    stateEntities.Add(new OrchestrationStateInstanceEntity
                     {
                         State = (taskMessage.Event as HistoryStateEvent)?.State,
                         SequenceNumber = taskMessage.SequenceNumber
@@ -1114,7 +1113,7 @@ namespace DurableTask
                 }
                 else
                 {
-                    historyEntities.Add(new OrchestrationWorkItemEvent
+                    historyEntities.Add(new OrchestrationWorkItemInstanceEntity
                     {
                         InstanceId = taskMessage.OrchestrationInstance.InstanceId,
                         ExecutionId = taskMessage.OrchestrationInstance.ExecutionId,
@@ -1141,9 +1140,9 @@ namespace DurableTask
             try
             {
                 // TODO : send batch to instance store, it can write it as individual if it chooses
-                foreach (OrchestrationStateHistoryEvent stateEntity in stateEntities)
+                foreach (OrchestrationStateInstanceEntity stateEntity in stateEntities)
                 {
-                    await InstanceStore.WriteEntitesAsync(new List<OrchestrationStateHistoryEvent> { stateEntity });
+                    await InstanceStore.WriteEntitesAsync(new List<OrchestrationStateInstanceEntity> { stateEntity });
                 }
             }
             catch (Exception e) when (!Utils.IsFatal(e))
@@ -1172,7 +1171,7 @@ namespace DurableTask
             }
         }
 
-        string GetNormalizedStateEvent(int index, string message, OrchestrationStateHistoryEvent stateEntity)
+        string GetNormalizedStateEvent(int index, string message, OrchestrationStateInstanceEntity stateEntity)
         {
             string serializedHistoryEvent = Utils.EscapeJson(DataConverter.Serialize(stateEntity.State));
             int historyEventLength = serializedHistoryEvent.Length;
@@ -1190,7 +1189,7 @@ namespace DurableTask
                 + $" State Length: {historyEventLength}\n{serializedHistoryEvent}");
         }
 
-        string GetNormalizedWorkItemEvent(int index, string message, OrchestrationWorkItemEvent entity)
+        string GetNormalizedWorkItemEvent(int index, string message, OrchestrationWorkItemInstanceEntity entity)
         {
             string serializedHistoryEvent = Utils.EscapeJson(DataConverter.Serialize(entity.HistoryEvent));
             int historyEventLength = serializedHistoryEvent.Length;

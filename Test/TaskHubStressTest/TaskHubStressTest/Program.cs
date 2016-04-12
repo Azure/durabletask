@@ -41,7 +41,7 @@ namespace TaskHubStressTest
                 };
 
                 ServiceBusOrchestrationService orchestrationServiceAndClient =
-                    new ServiceBusOrchestrationService(connectionString, taskHubName, instanceStore, settings);
+                    new ServiceBusOrchestrationService(connectionString, taskHubName, instanceStore, settings, TimeSpan.FromMinutes(10));
 
 
                 TaskHubClient taskHubClient = new TaskHubClient(orchestrationServiceAndClient);

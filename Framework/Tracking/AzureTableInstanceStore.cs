@@ -81,7 +81,7 @@ namespace DurableTask.Tracking
         /// Writes a list of history events to storage with retries for transient errors
         /// </summary>
         /// <param name="entities">List of history events to write</param>
-        public async Task<object> WriteEntitesAsync(IEnumerable<OrchestrationHistoryEvent> entities)
+        public async Task<object> WriteEntitesAsync(IEnumerable<InstanceEntityBase> entities)
         {
             return await Utils.ExecuteWithRetries(() => this.tableClient.WriteEntitesAsync(entities.Select(HistoryEventToTableEntity)),
                                 string.Empty,
@@ -96,7 +96,7 @@ namespace DurableTask.Tracking
         /// <param name="instanceId">The instance id to return state for</param>
         /// <param name="executionId">The execution id to return state for</param>
         /// <returns>The matching orchestation state or null if not found</returns>
-        public async Task<IEnumerable<OrchestrationStateHistoryEvent>> GetEntitesAsync(string instanceId, string executionId)
+        public async Task<IEnumerable<OrchestrationStateInstanceEntity>> GetEntitesAsync(string instanceId, string executionId)
         {
             IEnumerable<AzureTableOrchestrationStateEntity> results =
                 await this.tableClient.QueryOrchestrationStatesAsync(
@@ -109,7 +109,7 @@ namespace DurableTask.Tracking
         /// Deletes a list of history events from storage with retries for transient errors
         /// </summary>
         /// <param name="entities">List of history events to delete</param>
-        public async Task<object> DeleteEntitesAsync(IEnumerable<OrchestrationHistoryEvent> entities)
+        public async Task<object> DeleteEntitesAsync(IEnumerable<InstanceEntityBase> entities)
         {
             return await Utils.ExecuteWithRetries(() => this.tableClient.DeleteEntitesAsync(entities.Select(HistoryEventToTableEntity)),
                                 string.Empty,
@@ -124,7 +124,7 @@ namespace DurableTask.Tracking
         /// <param name="instanceId">The instance id to return state for</param>
         /// <param name="allInstances">Flag indiciation whether to get all history execution ids or just the most recent</param>
         /// <returns>List of matching orchestration states</returns>
-        public async Task<IEnumerable<OrchestrationStateHistoryEvent>> GetOrchestrationStateAsync(string instanceId, bool allInstances)
+        public async Task<IEnumerable<OrchestrationStateInstanceEntity>> GetOrchestrationStateAsync(string instanceId, bool allInstances)
         {
             IEnumerable<AzureTableOrchestrationStateEntity> stateEntities =
                             await tableClient.QueryOrchestrationStatesAsync(new OrchestrationStateQuery()
@@ -150,7 +150,7 @@ namespace DurableTask.Tracking
                 // TODO: This will just return the first non-ContinuedAsNew orchestration and not the latest one.
                 if (state.OrchestrationStatus != OrchestrationStatus.ContinuedAsNew)
                 {
-                    return new List<OrchestrationStateHistoryEvent>() { TableStateToStateEvent(state) };
+                    return new List<OrchestrationStateInstanceEntity>() { TableStateToStateEvent(state) };
                 }
             }
 
@@ -163,7 +163,7 @@ namespace DurableTask.Tracking
         /// <param name="instanceId">The instance id to return state for</param>
         /// <param name="executionId">The execution id to return state for</param>
         /// <returns>The matching orchestation state or null if not found</returns>
-        public async Task<OrchestrationStateHistoryEvent> GetOrchestrationStateAsync(string instanceId, string executionId)
+        public async Task<OrchestrationStateInstanceEntity> GetOrchestrationStateAsync(string instanceId, string executionId)
         {
             AzureTableOrchestrationStateEntity result =
                 (await this.tableClient.QueryOrchestrationStatesAsync(
@@ -189,7 +189,7 @@ namespace DurableTask.Tracking
         /// <param name="instanceId">The instance id to return history for</param>
         /// <param name="executionId">The execution id to return history for</param>
         /// <returns>List of history events</returns>
-        public async Task<IEnumerable<OrchestrationWorkItemEvent>> GetOrchestrationHistoryEventsAsync(string instanceId, string executionId)
+        public async Task<IEnumerable<OrchestrationWorkItemInstanceEntity>> GetOrchestrationHistoryEventsAsync(string instanceId, string executionId)
         {
             IEnumerable<AzureTableOrchestrationHistoryEventEntity> entities =
                 await this.tableClient.ReadOrchestrationHistoryEventsAsync(instanceId, executionId);
@@ -324,7 +324,7 @@ namespace DurableTask.Tracking
         /// Writes a list of jump start events to instance store
         /// </summary>
         /// <param name="entities">List of jump start events to write</param>
-        public Task<object> WriteJumpStartEntitesAsync(IEnumerable<OrchestrationJumpStartEvent> entities)
+        public Task<object> WriteJumpStartEntitesAsync(IEnumerable<OrchestrationJumpStartInstanceEntity> entities)
         {
             var jumpStartEntities = entities.Select(e => new AzureTableOrchestrationJumpStartEntity(e));
             return this.tableClient.WriteJumpStartEntitesAsync(jumpStartEntities);
@@ -334,7 +334,7 @@ namespace DurableTask.Tracking
         /// Deletes a list of jump start events from instance store
         /// </summary>
         /// <param name="entities">List of jump start events to delete</param>
-        public Task<object> DeleteJumpStartEntitesAsync(IEnumerable<OrchestrationJumpStartEvent> entities)
+        public Task<object> DeleteJumpStartEntitesAsync(IEnumerable<OrchestrationJumpStartInstanceEntity> entities)
         {
             var jumpStartEntities = entities.Select(e => new AzureTableOrchestrationJumpStartEntity(e));
             return this.tableClient.DeleteJumpStartEntitesAsync(jumpStartEntities);
@@ -344,20 +344,20 @@ namespace DurableTask.Tracking
         /// Get a list of jump start events from instance store
         /// </summary>
         /// <returns>List of jump start events</returns>
-        public async Task<IEnumerable<OrchestrationJumpStartEvent>> GetJumpStartEntitesAsync(int top)
+        public async Task<IEnumerable<OrchestrationJumpStartInstanceEntity>> GetJumpStartEntitesAsync(int top)
         {
             return (await this.tableClient.QueryJumpStartOrchestrationsAsync(
                         DateTime.UtcNow.AddDays(-AzureTableClient.JumpStartTableScanIntervalInDays),
                         DateTime.UtcNow,
-                        top)).Select(e => e.OrchestrationJumpStartEvent);
+                        top)).Select(e => e.OrchestrationJumpStartInstanceEntity);
         }
 
-        AzureTableCompositeTableEntity HistoryEventToTableEntity(OrchestrationHistoryEvent historyEvent)
+        AzureTableCompositeTableEntity HistoryEventToTableEntity(InstanceEntityBase historyEvent)
         {
-            OrchestrationWorkItemEvent workItemEvent = null;
-            OrchestrationStateHistoryEvent historyStateEvent = null;
+            OrchestrationWorkItemInstanceEntity workItemEvent = null;
+            OrchestrationStateInstanceEntity historyStateEvent = null;
 
-            if ((workItemEvent = historyEvent as OrchestrationWorkItemEvent) != null)
+            if ((workItemEvent = historyEvent as OrchestrationWorkItemInstanceEntity) != null)
             {
                 return new AzureTableOrchestrationHistoryEventEntity(
                     workItemEvent.InstanceId,
@@ -366,7 +366,7 @@ namespace DurableTask.Tracking
                     workItemEvent.EventTimestamp,
                     workItemEvent.HistoryEvent);
             }
-            else if ((historyStateEvent = historyEvent as OrchestrationStateHistoryEvent) != null)
+            else if ((historyStateEvent = historyEvent as OrchestrationStateInstanceEntity) != null)
             {
                 return new AzureTableOrchestrationStateEntity(historyStateEvent.State);
             }
@@ -376,14 +376,14 @@ namespace DurableTask.Tracking
             }
         }
 
-        OrchestrationHistoryEvent TableEntityToHistoryEvent(AzureTableCompositeTableEntity entity)
+        InstanceEntityBase TableEntityToHistoryEvent(AzureTableCompositeTableEntity entity)
         {
             AzureTableOrchestrationHistoryEventEntity workItemEntity = null;
             AzureTableOrchestrationStateEntity historyStateEntity = null;
 
             if ((workItemEntity = entity as AzureTableOrchestrationHistoryEventEntity) != null)
             {
-                return new OrchestrationWorkItemEvent
+                return new OrchestrationWorkItemInstanceEntity
                 {
                     InstanceId = workItemEntity.InstanceId,
                     ExecutionId = workItemEntity.ExecutionId,
@@ -394,7 +394,7 @@ namespace DurableTask.Tracking
             }
             else if ((historyStateEntity = entity as AzureTableOrchestrationStateEntity) != null)
             {
-                return new OrchestrationStateHistoryEvent { State = historyStateEntity.State };
+                return new OrchestrationStateInstanceEntity { State = historyStateEntity.State };
             }
             else
             {
@@ -402,14 +402,14 @@ namespace DurableTask.Tracking
             }
         }
 
-        OrchestrationStateHistoryEvent TableStateToStateEvent(OrchestrationState state)
+        OrchestrationStateInstanceEntity TableStateToStateEvent(OrchestrationState state)
         {
-            return new OrchestrationStateHistoryEvent { State = state };
+            return new OrchestrationStateInstanceEntity { State = state };
         }
 
-        OrchestrationWorkItemEvent TableHistoryEntityToWorkItemEvent(AzureTableOrchestrationHistoryEventEntity entity)
+        OrchestrationWorkItemInstanceEntity TableHistoryEntityToWorkItemEvent(AzureTableOrchestrationHistoryEventEntity entity)
         {
-            return new OrchestrationWorkItemEvent
+            return new OrchestrationWorkItemInstanceEntity
             {
                 InstanceId = entity.InstanceId,
                 ExecutionId = entity.ExecutionId,

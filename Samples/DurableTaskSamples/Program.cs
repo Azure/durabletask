@@ -33,7 +33,7 @@
                 IOrchestrationServiceInstanceStore instanceStore = new AzureTableInstanceStore(taskHubName, storageConnectionString);
 
                 ServiceBusOrchestrationService orchestrationServiceAndClient =
-                    new ServiceBusOrchestrationService(servicebusConnectionString, taskHubName, instanceStore, null);
+                    new ServiceBusOrchestrationService(servicebusConnectionString, taskHubName, instanceStore, null, TimeSpan.FromMinutes(10));
 
                 TaskHubClient taskHubClient = new TaskHubClient(orchestrationServiceAndClient);
                 TaskHubWorker taskHub = new TaskHubWorker(orchestrationServiceAndClient);
