@@ -431,7 +431,7 @@ namespace DurableTask
 
                 if (executionStartedMessage != null)
                 {
-                    await this.UpdateInstanceStoreAsync(executionStartedMessage.Event as ExecutionStartedEvent);
+                    await this.UpdateInstanceStoreAsync(executionStartedMessage.Event as ExecutionStartedEvent, maxSequenceNumber);
                 }
             }
 
@@ -444,7 +444,7 @@ namespace DurableTask
             };
         }
 
-        Task UpdateInstanceStoreAsync(ExecutionStartedEvent executionStartedEvent)
+        Task UpdateInstanceStoreAsync(ExecutionStartedEvent executionStartedEvent, long sequenceNumber)
         {
             // TODO: Duplicate detection: Check if the orchestration already finished
 
@@ -464,6 +464,7 @@ namespace DurableTask
             var orchestrationStateEntity = new OrchestrationStateInstanceEntity()
             {
                 State = orchestrationState,
+                SequenceNumber = sequenceNumber
             };
 
             return this.InstanceStore.WriteEntitesAsync(new[] { orchestrationStateEntity });
