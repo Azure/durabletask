@@ -538,10 +538,19 @@ namespace DurableTask
 
             using (var ts = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled))
             {
+                Transaction.Current.TransactionCompleted += (o, e) =>
+                    TraceHelper.TraceInstance(
+                    e.Transaction.TransactionInformation.Status == TransactionStatus.Committed ? TraceEventType.Information : TraceEventType.Error,
+                    runtimeState.OrchestrationInstance,
+                    () => $@"Orchestration Transaction Completed {
+                        e.Transaction.TransactionInformation.LocalIdentifier
+                        } status: {
+                        e.Transaction.TransactionInformation.Status}");
+
                 TraceHelper.TraceInstance(
                     TraceEventType.Information,
                     runtimeState.OrchestrationInstance,
-                    () => $@"Created new orchestration transaction - txnid: {
+                    () => $@"Created new Orchestration Transaction - txnid: {
                         Transaction.Current.TransactionInformation.LocalIdentifier
                         }");
 
@@ -785,10 +794,19 @@ namespace DurableTask
 
             using (var ts = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled))
             {
+                Transaction.Current.TransactionCompleted += (o, e) =>
+                    TraceHelper.TraceInstance(
+                    e.Transaction.TransactionInformation.Status == TransactionStatus.Committed ? TraceEventType.Information : TraceEventType.Error,
+                    workItem.TaskMessage.OrchestrationInstance,
+                    () => $@"TaskActivity Transaction Completed {
+                        e.Transaction.TransactionInformation.LocalIdentifier
+                        } status: {
+                        e.Transaction.TransactionInformation.Status}");
+
                 TraceHelper.TraceInstance(
                     TraceEventType.Information,
                     workItem.TaskMessage.OrchestrationInstance,
-                    () => $@"Created new taskactivity transaction - txnid: {
+                    () => $@"Created new TaskActivity Transaction - txnid: {
                         Transaction.Current.TransactionInformation.LocalIdentifier
                         } - msg seq and locktoken: [SEQ: {originalMessage.SequenceNumber} LT: {originalMessage.LockToken}]");
 
