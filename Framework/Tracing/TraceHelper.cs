@@ -153,7 +153,8 @@ namespace DurableTask.Tracing
             if (source.Switch.ShouldTrace(eventType))
             {
                 string newFormat = format + "\nException: " + exception.GetType() + " : " + exception.Message + "\n\t" +
-                                   exception.StackTrace;
+                                   exception.StackTrace + "\nInner Exception: " +
+                                   exception.InnerException?.ToString();
                 ExceptionHandlingWrapper(
                     () => source.TraceEvent(eventType, 0, GetFormattedString(iid, eid, newFormat, args)));
             }
@@ -166,7 +167,8 @@ namespace DurableTask.Tracing
             if (source.Switch.ShouldTrace(eventType))
             {
                 string newFormat = generateMessage() + "\nException: " + exception.GetType() + " : " + exception.Message +
-                                   "\n\t" + exception.StackTrace;
+                                   "\n\t" + exception.StackTrace + "\nInner Exception: " +
+                                   exception.InnerException?.ToString();
                 ExceptionHandlingWrapper(
                     () => source.TraceEvent(eventType, 0, GetFormattedString(iid, eid, newFormat)));
             }

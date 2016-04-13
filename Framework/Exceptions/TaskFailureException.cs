@@ -31,10 +31,16 @@ namespace DurableTask.Exceptions
         {
         }
 
+        public TaskFailureException(string reason, Exception innerException, string details)
+            : base(reason, innerException)
+        {
+            this.Details = details;
+        }
+
         public TaskFailureException(string reason, string details)
             : base(reason)
         {
-            Details = details;
+            this.Details = details;
         }
 
         public string Details { get; set; }

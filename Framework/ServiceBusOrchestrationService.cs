@@ -715,7 +715,9 @@ namespace DurableTask
                 return null;
             }
 
-            return orchestrationMessages[workItem.Id];
+            BrokeredMessage message;
+            this.orchestrationMessages.TryGetValue(workItem.Id, out message);
+            return message;
         }
 
         BrokeredMessage GetAndDeleteBrokeredMessageForWorkItem(TaskActivityWorkItem workItem)
@@ -726,7 +728,7 @@ namespace DurableTask
             }
 
             BrokeredMessage existingMessage;
-            orchestrationMessages.TryRemove(workItem.Id, out existingMessage);
+            this.orchestrationMessages.TryRemove(workItem.Id, out existingMessage);
             return existingMessage;
         }
 
@@ -736,7 +738,7 @@ namespace DurableTask
         /// <param name="workItem">Work item to renew the lock on</param>
         public async Task<TaskActivityWorkItem> RenewTaskActivityWorkItemLockAsync(TaskActivityWorkItem workItem)
         {
-            var message = GetBrokeredMessageForWorkItem(workItem);
+            BrokeredMessage message = this.GetBrokeredMessageForWorkItem(workItem);
             if (message != null)
             {
                 await message.RenewLockAsync();
