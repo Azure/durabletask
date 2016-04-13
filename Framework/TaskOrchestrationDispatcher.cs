@@ -303,6 +303,20 @@ namespace DurableTask
             // TODO : make async, transactions are a bit tricky
             using (var ts = new TransactionScope())
             {
+                Transaction.Current.TransactionCompleted += (o, e) =>
+                {
+                    TraceHelper.TraceInstance(
+                     e.Transaction.TransactionInformation.Status == TransactionStatus.Committed ? TraceEventType.Information : TraceEventType.Error,
+                         runtimeState.OrchestrationInstance,
+                         () => "Transaction " + e.Transaction.TransactionInformation.LocalIdentifier + " status: " + e.Transaction.TransactionInformation.Status);
+                };
+
+                TraceHelper.TraceInstance(
+                    TraceEventType.Information,
+                    runtimeState.OrchestrationInstance,
+                    () => "Created new transaction - txnid: " +
+                                    Transaction.Current.TransactionInformation.LocalIdentifier);
+
                 bool isSessionSizeThresholdExceeded = false;
                 if (!continuedAsNew)
                 {
@@ -441,6 +455,15 @@ namespace DurableTask
                         }
                     }
                 }
+
+                TraceHelper.TraceInstance(
+                    TraceEventType.Information,
+                    runtimeState.OrchestrationInstance,
+                    () =>
+                    {
+                        string allIds = string.Join(" ", newMessages.Select(m => $"[SEQ: {m.SequenceNumber} LT: {m.LockToken}]"));
+                        return "Completing msgs seq and locktokens: " + allIds;
+                    });
 
                 IEnumerable<Guid> lockTokens = newMessages.Select(m => m.LockToken);
                 session.CompleteBatch(lockTokens);
