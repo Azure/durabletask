@@ -173,7 +173,7 @@ namespace DurableTask
                         GetFormattedLog($"Starting fetch with timeout of {DefaultReceiveTimeout} ({concurrentWorkItemCount}/{MaxConcurrentWorkItems} max)"));
                     var timer = Stopwatch.StartNew();
                     workItem = await FetchWorkItem(DefaultReceiveTimeout);
-                    TraceHelper.Trace(TraceEventType.Verbose,
+                    TraceHelper.Trace(TraceEventType.Information,
                         GetFormattedLog($"After Fetch ({timer.ElapsedMilliseconds} ms) ({concurrentWorkItemCount}/{MaxConcurrentWorkItems} max)"));
                 }
                 catch (TimeoutException)

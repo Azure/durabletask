@@ -538,11 +538,21 @@ namespace DurableTask
 
             using (var ts = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled))
             {
+                TraceHelper.TraceInstance(
+                    TraceEventType.Information,
+                    runtimeState.OrchestrationInstance,
+                    () => $@"Created new orchestration transaction - txnid: {
+                        Transaction.Current.TransactionInformation.LocalIdentifier
+                        }");
+
                 if (await TrySetSessionState(workItem, newOrchestrationRuntimeState, runtimeState, session))
                 {
                     if (runtimeState.CompressedSize > SessionStreamWarningSizeInBytes)
                     {
-                        TraceHelper.TraceSession(TraceEventType.Error, workItem.InstanceId, "Size of session state is nearing session size limit of 256KB");
+                        TraceHelper.TraceSession(
+                            TraceEventType.Error, 
+                            workItem.InstanceId, 
+                            $"Size of session state ({runtimeState.CompressedSize}B) is nearing session size limit of {SessionStreamTerminationThresholdInBytes}B");
                     }
 
                     // We need to .ToList() the IEnumerable otherwise GetBrokeredMessageFromObject gets called 5 times per message due to Service Bus doing multiple enumeration
@@ -613,6 +623,15 @@ namespace DurableTask
                         }
                     }
                 }
+
+                TraceHelper.TraceInstance(
+                    TraceEventType.Information,
+                    runtimeState.OrchestrationInstance,
+                    () =>
+                    {
+                        string allIds = string.Join(" ", sessionState.LockTokens.Values.Select(m => $"[SEQ: {m.SequenceNumber} LT: {m.LockToken}]"));
+                        return $"Completing orchestration msgs seq and locktokens: {allIds}";
+                    });
 
                 await session.CompleteBatchAsync(sessionState.LockTokens.Keys);
                 ts.Complete();
@@ -766,6 +785,13 @@ namespace DurableTask
 
             using (var ts = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled))
             {
+                TraceHelper.TraceInstance(
+                    TraceEventType.Information,
+                    workItem.TaskMessage.OrchestrationInstance,
+                    () => $@"Created new taskactivity transaction - txnid: {
+                        Transaction.Current.TransactionInformation.LocalIdentifier
+                        } - msg seq and locktoken: [SEQ: {originalMessage.SequenceNumber} LT: {originalMessage.LockToken}]");
+
                 await Task.WhenAll(
                     workerQueueClient.CompleteAsync(originalMessage.LockToken),
                     orchestratorSender.SendAsync(brokeredResponseMessage));
