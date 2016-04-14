@@ -16,6 +16,7 @@ namespace FrameworkUnitTests
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask;
@@ -695,13 +696,13 @@ namespace FrameworkUnitTests
             await taskHub.AddTaskOrchestrations(c1, c2)
                 .StartAsync();
 
-            int numSubOrchestrations = 50;
+            int numSubOrchestrations = 60;
 
             OrchestrationInstance instance = await client.CreateOrchestrationInstanceAsync(
                 "UberOrchestration",
                 "V1",
                 "TestInstance",
-                numSubOrchestrations);
+                new TestOrchestrationInput { Iterations = numSubOrchestrations, Payload = GeneratePayLoad(90 * 1024) });
 
             // Waiting for 60 seconds guarantees that to pass the orchestrations must run in parallel
             bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, instance, 60);
@@ -709,32 +710,50 @@ namespace FrameworkUnitTests
             Assert.AreEqual(numSubOrchestrations, UberOrchestration.Result, "Orchestration Result is wrong!!!");
         }
 
-        class SleeperSubOrchestration : TaskOrchestration<int, int>
+        private static string GeneratePayLoad(int length)
         {
-            public override async Task<int> RunTask(OrchestrationContext context, int input)
+            var result = new StringBuilder(length);
+            while (result.Length < length)
             {
-                string retState = await context.CreateTimer<string>(context.CurrentUtcDateTime + TimeSpan.FromSeconds(30), $"state: {input}");
+                // Use Guids so these don't compress well
+                result.Append(Guid.NewGuid().ToString("N"));
+            }
+
+            return result.ToString(0, length);
+        }
+
+        class TestOrchestrationInput
+        {
+            public int Iterations { get; set; }
+            public string Payload { get; set; }
+        }
+
+        class SleeperSubOrchestration : TaskOrchestration<int, TestOrchestrationInput>
+        {
+            public override async Task<int> RunTask(OrchestrationContext context, TestOrchestrationInput input)
+            {
+                string retState = await context.CreateTimer<string>(context.CurrentUtcDateTime + TimeSpan.FromSeconds(30), $"state: {input.Iterations}");
 
                 return 1;
             }
         }
 
-        class UberOrchestration : TaskOrchestration<int, int>
+        class UberOrchestration : TaskOrchestration<int, TestOrchestrationInput>
         {
             // HACK: This is just a hack to communicate result of orchestration back to test
             public static int Result;
             public const string ChildWorkflowIdBase = "childtest";
 
-            public override async Task<int> RunTask(OrchestrationContext context, int iterations)
+            public override async Task<int> RunTask(OrchestrationContext context, TestOrchestrationInput input)
             {
                 var tasks = new List<Task<int>>();
-                for (int i = 0; i < iterations; i++)
+                for (int i = 0; i < input.Iterations; i++)
                 {
                     tasks.Add(context.CreateSubOrchestrationInstance<int>(
                         "SleeperSubOrchestration",
                         "V1",
                         $"{ChildWorkflowIdBase}_{i}",
-                        i));
+                        new TestOrchestrationInput { Iterations = 1, Payload = GeneratePayLoad(8 * 1024) }));
                 }
 
                 int[] data = await Task.WhenAll(tasks);
