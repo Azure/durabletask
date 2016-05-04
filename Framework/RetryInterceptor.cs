@@ -19,12 +19,22 @@ namespace DurableTask
     using DurableTask.Common;
     using DurableTask.Tracing;
 
+    /// <summary>
+    /// Generic retry class to handle retries on a function call with specified retry options
+    /// </summary>
+    /// <typeparam name="T">Type to return from the called Func</typeparam>
     public class RetryInterceptor<T>
     {
         readonly OrchestrationContext context;
         readonly Func<Task<T>> retryCall;
         readonly RetryOptions retryOptions;
 
+        /// <summary>
+        /// Creates a new instance of the RetryInterceptor with specified parameters
+        /// </summary>
+        /// <param name="context">The orchestraion context of the function call</param>
+        /// <param name="retryOptions">The options for performing retries</param>
+        /// <param name="retryCall">The code to execute</param>
         public RetryInterceptor(OrchestrationContext context, RetryOptions retryOptions, Func<Task<T>> retryCall)
         {
             this.context = context;
@@ -32,6 +42,11 @@ namespace DurableTask
             this.retryCall = retryCall;
         }
 
+        /// <summary>
+        /// Invokes the method/code to call and retries on exception based on the retry options
+        /// </summary>
+        /// <returns>The return value of the supplied retry call</returns>
+        /// <exception cref="Exception">The final exception encountered if the call did not succeed</exception>
         public async Task<T> Invoke()
         {
             Exception lastException = null;

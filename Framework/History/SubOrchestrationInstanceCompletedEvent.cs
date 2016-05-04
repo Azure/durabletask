@@ -15,9 +15,18 @@ namespace DurableTask.History
 {
     using System.Runtime.Serialization;
 
+    /// <summary>
+    /// A history event for sub orchestration instance completion
+    /// </summary>
     [DataContract]
     public class SubOrchestrationInstanceCompletedEvent : HistoryEvent
     {
+        /// <summary>
+        /// Create a new SubOrchestrationInstanceCompletedEvent with the supplied params
+        /// </summary>
+        /// <param name="eventId">The event id of the history event</param>
+        /// <param name="taskScheduledId">The scheduled parent instance event id</param>
+        /// <param name="result">The serialized result</param>
         public SubOrchestrationInstanceCompletedEvent(int eventId, int taskScheduledId, string result)
             : base(eventId)
         {
@@ -25,14 +34,23 @@ namespace DurableTask.History
             Result = result;
         }
 
+        /// <summary>
+        /// Gets the event type
+        /// </summary>
         public override EventType EventType
         {
             get { return EventType.SubOrchestrationInstanceCompleted; }
         }
 
+        /// <summary>
+        /// Gets the scheduled parent instance event id
+        /// </summary>
         [DataMember]
         public int TaskScheduledId { get; private set; }
 
+        /// <summary>
+        /// Get the serialized result
+        /// </summary>
         [DataMember]
         public string Result { get; private set; }
     }

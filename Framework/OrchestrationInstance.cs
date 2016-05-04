@@ -15,12 +15,21 @@ namespace DurableTask
 {
     using System.Runtime.Serialization;
 
+    /// <summary>
+    /// Represents the state of an orchestration instance
+    /// </summary>
     [DataContract]
     public class OrchestrationInstance
     {
+        /// <summary>
+        /// The instance id, assigned as unique to the orchestration
+        /// </summary>
         [DataMember]
         public string InstanceId { get; set; }
 
+        /// <summary>
+        /// The execution id, unique to the execution of this instance
+        /// </summary>
         [DataMember]
         public string ExecutionId { get; set; }
 
@@ -33,11 +42,23 @@ namespace DurableTask
             };
         }
 
+        /// <summary>
+        /// Serves as a hash function for an OrchestrationInstance. 
+        /// </summary>
+        /// <returns>
+        /// A hash code for the current object.
+        /// </returns>
         public override int GetHashCode()
         {
             return (InstanceId ?? string.Empty).GetHashCode() ^ (ExecutionId ?? string.Empty).GetHashCode();
         }
 
+        /// <summary>
+        /// Returns a string that represents the OrchestrationInstance.
+        /// </summary>
+        /// <returns>
+        /// A string that represents the current object.
+        /// </returns>
         public override string ToString()
         {
             return $"[InstanceId: {InstanceId}, ExecutionId: {ExecutionId}]";

@@ -15,9 +15,18 @@ namespace DurableTask.History
 {
     using System.Runtime.Serialization;
 
+    /// <summary>
+    /// A history event for execution completed
+    /// </summary>
     [DataContract]
     public class ExecutionCompletedEvent : HistoryEvent
     {
+        /// <summary>
+        /// Creates a new ExecutionCompletedEvent with the supplied parameters
+        /// </summary>
+        /// <param name="eventId">The event integer id</param>
+        /// <param name="result">The string serialized completion result</param>
+        /// <param name="orchestrationStatus">The orchestration status</param>
         public ExecutionCompletedEvent(int eventId, string result, OrchestrationStatus orchestrationStatus)
             : base(eventId)
         {
@@ -25,14 +34,23 @@ namespace DurableTask.History
             OrchestrationStatus = orchestrationStatus;
         }
 
+        /// <summary>
+        /// Gets the event type
+        /// </summary>
         public override EventType EventType
         {
             get { return EventType.ExecutionCompleted; }
         }
 
+        /// <summary>
+        /// Gets the history events orchestration status
+        /// </summary>
         [DataMember]
         public OrchestrationStatus OrchestrationStatus { get; private set; }
 
+        /// <summary>
+        /// Gets the serialized completion result
+        /// </summary>
         [DataMember]
         public string Result { get; private set; }
     }

@@ -19,6 +19,9 @@ namespace DurableTask
     using System.Threading.Tasks;
     using ImpromptuInterface;
 
+    /// <summary>
+    /// Context for an orchestration containing the instance, replay status, orchestration methods and proxy methods
+    /// </summary>
     public abstract class OrchestrationContext
     {
         /// <summary>

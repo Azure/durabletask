@@ -17,22 +17,80 @@ namespace DurableTask
     using System.Collections.Generic;
     using System.Runtime.Serialization;
 
+    /// <summary>
+    /// Represents the state of an orchestration
+    /// </summary>
     [DataContract]
     public class OrchestrationState
     {
+        /// <summary>
+        /// Completion datetime of the orchestration
+        /// </summary>
         [DataMember] public DateTime CompletedTime;
+
+        /// <summary>
+        /// The size of the compressed serialized runtimestate
+        /// </summary>
         [DataMember] public long CompressedSize;
+
+        /// <summary>
+        /// Creation time of the orchestration
+        /// </summary>
         [DataMember] public DateTime CreatedTime;
+
+        /// <summary>
+        /// Serialized input of the orchestration
+        /// </summary>
         [DataMember] public string Input;
+
+        /// <summary>
+        /// Last updated time of the orchestration
+        /// </summary>
         [DataMember] public DateTime LastUpdatedTime;
+
+        /// <summary>
+        /// The orchestration name
+        /// </summary>
         [DataMember] public string Name;
+
+        /// <summary>
+        /// The orchestration instance this state represents
+        /// </summary>
         [DataMember] public OrchestrationInstance OrchestrationInstance;
+
+        /// <summary>
+        /// The current orchestration status
+        /// </summary>
         [DataMember] public OrchestrationStatus OrchestrationStatus;
+
+        /// <summary>
+        /// The serialized output of the orchestration
+        /// </summary>
         [DataMember] public string Output;
+
+        /// <summary>
+        /// The parent instance if this is orchestration has one
+        /// </summary>
         [DataMember] public ParentInstance ParentInstance;
+
+        /// <summary>
+        /// The size of the raw (uncompressed) serialized runtimestate
+        /// </summary>
         [DataMember] public long Size;
+
+        /// <summary>
+        /// String status of the orchestration
+        /// </summary>
         [DataMember] public string Status;
+
+        /// <summary>
+        /// The dictionary of tags and string values associated with this orchestration
+        /// </summary>
         [DataMember] public IDictionary<string, string> Tags;
+
+        /// <summary>
+        /// The orchestration version
+        /// </summary>
         [DataMember] public string Version;
     }
 }

@@ -20,15 +20,25 @@ namespace DurableTask.Tracking
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Table;
 
+    /// <summary>
+    /// History Tracking Entity for an orchestration's state
+    /// </summary>
     public class AzureTableOrchestrationStateEntity : AzureTableCompositeTableEntity
     {
         readonly DataConverter dataConverter;
 
+        /// <summary>
+        /// Creates a new AzureTableOrchestrationStateEntity
+        /// </summary>
         public AzureTableOrchestrationStateEntity()
         {
             this.dataConverter = new JsonDataConverter();
         }
 
+        /// <summary>
+        /// Creates a new AzureTableOrchestrationStateEntity with the supplied orchestration state
+        /// </summary>
+        /// <param name="state">The orchestration state</param>
         public AzureTableOrchestrationStateEntity(OrchestrationState state)
             :this()
         {
@@ -36,6 +46,9 @@ namespace DurableTask.Tracking
             TaskTimeStamp = state.CompletedTime;
         }
 
+        /// <summary>
+        /// Gets or sets the orchestraion state for the entity
+        /// </summary>
         public OrchestrationState State { get; set; }
 
         internal override IEnumerable<ITableEntity> BuildDenormalizedEntities()
@@ -52,6 +65,10 @@ namespace DurableTask.Tracking
             // TODO : additional indexes for efficient querying in the future
         }
 
+        /// <summary>
+        /// Write an entity to a dictionary of entity properties
+        /// </summary>
+        /// <param name="operationContext">The operation context</param>
         public override IDictionary<string, EntityProperty> WriteEntity(OperationContext operationContext)
         {
             var retVals = new Dictionary<string, EntityProperty>();
@@ -84,6 +101,11 @@ namespace DurableTask.Tracking
             return retVals;
         }
 
+        /// <summary>
+        /// Read an entity properties based on the supplied dictionary or entity properties
+        /// </summary>
+        /// <param name="properties">Dictionary of properties to read for the entity</param>
+        /// <param name="operationContext">The operation context</param>
         public override void ReadEntity(IDictionary<string, EntityProperty> properties,
             OperationContext operationContext)
         {
@@ -151,6 +173,13 @@ namespace DurableTask.Tracking
             return dataConverter.Deserialize<IDictionary<string, string>>(strTags);
         }
 
+        /// <summary>
+        /// Returns a string that represents the current object.
+        /// </summary>
+        /// <returns>
+        /// A string that represents the current object.
+        /// </returns>
+        /// <filterpriority>2</filterpriority>
         public override string ToString()
         {
             return string.Format(

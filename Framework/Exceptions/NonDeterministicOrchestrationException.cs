@@ -16,15 +16,28 @@ namespace DurableTask.Exceptions
     using System;
     using System.Runtime.Serialization;
 
+    /// <summary>
+    /// Represents non deterministic created during orchestration execution
+    /// </summary>
     [Serializable]
     public class NonDeterministicOrchestrationException : OrchestrationException
     {
+        /// <summary>
+        /// Initializes an new instance of the NonDeterministicOrchestrationException class with a specified eventid and error message
+        /// </summary>
+        /// <param name="eventId">EventId of the error.</param>
+        /// <param name="eventDetails">The message that describes the error.</param>
         public NonDeterministicOrchestrationException(int eventId, string eventDetails)
             : base("Non-Deterministic workflow detected: " + eventDetails)
         {
             EventId = eventId;
         }
 
+        /// <summary>
+        /// Initializes a new instance of the NonDeterministicOrchestrationException class with serialized data.
+        /// </summary>
+        /// <param name="info">The System.Runtime.Serialization.SerializationInfo that holds the serialized object data about the exception being thrown.</param>
+        /// <param name="context">The System.Runtime.Serialization.StreamingContext that contains contextual information about the source or destination.</param>
         protected NonDeterministicOrchestrationException(SerializationInfo info, StreamingContext context)
             : base(info, context)
         {

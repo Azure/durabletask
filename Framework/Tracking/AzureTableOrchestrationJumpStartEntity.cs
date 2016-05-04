@@ -19,21 +19,37 @@ namespace DurableTask.Tracking
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Table;
 
+    /// <summary>
+    /// History Tracking Entity for orchestration jump start event
+    /// </summary>
     public class AzureTableOrchestrationJumpStartEntity : AzureTableOrchestrationStateEntity
     {
+        /// <summary>
+        /// Gets or sets the datetime for the jumpstart event
+        /// </summary>
         public DateTime JumpStartTime { get; set; }
 
+        /// <summary>
+        /// Creates a new AzureTableOrchestrationJumpStartEntity
+        /// </summary>
         public AzureTableOrchestrationJumpStartEntity()
             : base()
         {
         }
 
+        /// <summary>
+        /// Creates a new AzureTableOrchestrationJumpStartEntity with the jumpstart state and datetime
+        /// </summary>
+        /// <param name="jumpStartEvent"></param>
         public AzureTableOrchestrationJumpStartEntity(OrchestrationJumpStartInstanceEntity jumpStartEvent)
             : base(jumpStartEvent.State)
         {
             this.JumpStartTime = jumpStartEvent.JumpStartTime;
         }
 
+        /// <summary>
+        /// Gets a OrchestrationJumpStartInstanceEntity
+        /// </summary>
         public OrchestrationJumpStartInstanceEntity OrchestrationJumpStartInstanceEntity
         {
             get
@@ -57,6 +73,10 @@ namespace DurableTask.Tracking
             return new AzureTableOrchestrationJumpStartEntity[1] { entity1 };
         }
 
+        /// <summary>
+        /// Write an entity to a dictionary of entity properties
+        /// </summary>
+        /// <param name="operationContext">The operation context</param>
         public override IDictionary<string, EntityProperty> WriteEntity(OperationContext operationContext)
         {
             IDictionary<string, EntityProperty> retVals = base.WriteEntity(operationContext);
@@ -64,6 +84,11 @@ namespace DurableTask.Tracking
             return retVals;
         }
 
+        /// <summary>
+        /// Read an entity properties based on the supplied dictionary or entity properties
+        /// </summary>
+        /// <param name="properties">Dictionary of properties to read for the entity</param>
+        /// <param name="operationContext">The operation context</param>
         public override void ReadEntity(IDictionary<string, EntityProperty> properties,
             OperationContext operationContext)
         {
@@ -74,6 +99,11 @@ namespace DurableTask.Tracking
                     .DateTime;
         }
 
+        /// <summary>
+        /// Get a partition key based on a datetime
+        /// </summary>
+        /// <param name="dateTime">The datetime to use for the partition key</param>
+        /// <returns>A string partition key</returns>
         public static string GetPartitionKey(DateTime dateTime)
         {
             return string.Format(CultureInfo.InvariantCulture, "{0:D19}", dateTime.Ticks);

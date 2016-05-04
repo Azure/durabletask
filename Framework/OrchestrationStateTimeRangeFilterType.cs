@@ -13,10 +13,24 @@
 
 namespace DurableTask
 {
+    /// <summary>
+    /// Enumeration of the types of time filters for orchestration state queries
+    /// </summary>
     public enum OrchestrationStateTimeRangeFilterType
     {
+        /// <summary>
+        /// Filter based on creation time
+        /// </summary>
         OrchestrationCreatedTimeFilter,
+
+        /// <summary>
+        /// Filter based on completion time
+        /// </summary>
         OrchestrationCompletedTimeFilter,
+
+        /// <summary>
+        /// Filter based on last update time
+        /// </summary>
         OrchestrationLastUpdatedTimeFilter,
     }
 }

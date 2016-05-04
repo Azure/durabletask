@@ -13,8 +13,14 @@
 
 namespace DurableTask.Tracking
 {
+    /// <summary>
+    /// History Entity for Orchestration State
+    /// </summary>
     public class OrchestrationStateInstanceEntity : InstanceEntityBase
     {
+        /// <summary>
+        /// The Orchestraion state for this Instance Entity
+        /// </summary>
         public OrchestrationState State;
     }
 }

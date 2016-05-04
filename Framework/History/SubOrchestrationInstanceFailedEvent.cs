@@ -15,9 +15,19 @@ namespace DurableTask.History
 {
     using System.Runtime.Serialization;
 
+    /// <summary>
+    /// A history event for a sub orchestration instance failure
+    /// </summary>
     [DataContract]
     public class SubOrchestrationInstanceFailedEvent : HistoryEvent
     {
+        /// <summary>
+        /// Creates a new SubOrchestrationInstanceFailedEvent with the supplied params
+        /// </summary>
+        /// <param name="eventId">The event id of the history event</param>
+        /// <param name="taskScheduledId">The scheduled parent instance event id</param>
+        /// <param name="reason">The sub orchestration failure reason</param>
+        /// <param name="details">Details of the sub orchestration failure</param>
         public SubOrchestrationInstanceFailedEvent(int eventId, int taskScheduledId, string reason, string details)
             : base(eventId)
         {
@@ -26,17 +36,29 @@ namespace DurableTask.History
             Details = details;
         }
 
+        /// <summary>
+        /// Gets the event type
+        /// </summary>
         public override EventType EventType
         {
             get { return EventType.SubOrchestrationInstanceFailed; }
         }
 
+        /// <summary>
+        /// Gets the scheduled parent instance event id
+        /// </summary>
         [DataMember]
         public int TaskScheduledId { get; private set; }
 
+        /// <summary>
+        /// Gets the sub orchestration failure reason
+        /// </summary>
         [DataMember]
         public string Reason { get; private set; }
 
+        /// <summary>
+        /// Gets the details of the sub orchestration failure
+        /// </summary>
         [DataMember]
         public string Details { get; private set; }
     }

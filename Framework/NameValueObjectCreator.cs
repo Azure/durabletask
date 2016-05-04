@@ -15,8 +15,18 @@ namespace DurableTask
 {
     using System;
 
+    /// <summary>
+    /// Object instance creator for a type using name and version mapping
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
     public class NameValueObjectCreator<T> : DefaultObjectCreator<T>
     {
+        /// <summary>
+        /// Creates a new DefaultObjectCreator of supplied type with supplied name and version for mapping
+        /// </summary>
+        /// <param name="name">Lookup name for the type</param>
+        /// <param name="version">Lookup version for the type</param>
+        /// <param name="type">Type to use for the creator</param>
         public NameValueObjectCreator(string name, string version, Type type)
             : base(type)
         {
@@ -24,6 +34,12 @@ namespace DurableTask
             Version = version;
         }
 
+        /// <summary>
+        /// Creates a new DefaultObjectCreator of supplied object instance's type with supplied name and version for mapping
+        /// </summary>
+        /// <param name="name">Lookup name for the type</param>
+        /// <param name="version">Lookup version for the type</param>
+        /// <param name="instance">Object instances to infer the type from</param>
         public NameValueObjectCreator(string name, string version, T instance)
             : base(instance)
         {

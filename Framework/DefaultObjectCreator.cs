@@ -15,23 +15,39 @@ namespace DurableTask
 {
     using System;
 
+    /// <summary>
+    /// Object instance creator for a type using default name and version based on the type
+    /// </summary>
+    /// <typeparam name="T">Type of Object</typeparam>
     public class DefaultObjectCreator<T> : ObjectCreator<T>
     {
         readonly T instance;
         readonly Type prototype;
 
+        /// <summary>
+        /// Creates a new DefaultObjectCreator of supplied type
+        /// </summary>
+        /// <param name="type">Type to use for the creator</param>
         public DefaultObjectCreator(Type type)
         {
             prototype = type;
             Initialize(type);
         }
 
+        /// <summary>
+        /// Creates a new DefaultObjectCreator using type of supplied object instance
+        /// </summary>
+        /// <param name="instance">Object instances to infer the type from</param>
         public DefaultObjectCreator(T instance)
         {
             this.instance = instance;
             Initialize(instance);
         }
 
+        /// <summary>
+        /// Creates a new instance of the object creator's type
+        /// </summary>
+        /// <returns>An instance of the type T</returns>
         public override T Create()
         {
             if (prototype != null)

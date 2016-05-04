@@ -15,8 +15,15 @@ namespace DurableTask.Exceptions
 {
     using System;
 
+    /// <summary>
+    /// Represents a type missing error
+    /// </summary>
     public class TypeMissingException : Exception
     {
+        /// <summary>
+        /// Initializes an new instance of the TypeMissingException class with a specified error message
+        /// </summary>
+        /// <param name="message">The message that describes the error.</param>
         public TypeMissingException(string message)
             : base(message)
         {

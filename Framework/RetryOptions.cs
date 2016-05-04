@@ -20,6 +20,12 @@ namespace DurableTask
     /// </summary>
     public class RetryOptions
     {
+        /// <summary>
+        /// Creates a new instance RetryOptions with the supplied first retry and max attempts
+        /// </summary>
+        /// <param name="firstRetryInterval">Timespan to wait for the first retry</param>
+        /// <param name="maxNumberOfAttempts">Max number of attempts to retry</param>
+        /// <exception cref="ArgumentException"></exception>
         public RetryOptions(TimeSpan firstRetryInterval, int maxNumberOfAttempts)
         {
             if (firstRetryInterval <= TimeSpan.Zero)
@@ -37,11 +43,37 @@ namespace DurableTask
             Handle = e => true;
         }
 
+        /// <summary>
+        /// Gets or sets the first retry interval
+        /// </summary>
         public TimeSpan FirstRetryInterval { get; set; }
+
+        /// <summary>
+        /// Gets or sets the max retry interval
+        /// defaults to TimeSpan.MaxValue
+        /// </summary>
         public TimeSpan MaxRetryInterval { get; set; }
+
+        /// <summary>
+        /// Gets or sets the backoff coefficient
+        /// defaults to 1, used to determine rate of increase of backoff
+        /// </summary>
         public double BackoffCoefficient { get; set; }
+
+        /// <summary>
+        /// Gets or sets the timeout for retries
+        /// defaults to TimeSpan.MaxValue
+        /// </summary>
         public TimeSpan RetryTimeout { get; set; }
+
+        /// <summary>
+        /// Gets or sets the max number of attempts
+        /// </summary>
         public int MaxNumberOfAttempts { get; set; }
+
+        /// <summary>
+        /// Gets or sets a Func to call on exception to determine if retries should proceed
+        /// </summary>
         public Func<Exception, bool> Handle { get; set; }
     }
 }

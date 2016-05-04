@@ -13,10 +13,26 @@
 
 namespace DurableTask
 {
+    /// <summary>
+    /// Abstract class for object creation based on name and version
+    /// </summary>
+    /// <typeparam name="T">The type to create</typeparam>
     public abstract class ObjectCreator<T> : INameVersionInfo
     {
+        /// <summary>
+        /// The name of the method
+        /// </summary>
         public string Name { get; protected set; }
+
+        /// <summary>
+        /// The version of the method
+        /// </summary>
         public string Version { get; protected set; }
+
+        /// <summary>
+        /// Instance creator method
+        /// </summary>
+        /// <returns>An intance of the type T</returns>
         public abstract T Create();
     }
 }

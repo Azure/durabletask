@@ -15,9 +15,19 @@ namespace DurableTask.History
 {
     using System.Runtime.Serialization;
 
+    /// <summary>
+    /// A history event for a task failure
+    /// </summary>
     [DataContract]
     public class TaskFailedEvent : HistoryEvent
     {
+        /// <summary>
+        /// Creates a new TaskFailedEvent with the supplied parameters
+        /// </summary>
+        /// <param name="eventId">The event id of the history event</param>
+        /// <param name="taskScheduledId">The scheduled parent instance event id</param>
+        /// <param name="reason">The task failure reason</param>
+        /// <param name="details">Details of the task failure</param>
         public TaskFailedEvent(int eventId, int taskScheduledId, string reason, string details)
             : base(eventId)
         {
@@ -26,17 +36,29 @@ namespace DurableTask.History
             Details = details;
         }
 
+        /// <summary>
+        /// Gets the event type
+        /// </summary>
         public override EventType EventType
         {
             get { return EventType.TaskFailed; }
         }
 
+        /// <summary>
+        /// Gets the scheduled parent instance event id
+        /// </summary>
         [DataMember]
         public int TaskScheduledId { get; private set; }
 
+        /// <summary>
+        /// Gets the task failure reason
+        /// </summary>
         [DataMember]
         public string Reason { get; private set; }
 
+        /// <summary>
+        /// Gets details of the task failure
+        /// </summary>
         [DataMember]
         public string Details { get; private set; }
     }

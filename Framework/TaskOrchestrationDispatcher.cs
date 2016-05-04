@@ -26,6 +26,9 @@ namespace DurableTask
     using DurableTask.Serializing;
     using DurableTask.Tracing;
 
+    /// <summary>
+    /// Dispatcher for orchestrations to handle processing and renewing, completetion of orchestration events
+    /// </summary>
     public class TaskOrchestrationDispatcher 
     {
         readonly NameVersionObjectManager<TaskOrchestration> objectManager;
@@ -64,25 +67,48 @@ namespace DurableTask
             };
         }
 
+        /// <summary>
+        /// Starts the dispatcher to start getting and processing orchestration events
+        /// </summary>
         public async Task StartAsync()
         {
             await dispatcher.StartAsync();
         }
 
+        /// <summary>
+        /// Stops the dispatcher to stop getting and processing orchestration events
+        /// </summary>
+        /// <param name="forced">Flag indicating whether to stop gracefully or immediately</param>
         public async Task StopAsync(bool forced)
         {
             await dispatcher.StopAsync(forced);
         }
 
+        /// <summary>
+        /// Gets or sets flag whether to include additional details in error messages
+        /// </summary>
         public bool IncludeDetails { get; set; }
+
+        /// <summary>
+        /// Gets or sets flag whether to pass orchestration input parameters to sub orchestations
+        /// </summary>
         public bool IncludeParameters { get; set; }
 
+        /// <summary>
+        /// Method to get the next work item to process within supplied timeout
+        /// </summary>
+        /// <param name="receiveTimeout">The max timeout to wait</param>
+        /// <returns>A new TaskOrchestrationWorkItem</returns>
         protected async Task<TaskOrchestrationWorkItem> OnFetchWorkItemAsync(TimeSpan receiveTimeout)
         {
             // AFFANDAR : TODO : wire-up cancellation tokens
             return await this.orchestrationService.LockNextTaskOrchestrationWorkItemAsync(receiveTimeout, CancellationToken.None);
         }
 
+        /// <summary>
+        /// Method to process a new work item
+        /// </summary>
+        /// <param name="workItem">The work item to process</param>
         protected async Task OnProcessWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
             var messagesToSend = new List<TaskMessage>();

@@ -18,11 +18,18 @@ namespace DurableTask
     /// </summary>
     public class TaskContext
     {
+        /// <summary>
+        /// Creates a new TaskContext with the supplied OrchestrationInstance
+        /// </summary>
+        /// <param name="orchestrationInstance"></param>
         public TaskContext(OrchestrationInstance orchestrationInstance)
         {
             OrchestrationInstance = orchestrationInstance;
         }
 
+        /// <summary>
+        /// Gets the OrchestrationInstance for this task context
+        /// </summary>
         public OrchestrationInstance OrchestrationInstance { get; private set; }
     }
 }

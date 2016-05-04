@@ -11,6 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+#pragma warning disable 1591
 namespace DurableTask.Test
 {
     using System;

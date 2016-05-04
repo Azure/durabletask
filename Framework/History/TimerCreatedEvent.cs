@@ -16,19 +16,32 @@ namespace DurableTask.History
     using System;
     using System.Runtime.Serialization;
 
+    /// <summary>
+    /// A history event for a new timer creation
+    /// </summary>
     [DataContract]
     public class TimerCreatedEvent : HistoryEvent
     {
+        /// <summary>
+        /// Creates a new TimerCreatedEvent with the supplied event id
+        /// </summary>
+        /// <param name="eventId"></param>
         public TimerCreatedEvent(int eventId)
             : base(eventId)
         {
         }
 
+        /// <summary>
+        /// Gets the event type
+        /// </summary>
         public override EventType EventType
         {
             get { return EventType.TimerCreated; }
         }
 
+        /// <summary>
+        /// Gets or sets the desired datetime to fire
+        /// </summary>
         [DataMember]
         public DateTime FireAt { get; set; }
     }

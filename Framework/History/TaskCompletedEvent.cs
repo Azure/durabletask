@@ -15,9 +15,18 @@ namespace DurableTask.History
 {
     using System.Runtime.Serialization;
 
+    /// <summary>
+    /// A history event for a task completion
+    /// </summary>
     [DataContract]
     public class TaskCompletedEvent : HistoryEvent
     {
+        /// <summary>
+        /// Creates a new TaskCompletedEvent with the supplied parameters
+        /// </summary>
+        /// <param name="eventId">The event id of the history event</param>
+        /// <param name="taskScheduledId">The scheduled parent instance event id</param>
+        /// <param name="result">The serialized result of the task</param>
         public TaskCompletedEvent(int eventId, int taskScheduledId, string result)
             : base(eventId)
         {
@@ -25,14 +34,23 @@ namespace DurableTask.History
             Result = result;
         }
 
+        /// <summary>
+        /// Gets the event type
+        /// </summary>
         public override EventType EventType
         {
             get { return EventType.TaskCompleted; }
         }
 
+        /// <summary>
+        /// Gets the scheduled parent instance event id
+        /// </summary>
         [DataMember]
         public int TaskScheduledId { get; private set; }
 
+        /// <summary>
+        /// Gets the serialized result of the task
+        /// </summary>
         [DataMember]
         public string Result { get; private set; }
     }

@@ -28,6 +28,10 @@ namespace DurableTask
     public sealed class TaskHubClient
     {
         readonly DataConverter defaultConverter;
+
+        /// <summary>
+        /// The orchestration service client for this task hub client
+        /// </summary>
         public readonly IOrchestrationServiceClient serviceClient;
 
         /// <summary>

@@ -27,8 +27,20 @@ namespace DurableTask
     /// </summary>
     public abstract class TaskActivity
     {
+        /// <summary>
+        /// Abstract method for executing a task activity syncronously
+        /// </summary>
+        /// <param name="context">The task context</param>
+        /// <param name="input">The serialized input</param>
+        /// <returns>Serialized output from the execution</returns>
         public abstract string Run(TaskContext context, string input);
 
+        /// <summary>
+        /// Virtual method for executing a task activity asyncronously
+        /// </summary>
+        /// <param name="context">The task context</param>
+        /// <param name="input">The serialized input</param>
+        /// <returns>Serialized output from the execution</returns>
         public virtual Task<string> RunAsync(TaskContext context, string input)
         {
             return Task.FromResult(Run(context, input));
@@ -42,11 +54,18 @@ namespace DurableTask
     /// <typeparam name="TResult">Output type of the activity</typeparam>
     public abstract class AsyncTaskActivity<TInput, TResult> : TaskActivity
     {
+        /// <summary>
+        /// Creates a new AsyncTaskActivity with the default dataconverter
+        /// </summary>
         protected AsyncTaskActivity()
         {
             DataConverter = new JsonDataConverter();
         }
 
+        /// <summary>
+        /// Creates a new AsyncTaskActivity with the supplied dataconverter
+        /// </summary>
+        /// <param name="dataConverter"></param>
         protected AsyncTaskActivity(DataConverter dataConverter)
         {
             if (dataConverter != null)
@@ -59,16 +78,35 @@ namespace DurableTask
             }
         }
 
+        /// <summary>
+        /// The dataconverter to use for input and output serialization/deserialization
+        /// </summary>
         public DataConverter DataConverter { get; protected set; }
 
+        /// <summary>
+        /// Syncronous execute method, blocked for AsyncTaskActivity
+        /// </summary>
+        /// <returns>string.Empty</returns>
         public override string Run(TaskContext context, string input)
         {
             // will never run
             return string.Empty;
         }
 
+        /// <summary>
+        /// Abstract method for executing a task activity asyncronously
+        /// </summary>
+        /// <param name="context">The task context</param>
+        /// <param name="input">The typed input</param>
+        /// <returns>The typed output from the execution</returns>
         protected abstract Task<TResult> ExecuteAsync(TaskContext context, TInput input);
 
+        /// <summary>
+        /// Method for executing a task activity asyncronously
+        /// </summary>
+        /// <param name="context">The task context</param>
+        /// <param name="input">The serialized input</param>
+        /// <returns>Serialized output from the execution</returns>
         public override async Task<string> RunAsync(TaskContext context, string input)
         {
             TInput parameter = default(TInput);
@@ -121,8 +159,20 @@ namespace DurableTask
     /// <typeparam name="TResult">Output type of the activity</typeparam>
     public abstract class TaskActivity<TInput, TResult> : AsyncTaskActivity<TInput, TResult>
     {
+        /// <summary>
+        /// Abstract method for executing a task activity syncronously
+        /// </summary>
+        /// <param name="context">The task context</param>
+        /// <param name="input">The typed input</param>
+        /// <returns>The typed output from the execution</returns>
         protected abstract TResult Execute(TaskContext context, TInput input);
 
+        /// <summary>
+        /// Method for executing a task activity asyncronously
+        /// </summary>
+        /// <param name="context">The task context</param>
+        /// <param name="input">The typed input</param>
+        /// <returns>The typed output from the execution</returns>
         protected override Task<TResult> ExecuteAsync(TaskContext context, TInput input)
         {
             return Task.FromResult(Execute(context, input));

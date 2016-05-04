@@ -13,9 +13,19 @@
 
 namespace DurableTask
 {
+    /// <summary>
+    /// Interface for name and version class to be used in lookup mappings
+    /// </summary>
     public interface INameVersionInfo
     {
+        /// <summary>
+        /// The name of the method
+        /// </summary>
         string Name { get; }
+
+        /// <summary>
+        /// The version of the method
+        /// </summary>
         string Version { get; }
     }
 }

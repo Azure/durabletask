@@ -15,25 +15,44 @@ namespace DurableTask.History
 {
     using System.Runtime.Serialization;
 
+    /// <summary>
+    /// A history event for a new task scheduled
+    /// </summary>
     [DataContract]
     public class TaskScheduledEvent : HistoryEvent
     {
+        /// <summary>
+        /// Creates a new TaskScheduledEvent with the supplied event id
+        /// </summary>
+        /// <param name="eventId">The event id of the history event</param>
         public TaskScheduledEvent(int eventId)
             : base(eventId)
         {
         }
 
+        /// <summary>
+        /// Gets the event type
+        /// </summary>
         public override EventType EventType
         {
             get { return EventType.TaskScheduled; }
         }
 
+        /// <summary>
+        /// Gets or sets the orchestration Name
+        /// </summary>
         [DataMember]
         public string Name { get; set; }
 
+        /// <summary>
+        /// Gets or sets the orchestration Version
+        /// </summary>
         [DataMember]
         public string Version { get; set; }
 
+        /// <summary>
+        /// Gets or sets the task's serialized input
+        /// </summary>
         [DataMember]
         public string Input { get; set; }
     }

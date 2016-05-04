@@ -710,6 +710,39 @@ namespace FrameworkUnitTests
             Assert.AreEqual(numSubOrchestrations, UberOrchestration.Result, "Orchestration Result is wrong!!!");
         }
 
+        [TestMethod]
+        public async Task ConcurrentSubOrchestrationsAsTopLevelOrchestrationsTest()
+        {
+            var c2 = new NameValueObjectCreator<TaskOrchestration>("SleeperSubOrchestration",
+                "V1", typeof(SleeperSubOrchestration));
+
+            await taskHub.AddTaskOrchestrations(c2)
+                .StartAsync();
+
+            int numSubOrchestrations = 60;
+
+            var orchestrations = new List<Task<OrchestrationInstance>>();
+            for (int i = 0; i < numSubOrchestrations; i++)
+            {
+                orchestrations.Add(client.CreateOrchestrationInstanceAsync(
+                "SleeperSubOrchestration",
+                "V1",
+                $"{UberOrchestration.ChildWorkflowIdBase}_{i}",
+                new TestOrchestrationInput { Iterations = 1, Payload = GeneratePayLoad(8 * 1024) }));
+            }
+
+            IList<OrchestrationInstance> orchestrationInstances = (await Task.WhenAll(orchestrations)).ToList();
+
+            IEnumerable<Task<OrchestrationState>> orchestrationResults = orchestrationInstances.Select(async instance =>
+            {
+                OrchestrationState result = await client.WaitForOrchestrationAsync(instance, TimeSpan.FromSeconds(60));
+                return result;
+            });
+
+            var finalResults = await Task.WhenAll(orchestrationResults);
+            Assert.AreEqual(numSubOrchestrations, finalResults.Count(status => status.OrchestrationStatus == OrchestrationStatus.Completed));
+        }
+
         private static string GeneratePayLoad(int length)
         {
             var result = new StringBuilder(length);
