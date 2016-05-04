@@ -159,7 +159,6 @@
     <Compile Include="Test\DebugTestHost.cs" />
     <Compile Include="Settings\TrackingDispatcherSettings.cs" />
     <Compile Include="Settings\TaskOrchestrationDispatcherSettings.cs" />
-    <Compile Include="SessionWorkItem.cs" />
     <Compile Include="Tracing\OrchestrationConsoleTraceListener.cs" />
     <Compile Include="Test\FakeOrchestrationClock.cs" />
     <Compile Include="Test\FakeOrchestrationExecutor.cs" />

@@ -13,14 +13,44 @@
 
 namespace DurableTask
 {
+    /// <summary>
+    /// Enum describing the status of the orchestration
+    /// </summary>
     public enum OrchestrationStatus
     {
+        /// <summary>
+        /// Orchestration state of running
+        /// </summary>
         Running,
+
+        /// <summary>
+        /// Orchestration state of complete
+        /// </summary>
         Completed,
+
+        /// <summary>
+        /// Orchestration state of continued as new (this instance complete, continued in a new instance)
+        /// </summary>
         ContinuedAsNew,
+
+        /// <summary>
+        /// Orchestration state of failed
+        /// </summary>
         Failed,
-        Canceled, // gracefully canceled
-        Terminated, // abruptly shut down
+
+        /// <summary>
+        /// Orchestration state of gracefully canceled
+        /// </summary>
+        Canceled,
+
+        /// <summary>
+        /// Orchestration state of abruptly shut down
+        /// </summary>
+        Terminated, 
+
+        /// <summary>
+        /// Orchestration state of pending (not yet running)
+        /// </summary>
         Pending
     }
 }

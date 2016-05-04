@@ -16,6 +16,9 @@ namespace DurableTask.History
     using System;
     using System.Runtime.Serialization;
 
+    /// <summary>
+    /// Base class for history events
+    /// </summary>
     [DataContract]
     [KnownType(typeof (ExecutionStartedEvent))]
     [KnownType(typeof (ExecutionCompletedEvent))]
@@ -35,6 +38,10 @@ namespace DurableTask.History
     [KnownType(typeof (HistoryStateEvent))]
     public abstract class HistoryEvent
     {
+        /// <summary>
+        /// Creates a new history event with the supplied eventid
+        /// </summary>
+        /// <param name="eventId">The integer event id</param>
         public HistoryEvent(int eventId)
         {
             EventId = eventId;
@@ -42,15 +49,27 @@ namespace DurableTask.History
             Timestamp = DateTime.UtcNow;
         }
 
+        /// <summary>
+        /// Gets the event id
+        /// </summary>
         [DataMember]
         public int EventId { get; private set; }
 
+        /// <summary>
+        /// Gets the isplayed status
+        /// </summary>
         [DataMember]
         public bool IsPlayed { get; internal set; }
 
+        /// <summary>
+        /// Gets the event timestamp
+        /// </summary>
         [DataMember]
         public DateTime Timestamp { get; internal set; }
 
+        /// <summary>
+        /// Gets the event type
+        /// </summary>
         [DataMember]
         public virtual EventType EventType { get; private set; }
     }

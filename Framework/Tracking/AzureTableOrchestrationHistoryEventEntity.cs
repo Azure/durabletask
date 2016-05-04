@@ -20,12 +20,26 @@ namespace DurableTask.Tracking
     using Microsoft.WindowsAzure.Storage.Table;
     using Newtonsoft.Json;
 
+    /// <summary>
+    /// History Tracking entity for orchestration history events
+    /// </summary>
     public class AzureTableOrchestrationHistoryEventEntity : AzureTableCompositeTableEntity
     {
+        /// <summary>
+        /// Creates a new AzureTableOrchestrationHistoryEventEntity 
+        /// </summary>
         public AzureTableOrchestrationHistoryEventEntity()
         {
         }
 
+        /// <summary>
+        /// Creates a new AzureTableOrchestrationHistoryEventEntity with supplied parameters
+        /// </summary>
+        /// <param name="instanceId">The orchestation instance id</param>
+        /// <param name="executionId">The orchestration execution id</param>
+        /// <param name="sequenceNumber">Sequence number for ordering events</param>
+        /// <param name="taskTimeStamp">Timestamp of history event</param>
+        /// <param name="historyEvent">The history event details</param>
         public AzureTableOrchestrationHistoryEventEntity(
             string instanceId, 
             string executionId, 
@@ -44,9 +58,24 @@ namespace DurableTask.Tracking
             RowKey = ExecutionId + AzureTableConstants.JoinDelimiter + SequenceNumber;
         }
 
+        /// <summary>
+        /// Gets or set the instance id of the orchestration
+        /// </summary>
         public string InstanceId { get; set; }
+
+        /// <summary>
+        /// Gets or set the execution id of the orchestration
+        /// </summary>
         public string ExecutionId { get; set; }
+
+        /// <summary>
+        /// Gets or set the sequence number for ordering events
+        /// </summary>
         public int SequenceNumber { get; set; }
+
+        /// <summary>
+        /// Gets or set the history event detail for the tracking entity
+        /// </summary>
         public HistoryEvent HistoryEvent { get; set; }
 
         internal override IEnumerable<ITableEntity> BuildDenormalizedEntities()
@@ -64,6 +93,10 @@ namespace DurableTask.Tracking
             return new AzureTableOrchestrationHistoryEventEntity[1] {entity};
         }
 
+        /// <summary>
+        /// Write an entity to a dictionary of entity properties
+        /// </summary>
+        /// <param name="operationContext">The operation context</param>
         public override IDictionary<string, EntityProperty> WriteEntity(OperationContext operationContext)
         {
             string serializedHistoryEvent = JsonConvert.SerializeObject(HistoryEvent,
@@ -98,6 +131,11 @@ namespace DurableTask.Tracking
             return retVals;
         }
 
+        /// <summary>
+        /// Read an entity properties based on the supplied dictionary or entity properties
+        /// </summary>
+        /// <param name="properties">Dictionary of properties to read for the entity</param>
+        /// <param name="operationContext">The operation context</param>
         public override void ReadEntity(IDictionary<string, EntityProperty> properties,
             OperationContext operationContext)
         {
@@ -114,6 +152,12 @@ namespace DurableTask.Tracking
                 new JsonSerializerSettings {TypeNameHandling = TypeNameHandling.Objects});
         }
 
+        /// <summary>
+        /// Returns a string that represents the current object.
+        /// </summary>
+        /// <returns>
+        /// A string that represents the current object.
+        /// </returns>
         public override string ToString()
         {
             return string.Format("Instance Id: {0} Execution Id: {1} Seq: {2} Time: {3} HistoryEvent: {4}",

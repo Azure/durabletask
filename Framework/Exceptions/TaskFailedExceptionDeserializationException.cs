@@ -15,9 +15,18 @@ namespace DurableTask.Exceptions
 {
     using System;
 
+    /// <summary>
+    /// Represents errors created during deserialization
+    /// </summary>
     [Serializable]
     public sealed class TaskFailedExceptionDeserializationException : Exception
     {
+        /// <summary>
+        /// Initializes an new instance of the TaskFailedExceptionDeserializationException class with a specified error message
+        ///    and a reference to the deserialization exception that is the cause.
+        /// </summary>
+        /// <param name="details">The message that describes the error.</param>
+        /// <param name="deserializationException">The deserialization exception that is the cause of the current exception.</param>
         public TaskFailedExceptionDeserializationException(string details, Exception deserializationException)
             : base("Failed to deserialize exception from TaskActivity: " + details, deserializationException)
         {

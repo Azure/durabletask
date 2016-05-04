@@ -49,7 +49,14 @@ namespace DurableTask
         const int StatusPollingIntervalInSeconds = 2;
         const int DuplicateDetectionWindowInHours = 4;
 
+        /// <summary>
+        /// Orchestration service settings 
+        /// </summary>
         public readonly ServiceBusOrchestrationServiceSettings Settings;
+
+        /// <summary>
+        /// Instance store for state and history tracking
+        /// </summary>
         public readonly IOrchestrationServiceInstanceStore InstanceStore;
 
         static readonly DataConverter DataConverter = new JsonDataConverter();
@@ -865,18 +872,22 @@ namespace DurableTask
             }
         }
 
+        /// <summary>
+        /// Writes an execution started event to the jump start table in the instance store
+        /// </summary>
+        /// <param name="creationMessage">Orchestration started message</param>
         public async Task UpdateJumpStartStoreAsync(TaskMessage creationMessage)
         {
             var executionStartedEvent = creationMessage.Event as ExecutionStartedEvent;
             var createTime = DateTime.UtcNow;
             var orchestrationState = new OrchestrationState()
             {
-                Name = executionStartedEvent.Name,
-                Version = executionStartedEvent.Version,
+                Name = executionStartedEvent?.Name,
+                Version = executionStartedEvent?.Version,
                 OrchestrationInstance = creationMessage.OrchestrationInstance,
                 OrchestrationStatus = OrchestrationStatus.Pending,
-                Input = executionStartedEvent.Input,
-                Tags = executionStartedEvent.Tags,
+                Input = executionStartedEvent?.Input,
+                Tags = executionStartedEvent?.Tags,
                 CreatedTime = createTime,
                 LastUpdatedTime = createTime
             };
@@ -1085,6 +1096,7 @@ namespace DurableTask
         ///     Creates a list of tracking message for the supplied orchestration state
         /// </summary>
         /// <param name="runtimeState">The orchestation runtime state</param>
+        /// <param name="sequenceNumber">Sequence number for the created tracking messages</param>
         List<BrokeredMessage> CreateTrackingMessages(OrchestrationRuntimeState runtimeState, long sequenceNumber)
         {
             var trackingMessages = new List<BrokeredMessage>();

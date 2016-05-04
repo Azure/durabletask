@@ -15,20 +15,34 @@ namespace DurableTask.History
 {
     using System.Runtime.Serialization;
 
+    /// <summary>
+    /// A history event for orchestration abrupt termination
+    /// </summary>
     [DataContract]
     public class ExecutionTerminatedEvent : HistoryEvent
     {
+        /// <summary>
+        /// Creates a new ExecutionTerminatedEvent with the supplied params
+        /// </summary>
+        /// <param name="eventId">The eventid of the history event</param>
+        /// <param name="input">The serialized input of the termination event</param>
         public ExecutionTerminatedEvent(int eventId, string input)
             : base(eventId)
         {
             Input = input;
         }
 
+        /// <summary>
+        /// Gets the event type
+        /// </summary>
         public override EventType EventType
         {
             get { return EventType.ExecutionTerminated; }
         }
 
+        /// <summary>
+        /// Gets or sets the serialized input for the the termination event
+        /// </summary>
         [DataMember]
         public string Input { get; set; }
     }

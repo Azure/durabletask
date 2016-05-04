@@ -16,34 +16,63 @@ namespace DurableTask.History
     using System.Collections.Generic;
     using System.Runtime.Serialization;
 
+    /// <summary>
+    /// A history event for orchestration execution starting
+    /// </summary>
     [DataContract]
     public class ExecutionStartedEvent : HistoryEvent
     {
+        /// <summary>
+        /// The orchestration instance for this event
+        /// </summary>
         [DataMember] public OrchestrationInstance OrchestrationInstance;
 
+        /// <summary>
+        /// Creates a new ExecutionStartedEvent with the supplied parameters
+        /// </summary>
+        /// <param name="eventId">The evnet id of the history event</param>
+        /// <param name="input">The serialized orchestration input </param>
         public ExecutionStartedEvent(int eventId, string input)
             : base(eventId)
         {
             Input = input;
         }
 
+        /// <summary>
+        /// Gets the event type
+        /// </summary>
         public override EventType EventType
         {
             get { return EventType.ExecutionStarted; }
         }
 
+        /// <summary>
+        /// Gets or sets the parent instance of the event 
+        /// </summary>
         [DataMember]
         public ParentInstance ParentInstance { get; set; }
 
+        /// <summary>
+        /// Gets or sets the orchestration name
+        /// </summary>
         [DataMember]
         public string Name { get; set; }
 
+        /// <summary>
+        /// Gets or sets the orchestration version
+        /// </summary>
         [DataMember]
         public string Version { get; set; }
 
+        /// <summary>
+        /// Gets or sets the serialized input to the orchestration
+        /// </summary>
         [DataMember]
         public string Input { get; set; }
 
+        /// <summary>
+        /// Gets or sets a dictionary of tags of string, string
+        /// </summary>
         [DataMember]
         public IDictionary<string, string> Tags { get; set; }
     }

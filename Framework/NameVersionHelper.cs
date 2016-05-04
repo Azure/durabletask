@@ -17,6 +17,9 @@ namespace DurableTask
     using System.Dynamic;
     using System.Reflection;
 
+    /// <summary>
+    /// Helper class for getting name information from types and instances
+    /// </summary>
     public static class NameVersionHelper
     {
         internal static string GetDefaultMethodName(MethodInfo methodInfo, bool useFullyQualifiedMethodNames)
@@ -30,11 +33,22 @@ namespace DurableTask
             return methodName;
         }
 
+        /// <summary>
+        /// Gets the default name of an Object instance without using fully qualified names
+        /// </summary>
+        /// <param name="obj">Object to get the name for</param>
+        /// <returns>Name of the object instance's type</returns>
         public static string GetDefaultName(object obj)
         {
             return GetDefaultName(obj, false);
         }
 
+        /// <summary>
+        /// Gets the default name of an Object instance using reflection
+        /// </summary>
+        /// <param name="obj">Object to get the name for</param>
+        /// <param name="useFullyQualifiedMethodNames">Boolean inficating whether to use fully qualified names or not</param>
+        /// <returns>Name of the object instance's type</returns>
         public static string GetDefaultName(object obj, bool useFullyQualifiedMethodNames)
         {
             if (obj == null)
@@ -66,6 +80,11 @@ namespace DurableTask
             return name;
         }
 
+        /// <summary>
+        /// Gets the default version for an object instance's type
+        /// </summary>
+        /// <param name="obj">Object to get the version for</param>
+        /// <returns>The version as string</returns>
         public static string GetDefaultVersion(object obj)
         {
             return string.Empty;

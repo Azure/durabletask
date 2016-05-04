@@ -15,12 +15,30 @@ namespace DurableTask
 {
     using System.Runtime.Serialization;
 
+    /// <summary>
+    /// Represents the parent orchestation of a sub orchestration
+    /// </summary>
     [DataContract]
     public class ParentInstance
     {
+        /// <summary>
+        /// The orchestration name of the parent instance
+        /// </summary>
         [DataMember] public string Name;
+
+        /// <summary>
+        /// The orchestration instance of this parent instance
+        /// </summary>
         [DataMember] public OrchestrationInstance OrchestrationInstance;
+
+        /// <summary>
+        /// The id of the child orchestration action
+        /// </summary>
         [DataMember] public int TaskScheduleId;
+
+        /// <summary>
+        /// The orchestration version of the parent instance
+        /// </summary>
         [DataMember] public string Version;
 
         internal ParentInstance Clone()
