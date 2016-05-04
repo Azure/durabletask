@@ -48,9 +48,11 @@ namespace DurableTask.Tracking
             }
 
             tableClient = CloudStorageAccount.Parse(tableConnectionString).CreateCloudTableClient();
-            tableClient.RetryPolicy = new ExponentialRetry(DeltaBackOff,
-                MaxRetries);
-            tableClient.MaximumExecutionTime = MaximumExecutionTime;
+            tableClient.DefaultRequestOptions = new TableRequestOptions
+            {
+                RetryPolicy = new ExponentialRetry(DeltaBackOff, MaxRetries),
+                MaximumExecutionTime = MaximumExecutionTime
+            };
 
             this.hubName = hubName;
             table = tableClient.GetTableReference(TableName);
