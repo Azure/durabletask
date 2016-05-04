@@ -719,7 +719,7 @@ namespace FrameworkUnitTests
             await taskHub.AddTaskOrchestrations(c2)
                 .StartAsync();
 
-            int numSubOrchestrations = 100;
+            int numSubOrchestrations = 60;
 
             var orchestrations = new List<Task<OrchestrationInstance>>();
             for (int i = 0; i < numSubOrchestrations; i++)
