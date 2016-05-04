@@ -174,11 +174,11 @@ namespace DurableTask
                 TaskHubDescription taskHubDescription = GetTaskHubDescription();
 
                 orchestrationDispatcher =
-                    new TaskOrchestrationDispatcher(Utils.CreateMessagingFactory(connectionString),
+                    new TaskOrchestrationDispatcher(Utils.CreateMessagingFactory(connectionString, this.workerSettings.TransportType),
                         string.IsNullOrEmpty(tableStoreConnectionString)
                             ? null
                             : new TrackingDispatcher(
-                                Utils.CreateMessagingFactory(connectionString),
+                                Utils.CreateMessagingFactory(connectionString, this.workerSettings.TransportType),
                                 taskHubDescription,
                                 workerSettings,
                                 tableStoreConnectionString, hubName,
@@ -190,7 +190,7 @@ namespace DurableTask
 
                 activityDispatcher =
                     new TaskActivityDispatcher(
-                        Utils.CreateMessagingFactory(connectionString),
+                        Utils.CreateMessagingFactory(connectionString, this.workerSettings.TransportType),
                         taskHubDescription,
                         workerSettings,
                         orchestratorEntityName,

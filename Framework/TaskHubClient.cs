@@ -88,13 +88,30 @@ namespace DurableTask
         public TaskHubClient(string hubName, string connectionString, string tableStoreConnectionString,
             TaskHubClientSettings settings)
         {
+
+            if(string.IsNullOrWhiteSpace(hubName))
+            {
+                throw new ArgumentException(nameof(hubName));
+            }
+
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                throw new ArgumentException(nameof(connectionString));
+            }
+
+            if (settings == null)
+            {
+                throw new ArgumentException(nameof(settings));
+            }
+
             this.hubName = hubName;
             this.connectionString = connectionString;
-            messagingFactory = Utils.CreateMessagingFactory(connectionString);
+            this.settings = settings;
+
+            messagingFactory = Utils.CreateMessagingFactory(connectionString, this.settings.TransportType);
             workerEntityName = string.Format(FrameworkConstants.WorkerEndpointFormat, this.hubName);
             orchestratorEntityName = string.Format(FrameworkConstants.OrchestratorEndpointFormat, this.hubName);
             defaultConverter = new JsonDataConverter();
-            this.settings = settings;
 
             this.tableStoreConnectionString = tableStoreConnectionString;
             if (!string.IsNullOrEmpty(this.tableStoreConnectionString))

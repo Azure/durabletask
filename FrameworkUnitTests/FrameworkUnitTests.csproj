@@ -97,6 +97,7 @@
   </Choose>
   <ItemGroup>
     <Compile Include="ErrorHandlingTests.cs" />
+    <Compile Include="FunctionalTestsSbmp.cs" />
     <Compile Include="FunctionalTests.cs" />
     <Compile Include="InstanceStoreQueryTests.cs" />
     <Compile Include="OrchestrationTestHostTests.cs" />

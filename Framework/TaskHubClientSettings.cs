@@ -28,9 +28,20 @@ namespace DurableTask
                 Style = CompressionStyle.Never,
                 ThresholdInBytes = 0
             };
+
+            // default to AMQP
+            TransportType = TransportType.Amqp;
         }
 
+        /// <summary>
+        /// Compression settings for the client
+        /// </summary>
         public CompressionSettings MessageCompressionSettings { get; set; }
+
+        /// <summary>
+        /// Transport to use in the underlying service bus connection
+        /// </summary>
+        public TransportType TransportType { get; set; }
 
         internal TaskHubClientSettings Clone()
         {

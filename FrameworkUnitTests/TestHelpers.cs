@@ -43,15 +43,21 @@ namespace FrameworkUnitTests
             TaskHubName = ConfigurationManager.AppSettings.Get("TaskHubName");
         }
 
-        public static TaskHubWorkerSettings CreateTestWorkerSettings(CompressionStyle style = CompressionStyle.Threshold)
+        public static TaskHubWorkerSettings CreateTestWorkerSettings(bool useSbmp, CompressionStyle style = CompressionStyle.Threshold)
         {
             var settings = new TaskHubWorkerSettings();
             settings.TaskOrchestrationDispatcherSettings.CompressOrchestrationState = true;
             settings.MessageCompressionSettings = new CompressionSettings {Style = style, ThresholdInBytes = 1024};
+
+            if (useSbmp)
+            {
+                settings.TransportType = DurableTask.TransportType.Sbmp;
+            }
+
             return settings;
         }
 
-        public static TaskHubClientSettings CreateTestClientSettings()
+        public static TaskHubClientSettings CreateTestClientSettings(bool useSbmp)
         {
             var settings = new TaskHubClientSettings();
             settings.MessageCompressionSettings = new CompressionSettings
@@ -59,6 +65,12 @@ namespace FrameworkUnitTests
                 Style = CompressionStyle.Threshold,
                 ThresholdInBytes = 1024
             };
+
+            if (useSbmp)
+            {
+                settings.TransportType = DurableTask.TransportType.Sbmp;
+            }
+
             return settings;
         }
 
@@ -73,7 +85,18 @@ namespace FrameworkUnitTests
 
         public static TaskHubClient CreateTaskHubClient(bool createInstanceStore = true)
         {
-            TaskHubClientSettings clientSettings = CreateTestClientSettings();
+            TaskHubClientSettings clientSettings = CreateTestClientSettings(false);
+
+            if (createInstanceStore)
+            {
+                return new TaskHubClient(TaskHubName, ServiceBusConnectionString, StorageConnectionString, clientSettings);
+            }
+            return new TaskHubClient(TaskHubName, ServiceBusConnectionString, clientSettings);
+        }
+
+        public static TaskHubClient CreateSbmpTaskHubClient(bool createInstanceStore = true)
+        {
+            TaskHubClientSettings clientSettings = CreateTestClientSettings(true);
 
             if (createInstanceStore)
             {
@@ -94,7 +117,7 @@ namespace FrameworkUnitTests
 
         public static TaskHubWorker CreateTaskHubLegacyCompression(bool createInstanceStore = true)
         {
-            TaskHubWorkerSettings workerSettings = CreateTestWorkerSettings(CompressionStyle.Legacy);
+            TaskHubWorkerSettings workerSettings = CreateTestWorkerSettings(false, CompressionStyle.Legacy);
 
             if (createInstanceStore)
             {
@@ -106,7 +129,7 @@ namespace FrameworkUnitTests
 
         public static TaskHubWorker CreateTaskHubAlwaysCompression(bool createInstanceStore = true)
         {
-            TaskHubWorkerSettings workerSettings = CreateTestWorkerSettings(CompressionStyle.Always);
+            TaskHubWorkerSettings workerSettings = CreateTestWorkerSettings(false, CompressionStyle.Always);
 
             if (createInstanceStore)
             {
@@ -119,7 +142,19 @@ namespace FrameworkUnitTests
 
         public static TaskHubWorker CreateTaskHub(bool createInstanceStore = true)
         {
-            TaskHubWorkerSettings workerSettings = CreateTestWorkerSettings();
+            TaskHubWorkerSettings workerSettings = CreateTestWorkerSettings(false);
+
+            if (createInstanceStore)
+            {
+                return new TaskHubWorker(TaskHubName, ServiceBusConnectionString, StorageConnectionString, workerSettings);
+            }
+
+            return new TaskHubWorker(TaskHubName, ServiceBusConnectionString, workerSettings);
+        }
+
+        public static TaskHubWorker CreateSbmpTaskHub(bool createInstanceStore = true)
+        {
+            TaskHubWorkerSettings workerSettings = CreateTestWorkerSettings(true);
 
             if (createInstanceStore)
             {

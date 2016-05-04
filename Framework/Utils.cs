@@ -321,8 +321,18 @@ namespace DurableTask
             }
         }
 
-        public static MessagingFactory CreateMessagingFactory(string connectionString)
+        //public static MessagingFactory CreateMessagingFactory(string connectionString)
+        //{
+        //    return CreateMessagingFactory(connectionString, TransportType.Amqp);
+        //}
+
+        public static MessagingFactory CreateMessagingFactory(string connectionString, TransportType transportType)
         {
+            if (connectionString.IndexOf("TransportType", StringComparison.OrdinalIgnoreCase) == 0)
+            {
+                connectionString = connectionString + ";TransportType=" + (transportType == TransportType.Amqp ? "Amqp" : "Sbmp");
+            }
+
             MessagingFactory factory = MessagingFactory.CreateFromConnectionString(connectionString);
             factory.RetryPolicy = RetryPolicy.Default;
             return factory;

@@ -31,7 +31,15 @@ namespace DurableTask
                 Style = CompressionStyle.Never,
                 ThresholdInBytes = 0
             };
+
+            // default to AMQP
+            TransportType = TransportType.Amqp;
         }
+
+        /// <summary>
+        /// Transport to use in the underlying service bus connection
+        /// </summary>
+        public TransportType TransportType { get; set; }
 
         /// <summary>
         ///     Settings to configure the Task Orchestration Dispatcher
