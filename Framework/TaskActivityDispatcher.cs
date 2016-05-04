@@ -22,6 +22,9 @@ namespace DurableTask
     using DurableTask.History;
     using DurableTask.Tracing;
 
+    /// <summary>
+    /// Dispatcher for task activities to handle processing and renewing of work items
+    /// </summary>
     public sealed class TaskActivityDispatcher
     {
         readonly NameVersionObjectManager<TaskActivity> objectManager;
@@ -58,16 +61,26 @@ namespace DurableTask
             };
         }
 
+        /// <summary>
+        /// Starts the dispatcher to start getting and processing task activities
+        /// </summary>
         public async Task StartAsync()
         {
             await dispatcher.StartAsync();
         }
 
+        /// <summary>
+        /// Stops the dispatcher to stop getting and processing task activities
+        /// </summary>
+        /// <param name="forced">Flag indicating whether to stop gracefully or immediately</param>
         public async Task StopAsync(bool forced)
         {
             await dispatcher.StopAsync(forced);
         }
 
+        /// <summary>
+        /// Gets or sets flag whether to include additional details in error messages
+        /// </summary>
         public bool IncludeDetails { get; set;} 
 
         Task<TaskActivityWorkItem> OnFetchWorkItemAsync(TimeSpan receiveTimeout)

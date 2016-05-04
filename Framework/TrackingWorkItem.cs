@@ -16,11 +16,29 @@ namespace DurableTask
     using System;
     using System.Collections.Generic;
 
+    /// <summary>
+    /// An active tracking work item
+    /// </summary>
     public class TrackingWorkItem
     {
+        /// <summary>
+        /// The instance id of this tracking work item
+        /// </summary>
         public string InstanceId;
+
+        /// <summary>
+        /// The datetime this work item is locked until
+        /// </summary>
         public DateTime LockedUntilUtc;
+
+        /// <summary>
+        /// The list of new messages to process tracking for
+        /// </summary>
         public IList<TaskMessage> NewMessages;
+
+        /// <summary>
+        /// The session instance this tracking item is associated with
+        /// </summary>
         public object SessionInstance;
     }
 }

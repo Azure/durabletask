@@ -16,9 +16,19 @@ namespace DurableTask
     using DurableTask.History;
     using System.Collections.Generic;
 
+    /// <summary>
+    /// A snapshot / state dump of an OrchestrationRuntimeState's events
+    /// </summary>
     public class OrchestrationRuntimeStateDump
     {
+        /// <summary>
+        /// List of all history events for this runtime state dump
+        /// </summary>
         public IList<HistoryEvent> Events;
+
+        /// <summary>
+        /// List of new events added during an execution for this runtime state dump
+        /// </summary>
         public IList<HistoryEvent> NewEvents;
     }
 }

@@ -21,6 +21,10 @@ namespace DurableTask
     using DurableTask.Exceptions;
     using Tracing;
 
+    /// <summary>
+    /// Dispatcher class for fetching and processing work items of the supplied type
+    /// </summary>
+    /// <typeparam name="T">The typed Object to dispatch</typeparam>
     public class WorkItemDispatcher<T>
     {
         const int DefaultMaxConcurrentWorkItems = 20;
@@ -40,15 +44,34 @@ namespace DurableTask
         volatile bool isFetching = false;
         bool isStarted = false;
 
+        /// <summary>
+        /// Gets or sets the maximum concurrent work items
+        /// </summary>
         public int MaxConcurrentWorkItems { get; set; }
 
         readonly Func<T, string> workItemIdentifier;
 
         readonly Func<TimeSpan, Task<T>> FetchWorkItem;
         readonly Func<T, Task> ProcessWorkItem;
+        
+        /// <summary>
+        /// Method to execute for safely releasing a work item
+        /// </summary>
         public Func<T, Task> SafeReleaseWorkItem;
+
+        /// <summary>
+        /// Method to execute for aborting a work item
+        /// </summary>
         public Func<T, Task> AbortWorkItem;
+
+        /// <summary>
+        /// Method to get a delay to wait after a fetch exception
+        /// </summary>
         public Func<Exception, int> GetDelayInSecondsAfterOnFetchException = (exception) => 0;
+
+        /// <summary>
+        /// Method to get a delay to wait after a process exception
+        /// </summary>
         public Func<Exception, int> GetDelayInSecondsAfterOnProcessException = (exception) => 0;
 
         /// <summary>
@@ -116,6 +139,10 @@ namespace DurableTask
             }
         }
 
+        /// <summary>
+        /// Stops the work item dispatcher with optional forced flag
+        /// </summary>
+        /// <param name="forced">Flag indicating whether to stop gracefully and wait for work item completion or just stop immediately</param>
         public async Task StopAsync(bool forced)
         {
             if (!isStarted)
@@ -337,6 +364,11 @@ namespace DurableTask
             }
         }
 
+        /// <summary>
+        /// Method for formatting log messages to include dispatcher name and id information
+        /// </summary>
+        /// <param name="message">The message to format</param>
+        /// <returns>The formatted message</returns>
         protected string GetFormattedLog(string message)
         {
             return $"{name}-{id}: {message}";

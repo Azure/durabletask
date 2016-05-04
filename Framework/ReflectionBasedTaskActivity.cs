@@ -21,8 +21,16 @@ namespace DurableTask
     using DurableTask.Serializing;
     using Newtonsoft.Json.Linq;
 
+    /// <summary>
+    /// Relection based task activity for interface based task activities
+    /// </summary>
     public class ReflectionBasedTaskActivity : TaskActivity
     {
+        /// <summary>
+        /// Creates a new ReflectionBasedTaskActivity based on an acticity object and method info
+        /// </summary>
+        /// <param name="activityObject">The activity object to invoke methods on</param>
+        /// <param name="methodInfo">The Reflection.methodInfo for invoking the method on the activity object</param>
         public ReflectionBasedTaskActivity(object activityObject, MethodInfo methodInfo)
         {
             DataConverter = new JsonDataConverter();
@@ -30,16 +38,37 @@ namespace DurableTask
             MethodInfo = methodInfo;
         }
 
+        /// <summary>
+        /// The dataconverter to use for input and output serialization/deserialization
+        /// </summary>
         public DataConverter DataConverter { get; private set; }
+
+        /// <summary>
+        /// The activity object to invoke methods on
+        /// </summary>
         public object activityObject { get; private set; }
+
+        /// <summary>
+        /// The Reflection.methodInfo for invoking the method on the activity object
+        /// </summary>
         public MethodInfo MethodInfo { get; private set; }
 
+        /// <summary>
+        /// Syncronous execute method, blocked for AsyncTaskActivity
+        /// </summary>
+        /// <returns>string.Empty</returns>
         public override string Run(TaskContext context, string input)
         {
             // will never run
             return string.Empty;
         }
 
+        /// <summary>
+        /// Method for executing a task activity asyncronously
+        /// </summary>
+        /// <param name="context">The task context</param>
+        /// <param name="input">The serialized input</param>
+        /// <returns>Serialized output from the execution</returns>
         public override async Task<string> RunAsync(TaskContext context, string input)
         {
             JArray jArray = JArray.Parse(input);
@@ -118,6 +147,11 @@ namespace DurableTask
             return serializedReturn;
         }
 
+        /// <summary>
+        /// Invokes the target method on the actiivity object with supplied paarameters
+        /// </summary>
+        /// <param name="inputParameters"></param>
+        /// <returns></returns>
         public virtual object InvokeActivity(object[] inputParameters)
         {
             return MethodInfo.Invoke(activityObject, inputParameters);

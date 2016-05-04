@@ -19,25 +19,51 @@ namespace DurableTask
     using DurableTask.Common;
     using DurableTask.History;
 
+    /// <summary>
+    /// Represents the runtime state of an orchestration
+    /// </summary>
     public class OrchestrationRuntimeState
     {
+        /// <summary>
+        /// List of all history events for this runtime state
+        /// </summary>
         public readonly IList<HistoryEvent> Events;
 
-        // to keep track of the new events that were added during a particular execution
-        // should not be serialized
+        /// <summary>
+        /// List of new events added during an execution to keep track of the new events that were added during a particular execution 
+        /// should not be serialized
+        /// </summary>
         public readonly IList<HistoryEvent> NewEvents;
+        
+        /// <summary>
+        /// Compressed size of the serialized state
+        /// </summary>
         public long CompressedSize;
 
         ExecutionCompletedEvent ExecutionCompletedEvent;
 
+        /// <summary>
+        /// Size of the serialized state (uncompressed)
+        /// </summary>
         public long Size;
+
+        /// <summary>
+        /// The string status of the runtime state
+        /// </summary>
         public string Status;
 
+        /// <summary>
+        /// Creates a new instance of the OrchestrationRuntimeState
+        /// </summary>
         public OrchestrationRuntimeState()
             : this(null)
         {
         }
 
+        /// <summary>
+        /// Creates a new instance of the OrchestrationRuntimeState with the supplied events
+        /// </summary>
+        /// <param name="events">List of events for this runtime state</param>
         public OrchestrationRuntimeState(IList<HistoryEvent> events)
         {
             Events = new List<HistoryEvent>();
@@ -51,11 +77,17 @@ namespace DurableTask
             }
         }
 
+        /// <summary>
+        /// Gets the execution started event
+        /// </summary>
         public ExecutionStartedEvent ExecutionStartedEvent
         {
             get; private set;
         }
 
+        /// <summary>
+        /// Gets the created time of the ExecutionStartedEvent
+        /// </summary>
         public DateTime CreatedTime
         {
             get
@@ -65,6 +97,9 @@ namespace DurableTask
             }
         }
 
+        /// <summary>
+        /// Gets the created time of the ExecutionCompletedEvent if completed else a safe (from timezone shift) max datetime
+        /// </summary>
         public DateTime CompletedTime
         {
             get
@@ -75,6 +110,9 @@ namespace DurableTask
             }
         }
 
+        /// <summary>
+        /// Gets the serialized input of the ExecutionStartedEvent
+        /// </summary>
         public string Input
         {
             get
@@ -84,11 +122,17 @@ namespace DurableTask
             }
         }
 
+        /// <summary>
+        /// Gets the serialized output of the ExecutionCompletedEvent if compeleted else null
+        /// </summary>
         public String Output
         {
             get { return ExecutionCompletedEvent == null ? null : ExecutionCompletedEvent.Result; }
         }
 
+        /// <summary>
+        /// Gets the orchestration name of the ExecutionStartedEvent
+        /// </summary>
         public string Name
         {
             get
@@ -98,6 +142,9 @@ namespace DurableTask
             }
         }
 
+        /// <summary>
+        /// Gets the orchestraion version of the ExecutionStartedEvent
+        /// </summary>
         public string Version
         {
             get
@@ -107,6 +154,9 @@ namespace DurableTask
             }
         }
 
+        /// <summary>
+        /// Gets the tags from the ExecutionStartedEvent
+        /// </summary>
         public IDictionary<string, string> Tags
         {
             get
@@ -116,6 +166,10 @@ namespace DurableTask
             }
         }
 
+        /// <summary>
+        /// Gets the status of the orchestation
+        /// If complete then the status from the ExecutionCompletedEvent else Running.
+        /// </summary>
         public OrchestrationStatus OrchestrationStatus
         {
             get
@@ -131,21 +185,36 @@ namespace DurableTask
             }
         }
 
+        /// <summary>
+        /// Gets the OrchestrationInstance of the ExecutionStartedEvent else null
+        /// </summary>
         public OrchestrationInstance OrchestrationInstance
         {
             get { return ExecutionStartedEvent == null ? null : ExecutionStartedEvent.OrchestrationInstance; }
         }
 
+        /// <summary>
+        /// Gets the ParentInstance of the ExecutionStartedEvent else null
+        /// </summary>
         public ParentInstance ParentInstance
         {
             get { return ExecutionStartedEvent == null ? null : ExecutionStartedEvent.ParentInstance; }
         }
 
+        /// <summary>
+        /// Adds a new history event to the Events list and NewEvents list
+        /// </summary>
+        /// <param name="historyEvent">The new history event to add</param>
         public void AddEvent(HistoryEvent historyEvent)
         {
             AddEvent(historyEvent, true);
         }
 
+        /// <summary>
+        /// Adds a new history event to the Events list and optionally NewEvents list
+        /// </summary>
+        /// <param name="historyEvent">The history event to add</param>
+        /// <param name="isNewEvent">Flag indicating whether this is a new event or not</param>
         void AddEvent(HistoryEvent historyEvent, bool isNewEvent)
         {
             Events.Add(historyEvent);
@@ -178,6 +247,10 @@ namespace DurableTask
             }
         }
 
+        /// <summary>
+        /// Gets a statedump of the current list of events
+        /// </summary>
+        /// <returns></returns>
         public OrchestrationRuntimeStateDump GetOrchestrationRuntimeStateDump()
         {
             var runtimeStateDump = new OrchestrationRuntimeStateDump

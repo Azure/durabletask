@@ -15,9 +15,19 @@ namespace DurableTask
 {
     using System.Collections.Generic;
 
+    /// <summary>
+    /// Partial query results for an orchestration state query
+    /// </summary>
     public class OrchestrationStateQuerySegment
     {
+        /// <summary>
+        /// The continuation token to obtain more results
+        /// </summary>
         public string ContinuationToken;
+
+        /// <summary>
+        /// The results for the partial query
+        /// </summary>
         public IEnumerable<OrchestrationState> Results;
     }
 }
