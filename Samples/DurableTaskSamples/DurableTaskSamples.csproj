@@ -139,7 +139,7 @@
       <SubType>Designer</SubType>
     </None>
     <None Include="SumOfSquares\BagofNumbers.json">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="packages.config">
       <SubType>Designer</SubType>
