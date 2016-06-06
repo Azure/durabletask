@@ -16,10 +16,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 [assembly: AssemblyTitle("Durable Task Framework")]
-[assembly:
-    AssemblyDescription(
-        @"This package provides a C# based durable Task framework for writing long running applications."
-        )]
+[assembly: AssemblyDescription(@"This package provides a C# based durable Task framework for writing long running applications.")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("Microsoft")]
 [assembly: AssemblyProduct("Durable Task Framework")]
