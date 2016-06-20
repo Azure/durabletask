@@ -26,8 +26,6 @@ namespace FrameworkUnitTests
     /// <summary>
     /// Test the core dtfx via a mock orchestration service and client provider
     /// </summary>
-    // TODO : Enable this again once they working
-    [Ignore]
     [TestClass]
     public class DurableTaskCoreFxTest
     {
@@ -65,7 +63,7 @@ namespace FrameworkUnitTests
             Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,
                 "Orchestration Result is wrong!!!");
 
-            await worker.StopAsync();
+            await worker.StopAsync(true);
         }
 
         [TestMethod]
@@ -92,7 +90,7 @@ namespace FrameworkUnitTests
             Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,
                 "Orchestration Result is wrong!!!");
 
-            await worker.StopAsync();
+            await worker.StopAsync(true);
         }
 
         [TestMethod]
@@ -115,9 +113,9 @@ namespace FrameworkUnitTests
             // strip out the eid so we wait for the latest one always
             OrchestrationInstance masterid = new OrchestrationInstance { InstanceId = id.InstanceId };
 
-            OrchestrationState result1 = await client.WaitForOrchestrationAsync(id, TimeSpan.FromSeconds(40), CancellationToken.None);
+            OrchestrationState result1 = await client.WaitForOrchestrationAsync(id, TimeSpan.FromSeconds(10), CancellationToken.None);
 
-            OrchestrationState result2 = await client.WaitForOrchestrationAsync(masterid, TimeSpan.FromSeconds(500), CancellationToken.None);
+            OrchestrationState result2 = await client.WaitForOrchestrationAsync(masterid, TimeSpan.FromSeconds(20), CancellationToken.None);
 
             Assert.AreEqual(OrchestrationStatus.ContinuedAsNew, result1.OrchestrationStatus);
             Assert.AreEqual(OrchestrationStatus.Completed, result2.OrchestrationStatus);
@@ -157,7 +155,7 @@ namespace FrameworkUnitTests
                 "Child '0' completed.Child '1' completed.Child '2' completed.Child '3' completed.Child '4' completed.",
                 ParentWorkflow.Result, "Orchestration Result is wrong!!!");
 
-            await worker.StopAsync();
+            await worker.StopAsync(true);
         }
 
         [TestMethod]

@@ -236,6 +236,11 @@ namespace DurableTask
             if (isCompleted)
             {
                 TraceHelper.TraceSession(TraceEventType.Information, workItem.InstanceId, "Deleting session state");
+                if (newOrchestrationRuntimeState.ExecutionStartedEvent != null)
+                {
+                    instanceState = Utils.BuildOrchestrationState(newOrchestrationRuntimeState);
+                }
+
                 newOrchestrationRuntimeState = null;
             }
             else

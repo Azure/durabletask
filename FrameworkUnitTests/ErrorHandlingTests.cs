@@ -14,6 +14,9 @@
 namespace FrameworkUnitTests
 {
     using System;
+    using System.Collections.Generic;
+    using System.Diagnostics;
+    using System.Linq;
     using System.Threading.Tasks;
     using DurableTask;
     using DurableTask.Exceptions;
@@ -455,6 +458,88 @@ namespace FrameworkUnitTests
             Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 90));
             Assert.AreEqual("DoWork Failed. RetryCount is: 4", ParentOrchestration.Result,
                 "Orchestration Result is wrong!!!");
+        }
+
+        [Ignore]
+        [TestMethod]
+        // Disabled until bug https://github.com/Azure/durabletask/issues/47 is fixed
+        // Also the test does not work as expected due to debug mode supressing UnobservedTaskException's
+        public async Task ParallelInterfaceExceptionsTest()
+        {
+            var failureClient = new FailureClient();
+            bool unobservedTaskExceptionThrown = false;
+
+            TaskScheduler.UnobservedTaskException += (sender, eventArgs) =>
+            {
+                Task t = (Task)sender;
+                string message = $"id:{t.Id}; {sender.GetType()}; {t.AsyncState}; {t.Status}";
+                Trace.TraceError($"UnobservedTaskException caught: {message}");
+
+                eventArgs.SetObserved();
+                unobservedTaskExceptionThrown = true;
+            };
+
+            await taskHub
+                .AddTaskOrchestrations(typeof(FailureClientOrchestration))
+                .AddTaskActivitiesFromInterface<IFailureClient>(failureClient)
+                .StartAsync();
+
+            ParentOrchestration.Result = null;
+            RetryOrchestration.Result = null;
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof(FailureClientOrchestration), "test");
+
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 90);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 90));
+            Assert.IsFalse(unobservedTaskExceptionThrown, "UnobservedTaskException should not be thrown");
+        }
+
+        public interface IFailureClient
+        {
+            Task<IEnumerable<string>> GetValues(bool fail);
+        }
+
+        public class FailureClient : IFailureClient
+        {
+            public async Task<IEnumerable<string>> GetValues(bool fail)
+            {
+                // If we going to fail, let's do so faster than the 'success' path
+                await Task.Delay(fail ? 1000 : 5000);
+                if (fail)
+                {
+                    throw new Exception("getvalues failed");
+                }
+
+                // We are in the same process so let's force GC collection to check for an unobserved task
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+
+                return new List<string>() { "test" };
+            }
+        }
+
+        class FailureClientOrchestration : TaskOrchestration<string, string>
+        {
+            public override async Task<string> RunTask(OrchestrationContext context, string value)
+            {
+                IFailureClient client = context.CreateClient<IFailureClient>(false);
+                string result = value;
+                IEnumerable<string>[] completedTasks;
+                try
+                {
+                    Task<IEnumerable<string>> t1 = client.GetValues(false);
+                    // This is the task that gets thrown as a unhandled task exception when it gets created during replay (aka context.isReplaying = true)
+                    Task<IEnumerable<string>> t2 = client.GetValues(true);
+                    completedTasks = await Task.WhenAll(t1, t2);
+                }
+                catch (Exception ex)
+                {
+                    return ex.Message;
+                }
+
+                IEnumerable<string> allResults = completedTasks.SelectMany(t => t);
+
+                return string.Join(",", allResults);
+            }
         }
 
         public interface IRetryTask

@@ -87,7 +87,11 @@ namespace FrameworkUnitTests.Mocks
             }
         }
 
-        public void CompleteSession(string id, byte[] newState, IList<TaskMessage> newMessages)
+        public void CompleteSession(
+            string id, 
+            byte[] newState, 
+            IList<TaskMessage> newMessages,
+            TaskMessage continuedAsNewMessage)
         {
             lock (this.ThisLock)
             {
@@ -119,6 +123,11 @@ namespace FrameworkUnitTests.Mocks
                 foreach (TaskMessage m in newMessages)
                 {
                     this.SendMessage(m);
+                }
+
+                if (continuedAsNewMessage != null)
+                {
+                    this.SendMessage(continuedAsNewMessage);
                 }
             }
         }

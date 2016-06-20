@@ -53,7 +53,7 @@ namespace FrameworkUnitTests
             {
                 TaskOrchestrationDispatcherSettings = { CompressOrchestrationState = true },
                 MessageCompressionSettings = new CompressionSettings { Style = style, ThresholdInBytes = 1024 },
-                JumpStartSettings = { JumpStartEnabled = true }
+                JumpStartSettings = { JumpStartEnabled = true, IgnoreWindow = TimeSpan.FromSeconds(10) }
             };
 
             return settings;
