@@ -11,23 +11,41 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Exceptions
+namespace DurableTask.Stats
 {
-    using System;
-
     /// <summary>
-    /// Represents a type missing error
+    /// Simple counter class
     /// </summary>
-    [Serializable]
-    public class TypeMissingException : Exception
+    public class Counter
     {
         /// <summary>
-        /// Initializes an new instance of the TypeMissingException class with a specified error message
+        /// Gets the current counter value
         /// </summary>
-        /// <param name="message">The message that describes the error.</param>
-        public TypeMissingException(string message)
-            : base(message)
+        public long Value { get; private set; } = 0;
+
+        /// <summary>
+        /// Increments the counter by 1
+        /// </summary>
+        public void Increment()
         {
+            ++Value;
+        }
+
+        /// <summary>
+        /// Increments the counter by the supplied value
+        /// </summary>
+        /// <param name="value">The value to increment the counter by</param>
+        public void Increment(long value)
+        {
+            Value += value;
+        }
+
+        /// <summary>
+        /// Returns a string that represents the Counter.
+        /// </summary>
+        public override string ToString()
+        {
+            return Value.ToString();
         }
     }
 }

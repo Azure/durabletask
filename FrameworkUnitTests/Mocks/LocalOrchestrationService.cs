@@ -449,6 +449,8 @@ namespace FrameworkUnitTests.Mocks
             return Task.FromResult<object>(null);
         }
 
+        public int TaskActivityDispatcherCount => 1;
+
         public int MaxConcurrentTaskActivityWorkItems => MaxConcurrentWorkItems;
 
         public Task ForceTerminateTaskOrchestrationAsync(string instanceId, string message)
@@ -477,6 +479,8 @@ namespace FrameworkUnitTests.Mocks
         {
             return 0;
         }
+
+        public int TaskOrchestrationDispatcherCount => 1;
 
         /******************************/
         // Task activity methods

@@ -15,6 +15,7 @@ namespace DurableTask.Exceptions
 {
     using System;
 
+    [Serializable]
     internal class TaskFailureException : Exception
     {
         public TaskFailureException()

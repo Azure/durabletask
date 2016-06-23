@@ -11,6 +11,8 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+using DurableTask.Settings;
+
 namespace FrameworkUnitTests
 {
     using System;
@@ -650,7 +652,12 @@ namespace FrameworkUnitTests
             for (int i = 0; i < concurrentClientsAndHubs; i++)
             {
                 clients.Add(TestHelpers.CreateTaskHubClient());
-                workers.Add(TestHelpers.CreateTaskHub());
+                workers.Add(TestHelpers.CreateTaskHub(new ServiceBusOrchestrationServiceSettings()
+                {
+                    TaskOrchestrationDispatcherSettings = { DispatcherCount = 4 },
+                    TrackingDispatcherSettings = { DispatcherCount = 4 },
+                    TaskActivityDispatcherSettings = { DispatcherCount = 4 }
+                }));
                 tasks.Add(workers[i].orchestrationService.CreateIfNotExistsAsync());
             }
 
@@ -678,6 +685,7 @@ namespace FrameworkUnitTests
             Assert.IsNotNull(state);
             Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus, TestHelpers.GetInstanceNotCompletedMessage(client, instance, 60));
             Assert.AreEqual(4, GenerationBasicOrchestration.Result, "Orchestration Result is wrong!!!");
+            await Task.WhenAll(workers.Select(worker => worker.StopAsync(true)));
         }
 
         #endregion

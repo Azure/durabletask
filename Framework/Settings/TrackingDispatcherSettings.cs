@@ -24,6 +24,7 @@ namespace DurableTask.Settings
         {
             TransientErrorBackOffSecs = FrameworkConstants.TrackingTransientErrorBackOffSecs;
             NonTransientErrorBackOffSecs = FrameworkConstants.TrackingNonTransientErrorBackOffSecs;
+            DispatcherCount = FrameworkConstants.TrackingDefaultDispatcherCount;
             MaxConcurrentTrackingSessions = FrameworkConstants.TrackingDefaultMaxConcurrentItems;
         }
 
@@ -36,6 +37,11 @@ namespace DurableTask.Settings
         ///     Time in seconds to wait before retrying on a non-transient error. Default is 120s.
         /// </summary>
         public int NonTransientErrorBackOffSecs { get; set; }
+
+        /// <summary>
+        ///     How many dispatchers to create. Default is 1.
+        /// </summary>
+        public int DispatcherCount { get; set; }
 
         /// <summary>
         ///     How many tracking sessions to process concurrently. Default is 20.

@@ -107,6 +107,9 @@
     <Compile Include="IOrchestrationServiceInstanceStore.cs" />
     <Compile Include="Settings\JumpStartSettings.cs" />
     <Compile Include="Settings\ServiceBusOrchestrationServiceSettings.cs" />
+    <Compile Include="Stats\Counter.cs" />
+    <Compile Include="Stats\ServiceBusOrchestrationServiceStats.cs" />
+    <Compile Include="Stats\ServiceBusQueueStats.cs" />
     <Compile Include="Tracking\AzureTableOrchestrationJumpStartEntity.cs" />
     <Compile Include="TrackingWorkItem.cs" />
     <Compile Include="Tracking\AzureTableInstanceStore.cs" />
@@ -219,6 +222,7 @@
     <Compile Include="Common\CompressionStyle.cs" />
     <Compile Include="NameVersionHelper.cs" />
     <Compile Include="Common\Utils.cs" />
+    <Compile Include="WorkItemDispatcherContext.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
