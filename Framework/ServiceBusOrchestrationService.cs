@@ -82,9 +82,9 @@ namespace DurableTask
         readonly WorkItemDispatcher<TrackingWorkItem> trackingDispatcher;
         readonly JumpStartManager jumpStartManager;
 
-        // TODO : Make user of these instead of passing around the object references.
         ConcurrentDictionary<string, ServiceBusOrchestrationSession> orchestrationSessions;
         ConcurrentDictionary<string, BrokeredMessage> orchestrationMessages;
+        CancellationTokenSource cancellationTokenSource;
 
         /// <summary>
         ///     Create a new ServiceBusOrchestrationService to the given service bus connection string and hubname
@@ -134,6 +134,7 @@ namespace DurableTask
         /// </summary>
         public async Task StartAsync()
         {
+            this.cancellationTokenSource = new CancellationTokenSource();
             orchestrationSessions = new ConcurrentDictionary<string, ServiceBusOrchestrationSession>();
             orchestrationMessages = new ConcurrentDictionary<string, BrokeredMessage>();
 
@@ -152,6 +153,8 @@ namespace DurableTask
             {
                 await jumpStartManager.StartAsync();
             }
+
+            await Task.Factory.StartNew(() => this.ServiceMonitorAsync(this.cancellationTokenSource.Token), this.cancellationTokenSource.Token);
         }
 
         /// <summary>
@@ -168,7 +171,9 @@ namespace DurableTask
         /// <param name="isForced">Flag when true stops resources agresssively, when false stops gracefully</param>
         public async Task StopAsync(bool isForced)
         {
-            TraceHelper.Trace(TraceEventType.Information, "Service Stats: {0}", this.ServiceStats.ToString());
+            this.cancellationTokenSource?.Cancel();
+
+            TraceHelper.Trace(TraceEventType.Information, "Final Service Stats: {0}", this.ServiceStats.ToString());
             // TODO : call shutdown of any remaining orchestrationSessions and orchestrationMessages
 
             await Task.WhenAll(
@@ -1393,6 +1398,17 @@ namespace DurableTask
             }
 
             return !isSessionSizeThresholdExceeded;
+        }
+
+        async Task ServiceMonitorAsync(CancellationToken cancellationToken)
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                await Task.Delay(TimeSpan.FromMinutes(1), cancellationToken);
+
+                TraceHelper.Trace(TraceEventType.Information, "Service Stats: {0}", this.ServiceStats.ToString());
+                TraceHelper.Trace(TraceEventType.Information, "Active Session and Message Stats: Messages: {0}, Sessions: {1}", orchestrationMessages.Count, orchestrationSessions.Count);
+            }
         }
 
         static async Task SafeDeleteQueueAsync(NamespaceManager namespaceManager, string path)
