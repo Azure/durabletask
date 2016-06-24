@@ -1149,24 +1149,27 @@ namespace DurableTask
                 return trackingMessages;
             }
 
-            // this is to stamp the tracking events with a sequence number so they can be ordered even if
-            // writing to a store like azure table
-            int historyEventIndex = runtimeState.Events.Count - runtimeState.NewEvents.Count;
-            foreach (HistoryEvent he in runtimeState.NewEvents)
+            if (Settings.TrackingDispatcherSettings.TrackHistoryEvents)
             {
-                var taskMessage = new TaskMessage
+                // this is to stamp the tracking events with a sequence number so they can be ordered even if
+                // writing to a store like azure table
+                int historyEventIndex = runtimeState.Events.Count - runtimeState.NewEvents.Count;
+                foreach (HistoryEvent he in runtimeState.NewEvents)
                 {
-                    Event = he,
-                    SequenceNumber = historyEventIndex++,
-                    OrchestrationInstance = runtimeState.OrchestrationInstance
-                };
+                    var taskMessage = new TaskMessage
+                    {
+                        Event = he,
+                        SequenceNumber = historyEventIndex++,
+                        OrchestrationInstance = runtimeState.OrchestrationInstance
+                    };
 
-                BrokeredMessage trackingMessage = ServiceBusUtils.GetBrokeredMessageFromObject(
-                    taskMessage,
-                    Settings.MessageCompressionSettings,
-                    runtimeState.OrchestrationInstance,
-                    "History Tracking Message");
-                trackingMessages.Add(trackingMessage);
+                    BrokeredMessage trackingMessage = ServiceBusUtils.GetBrokeredMessageFromObject(
+                        taskMessage,
+                        Settings.MessageCompressionSettings,
+                        runtimeState.OrchestrationInstance,
+                        "History Tracking Message");
+                    trackingMessages.Add(trackingMessage);
+                }
             }
 
             var stateMessage = new TaskMessage

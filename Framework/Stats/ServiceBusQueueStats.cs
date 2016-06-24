@@ -70,7 +70,7 @@ namespace DurableTask.Stats
         {
             return $"MessagesSent: {MessagesSent}"
                    + $", MessagesReceived: {MessagesReceived}"
-                   + $", MessagesBatchesSent: {MessageBatchesSent}"
+                   + $", MessageBatchesSent: {MessageBatchesSent}"
                    + $", MessageBatchesReceived: {MessageBatchesReceived}"
                    + $", MessagesRenewed: {MessagesRenewed}"
                    + $", SessionsReceived: {SessionsReceived}"

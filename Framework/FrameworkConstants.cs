@@ -49,6 +49,7 @@ namespace DurableTask
         public const int TrackingNonTransientErrorBackOffSecs = 120;
         public const int TrackingDefaultDispatcherCount = 1;
         public const int TrackingDefaultMaxConcurrentItems = 20;
+        public const bool TrackingTrackHistoryEvents = true;
 
         // Jumpstart constants
         public static TimeSpan JumpStartDefaultInterval = TimeSpan.FromSeconds(5);

@@ -26,6 +26,7 @@ namespace DurableTask.Settings
             NonTransientErrorBackOffSecs = FrameworkConstants.TrackingNonTransientErrorBackOffSecs;
             DispatcherCount = FrameworkConstants.TrackingDefaultDispatcherCount;
             MaxConcurrentTrackingSessions = FrameworkConstants.TrackingDefaultMaxConcurrentItems;
+            TrackHistoryEvents = FrameworkConstants.TrackingTrackHistoryEvents;
         }
 
         /// <summary>
@@ -47,6 +48,11 @@ namespace DurableTask.Settings
         ///     How many tracking sessions to process concurrently. Default is 20.
         /// </summary>
         public int MaxConcurrentTrackingSessions { get; set; }
+
+        /// <summary>
+        ///     Flag indicating whether to track history events in addition to orchestration state. Default is true
+        /// </summary>
+        public bool TrackHistoryEvents { get; set; }
 
         internal TrackingDispatcherSettings Clone()
         {
