@@ -602,7 +602,7 @@ namespace DurableTask
                                 "Worker outbound message"))
                             .ToList()
                             );
-                        this.ServiceStats.ActivityDispatcherStats.MessagesBatchesSent.Increment();
+                        this.ServiceStats.ActivityDispatcherStats.MessageBatchesSent.Increment();
                         this.ServiceStats.ActivityDispatcherStats.MessagesSent.Increment(outboundMessages.Count);
                     }
 
@@ -621,7 +621,7 @@ namespace DurableTask
                             })
                             .ToList()
                             );
-                        this.ServiceStats.OrchestrationDispatcherStats.MessagesBatchesSent.Increment();
+                        this.ServiceStats.OrchestrationDispatcherStats.MessageBatchesSent.Increment();
                         this.ServiceStats.OrchestrationDispatcherStats.MessagesSent.Increment(timerMessages.Count);
                     }
 
@@ -636,7 +636,7 @@ namespace DurableTask
                                 "Sub Orchestration"))
                             .ToList()
                             );
-                        this.ServiceStats.OrchestrationDispatcherStats.MessagesBatchesSent.Increment();
+                        this.ServiceStats.OrchestrationDispatcherStats.MessageBatchesSent.Increment();
                         this.ServiceStats.OrchestrationDispatcherStats.MessagesSent.Increment(orchestratorMessages.Count);
                     }
 
@@ -649,7 +649,7 @@ namespace DurableTask
                                 newOrchestrationRuntimeState.OrchestrationInstance,
                                 "Continue as new")
                             );
-                        this.ServiceStats.OrchestrationDispatcherStats.MessagesBatchesSent.Increment();
+                        this.ServiceStats.OrchestrationDispatcherStats.MessageBatchesSent.Increment();
                         this.ServiceStats.OrchestrationDispatcherStats.MessagesSent.Increment();
                     }
 
@@ -663,7 +663,7 @@ namespace DurableTask
                         if (trackingMessages.Count > 0)
                         {
                             await trackingSender.SendBatchAsync(trackingMessages);
-                            this.ServiceStats.TrackingDispatcherStats.MessagesBatchesSent.Increment();
+                            this.ServiceStats.TrackingDispatcherStats.MessageBatchesSent.Increment();
                             this.ServiceStats.TrackingDispatcherStats.MessagesSent.Increment(trackingMessages.Count);
                         }
                     }
@@ -861,7 +861,7 @@ namespace DurableTask
                     orchestratorSender.SendAsync(brokeredResponseMessage));
                 this.ServiceStats.ActivityDispatcherStats.SessionBatchesCompleted.Increment();
                 this.ServiceStats.OrchestrationDispatcherStats.MessagesSent.Increment();
-                this.ServiceStats.OrchestrationDispatcherStats.MessagesBatchesSent.Increment();
+                this.ServiceStats.OrchestrationDispatcherStats.MessageBatchesSent.Increment();
                 ts.Complete();
             }
         }
@@ -1380,7 +1380,7 @@ namespace DurableTask
 
                     await orchestratorQueueClient.SendAsync(forcedTerminateMessage);
                     this.ServiceStats.OrchestrationDispatcherStats.MessagesSent.Increment();
-                    this.ServiceStats.OrchestrationDispatcherStats.MessagesBatchesSent.Increment();
+                    this.ServiceStats.OrchestrationDispatcherStats.MessageBatchesSent.Increment();
                 }
                 else
                 {

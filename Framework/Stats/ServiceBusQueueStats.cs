@@ -31,7 +31,7 @@ namespace DurableTask.Stats
         /// <summary>
         /// The number of batches sent
         /// </summary>
-        public Counter MessagesBatchesSent { get; } = new Counter();
+        public Counter MessageBatchesSent { get; } = new Counter();
 
         /// <summary>
         /// The number of batches received
@@ -70,7 +70,7 @@ namespace DurableTask.Stats
         {
             return $"MessagesSent: {MessagesSent}"
                    + $", MessagesReceived: {MessagesReceived}"
-                   + $", MessagesBatchesSent: {MessagesBatchesSent}"
+                   + $", MessagesBatchesSent: {MessageBatchesSent}"
                    + $", MessageBatchesReceived: {MessageBatchesReceived}"
                    + $", MessagesRenewed: {MessagesRenewed}"
                    + $", SessionsReceived: {SessionsReceived}"
