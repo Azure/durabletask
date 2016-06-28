@@ -138,7 +138,10 @@ namespace DurableTask
                     for (var i = 0; i < DispatcherCount; i++)
                     {
                         var dispatcherId = i.ToString();
-                        await Task.Factory.StartNew(() => DispatchAsync(dispatcherId));
+                        // We just want this to Run we intentionally don't wait
+                        #pragma warning disable 4014
+                        Task.Run(() => DispatchAsync(dispatcherId));
+                        #pragma warning restore 4014
                     }
                 }
                 finally
@@ -256,7 +259,10 @@ namespace DurableTask
                     else
                     {
                         Interlocked.Increment(ref concurrentWorkItemCount);
-                        await Task.Factory.StartNew(() => ProcessWorkItemAsync(context, workItem));
+                        // We just want this to Run we intentionally don't wait
+                        #pragma warning disable 4014 
+                        Task.Run(() => ProcessWorkItemAsync(context, workItem));
+                        #pragma warning restore 4014
                     }
                 }
 

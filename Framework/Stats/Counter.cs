@@ -13,22 +13,26 @@
 
 namespace DurableTask.Stats
 {
+    using System.Threading;
+
     /// <summary>
     /// Simple counter class
     /// </summary>
     public class Counter
     {
+        long counterValue = 0;
+
         /// <summary>
         /// Gets the current counter value
         /// </summary>
-        public long Value { get; private set; } = 0;
+        public long Value => counterValue;
 
         /// <summary>
         /// Increments the counter by 1
         /// </summary>
         public void Increment()
         {
-            ++Value;
+            Interlocked.Increment(ref counterValue);
         }
 
         /// <summary>
@@ -37,7 +41,7 @@ namespace DurableTask.Stats
         /// <param name="value">The value to increment the counter by</param>
         public void Increment(long value)
         {
-            Value += value;
+            Interlocked.Add(ref counterValue, value);
         }
 
         /// <summary>
@@ -45,7 +49,7 @@ namespace DurableTask.Stats
         /// </summary>
         public override string ToString()
         {
-            return Value.ToString();
+            return counterValue.ToString();
         }
     }
 }

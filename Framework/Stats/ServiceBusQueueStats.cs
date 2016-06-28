@@ -41,7 +41,7 @@ namespace DurableTask.Stats
         /// <summary>
         /// The number of messages renewed
         /// </summary>
-        public Counter MessagesRenewed { get; } = new Counter();
+        public Counter SessionsRenewed { get; } = new Counter();
 
         /// <summary>
         /// The number of sessions received
@@ -72,7 +72,7 @@ namespace DurableTask.Stats
                    + $", MessagesReceived: {MessagesReceived}"
                    + $", MessageBatchesSent: {MessageBatchesSent}"
                    + $", MessageBatchesReceived: {MessageBatchesReceived}"
-                   + $", MessagesRenewed: {MessagesRenewed}"
+                   + $", SessionsRenewed: {SessionsRenewed}"
                    + $", SessionsReceived: {SessionsReceived}"
                    + $", SessionBatchesCompleted: {SessionBatchesCompleted}"
                    + $", SessionSets: {SessionSets}"

@@ -18,6 +18,13 @@ namespace DurableTask.Stats
     /// </summary>
     public class ServiceBusOrchestrationServiceStats
     {
+        // TODO: This should implement an interface so implementation specific perf counter implementations are possible
+        // TODO: Add: 
+        //      receive latency
+        //      message/session throughput
+        //      average E2E latency(i.e.look at curenttimeutc -enqueuedtimeutc on the received message)
+        //      queue depths
+
         /// <summary>
         /// Creates a new instance of the ServiceBusOrchestrationServiceStats class
         /// </summary>

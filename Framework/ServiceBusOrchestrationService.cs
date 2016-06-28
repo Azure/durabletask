@@ -422,7 +422,7 @@ namespace DurableTask
                 (await Utils.ExecuteWithRetries(() => session.ReceiveBatchAsync(this.Settings.PrefetchCount),
                     session.SessionId, "Receive Session Message Batch", this.Settings.MaxRetries, Settings.IntervalBetweenRetriesSecs)).ToList();
 
-            this.ServiceStats.OrchestrationDispatcherStats.MessagesReceived.Increment();
+            this.ServiceStats.OrchestrationDispatcherStats.MessagesReceived.Increment(newMessages.Count);
             TraceHelper.TraceSession(TraceEventType.Information, session.SessionId,
                 this.GetFormattedLog($@"{newMessages.Count()} new messages to process: {
                     string.Join(",", newMessages.Select(m => m.MessageId))}"));
@@ -535,7 +535,7 @@ namespace DurableTask
 
             TraceHelper.TraceSession(TraceEventType.Error, workItem.InstanceId, "Renew lock on orchestration session");
             await sessionState.Session.RenewLockAsync();
-            this.ServiceStats.OrchestrationDispatcherStats.MessagesRenewed.Increment();
+            this.ServiceStats.OrchestrationDispatcherStats.SessionsRenewed.Increment();
             workItem.LockedUntilUtc = sessionState.Session.LockedUntilUtc;
         }
 
@@ -818,7 +818,7 @@ namespace DurableTask
             {
                 await message.RenewLockAsync();
                 workItem.LockedUntilUtc = message.LockedUntilUtc;
-                this.ServiceStats.ActivityDispatcherStats.MessagesRenewed.Increment();
+                this.ServiceStats.ActivityDispatcherStats.SessionsRenewed.Increment();
             }
 
             return workItem;
@@ -864,10 +864,10 @@ namespace DurableTask
                 await Task.WhenAll(
                     workerQueueClient.CompleteAsync(originalMessage.LockToken),
                     orchestratorSender.SendAsync(brokeredResponseMessage));
+                ts.Complete();
                 this.ServiceStats.ActivityDispatcherStats.SessionBatchesCompleted.Increment();
                 this.ServiceStats.OrchestrationDispatcherStats.MessagesSent.Increment();
                 this.ServiceStats.OrchestrationDispatcherStats.MessageBatchesSent.Increment();
-                ts.Complete();
             }
         }
 
@@ -1352,7 +1352,7 @@ namespace DurableTask
 
             if (newOrchestrationRuntimeState == null)
             {
-                session.SetState(null);
+                await session.SetStateAsync(null);
                 return true;
             }
 
