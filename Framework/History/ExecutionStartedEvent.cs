@@ -28,6 +28,13 @@ namespace DurableTask.History
         [DataMember] public OrchestrationInstance OrchestrationInstance;
 
         /// <summary>
+        /// Parameterless ctor for deserilization support, do not use directly
+        /// </summary>
+        public ExecutionStartedEvent()
+        {
+        }
+
+        /// <summary>
         /// Creates a new ExecutionStartedEvent with the supplied parameters
         /// </summary>
         /// <param name="eventId">The evnet id of the history event</param>

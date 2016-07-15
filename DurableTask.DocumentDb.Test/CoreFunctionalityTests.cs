@@ -19,7 +19,7 @@ namespace DurableTask.DocumentDb.Test
     using System.Threading.Tasks;
 
     [TestClass]
-    public class CoreFunctionality
+    public class CoreFunctionalityTests
     {
         [TestMethod]
         public async Task BasicOrchestrationAsync()

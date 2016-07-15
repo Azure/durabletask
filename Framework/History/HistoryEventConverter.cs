@@ -17,29 +17,26 @@ namespace DurableTask.History
     using Newtonsoft.Json.Linq;
     using DurableTask.Serializing;
 
-    internal class OrchestrationActionConverter : JsonCreationConverter<OrchestratorAction>
+    // AFFANDAR : TODO : add the remaining event
+    internal class HistoryEventConverter : JsonCreationConverter<HistoryEvent>
     {
-        protected override OrchestratorAction CreateObject(Type objectType, JObject jobject)
+        protected override HistoryEvent CreateObject(Type objectType, JObject jobject)
         {
-            JToken actionType;
-            if (jobject.TryGetValue("OrchestratorActionType", StringComparison.OrdinalIgnoreCase, out actionType))
+            JToken eventType;
+            if (jobject.TryGetValue("EventType", StringComparison.OrdinalIgnoreCase, out eventType))
             {
-                var type = (OrchestratorActionType)int.Parse((string)actionType);
+                var type = (EventType)int.Parse((string)eventType);
                 switch (type)
                 {
-                    case OrchestratorActionType.CreateTimer:
-                        return new CreateTimerOrchestratorAction();
-                    case OrchestratorActionType.OrchestrationComplete:
-                        return new OrchestrationCompleteOrchestratorAction();
-                    case OrchestratorActionType.ScheduleOrchestrator:
-                        return new ScheduleTaskOrchestratorAction();
-                    case OrchestratorActionType.CreateSubOrchestration:
-                        return new CreateSubOrchestrationAction();
+                    case EventType.ExecutionStarted:
+                        return new ExecutionStartedEvent();
+                    case EventType.TaskScheduled:
+                        return new TaskScheduledEvent();
                     default:
                         throw new NotSupportedException("Unrecognized action type.");
                 }
             }
-            throw new NotSupportedException("Action Type not provided.");
+            throw new NotSupportedException("eventType not provided.");
         }
     }
 }

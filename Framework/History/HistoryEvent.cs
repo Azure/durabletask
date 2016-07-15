@@ -13,6 +13,7 @@
 
 namespace DurableTask.History
 {
+    using Newtonsoft.Json;
     using System;
     using System.Runtime.Serialization;
 
@@ -36,8 +37,17 @@ namespace DurableTask.History
     [KnownType(typeof (EventRaisedEvent))]
     [KnownType(typeof (ContinueAsNewEvent))]
     [KnownType(typeof (HistoryStateEvent))]
+    // AFFANDAR : TODO : add parameterless ctor to all for deser support
+    [JsonConverter(typeof(HistoryEventConverter))]
     public abstract class HistoryEvent
     {
+        /// <summary>
+        /// Parameterless ctor for deserilization support, do not use directly
+        /// </summary>
+        public HistoryEvent()
+        {
+        }
+
         /// <summary>
         /// Creates a new history event with the supplied eventid
         /// </summary>

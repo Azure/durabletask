@@ -19,7 +19,7 @@ namespace DurableTask
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-    using DurableTask.Command;
+    using DurableTask.History;
     using DurableTask.Common;
     using DurableTask.Exceptions;
     using DurableTask.History;

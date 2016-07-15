@@ -18,11 +18,6 @@ namespace DurableTask.DocumentDb
     using System.Threading.Tasks;
     using Tracking;
 
-    // AFFANDAR : TODO : MASTER :
-    //  + implement orchestration service
-    //  + impl orch svc client
-    //  + impl orch svs instances store.. is this really needed with doc db?
-    //  
     public class DocumentOrchestrationServiceInstanceStore : IOrchestrationServiceInstanceStore
     {
         public int MaxHistoryEntryLength

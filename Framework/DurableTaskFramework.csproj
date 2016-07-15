@@ -104,6 +104,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="History\HistoryStateEvent.cs" />
+    <Compile Include="History\HistoryEventConverter.cs" />
     <Compile Include="IOrchestrationServiceInstanceStore.cs" />
     <Compile Include="Settings\JumpStartSettings.cs" />
     <Compile Include="Settings\ServiceBusOrchestrationServiceSettings.cs" />

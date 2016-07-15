@@ -22,6 +22,13 @@ namespace DurableTask.History
     public class TaskScheduledEvent : HistoryEvent
     {
         /// <summary>
+        /// Parameterless ctor for deserilization support, do not use directly
+        /// </summary>
+        public TaskScheduledEvent()
+        {
+        }
+
+        /// <summary>
         /// Creates a new TaskScheduledEvent with the supplied event id
         /// </summary>
         /// <param name="eventId">The event id of the history event</param>
