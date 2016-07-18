@@ -58,9 +58,18 @@ namespace DurableTask.DocumentDb
         /// pick count session docs in that array and put a lock on them with a TTL of 1 min
         /// </summary>
         /// <returns></returns>
-        public async Task<List<SessionDocument>> FetchSessionDocumentsAsync(int count, bool forOrchestration)
+        public async Task<SessionDocument> LockSessionDocumentAsync(bool forOrchestration)
         {
-            throw new NotImplementedException();
+            await this.ensureOpenedTcs.Task;
+
+            StoredProcedureResponse<SessionDocument> resp = 
+                await this.documentClient.ExecuteStoredProcedureAsync<SessionDocument>(
+                    UriFactory.CreateStoredProcedureUri(this.databaseName, this.collectionName, "lockSessionDocument"), 
+                    forOrchestration        
+                    );
+
+           // resp.Response.Etag = (resp.ResponseHeaders.GetValues("etag"))[0];
+            return resp.Response;
         }
 
         /// <summary>
@@ -68,13 +77,24 @@ namespace DurableTask.DocumentDb
         /// </summary>
         /// <param name="session"></param>
         /// <returns></returns>
-        public async Task CompleteSessionDocumentAsync(SessionDocument session)
+        public async Task<SessionDocument> UpdateSessionDocumentAsync(SessionDocument session, bool unlock)
         {
-            throw new NotImplementedException();
+            await this.ensureOpenedTcs.Task;
+            StoredProcedureResponse<SessionDocument> resp =
+                await this.documentClient.ExecuteStoredProcedureAsync<SessionDocument>(
+                    UriFactory.CreateStoredProcedureUri(
+                        this.databaseName, 
+                        this.collectionName, 
+                        "updateSessionDocument"),
+                    session, 
+                    unlock);
+
+            return (SessionDocument)(dynamic)resp.Response;
         }
 
         // AFFANDAR : TODO : exception model.. should wrap docdb exceptions? maybe not because we are not hiding the docdb-ness here
-        public async Task PutSessionDocumentAsync(SessionDocument sessionDoc)
+        // AFFANDAR : TODO : move all calls to stored procs?
+        public async Task CreateSessionDocumentAsync(SessionDocument sessionDoc)
         {
             await this.ensureOpenedTcs.Task;
             await this.documentClient.CreateDocumentAsync(UriFactory.CreateDocumentCollectionUri(databaseName, collectionName), sessionDoc);
@@ -86,19 +106,21 @@ namespace DurableTask.DocumentDb
             await this.documentClient.DeleteDocumentAsync(UriFactory.CreateDocumentUri(databaseName, collectionName, sessionDoc.InstanceId));
         }
 
-        public async Task<SessionDocument> GetSessionDocumentAsync(string instanceId)
+        public async Task<SessionDocument> FetchSessionDocumentAsync(string instanceId)
         {
             await this.ensureOpenedTcs.Task;
-            ResourceResponse<Document> resp = await this.documentClient.ReadDocumentAsync(
-                UriFactory.CreateDocumentUri(databaseName, collectionName, instanceId));
 
-            return (SessionDocument)(dynamic)resp.Resource;
+            StoredProcedureResponse<SessionDocument> resp =
+                await this.documentClient.ExecuteStoredProcedureAsync<SessionDocument>(
+                    UriFactory.CreateStoredProcedureUri(
+                        this.databaseName, 
+                        this.collectionName, 
+                        "fetchSessionDocument"), 
+                    instanceId
+                    );
+
+            return (SessionDocument)(dynamic)resp.Response;
         }
-
-        //public async Task UpdateSessionDocumentAsync(SessionDocument sessionDoc)
-        //{
-        //    await this.documentClient.ReplaceDocumentAsync(UriFactory.CreateDocumentUri(databaseName, collectionName, sessionDoc.InstanceId));
-        //}
 
         async Task EnsureOpenedAsync(bool cleanCollection)
         {
@@ -153,9 +175,14 @@ namespace DurableTask.DocumentDb
             // AFFANDAR : TODO : read from sp script file
             //          for now just inline it
 
-            string body = File.ReadAllText(@".\scripts\fetchSessionDocument.js");
-            await this.CreateStoredProcAsync(databaseName, collectionName, "fetchSessionDocument", body);
+            string lockSessionDocument = File.ReadAllText(@".\scripts\lockSessionDocument.js");
+            string updateSessionDocument = File.ReadAllText(@".\scripts\updateSessionDocument.js");
+            string fetchSessionDocument = File.ReadAllText(@".\scripts\fetchSessionDocument.js");
 
+
+            await this.CreateStoredProcAsync(databaseName, collectionName, "lockSessionDocument", lockSessionDocument);
+            await this.CreateStoredProcAsync(databaseName, collectionName, "updateSessionDocument", updateSessionDocument);
+            await this.CreateStoredProcAsync(databaseName, collectionName, "fetchSessionDocument", fetchSessionDocument);
         }
 
         // AFFANDAR : TODO : figure out all the creation options

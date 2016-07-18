@@ -18,12 +18,25 @@ namespace DurableTask.DocumentDb
     using System.Threading;
     using System.Threading.Tasks;
 
-    // AFFANDAR : TODO : MASTER :
-    //  + write data model classes for session + queue-let
+    // AFFANDAR : TODO : MASTER
+    //  + add continuation token to sps: https://github.com/Azure/azure-documentdb-js-server/blob/master/samples/stored-procedures/update.js
+    //  + move all doc db calls to stored procs for consistency?
+    //  + add partitioning
+    //  + DAL tests
+    //  + actually hook up DAL to orchestration service
+    //  + data driven stored proc script provisioning
     //  + write doc db DAL for OM
     //  + implement orchestration service
     //  + impl orch svc client
     //  + impl orch svs instances store.. is this really needed with doc db?
+    //  
+    //  DONE:
+    //  + write data model classes for session + queue-let
+    //
+    //  POSTPONED:
+    //  + separate out queues from master doc
+    //      + sproc for inserting into a queue
+    //      + sproc for deleting upto a 
     //  
     public class DocumentOrchestrationService : IOrchestrationService
     {

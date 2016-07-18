@@ -16,6 +16,7 @@ using Microsoft.Azure.Documents;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using Newtonsoft.Json.Converters;
 
 namespace DurableTask.DocumentDb
 {
@@ -24,6 +25,9 @@ namespace DurableTask.DocumentDb
     {
         [JsonProperty(PropertyName = "id")]
         public string InstanceId { get; set; }
+
+        [JsonProperty(PropertyName = "_etag")]
+        public string Etag { get; set; }
 
         [JsonProperty(PropertyName = "executionId")]
         public string ExecutionId { get; set; }
@@ -48,9 +52,32 @@ namespace DurableTask.DocumentDb
 
         [JsonProperty(PropertyName = "activityQueue")]
         public IList<TaskMessage> ActivityQueue { get; set; }
+
+        [JsonConverter(typeof(StringEnumConverter))]
+        [JsonProperty(PropertyName = "documentType")]
+        public DocumentType DocumentType { get; set; }
+
+        public SessionDocument()
+        {
+            this.DocumentType = DocumentType.SessionDocument;
+        }
     }
 
-    // AFFANDAR : TODO : separate file
+    // AFFANDAR : TODO : we would need to separate out queues from main session doc for higher throughput scenarios
+    //public class EventQueueItem
+    //{
+    //    public HistoryEvent Event;
+    //    public int Sequence;
+
+    //}
+
+    public enum DocumentType
+    {
+        SessionDocument,
+        OrchestrationQueueItem,
+        ActivityQueueItem,
+    }
+
     public class SessionLock
     {
         public string LockToken { get; set; }
