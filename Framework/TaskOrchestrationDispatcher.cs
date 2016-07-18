@@ -63,6 +63,7 @@ namespace DurableTask
                 GetDelayInSecondsAfterOnProcessException = orchestrationService.GetDelayInSecondsAfterOnProcessException,
                 SafeReleaseWorkItem = orchestrationService.ReleaseTaskOrchestrationWorkItemAsync,
                 AbortWorkItem = orchestrationService.AbandonTaskOrchestrationWorkItemAsync,
+                DispatcherCount = orchestrationService.TaskOrchestrationDispatcherCount,
                 MaxConcurrentWorkItems = orchestrationService.MaxConcurrentTaskOrchestrationWorkItems
             };
         }
@@ -267,7 +268,6 @@ namespace DurableTask
                 continuedAsNewMessage,
                 instanceState);
         }
-
 
         internal virtual IEnumerable<OrchestratorAction> ExecuteOrchestration(OrchestrationRuntimeState runtimeState)
         {

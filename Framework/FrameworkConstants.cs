@@ -35,17 +35,21 @@ namespace DurableTask
         // task orchestration dispatcher default constants
         public const int OrchestrationTransientErrorBackOffSecs = 10;
         public const int OrchestrationNonTransientErrorBackOffSecs = 120;
+        public const int OrchestrationDefaultDispatcherCount = 1;
         public const int OrchestrationDefaultMaxConcurrentItems = 100;
 
         // task activity dispatcher default constants
         public const int ActivityTransientErrorBackOffSecs = 10;
         public const int ActivityNonTransientErrorBackOffSecs = 120;
+        public const int ActivityDefaultDispatcherCount = 1;
         public const int ActivityDefaultMaxConcurrentItems = 10;
 
         // tracking dispatcher default constants
         public const int TrackingTransientErrorBackOffSecs = 10;
         public const int TrackingNonTransientErrorBackOffSecs = 120;
+        public const int TrackingDefaultDispatcherCount = 1;
         public const int TrackingDefaultMaxConcurrentItems = 20;
+        public const bool TrackingTrackHistoryEvents = true;
 
         // Jumpstart constants
         public static TimeSpan JumpStartDefaultInterval = TimeSpan.FromSeconds(5);

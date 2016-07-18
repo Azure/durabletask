@@ -110,6 +110,11 @@ namespace DurableTask
         int GetDelayInSecondsAfterOnFetchException(Exception exception);
 
         /// <summary>
+        /// Gets the number of task orchestration dispatchers
+        /// </summary>
+        int TaskOrchestrationDispatcherCount { get; }
+
+        /// <summary>
         /// Gets the maximum number of concurrent task orchestration items
         /// </summary>
         int MaxConcurrentTaskOrchestrationWorkItems { get; }
@@ -147,6 +152,11 @@ namespace DurableTask
         Task ReleaseTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem);
 
         // TaskActivityDispatcher methods
+
+        /// <summary>
+        /// Gets the number of task activity dispatchers
+        /// </summary>
+        int TaskActivityDispatcherCount { get; }
 
         /// <summary>
         /// Gets the maximum number of concurrent task activity items

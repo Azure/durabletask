@@ -18,6 +18,7 @@ namespace DurableTask.Exceptions
     /// <summary>
     /// Represents errors created by the orchestration framework
     /// </summary>
+    [Serializable]
     public class OrchestrationFrameworkException : Exception
     {
         /// <summary>

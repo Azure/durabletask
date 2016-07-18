@@ -15,12 +15,15 @@ namespace DurableTask.Tracking
 {
     using System;
     using System.Collections.Generic;
+    using System.Diagnostics;
     using System.Globalization;
     using System.Linq;
+    using System.Net;
     using System.Threading.Tasks;
     using System.Xml;
     using DurableTask.Common;
     using DurableTask.Exceptions;
+    using DurableTask.Tracing;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.RetryPolicies;
     using Microsoft.WindowsAzure.Storage.Table;
@@ -512,11 +515,20 @@ namespace DurableTask.Tracking
 
         public async Task<object> DeleteJumpStartEntitesAsync(IEnumerable<AzureTableCompositeTableEntity> entities)
         {
-            return await PerformBatchTableOperationAsync("Delete Entities", this.jumpStartTable, entities, (bo, te) =>
+            try
             {
-                te.ETag = "*";
-                bo.Delete(te);
-            });
+                return await PerformBatchTableOperationAsync("Delete Entities", this.jumpStartTable, entities, (bo, te) =>
+                {
+                    te.ETag = "*";
+                    bo.Delete(te);
+                });
+            }
+            // This call could come in from multiple nodes at the same time so a not found exception is harmless
+            catch (StorageException e) when (e.RequestInformation.HttpStatusCode == (int)HttpStatusCode.NotFound)
+            {
+                TraceHelper.Trace(TraceEventType.Information, "DeleteJumpStartEntitesAsync not found excepction: {0}", e.Message);
+                return Task.FromResult(false);
+            }
         }
     }
 }

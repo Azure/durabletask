@@ -57,6 +57,7 @@ namespace DurableTask
                 AbortWorkItem = orchestrationService.AbandonTaskActivityWorkItemAsync,
                 GetDelayInSecondsAfterOnFetchException = orchestrationService.GetDelayInSecondsAfterOnFetchException,
                 GetDelayInSecondsAfterOnProcessException = orchestrationService.GetDelayInSecondsAfterOnProcessException,
+                DispatcherCount = orchestrationService.TaskActivityDispatcherCount,
                 MaxConcurrentWorkItems = orchestrationService.MaxConcurrentTaskActivityWorkItems
             };
         }

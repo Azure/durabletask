@@ -82,8 +82,9 @@ namespace FrameworkUnitTests
 
             OrchestrationInstance id = await TestHelpers.CreateOrchestrationInstanceAsync(sbService, name, version, null, null, true, false);
 
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 20);
-            Assert.IsFalse(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 20));
+            // Wait only 8 seconds, the jumptstartinterval is set to 10
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 8);
+            Assert.IsFalse(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 8));
         }
 
         [TestMethod]
