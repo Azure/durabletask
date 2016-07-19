@@ -208,7 +208,8 @@ namespace DurableTask.Tracing
                 try
                 {
                     source.TraceEvent(TraceEventType.Critical, 0,
-                        "Failed to log actual trace because one or more trace listeners threw an exception.");
+                        string.Format("Failed to log actual trace because one or more trace listeners threw an exception. Message: {0}", 
+                        exception.ToString()));
                 }
                 catch (Exception anotherException)
                 {
