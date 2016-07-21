@@ -77,7 +77,7 @@ namespace DurableTask.DocumentDb
         /// </summary>
         /// <param name="session"></param>
         /// <returns></returns>
-        public async Task<SessionDocument> UpdateSessionDocumentAsync(SessionDocument session, bool unlock)
+        public async Task<SessionDocument> CompleteSessionDocumentAsync(SessionDocument session)
         {
             await this.ensureOpenedTcs.Task;
             StoredProcedureResponse<SessionDocument> resp =
@@ -85,9 +85,8 @@ namespace DurableTask.DocumentDb
                     UriFactory.CreateStoredProcedureUri(
                         this.databaseName, 
                         this.collectionName, 
-                        "updateSessionDocument"),
-                    session, 
-                    unlock);
+                        "completeSessionDocument"),
+                    session);
 
             return (SessionDocument)(dynamic)resp.Response;
         }
@@ -176,12 +175,14 @@ namespace DurableTask.DocumentDb
             //          for now just inline it
 
             string lockSessionDocument = File.ReadAllText(@".\scripts\lockSessionDocument.js");
-            string updateSessionDocument = File.ReadAllText(@".\scripts\updateSessionDocument.js");
+            string completeSessionDocument = File.ReadAllText(@".\scripts\completeSessionDocument.js");
+            string updateSessionDocumentQueue = File.ReadAllText(@".\scripts\updateSessionDocumentQueue.js");
             string fetchSessionDocument = File.ReadAllText(@".\scripts\fetchSessionDocument.js");
 
 
             await this.CreateStoredProcAsync(databaseName, collectionName, "lockSessionDocument", lockSessionDocument);
-            await this.CreateStoredProcAsync(databaseName, collectionName, "updateSessionDocument", updateSessionDocument);
+            await this.CreateStoredProcAsync(databaseName, collectionName, "completeSessionDocument", completeSessionDocument);
+            await this.CreateStoredProcAsync(databaseName, collectionName, "updateSessionDocumentQueue", updateSessionDocumentQueue);
             await this.CreateStoredProcAsync(databaseName, collectionName, "fetchSessionDocument", fetchSessionDocument);
         }
 

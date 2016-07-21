@@ -19,6 +19,7 @@ namespace DurableTask.DocumentDb
     using System.Threading.Tasks;
 
     // AFFANDAR : TODO : MASTER
+    //  + move sproc names to consts
     //  + add continuation token to sps: https://github.com/Azure/azure-documentdb-js-server/blob/master/samples/stored-procedures/update.js
     //  + move all doc db calls to stored procs for consistency?
     //  + add partitioning

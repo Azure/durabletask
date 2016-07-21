@@ -45,13 +45,13 @@ namespace DurableTask.DocumentDb
         public DateTime OrchestrationQueueLastUpdatedTimeUtc { get; set; }
 
         [JsonProperty(PropertyName="orchestrationQueue")]
-        public IList<TaskMessage> OrchestrationQueue { get; set; }
+        public IList<TaskMessageDocument> OrchestrationQueue { get; set; }
 
         [JsonProperty(PropertyName = "activityQueueLastUpdatedTimeUtc")]
         public DateTime ActivityQueueLastUpdatedTimeUtc { get; set; }
 
         [JsonProperty(PropertyName = "activityQueue")]
-        public IList<TaskMessage> ActivityQueue { get; set; }
+        public IList<TaskMessageDocument> ActivityQueue { get; set; }
 
         [JsonConverter(typeof(StringEnumConverter))]
         [JsonProperty(PropertyName = "documentType")]
@@ -68,8 +68,27 @@ namespace DurableTask.DocumentDb
     //{
     //    public HistoryEvent Event;
     //    public int Sequence;
-
     //}
+
+    public class TaskMessageDocument
+    {
+        [JsonProperty(PropertyName = "taskMessage")]
+        public TaskMessage TaskMessage { get; set; }
+
+        [JsonProperty(PropertyName = "messageId")]
+        public Guid MessageId { get; set; }
+
+        public TaskMessageDocument()
+        {
+            
+        }
+
+        public TaskMessageDocument(TaskMessage taskMessage, Guid messageId)
+        {
+            this.TaskMessage = taskMessage;
+            this.MessageId = messageId;
+        }
+    }
 
     public enum DocumentType
     {

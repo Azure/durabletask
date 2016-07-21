@@ -71,7 +71,10 @@
     <Content Include="scripts\fetchSessionDocument.js">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
-    <Content Include="scripts\updateSessionDocument.js">
+    <Content Include="scripts\updateSessionDocumentQueue.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="scripts\completeSessionDocument.js">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
     <Content Include="scripts\lockSessionDocument.js">

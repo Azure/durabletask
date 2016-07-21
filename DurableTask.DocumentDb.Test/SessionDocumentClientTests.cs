@@ -42,11 +42,19 @@ namespace DurableTask.DocumentDb.Test
             session.SessionLock = new SessionLock { LockToken = lockToken, LockedUntilUtc = lockedUntilUtc };
             session.State = new OrchestrationState { Input = "foobar", Name = "testorch", Status = "running" };
 
-            session.OrchestrationQueue = new List<TaskMessage>();
-            session.OrchestrationQueue.Add(new TaskMessage { Event = new ExecutionStartedEvent(1, "foobar") });
+            session.OrchestrationQueue = new List<TaskMessageDocument>();
+            session.OrchestrationQueue.Add(new TaskMessageDocument
+            {
+                MessageId = Guid.NewGuid(),
+                TaskMessage = new TaskMessage { Event = new ExecutionStartedEvent(1, "foobar") }
+            });
 
-            session.ActivityQueue = new List<TaskMessage>();
-            session.ActivityQueue.Add(new TaskMessage { Event = new TaskScheduledEvent(2) });
+            session.ActivityQueue = new List<TaskMessageDocument>();
+            session.ActivityQueue.Add(new TaskMessageDocument
+            {
+                MessageId = Guid.NewGuid(),
+                TaskMessage = new TaskMessage { Event = new TaskScheduledEvent(2) }
+            });
 
             await c.CreateSessionDocumentAsync(session);
 
@@ -62,34 +70,24 @@ namespace DurableTask.DocumentDb.Test
 
             resp.State = new OrchestrationState {Input = "newfoobar"};
 
-            SessionDocument newResp = await c.UpdateSessionDocumentAsync(resp, false);
+            SessionDocument newResp = await c.CompleteSessionDocumentAsync(resp);
 
             Assert.IsNotNull(newResp);
             Assert.AreEqual(instanceId, newResp.InstanceId);
-            Assert.IsNotNull(newResp.SessionLock);
-            Assert.AreEqual(lockToken, newResp.SessionLock.LockToken);
-            Assert.AreEqual(lockedUntilUtc, newResp.SessionLock.LockedUntilUtc);
+            Assert.IsNull(newResp.SessionLock);
             Assert.IsNotNull(newResp.State);
             Assert.AreEqual("newfoobar", newResp.State.Input);
 
             SessionDocument newResp2;
 
-            // throw in a quick etag test while we are at it
             try
             {
-                newResp2 = await c.UpdateSessionDocumentAsync(resp, true);
+                newResp2 = await c.CompleteSessionDocumentAsync(newResp);
+                Assert.Fail("expected exception");
             }
             catch (Exception)
             {
-                // AFFANDAR : TODO : validate actual exception
             }
-
-            newResp2 = await c.UpdateSessionDocumentAsync(newResp, true);
-            Assert.IsNotNull(newResp2);
-            Assert.AreEqual(instanceId, newResp2.InstanceId);
-            Assert.IsNull(newResp2.SessionLock);
-            Assert.IsNotNull(newResp2.State);
-            Assert.AreEqual("newfoobar", newResp2.State.Input);
 
             await c.DeleteSessionDocumentAsync(resp);
 
@@ -98,10 +96,16 @@ namespace DurableTask.DocumentDb.Test
             Assert.IsNull(resp);
         }
 
+        /// <summary>
+        /// + test multiple docs not lockable
+        /// + test orchestrator lockable
+        /// + test activity lockable
+        /// + test both lockable
+        /// </summary>
+        /// <returns></returns>
         [TestMethod]
-        public async Task BasicFetchAndCompleteTest()
+        public async Task OrchestrationLockAndCompleteTest()
         {
-            // AFFANDAR : TODO : HERE HERE HERE.. add lock/complete/abandon tests
             DateTime lockedUntilUtc = DateTime.UtcNow.AddMinutes(5);
 
             SessionDocumentClient c = new SessionDocumentClient(
@@ -115,31 +119,60 @@ namespace DurableTask.DocumentDb.Test
 
             session.SessionLock = null;
             session.State = new OrchestrationState { Input = "foobar", Name = "testorch", Status = "running" };
-            session.OrchestrationQueue = new List<TaskMessage>();
-            session.ActivityQueue = null;
-            session.OrchestrationQueue.Add(new TaskMessage { Event = new ExecutionStartedEvent(1, "foobar") });
+
+            session.OrchestrationQueue = new List<TaskMessageDocument>();
+            session.OrchestrationQueue.Add(new TaskMessageDocument
+            {
+                MessageId = Guid.NewGuid(),
+                TaskMessage = new TaskMessage { Event = new ExecutionStartedEvent(1, "foobar") }
+            });
+
+            session.OrchestrationQueue.Add(new TaskMessageDocument
+            {
+                MessageId = Guid.NewGuid(),
+                TaskMessage = new TaskMessage { Event = new ExecutionStartedEvent(1, "foobar2") }
+            });
+
             session.OrchestrationQueueLastUpdatedTimeUtc = DateTime.UtcNow;
-            session.ActivityQueueLastUpdatedTimeUtc = DateTime.UtcNow;
+
+            SessionDocument session2 = new SessionDocument { InstanceId = "unlockable" };
+
+            session2.SessionLock = null;
+            session2.State = new OrchestrationState { Input = "foobar", Name = "testorch", Status = "running" };
 
             await c.CreateSessionDocumentAsync(session);
+            await c.CreateSessionDocumentAsync(session2);
 
+            // expect only one locked document
+            var lockedDoc0 = await c.LockSessionDocumentAsync(false);
             var lockedDoc1 = await c.LockSessionDocumentAsync(true);
             var lockedDoc2 = await c.LockSessionDocumentAsync(true);
 
+            Assert.IsNull(lockedDoc0);
             Assert.IsNotNull(lockedDoc1);
             Assert.IsNull(lockedDoc2);
+            Assert.IsNotNull(lockedDoc1.SessionLock);
 
-            await c.UpdateSessionDocumentAsync(lockedDoc1, true);
+            // complete
+            lockedDoc1.State.Input = "foobar2";
 
+            await c.CompleteSessionDocumentAsync(lockedDoc1);
+
+            // verify that the doc is now unlocked and was indeed updated
+            var fetchedLockedDoc1 = await c.FetchSessionDocumentAsync(lockedDoc1.InstanceId);
+            Assert.AreEqual("foobar2", fetchedLockedDoc1.State.Input);
+            Assert.IsNull(fetchedLockedDoc1.SessionLock);
+
+            // lock it again
             lockedDoc2 = await c.LockSessionDocumentAsync(true);
 
             Assert.IsNotNull(lockedDoc2);
 
-            await c.UpdateSessionDocumentAsync(lockedDoc2, true);
+            await c.CompleteSessionDocumentAsync(lockedDoc2);
 
             try
             {
-                await c.UpdateSessionDocumentAsync(lockedDoc2, true);
+                await c.CompleteSessionDocumentAsync(lockedDoc2);
                 Assert.Fail("should throw exception");
             }
             catch(Exception exception)
@@ -149,5 +182,79 @@ namespace DurableTask.DocumentDb.Test
             var lockedDoc3 = await c.LockSessionDocumentAsync(false);
             Assert.IsNull(lockedDoc3);
         }
+
+        [TestMethod]
+        public async Task ActivityLockAndCompleteTest()
+        {
+            SessionDocumentClient c = new SessionDocumentClient(
+                Common.DocumentDbEndpoint,
+                Common.DocumentDbKey,
+                Common.DocumentDbDatabase,
+                Common.TaskHubName,
+                true);
+
+            SessionDocument session = new SessionDocument { InstanceId = "lockable" };
+
+            session.SessionLock = null;
+            session.State = new OrchestrationState { Input = "foobar", Name = "testorch", Status = "running" };
+
+            session.ActivityQueue = new List<TaskMessageDocument>();
+            session.ActivityQueue.Add(new TaskMessageDocument
+            {
+                MessageId = Guid.NewGuid(),
+                TaskMessage = new TaskMessage { Event = new ExecutionStartedEvent(1, "foobar") }
+            });
+
+            session.ActivityQueueLastUpdatedTimeUtc = DateTime.UtcNow;
+
+            SessionDocument session2 = new SessionDocument { InstanceId = "unlockable" };
+
+            session2.SessionLock = null;
+            session2.State = new OrchestrationState { Input = "foobar", Name = "testorch", Status = "running" };
+
+            await c.CreateSessionDocumentAsync(session);
+            await c.CreateSessionDocumentAsync(session2);
+
+            // expect only one locked document
+            var lockedDoc0 = await c.LockSessionDocumentAsync(true);
+            var lockedDoc1 = await c.LockSessionDocumentAsync(false);
+            var lockedDoc2 = await c.LockSessionDocumentAsync(false);
+
+            Assert.IsNull(lockedDoc0);
+            Assert.IsNotNull(lockedDoc1);
+            Assert.IsNull(lockedDoc2);
+            Assert.IsNotNull(lockedDoc1.SessionLock);
+
+            // complete
+            lockedDoc1.State.Input = "foobar2";
+
+            await c.CompleteSessionDocumentAsync(lockedDoc1);
+
+            // verify that the doc is now unlocked and was indeed updated
+            var fetchedLockedDoc1 = await c.FetchSessionDocumentAsync(lockedDoc1.InstanceId);
+            Assert.AreEqual("foobar2", fetchedLockedDoc1.State.Input);
+            Assert.IsNull(fetchedLockedDoc1.SessionLock);
+
+            // lock it again
+            lockedDoc2 = await c.LockSessionDocumentAsync(false);
+
+            Assert.IsNotNull(lockedDoc2);
+
+            await c.CompleteSessionDocumentAsync(lockedDoc2);
+
+            try
+            {
+                await c.CompleteSessionDocumentAsync(lockedDoc2);
+                Assert.Fail("should throw exception");
+            }
+            catch (Exception exception)
+            {
+            }
+
+            var lockedDoc3 = await c.LockSessionDocumentAsync(true);
+            Assert.IsNull(lockedDoc3);
+        }
+
+        // AFFANDAR : TODO : HERE HERE HERE.. add enqueue/dequeue tests for orch/activity queues
     }
 }

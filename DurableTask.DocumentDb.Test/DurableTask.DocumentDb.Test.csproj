@@ -83,6 +83,10 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="..\DurableTask.DocumentDB\scripts\completeSessionDocument.js">
+      <Link>scripts\completeSessionDocument.js</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="..\DurableTask.DocumentDB\scripts\fetchSessionDocument.js">
       <Link>scripts\fetchSessionDocument.js</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -91,8 +95,8 @@
       <Link>scripts\lockSessionDocument.js</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="..\DurableTask.DocumentDB\scripts\updateSessionDocument.js">
-      <Link>scripts\updateSessionDocument.js</Link>
+    <Content Include="..\DurableTask.DocumentDB\scripts\updateSessionDocumentQueue.js">
+      <Link>scripts\updateSessionDocumentQueue.js</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
