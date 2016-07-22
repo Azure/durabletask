@@ -18,6 +18,7 @@ namespace DurableTask.Exceptions
     /// <summary>
     /// Represents a type missing error
     /// </summary>
+    [Serializable]
     public class TypeMissingException : Exception
     {
         /// <summary>

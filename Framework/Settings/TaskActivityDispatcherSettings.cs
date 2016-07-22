@@ -22,6 +22,7 @@ namespace DurableTask.Settings
         {
             TransientErrorBackOffSecs = FrameworkConstants.ActivityTransientErrorBackOffSecs;
             NonTransientErrorBackOffSecs = FrameworkConstants.ActivityNonTransientErrorBackOffSecs;
+            DispatcherCount = FrameworkConstants.ActivityDefaultDispatcherCount;
             MaxConcurrentActivities = FrameworkConstants.ActivityDefaultMaxConcurrentItems;
         }
 
@@ -34,6 +35,11 @@ namespace DurableTask.Settings
         ///     Time in seconds to wait before retrying on a non-transient error. Default is 120s.
         /// </summary>
         public int NonTransientErrorBackOffSecs { get; set; }
+
+        /// <summary>
+        ///     How many dispatchers to create. Default is 1.
+        /// </summary>
+        public int DispatcherCount { get; set; }
 
         /// <summary>
         ///     How many activities to process concurrently. Default is 10.

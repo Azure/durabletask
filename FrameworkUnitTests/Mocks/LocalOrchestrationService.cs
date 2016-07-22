@@ -15,6 +15,7 @@ namespace FrameworkUnitTests.Mocks
 {
     using DurableTask;
     using DurableTask.History;
+    using DurableTask.Tracing;
     using Newtonsoft.Json;
     using System;
     using System.Collections.Concurrent;
@@ -176,7 +177,7 @@ namespace FrameworkUnitTests.Mocks
                         ExecutionId = creationMessage.OrchestrationInstance.ExecutionId,
                     },
                     CreatedTime = DateTime.UtcNow,
-                    OrchestrationStatus = OrchestrationStatus.Running,      // AFFANDAR : TODO : we should have a 'pending' state.
+                    OrchestrationStatus = OrchestrationStatus.Pending,
                     Version = ee.Version,
                     Name = ee.Name,
                     Input = ee.Input,
@@ -246,7 +247,9 @@ namespace FrameworkUnitTests.Mocks
                             }
                         }
 
-                        if (state != null && state.OrchestrationStatus != OrchestrationStatus.Running)
+                        if (state != null 
+                            && state.OrchestrationStatus != OrchestrationStatus.Running
+                            && state.OrchestrationStatus != OrchestrationStatus.Pending)
                         {
                             // if only master id was specified then continueasnew is a not a terminal state
                             if (!(string.IsNullOrWhiteSpace(executionId) && state.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew))
@@ -257,15 +260,19 @@ namespace FrameworkUnitTests.Mocks
                     }
                 }
             }
-
-            Task timeOutTask = Task.Delay(timeout, 
-                CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, this.cancellationTokenSource.Token).Token);
+            
+            var cts = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken,
+                this.cancellationTokenSource.Token);
+            Task timeOutTask = Task.Delay(timeout, cts.Token);
             Task ret = await Task.WhenAny(tcs.Task, timeOutTask);
 
             if (ret == timeOutTask)
             {
                 throw new TimeoutException("timed out or canceled while waiting for orchestration to complete");
             }
+
+            cts.Cancel();
 
             return await tcs.Task;
         }
@@ -275,7 +282,7 @@ namespace FrameworkUnitTests.Mocks
             OrchestrationState response = null;
             lock (this.thisLock)
             {
-                if(this.instanceStore[instanceId] != null)
+                if (this.instanceStore[instanceId] != null)
                 {
                     response = this.instanceStore[instanceId][executionId];
                 }
@@ -357,7 +364,8 @@ namespace FrameworkUnitTests.Mocks
                     workItem.InstanceId,
                     newOrchestrationRuntimeState != null ? 
                     this.SerializeOrchestrationRuntimeState(newOrchestrationRuntimeState) : null,
-                    orchestratorMessages
+                    orchestratorMessages,
+                    continuedAsNewMessage
                     );
 
                 if (outboundMessages != null)
@@ -380,7 +388,7 @@ namespace FrameworkUnitTests.Mocks
                 if (state != null)
                 {
                     Dictionary<string, OrchestrationState> ed;
-                    
+
                     if (!this.instanceStore.TryGetValue(workItem.InstanceId, out ed))
                     {
                         ed = new Dictionary<string, OrchestrationState>();
@@ -393,6 +401,12 @@ namespace FrameworkUnitTests.Mocks
                     TaskCompletionSource<OrchestrationState> tcs = null;
                     TaskCompletionSource<OrchestrationState> tcs1 = null;
 
+                    if (state.OrchestrationStatus == OrchestrationStatus.Running
+                        || state.OrchestrationStatus == OrchestrationStatus.Pending)
+                    {
+                        return Task.FromResult(0);
+                    }
+
                     string key = workItem.OrchestrationRuntimeState.OrchestrationInstance.InstanceId + "_" +
                         workItem.OrchestrationRuntimeState.OrchestrationInstance.ExecutionId;
 
@@ -400,18 +414,15 @@ namespace FrameworkUnitTests.Mocks
 
                     var tasks = new List<Task>();
 
-                    if (state.OrchestrationStatus != OrchestrationStatus.Running
-                        && state.OrchestrationStatus != OrchestrationStatus.Pending
-                        && this.orchestrationWaiters.TryGetValue(key, out tcs))
+
+                    if (this.orchestrationWaiters.TryGetValue(key, out tcs))
                     {
                         tasks.Add(Task.Run(() => tcs.TrySetResult(state)));
                     }
 
                     // for instanceid level waiters, we will not consider continueasnew as a terminal state because
                     // the high level orch is still ongoing
-                    if ((state.OrchestrationStatus != OrchestrationStatus.Running
-                        && state.OrchestrationStatus != OrchestrationStatus.ContinuedAsNew
-                        && state.OrchestrationStatus != OrchestrationStatus.Pending)
+                    if (state.OrchestrationStatus != OrchestrationStatus.ContinuedAsNew
                         && this.orchestrationWaiters.TryGetValue(key1, out tcs1))
                     {
                         tasks.Add(Task.Run(() => tcs1.TrySetResult(state)));
@@ -437,6 +448,8 @@ namespace FrameworkUnitTests.Mocks
         {
             return Task.FromResult<object>(null);
         }
+
+        public int TaskActivityDispatcherCount => 1;
 
         public int MaxConcurrentTaskActivityWorkItems => MaxConcurrentWorkItems;
 
@@ -466,6 +479,8 @@ namespace FrameworkUnitTests.Mocks
         {
             return 0;
         }
+
+        public int TaskOrchestrationDispatcherCount => 1;
 
         /******************************/
         // Task activity methods

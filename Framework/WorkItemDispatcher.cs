@@ -28,6 +28,7 @@ namespace DurableTask
     public class WorkItemDispatcher<T>
     {
         const int DefaultMaxConcurrentWorkItems = 20;
+        const int DefaultDispatcherCount = 1;
 
         const int BackoffIntervalOnInvalidOperationSecs = 10;
         const int CountDownToZeroDelay = 5;
@@ -41,13 +42,18 @@ namespace DurableTask
         volatile int concurrentWorkItemCount;
         volatile int countDownToZeroDelay;
         volatile int delayOverrideSecs;
-        volatile bool isFetching = false;
+        volatile int activeFetchers = 0;
         bool isStarted = false;
 
         /// <summary>
         /// Gets or sets the maximum concurrent work items
         /// </summary>
-        public int MaxConcurrentWorkItems { get; set; }
+        public int MaxConcurrentWorkItems { get; set; } = DefaultMaxConcurrentWorkItems;
+
+        /// <summary>
+        /// Gets or sets the number of dispatchers to create
+        /// </summary>
+        public int DispatcherCount { get; set; } = DefaultDispatcherCount;
 
         readonly Func<T, string> workItemIdentifier;
 
@@ -105,7 +111,6 @@ namespace DurableTask
 
             this.name = name;
             id = Guid.NewGuid().ToString("N");
-            MaxConcurrentWorkItems = DefaultMaxConcurrentWorkItems;
             this.workItemIdentifier = workItemIdentifier;
             this.FetchWorkItem = fetchWorkItem;
             this.ProcessWorkItem = processWorkItem;
@@ -130,7 +135,14 @@ namespace DurableTask
                     isStarted = true;
 
                     TraceHelper.Trace(TraceEventType.Information, $"WorkItemDispatcher('{name}') starting. Id {id}.");
-                    await Task.Factory.StartNew(() => DispatchAsync());
+                    for (var i = 0; i < DispatcherCount; i++)
+                    {
+                        var dispatcherId = i.ToString();
+                        // We just want this to Run we intentionally don't wait
+                        #pragma warning disable 4014
+                        Task.Run(() => DispatchAsync(dispatcherId));
+                        #pragma warning restore 4014
+                    }
                 }
                 finally
                 {
@@ -160,13 +172,13 @@ namespace DurableTask
 
                 isStarted = false;
 
-
                 TraceHelper.Trace(TraceEventType.Information, $"WorkItemDispatcher('{name}') stopping. Id {id}.");
                 if (!forced)
                 {
                     int retryCount = 7;
-                    while ((concurrentWorkItemCount > 0 || isFetching) && retryCount-- >= 0)
+                    while ((concurrentWorkItemCount > 0 || activeFetchers > 0) && retryCount-- >= 0)
                     {
+                        TraceHelper.Trace(TraceEventType.Information, $"WorkItemDispatcher('{name}') waiting to stop. Id {id}. WorkItemCount: {concurrentWorkItemCount}, ActiveFetchers: {activeFetchers}");
                         await Task.Delay(4000);
                     }
                 }
@@ -179,14 +191,16 @@ namespace DurableTask
             }
         }
 
-        async Task DispatchAsync()
+        async Task DispatchAsync(string dispatcherId)
         {
+            var context = new WorkItemDispatcherContext(name, id, dispatcherId);
+
             while (isStarted)
             {
                 if (concurrentWorkItemCount >= MaxConcurrentWorkItems)
                 {
                     TraceHelper.Trace(TraceEventType.Information,
-                        GetFormattedLog($"Max concurrent operations ({concurrentWorkItemCount}) are already in progress. Waiting for {WaitIntervalOnMaxSessions}s for next accept."));
+                        GetFormattedLog(dispatcherId, $"Max concurrent operations ({concurrentWorkItemCount}) are already in progress. Waiting for {WaitIntervalOnMaxSessions}s for next accept."));
                     await Task.Delay(WaitIntervalOnMaxSessions);
                     continue;
                 }
@@ -195,13 +209,13 @@ namespace DurableTask
                 T workItem = default(T);
                 try
                 {
-                    isFetching = true;
+                    Interlocked.Increment(ref activeFetchers);
                     TraceHelper.Trace(TraceEventType.Information,
-                        GetFormattedLog($"Starting fetch with timeout of {DefaultReceiveTimeout} ({concurrentWorkItemCount}/{MaxConcurrentWorkItems} max)"));
+                        GetFormattedLog(dispatcherId, $"Starting fetch with timeout of {DefaultReceiveTimeout} ({concurrentWorkItemCount}/{MaxConcurrentWorkItems} max)"));
                     var timer = Stopwatch.StartNew();
                     workItem = await FetchWorkItem(DefaultReceiveTimeout);
                     TraceHelper.Trace(TraceEventType.Information,
-                        GetFormattedLog($"After Fetch ({timer.ElapsedMilliseconds} ms) ({concurrentWorkItemCount}/{MaxConcurrentWorkItems} max)"));
+                        GetFormattedLog(dispatcherId, $"After fetch ({timer.ElapsedMilliseconds} ms) ({concurrentWorkItemCount}/{MaxConcurrentWorkItems} max)"));
                 }
                 catch (TimeoutException)
                 {
@@ -210,7 +224,7 @@ namespace DurableTask
                 catch (TaskCanceledException exception)
                 {
                     TraceHelper.Trace(TraceEventType.Information,
-                        GetFormattedLog($"TaskCanceledException while fetching workItem, should be harmless: {exception.Message}"));
+                        GetFormattedLog(dispatcherId, $"TaskCanceledException while fetching workItem, should be harmless: {exception.Message}"));
                     delaySecs = GetDelayInSecondsAfterOnFetchException(exception);
                 }
                 catch (Exception exception)
@@ -218,19 +232,19 @@ namespace DurableTask
                     if (!isStarted)
                     {
                         TraceHelper.Trace(TraceEventType.Information,
-                            GetFormattedLog($"Harmless exception while fetching workItem after Stop(): {exception.Message}"));
+                            GetFormattedLog(dispatcherId, $"Harmless exception while fetching workItem after Stop(): {exception.Message}"));
                     }
                     else
                     {
                         // TODO : dump full node context here
                         TraceHelper.TraceException(TraceEventType.Warning, exception,
-                            GetFormattedLog($"Exception while fetching workItem: {exception.Message}"));
+                            GetFormattedLog(dispatcherId, $"Exception while fetching workItem: {exception.Message}"));
                         delaySecs = GetDelayInSecondsAfterOnFetchException(exception);
                     }
                 }
                 finally
                 {
-                    isFetching = false;
+                    Interlocked.Decrement(ref activeFetchers);
                 }
 
                 if (!(Equals(workItem, default(T))))
@@ -245,7 +259,10 @@ namespace DurableTask
                     else
                     {
                         Interlocked.Increment(ref concurrentWorkItemCount);
-                        Task.Factory.StartNew<Task>(ProcessWorkItemAsync, workItem);
+                        // We just want this to Run we intentionally don't wait
+                        #pragma warning disable 4014 
+                        Task.Run(() => ProcessWorkItemAsync(context, workItem));
+                        #pragma warning restore 4014
                     }
                 }
 
@@ -257,7 +274,7 @@ namespace DurableTask
             }
         }
 
-        async Task ProcessWorkItemAsync(object workItemObj)
+        async Task ProcessWorkItemAsync(WorkItemDispatcherContext context, object workItemObj)
         {
             var workItem = (T) workItemObj;
             bool abortWorkItem = true;
@@ -268,21 +285,21 @@ namespace DurableTask
                 workItemId = workItemIdentifier(workItem);
 
                 TraceHelper.Trace(TraceEventType.Information,
-                    GetFormattedLog($"Starting to process workItem {workItemId}"));
+                    GetFormattedLog(context.DispatcherId, $"Starting to process workItem {workItemId}"));
 
                 await ProcessWorkItem(workItem);
 
                 AdjustDelayModifierOnSuccess();
 
                 TraceHelper.Trace(TraceEventType.Information,
-                    GetFormattedLog($"Finished processing workItem {workItemId}"));
+                    GetFormattedLog(context.DispatcherId, $"Finished processing workItem {workItemId}"));
 
                 abortWorkItem = false;
             }
             catch (TypeMissingException exception)
             {
                 TraceHelper.TraceException(TraceEventType.Error, exception,
-                    GetFormattedLog($"Exception while processing workItem {workItemId}"));
+                    GetFormattedLog(context.DispatcherId, $"Exception while processing workItem {workItemId}"));
                 TraceHelper.Trace(TraceEventType.Error,
                     "Backing off after invalid operation by " + BackoffIntervalOnInvalidOperationSecs);
 
@@ -292,7 +309,7 @@ namespace DurableTask
             catch (Exception exception) when (!Utils.IsFatal(exception))
             {
                 TraceHelper.TraceException(TraceEventType.Error, exception,
-                    GetFormattedLog($"Exception while processing workItem {workItemId}"));
+                    GetFormattedLog(context.DispatcherId, $"Exception while processing workItem {workItemId}"));
 
                 int delayInSecs = GetDelayInSecondsAfterOnProcessException(exception);
                 if (delayInSecs > 0)
@@ -367,11 +384,12 @@ namespace DurableTask
         /// <summary>
         /// Method for formatting log messages to include dispatcher name and id information
         /// </summary>
+        /// <param name="dispatcherId">Id of the dispatcher</param>
         /// <param name="message">The message to format</param>
         /// <returns>The formatted message</returns>
-        protected string GetFormattedLog(string message)
+        protected string GetFormattedLog(string dispatcherId, string message)
         {
-            return $"{name}-{id}: {message}";
+            return $"{name}-{id}-{dispatcherId}: {message}";
         }
     }
 }

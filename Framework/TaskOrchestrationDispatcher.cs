@@ -63,6 +63,7 @@ namespace DurableTask
                 GetDelayInSecondsAfterOnProcessException = orchestrationService.GetDelayInSecondsAfterOnProcessException,
                 SafeReleaseWorkItem = orchestrationService.ReleaseTaskOrchestrationWorkItemAsync,
                 AbortWorkItem = orchestrationService.AbandonTaskOrchestrationWorkItemAsync,
+                DispatcherCount = orchestrationService.TaskOrchestrationDispatcherCount,
                 MaxConcurrentWorkItems = orchestrationService.MaxConcurrentTaskOrchestrationWorkItems
             };
         }
@@ -236,6 +237,11 @@ namespace DurableTask
             if (isCompleted)
             {
                 TraceHelper.TraceSession(TraceEventType.Information, workItem.InstanceId, "Deleting session state");
+                if (newOrchestrationRuntimeState.ExecutionStartedEvent != null)
+                {
+                    instanceState = Utils.BuildOrchestrationState(newOrchestrationRuntimeState);
+                }
+
                 newOrchestrationRuntimeState = null;
             }
             else
@@ -262,7 +268,6 @@ namespace DurableTask
                 continuedAsNewMessage,
                 instanceState);
         }
-
 
         internal virtual IEnumerable<OrchestratorAction> ExecuteOrchestration(OrchestrationRuntimeState runtimeState)
         {

@@ -35,13 +35,13 @@ namespace FrameworkUnitTests
             ServiceBusConnectionString = GetTestSetting("ServiceBusConnectionString");
             if (string.IsNullOrEmpty(ServiceBusConnectionString))
             {
-                throw new Exception("A ServiceBus connection string must be defined in either an environment variable or in configuration.");
+                throw new ArgumentNullException("A ServiceBus connection string must be defined in either an environment variable or in configuration.");
             }
 
             StorageConnectionString = GetTestSetting("StorageConnectionString");
             if (string.IsNullOrEmpty(StorageConnectionString))
             {
-                throw new Exception("A Storage connection string must be defined in either an environment variable or in configuration.");
+                throw new ArgumentNullException("A Storage connection string must be defined in either an environment variable or in configuration.");
             }
 
             TaskHubName = ConfigurationManager.AppSettings.Get("TaskHubName");
@@ -53,7 +53,7 @@ namespace FrameworkUnitTests
             {
                 TaskOrchestrationDispatcherSettings = { CompressOrchestrationState = true },
                 MessageCompressionSettings = new CompressionSettings { Style = style, ThresholdInBytes = 1024 },
-                JumpStartSettings = { JumpStartEnabled = true }
+                JumpStartSettings = { JumpStartEnabled = true, IgnoreWindow = TimeSpan.FromSeconds(10) }
             };
 
             return settings;
