@@ -34,8 +34,9 @@ namespace DurableTask.DocumentDb.Test
                 Common.DocumentDbEndpoint,
                 Common.DocumentDbKey,
                 Common.DocumentDbDatabase,
-                Common.TaskHubName,
-                true);
+                Common.TaskHubName);
+
+            await c.InitializeDatastoreAsync(true);
 
             SessionDocument session = new SessionDocument {InstanceId = instanceId};
 
@@ -112,8 +113,9 @@ namespace DurableTask.DocumentDb.Test
                 Common.DocumentDbEndpoint,
                 Common.DocumentDbKey,
                 Common.DocumentDbDatabase,
-                Common.TaskHubName,
-                true);
+                Common.TaskHubName);
+
+            await c.InitializeDatastoreAsync(true);
 
             SessionDocument session = new SessionDocument {InstanceId = "lockable"};
 
@@ -190,8 +192,9 @@ namespace DurableTask.DocumentDb.Test
                 Common.DocumentDbEndpoint,
                 Common.DocumentDbKey,
                 Common.DocumentDbDatabase,
-                Common.TaskHubName,
-                true);
+                Common.TaskHubName);
+
+            await c.InitializeDatastoreAsync(true);
 
             SessionDocument session = new SessionDocument {InstanceId = "lockable"};
 
@@ -262,8 +265,9 @@ namespace DurableTask.DocumentDb.Test
                 Common.DocumentDbEndpoint,
                 Common.DocumentDbKey,
                 Common.DocumentDbDatabase,
-                Common.TaskHubName,
-                true);
+                Common.TaskHubName);
+
+            await c.InitializeDatastoreAsync(true);
 
             SessionDocument session = new SessionDocument {InstanceId = "doc0"};
 

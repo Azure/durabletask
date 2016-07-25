@@ -36,7 +36,8 @@ namespace DurableTask.DocumentDb
                 documentDbEndpoint,
                 documentDbKey,
                 documentDbDatabase,
-                documentDbCollection, true);
+                documentDbCollection,
+                true);
         }
 
         public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage)
@@ -49,7 +50,7 @@ namespace DurableTask.DocumentDb
 
             var orchestrationMessagesToAdd = new List<TaskMessageDocument>()
             {
-                new TaskMessageDocument(creationMessage, new Guid())
+                new TaskMessageDocument(creationMessage, Guid.NewGuid())
             };
 
             try

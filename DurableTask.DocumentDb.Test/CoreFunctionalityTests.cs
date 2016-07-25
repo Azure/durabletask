@@ -17,18 +17,22 @@ namespace DurableTask.DocumentDb.Test
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using DurableTask;
     using System.Threading.Tasks;
-
+    using System.Threading;
     [TestClass]
     public class CoreFunctionalityTests
     {
         [TestMethod]
         public async Task BasicOrchestrationAsync()
         {
+            var os = Common.CreateOrchestrationService(true);
+            //var worker = Common.CreateTaskHubWorker(true);
             var client = Common.CreateTaskHubClient();
-            var worker = Common.CreateTaskHubWorker();
 
             var instance = await client.CreateOrchestrationInstanceAsync("dummyorch", "1.0", "instance4567", null, null);
 
+            var wi = await os.LockNextTaskOrchestrationWorkItemAsync(TimeSpan.FromSeconds(20), CancellationToken.None);
+
+            // AFFANDAR : TODO : HERE HERE HERE.. finish up the taskactivity WI part and then add simple tests
 
             Assert.IsTrue(true);
         }

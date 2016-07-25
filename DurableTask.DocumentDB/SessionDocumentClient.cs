@@ -31,11 +31,19 @@ namespace DurableTask.DocumentDb
         readonly DocumentClient documentClient;
         TaskCompletionSource<object> ensureOpenedTcs;
 
-        public SessionDocumentClient(string documentDbEndpoint, 
+        public SessionDocumentClient(string documentDbEndpoint,
+            string documentDbKey,
+            string documentDbDatabase,
+            string documentDbCollection)
+            : this(documentDbEndpoint, documentDbKey, documentDbDatabase, documentDbCollection, false)
+        {
+        }
+
+            public SessionDocumentClient(string documentDbEndpoint, 
             string documentDbKey, 
             string documentDbDatabase, 
             string documentDbCollection,
-            bool cleanCollection = false)   // AFFANDAR : TODO : remove pls
+            bool autoInitialize)
         {
             Contract.Assert(!string.IsNullOrWhiteSpace(documentDbCollection));
             Contract.Assert(!string.IsNullOrWhiteSpace(documentDbKey));
@@ -48,7 +56,43 @@ namespace DurableTask.DocumentDb
             this.documentClient = new DocumentClient(new System.Uri(documentDbEndpoint), documentDbKey);
             ensureOpenedTcs = new TaskCompletionSource<object>();
 
-            this.EnsureOpenedAsync(cleanCollection);
+            if(autoInitialize)
+            {
+                this.InitializeDatastoreAsync(false);
+            }
+        }
+
+        public async Task InitializeDatastoreAsync(bool createNew)
+        {
+            try
+            {
+                await this.CreateDatabaseIfNotExistsAsync(this.databaseName);
+
+                // AFFANDAR : TODO : replace with if-not-exist
+                if (!createNew)
+                {
+                    await this.CreateDocumentCollectionIfNotExists(this.databaseName, this.collectionName);
+                }
+                else
+                {
+                    await this.CreateDocumentCollectionAsync(this.databaseName, this.collectionName);
+                    await this.ProvisionStoredProcsAsync(this.databaseName, this.collectionName);
+                }
+
+            }
+            catch (Exception exception)
+            {
+                // AFFANDAR : TODO : isfatal
+                this.ensureOpenedTcs.SetException(exception);
+                return;
+            }
+
+            this.ensureOpenedTcs.SetResult(null);
+        }
+
+        public async Task DropDatastoreAsync()
+        {
+            await this.documentClient.DeleteDatabaseAsync(UriFactory.CreateDatabaseUri(databaseName));
         }
 
         /// <summary>
@@ -170,34 +214,6 @@ namespace DurableTask.DocumentDb
                     );
 
             return (SessionDocument)(dynamic)resp.Response;
-        }
-
-        async Task EnsureOpenedAsync(bool cleanCollection)
-        {
-            try
-            {
-                await this.CreateDatabaseIfNotExistsAsync(this.databaseName);
-
-                // AFFANDAR : TODO : replace with if-not-exist
-                if (!cleanCollection)
-                {
-                    await this.CreateDocumentCollectionIfNotExists(this.databaseName, this.collectionName);
-                }
-                else
-                {
-                    await this.CreateDocumentCollectionAsync(this.databaseName, this.collectionName);
-                }
-
-                await this.ProvisionStoredProcsAsync(this.databaseName, this.collectionName);
-            }
-            catch(Exception exception)
-            {
-                // AFFANDAR : TODO : isfatal
-                this.ensureOpenedTcs.SetException(exception);
-                return;
-            }
-
-            this.ensureOpenedTcs.SetResult(null);
         }
 
         async Task CreateDatabaseIfNotExistsAsync(string databaseName)

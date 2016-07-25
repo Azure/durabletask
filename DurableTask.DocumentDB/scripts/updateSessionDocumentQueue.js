@@ -32,13 +32,16 @@ function (sessionDocumentId,
                     executionId: guid(),
                     orchestrationRuntimeState : null,
                     sessionLock : null,
-                    orchestratorQueueLastUpdatedTimeUtc : null,
+                    orchestratorQueueLastUpdatedTimeUtc : "0001-01-01T00:00:00",
                     orchestrationQueue : null,
-                    activityQueueLastUpdatedTimeUtc : null,
+                    activityQueueLastUpdatedTimeUtc : "0001-01-01T00:00:00",
                     activityQueue : null,
                     documentType : "SessionDocument",
                     state: {
-                        OrchestrationStatus : "Pending"
+                        OrchestrationStatus : "Pending",
+                        CompletedTime: "0001-01-01T00:00:00",
+                        CreatedTime: "0001-01-01T00:00:00",
+                        LastUpdatedTime: "0001-01-01T00:00:00"
                     }
                 }
                 newDocument = true;

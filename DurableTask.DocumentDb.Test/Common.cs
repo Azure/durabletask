@@ -63,13 +63,24 @@ namespace DurableTask.DocumentDb.Test
             return value;
         }
 
-        public static IOrchestrationService CreateOrchestrationService()
+        public static IOrchestrationService CreateOrchestrationService(bool createNew)
         {
             var service = new DocumentOrchestrationService(
                 DocumentDbEndpoint, 
                 DocumentDbKey, 
                 DocumentDbDatabase,
                 TaskHubName);
+
+            // AFFANDAR : TODO : async
+            if (createNew)
+            {
+                service.CreateAsync().Wait();
+            }
+            else
+            {
+                service.CreateIfNotExistsAsync().Wait();
+            }
+
             return service;
         }
 
@@ -84,9 +95,9 @@ namespace DurableTask.DocumentDb.Test
             return service;
         }
 
-        public static TaskHubWorker CreateTaskHubWorker()
+        public static TaskHubWorker CreateTaskHubWorker(bool createNew)
         {
-            return new TaskHubWorker(CreateOrchestrationService());
+            return new TaskHubWorker(CreateOrchestrationService(createNew));
         }
 
         public static TaskHubClient CreateTaskHubClient()

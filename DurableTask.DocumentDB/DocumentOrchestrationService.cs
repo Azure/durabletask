@@ -57,15 +57,15 @@ namespace DurableTask.DocumentDb
         readonly SessionDocumentClient documentClient;
         readonly ConcurrentDictionary<string, SessionDocument> sessionMap;
 
-        public DocumentOrchestrationService(string documentDbEndpoint, 
-            string documentDbKey, 
-            string documentDbDatabase, 
-            string documentDbCollection)
+        public DocumentOrchestrationService(string documentDbEndpoint,
+        string documentDbKey,
+        string documentDbDatabase,
+        string documentDbCollection)
         {
             this.documentClient = new SessionDocumentClient(
-                documentDbEndpoint, 
-                documentDbKey, 
-                documentDbDatabase, 
+                documentDbEndpoint,
+                documentDbKey,
+                documentDbDatabase,
                 documentDbCollection);
 
             this.sessionMap = new ConcurrentDictionary<string, SessionDocument>();
@@ -91,27 +91,50 @@ namespace DurableTask.DocumentDb
 
         public Task CreateAsync()
         {
-            return Task.FromResult<object>(null);
+            return this.CreateDatastoreInternal(true);
         }
 
         public Task CreateAsync(bool recreateInstanceStore)
         {
-            return Task.FromResult<object>(null);
+            // with docdb we do not have the option of dropping/creating the instance store separately
+            return this.CreateAsync();
         }
 
         public Task CreateIfNotExistsAsync()
         {
-            return Task.FromResult<object>(null);
+            return this.CreateDatastoreInternal(false);
+        }
+
+        Task CreateDatastoreInternal(bool createNew)
+        {
+            try
+            {
+                return this.documentClient.InitializeDatastoreAsync(createNew);
+            }
+            catch (DocumentClientException exception)
+            {
+                // AFFANDAR : TODO : exception
+                throw new Exception("Error creating datastore", exception);
+            }
         }
 
         public Task DeleteAsync()
         {
-            return Task.FromResult<object>(null);
+            try
+            {
+                return this.documentClient.DropDatastoreAsync();
+            }
+            catch (DocumentClientException exception)
+            {
+                // AFFANDAR : TODO : exception
+                throw new Exception("Error dropping datastore", exception);
+            }
         }
 
         public Task DeleteAsync(bool deleteInstanceStore)
         {
-            return Task.FromResult<object>(null);
+            // with docdb we do not have the option of dropping/creating the instance store separately
+            return this.DeleteAsync();
         }
 
         // there is no runtime component to the doc db provider
