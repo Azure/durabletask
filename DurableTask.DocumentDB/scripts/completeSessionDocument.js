@@ -120,6 +120,9 @@ function(sessionDocument,
             });
         }
 
+        if (queue.length === 0) {
+            return null;
+        }
 
         return queue;
     }

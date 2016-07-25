@@ -31,29 +31,29 @@ namespace DurableTask.DocumentDb.Test
             DateTime lockedUntilUtc = DateTime.UtcNow.AddMinutes(5);
 
             SessionDocumentClient c = new SessionDocumentClient(
-                Common.DocumentDbEndpoint, 
-                Common.DocumentDbKey, 
-                Common.DocumentDbDatabase, 
+                Common.DocumentDbEndpoint,
+                Common.DocumentDbKey,
+                Common.DocumentDbDatabase,
                 Common.TaskHubName,
                 true);
 
-            SessionDocument session = new SessionDocument { InstanceId = instanceId };
+            SessionDocument session = new SessionDocument {InstanceId = instanceId};
 
-            session.SessionLock = new SessionLock { LockToken = lockToken, LockedUntilUtc = lockedUntilUtc };
-            session.State = new OrchestrationState { Input = "foobar", Name = "testorch", Status = "running" };
+            session.SessionLock = new SessionLock {LockToken = lockToken, LockedUntilUtc = lockedUntilUtc};
+            session.State = new OrchestrationState {Input = "foobar", Name = "testorch", Status = "running"};
 
             session.OrchestrationQueue = new List<TaskMessageDocument>();
             session.OrchestrationQueue.Add(new TaskMessageDocument
             {
                 MessageId = Guid.NewGuid(),
-                TaskMessage = new TaskMessage { Event = new ExecutionStartedEvent(1, "foobar") }
+                TaskMessage = new TaskMessage {Event = new ExecutionStartedEvent(1, "foobar")}
             });
 
             session.ActivityQueue = new List<TaskMessageDocument>();
             session.ActivityQueue.Add(new TaskMessageDocument
             {
                 MessageId = Guid.NewGuid(),
-                TaskMessage = new TaskMessage { Event = new TaskScheduledEvent(2) }
+                TaskMessage = new TaskMessage {Event = new TaskScheduledEvent(2)}
             });
 
             await c.CreateSessionDocumentAsync(session);
@@ -115,30 +115,30 @@ namespace DurableTask.DocumentDb.Test
                 Common.TaskHubName,
                 true);
 
-            SessionDocument session = new SessionDocument { InstanceId = "lockable" };
+            SessionDocument session = new SessionDocument {InstanceId = "lockable"};
 
             session.SessionLock = null;
-            session.State = new OrchestrationState { Input = "foobar", Name = "testorch", Status = "running" };
+            session.State = new OrchestrationState {Input = "foobar", Name = "testorch", Status = "running"};
 
             session.OrchestrationQueue = new List<TaskMessageDocument>();
             session.OrchestrationQueue.Add(new TaskMessageDocument
             {
                 MessageId = Guid.NewGuid(),
-                TaskMessage = new TaskMessage { Event = new ExecutionStartedEvent(1, "foobar") }
+                TaskMessage = new TaskMessage {Event = new ExecutionStartedEvent(1, "foobar")}
             });
 
             session.OrchestrationQueue.Add(new TaskMessageDocument
             {
                 MessageId = Guid.NewGuid(),
-                TaskMessage = new TaskMessage { Event = new ExecutionStartedEvent(1, "foobar2") }
+                TaskMessage = new TaskMessage {Event = new ExecutionStartedEvent(1, "foobar2")}
             });
 
             session.OrchestrationQueueLastUpdatedTimeUtc = DateTime.UtcNow;
 
-            SessionDocument session2 = new SessionDocument { InstanceId = "unlockable" };
+            SessionDocument session2 = new SessionDocument {InstanceId = "unlockable"};
 
             session2.SessionLock = null;
-            session2.State = new OrchestrationState { Input = "foobar", Name = "testorch", Status = "running" };
+            session2.State = new OrchestrationState {Input = "foobar", Name = "testorch", Status = "running"};
 
             await c.CreateSessionDocumentAsync(session);
             await c.CreateSessionDocumentAsync(session2);
@@ -175,7 +175,7 @@ namespace DurableTask.DocumentDb.Test
                 await c.CompleteSessionDocumentAsync(lockedDoc2);
                 Assert.Fail("should throw exception");
             }
-            catch(Exception exception)
+            catch (Exception exception)
             {
             }
 
@@ -193,24 +193,24 @@ namespace DurableTask.DocumentDb.Test
                 Common.TaskHubName,
                 true);
 
-            SessionDocument session = new SessionDocument { InstanceId = "lockable" };
+            SessionDocument session = new SessionDocument {InstanceId = "lockable"};
 
             session.SessionLock = null;
-            session.State = new OrchestrationState { Input = "foobar", Name = "testorch", Status = "running" };
+            session.State = new OrchestrationState {Input = "foobar", Name = "testorch", Status = "running"};
 
             session.ActivityQueue = new List<TaskMessageDocument>();
             session.ActivityQueue.Add(new TaskMessageDocument
             {
                 MessageId = Guid.NewGuid(),
-                TaskMessage = new TaskMessage { Event = new ExecutionStartedEvent(1, "foobar") }
+                TaskMessage = new TaskMessage {Event = new ExecutionStartedEvent(1, "foobar")}
             });
 
             session.ActivityQueueLastUpdatedTimeUtc = DateTime.UtcNow;
 
-            SessionDocument session2 = new SessionDocument { InstanceId = "unlockable" };
+            SessionDocument session2 = new SessionDocument {InstanceId = "unlockable"};
 
             session2.SessionLock = null;
-            session2.State = new OrchestrationState { Input = "foobar", Name = "testorch", Status = "running" };
+            session2.State = new OrchestrationState {Input = "foobar", Name = "testorch", Status = "running"};
 
             await c.CreateSessionDocumentAsync(session);
             await c.CreateSessionDocumentAsync(session2);
@@ -255,6 +255,75 @@ namespace DurableTask.DocumentDb.Test
             Assert.IsNull(lockedDoc3);
         }
 
-        // AFFANDAR : TODO : HERE HERE HERE.. add enqueue/dequeue tests for orch/activity queues
+        [TestMethod]
+        public async Task SessionQueueMessageCrudTest()
+        {
+            SessionDocumentClient c = new SessionDocumentClient(
+                Common.DocumentDbEndpoint,
+                Common.DocumentDbKey,
+                Common.DocumentDbDatabase,
+                Common.TaskHubName,
+                true);
+
+            SessionDocument session = new SessionDocument {InstanceId = "doc0"};
+
+            session.SessionLock = null;
+            session.State = new OrchestrationState {Input = "foobar", Name = "testorch", Status = "running"};
+
+            SessionDocument session2 = new SessionDocument {InstanceId = "doc1"};
+
+            session2.SessionLock = null;
+            session2.State = new OrchestrationState {Input = "foobar", Name = "testorch", Status = "running"};
+
+            await c.CreateSessionDocumentAsync(session);
+            await c.CreateSessionDocumentAsync(session2);
+
+            // expect only one locked document
+            var lockedDoc0 = await c.LockSessionDocumentAsync(true);
+            var lockedDoc1 = await c.LockSessionDocumentAsync(false);
+
+            Assert.IsNull(lockedDoc0);
+            Assert.IsNull(lockedDoc1);
+
+            var fetchedDoc0 = await c.FetchSessionDocumentAsync("doc0");
+            var fetchedDoc1 = await c.FetchSessionDocumentAsync("doc1");
+
+            Assert.IsNotNull(fetchedDoc0);
+            Assert.IsNotNull(fetchedDoc1);
+
+            // insert some stuff into the queue
+
+            TaskMessageDocument newOrchestrationMessage = new TaskMessageDocument
+            {
+                MessageId = Guid.NewGuid(),
+                TaskMessage = new TaskMessage {Event = new ExecutionStartedEvent(1, "newinput")}
+            };
+
+            TaskMessageDocument newActivityMessage = new TaskMessageDocument
+            {
+                MessageId = Guid.NewGuid(),
+                TaskMessage = new TaskMessage { Event = new TaskScheduledEvent(1) }
+            };
+
+            List<TaskMessageDocument> orchToAdd = new List<TaskMessageDocument> {newOrchestrationMessage};
+            List<TaskMessageDocument> activityToAdd = new List<TaskMessageDocument> { newActivityMessage };
+
+            var updatedDoc0 = await c.UpdateSessionDocumentQueueAsync("doc0", null, orchToAdd, null, activityToAdd);
+
+            Assert.IsNotNull(updatedDoc0.ActivityQueue);
+            Assert.IsNotNull(updatedDoc0.OrchestrationQueue);
+
+            // remove all the orchestration messages
+            updatedDoc0 = await c.UpdateSessionDocumentQueueAsync("doc0", orchToAdd, null, null, null);
+
+            Assert.IsNotNull(updatedDoc0.ActivityQueue);
+            Assert.IsNull(updatedDoc0.OrchestrationQueue);
+
+            // remove all the activity messages
+            updatedDoc0 = await c.UpdateSessionDocumentQueueAsync("doc0", null, null, activityToAdd, null);
+
+            Assert.IsNull(updatedDoc0.ActivityQueue);
+            Assert.IsNull(updatedDoc0.OrchestrationQueue);
+        }
     }
 }

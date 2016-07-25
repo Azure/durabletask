@@ -18,6 +18,13 @@ namespace DurableTask.History
     [DataContract]
     internal class EventRaisedEvent : HistoryEvent
     {
+        /// <summary>
+        /// Parameterless ctor for deserilization support, do not use directly
+        /// </summary>
+        public EventRaisedEvent()
+        {
+        }
+
         public EventRaisedEvent(int eventId, string input)
             : base(eventId)
         {

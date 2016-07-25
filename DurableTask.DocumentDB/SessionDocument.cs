@@ -32,8 +32,8 @@ namespace DurableTask.DocumentDb
         [JsonProperty(PropertyName = "executionId")]
         public string ExecutionId { get; set; }
 
-        [JsonProperty(PropertyName = "executionHistory")]
-        public IList<HistoryEvent> ExecutionHistory;
+        [JsonProperty(PropertyName = "orchestrationRuntimeState")]
+        public OrchestrationRuntimeState OrchestrationRuntimeState;
 
         [JsonProperty(PropertyName = "sessionLock")]
         public SessionLock SessionLock { get; set; }

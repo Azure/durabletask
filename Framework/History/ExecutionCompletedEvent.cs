@@ -22,6 +22,13 @@ namespace DurableTask.History
     public class ExecutionCompletedEvent : HistoryEvent
     {
         /// <summary>
+        /// Parameterless ctor for deserilization support, do not use directly
+        /// </summary>
+        public ExecutionCompletedEvent()
+        {
+        }
+
+        /// <summary>
         /// Creates a new ExecutionCompletedEvent with the supplied parameters
         /// </summary>
         /// <param name="eventId">The event integer id</param>

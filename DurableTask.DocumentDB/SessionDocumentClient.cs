@@ -77,16 +77,67 @@ namespace DurableTask.DocumentDb
         /// </summary>
         /// <param name="session"></param>
         /// <returns></returns>
-        public async Task<SessionDocument> CompleteSessionDocumentAsync(SessionDocument session)
+        public Task<SessionDocument> CompleteSessionDocumentAsync(SessionDocument session)
+        {
+            return this.CompleteSessionDocumentAsync(session, null, null, null, null);
+        }
+
+        /// <summary>
+        /// Unlock session document and replace in-place
+        /// </summary>
+        /// <param name="session"></param>
+        /// <returns></returns>
+        public async Task<SessionDocument> CompleteSessionDocumentAsync(
+            SessionDocument session,
+            IList<TaskMessageDocument> orchestrationQueueMessagesToDelete,
+            IList<TaskMessageDocument> orchestrationQueueMessagesToAdd,
+            IList<TaskMessageDocument> activityQueueMessagesToDelete,
+            IList<TaskMessageDocument> activityQueueMessagesToAdd)
         {
             await this.ensureOpenedTcs.Task;
+
+            // AFFANDAR : TODO : add sessiondocumentclient level tests for merge queue
+
             StoredProcedureResponse<SessionDocument> resp =
                 await this.documentClient.ExecuteStoredProcedureAsync<SessionDocument>(
                     UriFactory.CreateStoredProcedureUri(
                         this.databaseName, 
                         this.collectionName, 
                         "completeSessionDocument"),
-                    session);
+                    session,
+                    orchestrationQueueMessagesToDelete,
+                    orchestrationQueueMessagesToAdd,
+                    activityQueueMessagesToDelete,
+                    activityQueueMessagesToAdd);
+
+            return (SessionDocument)(dynamic)resp.Response;
+        }
+
+        /// <summary>
+        /// Unlock session document and replace in-place
+        /// </summary>
+        /// <param name="session"></param>
+        /// <returns></returns>
+        public async Task<SessionDocument> UpdateSessionDocumentQueueAsync(
+            string sessionInstanceId,  
+            IList<TaskMessageDocument> orchestrationQueueMessagesToDelete,
+            IList<TaskMessageDocument> orchestrationQueueMessagesToAdd,
+            IList<TaskMessageDocument> activityQueueMessagesToDelete,
+            IList<TaskMessageDocument> activityQueueMessagesToAdd
+            )
+        {
+            await this.ensureOpenedTcs.Task;
+            StoredProcedureResponse<SessionDocument> resp =
+                await this.documentClient.ExecuteStoredProcedureAsync<SessionDocument>(
+                    UriFactory.CreateStoredProcedureUri(
+                        this.databaseName,
+                        this.collectionName,
+                        "updateSessionDocumentQueue"),
+                    sessionInstanceId,
+                    orchestrationQueueMessagesToDelete,
+                    orchestrationQueueMessagesToAdd,
+                    activityQueueMessagesToDelete,
+                    activityQueueMessagesToAdd);
 
             return (SessionDocument)(dynamic)resp.Response;
         }

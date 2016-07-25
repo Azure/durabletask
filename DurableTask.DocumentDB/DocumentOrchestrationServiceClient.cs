@@ -11,18 +11,62 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+using System.Globalization;
+using DurableTask.History;
+using Microsoft.Azure.Documents;
+
 namespace DurableTask.DocumentDb
 {
     using System;
+    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
 
     public class DocumentOrchestrationServiceClient : IOrchestrationServiceClient
     {
-        public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage)
+        readonly SessionDocumentClient documentClient;
+
+        public DocumentOrchestrationServiceClient(string documentDbEndpoint,
+            string documentDbKey,
+            string documentDbDatabase,
+            string documentDbCollection)
         {
-            throw new NotImplementedException();
+            this.documentClient = new SessionDocumentClient(
+                documentDbEndpoint,
+                documentDbKey,
+                documentDbDatabase,
+                documentDbCollection, true);
+        }
+
+        public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage)
+        {
+            if (!(creationMessage.Event is ExecutionStartedEvent))
+            {
+                // AFFANDAR : TODO : exception
+                throw new Exception("Invalid creation message");
+            }
+
+            var orchestrationMessagesToAdd = new List<TaskMessageDocument>()
+            {
+                new TaskMessageDocument(creationMessage, new Guid())
+            };
+
+            try
+            {
+                await
+                    this.documentClient.UpdateSessionDocumentQueueAsync(
+                        creationMessage.OrchestrationInstance.InstanceId,
+                        null, 
+                        orchestrationMessagesToAdd, 
+                        null, 
+                        null);
+            }
+            catch (DocumentClientException exception)
+            {
+                // AFFANDAR : TODO : exception
+                throw new Exception("Error creating new orchestration: " + creationMessage.OrchestrationInstance.InstanceId, exception);
+            }
         }
 
         public Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason)
@@ -50,9 +94,27 @@ namespace DurableTask.DocumentDb
             throw new NotImplementedException();
         }
 
-        public Task SendTaskOrchestrationMessageAsync(TaskMessage message)
+        public async Task SendTaskOrchestrationMessageAsync(TaskMessage message)
         {
-            throw new NotImplementedException();
+            var orchestrationMessagesToAdd = new List<TaskMessageDocument>()
+            {
+                new TaskMessageDocument(message, new Guid())
+            };
+
+            try
+            {
+                await this.documentClient.UpdateSessionDocumentQueueAsync(
+                        message.OrchestrationInstance.InstanceId,
+                        null, 
+                        orchestrationMessagesToAdd, 
+                        null, 
+                        null);
+            }
+            catch (DocumentClientException exception)
+            {
+                // AFFANDAR : TODO : exception
+                throw new Exception("Error creating new orchestration: " + message.OrchestrationInstance.InstanceId, exception);
+            }
         }
 
         public Task<OrchestrationState> WaitForOrchestrationAsync(string instanceId, string executionId, TimeSpan timeout, CancellationToken cancellationToken)

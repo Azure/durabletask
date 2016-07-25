@@ -18,6 +18,13 @@ namespace DurableTask.History
     [DataContract]
     internal class GenericEvent : HistoryEvent
     {
+        /// <summary>
+        /// Parameterless ctor for deserilization support, do not use directly
+        /// </summary>
+        public GenericEvent()
+        {
+        }
+
         [DataMember] public string Data;
 
         public GenericEvent(int eventId, string data)

@@ -29,11 +29,6 @@ namespace DurableTask.History
         ExecutionCompleted,
 
         /// <summary>
-        /// Orchestration execution has failed event
-        /// </summary>
-        ExecutionFailed,
-
-        /// <summary>
         /// Orchestration was terminated event
         /// </summary>
         ExecutionTerminated,

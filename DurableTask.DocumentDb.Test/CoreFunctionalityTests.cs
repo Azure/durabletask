@@ -24,8 +24,11 @@ namespace DurableTask.DocumentDb.Test
         [TestMethod]
         public async Task BasicOrchestrationAsync()
         {
-            Common.CreateTaskHubClient();
-            Common.CreateTaskHubWorker();
+            var client = Common.CreateTaskHubClient();
+            var worker = Common.CreateTaskHubWorker();
+
+            var instance = await client.CreateOrchestrationInstanceAsync("dummyorch", "1.0", "instance4567", null, null);
+
 
             Assert.IsTrue(true);
         }

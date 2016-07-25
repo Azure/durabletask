@@ -23,6 +23,13 @@ namespace DurableTask.History
     public class TimerCreatedEvent : HistoryEvent
     {
         /// <summary>
+        /// Parameterless ctor for deserilization support, do not use directly
+        /// </summary>
+        public TimerCreatedEvent()
+        {
+        }
+
+        /// <summary>
         /// Creates a new TimerCreatedEvent with the supplied event id
         /// </summary>
         /// <param name="eventId"></param>

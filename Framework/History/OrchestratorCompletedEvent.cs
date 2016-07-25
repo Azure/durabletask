@@ -18,6 +18,13 @@ namespace DurableTask.History
     [DataContract]
     internal class OrchestratorCompletedEvent : HistoryEvent
     {
+        /// <summary>
+        /// Parameterless ctor for deserilization support, do not use directly
+        /// </summary>
+        public OrchestratorCompletedEvent()
+        {
+        }
+
         public OrchestratorCompletedEvent(int eventId)
             : base(eventId)
         {

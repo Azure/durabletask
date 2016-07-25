@@ -65,13 +65,22 @@ namespace DurableTask.DocumentDb.Test
 
         public static IOrchestrationService CreateOrchestrationService()
         {
-            var service = new DocumentOrchestrationService();
+            var service = new DocumentOrchestrationService(
+                DocumentDbEndpoint, 
+                DocumentDbKey, 
+                DocumentDbDatabase,
+                TaskHubName);
             return service;
         }
 
         public static IOrchestrationServiceClient CreateOrchestrationServiceClient()
         {
-            var service = new DocumentOrchestrationServiceClient();
+            var service = new DocumentOrchestrationServiceClient(
+                DocumentDbEndpoint,
+                DocumentDbKey,
+                DocumentDbDatabase,
+                TaskHubName);
+
             return service;
         }
 

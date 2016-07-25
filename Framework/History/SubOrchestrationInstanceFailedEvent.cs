@@ -22,6 +22,13 @@ namespace DurableTask.History
     public class SubOrchestrationInstanceFailedEvent : HistoryEvent
     {
         /// <summary>
+        /// Parameterless ctor for deserilization support, do not use directly
+        /// </summary>
+        public SubOrchestrationInstanceFailedEvent()
+        {
+        }
+
+        /// <summary>
         /// Creates a new SubOrchestrationInstanceFailedEvent with the supplied params
         /// </summary>
         /// <param name="eventId">The event id of the history event</param>

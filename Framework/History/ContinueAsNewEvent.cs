@@ -18,6 +18,13 @@ namespace DurableTask.History
     [DataContract]
     internal class ContinueAsNewEvent : ExecutionCompletedEvent
     {
+        /// <summary>
+        /// Parameterless ctor for deserilization support, do not use directly
+        /// </summary>
+        public ContinueAsNewEvent()
+        {
+        }
+
         public ContinueAsNewEvent(int eventId, string input)
             : base(eventId, input, OrchestrationStatus.ContinuedAsNew)
         {

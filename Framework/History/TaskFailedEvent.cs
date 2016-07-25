@@ -22,6 +22,13 @@ namespace DurableTask.History
     public class TaskFailedEvent : HistoryEvent
     {
         /// <summary>
+        /// Parameterless ctor for deserilization support, do not use directly
+        /// </summary>
+        public TaskFailedEvent()
+        {
+        }
+
+        /// <summary>
         /// Creates a new TaskFailedEvent with the supplied parameters
         /// </summary>
         /// <param name="eventId">The event id of the history event</param>

@@ -16,18 +16,35 @@ function (sessionDocumentId,
         function (err, documents, responseOptions) {
             if (err) throw new Error("Error" + err.message);
 
-            if (documents.length === 0) {
-                throw "sessionDocument " + sessionDocumentId;
-            }   
+            var sessionDocument = null;
 
             if (documents.length > 1) {
                 throw "Potential data corruption; query for sessionDocument " + sessionDocumentId + " resulted in multiple documents";
-            }   
+            }
 
-            var sessionDocument = documents[0];
+            var newDocument = false;
 
-            sessionDocument.orchestrationQueue = item.orchestrationQueue;
-            sessionDocument.activityQueue = item.activityQueue;
+            // AFFANDAR : TODO : test for this
+            // initialize a new document if state does not exist
+            if (documents.length === 0) {
+                sessionDocument = {
+                    id : sessionDocumentId,
+                    executionId: guid(),
+                    orchestrationRuntimeState : null,
+                    sessionLock : null,
+                    orchestratorQueueLastUpdatedTimeUtc : null,
+                    orchestrationQueue : null,
+                    activityQueueLastUpdatedTimeUtc : null,
+                    activityQueue : null,
+                    documentType : "SessionDocument",
+                    state: {
+                        OrchestrationStatus : "Pending"
+                    }
+                }
+                newDocument = true;
+            } else {
+                sessionDocument = documents[0];
+            }
 
             sessionDocument.activityQueue = mergeQueue(sessionDocument.activityQueue,
                 activityQueueDeletedMessages,
@@ -37,12 +54,23 @@ function (sessionDocumentId,
                 orchestrationQueueDeletedMessages,
                 orchestrationQueueAddedMessages);
 
-            var accept2 = collection.replaceDocument(sessionDocument._self, sessionDocument, 
-                function (err, docReplaced) {
-                    if (err) throw "Unable to update, aborting: " + err;
-                    response.setBody(docReplaced);
-                });
-    
+            var accept2 = null;
+            if (!newDocument) {
+                accept2 = collection.replaceDocument(sessionDocument._self,
+                    sessionDocument,
+                    function(err, docReplaced) {
+                        if (err) throw "Unable to update, aborting: " + err;
+                        response.setBody(docReplaced);
+                    });
+            } else {
+                accept2 = collection.createDocument(collection.getSelfLink(),
+                    sessionDocument,
+                    function(err, docReplaced) {
+                        if (err) throw "Unable to update, aborting: " + err;
+                        response.setBody(docReplaced);
+                    });
+            }
+
             if (!accept2) throw "Unable to update, aborting";
         });
 
@@ -87,8 +115,22 @@ function (sessionDocumentId,
                 queue.push(value);
             });
         }
-        
+
+        if (queue.length === 0) {
+            return null;
+        }
 
         return queue;
+    }
+
+    function guid() {
+        return s4() + s4() + '-' + s4() + '-' + s4() + '-' +
+          s4() + '-' + s4() + s4() + s4();
+    }
+        
+    function s4() {
+        return Math.floor((1 + Math.random()) * 0x10000)
+          .toString(16)
+          .substring(1);
     }
 }
