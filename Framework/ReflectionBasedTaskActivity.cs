@@ -136,12 +136,12 @@ namespace DurableTask
             {
                 Exception realException = e.InnerException ?? e;
                 string details = Utils.SerializeCause(realException, DataConverter);
-                throw new TaskFailureException(realException.Message, details);
+                throw new TaskFailureException(realException.Message + "; @" + this.MethodInfo.Name, details);
             }
             catch (Exception e) when (!Utils.IsFatal(e))
             {
                 string details = Utils.SerializeCause(e, DataConverter);
-                throw new TaskFailureException(e.Message, e, details);
+                throw new TaskFailureException(e.Message + "; @" + this.MethodInfo.Name, e, details);
             }
 
             return serializedReturn;
