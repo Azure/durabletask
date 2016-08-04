@@ -83,12 +83,33 @@ namespace DurableTask
         /// <returns>Dynamic proxy that can be used to schedule the remote tasks</returns>
         public virtual T CreateRetryableClient<T>(RetryOptions retryOptions) where T : class
         {
-            if (!typeof (T).IsInterface)
+            return this.CreateRetryableClient<T>(retryOptions, false);
+        }
+
+        /// <summary>
+        ///     Creates a proxy client with built-in retry logic.
+        /// </summary>
+        /// <typeparam name="T">
+        ///     Task version of the client interface.
+        ///     This is similar to the actual interface implemented by the client but with the
+        ///     return types always of the form Task&lt;TOriginal&gt;
+        ///     where TOriginal was the return
+        ///     type for the same method in the original interface
+        /// </typeparam>
+        /// <param name="retryOptions">Retry policies</param>
+        /// <param name="useFullyQualifiedMethodNames">
+        ///     If true, the method name translation from the interface contains
+        ///     the interface name, if false then only the method name is used
+        /// </param>
+        /// <returns>Dynamic proxy that can be used to schedule the remote tasks</returns>
+        public virtual T CreateRetryableClient<T>(RetryOptions retryOptions, bool useFullyQualifiedMethodNames) where T : class
+        {
+            if (!typeof(T).IsInterface)
             {
                 throw new InvalidOperationException("Pass in an interface.");
             }
 
-            var scheduleProxy = new ScheduleProxy(this, typeof (T));
+            var scheduleProxy = new ScheduleProxy(this, typeof(T), useFullyQualifiedMethodNames);
             var retryProxy = new RetryProxy<T>(this, retryOptions, scheduleProxy.ActLike<T>());
             return retryProxy.ActLike<T>();
         }

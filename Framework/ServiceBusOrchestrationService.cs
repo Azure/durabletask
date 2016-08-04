@@ -173,7 +173,7 @@ namespace DurableTask
         {
             this.cancellationTokenSource?.Cancel();
 
-            TraceHelper.Trace(TraceEventType.Warning, "Final Service Stats: {0}", this.ServiceStats.ToString());
+            TraceHelper.Trace(TraceEventType.Information, "Final Service Stats: {0}", this.ServiceStats.ToString());
             // TODO : call shutdown of any remaining orchestrationSessions and orchestrationMessages
 
             await Task.WhenAll(

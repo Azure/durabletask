@@ -77,7 +77,7 @@ namespace DurableTask
             if (methodParameters.Length < parameterCount)
             {
                 throw new TaskFailureException(
-                    "TaskActivity implementation cannot be invoked due to more than expected input parameters.  Signature mismatch.");
+                    this.FormatExceptionMessage("TaskActivity implementation cannot be invoked due to more than expected input parameters.  Signature mismatch."));
             }
             var inputParameters = new object[methodParameters.Length];
             for (int i = 0; i < methodParameters.Length; i++)
@@ -136,25 +136,30 @@ namespace DurableTask
             {
                 Exception realException = e.InnerException ?? e;
                 string details = Utils.SerializeCause(realException, DataConverter);
-                throw new TaskFailureException(realException.Message + "; @" + this.MethodInfo.Name, details);
+                throw new TaskFailureException(this.FormatExceptionMessage(realException.Message), details);
             }
             catch (Exception e) when (!Utils.IsFatal(e))
             {
                 string details = Utils.SerializeCause(e, DataConverter);
-                throw new TaskFailureException(e.Message + "; @" + this.MethodInfo.Name, e, details);
+                throw new TaskFailureException(this.FormatExceptionMessage(e.Message), e, details);
             }
 
             return serializedReturn;
         }
 
         /// <summary>
-        /// Invokes the target method on the actiivity object with supplied paarameters
+        /// Invokes the target method on the actiivity object with supplied parameters
         /// </summary>
         /// <param name="inputParameters"></param>
         /// <returns></returns>
         public virtual object InvokeActivity(object[] inputParameters)
         {
             return MethodInfo.Invoke(activityObject, inputParameters);
+        }
+
+        string FormatExceptionMessage(string message)
+        {
+            return $"{message}: @{this.MethodInfo.ReflectedType?.FullName}.{this.MethodInfo.Name}";
         }
     }
 }
