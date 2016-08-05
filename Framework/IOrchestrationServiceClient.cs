@@ -83,9 +83,10 @@ namespace DurableTask
 
         /// <summary>
         /// Purges orchestration instance state and history for orchestrations older than the specified threshold time.
+        /// Also purges the blob storage.
         /// </summary>
         /// <param name="thresholdDateTimeUtc">Threshold date time in UTC</param>
         /// <param name="timeRangeFilterType">What to compare the threshold date time against</param>
-        Task PurgeOrchestrationInstanceHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType);
+        Task PurgeOrchestrationHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType);
     }
 }

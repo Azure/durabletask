@@ -119,6 +119,8 @@
     </Otherwise>
   </Choose>
   <ItemGroup>
+    <Compile Include="BlobStorageClientHelperTest.cs" />
+    <Compile Include="BlobStorageClientTest.cs" />
     <Compile Include="ErrorHandlingTests.cs" />
     <Compile Include="Mocks\TaskSession.cs" />
     <Compile Include="Mocks\PeekLockQueue.cs" />
@@ -129,6 +131,7 @@
     <Compile Include="InstanceStoreQueryTests.cs" />
     <Compile Include="OrchestrationTestHostTests.cs" />
     <Compile Include="DispatcherTests.cs" />
+    <Compile Include="RuntimeStateStreamConverterTest.cs" />
     <Compile Include="SerializationTests.cs" />
     <Compile Include="ServiceBusOrchestrationServiceTests.cs" />
     <Compile Include="TaskHubClientTests.cs" />
@@ -138,6 +141,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="TestHelpers.cs" />
     <Compile Include="TestObjectCreator.cs" />
+    <Compile Include="TestUtils.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config">
