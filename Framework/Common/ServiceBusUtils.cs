@@ -20,21 +20,25 @@ namespace DurableTask.Common
     using System.Threading.Tasks;
     using DurableTask.Settings;
     using DurableTask.Tracing;
+    using DurableTask.Tracking;
     using Microsoft.ServiceBus;
     using Microsoft.ServiceBus.Messaging;
 
     internal static class ServiceBusUtils
     {
-        public static BrokeredMessage GetBrokeredMessageFromObject(object serializableObject, CompressionSettings compressionSettings)
+        public static Task<BrokeredMessage> GetBrokeredMessageFromObjectAsync(object serializableObject, CompressionSettings compressionSettings)
         {
-            return GetBrokeredMessageFromObject(serializableObject, compressionSettings, null, null);
+            return GetBrokeredMessageFromObjectAsync(serializableObject, compressionSettings, new ServiceBusMessageSettings(), null, null, null, DateTime.MinValue);
         }
 
-        public static BrokeredMessage GetBrokeredMessageFromObject(
+        public static async Task<BrokeredMessage> GetBrokeredMessageFromObjectAsync(
             object serializableObject,
             CompressionSettings compressionSettings,
+            ServiceBusMessageSettings messageSettings,
             OrchestrationInstance instance,
-            string messageType)
+            string messageType,
+            IOrchestrationServiceBlobStore orchestrationServiceBlobStore,
+            DateTime messageFireTime)
         {
             if (serializableObject == null)
             {
@@ -44,6 +48,11 @@ namespace DurableTask.Common
             if (compressionSettings.Style == CompressionStyle.Legacy)
             {
                 return new BrokeredMessage(serializableObject) { SessionId = instance?.InstanceId };
+            }
+
+            if (messageSettings == null)
+            {
+                messageSettings = new ServiceBusMessageSettings();
             }
 
             bool disposeStream = true;
@@ -60,23 +69,33 @@ namespace DurableTask.Common
                      rawStream.Length > compressionSettings.ThresholdInBytes))
                 {
                     Stream compressedStream = Utils.GetCompressedStream(rawStream);
-
-                    brokeredMessage = new BrokeredMessage(compressedStream, true);
-                    brokeredMessage.Properties[FrameworkConstants.CompressionTypePropertyName] =
-                        FrameworkConstants.CompressionTypeGzipPropertyValue;
-
                     var rawLen = rawStream.Length;
                     TraceHelper.TraceInstance(TraceEventType.Information, instance,
                         () =>
-                            "Compression stats for " + (messageType ?? string.Empty) + " : " + brokeredMessage.MessageId +
+                            "Compression stats for " + (messageType ?? string.Empty) + " : " +
+                            brokeredMessage.MessageId +
                             ", uncompressed " + rawLen + " -> compressed " + compressedStream.Length);
+
+                    if (compressedStream.Length < messageSettings.MessageOverflowThresholdInBytes)
+                    {
+                        brokeredMessage = GenerateBrokeredMessageWithCompressionTypeProperty(compressedStream, FrameworkConstants.CompressionTypeGzipPropertyValue);
+                    }
+                    else
+                    {
+                        brokeredMessage = await GenerateBrokeredMessageWithBlobKeyPropertyAsync(compressedStream, orchestrationServiceBlobStore, instance, messageSettings, messageFireTime, FrameworkConstants.CompressionTypeGzipPropertyValue);
+                    }
                 }
                 else
                 {
-                    brokeredMessage = new BrokeredMessage(rawStream, true);
-                    disposeStream = false;
-                    brokeredMessage.Properties[FrameworkConstants.CompressionTypePropertyName] =
-                        FrameworkConstants.CompressionTypeNonePropertyValue;
+                    if (rawStream.Length < messageSettings.MessageOverflowThresholdInBytes)
+                    {
+                        brokeredMessage = GenerateBrokeredMessageWithCompressionTypeProperty(rawStream, FrameworkConstants.CompressionTypeNonePropertyValue);
+                        disposeStream = false;
+                    }
+                    else
+                    {
+                        brokeredMessage = await GenerateBrokeredMessageWithBlobKeyPropertyAsync(rawStream, orchestrationServiceBlobStore, instance, messageSettings, messageFireTime, FrameworkConstants.CompressionTypeNonePropertyValue);
+                    }
                 }
 
                 brokeredMessage.SessionId = instance?.InstanceId;
@@ -94,7 +113,55 @@ namespace DurableTask.Common
             }
         }
 
-        public static async Task<T> GetObjectFromBrokeredMessageAsync<T>(BrokeredMessage message)
+        static BrokeredMessage GenerateBrokeredMessageWithCompressionTypeProperty(Stream stream, string compressionType)
+        {
+            BrokeredMessage brokeredMessage = new BrokeredMessage(stream, true);
+            brokeredMessage.Properties[FrameworkConstants.CompressionTypePropertyName] = compressionType;
+
+            return brokeredMessage;
+        }
+
+        static async Task<BrokeredMessage> GenerateBrokeredMessageWithBlobKeyPropertyAsync(
+            Stream stream,
+            IOrchestrationServiceBlobStore orchestrationServiceBlobStore,
+            OrchestrationInstance instance,
+            ServiceBusMessageSettings messageSettings,
+            DateTime messageFireTime,
+            string compressionType)
+        {
+            if (stream.Length > messageSettings.MessageMaxSizeInBytes)
+            {
+                throw new ArgumentException(
+                    $"The serialized message size {stream.Length} is larger than the supported external storage blob size {messageSettings.MessageMaxSizeInBytes}.",
+                    "stream");
+            }
+
+            if (orchestrationServiceBlobStore == null)
+            {
+                throw new ArgumentException(
+                    "Please provide an implementation of IOrchestrationServiceBlobStore for external storage.",
+                    "orchestrationServiceBlobStore");
+            }
+
+            // save the compressed stream using external storage when it is larger
+            // than the supported message size limit.
+            // the stream is stored using the generated key, which is saved in the message property.
+            string blobKey = orchestrationServiceBlobStore.BuildMessageBlobKey(instance, messageFireTime);
+
+            TraceHelper.TraceInstance(
+                TraceEventType.Information,
+                instance,
+                () => $"Saving the message stream in blob storage using key {blobKey}.");
+            await orchestrationServiceBlobStore.SaveStreamAsync(blobKey, stream);
+
+            BrokeredMessage brokeredMessage = new BrokeredMessage();
+            brokeredMessage.Properties[FrameworkConstants.MessageBlobKey] = blobKey;
+            brokeredMessage.Properties[FrameworkConstants.CompressionTypePropertyName] = compressionType;
+
+            return brokeredMessage;
+        }
+
+        public static async Task<T> GetObjectFromBrokeredMessageAsync<T>(BrokeredMessage message, IOrchestrationServiceBlobStore orchestrationServiceBlobStore)
         {
             if (message == null)
             {
@@ -119,7 +186,7 @@ namespace DurableTask.Common
             else if (string.Equals(compressionType, FrameworkConstants.CompressionTypeGzipPropertyValue,
                 StringComparison.OrdinalIgnoreCase))
             {
-                using (var compressedStream = message.GetBody<Stream>())
+                using (var compressedStream = await LoadMessageStreamAsync(message, orchestrationServiceBlobStore))
                 {
                     if (!Utils.IsGzipStream(compressedStream))
                     {
@@ -137,7 +204,7 @@ namespace DurableTask.Common
             else if (string.Equals(compressionType, FrameworkConstants.CompressionTypeNonePropertyValue,
                 StringComparison.OrdinalIgnoreCase))
             {
-                using (var rawStream = message.GetBody<Stream>())
+                using (var rawStream = await LoadMessageStreamAsync(message, orchestrationServiceBlobStore))
                 {
                     deserializedObject = Utils.ReadObjectFromStream<T>(rawStream);
                 }
@@ -150,6 +217,33 @@ namespace DurableTask.Common
             }
 
             return deserializedObject;
+        }
+
+        static Task<Stream> LoadMessageStreamAsync(BrokeredMessage message, IOrchestrationServiceBlobStore orchestrationServiceBlobStore)
+        {
+            object blobKeyObj = null;
+            string blobKey = string.Empty;
+
+            if (message.Properties.TryGetValue(FrameworkConstants.MessageBlobKey, out blobKeyObj))
+            {
+                blobKey = (string)blobKeyObj;
+            }
+
+            if (string.IsNullOrEmpty(blobKey))
+            {
+                // load the stream from the message directly if the blob key property is not set,
+                // i.e., it is not stored externally
+                return Task.Run(() => message.GetBody<Stream>());
+            }
+
+            // if the blob key is set in the message property,
+            // load the stream message from the service bus message store.
+            if (orchestrationServiceBlobStore == null)
+            {
+                throw new ArgumentException($"Failed to load compressed message from external storage with key: {blobKey}. Please provide an implementation of IServiceBusMessageStore for external storage.", nameof(orchestrationServiceBlobStore));
+            }
+
+            return orchestrationServiceBlobStore.LoadStreamAsync(blobKey);
         }
 
         public static void CheckAndLogDeliveryCount(string sessionId, IEnumerable<BrokeredMessage> messages, int maxDeliverycount)

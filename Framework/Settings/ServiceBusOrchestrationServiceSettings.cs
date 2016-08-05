@@ -32,6 +32,9 @@ namespace DurableTask.Settings
             TaskActivityDispatcherSettings = new TaskActivityDispatcherSettings();
             TrackingDispatcherSettings = new TrackingDispatcherSettings();
             JumpStartSettings = new JumpStartSettings();
+            SessionSettings = new ServiceBusSessionSettings();
+            MessageSettings = new ServiceBusMessageSettings();
+
             MessageCompressionSettings = new CompressionSettings
             {
                 Style = CompressionStyle.Never,
@@ -96,7 +99,18 @@ namespace DurableTask.Settings
         ///     Enable compression of messages. Allows exchange of larger parameters and return values with activities at the cost
         ///     of additional CPU.
         ///     Default is false.
+        ///     TODO: move this setting into ServiceBusSessionSettings and ServiceBusMessageSettings.
         /// </summary>
         public CompressionSettings MessageCompressionSettings { get; set; }
+
+        /// <summary>
+        ///     Settings to configure the session
+        /// </summary>
+        public ServiceBusSessionSettings SessionSettings { get; set; }
+
+        /// <summary>
+        ///     Settings to configure the message
+        /// </summary>
+        public ServiceBusMessageSettings MessageSettings { get; set; }
     }
 }

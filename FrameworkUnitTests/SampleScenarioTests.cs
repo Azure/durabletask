@@ -237,6 +237,38 @@ namespace FrameworkUnitTests
 
         #endregion
 
+        #region Message Overflow Test for Large Orchestration Input Output
+
+        [TestMethod]
+        public async Task MessageOverflowTest()
+        {
+            await taskHub.AddTaskOrchestrations(typeof(LargeInputOutputOrchestration)).StartAsync();
+
+            // generate a large string as the orchestration input;
+            // make it random so that it won't be compressed too much.
+            var largeInput = TestUtils.GenerateRandomString(1000 * 1024);
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof(LargeInputOutputOrchestration), largeInput);
+
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            Assert.AreEqual($"output-{largeInput}", LargeInputOutputOrchestration.Result, "Orchestration Result is wrong!!!");
+        }
+
+        public class LargeInputOutputOrchestration : TaskOrchestration<string, string>
+        {
+            // HACK: This is just a hack to communicate result of orchestration back to test
+            public static string Result;
+
+            public override async Task<string> RunTask(OrchestrationContext context, string input)
+            {
+                string output = $"output-{input}";
+                Result = output;
+                return output;
+            }
+        }
+
+        #endregion Message Overflow Test for Large Orchestration Input Output
+
         #region AverageCalculator Test
 
         [TestMethod]

@@ -60,7 +60,19 @@ namespace DurableTask
         public const string CompressionTypeGzipPropertyValue = "gzip";
         public const string CompressionTypeNonePropertyValue = "none";
 
+        // message blob key in message property
+        // this property is a key to the message blob when it exceeds the message limit
+        public const string MessageBlobKey = "MessageBlobKey";
+
         // instance store constants
-        public const int MaxStringLengthForAzureTableColumn = 1024 * 15; // cut off at 15k * 2 bytes 
+        public const int MaxStringLengthForAzureTableColumn = 1024 * 15; // cut off at 15k * 2 bytes
+
+        // default settings for message size
+        public const int MessageOverflowThresholdInBytesDefault = 170 * 1024;
+        public const int MessageMaxSizeInBytesDefault = 10 * 1024 * 1024;
+
+        // default settings for session size
+        public const int SessionOverflowThresholdInBytesDefault = 230 * 1024;
+        public const int SessionMaxSizeInBytesDefault = 10 * 1024 * 1024;
     }
 }
