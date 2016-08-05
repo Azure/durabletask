@@ -314,7 +314,7 @@ namespace FrameworkUnitTests.Mocks
             throw new NotImplementedException();
         }
 
-        public Task PurgeOrchestrationInstanceHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType)
+        public Task PurgeOrchestrationHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType)
         {
             throw new NotImplementedException();
         }

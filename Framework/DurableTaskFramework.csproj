@@ -105,14 +105,22 @@
   <ItemGroup>
     <Compile Include="History\HistoryStateEvent.cs" />
     <Compile Include="IOrchestrationServiceInstanceStore.cs" />
+    <Compile Include="OrchestrationSessionState.cs" />
+    <Compile Include="Serializing\RuntimeStateStreamConverter.cs" />
     <Compile Include="Settings\JumpStartSettings.cs" />
+    <Compile Include="Settings\ServiceBusMessageSettings.cs" />
     <Compile Include="Settings\ServiceBusOrchestrationServiceSettings.cs" />
+    <Compile Include="Settings\ServiceBusSessionSettings.cs" />
     <Compile Include="Stats\Counter.cs" />
     <Compile Include="Stats\ServiceBusOrchestrationServiceStats.cs" />
     <Compile Include="Stats\ServiceBusQueueStats.cs" />
+    <Compile Include="Tracking\AzureStorageBlobStore.cs" />
     <Compile Include="Tracking\AzureTableOrchestrationJumpStartEntity.cs" />
     <Compile Include="TrackingWorkItem.cs" />
     <Compile Include="Tracking\AzureTableInstanceStore.cs" />
+    <Compile Include="Tracking\BlobStorageClient.cs" />
+    <Compile Include="Tracking\BlobStorageClientHelper.cs" />
+    <Compile Include="Tracking\IOrchestrationServiceBlobStore.cs" />
     <Compile Include="Tracking\JumpStartManager.cs" />
     <Compile Include="Tracking\InstanceEntityBase.cs" />
     <Compile Include="Tracking\OrchestrationJumpStartInstanceEntity.cs" />

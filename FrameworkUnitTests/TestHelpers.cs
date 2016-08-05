@@ -81,6 +81,7 @@ namespace FrameworkUnitTests
                 ServiceBusConnectionString,
                 TaskHubName,
                 new AzureTableInstanceStore(TaskHubName, StorageConnectionString),
+                new AzureStorageBlobStore(TaskHubName, StorageConnectionString),
                 settings);
             return service;
         }
@@ -92,8 +93,19 @@ namespace FrameworkUnitTests
                 ServiceBusConnectionString,
                 TaskHubName,
                 new AzureTableInstanceStore(TaskHubName, StorageConnectionString),
+                new AzureStorageBlobStore(TaskHubName, StorageConnectionString),
                 settings);
             return service;
+        }
+
+        public static AzureTableInstanceStore CreateAzureTableInstanceStore()
+        {
+            return new AzureTableInstanceStore(TaskHubName, StorageConnectionString);
+        }
+
+        public static AzureStorageBlobStore CreateAzureStorageBlobStore()
+        {
+            return new AzureStorageBlobStore(TaskHubName, StorageConnectionString);
         }
 
         public static TaskHubClient CreateTaskHubClientNoCompression()
