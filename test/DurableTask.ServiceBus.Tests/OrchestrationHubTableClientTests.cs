@@ -68,8 +68,7 @@ namespace DurableTask.ServiceBus.Tests
             Assert.AreEqual(runtimeState.OrchestrationStatus, OrchestrationStatus.Completed);
             Assert.AreEqual(runtimeState.OrchestrationInstance.InstanceId, id.InstanceId);
             Assert.AreEqual(runtimeState.OrchestrationInstance.ExecutionId, id.ExecutionId);
-            Assert.AreEqual(runtimeState.Name,
-                "FrameworkUnitTests.OrchestrationHubTableClientTests+InstanceStoreTestOrchestration");
+            Assert.AreEqual("DurableTask.ServiceBus.Tests.OrchestrationHubTableClientTests+InstanceStoreTestOrchestration", runtimeState.Name);
             Assert.AreEqual(runtimeState.Version, string.Empty);
             Assert.AreEqual(runtimeState.Input, "\"DONT_THROW\"");
             Assert.AreEqual(runtimeState.Output, "\"Spartacus\"");
@@ -145,8 +144,7 @@ namespace DurableTask.ServiceBus.Tests
             Assert.AreEqual(OrchestrationStatus.Pending, runtimeState.OrchestrationStatus);
             Assert.AreEqual(id.InstanceId, runtimeState.OrchestrationInstance.InstanceId);
             Assert.AreEqual(id.ExecutionId, runtimeState.OrchestrationInstance.ExecutionId);
-            Assert.AreEqual(runtimeState.Name,
-                "FrameworkUnitTests.OrchestrationHubTableClientTests+InstanceStoreTestOrchestration");
+            Assert.AreEqual("DurableTask.ServiceBus.Tests.OrchestrationHubTableClientTests+InstanceStoreTestOrchestration", runtimeState.Name);
             Assert.AreEqual(runtimeState.Version, string.Empty);
             Assert.AreEqual(runtimeState.Input, "\"WAIT\"");
             Assert.AreEqual(runtimeState.Output, null);

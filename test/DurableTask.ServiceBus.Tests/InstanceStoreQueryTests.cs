@@ -280,7 +280,7 @@ namespace DurableTask.ServiceBus.Tests
 
             query = new OrchestrationStateQuery()
                 .AddInstanceFilter("apiservice", true)
-                .AddNameVersionFilter("FrameworkUnitTests.InstanceStoreQueryTests+InstanceStoreTestOrchestration");
+                .AddNameVersionFilter("DurableTask.ServiceBus.Tests.InstanceStoreQueryTests+InstanceStoreTestOrchestration");
 
             results = new List<OrchestrationState>();
             do
@@ -293,7 +293,7 @@ namespace DurableTask.ServiceBus.Tests
 
             query = new OrchestrationStateQuery()
                 .AddInstanceFilter("apiservice", true)
-                .AddNameVersionFilter("FrameworkUnitTests.InstanceStoreQueryTests+InstanceStoreTestOrchestration2");
+                .AddNameVersionFilter("DurableTask.ServiceBus.Tests.InstanceStoreQueryTests+InstanceStoreTestOrchestration2");
 
             results = new List<OrchestrationState>();
             do
@@ -306,7 +306,7 @@ namespace DurableTask.ServiceBus.Tests
 
             query = new OrchestrationStateQuery()
                 .AddInstanceFilter("apiservice", true)
-                .AddNameVersionFilter("FrameworkUnitTests.InstanceStoreQueryTests+InstanceStoreTestOrchestration2");
+                .AddNameVersionFilter("DurableTask.ServiceBus.Tests.InstanceStoreQueryTests+InstanceStoreTestOrchestration2");
 
             seg =
                 await queryClient.QueryOrchestrationStatesSegmentedAsync(query, seg == null ? null : seg.ContinuationToken);
