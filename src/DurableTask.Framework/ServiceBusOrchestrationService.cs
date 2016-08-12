@@ -1285,7 +1285,7 @@ namespace DurableTask
             }
             catch (Exception e) when (!Utils.IsFatal(e))
             {
-                TraceEntities(TraceEventType.Critical, "Failed to write history entity", historyEntities, GetNormalizedWorkItemEvent);
+                TraceEntities(TraceEventType.Critical, $"Failed to write history entity: {e}", historyEntities, GetNormalizedWorkItemEvent);
                 throw;
             }
 
@@ -1299,7 +1299,7 @@ namespace DurableTask
             }
             catch (Exception e) when (!Utils.IsFatal(e))
             {
-                TraceEntities(TraceEventType.Critical, "Failed to write state entity", stateEntities, GetNormalizedStateEvent);
+                TraceEntities(TraceEventType.Critical, $"Failed to write state entity: {e}", stateEntities, GetNormalizedStateEvent);
                 throw;
             }
 

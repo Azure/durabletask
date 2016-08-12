@@ -35,6 +35,7 @@ namespace DurableTask.Samples
     {
         static Options options = new Options();
 
+        [STAThread]
         static void Main(string[] args)
         {
             if (CommandLine.Parser.Default.ParseArgumentsStrict(args, options))
