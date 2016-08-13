@@ -15,6 +15,8 @@ namespace DurableTask
 {
     using System;
     using System.Collections.Generic;
+    using System.Diagnostics;
+    using System.Globalization;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Command;
@@ -22,6 +24,7 @@ namespace DurableTask
     using DurableTask.Exceptions;
     using DurableTask.History;
     using DurableTask.Serializing;
+    using DurableTask.Tracing;
 
     internal class TaskOrchestrationContext : OrchestrationContext
     {
@@ -278,6 +281,10 @@ namespace DurableTask
 
                 openTasks.Remove(taskId);
             }
+            else
+            {
+                LogDuplicateEvent("TaskCompleted", completedEvent, taskId);
+            }
         }
 
         public void HandleTaskFailedEvent(TaskFailedEvent failedEvent)
@@ -296,6 +303,10 @@ namespace DurableTask
 
                 openTasks.Remove(taskId);
             }
+            else
+            {
+                LogDuplicateEvent("TaskFailed", failedEvent, taskId);
+            }
         }
 
         public void HandleSubOrchestrationInstanceCompletedEvent(SubOrchestrationInstanceCompletedEvent completedEvent)
@@ -307,6 +318,10 @@ namespace DurableTask
                 info.Result.SetResult(completedEvent.Result);
 
                 openTasks.Remove(taskId);
+            }
+            else
+            {
+                LogDuplicateEvent("SubOrchestrationInstanceCompleted", completedEvent, taskId);
             }
         }
 
@@ -325,6 +340,10 @@ namespace DurableTask
 
                 openTasks.Remove(taskId);
             }
+            else
+            {
+                LogDuplicateEvent("SubOrchestrationInstanceFailed", failedEvent, taskId);
+            }
         }
 
         public void HandleTimerFiredEvent(TimerFiredEvent timerFiredEvent)
@@ -336,6 +355,22 @@ namespace DurableTask
                 info.Result.SetResult(timerFiredEvent.TimerId.ToString());
                 openTasks.Remove(taskId);
             }
+            else
+            {
+                LogDuplicateEvent("TimerFired", timerFiredEvent, taskId);
+            }
+        }
+
+        private void LogDuplicateEvent(string source, HistoryEvent historyEvent, int taskId)
+        {
+            TraceHelper.TraceSession(
+                TraceEventType.Warning,
+                this.OrchestrationInstance.InstanceId,
+                "Duplicate {0} Event: {1}, type: {2}, ts: {3}",
+                source,
+                taskId.ToString(),
+                historyEvent.EventType,
+                historyEvent.Timestamp.ToString(CultureInfo.InvariantCulture));
         }
 
         public void HandleExecutionTerminatedEvent(ExecutionTerminatedEvent terminatedEvent)

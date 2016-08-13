@@ -426,18 +426,19 @@ namespace DurableTask
             {
                 return null;
             }
-
+            
             this.ServiceStats.OrchestrationDispatcherStats.SessionsReceived.Increment();
             
             // TODO : Here and elsewhere, consider standard retry block instead of our own hand rolled version
             IList<BrokeredMessage> newMessages =
                 (await Utils.ExecuteWithRetries(() => session.ReceiveBatchAsync(this.Settings.PrefetchCount),
                     session.SessionId, "Receive Session Message Batch", this.Settings.MaxRetries, Settings.IntervalBetweenRetriesSecs)).ToList();
-
+            
             this.ServiceStats.OrchestrationDispatcherStats.MessagesReceived.Increment(newMessages.Count);
             TraceHelper.TraceSession(TraceEventType.Information, session.SessionId,
                 this.GetFormattedLog($@"{newMessages.Count()} new messages to process: {
-                    string.Join(",", newMessages.Select(m => m.MessageId))}"));
+                    string.Join(",", newMessages.Select(m => m.MessageId))}, max latency: {
+                    newMessages.Max(message => message.DeliveryLatency())}ms"));
 
             ServiceBusUtils.CheckAndLogDeliveryCount(session.SessionId, newMessages, this.Settings.MaxTaskOrchestrationDeliveryCount);
 
@@ -446,10 +447,7 @@ namespace DurableTask
 
             OrchestrationRuntimeState runtimeState = await GetSessionStateAsync(session, this.BlobStore);
 
-            long maxSequenceNumber = newMessages
-                .OrderByDescending(message => message.SequenceNumber)
-                .Select(message => message.SequenceNumber)
-                .First();
+            long maxSequenceNumber = newMessages.Max(message => message.SequenceNumber);
 
             Dictionary<Guid, BrokeredMessage> lockTokens = newMessages.ToDictionary(m => m.LockToken, m => m);
             var sessionState = new ServiceBusOrchestrationSession
@@ -787,7 +785,7 @@ namespace DurableTask
 
             TraceHelper.TraceSession(TraceEventType.Information,
                 receivedMessage.SessionId,
-                GetFormattedLog($"New message to process: {receivedMessage.MessageId} [{receivedMessage.SequenceNumber}]"));
+                GetFormattedLog($"New message to process: {receivedMessage.MessageId} [{receivedMessage.SequenceNumber}], latency: {receivedMessage.DeliveryLatency()}"));
 
             TaskMessage taskMessage = await ServiceBusUtils.GetObjectFromBrokeredMessageAsync<TaskMessage>(receivedMessage, this.BlobStore);
 
