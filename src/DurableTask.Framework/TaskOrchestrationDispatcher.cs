@@ -357,7 +357,8 @@ namespace DurableTask
 
             runtimeState.AddEvent(executionCompletedEvent);
 
-            TraceHelper.TraceInstance(TraceEventType.Information, runtimeState.OrchestrationInstance,
+            TraceHelper.TraceInstance(runtimeState.OrchestrationStatus == OrchestrationStatus.Failed ? TraceEventType.Warning : TraceEventType.Information, 
+                runtimeState.OrchestrationInstance,
                 "Instance Id '{0}' completed in state {1} with result: {2}",
                 runtimeState.OrchestrationInstance, runtimeState.OrchestrationStatus, completeOrchestratorAction.Result);
             TraceHelper.TraceInstance(TraceEventType.Information, runtimeState.OrchestrationInstance,
