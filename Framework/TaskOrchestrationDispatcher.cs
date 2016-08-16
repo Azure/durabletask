@@ -124,9 +124,11 @@ namespace DurableTask
 
             TraceHelper.TraceSession(TraceEventType.Information, session.SessionId,
                 GetFormattedLog(
-                    string.Format("{0} new messages to process: {1}",
-                        newMessages.Count(),
-                        string.Join(",", newMessages.Select(m => m.MessageId)))));
+                    $@"{newMessages.Count()} new messages to process: {
+                        string.Join(",", newMessages.Select(m => m.MessageId))
+                        }, max latency: {
+                        newMessages.Max(message => message.DeliveryLatency())}ms"
+                        ));
 
             return new SessionWorkItem {Session = session, Messages = newMessages};
         }
@@ -424,22 +426,26 @@ namespace DurableTask
                         if (messagesToSend.Count > 0)
                         {
                             messagesToSend.ForEach(m => workerSender.Send(m));
+                            this.LogSentMessages(session, "Worker outbound", messagesToSend);
                         }
 
                         if (timerMessages.Count > 0)
                         {
                             timerMessages.ForEach(m => orchestratorQueueClient.Send(m));
+                            this.LogSentMessages(session, "Timer Message", timerMessages);
                         }
                     }
 
                     if (subOrchestrationMessages.Count > 0)
                     {
                         subOrchestrationMessages.ForEach(m => orchestratorQueueClient.Send(m));
+                        this.LogSentMessages(session, "Sub Orchestration", subOrchestrationMessages);
                     }
 
                     if (continuedAsNewMessage != null)
                     {
                         orchestratorQueueClient.Send(continuedAsNewMessage);
+                        this.LogSentMessages(session, "Continue as new", new List<BrokeredMessage>() { continuedAsNewMessage });
                     }
 
                     if (isTrackingEnabled)
@@ -452,6 +458,7 @@ namespace DurableTask
                         if (trackingMessages.Count > 0)
                         {
                             trackingMessages.ForEach(m => trackingSender.Send(m));
+                            this.LogSentMessages(session, "Tracking messages", trackingMessages);
                         }
                     }
                 }
@@ -470,6 +477,15 @@ namespace DurableTask
 
                 ts.Complete();
             }
+        }
+
+        async void LogSentMessages(MessageSession session, string messageType, IList<BrokeredMessage> messages)
+        {
+            TraceHelper.TraceSession(
+                TraceEventType.Information,
+                session.SessionId,
+                this.GetFormattedLog($@"{messages.Count().ToString()} messages queued for {messageType}: {
+                    string.Join(",", messages.Select(m => m.MessageId))}"));
         }
 
         BrokeredMessage CreateForcedTerminateMessage(string instanceId, string reason)
