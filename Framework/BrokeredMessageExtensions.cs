@@ -33,8 +33,8 @@ namespace DurableTask
                 return 0;
             }
 
-            DateTime actualEnqueueTime = (message.ScheduledEnqueueTimeUtc == DateTime.MinValue) ? message.EnqueuedTimeUtc : message.ScheduledEnqueueTimeUtc;
-            return (DateTime.UtcNow - actualEnqueueTime).TotalMilliseconds;
+            DateTime actualEnqueueTimeUtc = (message.ScheduledEnqueueTimeUtc == DateTime.MinValue) ? message.EnqueuedTimeUtc : message.ScheduledEnqueueTimeUtc;
+            return (DateTime.UtcNow - actualEnqueueTimeUtc).TotalMilliseconds;
         }
     }
 }

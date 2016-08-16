@@ -61,7 +61,7 @@ namespace DurableTask
             {
                 TraceHelper.TraceSession(TraceEventType.Information,
                     receivedMessage.SessionId,
-                    GetFormattedLog($"New message to process: {receivedMessage.MessageId} [{receivedMessage.SequenceNumber}], latency: {receivedMessage.DeliveryLatency()}"));
+                    GetFormattedLog($"New message to process: {receivedMessage.MessageId} [{receivedMessage.SequenceNumber}], latency: {receivedMessage.DeliveryLatency()}ms"));
             }
 
             return receivedMessage;
