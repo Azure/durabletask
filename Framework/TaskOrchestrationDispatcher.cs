@@ -124,18 +124,20 @@ namespace DurableTask
 
             TraceHelper.TraceSession(TraceEventType.Information, session.SessionId,
                 GetFormattedLog(
-                    string.Format("{0} new messages to process: {1}",
-                        newMessages.Count(),
-                        string.Join(",", newMessages.Select(m => m.MessageId)))));
+                    $@"{newMessages.Count()} new messages to process: {
+                        string.Join(",", newMessages.Select(m => m.MessageId))
+                        }, max latency: {
+                        newMessages.Max(message => message.DeliveryLatency())}ms"
+                        ));
 
             return new SessionWorkItem {Session = session, Messages = newMessages};
         }
 
         protected override async Task OnProcessWorkItem(SessionWorkItem sessionWorkItem)
         {
-            var messagesToSend = new List<BrokeredMessage>();
-            var timerMessages = new List<BrokeredMessage>();
-            var subOrchestrationMessages = new List<BrokeredMessage>();
+            var messagesToSend = new List<MessageContainer>();
+            var timerMessages = new List<MessageContainer>();
+            var subOrchestrationMessages = new List<MessageContainer>();
             bool isCompleted = false;
             bool continuedAsNew = false;
 
@@ -195,7 +197,7 @@ namespace DurableTask
                 foreach (OrchestratorAction decision in decisions)
                 {
                     TraceHelper.TraceInstance(TraceEventType.Information, runtimeState.OrchestrationInstance,
-                        "Processing orchestrator action of type {0}", decision.OrchestratorActionType);
+                        "Processing orchestrator action of type {0}, id {1}", decision.OrchestratorActionType, decision.Id.ToString());
                     switch (decision.OrchestratorActionType)
                     {
                         case OrchestratorActionType.ScheduleOrchestrator:
@@ -206,7 +208,7 @@ namespace DurableTask
                                 taskMessage, settings.MessageCompressionSettings, runtimeState.OrchestrationInstance,
                                 "ScheduleTask");
                             brokeredMessage.SessionId = session.SessionId;
-                            messagesToSend.Add(brokeredMessage);
+                            messagesToSend.Add(new MessageContainer(brokeredMessage, decision));
                             break;
                         case OrchestratorActionType.CreateTimer:
                             var timerOrchestratorAction = (CreateTimerOrchestratorAction) decision;
@@ -216,7 +218,7 @@ namespace DurableTask
                                 "Timer");
                             brokeredTimerMessage.ScheduledEnqueueTimeUtc = timerOrchestratorAction.FireAt;
                             brokeredTimerMessage.SessionId = session.SessionId;
-                            timerMessages.Add(brokeredTimerMessage);
+                            timerMessages.Add(new MessageContainer(brokeredTimerMessage, decision));
                             break;
                         case OrchestratorActionType.CreateSubOrchestration:
                             var createSubOrchestrationAction = (CreateSubOrchestrationAction) decision;
@@ -228,7 +230,7 @@ namespace DurableTask
                                 runtimeState.OrchestrationInstance, "Schedule Suborchestration");
                             createSubOrchestrationMessage.SessionId =
                                 createSubOrchestrationInstanceMessage.OrchestrationInstance.InstanceId;
-                            subOrchestrationMessages.Add(createSubOrchestrationMessage);
+                            subOrchestrationMessages.Add(new MessageContainer(createSubOrchestrationMessage, decision));
                             break;
                         case OrchestratorActionType.OrchestrationComplete:
                             TaskMessage workflowInstanceCompletedMessage =
@@ -252,7 +254,7 @@ namespace DurableTask
                                 }
                                 else
                                 {
-                                    subOrchestrationMessages.Add(workflowCompletedBrokeredMessage);
+                                    subOrchestrationMessages.Add(new MessageContainer(workflowCompletedBrokeredMessage, decision));
                                 }
                             }
                             isCompleted = !continuedAsNew;
@@ -294,7 +296,7 @@ namespace DurableTask
                             "MaxMessageCount Timer");
                         brokeredTimerMessage.ScheduledEnqueueTimeUtc = dummyTimer.FireAt;
                         brokeredTimerMessage.SessionId = session.SessionId;
-                        timerMessages.Add(brokeredTimerMessage);
+                        timerMessages.Add(new MessageContainer(brokeredTimerMessage, null));
                         break;
                     }
                 }
@@ -423,35 +425,40 @@ namespace DurableTask
                     {
                         if (messagesToSend.Count > 0)
                         {
-                            messagesToSend.ForEach(m => workerSender.Send(m));
+                            messagesToSend.ForEach(m => workerSender.Send(m.Message));
+                            this.LogSentMessages(session, "Worker outbound", messagesToSend);
                         }
 
                         if (timerMessages.Count > 0)
                         {
-                            timerMessages.ForEach(m => orchestratorQueueClient.Send(m));
+                            timerMessages.ForEach(m => orchestratorQueueClient.Send(m.Message));
+                            this.LogSentMessages(session, "Timer Message", timerMessages);
                         }
                     }
 
                     if (subOrchestrationMessages.Count > 0)
                     {
-                        subOrchestrationMessages.ForEach(m => orchestratorQueueClient.Send(m));
+                        subOrchestrationMessages.ForEach(m => orchestratorQueueClient.Send(m.Message));
+                        this.LogSentMessages(session, "Sub Orchestration", subOrchestrationMessages);
                     }
 
                     if (continuedAsNewMessage != null)
                     {
                         orchestratorQueueClient.Send(continuedAsNewMessage);
+                        this.LogSentMessages(session, "Continue as new", new List<MessageContainer> () { new MessageContainer(continuedAsNewMessage, null) });
                     }
 
                     if (isTrackingEnabled)
                     {
-                        List<BrokeredMessage> trackingMessages = CreateTrackingMessages(runtimeState);
+                        List<MessageContainer> trackingMessages = CreateTrackingMessages(runtimeState);
 
                         TraceHelper.TraceInstance(TraceEventType.Information, runtimeState.OrchestrationInstance,
                             "Created {0} tracking messages", trackingMessages.Count);
 
                         if (trackingMessages.Count > 0)
                         {
-                            trackingMessages.ForEach(m => trackingSender.Send(m));
+                            trackingMessages.ForEach(m => trackingSender.Send(m.Message));
+                            this.LogSentMessages(session, "Tracking messages", trackingMessages);
                         }
                     }
                 }
@@ -472,6 +479,15 @@ namespace DurableTask
             }
         }
 
+        void LogSentMessages(MessageSession session, string messageType, IList<MessageContainer> messages)
+        {
+            TraceHelper.TraceSession(
+                TraceEventType.Information,
+                session.SessionId,
+                this.GetFormattedLog($@"{messages.Count().ToString()} messages queued for {messageType}: {
+                    string.Join(",", messages.Select(m => $"{m.Message.MessageId} <{m.Action?.Id.ToString()}>"))}"));
+        }
+
         BrokeredMessage CreateForcedTerminateMessage(string instanceId, string reason)
         {
             var taskMessage = new TaskMessage
@@ -487,9 +503,9 @@ namespace DurableTask
             return message;
         }
 
-        List<BrokeredMessage> CreateTrackingMessages(OrchestrationRuntimeState runtimeState)
+        List<MessageContainer> CreateTrackingMessages(OrchestrationRuntimeState runtimeState)
         {
-            var trackingMessages = new List<BrokeredMessage>();
+            var trackingMessages = new List<MessageContainer> ();
 
             // We cannot create tracking messages if runtime state does not have Orchestration InstanceId
             // This situation can happen due to corruption of service bus session state or if somehow first message of orchestration is not execution started
@@ -516,7 +532,7 @@ namespace DurableTask
                 trackingMessage.ContentType = FrameworkConstants.TaskMessageContentType;
                 trackingMessage.SessionId = runtimeState.OrchestrationInstance.InstanceId;
                 trackingMessage.Properties[FrameworkConstants.HistoryEventIndexPropertyName] = historyEventIndex++;
-                trackingMessages.Add(trackingMessage);
+                trackingMessages.Add(new MessageContainer(trackingMessage, null));
             }
 
             var stateMessage = new StateMessage {State = BuildOrchestrationState(runtimeState)};
@@ -526,7 +542,7 @@ namespace DurableTask
                 "State Tracking Message");
             brokeredStateMessage.SessionId = runtimeState.OrchestrationInstance.InstanceId;
             brokeredStateMessage.ContentType = FrameworkConstants.StateMessageContentType;
-            trackingMessages.Add(brokeredStateMessage);
+            trackingMessages.Add(new MessageContainer(brokeredStateMessage, null));
             return trackingMessages;
         }
 
@@ -880,6 +896,18 @@ namespace DurableTask
                 delay = settings.TaskOrchestrationDispatcherSettings.TransientErrorBackOffSecs;
             }
             return delay;
+        }
+
+        internal class MessageContainer
+        {
+            internal BrokeredMessage Message { get; set; }
+            internal OrchestratorAction Action { get; set; }
+
+            internal MessageContainer(BrokeredMessage message, OrchestratorAction action)
+            {
+                this.Message = message;
+                this.Action = action;
+            }
         }
     }
 }

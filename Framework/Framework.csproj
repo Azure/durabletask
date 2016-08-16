@@ -100,6 +100,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="BrokeredMessageExtensions.cs" />
     <Compile Include="SynchronousTaskScheduler.cs" />
     <Compile Include="History\GenericEvent.cs" />
     <Compile Include="CompressionSettings.cs" />
