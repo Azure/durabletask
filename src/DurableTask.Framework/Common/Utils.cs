@@ -25,7 +25,10 @@ namespace DurableTask.Common
     using DurableTask.Serializing;
     using Tracing;
 
-    internal static class Utils
+    /// <summary>
+    /// Utilities.
+    /// </summary>
+    public static class Utils
     {
         const int FullGzipHeaderLength = 10;
 

@@ -11,6 +11,9 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+using DurableTask.Common;
+using DurableTask.Tracking;
+
 namespace DurableTask.ServiceFabric
 {
     using System;
@@ -25,17 +28,15 @@ namespace DurableTask.ServiceFabric
     public class FabricOrchestrationService : IOrchestrationService
     {
         IReliableStateManager stateManager;
+        IOrchestrationServiceInstanceStore instanceStore;
 
-        const string OrchestrationDictionaryName = "Orchestrations";
-        const string ActivitiesQueueName = "Activities";
-
-        IReliableDictionary<string, SessionDocument> orchestrations;
+        SessionsProvider orchestrationProvider;
         IReliableQueue<TaskMessage> activities;
 
-        SessionDocument currentSession;
+        PersistentSession currentSession;
         TaskMessage currentActivity;
 
-        public FabricOrchestrationService(IReliableStateManager stateManager)
+        public FabricOrchestrationService(IReliableStateManager stateManager, IOrchestrationServiceInstanceStore instanceStore)
         {
             if (stateManager == null)
             {
@@ -43,33 +44,23 @@ namespace DurableTask.ServiceFabric
             }
 
             this.stateManager = stateManager;
+            this.instanceStore = instanceStore;
+            orchestrationProvider = new SessionsProvider(stateManager);
         }
 
-        public async Task StartAsync()
+        public Task StartAsync()
         {
-            var existingValue = await this.stateManager.TryGetAsync<IReliableDictionary<string, SessionDocument>>(OrchestrationDictionaryName);
-            if (!existingValue.HasValue)
-            {
-                throw new Exception("Unexpected exception, by the time start is called, the reliable dictionary for sessions should have been there");
-            }
-            this.orchestrations = existingValue.Value;
-
-            var existingActivityQueue = await this.stateManager.TryGetAsync<IReliableQueue<TaskMessage>>(ActivitiesQueueName);
-            if (!existingActivityQueue.HasValue)
-            {
-                throw new Exception("Unexpected exception, by the time start is called, the reliable queue for activities should have been there");
-            }
-            this.activities = existingActivityQueue.Value;
+            return Task.FromResult<object>(null);
         }
 
         public Task StopAsync()
         {
-            throw new NotImplementedException();
+            return StopAsync(false);
         }
 
         public Task StopAsync(bool isForced)
         {
-            throw new NotImplementedException();
+            return Task.FromResult<object>(null);
         }
 
         public Task CreateAsync()
@@ -79,35 +70,13 @@ namespace DurableTask.ServiceFabric
 
         public async Task CreateAsync(bool recreateInstanceStore)
         {
-            //Todo: Do we need a transaction for this?
-            await this.stateManager.RemoveAsync(OrchestrationDictionaryName);
-            await this.stateManager.RemoveAsync(ActivitiesQueueName);
-
-            this.orchestrations = await this.stateManager.GetOrAddAsync<IReliableDictionary<string, SessionDocument>>(OrchestrationDictionaryName);
-            this.activities = await this.stateManager.GetOrAddAsync<IReliableQueue<TaskMessage>>(ActivitiesQueueName);
+            await DeleteAsync(deleteInstanceStore: recreateInstanceStore);
         }
 
-        public async Task CreateIfNotExistsAsync()
+        public Task CreateIfNotExistsAsync()
         {
-            var existingValue = await this.stateManager.TryGetAsync<IReliableDictionary<string, SessionDocument>>(OrchestrationDictionaryName);
-            if (!existingValue.HasValue)
-            {
-                this.orchestrations = await this.stateManager.GetOrAddAsync<IReliableDictionary<string, SessionDocument>>(OrchestrationDictionaryName);
-            }
-            else
-            {
-                this.orchestrations = existingValue.Value;
-            }
-
-            var existingActivityQueue = await this.stateManager.TryGetAsync<IReliableQueue<TaskMessage>>(ActivitiesQueueName);
-            if (!existingActivityQueue.HasValue)
-            {
-                this.activities = await this.stateManager.GetOrAddAsync<IReliableQueue<TaskMessage>>(ActivitiesQueueName);
-            }
-            else
-            {
-                this.activities = existingActivityQueue.Value;
-            }
+            // This is not really needed because of winfab API which allows us to GetOrAdd
+            return Task.FromResult<object>(null);
         }
 
         public Task DeleteAsync()
@@ -117,23 +86,37 @@ namespace DurableTask.ServiceFabric
 
         public async Task DeleteAsync(bool deleteInstanceStore)
         {
-            await this.stateManager.RemoveAsync(OrchestrationDictionaryName);
-            await this.stateManager.RemoveAsync(ActivitiesQueueName);
+            //Todo: Do we need a transaction for this?
+            await this.stateManager.RemoveAsync(Constants.OrchestrationDictionaryName);
+            await this.stateManager.RemoveAsync(Constants.ActivitiesQueueName);
         }
 
         public bool IsMaxMessageCountExceeded(int currentMessageCount, OrchestrationRuntimeState runtimeState)
         {
-            throw new NotImplementedException();
+            //Todo: Do we need to enforce a limit here?
+            return false;
         }
 
         public int GetDelayInSecondsAfterOnProcessException(Exception exception)
         {
-            throw new NotImplementedException();
+            //Todo: Need to fine tune
+            if (exception is TimeoutException)
+            {
+                return 1;
+            }
+
+            return 0;
         }
 
         public int GetDelayInSecondsAfterOnFetchException(Exception exception)
         {
-            throw new NotImplementedException();
+            //Todo: Need to fine tune
+            if (exception is TimeoutException)
+            {
+                return 1;
+            }
+
+            return 0;
         }
 
         public int TaskOrchestrationDispatcherCount => 1;
@@ -143,49 +126,20 @@ namespace DurableTask.ServiceFabric
         {
             Contract.Assert(this.currentSession == null, "How come we get a call for another session while a session is being processed?");
 
-            this.currentSession = await this.AcceptSessionAsync(receiveTimeout, cancellationToken);
+            this.currentSession = await this.orchestrationProvider.AcceptSessionAsync(receiveTimeout, cancellationToken);
 
             if (this.currentSession == null)
             {
                 return null;
             }
 
+            var newMessages = this.orchestrationProvider.GetSessionMessages(this.currentSession);
             return new TaskOrchestrationWorkItem()
             {
-                NewMessages = this.currentSession.GetMessages(),
-                InstanceId = this.currentSession.Id,
+                NewMessages = newMessages,
+                InstanceId = this.currentSession.SessionId,
                 OrchestrationRuntimeState = this.currentSession.SessionState
             };
-        }
-
-        async Task<SessionDocument> AcceptSessionAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken)
-        {
-            //Todo: This is O(N) worst case and we perhaps need to optimize this path
-            Stopwatch timer = Stopwatch.StartNew();
-            while (timer.Elapsed < receiveTimeout && !cancellationToken.IsCancellationRequested)
-            {
-                using (var tx = this.stateManager.CreateTransaction())
-                {
-                    var enumerable = await this.orchestrations.CreateEnumerableAsync(tx, EnumerationMode.Unordered);
-                    using (var enumerator = enumerable.GetAsyncEnumerator())
-                    {
-                        while (await enumerator.MoveNextAsync(cancellationToken))
-                        {
-                            var entry = enumerator.Current;
-
-                            if (!entry.Value.AnyActiveMessages())
-                            {
-                                continue;
-                            }
-
-                            return entry.Value;
-                        }
-                    }
-                }
-                await Task.Delay(100, cancellationToken);
-            }
-
-            return null;
         }
 
         public Task RenewTaskOrchestrationWorkItemLockAsync(TaskOrchestrationWorkItem workItem)
@@ -202,7 +156,7 @@ namespace DurableTask.ServiceFabric
             TaskMessage continuedAsNewMessage,
             OrchestrationState orchestrationState)
         {
-            Contract.Assert(string.Equals(currentSession.Id, workItem.InstanceId), "Unexpected thing happened, complete should be called with the same session as locked");
+            Contract.Assert(this.currentSession != null && string.Equals(currentSession.SessionId, workItem.InstanceId), "Unexpected thing happened, complete should be called with the same session as locked");
 
             if (timerMessages != null && timerMessages.Count > 0)
             {
@@ -221,16 +175,24 @@ namespace DurableTask.ServiceFabric
 
             using (var txn = this.stateManager.CreateTransaction())
             {
-                // Todo: This will be ideally using immutable semantics
-                this.currentSession.SessionState = newOrchestrationRuntimeState;
-                this.currentSession.CompleteLockedMessages();
-
                 foreach (var workerMessage in outboundMessages)
                 {
                     await this.activities.EnqueueAsync(txn, workerMessage);
                 }
 
-                await this.orchestrations.SetAsync(txn, workItem.InstanceId, this.currentSession);
+                await this.orchestrationProvider.CompleteSessionMessagesAsync(txn, this.currentSession, newOrchestrationRuntimeState);
+
+                if (this.instanceStore != null)
+                {
+                    // Todo: This is not yet part of the transaction
+                    await this.instanceStore.WriteEntitesAsync(new InstanceEntityBase[]
+                    {
+                        new OrchestrationStateInstanceEntity()
+                        {
+                            State = Utils.BuildOrchestrationState(workItem.OrchestrationRuntimeState)
+                        }
+                    });
+                }
 
                 await txn.CommitAsync();
                 this.currentSession = null;
@@ -239,6 +201,7 @@ namespace DurableTask.ServiceFabric
 
         public Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
+            Contract.Assert(this.currentSession != null && string.Equals(this.currentSession.SessionId, workItem.InstanceId), "Unexpected thing happened, abandon should be called with the same session as locked");
             this.currentSession = null;
             return Task.FromResult<object>(null);
         }
@@ -296,15 +259,7 @@ namespace DurableTask.ServiceFabric
             {
                 await this.activities.TryDequeueAsync(txn);
                 var sessionId = workItem.TaskMessage.OrchestrationInstance.InstanceId;
-                var orchestrationValue = await this.orchestrations.TryGetValueAsync(txn, sessionId, LockMode.Update);
-                if (!orchestrationValue.HasValue)
-                {
-                    throw new Exception("Unexpected exception : Trying to complete a work item and could not find the corresponding orchestration");
-                }
-                var session = orchestrationValue.Value;
-                session.AppendMessage(responseMessage);
-                await this.orchestrations.SetAsync(txn, sessionId, session);
-
+                await this.orchestrationProvider.AppendMessageAsync(txn, sessionId, responseMessage);
                 await txn.CommitAsync();
                 this.currentActivity = null;
             }

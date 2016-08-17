@@ -11,6 +11,12 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+using System.Collections.Immutable;
+using System.Diagnostics;
+using DurableTask.History;
+using Microsoft.ServiceFabric.Data;
+using Microsoft.ServiceFabric.Data.Collections;
+
 namespace DurableTask.ServiceFabric
 {
     using System;
@@ -20,14 +26,41 @@ namespace DurableTask.ServiceFabric
 
     public class FabricOrchestrationServiceClient : IOrchestrationServiceClient
     {
-        public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage)
+        IReliableStateManager stateManager;
+        IOrchestrationServiceInstanceStore instanceStore;
+
+        public FabricOrchestrationServiceClient(IReliableStateManager stateManager, IOrchestrationServiceInstanceStore instanceStore)
         {
-            throw new NotImplementedException();
+            this.stateManager = stateManager;
+            this.instanceStore = instanceStore;
         }
 
-        public Task SendTaskOrchestrationMessageAsync(TaskMessage message)
+        public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage)
         {
-            throw new NotImplementedException();
+            if (!(creationMessage.Event is ExecutionStartedEvent))
+            {
+                throw new Exception("Invalid creation message");
+            }
+
+            await this.SendTaskOrchestrationMessageAsync(creationMessage);
+        }
+
+        public async Task SendTaskOrchestrationMessageAsync(TaskMessage message)
+        {
+            //Todo: Need to understand how dedup should be done here, the whole execution id is a little unclear
+            using (var txn = this.stateManager.CreateTransaction())
+            {
+                var sessionId = message.OrchestrationInstance.InstanceId;
+
+                //Todo: This is the same code as SessionsProvider.AppendMessages, can perhaps reuse somehow?
+                var newSession = new PersistentSession(sessionId, new OrchestrationRuntimeState(),
+                    ImmutableList<LockableTaskMessage>.Empty.Add(new LockableTaskMessage() { TaskMessage = message }));
+
+                var orchestrations = await this.GetOrAddOrchestrationsAsync(txn);
+                await orchestrations.AddOrUpdateAsync(txn, sessionId,
+                    addValue: newSession,
+                    updateValueFactory: (ses, oldValue) => oldValue.AppendMessage(message));
+            }
         }
 
         public Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason)
@@ -40,9 +73,11 @@ namespace DurableTask.ServiceFabric
             throw new NotImplementedException();
         }
 
-        public Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)
+        public async Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)
         {
-            throw new NotImplementedException();
+            ThrowIfInstanceStoreNotConfigured();
+            var stateInstance = await this.instanceStore.GetOrchestrationStateAsync(instanceId, executionId);
+            return stateInstance?.State;
         }
 
         public Task<string> GetOrchestrationHistoryAsync(string instanceId, string executionId)
@@ -55,9 +90,41 @@ namespace DurableTask.ServiceFabric
             throw new NotImplementedException();
         }
 
-        public Task<OrchestrationState> WaitForOrchestrationAsync(string instanceId, string executionId, TimeSpan timeout, CancellationToken cancellationToken)
+        public async Task<OrchestrationState> WaitForOrchestrationAsync(string instanceId, string executionId, TimeSpan timeout, CancellationToken cancellationToken)
         {
-            throw new NotImplementedException();
+            ThrowIfInstanceStoreNotConfigured();
+
+            var timeoutSeconds = timeout.TotalSeconds;
+
+            while (timeoutSeconds > 0 && !cancellationToken.IsCancellationRequested)
+            {
+                var currentState = await this.GetOrchestrationStateAsync(instanceId, executionId);
+
+                if (currentState != null &&
+                    currentState.OrchestrationStatus != OrchestrationStatus.Pending &&
+                    currentState.OrchestrationStatus != OrchestrationStatus.Running)
+                {
+                    return currentState;
+                }
+
+                await Task.Delay(2000, cancellationToken);
+                timeoutSeconds -= 2;
+            }
+
+            return null;
+        }
+
+        async Task<IReliableDictionary<string, PersistentSession>> GetOrAddOrchestrationsAsync(ITransaction transaction)
+        {
+            return await this.stateManager.GetOrAddAsync<IReliableDictionary<string, PersistentSession>>(transaction, Constants.OrchestrationDictionaryName);
+        }
+
+        void ThrowIfInstanceStoreNotConfigured()
+        {
+            if (this.instanceStore == null)
+            {
+                throw new InvalidOperationException("Instance store is not configured");
+            }
         }
     }
 }

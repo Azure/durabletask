@@ -13,24 +13,10 @@
 
 namespace DurableTask.ServiceFabric
 {
-    using System.Collections.Generic;
-    using System.Fabric;
-    using System.Threading;
-    using System.Threading.Tasks;
-    using Microsoft.ServiceFabric.Data;
-    using Microsoft.ServiceFabric.Services.Communication.Runtime;
-    using Microsoft.ServiceFabric.Services.Runtime;
-
-    class FabricStatefulService : StatefulService
+    static class Constants
     {
-        public FabricStatefulService(StatefulServiceContext serviceContext)
-            : base(serviceContext)
-        {
-        }
-
-        public FabricStatefulService(StatefulServiceContext serviceContext, IReliableStateManagerReplica reliableStateManagerReplica)
-            : base(serviceContext, reliableStateManagerReplica)
-        {
-        }
+        internal const string OrchestrationDictionaryName = "Orchestrations";
+        internal const string ActivitiesQueueName = "Activities";
+        internal const string InstanceStoreDictionaryName = "InstanceStore";
     }
 }
