@@ -52,7 +52,7 @@ namespace DurableTask.Tracing
             }
             catch (Exception exception) when (!Utils.IsFatal(exception))
             {
-                string toWrite = $"Exception while parsing trace:  {exception.Message}\n\t{exception.StackTrace}";
+                string toWrite = $"Exception while parsing trace: {message} : {exception.Message}\n\t{exception.StackTrace}";
                 Console.WriteLine(toWrite);
                 Debug.WriteLine(toWrite);
             }

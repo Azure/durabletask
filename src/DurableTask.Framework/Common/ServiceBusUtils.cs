@@ -73,7 +73,7 @@ namespace DurableTask.Common
                     TraceHelper.TraceInstance(TraceEventType.Information, instance,
                         () =>
                             "Compression stats for " + (messageType ?? string.Empty) + " : " +
-                            brokeredMessage.MessageId +
+                            brokeredMessage?.MessageId +
                             ", uncompressed " + rawLen + " -> compressed " + compressedStream.Length);
 
                     if (compressedStream.Length < messageSettings.MessageOverflowThresholdInBytes)

@@ -103,6 +103,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Common\BrokeredMessageExtensions.cs" />
     <Compile Include="History\HistoryStateEvent.cs" />
     <Compile Include="IOrchestrationServiceInstanceStore.cs" />
     <Compile Include="OrchestrationSessionState.cs" />
