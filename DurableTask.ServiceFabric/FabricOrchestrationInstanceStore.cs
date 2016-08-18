@@ -48,7 +48,6 @@ namespace DurableTask.ServiceFabric
         public async Task<object> WriteEntitesAsync(IEnumerable<InstanceEntityBase> entities)
         {
             var instaceStore = await this.GetOrAddInstanceStoreDictionary();
-            //Todo: Should we have all this wrapped in a single transaction?
             using (var txn = this.stateManager.CreateTransaction())
             {
                 foreach (var entity in entities)
