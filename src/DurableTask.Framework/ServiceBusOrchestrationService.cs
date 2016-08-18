@@ -599,6 +599,7 @@ namespace DurableTask
 
                 if (await TrySetSessionStateAsync(workItem, newOrchestrationRuntimeState, runtimeState, session))
                 {
+                    string partitionKey = newOrchestrationRuntimeState?.OrchestrationInstance?.InstanceId;
                     if (runtimeState.CompressedSize > SessionStreamWarningSizeInBytes && runtimeState.CompressedSize < Settings.SessionSettings.SessionOverflowThresholdInBytes)
                     {
                         TraceHelper.TraceSession(
@@ -619,7 +620,8 @@ namespace DurableTask
                                 null,
                                 "Worker outbound message",
                                 this.BlobStore,
-                                DateTime.MinValue))
+                                DateTime.MinValue,
+                                partitionKey))
                             .ToList())
                             );
                         this.ServiceStats.ActivityDispatcherStats.MessageBatchesSent.Increment();
@@ -639,7 +641,8 @@ namespace DurableTask
                                 newOrchestrationRuntimeState.OrchestrationInstance,
                                 "Timer Message",
                                 this.BlobStore,
-                                messageFireTime);
+                                messageFireTime,
+                                partitionKey);
                                 message.ScheduledEnqueueTimeUtc = messageFireTime;
                                 return message;
                             })
@@ -651,6 +654,21 @@ namespace DurableTask
 
                     if (orchestratorMessages?.Count > 0)
                     {
+                        var orchestrationBrokeredMessages = await Task.WhenAll(orchestratorMessages.Select(async m =>
+                        {
+                            BrokeredMessage message = await ServiceBusUtils.GetBrokeredMessageFromObjectAsync(
+                                 m,
+                                 Settings.MessageCompressionSettings,
+                                 Settings.MessageSettings,
+                                 m.OrchestrationInstance,
+                                 "Sub Orchestration",
+                                 this.BlobStore,
+                                DateTime.MinValue,
+                                partitionKey);
+                            await orchestratorQueueClient.SendAsync(message);
+                            return message;
+                        }));
+                        /*
                         await orchestratorQueueClient.SendBatchAsync(
                             await Task.WhenAll(orchestratorMessages.Select(m =>
                                 ServiceBusUtils.GetBrokeredMessageFromObjectAsync(
@@ -660,9 +678,11 @@ namespace DurableTask
                                 m.OrchestrationInstance,
                                 "Sub Orchestration",
                                 this.BlobStore,
-                                DateTime.MinValue))
+                                DateTime.MinValue,
+                                m.OrchestrationInstance.InstanceId))
                             .ToList())
                             );
+                            */
                         this.ServiceStats.OrchestrationDispatcherStats.MessageBatchesSent.Increment();
                         this.ServiceStats.OrchestrationDispatcherStats.MessagesSent.Increment(orchestratorMessages.Count);
                     }
@@ -677,7 +697,8 @@ namespace DurableTask
                                 newOrchestrationRuntimeState.OrchestrationInstance,
                                 "Continue as new",
                                 this.BlobStore,
-                                DateTime.MinValue)
+                                DateTime.MinValue,
+                                partitionKey)
                             );
                         this.ServiceStats.OrchestrationDispatcherStats.MessageBatchesSent.Increment();
                         this.ServiceStats.OrchestrationDispatcherStats.MessagesSent.Increment();
@@ -863,7 +884,8 @@ namespace DurableTask
                 workItem.TaskMessage.OrchestrationInstance,
                 $"Response for {workItem.TaskMessage.OrchestrationInstance.InstanceId}",
                 this.BlobStore,
-                DateTime.MinValue);
+                DateTime.MinValue,
+                workItem.TaskMessage.OrchestrationInstance.InstanceId);
 
             var originalMessage = GetAndDeleteBrokeredMessageForWorkItem(workItem);
             if (originalMessage == null)
@@ -986,7 +1008,8 @@ namespace DurableTask
                 message.OrchestrationInstance,
                 "SendTaskOrchestrationMessage",
                 this.BlobStore,
-                DateTime.MinValue);
+                DateTime.MinValue,
+                message.OrchestrationInstance.InstanceId);
 
             // Use duplicate detection of ExecutionStartedEvent by addin messageId
             var executionStartedEvent = message.Event as ExecutionStartedEvent;
@@ -1213,7 +1236,8 @@ namespace DurableTask
                         runtimeState.OrchestrationInstance,
                         "History Tracking Message",
                         this.BlobStore,
-                        DateTime.MinValue);
+                        DateTime.MinValue,
+                        runtimeState.OrchestrationInstance.InstanceId);
                     trackingMessages.Add(trackingMessage);
                 }
             }
@@ -1232,7 +1256,8 @@ namespace DurableTask
                 runtimeState.OrchestrationInstance,
                 "State Tracking Message",
                 BlobStore,
-                DateTime.MinValue);
+                DateTime.MinValue,
+                runtimeState.OrchestrationInstance.InstanceId);
             trackingMessages.Add(brokeredStateMessage);
 
             return trackingMessages;
@@ -1498,7 +1523,8 @@ namespace DurableTask
                 RequiresSession = requiresSessions,
                 MaxDeliveryCount = maxDeliveryCount,
                 RequiresDuplicateDetection = requiresDuplicateDetection,
-                DuplicateDetectionHistoryTimeWindow = TimeSpan.FromHours(DuplicateDetectionWindowInHours)
+                DuplicateDetectionHistoryTimeWindow = TimeSpan.FromHours(DuplicateDetectionWindowInHours),
+                EnablePartitioning = true
             };
 
             await namespaceManager.CreateQueueAsync(description);
@@ -1520,7 +1546,8 @@ namespace DurableTask
                 newOrchestrationInstance,
                 "Forced Terminate",
                 this.BlobStore,
-                DateTime.MinValue);
+                DateTime.MinValue,
+                newOrchestrationInstance.InstanceId);
         }
 
         void ThrowIfInstanceStoreNotConfigured()

@@ -28,7 +28,7 @@ namespace DurableTask.Common
     {
         public static Task<BrokeredMessage> GetBrokeredMessageFromObjectAsync(object serializableObject, CompressionSettings compressionSettings)
         {
-            return GetBrokeredMessageFromObjectAsync(serializableObject, compressionSettings, new ServiceBusMessageSettings(), null, null, null, DateTime.MinValue);
+            return GetBrokeredMessageFromObjectAsync(serializableObject, compressionSettings, new ServiceBusMessageSettings(), null, null, null, DateTime.MinValue, null);
         }
 
         public static async Task<BrokeredMessage> GetBrokeredMessageFromObjectAsync(
@@ -38,7 +38,8 @@ namespace DurableTask.Common
             OrchestrationInstance instance,
             string messageType,
             IOrchestrationServiceBlobStore orchestrationServiceBlobStore,
-            DateTime messageFireTime)
+            DateTime messageFireTime,
+            string partitionKey)
         {
             if (serializableObject == null)
             {
@@ -73,7 +74,7 @@ namespace DurableTask.Common
                     TraceHelper.TraceInstance(TraceEventType.Information, instance,
                         () =>
                             "Compression stats for " + (messageType ?? string.Empty) + " : " +
-                            brokeredMessage.MessageId +
+                            brokeredMessage?.MessageId +
                             ", uncompressed " + rawLen + " -> compressed " + compressedStream.Length);
 
                     if (compressedStream.Length < messageSettings.MessageOverflowThresholdInBytes)
@@ -98,10 +99,21 @@ namespace DurableTask.Common
                     }
                 }
 
-                brokeredMessage.SessionId = instance?.InstanceId;
+                //brokeredMessage.SessionId = instance?.InstanceId;
                 // TODO : Test more if this helps, initial tests shows not change in performance
                 // brokeredMessage.ViaPartitionKey = instance?.InstanceId;
-                
+
+                Trace.TraceError($"DEBUG::GetBrokeredMessageFromObjectAsync::{messageType}::{instance?.InstanceId}::{partitionKey}");
+
+                //if (instance?.InstanceId != null)
+                //{
+                //    brokeredMessage.SessionId = partitionKey;
+                //}
+
+                //brokeredMessage.PartitionKey = partitionKey;
+                brokeredMessage.SessionId = instance?.InstanceId;
+                brokeredMessage.ViaPartitionKey = partitionKey;
+
                 return brokeredMessage;
             }
             finally
