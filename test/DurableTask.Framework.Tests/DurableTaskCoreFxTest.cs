@@ -45,7 +45,7 @@ namespace DurableTask.Framework.Tests
         [TestMethod]
         public async Task MockOrchestrationTest()
         {
-            SynchronousInMemoryOrchestrationService orchService = new SynchronousInMemoryOrchestrationService();
+            LocalOrchestrationService orchService = new LocalOrchestrationService();
 
             TaskHubWorker worker = new TaskHubWorker(orchService);
 
@@ -57,7 +57,7 @@ namespace DurableTask.Framework.Tests
 
             OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), null);
 
-            OrchestrationState result = await client.WaitForOrchestrationAsync(id, TimeSpan.FromSeconds(600), new CancellationToken());
+            OrchestrationState result = await client.WaitForOrchestrationAsync(id, TimeSpan.FromSeconds(30), new CancellationToken());
             Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
 
             Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,

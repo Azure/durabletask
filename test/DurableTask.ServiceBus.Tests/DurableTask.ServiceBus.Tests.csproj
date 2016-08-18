@@ -122,9 +122,6 @@
     <Compile Include="BlobStorageClientHelperTest.cs" />
     <Compile Include="BlobStorageClientTest.cs" />
     <Compile Include="ErrorHandlingTests.cs" />
-    <Compile Include="PrototypeMocks\SessionDocument.cs" />
-    <Compile Include="PrototypeMocks\SessionsQueue.cs" />
-    <Compile Include="PrototypeMocks\SynchronousInMemoryOrchestrationService.cs" />
     <Compile Include="Mocks\TaskSession.cs" />
     <Compile Include="Mocks\PeekLockQueue.cs" />
     <Compile Include="Mocks\PeekLockSessionQueue.cs" />
