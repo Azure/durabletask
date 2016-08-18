@@ -47,10 +47,10 @@ namespace DurableTask.ServiceFabric
 
         public async Task<object> WriteEntitesAsync(IEnumerable<InstanceEntityBase> entities)
         {
+            var instaceStore = await this.GetOrAddInstanceStoreDictionary();
             //Todo: Should we have all this wrapped in a single transaction?
             using (var txn = this.stateManager.CreateTransaction())
             {
-                var instaceStore = await this.GetOrAddInstanceStoreDictionary(txn);
                 foreach (var entity in entities)
                 {
                     var state = entity as OrchestrationStateInstanceEntity;
@@ -61,6 +61,8 @@ namespace DurableTask.ServiceFabric
                             (k, oldValue) => state.State); //Todo: Need to check for sequence number?
                     }
                 }
+
+                await txn.CommitAsync();
             }
             return null;
         }
@@ -82,9 +84,9 @@ namespace DurableTask.ServiceFabric
 
         public async Task<OrchestrationStateInstanceEntity> GetOrchestrationStateAsync(string instanceId, string executionId)
         {
+            var instaceStore = await this.GetOrAddInstanceStoreDictionary();
             using (var txn = this.stateManager.CreateTransaction())
             {
-                var instaceStore = await this.GetOrAddInstanceStoreDictionary(txn);
                 var state = await instaceStore.TryGetValueAsync(txn, this.GetKey(instanceId, executionId));
                 if (state.HasValue)
                 {
@@ -93,6 +95,7 @@ namespace DurableTask.ServiceFabric
                         State = state.Value,
                     };
                 }
+                //Todo: Do I need commit transaction here?
             }
 
             return null;
@@ -123,9 +126,9 @@ namespace DurableTask.ServiceFabric
             throw new NotImplementedException();
         }
 
-        Task<IReliableDictionary<string, OrchestrationState>> GetOrAddInstanceStoreDictionary(ITransaction txn)
+        Task<IReliableDictionary<string, OrchestrationState>> GetOrAddInstanceStoreDictionary()
         {
-            return this.stateManager.GetOrAddAsync<IReliableDictionary<string, OrchestrationState>>(txn, Constants.InstanceStoreDictionaryName);
+            return this.stateManager.GetOrAddAsync<IReliableDictionary<string, OrchestrationState>>(Constants.InstanceStoreDictionaryName);
         }
 
         string GetKey(string instanceId, string executionId)

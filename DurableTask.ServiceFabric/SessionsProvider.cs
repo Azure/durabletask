@@ -26,8 +26,9 @@ namespace DurableTask.ServiceFabric
     public class SessionsProvider
     {
         IReliableStateManager stateManager;
+        IReliableDictionary<string, PersistentSession> orchestrations;
 
-        public SessionsProvider(IReliableStateManager stateManager)
+        public SessionsProvider(IReliableStateManager stateManager, IReliableDictionary<string, PersistentSession> orchestrations)
         {
             if (stateManager == null)
             {
@@ -35,6 +36,7 @@ namespace DurableTask.ServiceFabric
             }
 
             this.stateManager = stateManager;
+            this.orchestrations = orchestrations;
         }
 
         //Todo: This is O(N) and also a frequent operation, do we need to optimize this?
@@ -46,8 +48,7 @@ namespace DurableTask.ServiceFabric
             {
                 using (var tx = this.stateManager.CreateTransaction())
                 {
-                    var orchestrations = await this.GetOrAddOrchestrationsAsync(tx);
-                    var enumerable = await orchestrations.CreateEnumerableAsync(tx, EnumerationMode.Unordered);
+                    var enumerable = await this.orchestrations.CreateEnumerableAsync(tx, EnumerationMode.Unordered);
                     using (var enumerator = enumerable.GetAsyncEnumerator())
                     {
                         while (await enumerator.MoveNextAsync(cancellationToken))
@@ -77,8 +78,7 @@ namespace DurableTask.ServiceFabric
         public async Task CompleteSessionMessagesAsync(ITransaction transaction, PersistentSession session, OrchestrationRuntimeState newSessionState)
         {
             var newSession = session.CompleteMessages().SetSessionState(newSessionState);
-            var orchestrations = await this.GetOrAddOrchestrationsAsync(transaction);
-            await orchestrations.SetAsync(transaction, session.SessionId, newSession);
+            await this.orchestrations.SetAsync(transaction, session.SessionId, newSession);
         }
 
         public async Task AppendMessageAsync(ITransaction transaction, string sessionId, TaskMessage newMessage)
@@ -86,15 +86,9 @@ namespace DurableTask.ServiceFabric
             var newSession = new PersistentSession(sessionId, new OrchestrationRuntimeState(),
                 ImmutableList<LockableTaskMessage>.Empty.Add(new LockableTaskMessage() {TaskMessage = newMessage}));
 
-            var orchestrations = await this.GetOrAddOrchestrationsAsync(transaction);
-            await orchestrations.AddOrUpdateAsync(transaction, sessionId,
+            await this.orchestrations.AddOrUpdateAsync(transaction, sessionId,
                 addValue: newSession,
                 updateValueFactory: (ses, oldValue) => oldValue.AppendMessage(newMessage));
-        }
-
-        async Task<IReliableDictionary<string, PersistentSession>> GetOrAddOrchestrationsAsync(ITransaction transaction)
-        {
-            return await this.stateManager.GetOrAddAsync<IReliableDictionary<string, PersistentSession>>(transaction, Constants.OrchestrationDictionaryName);
         }
     }
 }

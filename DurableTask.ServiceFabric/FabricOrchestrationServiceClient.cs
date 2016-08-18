@@ -47,19 +47,21 @@ namespace DurableTask.ServiceFabric
 
         public async Task SendTaskOrchestrationMessageAsync(TaskMessage message)
         {
+            var orchestrations = await this.GetOrAddOrchestrationsAsync();
+
             //Todo: Need to understand how dedup should be done here, the whole execution id is a little unclear
             using (var txn = this.stateManager.CreateTransaction())
             {
                 var sessionId = message.OrchestrationInstance.InstanceId;
 
                 //Todo: This is the same code as SessionsProvider.AppendMessages, can perhaps reuse somehow?
-                var newSession = new PersistentSession(sessionId, new OrchestrationRuntimeState(),
-                    ImmutableList<LockableTaskMessage>.Empty.Add(new LockableTaskMessage() { TaskMessage = message }));
+                var newSession = new PersistentSession(sessionId, new OrchestrationRuntimeState(), new LockableTaskMessage() { TaskMessage = message });
 
-                var orchestrations = await this.GetOrAddOrchestrationsAsync(txn);
                 await orchestrations.AddOrUpdateAsync(txn, sessionId,
                     addValue: newSession,
                     updateValueFactory: (ses, oldValue) => oldValue.AppendMessage(message));
+
+                await txn.CommitAsync();
             }
         }
 
@@ -114,9 +116,9 @@ namespace DurableTask.ServiceFabric
             return null;
         }
 
-        async Task<IReliableDictionary<string, PersistentSession>> GetOrAddOrchestrationsAsync(ITransaction transaction)
+        async Task<IReliableDictionary<string, PersistentSession>> GetOrAddOrchestrationsAsync()
         {
-            return await this.stateManager.GetOrAddAsync<IReliableDictionary<string, PersistentSession>>(transaction, Constants.OrchestrationDictionaryName);
+            return await this.stateManager.GetOrAddAsync<IReliableDictionary<string, PersistentSession>>(Constants.OrchestrationDictionaryName);
         }
 
         void ThrowIfInstanceStoreNotConfigured()

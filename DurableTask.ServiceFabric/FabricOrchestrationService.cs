@@ -45,12 +45,14 @@ namespace DurableTask.ServiceFabric
 
             this.stateManager = stateManager;
             this.instanceStore = instanceStore;
-            orchestrationProvider = new SessionsProvider(stateManager);
         }
 
-        public Task StartAsync()
+        public async Task StartAsync()
         {
-            return Task.FromResult<object>(null);
+            //Todo: Need to abstract the worker queue to it's own class like SessionsProvider
+            this.activities = await this.stateManager.GetOrAddAsync<IReliableQueue<TaskMessage>>(Constants.ActivitiesQueueName);
+            var orchestrations = await this.stateManager.GetOrAddAsync<IReliableDictionary<string, PersistentSession>>(Constants.OrchestrationDictionaryName);
+            this.orchestrationProvider = new SessionsProvider(stateManager, orchestrations);
         }
 
         public Task StopAsync()
@@ -245,12 +247,14 @@ namespace DurableTask.ServiceFabric
                     {
                         return activityValue.Value;
                     }
+                    //Todo: Need commit here?
                 }
                 await Task.Delay(100, cancellationToken);
             }
             return null;
         }
 
+        //Todo: Should this use the same transaction instance as the above method?
         public async Task CompleteTaskActivityWorkItemAsync(TaskActivityWorkItem workItem, TaskMessage responseMessage)
         {
             Contract.Assert(workItem.TaskMessage == this.currentActivity, "Unexpected thing happened, complete called for an activity that's not the current activity");

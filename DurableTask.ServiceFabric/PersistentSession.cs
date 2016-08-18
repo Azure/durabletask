@@ -11,26 +11,44 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+using System.Runtime.Serialization;
+using System.Text;
+using DurableTask.History;
+using Newtonsoft.Json;
+
 namespace DurableTask.ServiceFabric
 {
     using System.Collections.Generic;
     using System.Collections.Immutable;
     using System.Linq;
 
-    public class PersistentSession
+    [DataContract]
+    public sealed class PersistentSession
     {
-        public PersistentSession(string sessionId, OrchestrationRuntimeState sessionState, IImmutableList<LockableTaskMessage> messages)
+        static readonly IEnumerable<LockableTaskMessage> NoMessages = ImmutableList<LockableTaskMessage>.Empty;
+
+        public PersistentSession(string sessionId, OrchestrationRuntimeState sessionState, LockableTaskMessage message)
+            : this(sessionId, sessionState, new LockableTaskMessage[] { message})
+        {
+        }
+
+        public PersistentSession(string sessionId, OrchestrationRuntimeState sessionState, IEnumerable<LockableTaskMessage> messages)
         {
             this.SessionId = sessionId;
             this.SessionState = sessionState;
-            this.Messages = messages ?? ImmutableList<LockableTaskMessage>.Empty;
+            this.Messages = messages != null ? messages.ToImmutableList() : NoMessages;
         }
 
-        public string SessionId { get; }
+        [DataMember]
+        public string SessionId { get; private set; }
 
-        public OrchestrationRuntimeState SessionState { get; }
+        public OrchestrationRuntimeState SessionState { get; private set; }
 
-        public IImmutableList<LockableTaskMessage> Messages { get; }
+        [DataMember]
+        private byte[] SerializedState { get; set; }
+
+        [DataMember]
+        public IEnumerable<LockableTaskMessage> Messages { get; private set; }
 
         public PersistentSession SetSessionState(OrchestrationRuntimeState newState)
         {
@@ -39,7 +57,7 @@ namespace DurableTask.ServiceFabric
 
         public PersistentSession AppendMessage(TaskMessage message)
         {
-            return new PersistentSession(this.SessionId, this.SessionState, this.Messages.Add(new LockableTaskMessage() {TaskMessage = message}));
+            return new PersistentSession(this.SessionId, this.SessionState, this.Messages.ToImmutableList().Add(new LockableTaskMessage() {TaskMessage = message}));
         }
 
         public List<TaskMessage> ReceiveMessages()
@@ -57,14 +75,54 @@ namespace DurableTask.ServiceFabric
         public PersistentSession CompleteMessages()
         {
             //Todo: Need to be thread-safe?
-            var newMessages = this.Messages.Where(m => !m.Received).ToImmutableList();
+            var newMessages = this.Messages.Where(m => !m.Received);
             return new PersistentSession(this.SessionId, this.SessionState, newMessages);
+        }
+
+        [OnDeserialized]
+        void OnDeserialized(StreamingContext context)
+        {
+            this.Messages = this.Messages.ToImmutableList();
+            this.SessionState = DeserializeOrchestrationRuntimeState(this.SerializedState);
+        }
+
+        [OnSerializing]
+        void OnSerializing(StreamingContext context)
+        {
+            this.SerializedState = SerializeOrchestrationRuntimeState(this.SessionState);
+        }
+
+        byte[] SerializeOrchestrationRuntimeState(OrchestrationRuntimeState runtimeState)
+        {
+            if (runtimeState == null)
+            {
+                return null;
+            }
+
+            string serializeState = JsonConvert.SerializeObject(runtimeState.Events,
+                new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.Auto });
+            return Encoding.UTF8.GetBytes(serializeState);
+        }
+
+        OrchestrationRuntimeState DeserializeOrchestrationRuntimeState(byte[] stateBytes)
+        {
+            if (stateBytes == null || stateBytes.Length == 0)
+            {
+                return null;
+            }
+
+            string serializedState = Encoding.UTF8.GetString(stateBytes);
+            IList<HistoryEvent> events = JsonConvert.DeserializeObject<IList<HistoryEvent>>(serializedState, new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.Auto });
+            return new OrchestrationRuntimeState(events);
         }
     }
 
+    [DataContract]
     public class LockableTaskMessage
     {
-        public TaskMessage TaskMessage; //serialized
+        [DataMember]
+        public TaskMessage TaskMessage;
+
         public bool Received; //not serialized, default value false
     }
 }
