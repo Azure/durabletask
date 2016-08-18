@@ -23,7 +23,7 @@ namespace DurableTask.ServiceFabric
     using Microsoft.ServiceFabric.Data;
     using Microsoft.ServiceFabric.Data.Collections;
 
-    public class SessionsProvider
+    class SessionsProvider
     {
         IReliableStateManager stateManager;
         IReliableDictionary<string, PersistentSession> orchestrations;
@@ -33,6 +33,11 @@ namespace DurableTask.ServiceFabric
             if (stateManager == null)
             {
                 throw new ArgumentNullException(nameof(stateManager));
+            }
+
+            if (orchestrations == null)
+            {
+                throw new ArgumentNullException(nameof(orchestrations));
             }
 
             this.stateManager = stateManager;

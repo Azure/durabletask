@@ -31,7 +31,7 @@ namespace DurableTask.ServiceFabric
         IOrchestrationServiceInstanceStore instanceStore;
 
         SessionsProvider orchestrationProvider;
-        IReliableQueue<TaskMessage> activities;
+        ActivitiesProvider activitiesProvider;
 
         PersistentSession currentSession;
         TaskMessage currentActivity;
@@ -49,9 +49,9 @@ namespace DurableTask.ServiceFabric
 
         public async Task StartAsync()
         {
-            //Todo: Need to abstract the worker queue to it's own class like SessionsProvider
-            this.activities = await this.stateManager.GetOrAddAsync<IReliableQueue<TaskMessage>>(Constants.ActivitiesQueueName);
+            var activities = await this.stateManager.GetOrAddAsync<IReliableQueue<TaskMessage>>(Constants.ActivitiesQueueName);
             var orchestrations = await this.stateManager.GetOrAddAsync<IReliableDictionary<string, PersistentSession>>(Constants.OrchestrationDictionaryName);
+            this.activitiesProvider = new ActivitiesProvider(this.stateManager, activities);
             this.orchestrationProvider = new SessionsProvider(stateManager, orchestrations);
         }
 
@@ -73,11 +73,11 @@ namespace DurableTask.ServiceFabric
         public async Task CreateAsync(bool recreateInstanceStore)
         {
             await DeleteAsync(deleteInstanceStore: recreateInstanceStore);
+            // Actual creation will be done on demand when we call GetOrAddAsync in StartAsync method.
         }
 
         public Task CreateIfNotExistsAsync()
         {
-            // This is not really needed because of winfab API which allows us to GetOrAdd
             return Task.FromResult<object>(null);
         }
 
@@ -88,7 +88,6 @@ namespace DurableTask.ServiceFabric
 
         public async Task DeleteAsync(bool deleteInstanceStore)
         {
-            //Todo: Do we need a transaction for this?
             await this.stateManager.RemoveAsync(Constants.OrchestrationDictionaryName);
             await this.stateManager.RemoveAsync(Constants.ActivitiesQueueName);
         }
@@ -177,16 +176,12 @@ namespace DurableTask.ServiceFabric
 
             using (var txn = this.stateManager.CreateTransaction())
             {
-                foreach (var workerMessage in outboundMessages)
-                {
-                    await this.activities.EnqueueAsync(txn, workerMessage);
-                }
-
+                await this.activitiesProvider.AppendBatch(txn, outboundMessages);
                 await this.orchestrationProvider.CompleteSessionMessagesAsync(txn, this.currentSession, newOrchestrationRuntimeState);
 
+                // Todo: This is not yet part of the transaction
                 if (this.instanceStore != null)
                 {
-                    // Todo: This is not yet part of the transaction
                     await this.instanceStore.WriteEntitesAsync(new InstanceEntityBase[]
                     {
                         new OrchestrationStateInstanceEntity()
@@ -221,13 +216,13 @@ namespace DurableTask.ServiceFabric
         {
             Contract.Assert(this.currentActivity == null, "How come we get a call for another activity while an activity is running?");
 
-            this.currentActivity = await this.GetNextWorkItem(receiveTimeout, cancellationToken);
+            this.currentActivity = await this.activitiesProvider.GetNextWorkItem(receiveTimeout, cancellationToken);
 
             if (this.currentActivity != null)
             {
                 return new TaskActivityWorkItem()
                 {
-                    Id = "N/A", //Todo: Need to persist the guid??
+                    Id = Guid.NewGuid().ToString(), //Todo: Do we need to persist this in activity queue?
                     TaskMessage = this.currentActivity
                 };
             }
@@ -235,33 +230,13 @@ namespace DurableTask.ServiceFabric
             return null;
         }
 
-        async Task<TaskMessage> GetNextWorkItem(TimeSpan receiveTimeout, CancellationToken cancellationToken)
-        {
-            Stopwatch timer = Stopwatch.StartNew();
-            while (timer.Elapsed < receiveTimeout && !cancellationToken.IsCancellationRequested)
-            {
-                using (var txn = this.stateManager.CreateTransaction())
-                {
-                    var activityValue = await this.activities.TryPeekAsync(txn, LockMode.Default);
-                    if (activityValue.HasValue)
-                    {
-                        return activityValue.Value;
-                    }
-                    //Todo: Need commit here?
-                }
-                await Task.Delay(100, cancellationToken);
-            }
-            return null;
-        }
-
-        //Todo: Should this use the same transaction instance as the above method?
         public async Task CompleteTaskActivityWorkItemAsync(TaskActivityWorkItem workItem, TaskMessage responseMessage)
         {
             Contract.Assert(workItem.TaskMessage == this.currentActivity, "Unexpected thing happened, complete called for an activity that's not the current activity");
 
             using (var txn = this.stateManager.CreateTransaction())
             {
-                await this.activities.TryDequeueAsync(txn);
+                await this.activitiesProvider.CompleteWorkItem(txn, workItem.TaskMessage);
                 var sessionId = workItem.TaskMessage.OrchestrationInstance.InstanceId;
                 await this.orchestrationProvider.AppendMessageAsync(txn, sessionId, responseMessage);
                 await txn.CommitAsync();
@@ -271,6 +246,7 @@ namespace DurableTask.ServiceFabric
 
         public Task AbandonTaskActivityWorkItemAsync(TaskActivityWorkItem workItem)
         {
+            Contract.Assert(workItem.TaskMessage == this.currentActivity, "Unexpected thing happened, abandon called for an activity that's not the current activity");
             this.currentActivity = null;
             return Task.FromResult(workItem);
         }

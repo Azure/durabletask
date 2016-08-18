@@ -79,6 +79,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ActivitiesProvider.cs" />
     <Compile Include="Constants.cs" />
     <Compile Include="FabricOrchestrationInstanceStore.cs" />
     <Compile Include="FabricOrchestrationService.cs" />
