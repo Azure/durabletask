@@ -122,11 +122,6 @@
     <Compile Include="BlobStorageClientHelperTest.cs" />
     <Compile Include="BlobStorageClientTest.cs" />
     <Compile Include="ErrorHandlingTests.cs" />
-    <Compile Include="Mocks\TaskSession.cs" />
-    <Compile Include="Mocks\PeekLockQueue.cs" />
-    <Compile Include="Mocks\PeekLockSessionQueue.cs" />
-    <Compile Include="Mocks\LocalOrchestrationService.cs" />
-    <Compile Include="DurableTaskCoreFxTest.cs" />
     <Compile Include="FunctionalTests.cs" />
     <Compile Include="InstanceStoreQueryTests.cs" />
     <Compile Include="DispatcherTests.cs" />
