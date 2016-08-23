@@ -34,7 +34,7 @@ namespace TestStatefulService.DebugHelper
         {
             var startTask = Task.Run(async () =>
             {
-                var instance = await client.CreateOrchestrationInstanceAsync(typeof(SimpleOrchestrationWithTasks), input: null);
+                var instance = await client.CreateOrchestrationInstanceAsync(typeof(SimpleOrchestrationWithTimer), input: 37);
                 var state = await client.WaitForOrchestrationAsync(instance, TimeSpan.FromMinutes(10));
                 var result = state.Output;
             }, this.cancellationTokenSource.Token);

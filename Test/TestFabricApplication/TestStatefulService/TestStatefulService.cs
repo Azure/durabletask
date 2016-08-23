@@ -66,7 +66,8 @@ namespace TestStatefulService
         /// <param name="cancellationToken">Canceled when Service Fabric needs to shut down this service replica.</param>
         protected override async Task RunAsync(CancellationToken cancellationToken)
         {
-            await this.worker.AddTaskOrchestrations(typeof(SimpleOrchestrationWithTasks))
+            await this.worker
+                .AddTaskOrchestrations(typeof(SimpleOrchestrationWithTasks), typeof(SimpleOrchestrationWithTimer))
                 .AddTaskActivities(typeof(GetUserTask), typeof(GreetUserTask))
                 .StartAsync();
 

@@ -53,6 +53,7 @@ namespace DurableTask.ServiceFabric
             var orchestrations = await this.stateManager.GetOrAddAsync<IReliableDictionary<string, PersistentSession>>(Constants.OrchestrationDictionaryName);
             this.activitiesProvider = new ActivitiesProvider(this.stateManager, activities);
             this.orchestrationProvider = new SessionsProvider(stateManager, orchestrations);
+            await this.orchestrationProvider.StartAsync();
         }
 
         public Task StopAsync()
@@ -62,6 +63,7 @@ namespace DurableTask.ServiceFabric
 
         public Task StopAsync(bool isForced)
         {
+            this.orchestrationProvider.Stop();
             return Task.FromResult<object>(null);
         }
 
@@ -159,11 +161,6 @@ namespace DurableTask.ServiceFabric
         {
             Contract.Assert(this.currentSession != null && string.Equals(currentSession.SessionId, workItem.InstanceId), "Unexpected thing happened, complete should be called with the same session as locked");
 
-            if (timerMessages != null && timerMessages.Count > 0)
-            {
-                throw new ArgumentException("timer messages not supported yet");
-            }
-
             if (orchestratorMessages != null && orchestratorMessages.Count > 0)
             {
                 throw new ArgumentException("Sub orchestrations are not supported yet");
@@ -177,7 +174,8 @@ namespace DurableTask.ServiceFabric
             using (var txn = this.stateManager.CreateTransaction())
             {
                 await this.activitiesProvider.AppendBatch(txn, outboundMessages);
-                await this.orchestrationProvider.CompleteSessionMessagesAsync(txn, this.currentSession, newOrchestrationRuntimeState);
+
+                await this.orchestrationProvider.CompleteAndUpdateSession(txn, this.currentSession, newOrchestrationRuntimeState, timerMessages);
 
                 // Todo: This is not yet part of the transaction
                 if (this.instanceStore != null)

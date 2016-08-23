@@ -11,9 +11,12 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+using System;
 using System.Runtime.Serialization;
 using System.Text;
+using System.Threading.Tasks;
 using DurableTask.History;
+using Microsoft.ServiceFabric.Data;
 using Newtonsoft.Json;
 
 namespace DurableTask.ServiceFabric
@@ -28,15 +31,19 @@ namespace DurableTask.ServiceFabric
         static readonly IEnumerable<LockableTaskMessage> NoMessages = ImmutableList<LockableTaskMessage>.Empty;
 
         public PersistentSession(string sessionId, OrchestrationRuntimeState sessionState, LockableTaskMessage message)
-            : this(sessionId, sessionState, new LockableTaskMessage[] { message})
+            : this(sessionId, sessionState, new LockableTaskMessage[] {message}, null)
         {
         }
 
-        public PersistentSession(string sessionId, OrchestrationRuntimeState sessionState, IEnumerable<LockableTaskMessage> messages)
+        public PersistentSession(string sessionId,
+            OrchestrationRuntimeState sessionState,
+            IEnumerable<LockableTaskMessage> messages,
+            IEnumerable<LockableTaskMessage> scheduledMessages)
         {
             this.SessionId = sessionId;
             this.SessionState = sessionState;
             this.Messages = messages != null ? messages.ToImmutableList() : NoMessages;
+            this.ScheduledMessages = scheduledMessages != null ? scheduledMessages.ToImmutableList() : NoMessages;
         }
 
         [DataMember]
@@ -50,14 +57,76 @@ namespace DurableTask.ServiceFabric
         [DataMember]
         public IEnumerable<LockableTaskMessage> Messages { get; private set; }
 
+        [DataMember]
+        public IEnumerable<LockableTaskMessage> ScheduledMessages { get; private set; }
+
         public PersistentSession SetSessionState(OrchestrationRuntimeState newState)
         {
-            return new PersistentSession(this.SessionId, newState, this.Messages);
+            return new PersistentSession(this.SessionId, newState, this.Messages, this.ScheduledMessages);
         }
 
         public PersistentSession AppendMessage(TaskMessage message)
         {
-            return new PersistentSession(this.SessionId, this.SessionState, this.Messages.ToImmutableList().Add(new LockableTaskMessage() {TaskMessage = message}));
+            return new PersistentSession(this.SessionId,
+                this.SessionState,
+                this.Messages.ToImmutableList().Add(new LockableTaskMessage() {TaskMessage = message}),
+                this.ScheduledMessages);
+        }
+
+        public PersistentSession AppendScheduledMessagesBatch(IEnumerable<TaskMessage> newMessages)
+        {
+            var scheduledMessages = this.ScheduledMessages.ToList();
+            foreach (var message in newMessages)
+            {
+                if (!(message.Event is TimerFiredEvent))
+                {
+                    throw new ArgumentException("Expecting a scheduled message");
+                }
+                scheduledMessages.Add(new LockableTaskMessage() { TaskMessage = message });
+            }
+            return new PersistentSession(this.SessionId, this.SessionState, this.Messages, scheduledMessages);
+        }
+
+        // Todo: Can optimize in a few other ways, for now, something that works
+        public bool CheckScheduledMessages(out PersistentSession newValue)
+        {
+            newValue = this;
+            if (!this.ScheduledMessages.Any())
+            {
+                return false;
+            }
+
+            bool changed = false;
+            var currentTime = DateTime.UtcNow;
+            var newMessages = this.Messages.ToList();
+            var remainingScheduledMessages = new List<LockableTaskMessage>();
+
+            foreach (var scheduledMessage in this.ScheduledMessages)
+            {
+                var timerEvent = scheduledMessage.TaskMessage.Event as TimerFiredEvent;
+
+                if (timerEvent == null)
+                {
+                    //Should not happen with the current assumptions
+                    throw new Exception("Internal server errors");
+                }
+
+                if (timerEvent.FireAt <= currentTime)
+                {
+                    newMessages.Add(scheduledMessage);
+                    changed = true;
+                }
+                else
+                {
+                    remainingScheduledMessages.Add(scheduledMessage);
+                }
+            }
+
+            if (changed)
+            {
+                newValue = new PersistentSession(this.SessionId, this.SessionState, newMessages, remainingScheduledMessages);
+            }
+            return changed;
         }
 
         public List<TaskMessage> ReceiveMessages()
@@ -76,7 +145,7 @@ namespace DurableTask.ServiceFabric
         {
             //Todo: Need to be thread-safe?
             var newMessages = this.Messages.Where(m => !m.Received);
-            return new PersistentSession(this.SessionId, this.SessionState, newMessages);
+            return new PersistentSession(this.SessionId, this.SessionState, newMessages, this.ScheduledMessages);
         }
 
         [OnDeserialized]
