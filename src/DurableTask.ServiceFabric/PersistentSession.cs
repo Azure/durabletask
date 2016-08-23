@@ -25,6 +25,8 @@ namespace DurableTask.ServiceFabric
     using System.Collections.Immutable;
     using System.Linq;
 
+    // Todo: Write a builder class for this immutable instead of creating intermediate objects for each operation for ex like in
+    // SessionsProvider.CompleteAndUpdateSession
     [DataContract]
     public sealed class PersistentSession
     {

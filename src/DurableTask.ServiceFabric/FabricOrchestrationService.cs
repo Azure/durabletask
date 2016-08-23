@@ -161,21 +161,25 @@ namespace DurableTask.ServiceFabric
         {
             Contract.Assert(this.currentSession != null && string.Equals(currentSession.SessionId, workItem.InstanceId), "Unexpected thing happened, complete should be called with the same session as locked");
 
-            if (orchestratorMessages != null && orchestratorMessages.Count > 0)
-            {
-                throw new ArgumentException("Sub orchestrations are not supported yet");
-            }
-
-            if (continuedAsNewMessage != null)
-            {
-                throw new ArgumentException("Continued as new is not supported yet");
-            }
-
             using (var txn = this.stateManager.CreateTransaction())
             {
                 await this.activitiesProvider.AppendBatch(txn, outboundMessages);
 
                 await this.orchestrationProvider.CompleteAndUpdateSession(txn, this.currentSession, newOrchestrationRuntimeState, timerMessages);
+
+                if (orchestratorMessages?.Count > 0)
+                {
+                    foreach (var subOrchestrationMessage in orchestratorMessages)
+                    {
+                        //Todo: should we do something like AppendBatch to reduce the number of calls to persistent log?
+                        await this.orchestrationProvider.AppendMessageAsync(txn, subOrchestrationMessage);
+                    }
+                }
+
+                if (continuedAsNewMessage != null)
+                {
+                    await this.orchestrationProvider.AppendMessageAsync(txn, continuedAsNewMessage);
+                }
 
                 // Todo: This is not yet part of the transaction
                 if (this.instanceStore != null)
@@ -236,7 +240,7 @@ namespace DurableTask.ServiceFabric
             {
                 await this.activitiesProvider.CompleteWorkItem(txn, workItem.TaskMessage);
                 var sessionId = workItem.TaskMessage.OrchestrationInstance.InstanceId;
-                await this.orchestrationProvider.AppendMessageAsync(txn, sessionId, responseMessage);
+                await this.orchestrationProvider.AppendMessageAsync(txn, responseMessage);
                 await txn.CommitAsync();
                 this.currentActivity = null;
             }

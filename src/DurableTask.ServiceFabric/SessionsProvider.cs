@@ -64,7 +64,7 @@ namespace DurableTask.ServiceFabric
                                 PersistentSession newValue;
                                 if (entry.Value.CheckScheduledMessages(out newValue))
                                 {
-                                    await this.orchestrations.SetAsync(txn, entry.Key, newValue); //Is this valid code? Can enumeration update the value?
+                                    await this.orchestrations.SetAsync(txn, entry.Key, newValue);
                                 }
                             }
                         }
@@ -134,12 +134,12 @@ namespace DurableTask.ServiceFabric
             await this.orchestrations.SetAsync(transaction, session.SessionId, newSession);
         }
 
-        public async Task AppendMessageAsync(ITransaction transaction, string sessionId, TaskMessage newMessage)
+        public async Task AppendMessageAsync(ITransaction transaction, TaskMessage newMessage)
         {
             Func<string, PersistentSession> newSessionFactory = (sId) => new PersistentSession(sId, new OrchestrationRuntimeState(),
                 ImmutableList<LockableTaskMessage>.Empty.Add(new LockableTaskMessage() {TaskMessage = newMessage}), null);
 
-            await this.orchestrations.AddOrUpdateAsync(transaction, sessionId,
+            await this.orchestrations.AddOrUpdateAsync(transaction, newMessage.OrchestrationInstance.InstanceId,
                 addValueFactory: newSessionFactory,
                 updateValueFactory: (ses, oldValue) => oldValue.AppendMessage(newMessage));
         }
