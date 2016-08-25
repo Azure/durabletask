@@ -26,6 +26,8 @@ namespace DurableTask.ServiceFabric.Test
         {
             //Todo: This will fail if local cluster is not setup, currently the test code does not automatically
             //start a local cluster and that's a manual pre-req step.
+            //Todo: Also this will assume that latest SF test application and service code is packaged, if that's not true
+            //the issue might be hard to detect :-(
             DeploymentHelper.CleanAsync().Wait();
             DeploymentHelper.DeployAsync(TestApplicationRootPath).Wait();
         }

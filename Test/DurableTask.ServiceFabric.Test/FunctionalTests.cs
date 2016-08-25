@@ -24,11 +24,19 @@ namespace DurableTask.ServiceFabric.Test
     [TestClass]
     public class FunctionalTests
     {
+        IRemoteClient serviceClient;
+
+        [TestInitialize]
+        public void TestInitialize()
+        {
+            this.serviceClient = ServiceProxy.Create<IRemoteClient>(new Uri("fabric:/TestFabricApplicationType/TestStatefulService"), new ServicePartitionKey(1));
+        }
+
         [TestMethod]
         public async Task Orchestration_With_ScheduledTasks_Finishes()
         {
-            IRemoteClient serviceClient = ServiceProxy.Create<IRemoteClient>(new Uri("fabric:/TestFabricApplicationType/TestStatefulService"), new ServicePartitionKey(1));
-            var result = await serviceClient.RunOrchestrationAsync(typeof(SimpleOrchestrationWithTasks).Name, null, TimeSpan.FromMinutes(5));
+            var result = await this.serviceClient.RunOrchestrationAsync(typeof(SimpleOrchestrationWithTasks).Name, null, TimeSpan.FromMinutes(5));
+
             Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
             Assert.AreEqual("\"Hello Gabbar\"", result.Output);
         }
@@ -36,11 +44,24 @@ namespace DurableTask.ServiceFabric.Test
         [TestMethod]
         public async Task Orchestration_With_Timer_Finishes_After_The_Wait_Time()
         {
-            IRemoteClient serviceClient = ServiceProxy.Create<IRemoteClient>(new Uri("fabric:/TestFabricApplicationType/TestStatefulService"), new ServicePartitionKey(1));
-            var result = await serviceClient.RunOrchestrationAsync(typeof(SimpleOrchestrationWithTimer).Name, 37, TimeSpan.FromMinutes(5));
+            var result = await this.serviceClient.RunOrchestrationAsync(typeof(SimpleOrchestrationWithTimer).Name, 37, TimeSpan.FromMinutes(5));
+
             Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
             Assert.AreEqual("\"Hello Gabbar\"", result.Output);
             Assert.IsTrue((result.CompletedTime - result.CreatedTime) > TimeSpan.FromSeconds(37));
+        }
+
+        [TestMethod]
+        [Ignore]
+        public async Task GenerationBasicTest()
+        {
+            GenerationBasicOrchestration.Result = 0;
+            GenerationBasicTask.GenerationCount = 0;
+
+            var result = await this.serviceClient.RunOrchestrationAsync(typeof(GenerationBasicOrchestration).Name, 4, TimeSpan.FromMinutes(5));
+
+            Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
+            Assert.AreEqual(4, GenerationBasicOrchestration.Result, "Orchestration Result is wrong!!!");
         }
     }
 }

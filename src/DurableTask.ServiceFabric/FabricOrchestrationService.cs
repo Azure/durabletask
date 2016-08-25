@@ -161,6 +161,11 @@ namespace DurableTask.ServiceFabric
         {
             Contract.Assert(this.currentSession != null && string.Equals(currentSession.SessionId, workItem.InstanceId), "Unexpected thing happened, complete should be called with the same session as locked");
 
+            if (continuedAsNewMessage != null)
+            {
+                throw new Exception("ContinueAsNew is not supported yet");
+            }
+
             using (var txn = this.stateManager.CreateTransaction())
             {
                 await this.activitiesProvider.AppendBatch(txn, outboundMessages);
@@ -176,10 +181,11 @@ namespace DurableTask.ServiceFabric
                     }
                 }
 
-                if (continuedAsNewMessage != null)
-                {
-                    await this.orchestrationProvider.AppendMessageAsync(txn, continuedAsNewMessage);
-                }
+                // Something more is needed for ContinuedAsNew support...
+                //if (continuedAsNewMessage != null)
+                //{
+                //    await this.orchestrationProvider.AppendMessageAsync(txn, continuedAsNewMessage);
+                //}
 
                 // Todo: This is not yet part of the transaction
                 if (this.instanceStore != null)

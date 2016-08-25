@@ -72,21 +72,17 @@ namespace TestStatefulService
         {
             await this.worker
                 .AddTaskOrchestrations(KnownOrchestrationTypeNames.Values.ToArray())
-                .AddTaskActivities(typeof(GetUserTask), typeof(GreetUserTask))
+                .AddTaskActivities(typeof(GetUserTask), typeof(GreetUserTask), typeof(GenerationBasicTask))
                 .StartAsync();
 
-#if DEBUG
-            await this.testExecutor.StartAsync();
-#endif
+            //await this.testExecutor.StartAsync();
         }
 
         protected override async Task OnChangeRoleAsync(ReplicaRole newRole, CancellationToken cancellationToken)
         {
             if (newRole != ReplicaRole.Primary && this.currentRole == ReplicaRole.Primary)
             {
-#if DEBUG
-                await this.testExecutor.StopAsync();
-#endif
+                //await this.testExecutor.StopAsync();
                 await this.worker.StopAsync();
             }
             this.currentRole = newRole;
@@ -112,6 +108,7 @@ namespace TestStatefulService
         {
             { typeof(SimpleOrchestrationWithTasks).Name, typeof(SimpleOrchestrationWithTasks) },
             { typeof(SimpleOrchestrationWithTimer).Name, typeof(SimpleOrchestrationWithTimer) },
+            { typeof(GenerationBasicOrchestration).Name, typeof(GenerationBasicOrchestration) },
         };
     }
 }
