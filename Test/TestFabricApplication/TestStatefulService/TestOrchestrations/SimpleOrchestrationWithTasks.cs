@@ -16,7 +16,7 @@ using DurableTask;
 
 namespace TestStatefulService.TestOrchestrations
 {
-    class SimpleOrchestrationWithTasks : TaskOrchestration<string, string>
+    public class SimpleOrchestrationWithTasks : TaskOrchestration<string, string>
     {
         public override async Task<string> RunTask(OrchestrationContext context, string input)
         {

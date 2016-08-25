@@ -11,8 +11,10 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+using System;
 using System.Collections.Generic;
 using System.Fabric;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using DurableTask;
@@ -22,13 +24,14 @@ using Microsoft.ServiceFabric.Services.Runtime;
 using TestApplication.Common;
 using TestStatefulService.DebugHelper;
 using TestStatefulService.TestOrchestrations;
+using Microsoft.ServiceFabric.Services.Remoting.Runtime;
 
 namespace TestStatefulService
 {
     /// <summary>
     /// An instance of this class is created for each service replica by the Service Fabric runtime.
     /// </summary>
-    internal sealed class TestStatefulService : StatefulService
+    internal sealed class TestStatefulService : StatefulService, IRemoteClient
     {
         private TaskHubWorker worker;
         private TaskHubClient client;
@@ -55,7 +58,8 @@ namespace TestStatefulService
         {
             return new[]
             {
-                new ServiceReplicaListener(initParams => new OwinCommunicationListener("TestStatefulService", new Startup(), initParams))
+                //new ServiceReplicaListener(initParams => new OwinCommunicationListener("TestStatefulService", new Startup(), initParams))
+                new ServiceReplicaListener(this.CreateServiceRemotingListener)
             };
         }
 
@@ -67,7 +71,7 @@ namespace TestStatefulService
         protected override async Task RunAsync(CancellationToken cancellationToken)
         {
             await this.worker
-                .AddTaskOrchestrations(typeof(SimpleOrchestrationWithTasks), typeof(SimpleOrchestrationWithTimer))
+                .AddTaskOrchestrations(KnownOrchestrationTypeNames.Values.ToArray())
                 .AddTaskActivities(typeof(GetUserTask), typeof(GreetUserTask))
                 .StartAsync();
 
@@ -87,5 +91,27 @@ namespace TestStatefulService
             }
             this.currentRole = newRole;
         }
+
+        public async Task<OrchestrationState> RunOrchestrationAsync(string orchestrationTypeName, object input, TimeSpan waitTimeout)
+        {
+            var instance = await client.CreateOrchestrationInstanceAsync(GetOrchestrationType(orchestrationTypeName), input);
+            return await client.WaitForOrchestrationAsync(instance, waitTimeout);
+        }
+
+        Type GetOrchestrationType(string typeName)
+        {
+            if (!KnownOrchestrationTypeNames.ContainsKey(typeName))
+            {
+                throw new Exception($"Unknown Orchestration Type Name : {typeName}");
+            }
+
+            return KnownOrchestrationTypeNames.First(kvp => string.Equals(typeName, kvp.Key)).Value;
+        }
+
+        private static Dictionary<string, Type> KnownOrchestrationTypeNames = new Dictionary<string, Type>
+        {
+            { typeof(SimpleOrchestrationWithTasks).Name, typeof(SimpleOrchestrationWithTasks) },
+            { typeof(SimpleOrchestrationWithTimer).Name, typeof(SimpleOrchestrationWithTimer) },
+        };
     }
 }

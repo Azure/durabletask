@@ -14,17 +14,12 @@
 using System;
 using System.Threading.Tasks;
 using DurableTask;
+using Microsoft.ServiceFabric.Services.Remoting;
 
-namespace TestStatefulService.TestOrchestrations
+namespace TestStatefulService
 {
-    public class SimpleOrchestrationWithTimer : TaskOrchestration<string, int>
+    public interface IRemoteClient : IService
     {
-        public override async Task<string> RunTask(OrchestrationContext context, int input)
-        {
-            ServiceEventSource.Current.Message($"CurrentUtcDataTime before scheduling the timer and waiting : {context.CurrentUtcDateTime}");
-            await context.CreateTimer<object>(context.CurrentUtcDateTime.Add(TimeSpan.FromSeconds(input)), null);
-            ServiceEventSource.Current.Message($"CurrentUtcDataTime after finished waiting for the timer : {context.CurrentUtcDateTime}");
-            return await context.ScheduleTask<string>(typeof(GreetUserTask), "Gabbar");
-        }
+        Task<OrchestrationState> RunOrchestrationAsync(string orchestrationTypeName, object input, TimeSpan waitTimeout);
     }
 }
