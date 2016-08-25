@@ -109,6 +109,7 @@ namespace TestStatefulService
             { typeof(SimpleOrchestrationWithTasks).Name, typeof(SimpleOrchestrationWithTasks) },
             { typeof(SimpleOrchestrationWithTimer).Name, typeof(SimpleOrchestrationWithTimer) },
             { typeof(GenerationBasicOrchestration).Name, typeof(GenerationBasicOrchestration) },
+            { typeof(SimpleOrchestrationWithSubOrchestration).Name, typeof(SimpleOrchestrationWithSubOrchestration) },
         };
     }
 }

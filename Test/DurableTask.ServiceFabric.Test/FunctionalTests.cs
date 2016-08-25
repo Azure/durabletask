@@ -63,5 +63,14 @@ namespace DurableTask.ServiceFabric.Test
             Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
             Assert.AreEqual(4, GenerationBasicOrchestration.Result, "Orchestration Result is wrong!!!");
         }
+
+        [TestMethod]
+        public async Task Orchestration_With_SubOrchestration_Finishes()
+        {
+            var result = await this.serviceClient.RunOrchestrationAsync(typeof(SimpleOrchestrationWithSubOrchestration).Name, null, TimeSpan.FromMinutes(5));
+
+            Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
+            Assert.AreEqual($"\"TaskResult = Hello World , SubOrchestrationResult = Hello Gabbar\"", result.Output);
+        }
     }
 }

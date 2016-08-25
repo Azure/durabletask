@@ -114,6 +114,7 @@
     <Compile Include="TestOrchestrations\GenerationBasicOrchestration.cs" />
     <Compile Include="TestOrchestrations\GetUserTask.cs" />
     <Compile Include="TestOrchestrations\GreetUserTask.cs" />
+    <Compile Include="TestOrchestrations\SimpleOrchestrationWithSubOrchestration.cs" />
     <Compile Include="TestOrchestrations\SimpleOrchestrationWithTasks.cs" />
     <Compile Include="TestOrchestrations\SimpleOrchestrationWithTimer.cs" />
     <Compile Include="TestStatefulService.cs" />
