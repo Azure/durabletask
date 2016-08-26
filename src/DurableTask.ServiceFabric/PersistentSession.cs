@@ -16,6 +16,7 @@ using System.Runtime.Serialization;
 using System.Text;
 using System.Threading.Tasks;
 using DurableTask.History;
+using DurableTask.Serializing;
 using Microsoft.ServiceFabric.Data;
 using Newtonsoft.Json;
 
@@ -31,6 +32,7 @@ namespace DurableTask.ServiceFabric
     public sealed class PersistentSession
     {
         static readonly IEnumerable<LockableTaskMessage> NoMessages = ImmutableList<LockableTaskMessage>.Empty;
+        static readonly DataConverter DatConverter = new JsonDataConverter();
 
         public PersistentSession(string sessionId, OrchestrationRuntimeState sessionState, LockableTaskMessage message)
             : this(sessionId, sessionState, new LockableTaskMessage[] {message}, null)
@@ -43,7 +45,7 @@ namespace DurableTask.ServiceFabric
             IEnumerable<LockableTaskMessage> scheduledMessages)
         {
             this.SessionId = sessionId;
-            this.SessionState = sessionState;
+            this.SessionState = sessionState ?? new OrchestrationRuntimeState();
             this.Messages = messages != null ? messages.ToImmutableList() : NoMessages;
             this.ScheduledMessages = scheduledMessages != null ? scheduledMessages.ToImmutableList() : NoMessages;
         }
@@ -54,7 +56,7 @@ namespace DurableTask.ServiceFabric
         public OrchestrationRuntimeState SessionState { get; private set; }
 
         [DataMember]
-        private byte[] SerializedState { get; set; }
+        private string SerializedState { get; set; }
 
         [DataMember]
         public IEnumerable<LockableTaskMessage> Messages { get; private set; }
@@ -162,37 +164,13 @@ namespace DurableTask.ServiceFabric
         void OnDeserialized(StreamingContext context)
         {
             this.Messages = this.Messages.ToImmutableList();
-            this.SessionState = DeserializeOrchestrationRuntimeState(this.SerializedState);
+            this.SessionState = DatConverter.Deserialize<OrchestrationRuntimeState>(this.SerializedState);
         }
 
         [OnSerializing]
         void OnSerializing(StreamingContext context)
         {
-            this.SerializedState = SerializeOrchestrationRuntimeState(this.SessionState);
-        }
-
-        byte[] SerializeOrchestrationRuntimeState(OrchestrationRuntimeState runtimeState)
-        {
-            if (runtimeState == null)
-            {
-                return null;
-            }
-
-            string serializeState = JsonConvert.SerializeObject(runtimeState.Events,
-                new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.Auto });
-            return Encoding.UTF8.GetBytes(serializeState);
-        }
-
-        OrchestrationRuntimeState DeserializeOrchestrationRuntimeState(byte[] stateBytes)
-        {
-            if (stateBytes == null || stateBytes.Length == 0)
-            {
-                return null;
-            }
-
-            string serializedState = Encoding.UTF8.GetString(stateBytes);
-            IList<HistoryEvent> events = JsonConvert.DeserializeObject<IList<HistoryEvent>>(serializedState, new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.Auto });
-            return new OrchestrationRuntimeState(events);
+            this.SerializedState = DatConverter.Serialize(this.SessionState);
         }
     }
 
