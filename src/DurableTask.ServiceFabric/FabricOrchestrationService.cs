@@ -174,11 +174,7 @@ namespace DurableTask.ServiceFabric
 
                 if (orchestratorMessages?.Count > 0)
                 {
-                    foreach (var subOrchestrationMessage in orchestratorMessages)
-                    {
-                        //Todo: should we do something like AppendBatch to reduce the number of calls to persistent log?
-                        await this.orchestrationProvider.AppendMessageAsync(txn, subOrchestrationMessage);
-                    }
+                    await this.orchestrationProvider.AppendMessageBatchAsync(txn, orchestratorMessages);
                 }
 
                 // Something more is needed for ContinuedAsNew support...

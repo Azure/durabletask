@@ -55,7 +55,7 @@ namespace DurableTask.ServiceFabric
                 var sessionId = message.OrchestrationInstance.InstanceId;
 
                 //Todo: This is the same code as SessionsProvider.AppendMessages, can perhaps reuse somehow?
-                Func<string, PersistentSession> newSessionFactory = (sid) => new PersistentSession(sessionId, new OrchestrationRuntimeState(), new LockableTaskMessage() { TaskMessage = message });
+                Func<string, PersistentSession> newSessionFactory = (sid) => new PersistentSession(sessionId, new OrchestrationRuntimeState(), new LockableTaskMessage(message));
 
                 await orchestrations.AddOrUpdateAsync(txn, sessionId,
                     addValueFactory: newSessionFactory,

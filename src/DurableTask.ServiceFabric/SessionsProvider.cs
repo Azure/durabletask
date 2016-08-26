@@ -137,11 +137,28 @@ namespace DurableTask.ServiceFabric
         public async Task AppendMessageAsync(ITransaction transaction, TaskMessage newMessage)
         {
             Func<string, PersistentSession> newSessionFactory = (sId) => new PersistentSession(sId, new OrchestrationRuntimeState(),
-                ImmutableList<LockableTaskMessage>.Empty.Add(new LockableTaskMessage() {TaskMessage = newMessage}), null);
+                ImmutableList<LockableTaskMessage>.Empty.Add(new LockableTaskMessage(newMessage)), null);
 
             await this.orchestrations.AddOrUpdateAsync(transaction, newMessage.OrchestrationInstance.InstanceId,
                 addValueFactory: newSessionFactory,
                 updateValueFactory: (ses, oldValue) => oldValue.AppendMessage(newMessage));
+        }
+
+        public async Task AppendMessageBatchAsync(ITransaction transaction, IEnumerable<TaskMessage> newMessages)
+        {
+            var groups = newMessages.GroupBy(m => m.OrchestrationInstance.InstanceId);
+
+            foreach (var group in groups)
+            {
+                var groupMessages = group.AsEnumerable();
+
+                Func<string, PersistentSession> newSessionFactory = (sId) => new PersistentSession(sId, new OrchestrationRuntimeState(),
+                    groupMessages.Select(m => new LockableTaskMessage(m)), null);
+
+                await this.orchestrations.AddOrUpdateAsync(transaction, group.Key,
+                    addValueFactory: newSessionFactory,
+                    updateValueFactory: (ses, oldValue) => oldValue.AppendMessageBatch(groupMessages));
+            }
         }
     }
 }

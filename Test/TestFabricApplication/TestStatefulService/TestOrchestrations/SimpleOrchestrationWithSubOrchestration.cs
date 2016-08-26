@@ -20,10 +20,11 @@ namespace TestStatefulService.TestOrchestrations
     {
         public override async Task<string> RunTask(OrchestrationContext context, string input)
         {
-            var subOrch = context.CreateSubOrchestrationInstance<string>(typeof(SimpleOrchestrationWithTasks), input);
+            var subOrch1 = context.CreateSubOrchestrationInstance<string>(typeof(SimpleOrchestrationWithTasks), input);
+            var subOrch2 = context.CreateSubOrchestrationInstance<string>(typeof(SimpleOrchestrationWithTasks), input);
             var myTask = context.ScheduleTask<string>(typeof(GreetUserTask), "World");
-            await Task.WhenAll(subOrch, myTask);
-            return $"TaskResult = {myTask.Result} , SubOrchestrationResult = {subOrch.Result}";
+            await Task.WhenAll(subOrch1, subOrch2, myTask);
+            return $"TaskResult = {myTask.Result} , SubOrchestration1Result = {subOrch1.Result}, SubOrchestration2Result = {subOrch2.Result}";
         }
     }
 }

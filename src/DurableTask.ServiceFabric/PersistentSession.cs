@@ -71,7 +71,15 @@ namespace DurableTask.ServiceFabric
         {
             return new PersistentSession(this.SessionId,
                 this.SessionState,
-                this.Messages.ToImmutableList().Add(new LockableTaskMessage() {TaskMessage = message}),
+                this.Messages.ToImmutableList().Add(new LockableTaskMessage(message)),
+                this.ScheduledMessages);
+        }
+
+        public PersistentSession AppendMessageBatch(IEnumerable<TaskMessage> messages)
+        {
+            return new PersistentSession(this.SessionId,
+                this.SessionState,
+                this.Messages.ToImmutableList().AddRange(messages.Select(m => new LockableTaskMessage(m))),
                 this.ScheduledMessages);
         }
 
@@ -84,7 +92,7 @@ namespace DurableTask.ServiceFabric
                 {
                     throw new ArgumentException("Expecting a scheduled message");
                 }
-                scheduledMessages.Add(new LockableTaskMessage() { TaskMessage = message });
+                scheduledMessages.Add(new LockableTaskMessage(message));
             }
             return new PersistentSession(this.SessionId, this.SessionState, this.Messages, scheduledMessages);
         }
@@ -191,8 +199,13 @@ namespace DurableTask.ServiceFabric
     [DataContract]
     public class LockableTaskMessage
     {
+        public LockableTaskMessage(TaskMessage message)
+        {
+            this.TaskMessage = message;
+        }
+
         [DataMember]
-        public TaskMessage TaskMessage;
+        public TaskMessage TaskMessage { get; private set; }
 
         public bool Received; //not serialized, default value false
     }
