@@ -1,11 +1,18 @@
+[NOTE: The location for this repo has changed from https://github.com/<b>affandar</b>/durabletask to https://github.com/<b>Azure</b>/durabletask. Please update your bookmarks.]
+
 Durable Task Framework
 ======================
+
+[![Join the chat at https://gitter.im/azure/durabletask](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/azure/durabletask?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) 
 
 This framework allows users to write long running persistent workflows in C# using the async/await capabilities.
 
 It is used heavily within various teams at Microsoft to reliably orchestrate long running provisioning, monitoring and management operations. The orchestrations scale out linearly by simply adding more worker machines. 
 
 By open sourcing this project we hope to give the community a very cost-effective alternative to heavy duty workflow systems. We also hope to build an ecosystem of providers and activities around this simple yet incredibly powerful framework.
+
+This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). 
+For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
 
 The framework binaries are available as a NuGet package at:
 https://www.nuget.org/packages/DurableTask
@@ -15,7 +22,7 @@ https://www.nuget.org/packages/DurableTask
 To run unit tests, you must specify your Service Bus connection string for the tests to use. You can do this via the **ServiceBusConnectionString** app.config value in the test project, or by defining a **DurableTaskTestServiceBusConnectionString** environment variable. The benefit of the environment variable is that no temporary source changes are required. 
 
 The associated wiki contains more details about the framework:
-https://github.com/affandar/durabletask/wiki
+https://github.com/Azure/durabletask/wiki
 
 <b>TODO</b>
 
@@ -37,6 +44,6 @@ The community is welcome to take a stab and send pull requests on these items (a
   
 <b>Forum</b>
 
-Please post feedback/comments at:
-https://groups.google.com/forum/#!forum/durabletask
+Please post feedback/comments at gitter.
 
+[![Join the chat at https://gitter.im/azure/durabletask](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/azure/durabletask?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) 

@@ -47,5 +47,8 @@ namespace DurableTask
         public const string CompressionTypePropertyName = "CompressionType";
         public const string CompressionTypeGzipPropertyValue = "gzip";
         public const string CompressionTypeNonePropertyValue = "none";
+
+        // instance store constants
+        public const int MaxStringLengthForAzureTableColumn = 1024 * 15; // cut off at 15k * 2 bytes 
     }
 }

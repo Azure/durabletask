@@ -261,7 +261,7 @@ namespace DurableTask
             {
                 try
                 {
-                    await Task.Factory.FromAsync(workItem.Session.BeginClose, workItem.Session.EndClose, null);
+                    await workItem.Session.CloseAsync();
                 }
                 catch (Exception ex)
                 {
