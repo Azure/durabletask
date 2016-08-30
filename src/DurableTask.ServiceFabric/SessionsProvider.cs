@@ -15,7 +15,6 @@ namespace DurableTask.ServiceFabric
 {
     using System;
     using System.Collections.Generic;
-    using System.Collections.Immutable;
     using System.Diagnostics;
     using System.Linq;
     using System.Threading;
@@ -26,12 +25,12 @@ namespace DurableTask.ServiceFabric
     class SessionsProvider
     {
         IReliableStateManager stateManager;
-        IReliableDictionary<string, PersistentSession> orchestrations;
+        IReliableDictionary<string, PersistentSession2> orchestrations;
         CancellationTokenSource cancellationTokenSource;
 
-        readonly Func<string, PersistentSession> NewSessionFactory = (sId) => new PersistentSession(sId);
+        private readonly Func<string, PersistentSession2> NewSessionFactory = (sId) => PersistentSession2.Create(sId);
 
-        public SessionsProvider(IReliableStateManager stateManager, IReliableDictionary<string, PersistentSession> orchestrations)
+        public SessionsProvider(IReliableStateManager stateManager, IReliableDictionary<string, PersistentSession2> orchestrations)
         {
             if (stateManager == null)
             {
@@ -94,11 +93,12 @@ namespace DurableTask.ServiceFabric
 
         //Todo: This is O(N) and also a frequent operation, do we need to optimize this?
         //Todo: Should this use the same transation as complete??
-        public async Task<PersistentSession> AcceptSessionAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken)
+        public async Task<PersistentSession2> AcceptSessionAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken)
         {
             Stopwatch timer = Stopwatch.StartNew();
             while (timer.Elapsed < receiveTimeout && !cancellationToken.IsCancellationRequested)
             {
+                string returnSessionId = null;
                 using (var tx = this.stateManager.CreateTransaction())
                 {
                     var enumerable = await this.orchestrations.CreateEnumerableAsync(tx, EnumerationMode.Unordered);
@@ -113,19 +113,29 @@ namespace DurableTask.ServiceFabric
                                 continue;
                             }
 
-                            return entry.Value;
+                            returnSessionId = entry.Key;
                         }
                     }
                 }
+
+                if (returnSessionId != null)
+                {
+                    using (var txn = this.stateManager.CreateTransaction())
+                    {
+                        await this.orchestrations.AddOrUpdateAsync(txn, returnSessionId, NewSessionFactory, (sId, oldValue) => oldValue.ReceiveMessages());
+                        await txn.CommitAsync();
+                    }
+                }
+
                 await Task.Delay(100, cancellationToken);
             }
 
             return null;
         }
 
-        public List<TaskMessage> GetSessionMessages(PersistentSession session)
+        public List<TaskMessage> GetSessionMessages(PersistentSession2 session)
         {
-            return session.ReceiveMessages();
+            return session.Messages.Where(m => m.IsReceived).Select(m => m.TaskMessage).ToList();
         }
 
         public async Task CompleteAndUpdateSession(ITransaction transaction,
@@ -133,24 +143,13 @@ namespace DurableTask.ServiceFabric
             OrchestrationRuntimeState newSessionState,
             IList<TaskMessage> scheduledMessages)
         {
-            await this.orchestrations.AddOrUpdateAsync(transaction, sessionId, NewSessionFactory, (sId, oldValue) =>
-            {
-                var newSession = oldValue
-                    .CompleteMessages()
-                    .SetSessionState(newSessionState);
-
-                if (scheduledMessages?.Count > 0)
-                {
-                    newSession = newSession.AppendScheduledMessagesBatch(scheduledMessages);
-                }
-
-                return newSession;
-            });
+            await this.orchestrations.AddOrUpdateAsync(transaction, sessionId, NewSessionFactory,
+                (sId, oldValue) => oldValue.CompleteMessages(newSessionState, scheduledMessages));
         }
 
         public async Task AppendMessageAsync(ITransaction transaction, TaskMessage newMessage)
         {
-            Func<string, PersistentSession> newSessionFactory = (sId) => new PersistentSession(sId, newMessage);
+            Func<string, PersistentSession2> newSessionFactory = (sId) => PersistentSession2.CreateWithNewMessage(sId, newMessage);
 
             await this.orchestrations.AddOrUpdateAsync(transaction, newMessage.OrchestrationInstance.InstanceId,
                 addValueFactory: newSessionFactory,
@@ -165,8 +164,7 @@ namespace DurableTask.ServiceFabric
             {
                 var groupMessages = group.AsEnumerable();
 
-                Func<string, PersistentSession> newSessionFactory = (sId) => new PersistentSession(sId, new OrchestrationRuntimeState(),
-                    groupMessages.Select(m => new LockableTaskMessage(m)), null);
+                Func<string, PersistentSession2> newSessionFactory = (sId) => PersistentSession2.CreateWithNewMessages(sId, groupMessages);
 
                 await this.orchestrations.AddOrUpdateAsync(transaction, group.Key,
                     addValueFactory: newSessionFactory,

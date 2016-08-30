@@ -12,20 +12,16 @@
 //  ----------------------------------------------------------------------------------
 
 using System;
+using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Linq;
 using System.Runtime.Serialization;
-using System.Text;
-using System.Threading.Tasks;
 using DurableTask.History;
 using DurableTask.Serializing;
-using Microsoft.ServiceFabric.Data;
-using Newtonsoft.Json;
 
 namespace DurableTask.ServiceFabric
 {
-    using System.Collections.Generic;
-    using System.Collections.Immutable;
-    using System.Linq;
-
+    /*
     // Todo: Write a builder class for this immutable instead of creating intermediate objects for each operation for ex like in
     // SessionsProvider.CompleteAndUpdateSession.
     [DataContract]
@@ -206,4 +202,5 @@ namespace DurableTask.ServiceFabric
 
         public bool Received; //not serialized, default value false
     }
+    */
 }

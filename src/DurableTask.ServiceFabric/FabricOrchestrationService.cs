@@ -33,7 +33,7 @@ namespace DurableTask.ServiceFabric
         SessionsProvider orchestrationProvider;
         ActivitiesProvider activitiesProvider;
 
-        PersistentSession currentSession;
+        PersistentSession2 currentSession;
         TaskMessage currentActivity;
 
         public FabricOrchestrationService(IReliableStateManager stateManager, IOrchestrationServiceInstanceStore instanceStore)
@@ -50,7 +50,7 @@ namespace DurableTask.ServiceFabric
         public async Task StartAsync()
         {
             var activities = await this.stateManager.GetOrAddAsync<IReliableQueue<TaskMessage>>(Constants.ActivitiesQueueName);
-            var orchestrations = await this.stateManager.GetOrAddAsync<IReliableDictionary<string, PersistentSession>>(Constants.OrchestrationDictionaryName);
+            var orchestrations = await this.stateManager.GetOrAddAsync<IReliableDictionary<string, PersistentSession2>>(Constants.OrchestrationDictionaryName);
             this.activitiesProvider = new ActivitiesProvider(this.stateManager, activities);
             this.orchestrationProvider = new SessionsProvider(stateManager, orchestrations);
             await this.orchestrationProvider.StartAsync();
@@ -141,7 +141,7 @@ namespace DurableTask.ServiceFabric
             {
                 NewMessages = newMessages,
                 InstanceId = this.currentSession.SessionId,
-                OrchestrationRuntimeState = this.currentSession.SessionState
+                OrchestrationRuntimeState = new OrchestrationRuntimeState(this.currentSession.SessionState) //Todo: Is this problematic? Creating a new instance?
             };
         }
 
