@@ -25,12 +25,12 @@ namespace DurableTask.ServiceFabric
     class SessionsProvider
     {
         IReliableStateManager stateManager;
-        IReliableDictionary<string, PersistentSession2> orchestrations;
+        IReliableDictionary<string, PersistentSession> orchestrations;
         CancellationTokenSource cancellationTokenSource;
 
-        private readonly Func<string, PersistentSession2> NewSessionFactory = (sId) => PersistentSession2.Create(sId);
+        readonly Func<string, PersistentSession> NewSessionFactory = (sId) => PersistentSession.Create(sId);
 
-        public SessionsProvider(IReliableStateManager stateManager, IReliableDictionary<string, PersistentSession2> orchestrations)
+        public SessionsProvider(IReliableStateManager stateManager, IReliableDictionary<string, PersistentSession> orchestrations)
         {
             if (stateManager == null)
             {
@@ -93,7 +93,7 @@ namespace DurableTask.ServiceFabric
 
         //Todo: This is O(N) and also a frequent operation, do we need to optimize this?
         //Todo: Should this use the same transation as complete??
-        public async Task<PersistentSession2> AcceptSessionAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken)
+        public async Task<PersistentSession> AcceptSessionAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken)
         {
             Stopwatch timer = Stopwatch.StartNew();
             while (timer.Elapsed < receiveTimeout && !cancellationToken.IsCancellationRequested)
@@ -136,7 +136,7 @@ namespace DurableTask.ServiceFabric
             return null;
         }
 
-        public List<TaskMessage> GetSessionMessages(PersistentSession2 session)
+        public List<TaskMessage> GetSessionMessages(PersistentSession session)
         {
             return session.Messages.Where(m => m.IsReceived).Select(m => m.TaskMessage).ToList();
         }
@@ -152,7 +152,7 @@ namespace DurableTask.ServiceFabric
 
         public async Task AppendMessageAsync(ITransaction transaction, TaskMessage newMessage)
         {
-            Func<string, PersistentSession2> newSessionFactory = (sId) => PersistentSession2.CreateWithNewMessage(sId, newMessage);
+            Func<string, PersistentSession> newSessionFactory = (sId) => PersistentSession.CreateWithNewMessage(sId, newMessage);
 
             await this.orchestrations.AddOrUpdateAsync(transaction, newMessage.OrchestrationInstance.InstanceId,
                 addValueFactory: newSessionFactory,
@@ -167,7 +167,7 @@ namespace DurableTask.ServiceFabric
             {
                 var groupMessages = group.AsEnumerable();
 
-                Func<string, PersistentSession2> newSessionFactory = (sId) => PersistentSession2.CreateWithNewMessages(sId, groupMessages);
+                Func<string, PersistentSession> newSessionFactory = (sId) => PersistentSession.CreateWithNewMessages(sId, groupMessages);
 
                 await this.orchestrations.AddOrUpdateAsync(transaction, group.Key,
                     addValueFactory: newSessionFactory,

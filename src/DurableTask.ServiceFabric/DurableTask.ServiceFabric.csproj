@@ -91,10 +91,9 @@
     <Compile Include="FabricOrchestrationService.cs" />
     <Compile Include="FabricOrchestrationServiceClient.cs" />
     <Compile Include="PersistentSession.api.cs">
-      <DependentUpon>PersistentSession2.cs</DependentUpon>
+      <DependentUpon>PersistentSession.cs</DependentUpon>
     </Compile>
-    <Compile Include="PersistentSession.cs" />
-    <Compile Include="PersistentSession2.cs">
+    <Compile Include="PersistentSession.cs">
       <Generator>MSBuild:GenerateCodeFromAttributes</Generator>
     </Compile>
     <Compile Include="Properties\AssemblyInfo.cs" />

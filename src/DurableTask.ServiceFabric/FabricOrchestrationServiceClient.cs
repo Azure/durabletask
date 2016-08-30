@@ -55,7 +55,7 @@ namespace DurableTask.ServiceFabric
                 var sessionId = message.OrchestrationInstance.InstanceId;
 
                 //Todo: This is the same code as SessionsProvider.AppendMessages, can perhaps reuse somehow?
-                Func<string, PersistentSession2> newSessionFactory = (sid) => PersistentSession2.CreateWithNewMessage(sid, message);
+                Func<string, PersistentSession> newSessionFactory = (sid) => PersistentSession.CreateWithNewMessage(sid, message);
 
                 await orchestrations.AddOrUpdateAsync(txn, sessionId,
                     addValueFactory: newSessionFactory,
@@ -116,9 +116,9 @@ namespace DurableTask.ServiceFabric
             return null;
         }
 
-        async Task<IReliableDictionary<string, PersistentSession2>> GetOrAddOrchestrationsAsync()
+        async Task<IReliableDictionary<string, PersistentSession>> GetOrAddOrchestrationsAsync()
         {
-            return await this.stateManager.GetOrAddAsync<IReliableDictionary<string, PersistentSession2>>(Constants.OrchestrationDictionaryName);
+            return await this.stateManager.GetOrAddAsync<IReliableDictionary<string, PersistentSession>>(Constants.OrchestrationDictionaryName);
         }
 
         void ThrowIfInstanceStoreNotConfigured()
