@@ -58,6 +58,11 @@ namespace DurableTask.ServiceFabric.Test
             Func<TimeSpan, string> elapsedTimeFormatter = timeSpan => $"{timeSpan.Hours:00}:{timeSpan.Minutes:00}:{timeSpan.Seconds:00}.{timeSpan.Milliseconds / 10:00}";
             Console.WriteLine($"Total Meastured Time: {elapsedTimeFormatter(totalTime)}");
             Console.WriteLine($"Top level Orchestration Time: {elapsedTimeFormatter(orchestrationTime)}");
+
+            var expectedResult = driverConfig.NumberOfIteration * driverConfig.NumberOfParallelTasks *
+                (driverConfig.SubOrchestrationData.NumberOfParallelTasks + driverConfig.SubOrchestrationData.NumberOfSerialTasks);
+
+            Assert.AreEqual(expectedResult.ToString(), state.Output);
         }
     }
 }
