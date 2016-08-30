@@ -11,6 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+using System;
 using System.Collections.Immutable;
 using System.Runtime.Serialization;
 using DurableTask.History;
@@ -26,13 +27,20 @@ namespace DurableTask.ServiceFabric
         readonly string sessionId;
 
         [DataMember]
-        readonly ImmutableList<HistoryEvent> sessionState = ImmutableList<HistoryEvent>.Empty;
+        readonly ImmutableList<HistoryEvent> sessionState;
 
         [DataMember]
-        readonly ImmutableList<ReceivableTaskMessage> messages = ImmutableList<ReceivableTaskMessage>.Empty;
+        readonly ImmutableList<ReceivableTaskMessage> messages;
 
         [DataMember]
-        readonly ImmutableList<ReceivableTaskMessage> scheduledMessages = ImmutableList<ReceivableTaskMessage>.Empty;
+        readonly ImmutableList<ReceivableTaskMessage> scheduledMessages;
+
+        static partial void CreateDefaultTemplate(ref Template template)
+        {
+            template.Messages = ImmutableList<ReceivableTaskMessage>.Empty;
+            template.ScheduledMessages = ImmutableList<ReceivableTaskMessage>.Empty;
+            template.SessionState = ImmutableList<HistoryEvent>.Empty;
+        }
     }
 
     [GenerateImmutable(GenerateBuilder = true)]

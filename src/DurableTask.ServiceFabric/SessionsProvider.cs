@@ -114,6 +114,7 @@ namespace DurableTask.ServiceFabric
                             }
 
                             returnSessionId = entry.Key;
+                            break;
                         }
                     }
                 }
@@ -122,8 +123,10 @@ namespace DurableTask.ServiceFabric
                 {
                     using (var txn = this.stateManager.CreateTransaction())
                     {
-                        await this.orchestrations.AddOrUpdateAsync(txn, returnSessionId, NewSessionFactory, (sId, oldValue) => oldValue.ReceiveMessages());
+                        //Todo: TryUpdate feels more natural here than AddOrUpdateAsync, however what do we do if it fails?
+                        var result = await this.orchestrations.AddOrUpdateAsync(txn, returnSessionId, NewSessionFactory, (sId, oldValue) => oldValue.ReceiveMessages());
                         await txn.CommitAsync();
+                        return result;
                     }
                 }
 

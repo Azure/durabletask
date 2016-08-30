@@ -65,7 +65,7 @@ namespace DurableTask.ServiceFabric
         {
             var builder = this.ToBuilder();
             builder.Messages = builder.Messages.RemoveAll(m => m.IsReceived);
-            builder.SessionState = newState.Events.ToImmutableList();
+            builder.SessionState = newState?.Events.ToImmutableList();
             if (newScheduledMessages?.Count > 0)
             {
                 builder.ScheduledMessages = builder.ScheduledMessages.AddRange(newScheduledMessages.Select(tm => ReceivableTaskMessage.Create(tm)));
