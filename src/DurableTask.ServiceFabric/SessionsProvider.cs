@@ -161,6 +161,12 @@ namespace DurableTask.ServiceFabric
 
         async Task<PersistentSession> AddOrUpdateAsyncWrapper(ITransaction tx, string key, Func<string, PersistentSession> addValueFactory, Func<string, PersistentSession, PersistentSession> updateValueFactory)
         {
+            //Workaround to avoid client sending a new message before StartAsync on service is done
+            if (this.orchestrations == null)
+            {
+                this.orchestrations = await this.stateManager.GetOrAddAsync<IReliableDictionary<string, PersistentSession>>(Constants.OrchestrationDictionaryName);
+            }
+
             var newSession = await this.orchestrations.AddOrUpdateAsync(tx, key, addValueFactory, updateValueFactory);
 
             if (newSession.ShouldAddToQueue)

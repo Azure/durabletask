@@ -35,7 +35,7 @@ namespace DurableTask.ServiceFabric.Test
         [TestMethod]
         public async Task Orchestration_With_ScheduledTasks_Finishes()
         {
-            var result = await this.serviceClient.RunOrchestrationAsync(typeof(SimpleOrchestrationWithTasks).Name, null, TimeSpan.FromMinutes(5));
+            var result = await this.serviceClient.RunOrchestrationAsync(typeof(SimpleOrchestrationWithTasks).Name, null, TimeSpan.FromMinutes(2));
 
             Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
             Assert.AreEqual("\"Hello Gabbar\"", result.Output);
@@ -45,7 +45,7 @@ namespace DurableTask.ServiceFabric.Test
         public async Task Orchestration_With_Timer_Finishes_After_The_Wait_Time()
         {
             var waitTime = 37;
-            var result = await this.serviceClient.RunOrchestrationAsync(typeof(SimpleOrchestrationWithTimer).Name, waitTime, TimeSpan.FromMinutes(5));
+            var result = await this.serviceClient.RunOrchestrationAsync(typeof(SimpleOrchestrationWithTimer).Name, waitTime, TimeSpan.FromMinutes(2));
 
             Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
             Assert.AreEqual("\"Hello Gabbar\"", result.Output);
@@ -61,7 +61,7 @@ namespace DurableTask.ServiceFabric.Test
             GenerationBasicOrchestration.Result = 0;
             GenerationBasicTask.GenerationCount = 0;
 
-            var result = await this.serviceClient.RunOrchestrationAsync(typeof(GenerationBasicOrchestration).Name, 4, TimeSpan.FromMinutes(5));
+            var result = await this.serviceClient.RunOrchestrationAsync(typeof(GenerationBasicOrchestration).Name, 4, TimeSpan.FromMinutes(2));
 
             Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
             Assert.AreEqual(4, GenerationBasicOrchestration.Result, "Orchestration Result is wrong!!!");
@@ -70,7 +70,7 @@ namespace DurableTask.ServiceFabric.Test
         [TestMethod]
         public async Task Orchestration_With_SubOrchestration_Finishes()
         {
-            var result = await this.serviceClient.RunOrchestrationAsync(typeof(SimpleOrchestrationWithSubOrchestration).Name, null, TimeSpan.FromMinutes(5));
+            var result = await this.serviceClient.RunOrchestrationAsync(typeof(SimpleOrchestrationWithSubOrchestration).Name, null, TimeSpan.FromMinutes(2));
 
             Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
             Assert.AreEqual($"\"TaskResult = Hello World , SubOrchestration1Result = Hello Gabbar, SubOrchestration2Result = Hello Gabbar\"", result.Output);
