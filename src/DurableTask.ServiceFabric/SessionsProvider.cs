@@ -64,6 +64,7 @@ namespace DurableTask.ServiceFabric
                                 PersistentSession newValue;
                                 if (entry.Value.CheckScheduledMessages(out newValue))
                                 {
+                                    //Todo: SetAsync is probably bad because it may be overwriting some changes? Unless we make it thread-safe?
                                     await this.orchestrations.SetAsync(txn, entry.Key, newValue);
                                 }
                             }
