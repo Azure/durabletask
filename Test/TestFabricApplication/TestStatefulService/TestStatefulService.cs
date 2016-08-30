@@ -25,6 +25,7 @@ using TestApplication.Common;
 using TestStatefulService.DebugHelper;
 using TestStatefulService.TestOrchestrations;
 using Microsoft.ServiceFabric.Services.Remoting.Runtime;
+using DurableTask.Test.Orchestrations.Stress;
 
 namespace TestStatefulService
 {
@@ -70,9 +71,12 @@ namespace TestStatefulService
         /// <param name="cancellationToken">Canceled when Service Fabric needs to shut down this service replica.</param>
         protected override async Task RunAsync(CancellationToken cancellationToken)
         {
+            var testTask = new TestTask();
+
             await this.worker
                 .AddTaskOrchestrations(KnownOrchestrationTypeNames.Values.ToArray())
-                .AddTaskActivities(typeof(GetUserTask), typeof(GreetUserTask), typeof(GenerationBasicTask))
+                .AddTaskActivities(KnownActivities)
+                .AddTaskActivities(testTask)
                 .StartAsync();
 
             //await this.testExecutor.StartAsync();
@@ -94,6 +98,11 @@ namespace TestStatefulService
             return await client.WaitForOrchestrationAsync(instance, waitTimeout);
         }
 
+        public async Task<OrchestrationState> RunDriverOrchestrationAsync(DriverOrchestrationData input, TimeSpan waitTimeout)
+        {
+            return await this.RunOrchestrationAsync(typeof(DriverOrchestration).Name, input, waitTimeout);
+        }
+
         Type GetOrchestrationType(string typeName)
         {
             if (!KnownOrchestrationTypeNames.ContainsKey(typeName))
@@ -104,12 +113,21 @@ namespace TestStatefulService
             return KnownOrchestrationTypeNames.First(kvp => string.Equals(typeName, kvp.Key)).Value;
         }
 
-        private static Dictionary<string, Type> KnownOrchestrationTypeNames = new Dictionary<string, Type>
+        static Dictionary<string, Type> KnownOrchestrationTypeNames = new Dictionary<string, Type>
         {
             { typeof(SimpleOrchestrationWithTasks).Name, typeof(SimpleOrchestrationWithTasks) },
             { typeof(SimpleOrchestrationWithTimer).Name, typeof(SimpleOrchestrationWithTimer) },
             { typeof(GenerationBasicOrchestration).Name, typeof(GenerationBasicOrchestration) },
             { typeof(SimpleOrchestrationWithSubOrchestration).Name, typeof(SimpleOrchestrationWithSubOrchestration) },
+            { typeof(DriverOrchestration).Name, typeof(DriverOrchestration) },
+            { typeof(TestOrchestration).Name, typeof(TestOrchestration) },
+        };
+
+        static Type[] KnownActivities = 
+        {
+            typeof(GetUserTask),
+            typeof(GreetUserTask),
+            typeof(GenerationBasicTask),
         };
     }
 }

@@ -35,7 +35,7 @@ namespace DurableTask.Test.Orchestrations.Stress
             Console.WriteLine(string.Format("[InstanceId: {0}, ExecutionId: {1}, TaskId: {2}, Counter: {3}] ---> Sleeping for '{4}'", 
                 instance.InstanceId, instance.ExecutionId, input.TaskId, c, minutesToSleep));
 
-            await Task.Delay(TimeSpan.FromMinutes(minutesToSleep));
+            await Task.Delay(TimeSpan.FromSeconds(minutesToSleep));
 
             return c;
         }

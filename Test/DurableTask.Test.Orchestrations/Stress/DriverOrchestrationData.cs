@@ -11,12 +11,21 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+using System.Runtime.Serialization;
+
 namespace DurableTask.Test.Orchestrations.Stress
 {
+    [DataContract]
+    [KnownType(typeof(DriverOrchestrationData))]
     public class DriverOrchestrationData
     {
+        [DataMember]
         public int NumberOfParallelTasks { get; set; }
+
+        [DataMember]
         public int NumberOfIteration { get; set; }
+
+        [DataMember]
         public TestOrchestrationData SubOrchestrationData { get; set; }
     }
 }

@@ -14,6 +14,7 @@
 using System;
 using System.Threading.Tasks;
 using DurableTask;
+using DurableTask.Test.Orchestrations.Stress;
 using Microsoft.ServiceFabric.Services.Remoting;
 
 namespace TestStatefulService
@@ -21,5 +22,7 @@ namespace TestStatefulService
     public interface IRemoteClient : IService
     {
         Task<OrchestrationState> RunOrchestrationAsync(string orchestrationTypeName, object input, TimeSpan waitTimeout);
+
+        Task<OrchestrationState> RunDriverOrchestrationAsync(DriverOrchestrationData input, TimeSpan waitTimeout);
     }
 }

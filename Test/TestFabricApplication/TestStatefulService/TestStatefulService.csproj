@@ -140,6 +140,10 @@
       <Project>{5c617b24-4902-4992-8f71-ab14f00b74a8}</Project>
       <Name>DurableTask.ServiceFabric</Name>
     </ProjectReference>
+    <ProjectReference Include="..\..\DurableTask.Test.Orchestrations\DurableTask.Test.Orchestrations.csproj">
+      <Project>{2bc2a5ad-4200-41b9-a034-332bb1d7187b}</Project>
+      <Name>DurableTask.Test.Orchestrations</Name>
+    </ProjectReference>
     <ProjectReference Include="..\TestApplication.Common\TestApplication.Common.csproj">
       <Project>{ea90334d-3194-4266-81eb-eeca9c760315}</Project>
       <Name>TestApplication.Common</Name>
