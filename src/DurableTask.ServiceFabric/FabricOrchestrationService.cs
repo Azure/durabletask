@@ -31,7 +31,7 @@ namespace DurableTask.ServiceFabric
         SessionsProvider orchestrationProvider;
         ActivitiesProvider activitiesProvider;
 
-        public FabricOrchestrationService(IReliableStateManager stateManager, IFabricOrchestrationServiceInstanceStore instanceStore)
+        public FabricOrchestrationService(IReliableStateManager stateManager, SessionsProvider orchestrationProvider, IFabricOrchestrationServiceInstanceStore instanceStore)
         {
             if (stateManager == null)
             {
@@ -39,14 +39,14 @@ namespace DurableTask.ServiceFabric
             }
 
             this.stateManager = stateManager;
+            this.orchestrationProvider = orchestrationProvider;
             this.instanceStore = instanceStore;
         }
 
         public async Task StartAsync()
         {
-            var orchestrations = await this.stateManager.GetOrAddAsync<IReliableDictionary<string, PersistentSession>>(Constants.OrchestrationDictionaryName);
             this.activitiesProvider = new ActivitiesProvider(this.stateManager);
-            this.orchestrationProvider = new SessionsProvider(stateManager, orchestrations);
+            this.orchestrationProvider = new SessionsProvider(stateManager);
             await this.instanceStore.StartAsync();
             await this.orchestrationProvider.StartAsync();
             await this.activitiesProvider.StartAsync();

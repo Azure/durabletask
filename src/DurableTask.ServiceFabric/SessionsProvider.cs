@@ -14,6 +14,7 @@
 namespace DurableTask.ServiceFabric
 {
     using System;
+    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Linq;
@@ -22,68 +23,67 @@ namespace DurableTask.ServiceFabric
     using Microsoft.ServiceFabric.Data;
     using Microsoft.ServiceFabric.Data.Collections;
 
-    class SessionsProvider
+    public class SessionsProvider
     {
         IReliableStateManager stateManager;
         IReliableDictionary<string, PersistentSession> orchestrations;
         CancellationTokenSource cancellationTokenSource;
 
         readonly Func<string, PersistentSession> NewSessionFactory = (sId) => PersistentSession.Create(sId, null, null, null, false);
+        ConcurrentQueue<string> inMemorySessions = new ConcurrentQueue<string>();
 
-        public SessionsProvider(IReliableStateManager stateManager, IReliableDictionary<string, PersistentSession> orchestrations)
+        public SessionsProvider(IReliableStateManager stateManager)
         {
             if (stateManager == null)
             {
                 throw new ArgumentNullException(nameof(stateManager));
             }
 
-            if (orchestrations == null)
-            {
-                throw new ArgumentNullException(nameof(orchestrations));
-            }
-
             this.stateManager = stateManager;
-            this.orchestrations = orchestrations;
             this.cancellationTokenSource = new CancellationTokenSource();
         }
 
-        public Task StartAsync()
+        public async Task StartAsync()
         {
-            var nowait = Task.Run(async () =>
+            this.orchestrations = await this.stateManager.GetOrAddAsync<IReliableDictionary<string, PersistentSession>>(Constants.OrchestrationDictionaryName);
+
+            await PopulateInMemorySessions();
+
+            var nowait = ProcessScheduledMessages();
+        }
+
+        async Task ProcessScheduledMessages()
+        {
+            while (!this.cancellationTokenSource.IsCancellationRequested)
             {
-                while (!this.cancellationTokenSource.IsCancellationRequested)
+                var scheduledMessageSessions = new List<string>();
+                using (var txn = this.stateManager.CreateTransaction())
                 {
-                    var scheduledMessageSessions = new List<string>();
-                    using (var txn = this.stateManager.CreateTransaction())
+                    var enumerable = await this.orchestrations.CreateEnumerableAsync(txn, EnumerationMode.Unordered);
+                    using (var enumerator = enumerable.GetAsyncEnumerator())
                     {
-                        var enumerable = await this.orchestrations.CreateEnumerableAsync(txn, EnumerationMode.Unordered);
-                        using (var enumerator = enumerable.GetAsyncEnumerator())
+                        while (await enumerator.MoveNextAsync(this.cancellationTokenSource.Token))
                         {
-                            while (await enumerator.MoveNextAsync(this.cancellationTokenSource.Token))
+                            var entry = enumerator.Current;
+                            if (entry.Value.ScheduledMessages.Any())
                             {
-                                var entry = enumerator.Current;
-                                if (entry.Value.ScheduledMessages.Any())
-                                {
-                                    scheduledMessageSessions.Add(entry.Key);
-                                }
+                                scheduledMessageSessions.Add(entry.Key);
                             }
                         }
                     }
-
-                    foreach (var sessionId in scheduledMessageSessions)
-                    {
-                        using (var txn = this.stateManager.CreateTransaction())
-                        {
-                            await this.orchestrations.AddOrUpdateAsync(txn, sessionId, NewSessionFactory, (sId, oldValue) => oldValue.FireScheduledMessages());
-                            await txn.CommitAsync();
-                        }
-                    }
-
-                    await Task.Delay(TimeSpan.FromMilliseconds(100));
                 }
-            });
 
-            return Task.FromResult<object>(null);
+                foreach (var sessionId in scheduledMessageSessions)
+                {
+                    using (var txn = this.stateManager.CreateTransaction())
+                    {
+                        await this.AddOrUpdateAsyncWrapper(txn, sessionId, NewSessionFactory, (sId, oldValue) => oldValue.FireScheduledMessages());
+                        await txn.CommitAsync();
+                    }
+                }
+
+                await Task.Delay(TimeSpan.FromMilliseconds(100));
+            }
         }
 
         public void Stop()
@@ -91,39 +91,19 @@ namespace DurableTask.ServiceFabric
             this.cancellationTokenSource.Cancel();
         }
 
-        //Todo: This is O(N) and also a frequent operation, do we need to optimize this?
         public async Task<PersistentSession> AcceptSessionAsync(TimeSpan receiveTimeout)
         {
             Stopwatch timer = Stopwatch.StartNew();
             while (timer.Elapsed < receiveTimeout && !this.cancellationTokenSource.IsCancellationRequested)
             {
-                string returnSessionId = null;
-                using (var tx = this.stateManager.CreateTransaction())
-                {
-                    var enumerable = await this.orchestrations.CreateEnumerableAsync(tx, EnumerationMode.Unordered);
-                    using (var enumerator = enumerable.GetAsyncEnumerator())
-                    {
-                        while (await enumerator.MoveNextAsync(this.cancellationTokenSource.Token))
-                        {
-                            var entry = enumerator.Current;
+                string returnSessionId;
 
-                            if (!entry.Value.Messages.Any())
-                            {
-                                continue;
-                            }
-
-                            returnSessionId = entry.Key;
-                            break;
-                        }
-                    }
-                }
-
-                if (returnSessionId != null)
+                if (this.inMemorySessions.TryDequeue(out returnSessionId))
                 {
                     using (var txn = this.stateManager.CreateTransaction())
                     {
                         //Todo: TryUpdate feels more natural here than AddOrUpdateAsync, however what do we do if it fails?
-                        var result = await this.orchestrations.AddOrUpdateAsync(txn, returnSessionId, NewSessionFactory, (sId, oldValue) => oldValue.ReceiveMessages());
+                        var result = await this.AddOrUpdateAsyncWrapper(txn, returnSessionId, NewSessionFactory, (sId, oldValue) => oldValue.ReceiveMessages());
                         await txn.CommitAsync();
                         return result;
                     }
@@ -145,7 +125,7 @@ namespace DurableTask.ServiceFabric
             OrchestrationRuntimeState newSessionState,
             IList<TaskMessage> scheduledMessages)
         {
-            await this.orchestrations.AddOrUpdateAsync(transaction, sessionId, NewSessionFactory,
+            await this.AddOrUpdateAsyncWrapper(transaction, sessionId, NewSessionFactory,
                 (sId, oldValue) => oldValue.CompleteMessages(newSessionState, scheduledMessages));
         }
 
@@ -153,7 +133,7 @@ namespace DurableTask.ServiceFabric
         {
             Func<string, PersistentSession> newSessionFactory = (sId) => PersistentSession.CreateWithNewMessage(sId, newMessage);
 
-            await this.orchestrations.AddOrUpdateAsync(transaction, newMessage.OrchestrationInstance.InstanceId,
+            await this.AddOrUpdateAsyncWrapper(transaction, newMessage.OrchestrationInstance.InstanceId,
                 addValueFactory: newSessionFactory,
                 updateValueFactory: (ses, oldValue) => oldValue.AppendMessage(newMessage));
         }
@@ -168,7 +148,7 @@ namespace DurableTask.ServiceFabric
 
                 Func<string, PersistentSession> newSessionFactory = (sId) => PersistentSession.CreateWithNewMessages(sId, groupMessages);
 
-                await this.orchestrations.AddOrUpdateAsync(transaction, group.Key,
+                await this.AddOrUpdateAsyncWrapper(transaction, group.Key,
                     addValueFactory: newSessionFactory,
                     updateValueFactory: (ses, oldValue) => oldValue.AppendMessageBatch(groupMessages));
             }
@@ -177,6 +157,37 @@ namespace DurableTask.ServiceFabric
         public async Task ReleaseSession(ITransaction transaction, string sessionId)
         {
             await this.orchestrations.TryRemoveAsync(transaction, sessionId);
+        }
+
+        async Task<PersistentSession> AddOrUpdateAsyncWrapper(ITransaction tx, string key, Func<string, PersistentSession> addValueFactory, Func<string, PersistentSession, PersistentSession> updateValueFactory)
+        {
+            var newSession = await this.orchestrations.AddOrUpdateAsync(tx, key, addValueFactory, updateValueFactory);
+
+            if (newSession.ShouldAddToQueue)
+            {
+                inMemorySessions.Enqueue(newSession.SessionId);
+            }
+
+            return newSession;
+        }
+
+        async Task PopulateInMemorySessions()
+        {
+            using (var txn = this.stateManager.CreateTransaction())
+            {
+                var enumerable = await this.orchestrations.CreateEnumerableAsync(txn, EnumerationMode.Unordered);
+                using (var enumerator = enumerable.GetAsyncEnumerator())
+                {
+                    while (await enumerator.MoveNextAsync(this.cancellationTokenSource.Token))
+                    {
+                        var entry = enumerator.Current;
+                        if (entry.Value.Messages.Any())
+                        {
+                            this.inMemorySessions.Enqueue(entry.Key);
+                        }
+                    }
+                }
+            }
         }
     }
 }

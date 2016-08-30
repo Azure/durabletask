@@ -25,10 +25,12 @@ namespace DurableTask.ServiceFabric
     {
         IReliableStateManager stateManager;
         IFabricOrchestrationServiceInstanceStore instanceStore;
+        SessionsProvider orchestrationProvider;
 
-        public FabricOrchestrationServiceClient(IReliableStateManager stateManager, IFabricOrchestrationServiceInstanceStore instanceStore)
+        public FabricOrchestrationServiceClient(IReliableStateManager stateManager, SessionsProvider orchestrationProvider, IFabricOrchestrationServiceInstanceStore instanceStore)
         {
             this.stateManager = stateManager;
+            this.orchestrationProvider = orchestrationProvider;
             this.instanceStore = instanceStore;
         }
 
@@ -47,19 +49,10 @@ namespace DurableTask.ServiceFabric
 
         public async Task SendTaskOrchestrationMessageAsync(TaskMessage message)
         {
-            var orchestrations = await this.GetOrAddOrchestrationsAsync();
-
             using (var txn = this.stateManager.CreateTransaction())
             {
-                var sessionId = message.OrchestrationInstance.InstanceId;
-
-                //Todo: This is the same code as SessionsProvider.AppendMessages, can perhaps reuse somehow?
-                Func<string, PersistentSession> newSessionFactory = (sid) => PersistentSession.CreateWithNewMessage(sid, message);
-
-                await orchestrations.AddOrUpdateAsync(txn, sessionId,
-                    addValueFactory: newSessionFactory,
-                    updateValueFactory: (ses, oldValue) => oldValue.AppendMessage(message));
-
+                //Todo : Can this happen before the taskhub worker / orchestration service / sessionsprovider start?
+                await this.orchestrationProvider.AppendMessageAsync(txn, message);
                 await txn.CommitAsync();
             }
         }
@@ -124,11 +117,6 @@ namespace DurableTask.ServiceFabric
             }
 
             return null;
-        }
-
-        async Task<IReliableDictionary<string, PersistentSession>> GetOrAddOrchestrationsAsync()
-        {
-            return await this.stateManager.GetOrAddAsync<IReliableDictionary<string, PersistentSession>>(Constants.OrchestrationDictionaryName);
         }
 
         void ThrowIfInstanceStoreNotConfigured()

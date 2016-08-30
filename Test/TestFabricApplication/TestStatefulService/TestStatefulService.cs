@@ -45,8 +45,9 @@ namespace TestStatefulService
             : base(context)
         {
             var instanceStore = new FabricOrchestrationInstanceStore(this.StateManager);
-            this.worker = new TaskHubWorker(new FabricOrchestrationService(this.StateManager, instanceStore));
-            this.client = new TaskHubClient(new FabricOrchestrationServiceClient(this.StateManager, instanceStore));
+            var sessionProvider = new SessionsProvider(this.StateManager);
+            this.worker = new TaskHubWorker(new FabricOrchestrationService(this.StateManager, sessionProvider, instanceStore));
+            this.client = new TaskHubClient(new FabricOrchestrationServiceClient(this.StateManager, sessionProvider, instanceStore));
             this.testExecutor = new TestExecutor(this.client);
         }
 
