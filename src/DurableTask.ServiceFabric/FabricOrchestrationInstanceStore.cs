@@ -94,7 +94,6 @@ namespace DurableTask.ServiceFabric
                         State = state.Value,
                     };
                 }
-                //Todo: Do I need commit transaction here?
             }
 
             return null;

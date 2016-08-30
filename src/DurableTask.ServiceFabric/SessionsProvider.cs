@@ -54,8 +54,6 @@ namespace DurableTask.ServiceFabric
             {
                 while (!this.cancellationTokenSource.IsCancellationRequested)
                 {
-                    await Task.Delay(TimeSpan.FromMilliseconds(100));
-
                     var scheduledMessageSessions = new List<string>();
                     using (var txn = this.stateManager.CreateTransaction())
                     {
@@ -71,7 +69,6 @@ namespace DurableTask.ServiceFabric
                                 }
                             }
                         }
-                        await txn.CommitAsync();
                     }
 
                     foreach (var sessionId in scheduledMessageSessions)
@@ -82,6 +79,8 @@ namespace DurableTask.ServiceFabric
                             await txn.CommitAsync();
                         }
                     }
+
+                    await Task.Delay(TimeSpan.FromMilliseconds(100));
                 }
             });
 
