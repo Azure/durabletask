@@ -89,33 +89,6 @@ namespace DurableTask.ServiceFabric
             return Create(this.SessionId, this.SessionState.ToImmutableList(), messages, this.ScheduledMessages.ToImmutableList(), this.IsLocked);
         }
 
-        void UnlockSession(Builder builder)
-        {
-            builder.IsLocked = false;
-            builder.ShouldAddToQueue = builder.Messages.Any();
-        }
-
-        void LockSession(Builder builder)
-        {
-            builder.IsLocked = true;
-            builder.ShouldAddToQueue = false;
-        }
-
-        void SetShouldAddToQueue(Builder builder)
-        {
-            if (!builder.IsLocked)
-            {
-                if (builder.ShouldAddToQueue)
-                {
-                    builder.ShouldAddToQueue = false;
-                }
-                else
-                {
-                    builder.ShouldAddToQueue = builder.Messages.Any();
-                }
-            }
-        }
-
         public static PersistentSession CreateWithNewMessage(string sessionId, TaskMessage newMessage)
         {
             var messages = ImmutableList<ReceivableTaskMessage>.Empty.Add(ReceivableTaskMessage.Create(newMessage));
