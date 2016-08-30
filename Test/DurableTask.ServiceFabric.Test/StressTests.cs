@@ -50,6 +50,7 @@ namespace DurableTask.ServiceFabric.Test
             stopWatch.Stop();
 
             Console.WriteLine($"Orchestration Status: {state.OrchestrationStatus}");
+            Console.WriteLine($"Orchestration Result: {state.Output}");
 
             TimeSpan totalTime = stopWatch.Elapsed;
             TimeSpan orchestrationTime = state.CompletedTime - state.CreatedTime;
