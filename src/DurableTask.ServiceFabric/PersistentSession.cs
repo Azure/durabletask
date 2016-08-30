@@ -151,7 +151,15 @@ namespace DurableTask.ServiceFabric
 
             return this;
         }
-
+        
+        //Todo: Though this is functionally ok with the current design, it has some issues.
+        // This sequence of events is a possibility:
+        //   - AcceptSession fetches a session (object1) with active messages and returns it
+        //   - Meanwhile a work item finishes and appends a new message and saves it so the orchestration dictionary has a different session instance (object2).
+        //   - Now ReceiveMessages is called on (object1) and all it's messages are marked as received.
+        //   - However Next Complete call will see (object2) and there's nothing really marked as received so it won't delete the processed session messages.
+        // Functional impact of above such scenario is duplicate processing of session messages which is extra processing but correct nevertheless since
+        // orchestration processing is idempotent. However performance is definetely negatively impacted.
         public List<TaskMessage> ReceiveMessages()
         {
             // Todo: Need to be thread-safe?
