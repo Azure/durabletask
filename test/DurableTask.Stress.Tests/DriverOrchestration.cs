@@ -34,7 +34,7 @@ namespace DurableTask.Stress.Tests
             int[] counters = await Task.WhenAll(results.ToArray());
             result = counters.Max();
 
-            if (data.NumberOfIteration > 0)
+            if (data.NumberOfIteration > 1)
             {
                 data.NumberOfIteration--;
                 context.ContinueAsNew(data);

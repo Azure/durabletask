@@ -129,7 +129,7 @@ namespace DurableTask.Stress.Tests
                 {
                     var state = taskHubClient.GetOrchestrationStateAsync(instance.InstanceId).Result;
                     if (state != null) status = state.OrchestrationStatus;
-                    if (status == OrchestrationStatus.Running)
+                    if (status == OrchestrationStatus.Running || status == OrchestrationStatus.Pending)
                     {
                         System.Threading.Thread.Sleep(sleepForSeconds * 1000);
                         timeoutSeconds -= sleepForSeconds;
