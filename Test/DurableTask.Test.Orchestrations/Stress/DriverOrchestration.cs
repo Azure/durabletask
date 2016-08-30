@@ -11,42 +11,31 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Stress.Tests
+namespace DurableTask.Test.Orchestrations.Stress
 {
-    using System;
     using System.Collections.Generic;
     using System.Linq;
     using System.Threading.Tasks;
-    using DurableTask;
 
-    public class TestOrchestration : TaskOrchestration<int, TestOrchestrationData>
+    public class DriverOrchestration : TaskOrchestration<int, DriverOrchestrationData>
     {
-        public override async Task<int> RunTask(OrchestrationContext context, TestOrchestrationData data)
+        public override async Task<int> RunTask(OrchestrationContext context, DriverOrchestrationData data)
         {
             int result = 0;
             List<Task<int>> results = new List<Task<int>>();
             int i = 0;
-            int j = 0;
             for (; i < data.NumberOfParallelTasks; i++)
             {
-                results.Add(context.ScheduleTask<int>(typeof(TestTask), new TestTaskData
-                {
-                    TaskId = "ParallelTask: " + i.ToString(),
-                    MaxDelayInMinutes = data.MaxDelayInMinutes,
-                }));
+                results.Add(context.CreateSubOrchestrationInstance<int>(typeof(TestOrchestration), data.SubOrchestrationData));
             }
 
             int[] counters = await Task.WhenAll(results.ToArray());
             result = counters.Max();
 
-            for (; j < data.NumberOfSerialTasks; j++)
+            if (data.NumberOfIteration > 1)
             {
-                int c = await context.ScheduleTask<int>(typeof(TestTask), new TestTaskData
-                {
-                    TaskId = "SerialTask" + (i + j).ToString(),
-                    MaxDelayInMinutes = data.MaxDelayInMinutes,
-                });
-                result = Math.Max(result, c);
+                data.NumberOfIteration--;
+                context.ContinueAsNew(data);
             }
 
             return result;

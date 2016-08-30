@@ -14,14 +14,10 @@
 namespace DurableTask.Stress.Tests
 {
     using System;
-    using System.Collections.Generic;
     using System.Configuration;
     using System.Diagnostics;
-    using System.Linq;
-    using System.Text;
-    using System.Threading.Tasks;
-    using DurableTask;
     using DurableTask.Settings;
+    using DurableTask.Test.Orchestrations.Stress;
     using DurableTask.Tracking;
 
     class Program
