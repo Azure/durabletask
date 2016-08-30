@@ -55,8 +55,9 @@ namespace DurableTask.ServiceFabric
 
         public OrchestrationRuntimeState SessionState { get; private set; }
 
+        //Todo: Is this performant? Perhaps consider json serialization instead?
         [DataMember]
-        private string SerializedState { get; set; }
+        private IList<HistoryEvent> SerializedState { get; set; }
 
         [DataMember]
         public IEnumerable<LockableTaskMessage> Messages { get; private set; }
@@ -164,13 +165,13 @@ namespace DurableTask.ServiceFabric
         void OnDeserialized(StreamingContext context)
         {
             this.Messages = this.Messages.ToImmutableList();
-            this.SessionState = DatConverter.Deserialize<OrchestrationRuntimeState>(this.SerializedState);
+            this.SessionState = new OrchestrationRuntimeState(this.SerializedState);
         }
 
         [OnSerializing]
         void OnSerializing(StreamingContext context)
         {
-            this.SerializedState = DatConverter.Serialize(this.SessionState);
+            this.SerializedState = this.SessionState?.Events;
         }
     }
 
