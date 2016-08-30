@@ -27,14 +27,24 @@ namespace DurableTask.ServiceFabric
     using System.Linq;
 
     // Todo: Write a builder class for this immutable instead of creating intermediate objects for each operation for ex like in
-    // SessionsProvider.CompleteAndUpdateSession
+    // SessionsProvider.CompleteAndUpdateSession.
     [DataContract]
     public sealed class PersistentSession
     {
         static readonly IEnumerable<LockableTaskMessage> NoMessages = ImmutableList<LockableTaskMessage>.Empty;
         static readonly DataConverter DatConverter = new JsonDataConverter();
 
-        public PersistentSession(string sessionId, OrchestrationRuntimeState sessionState, LockableTaskMessage message)
+        public PersistentSession(string sessionId)
+            : this(sessionId, null, null, null)
+        {
+        }
+
+        public PersistentSession(string sessionId, TaskMessage newMessage)
+            : this(sessionId, new LockableTaskMessage(newMessage), null)
+        {
+        }
+
+        public PersistentSession(string sessionId, LockableTaskMessage message, OrchestrationRuntimeState sessionState)
             : this(sessionId, sessionState, new LockableTaskMessage[] {message}, null)
         {
         }
@@ -101,12 +111,11 @@ namespace DurableTask.ServiceFabric
         }
 
         // Todo: Can optimize in a few other ways, for now, something that works
-        public bool CheckScheduledMessages(out PersistentSession newValue)
+        public PersistentSession FireScheduledMessages()
         {
-            newValue = this;
             if (!this.ScheduledMessages.Any())
             {
-                return false;
+                return this;
             }
 
             bool changed = false;
@@ -137,9 +146,10 @@ namespace DurableTask.ServiceFabric
 
             if (changed)
             {
-                newValue = new PersistentSession(this.SessionId, this.SessionState, newMessages, remainingScheduledMessages);
+                return new PersistentSession(this.SessionId, this.SessionState, newMessages, remainingScheduledMessages);
             }
-            return changed;
+
+            return this;
         }
 
         public List<TaskMessage> ReceiveMessages()

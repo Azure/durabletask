@@ -170,7 +170,7 @@ namespace DurableTask.ServiceFabric
             {
                 await this.activitiesProvider.AppendBatch(txn, outboundMessages);
 
-                await this.orchestrationProvider.CompleteAndUpdateSession(txn, this.currentSession, newOrchestrationRuntimeState, timerMessages);
+                await this.orchestrationProvider.CompleteAndUpdateSession(txn, this.currentSession.SessionId, newOrchestrationRuntimeState, timerMessages);
 
                 if (orchestratorMessages?.Count > 0)
                 {

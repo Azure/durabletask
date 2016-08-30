@@ -29,6 +29,8 @@ namespace DurableTask.ServiceFabric
         IReliableDictionary<string, PersistentSession> orchestrations;
         CancellationTokenSource cancellationTokenSource;
 
+        readonly Func<string, PersistentSession> NewSessionFactory = (sId) => new PersistentSession(sId);
+
         public SessionsProvider(IReliableStateManager stateManager, IReliableDictionary<string, PersistentSession> orchestrations)
         {
             if (stateManager == null)
@@ -53,6 +55,8 @@ namespace DurableTask.ServiceFabric
                 while (!this.cancellationTokenSource.IsCancellationRequested)
                 {
                     await Task.Delay(TimeSpan.FromMilliseconds(100));
+
+                    var scheduledMessageSessions = new List<string>();
                     using (var txn = this.stateManager.CreateTransaction())
                     {
                         var enumerable = await this.orchestrations.CreateEnumerableAsync(txn, EnumerationMode.Unordered);
@@ -61,15 +65,22 @@ namespace DurableTask.ServiceFabric
                             while (await enumerator.MoveNextAsync(this.cancellationTokenSource.Token))
                             {
                                 var entry = enumerator.Current;
-                                PersistentSession newValue;
-                                if (entry.Value.CheckScheduledMessages(out newValue))
+                                if (entry.Value.ScheduledMessages.Any())
                                 {
-                                    //Todo: SetAsync is probably bad because it may be overwriting some changes? Unless we make it thread-safe?
-                                    await this.orchestrations.SetAsync(txn, entry.Key, newValue);
+                                    scheduledMessageSessions.Add(entry.Key);
                                 }
                             }
                         }
                         await txn.CommitAsync();
+                    }
+
+                    foreach (var sessionId in scheduledMessageSessions)
+                    {
+                        using (var txn = this.stateManager.CreateTransaction())
+                        {
+                            await this.orchestrations.AddOrUpdateAsync(txn, sessionId, NewSessionFactory, (sId, oldValue) => oldValue.FireScheduledMessages());
+                            await txn.CommitAsync();
+                        }
                     }
                 }
             });
@@ -119,26 +130,28 @@ namespace DurableTask.ServiceFabric
         }
 
         public async Task CompleteAndUpdateSession(ITransaction transaction,
-            PersistentSession session,
+            string sessionId,
             OrchestrationRuntimeState newSessionState,
             IList<TaskMessage> scheduledMessages)
         {
-            var newSession = session
-                .CompleteMessages()
-                .SetSessionState(newSessionState);
-
-            if (scheduledMessages?.Count > 0)
+            await this.orchestrations.AddOrUpdateAsync(transaction, sessionId, NewSessionFactory, (sId, oldValue) =>
             {
-                newSession = newSession.AppendScheduledMessagesBatch(scheduledMessages);
-            }
+                var newSession = oldValue
+                    .CompleteMessages()
+                    .SetSessionState(newSessionState);
 
-            await this.orchestrations.SetAsync(transaction, session.SessionId, newSession);
+                if (scheduledMessages?.Count > 0)
+                {
+                    newSession = newSession.AppendScheduledMessagesBatch(scheduledMessages);
+                }
+
+                return newSession;
+            });
         }
 
         public async Task AppendMessageAsync(ITransaction transaction, TaskMessage newMessage)
         {
-            Func<string, PersistentSession> newSessionFactory = (sId) => new PersistentSession(sId, new OrchestrationRuntimeState(),
-                ImmutableList<LockableTaskMessage>.Empty.Add(new LockableTaskMessage(newMessage)), null);
+            Func<string, PersistentSession> newSessionFactory = (sId) => new PersistentSession(sId, newMessage);
 
             await this.orchestrations.AddOrUpdateAsync(transaction, newMessage.OrchestrationInstance.InstanceId,
                 addValueFactory: newSessionFactory,
