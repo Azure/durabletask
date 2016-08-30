@@ -45,7 +45,7 @@ namespace DurableTask.ServiceFabric
         }
 
         public PersistentSession(string sessionId, LockableTaskMessage message, OrchestrationRuntimeState sessionState)
-            : this(sessionId, sessionState, new LockableTaskMessage[] {message}, null)
+            : this(sessionId, sessionState, new [] {message}, null)
         {
         }
 

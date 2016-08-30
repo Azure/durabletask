@@ -54,7 +54,7 @@ namespace DurableTask.ServiceFabric
                     {
                         return activityValue.Value;
                     }
-                    //Todo: Need commit here?
+                    //Todo: Need commit here? And in all other places where we create a transaction but do read-only operations?
                 }
                 await Task.Delay(100, cancellationToken);
             }
