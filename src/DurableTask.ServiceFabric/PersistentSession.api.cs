@@ -105,7 +105,14 @@ namespace DurableTask.ServiceFabric
         {
             if (!builder.IsLocked)
             {
-                builder.ShouldAddToQueue = builder.Messages.Any();
+                if (builder.ShouldAddToQueue)
+                {
+                    builder.ShouldAddToQueue = false;
+                }
+                else
+                {
+                    builder.ShouldAddToQueue = builder.Messages.Any();
+                }
             }
         }
 

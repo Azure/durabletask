@@ -31,6 +31,7 @@ namespace DurableTask.ServiceFabric
         readonly Func<string, PersistentSession> NewSessionFactory = (sId) => PersistentSession.Create(sId, null, null, null, false);
         IReliableDictionary<string, PersistentSession> orchestrations;
         ConcurrentQueue<string> inMemorySessions = new ConcurrentQueue<string>();
+        private HashSet<string> lockTable = new HashSet<string>();
 
         public SessionsProvider(IReliableStateManager stateManager)
         {
@@ -98,7 +99,7 @@ namespace DurableTask.ServiceFabric
             {
                 string returnSessionId;
 
-                if (this.inMemorySessions.TryDequeue(out returnSessionId))
+                if (this.TryDequeueSessionInMemory(out returnSessionId))
                 {
                     using (var txn = this.stateManager.CreateTransaction())
                     {
@@ -131,6 +132,12 @@ namespace DurableTask.ServiceFabric
 
         public async Task AppendMessageAsync(ITransaction transaction, TaskMessage newMessage)
         {
+            //Workaround to avoid client sending a new message before StartAsync on service is done
+            if (this.orchestrations == null)
+            {
+                this.orchestrations = await this.stateManager.GetOrAddAsync<IReliableDictionary<string, PersistentSession>>(Constants.OrchestrationDictionaryName);
+            }
+
             Func<string, PersistentSession> newSessionFactory = (sId) => PersistentSession.CreateWithNewMessage(sId, newMessage);
 
             await this.AddOrUpdateAsyncWrapper(transaction, newMessage.OrchestrationInstance.InstanceId,
@@ -161,17 +168,11 @@ namespace DurableTask.ServiceFabric
 
         async Task<PersistentSession> AddOrUpdateAsyncWrapper(ITransaction tx, string key, Func<string, PersistentSession> addValueFactory, Func<string, PersistentSession, PersistentSession> updateValueFactory)
         {
-            //Workaround to avoid client sending a new message before StartAsync on service is done
-            if (this.orchestrations == null)
-            {
-                this.orchestrations = await this.stateManager.GetOrAddAsync<IReliableDictionary<string, PersistentSession>>(Constants.OrchestrationDictionaryName);
-            }
-
             var newSession = await this.orchestrations.AddOrUpdateAsync(tx, key, addValueFactory, updateValueFactory);
 
             if (newSession.ShouldAddToQueue)
             {
-                inMemorySessions.Enqueue(newSession.SessionId);
+                EnqueueSessionInMemory(newSession.SessionId);
             }
 
             return newSession;
@@ -189,11 +190,31 @@ namespace DurableTask.ServiceFabric
                         var entry = enumerator.Current;
                         if (entry.Value.Messages.Any())
                         {
-                            this.inMemorySessions.Enqueue(entry.Key);
+                            EnqueueSessionInMemory(entry.Key);
                         }
                     }
                 }
             }
+        }
+
+        void EnqueueSessionInMemory(string sessionId)
+        {
+            if (!this.lockTable.Contains(sessionId))
+            {
+                this.inMemorySessions.Enqueue(sessionId);
+                this.lockTable.Add(sessionId);
+            }
+        }
+
+        bool TryDequeueSessionInMemory(out string returnSessionId)
+        {
+            if (this.inMemorySessions.TryDequeue(out returnSessionId))
+            {
+                this.lockTable.Remove(returnSessionId);
+                return true;
+            }
+
+            return false;
         }
     }
 }

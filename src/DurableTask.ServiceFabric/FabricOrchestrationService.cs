@@ -122,7 +122,7 @@ namespace DurableTask.ServiceFabric
         }
 
         public int TaskOrchestrationDispatcherCount => 1;
-        public int MaxConcurrentTaskOrchestrationWorkItems => 1;
+        public int MaxConcurrentTaskOrchestrationWorkItems => 100;
 
         // Note: Do not rely on cancellationToken parameter to this method because the top layer does not yet implement any cancellation.
         public async Task<TaskOrchestrationWorkItem> LockNextTaskOrchestrationWorkItemAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken)
@@ -190,6 +190,7 @@ namespace DurableTask.ServiceFabric
 
         public Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
+            //Todo: Implement to unlock session
             return Task.FromResult<object>(null);
         }
 
@@ -210,7 +211,7 @@ namespace DurableTask.ServiceFabric
         }
 
         public int TaskActivityDispatcherCount => 1;
-        public int MaxConcurrentTaskActivityWorkItems => 1;
+        public int MaxConcurrentTaskActivityWorkItems => 100;
 
         // Note: Do not rely on cancellationToken parameter to this method because the top layer does not yet implement any cancellation.
         public async Task<TaskActivityWorkItem> LockNextTaskActivityWorkItem(TimeSpan receiveTimeout, CancellationToken cancellationToken)
@@ -241,10 +242,11 @@ namespace DurableTask.ServiceFabric
 
         public Task AbandonTaskActivityWorkItemAsync(TaskActivityWorkItem workItem)
         {
+            //Todo: Implement to add back to in-memory queue
             return Task.FromResult<object>(null);
         }
 
-        public bool ProcessWorkItemSynchronously => true;
+        public bool ProcessWorkItemSynchronously => false;
 
         public Task<TaskActivityWorkItem> RenewTaskActivityWorkItemLockAsync(TaskActivityWorkItem workItem)
         {

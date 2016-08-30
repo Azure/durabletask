@@ -34,7 +34,7 @@ namespace DurableTask.ServiceFabric.Test
             var driverConfig = new DriverOrchestrationData()
             {
                 NumberOfIteration = 1,
-                NumberOfParallelTasks = 2,
+                NumberOfParallelTasks = 40,
                 SubOrchestrationData = new TestOrchestrationData()
                 {
                     NumberOfParallelTasks = 10,

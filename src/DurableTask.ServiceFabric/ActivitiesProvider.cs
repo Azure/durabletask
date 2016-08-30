@@ -29,6 +29,9 @@ namespace DurableTask.ServiceFabric
 
         IReliableDictionary<string, TaskMessage> activityQueue;
         ConcurrentQueue<string> inMemoryQueue = new ConcurrentQueue<string>();
+        HashSet<string> lockTable = new HashSet<string>();
+        //bool newMessagesInStore;
+        //object syncLock = new object();
 
         public ActivitiesProvider(IReliableStateManager stateManager)
         {
@@ -44,6 +47,10 @@ namespace DurableTask.ServiceFabric
         public async Task StartAsync()
         {
             this.activityQueue = await this.stateManager.GetOrAddAsync<IReliableDictionary<string, TaskMessage>>(Constants.ActivitiesQueueName);
+            //lock (syncLock)
+            //{
+            //    this.newMessagesInStore = true;
+            //}
         }
 
         public void Stop()
@@ -75,31 +82,55 @@ namespace DurableTask.ServiceFabric
             return null;
         }
 
-        public Task CompleteWorkItem(ITransaction transaction, TaskActivityWorkItem workItem)
+        public async Task CompleteWorkItem(ITransaction transaction, TaskActivityWorkItem workItem)
         {
-            return this.activityQueue.TryRemoveAsync(transaction, workItem.Id);
+            await this.activityQueue.TryRemoveAsync(transaction, workItem.Id);
         }
 
         public async Task AppendBatch(ITransaction transaction, IList<TaskMessage> messages)
         {
-            foreach (var message in messages)
+            if (messages.Count > 0)
             {
-                var id = Guid.NewGuid().ToString();
-                await this.activityQueue.AddAsync(transaction, id, message);
+                //lock (syncLock)
+                //{
+                //    this.newMessagesInStore = true;
+                //}
+                foreach (var message in messages)
+                {
+                    var id = Guid.NewGuid().ToString();
+                    await this.activityQueue.AddAsync(transaction, id, message);
+                }
             }
         }
 
         async Task PopulateInMemoryActivities()
         {
-            using (var txn = this.stateManager.CreateTransaction())
+            //var shouldFetchActivitiesInMemory = false;
+            //lock (syncLock)
+            //{
+            //    if (this.newMessagesInStore)
+            //    {
+            //        this.newMessagesInStore = false;
+            //        shouldFetchActivitiesInMemory = true;
+            //    }
+            //}
+
+            //if (shouldFetchActivitiesInMemory)
             {
-                var enumerable = await this.activityQueue.CreateEnumerableAsync(txn, EnumerationMode.Unordered);
-                using (var enumerator = enumerable.GetAsyncEnumerator())
+                using (var txn = this.stateManager.CreateTransaction())
                 {
-                    while (await enumerator.MoveNextAsync(this.cancellationTokenSource.Token))
+                    var enumerable = await this.activityQueue.CreateEnumerableAsync(txn, EnumerationMode.Unordered);
+                    using (var enumerator = enumerable.GetAsyncEnumerator())
                     {
-                        var entry = enumerator.Current;
-                        this.inMemoryQueue.Enqueue(entry.Key);
+                        while (await enumerator.MoveNextAsync(this.cancellationTokenSource.Token))
+                        {
+                            var activityId = enumerator.Current.Key;
+                            if (!this.lockTable.Contains(activityId))
+                            {
+                                this.inMemoryQueue.Enqueue(activityId);
+                                this.lockTable.Add(activityId);
+                            }
+                        }
                     }
                 }
             }
