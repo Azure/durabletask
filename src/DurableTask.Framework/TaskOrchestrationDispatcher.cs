@@ -57,7 +57,8 @@ namespace DurableTask
                 "TaskOrchestrationDispatcher",
                 item => item == null ? string.Empty : item.InstanceId,
                 this.OnFetchWorkItemAsync,
-                this.OnProcessWorkItemAsync)
+                this.OnProcessWorkItemAsync,
+                orchestrationService.ProcessWorkItemSynchronously)
             {
                 GetDelayInSecondsAfterOnFetchException = orchestrationService.GetDelayInSecondsAfterOnFetchException,
                 GetDelayInSecondsAfterOnProcessException = orchestrationService.GetDelayInSecondsAfterOnProcessException,

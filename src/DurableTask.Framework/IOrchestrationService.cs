@@ -182,5 +182,11 @@ namespace DurableTask
         ///    Abandons a single work item and releases the lock on it
         /// </summary>
         Task AbandonTaskActivityWorkItemAsync(TaskActivityWorkItem workItem);
+
+        /// <summary>
+        /// When true, dispatcher waits for work item processing (for orchestrations and activities)
+        /// before it fetches the next work item.
+        /// </summary>
+        bool ProcessWorkItemSynchronously { get; }
     }
 }

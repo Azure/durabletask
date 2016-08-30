@@ -509,6 +509,8 @@ namespace DurableTask.Framework.Tests.Mocks
             return Task.FromResult<object>(null);
         }
 
+        public bool ProcessWorkItemSynchronously => false;
+
         public Task CompleteTaskActivityWorkItemAsync(TaskActivityWorkItem workItem, TaskMessage responseMessage)
         {
             lock(this.thisLock)

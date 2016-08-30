@@ -255,6 +255,8 @@ namespace DurableTask.ServiceFabric
             return Task.FromResult(workItem);
         }
 
+        public bool ProcessWorkItemSynchronously => true;
+
         public Task<TaskActivityWorkItem> RenewTaskActivityWorkItemLockAsync(TaskActivityWorkItem workItem)
         {
             Contract.Assert(workItem.TaskMessage == this.currentActivity, "Unexpected thing happened, renew lock called for an activity that's not the current activity");
