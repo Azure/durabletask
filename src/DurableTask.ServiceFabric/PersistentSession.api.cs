@@ -37,7 +37,7 @@ namespace DurableTask.ServiceFabric
                 if (timerEvent == null)
                 {
                     //Should not happen with the current assumptions
-                    throw new Exception("Internal server errors");
+                    throw new Exception("Internal server error.");
                 }
 
                 if (timerEvent.FireAt <= currentTime)
