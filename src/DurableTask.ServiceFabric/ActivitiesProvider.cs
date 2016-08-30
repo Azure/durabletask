@@ -14,6 +14,7 @@
 namespace DurableTask.ServiceFabric
 {
     using System;
+    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Threading;
@@ -26,7 +27,8 @@ namespace DurableTask.ServiceFabric
         readonly IReliableStateManager stateManager;
         readonly CancellationTokenSource cancellationTokenSource;
 
-        IReliableQueue<TaskMessage> activityQueue;
+        IReliableDictionary<string, TaskMessage> activityQueue;
+        ConcurrentQueue<string> inMemoryQueue = new ConcurrentQueue<string>();
 
         public ActivitiesProvider(IReliableStateManager stateManager)
         {
@@ -41,7 +43,7 @@ namespace DurableTask.ServiceFabric
 
         public async Task StartAsync()
         {
-            this.activityQueue = await this.stateManager.GetOrAddAsync<IReliableQueue<TaskMessage>>(Constants.ActivitiesQueueName);
+            this.activityQueue = await this.stateManager.GetOrAddAsync<IReliableDictionary<string, TaskMessage>>(Constants.ActivitiesQueueName);
         }
 
         public void Stop()
@@ -56,30 +58,50 @@ namespace DurableTask.ServiceFabric
             {
                 using (var txn = this.stateManager.CreateTransaction())
                 {
-                    var activityValue = await this.activityQueue.TryPeekAsync(txn, LockMode.Default);
-                    if (activityValue.HasValue)
+                    string activityId;
+                    if (this.inMemoryQueue.TryDequeue(out activityId))
                     {
-                        return activityValue.Value;
+                        var activity = await this.activityQueue.TryGetValueAsync(txn, activityId);
+                        if (activity.HasValue)
+                        {
+                            return activity.Value;
+                        }
+                        throw new Exception("Internal server error");
                     }
                 }
                 await Task.Delay(100, this.cancellationTokenSource.Token);
+                await PopulateInMemoryActivities();
             }
             return null;
         }
 
-        // Currently the second parameter is ignored in implementation because it's expected that
-        // this method gets a call synchronously with the above method. When that changes, the implementation
-        // has to change accordingly.
-        public Task CompleteWorkItem(ITransaction transaction, TaskMessage message)
+        public Task CompleteWorkItem(ITransaction transaction, TaskActivityWorkItem workItem)
         {
-            return this.activityQueue.TryDequeueAsync(transaction);
+            return this.activityQueue.TryRemoveAsync(transaction, workItem.Id);
         }
 
         public async Task AppendBatch(ITransaction transaction, IList<TaskMessage> messages)
         {
             foreach (var message in messages)
             {
-                await this.activityQueue.EnqueueAsync(transaction, message);
+                var id = Guid.NewGuid().ToString();
+                await this.activityQueue.AddAsync(transaction, id, message);
+            }
+        }
+
+        async Task PopulateInMemoryActivities()
+        {
+            using (var txn = this.stateManager.CreateTransaction())
+            {
+                var enumerable = await this.activityQueue.CreateEnumerableAsync(txn, EnumerationMode.Unordered);
+                using (var enumerator = enumerable.GetAsyncEnumerator())
+                {
+                    while (await enumerator.MoveNextAsync(this.cancellationTokenSource.Token))
+                    {
+                        var entry = enumerator.Current;
+                        this.inMemoryQueue.Enqueue(entry.Key);
+                    }
+                }
             }
         }
     }

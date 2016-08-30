@@ -47,6 +47,7 @@ namespace DurableTask.ServiceFabric
         {
             this.activitiesProvider = new ActivitiesProvider(this.stateManager);
             this.orchestrationProvider = new SessionsProvider(stateManager);
+            await this.activitiesProvider.StartAsync();
             await this.instanceStore.StartAsync();
             await this.orchestrationProvider.StartAsync();
             await this.activitiesProvider.StartAsync();
@@ -62,6 +63,7 @@ namespace DurableTask.ServiceFabric
             this.activitiesProvider.Stop();
             this.orchestrationProvider.Stop();
             await this.instanceStore.StopAsync(isForced);
+            this.activitiesProvider.Stop();
         }
 
         public Task CreateAsync()
@@ -231,8 +233,7 @@ namespace DurableTask.ServiceFabric
         {
             using (var txn = this.stateManager.CreateTransaction())
             {
-                await this.activitiesProvider.CompleteWorkItem(txn, workItem.TaskMessage);
-                var sessionId = workItem.TaskMessage.OrchestrationInstance.InstanceId;
+                await this.activitiesProvider.CompleteWorkItem(txn, workItem);
                 await this.orchestrationProvider.AppendMessageAsync(txn, responseMessage);
                 await txn.CommitAsync();
             }

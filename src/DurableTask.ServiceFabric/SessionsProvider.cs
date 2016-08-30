@@ -25,11 +25,11 @@ namespace DurableTask.ServiceFabric
 
     public class SessionsProvider
     {
-        IReliableStateManager stateManager;
-        IReliableDictionary<string, PersistentSession> orchestrations;
-        CancellationTokenSource cancellationTokenSource;
+        readonly IReliableStateManager stateManager;
+        readonly CancellationTokenSource cancellationTokenSource;
 
         readonly Func<string, PersistentSession> NewSessionFactory = (sId) => PersistentSession.Create(sId, null, null, null, false);
+        IReliableDictionary<string, PersistentSession> orchestrations;
         ConcurrentQueue<string> inMemorySessions = new ConcurrentQueue<string>();
 
         public SessionsProvider(IReliableStateManager stateManager)
