@@ -44,11 +44,14 @@ namespace DurableTask.ServiceFabric.Test
         [TestMethod]
         public async Task Orchestration_With_Timer_Finishes_After_The_Wait_Time()
         {
-            var result = await this.serviceClient.RunOrchestrationAsync(typeof(SimpleOrchestrationWithTimer).Name, 37, TimeSpan.FromMinutes(5));
+            var waitTime = 37;
+            var result = await this.serviceClient.RunOrchestrationAsync(typeof(SimpleOrchestrationWithTimer).Name, waitTime, TimeSpan.FromMinutes(5));
 
             Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
             Assert.AreEqual("\"Hello Gabbar\"", result.Output);
-            Assert.IsTrue((result.CompletedTime - result.CreatedTime) > TimeSpan.FromSeconds(37));
+            var orchestrationTime = result.CompletedTime - result.CreatedTime;
+            Assert.IsTrue(orchestrationTime > TimeSpan.FromSeconds(waitTime));
+            Console.WriteLine($"Time for Orchestration : {orchestrationTime}, Timer Wait time : {waitTime}");
         }
 
         [TestMethod]
