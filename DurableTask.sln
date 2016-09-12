@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
-VisualStudioVersion = 14.0.24720.0
+VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.Framework", "src\DurableTask.Framework\DurableTask.Framework.csproj", "{6F5D2EAD-726D-4FE5-A575-AEB96D1CCE37}"
 EndProject
@@ -33,6 +33,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.Stress.Tests", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.Samples.Tests", "test\DurableTask.Samples.Tests\DurableTask.Samples.Tests.csproj", "{1F20B608-0206-4B58-8C0B-CB7430A880FD}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.Test.Orchestrations", "Test\DurableTask.Test.Orchestrations\DurableTask.Test.Orchestrations.csproj", "{2BC2A5AD-4200-41B9-A034-332BB1D7187B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -63,6 +65,10 @@ Global
 		{1F20B608-0206-4B58-8C0B-CB7430A880FD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1F20B608-0206-4B58-8C0B-CB7430A880FD}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1F20B608-0206-4B58-8C0B-CB7430A880FD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2BC2A5AD-4200-41B9-A034-332BB1D7187B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2BC2A5AD-4200-41B9-A034-332BB1D7187B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2BC2A5AD-4200-41B9-A034-332BB1D7187B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2BC2A5AD-4200-41B9-A034-332BB1D7187B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -74,6 +80,7 @@ Global
 		{BC204374-927C-4A48-8473-F5BF8C97EAEA} = {AF4E71A6-B16E-4488-B22D-2761101A601A}
 		{96980359-8003-4500-B97B-949A7FE01F31} = {95C69A06-7F62-4652-A480-207B614C2869}
 		{1F20B608-0206-4B58-8C0B-CB7430A880FD} = {95C69A06-7F62-4652-A480-207B614C2869}
+		{2BC2A5AD-4200-41B9-A034-332BB1D7187B} = {95C69A06-7F62-4652-A480-207B614C2869}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		EnterpriseLibraryConfigurationToolBinariesPath = packages\TransientFaultHandling.Core.5.1.1209.1\lib\NET4
