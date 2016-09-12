@@ -11,12 +11,12 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Stress.Tests
+namespace DurableTask.Test.Orchestrations.Stress
 {
-    public class TestOrchestrationData
+    public class DriverOrchestrationData
     {
         public int NumberOfParallelTasks { get; set; }
-        public int NumberOfSerialTasks { get; set; }
-        public int MaxDelayInMinutes { get; set; }
+        public int NumberOfIteration { get; set; }
+        public TestOrchestrationData SubOrchestrationData { get; set; }
     }
 }

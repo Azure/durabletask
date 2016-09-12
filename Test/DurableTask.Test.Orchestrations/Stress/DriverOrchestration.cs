@@ -11,13 +11,11 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Stress.Tests
+namespace DurableTask.Test.Orchestrations.Stress
 {
-    using System;
     using System.Collections.Generic;
     using System.Linq;
     using System.Threading.Tasks;
-    using DurableTask;
 
     public class DriverOrchestration : TaskOrchestration<int, DriverOrchestrationData>
     {
@@ -34,7 +32,7 @@ namespace DurableTask.Stress.Tests
             int[] counters = await Task.WhenAll(results.ToArray());
             result = counters.Max();
 
-            if (data.NumberOfIteration > 0)
+            if (data.NumberOfIteration > 1)
             {
                 data.NumberOfIteration--;
                 context.ContinueAsNew(data);

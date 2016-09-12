@@ -14,14 +14,10 @@
 namespace DurableTask.Stress.Tests
 {
     using System;
-    using System.Collections.Generic;
     using System.Configuration;
     using System.Diagnostics;
-    using System.Linq;
-    using System.Text;
-    using System.Threading.Tasks;
-    using DurableTask;
     using DurableTask.Settings;
+    using DurableTask.Test.Orchestrations.Stress;
     using DurableTask.Tracking;
 
     class Program
@@ -129,7 +125,7 @@ namespace DurableTask.Stress.Tests
                 {
                     var state = taskHubClient.GetOrchestrationStateAsync(instance.InstanceId).Result;
                     if (state != null) status = state.OrchestrationStatus;
-                    if (status == OrchestrationStatus.Running)
+                    if (status == OrchestrationStatus.Running || status == OrchestrationStatus.Pending)
                     {
                         System.Threading.Thread.Sleep(sleepForSeconds * 1000);
                         timeoutSeconds -= sleepForSeconds;

@@ -11,7 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Stress.Tests
+namespace DurableTask.Test.Orchestrations.Stress
 {
     using System;
     using System.Collections.Generic;
