@@ -9,7 +9,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>TestApplication.Common</RootNamespace>
     <AssemblyName>TestApplication.Common</AssemblyName>
-    <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.5.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
@@ -82,11 +82,22 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="IOwinAppBuilder.cs" />
+    <Compile Include="IRemoteClient.cs" />
     <Compile Include="OwinCommunicationListener.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\DurableTask.Framework\DurableTask.Framework.csproj">
+      <Project>{6f5d2ead-726d-4fe5-a575-aeb96d1cce37}</Project>
+      <Name>DurableTask.Framework</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\DurableTask.Test.Orchestrations\DurableTask.Test.Orchestrations.csproj">
+      <Project>{2bc2a5ad-4200-41b9-a034-332bb1d7187b}</Project>
+      <Name>DurableTask.Test.Orchestrations</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

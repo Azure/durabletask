@@ -17,12 +17,18 @@ using DurableTask;
 using DurableTask.Test.Orchestrations.Stress;
 using Microsoft.ServiceFabric.Services.Remoting;
 
-namespace TestStatefulService
+namespace TestApplication.Common
 {
     public interface IRemoteClient : IService
     {
         Task<OrchestrationState> RunOrchestrationAsync(string orchestrationTypeName, object input, TimeSpan waitTimeout);
 
         Task<OrchestrationState> RunDriverOrchestrationAsync(DriverOrchestrationData input, TimeSpan waitTimeout);
+
+        Task<OrchestrationInstance> StartTestOrchestrationAsync(TestOrchestrationData input);
+
+        Task<OrchestrationState> GetOrchestrationState(OrchestrationInstance instance);
+
+        Task<OrchestrationState> WaitForOrchestration(OrchestrationInstance instance, TimeSpan waitTimeout);
     }
 }

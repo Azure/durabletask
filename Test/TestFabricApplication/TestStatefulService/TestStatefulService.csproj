@@ -9,7 +9,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>TestStatefulService</RootNamespace>
     <AssemblyName>TestStatefulService</AssemblyName>
-    <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.5.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
   </PropertyGroup>
@@ -108,7 +108,6 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="DebugHelper\TestExecutor.cs" />
-    <Compile Include="IRemoteClient.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Startup.cs" />
     <Compile Include="TestOrchestrations\GenerationBasicOrchestration.cs" />

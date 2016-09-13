@@ -16,7 +16,7 @@ using System.Threading.Tasks;
 using Microsoft.ServiceFabric.Services.Client;
 using Microsoft.ServiceFabric.Services.Remoting.Client;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using TestStatefulService;
+using TestApplication.Common;
 using TestStatefulService.TestOrchestrations;
 
 namespace DurableTask.ServiceFabric.Test
