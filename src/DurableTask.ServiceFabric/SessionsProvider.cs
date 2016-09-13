@@ -163,18 +163,6 @@ namespace DurableTask.ServiceFabric
             await this.orchestrations.TryRemoveAsync(transaction, sessionId);
         }
 
-        async Task<PersistentSession> AddOrUpdateAsyncWrapper(ITransaction tx, string key, Func<string, PersistentSession> addValueFactory, Func<string, PersistentSession, PersistentSession> updateValueFactory)
-        {
-            var newSession = await this.orchestrations.AddOrUpdateAsync(tx, key, addValueFactory, updateValueFactory);
-
-            if (newSession.ShouldAddToQueue)
-            {
-                EnqueueSessionInMemory(newSession.SessionId);
-            }
-
-            return newSession;
-        }
-
         async Task PopulateInMemorySessions()
         {
             using (var txn = this.stateManager.CreateTransaction())
