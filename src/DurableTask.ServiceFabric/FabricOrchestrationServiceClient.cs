@@ -51,7 +51,6 @@ namespace DurableTask.ServiceFabric
         {
             using (var txn = this.stateManager.CreateTransaction())
             {
-                //Todo : Can this happen before the taskhub worker / orchestration service / sessionsprovider start?
                 await this.orchestrationProvider.AppendMessageAsync(txn, message);
                 await txn.CommitAsync();
             }
