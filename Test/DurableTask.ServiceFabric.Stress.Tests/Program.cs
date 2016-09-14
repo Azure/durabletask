@@ -109,13 +109,17 @@ namespace DurableTask.ServiceFabric.Stress.Tests
 
                 tasks.Add(waitTask);
 
-                if (totalRequests%100 == 0)
+                if (totalRequests%10 == 0)
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(3));
-                }
-                else if (totalRequests%10 == 0)
-                {
-                    await Task.Delay(TimeSpan.FromSeconds(1));
+                    var delay = totalRequests%100 == 0 ? TimeSpan.FromSeconds(3) : TimeSpan.FromSeconds(1);
+                    try
+                    {
+                        await Task.Delay(delay, cancellationToken);
+                    }
+                    catch (TaskCanceledException)
+                    {
+                        break;
+                    }
                 }
             }
 
