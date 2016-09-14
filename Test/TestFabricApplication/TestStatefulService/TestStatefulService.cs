@@ -111,9 +111,11 @@ namespace TestStatefulService
             return await this.RunOrchestrationAsync(typeof(DriverOrchestration).Name, input, waitTimeout);
         }
 
-        public Task<OrchestrationInstance> StartTestOrchestrationAsync(TestOrchestrationData input)
+        public async Task<OrchestrationInstance> StartTestOrchestrationAsync(TestOrchestrationData input)
         {
-            return client.CreateOrchestrationInstanceAsync(typeof(TestOrchestration), input);
+            var instance = await client.CreateOrchestrationInstanceAsync(typeof(TestOrchestration), input);
+            ServiceEventSource.Current.Message($"Orchestration Started : {instance.InstanceId}");
+            return instance;
         }
 
         public Task<OrchestrationState> GetOrchestrationState(OrchestrationInstance instance)
@@ -121,9 +123,18 @@ namespace TestStatefulService
             return client.GetOrchestrationStateAsync(instance);
         }
 
-        public Task<OrchestrationState> WaitForOrchestration(OrchestrationInstance instance, TimeSpan waitTimeout)
+        public async Task<OrchestrationState> WaitForOrchestration(OrchestrationInstance instance, TimeSpan waitTimeout)
         {
-            return client.WaitForOrchestrationAsync(instance, waitTimeout);
+            var state = await client.WaitForOrchestrationAsync(instance, waitTimeout);
+            if (state == null)
+            {
+                ServiceEventSource.Current.Message($"Orchestration {instance.InstanceId} perhaps timed out while waiting.");
+            }
+            else
+            {
+                ServiceEventSource.Current.Message($"Orchestration {instance.InstanceId} finished with status : {state.OrchestrationStatus}, result : {state.Output}, created time : {state.CreatedTime}, completed time : {state.CompletedTime}.");
+            }
+            return state;
         }
 
         void SafeCreateTestTask()

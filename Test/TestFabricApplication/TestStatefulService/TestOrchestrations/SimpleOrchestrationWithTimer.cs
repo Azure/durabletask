@@ -21,9 +21,7 @@ namespace TestStatefulService.TestOrchestrations
     {
         public override async Task<string> RunTask(OrchestrationContext context, int input)
         {
-            ServiceEventSource.Current.Message($"CurrentUtcDataTime before scheduling the timer and waiting : {context.CurrentUtcDateTime}");
             await context.CreateTimer<object>(context.CurrentUtcDateTime.Add(TimeSpan.FromSeconds(input)), null);
-            ServiceEventSource.Current.Message($"CurrentUtcDataTime after finished waiting for the timer : {context.CurrentUtcDateTime}");
             return await context.ScheduleTask<string>(typeof(GreetUserTask), "Gabbar");
         }
     }

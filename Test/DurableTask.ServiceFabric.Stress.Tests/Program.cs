@@ -14,6 +14,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using DurableTask.Test.Orchestrations.Stress;
@@ -34,6 +35,7 @@ namespace DurableTask.ServiceFabric.Stress.Tests
             CancellationTokenSource cts1 = new CancellationTokenSource();
             CancellationTokenSource cts2 = new CancellationTokenSource();
 
+            Stopwatch watch = Stopwatch.StartNew();
             var programTask = RunOrchestrations(cts1.Token);
             var statusTask = PollState(cts2.Token);
 
@@ -45,6 +47,10 @@ namespace DurableTask.ServiceFabric.Stress.Tests
 
             cts2.Cancel();
             statusTask.Wait();
+            watch.Stop();
+
+            Func<TimeSpan, string> elapsedTimeFormatter = timeSpan => $"{timeSpan.Hours:00}:{timeSpan.Minutes:00}:{timeSpan.Seconds:00}.{timeSpan.Milliseconds / 10:00}";
+            Console.WriteLine($"Total elapsed time for the program : {elapsedTimeFormatter(watch.Elapsed)}");
         }
 
         static async Task PollState(CancellationToken cancellationToken)
@@ -103,7 +109,14 @@ namespace DurableTask.ServiceFabric.Stress.Tests
 
                 tasks.Add(waitTask);
 
-                await Task.Delay(TimeSpan.FromMilliseconds(100));
+                if (totalRequests%100 == 0)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(3));
+                }
+                else if (totalRequests%10 == 0)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(1));
+                }
             }
 
             Console.WriteLine($"Total orchestrations : {totalRequests}");
