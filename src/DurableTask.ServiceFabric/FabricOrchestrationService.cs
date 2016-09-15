@@ -122,7 +122,7 @@ namespace DurableTask.ServiceFabric
         }
 
         public int TaskOrchestrationDispatcherCount => 1;
-        public int MaxConcurrentTaskOrchestrationWorkItems => 100;
+        public int MaxConcurrentTaskOrchestrationWorkItems => 1000;
 
         // Note: Do not rely on cancellationToken parameter to this method because the top layer does not yet implement any cancellation.
         public async Task<TaskOrchestrationWorkItem> LockNextTaskOrchestrationWorkItemAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken)
@@ -211,7 +211,7 @@ namespace DurableTask.ServiceFabric
         }
 
         public int TaskActivityDispatcherCount => 1;
-        public int MaxConcurrentTaskActivityWorkItems => 100;
+        public int MaxConcurrentTaskActivityWorkItems => 10000;
 
         // Note: Do not rely on cancellationToken parameter to this method because the top layer does not yet implement any cancellation.
         public async Task<TaskActivityWorkItem> LockNextTaskActivityWorkItem(TimeSpan receiveTimeout, CancellationToken cancellationToken)
