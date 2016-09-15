@@ -165,17 +165,20 @@ namespace DurableTask.ServiceFabric
 
         async Task PopulateInMemorySessions()
         {
-            using (var txn = this.stateManager.CreateTransaction())
+            if (!this.cancellationTokenSource.IsCancellationRequested)
             {
-                var enumerable = await this.orchestrations.CreateEnumerableAsync(txn, EnumerationMode.Unordered);
-                using (var enumerator = enumerable.GetAsyncEnumerator())
+                using (var txn = this.stateManager.CreateTransaction())
                 {
-                    while (await enumerator.MoveNextAsync(this.cancellationTokenSource.Token))
+                    var enumerable = await this.orchestrations.CreateEnumerableAsync(txn, EnumerationMode.Unordered);
+                    using (var enumerator = enumerable.GetAsyncEnumerator())
                     {
-                        var entry = enumerator.Current;
-                        if (!entry.Value.IsLocked && entry.Value.Messages.Any())
+                        while (await enumerator.MoveNextAsync(this.cancellationTokenSource.Token))
                         {
-                            this.inMemorySessions.Enqueue(entry.Key);
+                            var entry = enumerator.Current;
+                            if (!entry.Value.IsLocked && entry.Value.Messages.Any())
+                            {
+                                this.inMemorySessions.Enqueue(entry.Key);
+                            }
                         }
                     }
                 }

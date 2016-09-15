@@ -22,6 +22,7 @@ namespace DurableTask.ServiceFabric
     using Microsoft.ServiceFabric.Data;
     using Microsoft.ServiceFabric.Data.Collections;
 
+    //Todo: Refactor common components of this class and SessionsProvider
     class ActivitiesProvider
     {
         readonly IReliableStateManager stateManager;
@@ -85,6 +86,7 @@ namespace DurableTask.ServiceFabric
         public async Task CompleteWorkItem(ITransaction transaction, TaskActivityWorkItem workItem)
         {
             await this.activityQueue.TryRemoveAsync(transaction, workItem.Id);
+            this.lockTable.Remove(workItem.Id);
         }
 
         public async Task AppendBatch(ITransaction transaction, IList<TaskMessage> messages)
@@ -116,6 +118,7 @@ namespace DurableTask.ServiceFabric
             //}
 
             //if (shouldFetchActivitiesInMemory)
+            if (!this.cancellationTokenSource.IsCancellationRequested)
             {
                 using (var txn = this.stateManager.CreateTransaction())
                 {
