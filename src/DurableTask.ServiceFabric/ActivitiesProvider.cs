@@ -30,7 +30,7 @@ namespace DurableTask.ServiceFabric
 
         IReliableDictionary<string, TaskMessage> activityQueue;
         ConcurrentQueue<string> inMemoryQueue = new ConcurrentQueue<string>();
-        HashSet<string> lockTable = new HashSet<string>();
+        ConcurrentDictionary<string, bool> lockTable = new ConcurrentDictionary<string, bool>();
         //bool newMessagesInStore;
         //object syncLock = new object();
 
@@ -86,7 +86,8 @@ namespace DurableTask.ServiceFabric
         public async Task CompleteWorkItem(ITransaction transaction, TaskActivityWorkItem workItem)
         {
             await this.activityQueue.TryRemoveAsync(transaction, workItem.Id);
-            this.lockTable.Remove(workItem.Id);
+            bool ignored;
+            this.lockTable.TryRemove(workItem.Id, out ignored);
         }
 
         public async Task AppendBatch(ITransaction transaction, IList<TaskMessage> messages)
@@ -128,10 +129,10 @@ namespace DurableTask.ServiceFabric
                         while (await enumerator.MoveNextAsync(this.cancellationTokenSource.Token))
                         {
                             var activityId = enumerator.Current.Key;
-                            if (!this.lockTable.Contains(activityId))
+                            if (!this.lockTable.ContainsKey(activityId))
                             {
                                 this.inMemoryQueue.Enqueue(activityId);
-                                this.lockTable.Add(activityId);
+                                this.lockTable.TryAdd(activityId, true);
                             }
                         }
                     }
