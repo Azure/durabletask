@@ -12,6 +12,7 @@
 //  ----------------------------------------------------------------------------------
 
 using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.IO;
@@ -28,26 +29,31 @@ namespace DurableTask.ServiceFabric.UnitTests
         [Ignore] //Todo
         public void SerializationTest()
         {
-            var events = new HistoryEvent[]
-            {
-                new ExecutionStartedEvent(-1, "TestInput"),
-                new TaskScheduledEvent(-1),
-                new TaskCompletedEvent(-1, -1, "SomeResult"),
-                new ExecutionCompletedEvent(-1, "SomeResult", OrchestrationStatus.Completed)
-            }.ToImmutableList();
+            int numberOfItemsInCollections = 2;
 
-            var messages = new ReceivableTaskMessage[]
+            var events = new List<HistoryEvent>();
+            events.Add(new ExecutionStartedEvent(-1, "TestInput"));
+            for (int i = 0; i < numberOfItemsInCollections; i++)
             {
-                ReceivableTaskMessage.Create(new TaskMessage() {SequenceNumber = 1}),
-                ReceivableTaskMessage.Create(new TaskMessage() {SequenceNumber = 2}),
-            }.ToImmutableList();
+                events.Add(new TaskScheduledEvent(-1));
+                events.Add(new TaskCompletedEvent(-1, -1, $"Task {i} Result"));
+            }
+            events.Add(new ExecutionCompletedEvent(-1, "FinalResult", OrchestrationStatus.Completed));
 
-            var scheduledMessages = new ReceivableTaskMessage[]
+            var messages = new List<ReceivableTaskMessage>();
+            for (int i = 0; i < numberOfItemsInCollections; i++)
             {
-                ReceivableTaskMessage.Create(new TaskMessage() {SequenceNumber = 3}),
-            }.ToImmutableList();
+                messages.Add(ReceivableTaskMessage.Create(new TaskMessage() { SequenceNumber = i }));
+            }
 
-            PersistentSession testSession = PersistentSession.Create("testSession", events, messages, scheduledMessages, isLocked: true);
+            var scheduledMessages = new List<ReceivableTaskMessage>();
+            for (int i = 0; i < numberOfItemsInCollections; i++)
+            {
+                scheduledMessages.Add(ReceivableTaskMessage.Create(new TaskMessage() { SequenceNumber = i }));
+            }
+
+            PersistentSession testSession = PersistentSession.Create("testSession", events.ToImmutableList(),
+                messages.ToImmutableList(), scheduledMessages.ToImmutableList(), isLocked: true);
 
             using (var stream = new MemoryStream())
             {
@@ -66,9 +72,9 @@ namespace DurableTask.ServiceFabric.UnitTests
                 Assert.IsNotNull(deserialized);
                 Assert.AreEqual("testSession", deserialized.SessionId);
                 Assert.IsFalse(deserialized.IsLocked);
-                Assert.AreEqual(4, deserialized.SessionState.Count);
-                Assert.AreEqual(2, deserialized.Messages.Count);
-                Assert.AreEqual(1, deserialized.ScheduledMessages.Count);
+                Assert.AreEqual(numberOfItemsInCollections*2 + 2, deserialized.SessionState.Count);
+                Assert.AreEqual(numberOfItemsInCollections, deserialized.Messages.Count);
+                Assert.AreEqual(numberOfItemsInCollections, deserialized.ScheduledMessages.Count);
             }
         }
     }
