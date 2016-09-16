@@ -11,7 +11,9 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+using System;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.Serialization;
 using DurableTask.History;
@@ -32,21 +34,41 @@ namespace DurableTask.ServiceFabric.UnitTests
                 new TaskScheduledEvent(-1),
                 new TaskCompletedEvent(-1, -1, "SomeResult"),
                 new ExecutionCompletedEvent(-1, "SomeResult", OrchestrationStatus.Completed)
-            };
+            }.ToImmutableList();
 
-            PersistentSession testSession = PersistentSession.Create(sessionId: "testSession", sessionState: events.ToImmutableList());
+            var messages = new ReceivableTaskMessage[]
+            {
+                ReceivableTaskMessage.Create(new TaskMessage() {SequenceNumber = 1}),
+                ReceivableTaskMessage.Create(new TaskMessage() {SequenceNumber = 2}),
+            }.ToImmutableList();
+
+            var scheduledMessages = new ReceivableTaskMessage[]
+            {
+                ReceivableTaskMessage.Create(new TaskMessage() {SequenceNumber = 3}),
+            }.ToImmutableList();
+
+            PersistentSession testSession = PersistentSession.Create("testSession", events, messages, scheduledMessages, isLocked: true);
 
             using (var stream = new MemoryStream())
             {
                 var serializer = new DataContractSerializer(typeof(PersistentSession));
+                Stopwatch timer = Stopwatch.StartNew();
                 serializer.WriteObject(stream, testSession);
+                timer.Stop();
+                Console.WriteLine($"Time for serialization : {timer.ElapsedMilliseconds} ms");
 
                 stream.Position = 0;
+                timer.Restart();
                 var deserialized = (PersistentSession)serializer.ReadObject(stream);
+                timer.Stop();
+                Console.WriteLine($"Time for deserialization : {timer.ElapsedMilliseconds} ms");
 
                 Assert.IsNotNull(deserialized);
                 Assert.AreEqual("testSession", deserialized.SessionId);
+                Assert.IsFalse(deserialized.IsLocked);
                 Assert.AreEqual(4, deserialized.SessionState.Count);
+                Assert.AreEqual(2, deserialized.Messages.Count);
+                Assert.AreEqual(1, deserialized.ScheduledMessages.Count);
             }
         }
     }
