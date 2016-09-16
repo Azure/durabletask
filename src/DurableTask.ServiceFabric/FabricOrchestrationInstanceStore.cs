@@ -20,8 +20,11 @@ namespace DurableTask.ServiceFabric
     using Microsoft.ServiceFabric.Data;
     using Microsoft.ServiceFabric.Data.Collections;
 
-    // For now a simple instance store with no history tracking and only latest state is persisted.
-    // No support for multiple execution id's yet.
+    // Potential todo:
+    //   - Support for querying state across executions (makes sense only after ContinuedAsNew is supported)
+    //   - Support purging state for old orchestrations
+    //   - Support writing multiple state events for a given orchestration instance/execution
+    //   - Support writing/querying/purging history events
     public class FabricOrchestrationInstanceStore : IFabricOrchestrationServiceInstanceStore
     {
         readonly IReliableStateManager stateManager;
