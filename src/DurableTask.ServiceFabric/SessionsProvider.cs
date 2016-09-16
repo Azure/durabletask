@@ -173,5 +173,10 @@ namespace DurableTask.ServiceFabric
                     updateValueFactory: (ses, oldValue) => oldValue.AppendMessageBatch(groupMessages));
             }
         }
+
+        public async Task ReleaseSession(ITransaction transaction, string sessionId)
+        {
+            await this.orchestrations.TryRemoveAsync(transaction, sessionId);
+        }
     }
 }

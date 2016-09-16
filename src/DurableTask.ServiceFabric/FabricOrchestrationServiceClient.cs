@@ -107,9 +107,7 @@ namespace DurableTask.ServiceFabric
             {
                 var currentState = await this.GetOrchestrationStateAsync(instanceId, executionId);
 
-                if (currentState != null &&
-                    currentState.OrchestrationStatus != OrchestrationStatus.Pending &&
-                    currentState.OrchestrationStatus != OrchestrationStatus.Running)
+                if (currentState != null && currentState.OrchestrationStatus.IsTerminalState())
                 {
                     return currentState;
                 }

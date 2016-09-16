@@ -91,6 +91,7 @@
     <Compile Include="FabricOrchestrationService.cs" />
     <Compile Include="FabricOrchestrationServiceClient.cs" />
     <Compile Include="IFabricOrchestrationServiceInstanceStore.cs" />
+    <Compile Include="OrchestrationStatusExtensions.cs" />
     <Compile Include="PersistentSession.api.cs">
       <DependentUpon>PersistentSession.cs</DependentUpon>
     </Compile>

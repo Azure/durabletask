@@ -199,10 +199,16 @@ namespace DurableTask.ServiceFabric
             return Task.FromResult<object>(null);
         }
 
-        public Task ReleaseTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
+        public async Task ReleaseTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
-            //Todo: When is a good time to take the session out from dictionary altogether?
-            return Task.FromResult<object>(null);
+            if (workItem.OrchestrationRuntimeState.OrchestrationStatus.IsTerminalState())
+            {
+                using (var txn = this.stateManager.CreateTransaction())
+                {
+                    await this.orchestrationProvider.ReleaseSession(txn, workItem.InstanceId);
+                    await txn.CommitAsync();
+                }
+            }
         }
 
         public int TaskActivityDispatcherCount => 1;
