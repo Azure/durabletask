@@ -30,5 +30,7 @@ namespace TestApplication.Common
         Task<OrchestrationState> GetOrchestrationState(OrchestrationInstance instance);
 
         Task<OrchestrationState> WaitForOrchestration(OrchestrationInstance instance, TimeSpan waitTimeout);
+
+        Task PurgeOrchestrationHistoryEventsAsync();
     }
 }

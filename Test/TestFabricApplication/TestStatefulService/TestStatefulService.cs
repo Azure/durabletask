@@ -137,6 +137,11 @@ namespace TestStatefulService
             return state;
         }
 
+        public Task PurgeOrchestrationHistoryEventsAsync()
+        {
+            return this.client.PurgeOrchestrationInstanceHistoryAsync(DateTime.UtcNow, OrchestrationStateTimeRangeFilterType.OrchestrationCompletedTimeFilter);
+        }
+
         void SafeCreateTestTask()
         {
             if (this.testTask == null)

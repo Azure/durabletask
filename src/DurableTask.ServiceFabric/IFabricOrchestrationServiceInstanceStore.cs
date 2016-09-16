@@ -28,6 +28,19 @@ namespace DurableTask.ServiceFabric
         Task InitializeStoreAsync(bool recreate);
 
         /// <summary>
+        /// Starts the instance store object.
+        /// </summary>
+        /// <returns></returns>
+        Task StartAsync();
+
+        /// <summary>
+        /// Stops the instance store object.
+        /// </summary>
+        /// <param name="isForced">When set to true, aborts ungracefully.</param>
+        /// <returns></returns>
+        Task StopAsync(bool isForced);
+
+        /// <summary>
         /// Deletes instances instance store
         /// </summary>
         Task DeleteStoreAsync();
@@ -66,9 +79,7 @@ namespace DurableTask.ServiceFabric
         /// <summary>
         /// Purges history from storage for given time range
         /// </summary>
-        /// <param name="thresholdDateTimeUtc">The datetime in UTC to use as the threshold for purging history</param>
-        /// <param name="timeRangeFilterType">What to compare the threshold date time against</param>
-        /// <returns>The number of history events purged.</returns>
-        Task<int> PurgeOrchestrationHistoryEventsAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType);
+        /// <param name="thresholdHourlyDateTimeUtc">The datetime in UTC to use as the threshold for purging history</param>
+        Task PurgeOrchestrationHistoryEventsAsync(DateTime thresholdHourlyDateTimeUtc);
     }
 }

@@ -87,7 +87,14 @@ namespace DurableTask.ServiceFabric
 
         public Task PurgeOrchestrationHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType)
         {
-            throw new NotImplementedException();
+            ThrowIfInstanceStoreNotConfigured();
+
+            if (timeRangeFilterType != OrchestrationStateTimeRangeFilterType.OrchestrationCompletedTimeFilter)
+            {
+                throw new NotSupportedException("Purging is supported only for Orchestration completed time filter.");
+            }
+
+            return this.instanceStore.PurgeOrchestrationHistoryEventsAsync(thresholdDateTimeUtc);
         }
 
         public async Task<OrchestrationState> WaitForOrchestrationAsync(string instanceId, string executionId, TimeSpan timeout, CancellationToken cancellationToken)

@@ -51,6 +51,7 @@ namespace DurableTask.ServiceFabric
             var orchestrations = await this.stateManager.GetOrAddAsync<IReliableDictionary<string, PersistentSession>>(Constants.OrchestrationDictionaryName);
             this.activitiesProvider = new ActivitiesProvider(this.stateManager, activities);
             this.orchestrationProvider = new SessionsProvider(stateManager, orchestrations);
+            await this.instanceStore.StartAsync();
             await this.orchestrationProvider.StartAsync();
         }
 
@@ -59,10 +60,10 @@ namespace DurableTask.ServiceFabric
             return StopAsync(false);
         }
 
-        public Task StopAsync(bool isForced)
+        public async Task StopAsync(bool isForced)
         {
             this.orchestrationProvider.Stop();
-            return Task.FromResult<object>(null);
+            await this.instanceStore.StopAsync(isForced);
         }
 
         public Task CreateAsync()

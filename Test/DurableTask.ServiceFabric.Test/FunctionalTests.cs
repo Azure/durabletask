@@ -75,5 +75,19 @@ namespace DurableTask.ServiceFabric.Test
             Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
             Assert.AreEqual($"\"TaskResult = Hello World , SubOrchestration1Result = Hello Gabbar, SubOrchestration2Result = Hello Gabbar\"", result.Output);
         }
+
+        [TestMethod]
+        public async Task Purge_Removes_State()
+        {
+            var result = await this.serviceClient.RunOrchestrationAsync(typeof(SimpleOrchestrationWithTasks).Name, null, TimeSpan.FromMinutes(2));
+            Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
+
+            var instance = result.OrchestrationInstance;
+
+            await this.serviceClient.PurgeOrchestrationHistoryEventsAsync();
+
+            var state = await this.serviceClient.GetOrchestrationState(instance);
+            Assert.IsNull(state);
+        }
     }
 }
