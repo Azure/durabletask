@@ -140,7 +140,7 @@ namespace DurableTask.ServiceFabric
             {
                 NewMessages = newMessages,
                 InstanceId = this.currentSession.SessionId,
-                OrchestrationRuntimeState = new OrchestrationRuntimeState(this.currentSession.SessionState) //Todo: Is this problematic? Creating a new instance?
+                OrchestrationRuntimeState = new OrchestrationRuntimeState(this.currentSession.SessionState)
             };
         }
 

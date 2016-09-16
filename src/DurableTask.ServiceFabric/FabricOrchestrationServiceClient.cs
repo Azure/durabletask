@@ -63,9 +63,15 @@ namespace DurableTask.ServiceFabric
             }
         }
 
-        public Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason)
+        public async Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason)
         {
-            throw new NotImplementedException();
+            var taskMessage = new TaskMessage
+            {
+                OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId },
+                Event = new ExecutionTerminatedEvent(-1, reason)
+            };
+
+            await SendTaskOrchestrationMessageAsync(taskMessage);
         }
 
         public Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)

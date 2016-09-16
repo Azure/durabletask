@@ -51,8 +51,6 @@ namespace DurableTask.ServiceFabric
         [DataMember]
         readonly TaskMessage taskMessage;
 
-        //Todo: Should we really persist this? If not what does it mean to commit after ReceiveMessages?
-        [DataMember]
         readonly bool isReceived;
     }
 }
