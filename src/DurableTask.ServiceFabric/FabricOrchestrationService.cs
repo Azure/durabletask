@@ -16,6 +16,7 @@ namespace DurableTask.ServiceFabric
     using System;
     using System.Collections.Generic;
     using System.Diagnostics.Contracts;
+    using System.Collections.Immutable;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Common;
@@ -139,8 +140,8 @@ namespace DurableTask.ServiceFabric
             return new TaskOrchestrationWorkItem()
             {
                 NewMessages = newMessages,
-                InstanceId = this.currentSession.SessionId,
-                OrchestrationRuntimeState = new OrchestrationRuntimeState(this.currentSession.SessionState)
+                InstanceId = currentSession.SessionId,
+                OrchestrationRuntimeState = new OrchestrationRuntimeState(currentSession.SessionState.ToImmutableList())
             };
         }
 

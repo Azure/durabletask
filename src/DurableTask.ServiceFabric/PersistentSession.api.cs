@@ -11,14 +11,14 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-using System.Collections.Generic;
-using System.Collections.Immutable;
-using System.Linq;
-using DurableTask.History;
-
 namespace DurableTask.ServiceFabric
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Collections.Immutable;
+    using System.Linq;
+    using DurableTask.History;
+
     public sealed partial class PersistentSession
     {
         // Todo: Can optimize in a few other ways, for now, something that works
@@ -27,6 +27,7 @@ namespace DurableTask.ServiceFabric
             var messagesBuilder = this.Messages.ToImmutableList().ToBuilder();
             var remainingScheduledMessagesBuilder = ImmutableList<ReceivableTaskMessage>.Empty.ToBuilder();
 
+            bool changed = false;
             var currentTime = DateTime.UtcNow;
 
             foreach (var scheduledMessage in this.ScheduledMessages)
@@ -42,6 +43,7 @@ namespace DurableTask.ServiceFabric
                 if (timerEvent.FireAt <= currentTime)
                 {
                     messagesBuilder.Add(scheduledMessage);
+                    changed = true;
                 }
                 else
                 {
@@ -49,13 +51,18 @@ namespace DurableTask.ServiceFabric
                 }
             }
 
-            return Create(this.SessionId, this.SessionState, messagesBuilder.ToImmutableList(), remainingScheduledMessagesBuilder.ToImmutableList(), this.IsLocked);
+            if (changed)
+            {
+                return Create(this.SessionId, this.SessionState.ToImmutableList(), messagesBuilder.ToImmutableList(), remainingScheduledMessagesBuilder.ToImmutableList(), this.IsLocked);
+            }
+
+            return this;
         }
 
         public PersistentSession ReceiveMessages()
         {
             var messages = this.Messages.ToImmutableList().ToBuilder().ConvertAll(m => ReceivableTaskMessage.Create(m.TaskMessage, isReceived: true));
-            return Create(this.SessionId, this.SessionState, messages, this.ScheduledMessages, isLocked: true);
+            return Create(this.SessionId, this.SessionState.ToImmutableList(), messages, this.ScheduledMessages.ToImmutableList(), isLocked: true);
         }
 
         public PersistentSession CompleteMessages(OrchestrationRuntimeState newState, IList<TaskMessage> newScheduledMessages)
@@ -67,19 +74,19 @@ namespace DurableTask.ServiceFabric
             {
                 scheduledMessages = this.ScheduledMessages.ToImmutableList().AddRange(newScheduledMessages.Select(tm => ReceivableTaskMessage.Create(tm)));
             }
-            return Create(this.SessionId, sessionState, messages, scheduledMessages, isLocked: false);
+            return Create(this.SessionId, sessionState, messages, scheduledMessages.ToImmutableList(), isLocked: false);
         }
 
         public PersistentSession AppendMessage(TaskMessage message)
         {
             var messages = this.Messages.ToImmutableList().Add(ReceivableTaskMessage.Create(message));
-            return Create(this.SessionId, this.SessionState, messages, this.ScheduledMessages, this.IsLocked);
+            return Create(this.SessionId, this.SessionState.ToImmutableList(), messages, this.ScheduledMessages.ToImmutableList(), this.IsLocked);
         }
 
         public PersistentSession AppendMessageBatch(IEnumerable<TaskMessage> newMessages)
         {
             var messages = this.Messages.ToImmutableList().AddRange(newMessages.Select(m => ReceivableTaskMessage.Create(m)));
-            return Create(this.SessionId, this.SessionState, messages, this.ScheduledMessages, this.IsLocked);
+            return Create(this.SessionId, this.SessionState.ToImmutableList(), messages, this.ScheduledMessages.ToImmutableList(), this.IsLocked);
         }
 
         public static PersistentSession CreateWithNewMessage(string sessionId, TaskMessage newMessage)

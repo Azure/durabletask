@@ -11,25 +11,29 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-using System.Collections.Generic;
-using System.Collections.Immutable;
-using System.Runtime.Serialization;
-using DurableTask.History;
-using ImmutableObjectGraph.Generation;
-
 namespace DurableTask.ServiceFabric
 {
-    //[GenerateImmutable(GenerateBuilder = true)]
+    using System.Collections.Generic;
+    using System.Collections.Immutable;
+    using System.Runtime.Serialization;
+    using DurableTask.History;
+
     [DataContract]
     public sealed partial class PersistentSession
     {
+        // Note : Ideally all the properties in this class should be readonly because this
+        // class is designed to be immutable class. We use private settable properties
+        // for DataContract serialization to work - the private setters should not be used
+        // in the code within this class as that would violate the immutable design. Any
+        // method that mutates the state should return a new instance instead.
         [DataMember]
         public string SessionId { get; private set; }
 
-        //Todo: Is this performant? Perhaps consider json serialization instead?
+        // Note: The properties below are marked IEnumerable but not
+        // IImmutableList because DataContract serialization cannot deserialize the latter.
+        // They should really be treated like IImmutableList in the code for this class.
         [DataMember]
-        public IList<HistoryEvent> SessionState { get; private set; }
+        public IEnumerable<HistoryEvent> SessionState { get; private set; }
 
         [DataMember]
         public IEnumerable<ReceivableTaskMessage> Messages { get; private set; }
@@ -37,7 +41,7 @@ namespace DurableTask.ServiceFabric
         [DataMember]
         public IEnumerable<ReceivableTaskMessage> ScheduledMessages { get; private set; }
 
-        public bool IsLocked { get; private set; }
+        public bool IsLocked { get; }
 
         [OnDeserialized]
         private void OnDeserialized(StreamingContext context)
@@ -47,7 +51,7 @@ namespace DurableTask.ServiceFabric
             this.ScheduledMessages = this.ScheduledMessages.ToImmutableList();
         }
 
-        private PersistentSession(string sessionId, IList<HistoryEvent> sessionState, IEnumerable<ReceivableTaskMessage> messages, IEnumerable<ReceivableTaskMessage> scheduledMessages, bool isLocked)
+        private PersistentSession(string sessionId, IImmutableList<HistoryEvent> sessionState, IImmutableList<ReceivableTaskMessage> messages, IImmutableList<ReceivableTaskMessage> scheduledMessages, bool isLocked)
         {
             this.SessionId = sessionId;
             this.SessionState = sessionState ?? ImmutableList<HistoryEvent>.Empty;
@@ -56,15 +60,14 @@ namespace DurableTask.ServiceFabric
             this.IsLocked = isLocked;
         }
 
-        public static PersistentSession Create(string sessionId, IList<HistoryEvent> sessionState, IEnumerable<ReceivableTaskMessage> messages, IEnumerable<ReceivableTaskMessage> scheduledMessages, bool isLocked)
+        public static PersistentSession Create(string sessionId, IImmutableList<HistoryEvent> sessionState, IImmutableList<ReceivableTaskMessage> messages, IImmutableList<ReceivableTaskMessage> scheduledMessages, bool isLocked)
         {
             return new PersistentSession(sessionId, sessionState, messages, scheduledMessages, isLocked);
         }
     }
 
-    //[GenerateImmutable(GenerateBuilder = true)]
     [DataContract]
-    public sealed partial class ReceivableTaskMessage
+    public sealed class ReceivableTaskMessage
     {
         [DataMember]
         public TaskMessage TaskMessage { get; private set; }
