@@ -26,7 +26,6 @@ namespace DurableTask.ServiceFabric.UnitTests
     public class PersistentSessionTests
     {
         [TestMethod]
-        [Ignore] //Todo
         public void SerializationTest()
         {
             int numberOfItemsInCollections = 2;

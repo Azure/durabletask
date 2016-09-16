@@ -12,6 +12,7 @@
 //  ----------------------------------------------------------------------------------
 
 using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Runtime.Serialization;
 using DurableTask.History;
@@ -19,22 +20,31 @@ using ImmutableObjectGraph.Generation;
 
 namespace DurableTask.ServiceFabric
 {
-    [GenerateImmutable(GenerateBuilder = true)]
+    //[GenerateImmutable(GenerateBuilder = true)]
     [DataContract]
     public sealed partial class PersistentSession
     {
         [DataMember]
         readonly string sessionId;
 
+        //readonly ImmutableList<HistoryEvent> sessionState;
+        private ImmutableList<HistoryEvent> sessionState;
+
+        //readonly ImmutableList<ReceivableTaskMessage> messages;
+        private ImmutableList<ReceivableTaskMessage> messages;
+
+        //readonly ImmutableList<ReceivableTaskMessage> scheduledMessages;
+        private ImmutableList<ReceivableTaskMessage> scheduledMessages;
+
         //Todo: Is this performant? Perhaps consider json serialization instead?
         [DataMember]
-        readonly ImmutableList<HistoryEvent> sessionState;
+        private IEnumerable<HistoryEvent> SessionStateWrapper { get; set; }
 
         [DataMember]
-        readonly ImmutableList<ReceivableTaskMessage> messages;
+        private IEnumerable<ReceivableTaskMessage> MessagesWrapper { get; set; }
 
         [DataMember]
-        readonly ImmutableList<ReceivableTaskMessage> scheduledMessages;
+        private IEnumerable<ReceivableTaskMessage> ScheduledMessagesWrapper { get; set; }
 
         static partial void CreateDefaultTemplate(ref Template template)
         {
@@ -42,9 +52,25 @@ namespace DurableTask.ServiceFabric
             template.ScheduledMessages = ImmutableList<ReceivableTaskMessage>.Empty;
             template.SessionState = ImmutableList<HistoryEvent>.Empty;
         }
+
+        [OnDeserialized]
+        private void OnDeserialized(StreamingContext context)
+        {
+            this.sessionState = this.SessionStateWrapper.ToImmutableList();
+            this.messages = this.MessagesWrapper.ToImmutableList();
+            this.scheduledMessages = this.ScheduledMessagesWrapper.ToImmutableList();
+        }
+
+        [OnSerializing]
+        private void OnSerializing(StreamingContext context)
+        {
+            this.SessionStateWrapper = this.sessionState;
+            this.MessagesWrapper = this.messages;
+            this.ScheduledMessagesWrapper = this.scheduledMessages;
+        }
     }
 
-    [GenerateImmutable(GenerateBuilder = true)]
+    //[GenerateImmutable(GenerateBuilder = true)]
     [DataContract]
     public sealed partial class ReceivableTaskMessage
     {
