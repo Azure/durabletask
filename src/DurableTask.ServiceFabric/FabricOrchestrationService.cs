@@ -207,6 +207,10 @@ namespace DurableTask.ServiceFabric
                 {
                     await this.orchestrationProvider.ReleaseSession(txn, workItem.InstanceId);
                     await txn.CommitAsync();
+                    ProviderEventSource.Instance.LogOrchestrationFinished(workItem.InstanceId,
+                        workItem.OrchestrationRuntimeState.OrchestrationStatus.ToString(),
+                        (workItem.OrchestrationRuntimeState.CompletedTime - workItem.OrchestrationRuntimeState.CreatedTime).TotalSeconds,
+                        workItem.OrchestrationRuntimeState.Output);
                 }
             }
         }

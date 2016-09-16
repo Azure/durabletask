@@ -99,6 +99,7 @@
       <Generator>MSBuild:GenerateCodeFromAttributes</Generator>
     </Compile>
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="ProviderEventSource.cs" />
     <Compile Include="SessionsProvider.cs" />
   </ItemGroup>
   <ItemGroup>

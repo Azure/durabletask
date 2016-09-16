@@ -42,6 +42,7 @@ namespace DurableTask.ServiceFabric
             //Todo: Need to throw if the same instance and execution id is already running
 
             await this.SendTaskOrchestrationMessageAsync(creationMessage);
+            ProviderEventSource.Instance.LogOrchestrationCreated(creationMessage.OrchestrationInstance.InstanceId);
         }
 
         public async Task SendTaskOrchestrationMessageAsync(TaskMessage message)
