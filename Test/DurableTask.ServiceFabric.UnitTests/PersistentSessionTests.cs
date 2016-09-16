@@ -17,7 +17,7 @@ using System.Runtime.Serialization;
 using DurableTask.History;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace DurableTask.ServiceFabric.Test.UnitTests
+namespace DurableTask.ServiceFabric.UnitTests
 {
     [TestClass]
     public class PersistentSessionTests
