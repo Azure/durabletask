@@ -98,9 +98,6 @@
     <Compile Include="PersistentSession.cs">
       <Generator>MSBuild:GenerateCodeFromAttributes</Generator>
     </Compile>
-    <Compile Include="PersistentSession.generated.cs">
-      <DependentUpon>PersistentSession.cs</DependentUpon>
-    </Compile>
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="ProviderEventSource.cs" />
     <Compile Include="SessionsProvider.cs" />

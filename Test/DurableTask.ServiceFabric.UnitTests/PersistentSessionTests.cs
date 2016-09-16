@@ -16,6 +16,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Runtime.Serialization;
 using DurableTask.History;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -72,8 +73,8 @@ namespace DurableTask.ServiceFabric.UnitTests
                 Assert.AreEqual("testSession", deserialized.SessionId);
                 Assert.IsFalse(deserialized.IsLocked);
                 Assert.AreEqual(numberOfItemsInCollections*2 + 2, deserialized.SessionState.Count);
-                Assert.AreEqual(numberOfItemsInCollections, deserialized.Messages.Count);
-                Assert.AreEqual(numberOfItemsInCollections, deserialized.ScheduledMessages.Count);
+                Assert.AreEqual(numberOfItemsInCollections, deserialized.Messages.ToList().Count);
+                Assert.AreEqual(numberOfItemsInCollections, deserialized.ScheduledMessages.ToList().Count);
             }
         }
     }

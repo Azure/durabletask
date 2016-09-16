@@ -25,48 +25,40 @@ namespace DurableTask.ServiceFabric
     public sealed partial class PersistentSession
     {
         [DataMember]
-        readonly string sessionId;
-
-        //readonly ImmutableList<HistoryEvent> sessionState;
-        private ImmutableList<HistoryEvent> sessionState;
-
-        //readonly ImmutableList<ReceivableTaskMessage> messages;
-        private ImmutableList<ReceivableTaskMessage> messages;
-
-        //readonly ImmutableList<ReceivableTaskMessage> scheduledMessages;
-        private ImmutableList<ReceivableTaskMessage> scheduledMessages;
+        public string SessionId { get; private set; }
 
         //Todo: Is this performant? Perhaps consider json serialization instead?
         [DataMember]
-        private IEnumerable<HistoryEvent> SessionStateWrapper { get; set; }
+        public IList<HistoryEvent> SessionState { get; private set; }
 
         [DataMember]
-        private IEnumerable<ReceivableTaskMessage> MessagesWrapper { get; set; }
+        public IEnumerable<ReceivableTaskMessage> Messages { get; private set; }
 
         [DataMember]
-        private IEnumerable<ReceivableTaskMessage> ScheduledMessagesWrapper { get; set; }
+        public IEnumerable<ReceivableTaskMessage> ScheduledMessages { get; private set; }
 
-        static partial void CreateDefaultTemplate(ref Template template)
-        {
-            template.Messages = ImmutableList<ReceivableTaskMessage>.Empty;
-            template.ScheduledMessages = ImmutableList<ReceivableTaskMessage>.Empty;
-            template.SessionState = ImmutableList<HistoryEvent>.Empty;
-        }
+        public bool IsLocked { get; private set; }
 
         [OnDeserialized]
         private void OnDeserialized(StreamingContext context)
         {
-            this.sessionState = this.SessionStateWrapper.ToImmutableList();
-            this.messages = this.MessagesWrapper.ToImmutableList();
-            this.scheduledMessages = this.ScheduledMessagesWrapper.ToImmutableList();
+            this.SessionState = this.SessionState.ToImmutableList();
+            this.Messages = this.Messages.ToImmutableList();
+            this.ScheduledMessages = this.ScheduledMessages.ToImmutableList();
         }
 
-        [OnSerializing]
-        private void OnSerializing(StreamingContext context)
+        private PersistentSession(string sessionId, IList<HistoryEvent> sessionState, IEnumerable<ReceivableTaskMessage> messages, IEnumerable<ReceivableTaskMessage> scheduledMessages, bool isLocked)
         {
-            this.SessionStateWrapper = this.sessionState;
-            this.MessagesWrapper = this.messages;
-            this.ScheduledMessagesWrapper = this.scheduledMessages;
+            this.SessionId = sessionId;
+            this.SessionState = sessionState ?? ImmutableList<HistoryEvent>.Empty;
+            this.Messages = messages ?? ImmutableList<ReceivableTaskMessage>.Empty;
+            this.ScheduledMessages = scheduledMessages ?? ImmutableList<ReceivableTaskMessage>.Empty;
+            this.IsLocked = isLocked;
+        }
+
+        public static PersistentSession Create(string sessionId, IList<HistoryEvent> sessionState, IEnumerable<ReceivableTaskMessage> messages, IEnumerable<ReceivableTaskMessage> scheduledMessages, bool isLocked)
+        {
+            return new PersistentSession(sessionId, sessionState, messages, scheduledMessages, isLocked);
         }
     }
 
@@ -75,8 +67,19 @@ namespace DurableTask.ServiceFabric
     public sealed partial class ReceivableTaskMessage
     {
         [DataMember]
-        readonly TaskMessage taskMessage;
+        public TaskMessage TaskMessage { get; private set; }
 
-        readonly bool isReceived;
+        public bool IsReceived { get; private set; }
+
+        private ReceivableTaskMessage(TaskMessage taskMessage, bool isReceived)
+        {
+            this.TaskMessage = taskMessage;
+            this.IsReceived = isReceived;
+        }
+
+        public static ReceivableTaskMessage Create(TaskMessage taskMessage, bool isReceived = false)
+        {
+            return new ReceivableTaskMessage(taskMessage, isReceived);
+        }
     }
 }

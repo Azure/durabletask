@@ -28,7 +28,7 @@ namespace DurableTask.ServiceFabric
         IReliableDictionary<string, PersistentSession> orchestrations;
         CancellationTokenSource cancellationTokenSource;
 
-        readonly Func<string, PersistentSession> NewSessionFactory = (sId) => PersistentSession.Create(sId);
+        readonly Func<string, PersistentSession> NewSessionFactory = (sId) => PersistentSession.Create(sId, null, null, null, false);
 
         public SessionsProvider(IReliableStateManager stateManager, IReliableDictionary<string, PersistentSession> orchestrations)
         {

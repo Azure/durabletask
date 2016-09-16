@@ -24,13 +24,12 @@ namespace DurableTask.ServiceFabric
         // Todo: Can optimize in a few other ways, for now, something that works
         public PersistentSession FireScheduledMessages()
         {
-            var builder = this.ToBuilder();
-            var messagesBuilder = builder.Messages.ToBuilder();
-            var scheduledMessagesBuilder = builder.ScheduledMessages.ToBuilder();
+            var messagesBuilder = this.Messages.ToImmutableList().ToBuilder();
+            var remainingScheduledMessagesBuilder = ImmutableList<ReceivableTaskMessage>.Empty.ToBuilder();
 
             var currentTime = DateTime.UtcNow;
 
-            foreach (var scheduledMessage in builder.ScheduledMessages)
+            foreach (var scheduledMessage in this.ScheduledMessages)
             {
                 var timerEvent = scheduledMessage.TaskMessage.Event as TimerFiredEvent;
 
@@ -43,61 +42,56 @@ namespace DurableTask.ServiceFabric
                 if (timerEvent.FireAt <= currentTime)
                 {
                     messagesBuilder.Add(scheduledMessage);
-                    //Todo: Is Remove O(N) or O(1)? If former, it's better to just maintain a new remaining scheduled messages collection instead?
-                    scheduledMessagesBuilder.Remove(scheduledMessage);
+                }
+                else
+                {
+                    remainingScheduledMessagesBuilder.Add(scheduledMessage);
                 }
             }
 
-            builder.Messages = messagesBuilder.ToImmutable();
-            builder.ScheduledMessages = scheduledMessagesBuilder.ToImmutable();
-
-            return builder.ToImmutable();
+            return Create(this.SessionId, this.SessionState, messagesBuilder.ToImmutableList(), remainingScheduledMessagesBuilder.ToImmutableList(), this.IsLocked);
         }
 
         public PersistentSession ReceiveMessages()
         {
-            var builder = this.ToBuilder();
-            //Todo: Experiment (measure memory for ConvertAll on builder vs SelectMany on immutable
-            builder.Messages = builder.Messages.ToBuilder().ConvertAll(m => m.With(isReceived: true));
-            return builder.ToImmutable();
+            var messages = this.Messages.ToImmutableList().ToBuilder().ConvertAll(m => ReceivableTaskMessage.Create(m.TaskMessage, isReceived: true));
+            return Create(this.SessionId, this.SessionState, messages, this.ScheduledMessages, isLocked: true);
         }
 
         public PersistentSession CompleteMessages(OrchestrationRuntimeState newState, IList<TaskMessage> newScheduledMessages)
         {
-            var builder = this.ToBuilder();
-            builder.Messages = builder.Messages.RemoveAll(m => m.IsReceived);
-            builder.SessionState = newState?.Events.ToImmutableList();
+            var messages = this.Messages.ToImmutableList().RemoveAll(m => m.IsReceived);
+            var sessionState = newState?.Events.ToImmutableList();
+            var scheduledMessages = this.ScheduledMessages;
             if (newScheduledMessages?.Count > 0)
             {
-                builder.ScheduledMessages = builder.ScheduledMessages.AddRange(newScheduledMessages.Select(tm => ReceivableTaskMessage.Create(tm)));
+                scheduledMessages = this.ScheduledMessages.ToImmutableList().AddRange(newScheduledMessages.Select(tm => ReceivableTaskMessage.Create(tm)));
             }
-            return builder.ToImmutable();
+            return Create(this.SessionId, sessionState, messages, scheduledMessages, isLocked: false);
         }
 
         public PersistentSession AppendMessage(TaskMessage message)
         {
-            var builder = this.ToBuilder();
-            builder.Messages = builder.Messages.Add(ReceivableTaskMessage.Create(message));
-            return builder.ToImmutable();
+            var messages = this.Messages.ToImmutableList().Add(ReceivableTaskMessage.Create(message));
+            return Create(this.SessionId, this.SessionState, messages, this.ScheduledMessages, this.IsLocked);
         }
 
         public PersistentSession AppendMessageBatch(IEnumerable<TaskMessage> newMessages)
         {
-            var builder = this.ToBuilder();
-            builder.Messages = builder.Messages.AddRange(newMessages.Select(m => ReceivableTaskMessage.Create(m)));
-            return builder.ToImmutable();
+            var messages = this.Messages.ToImmutableList().AddRange(newMessages.Select(m => ReceivableTaskMessage.Create(m)));
+            return Create(this.SessionId, this.SessionState, messages, this.ScheduledMessages, this.IsLocked);
         }
 
         public static PersistentSession CreateWithNewMessage(string sessionId, TaskMessage newMessage)
         {
             var messages = ImmutableList<ReceivableTaskMessage>.Empty.Add(ReceivableTaskMessage.Create(newMessage));
-            return PersistentSession.Create(sessionId, messages: messages);
+            return PersistentSession.Create(sessionId, sessionState: null, messages: messages, scheduledMessages: null, isLocked: false);
         }
 
         public static PersistentSession CreateWithNewMessages(string sessionId, IEnumerable<TaskMessage> newMessages)
         {
             var messages = ImmutableList<ReceivableTaskMessage>.Empty.AddRange(newMessages.Select(newMessage => ReceivableTaskMessage.Create(newMessage)));
-            return PersistentSession.Create(sessionId, messages: messages);
+            return PersistentSession.Create(sessionId, sessionState: null, messages: messages, scheduledMessages: null, isLocked: false);
         }
     }
 }
