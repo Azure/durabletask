@@ -41,7 +41,7 @@ namespace DurableTask.ServiceFabric
         [DataMember]
         public IEnumerable<ReceivableTaskMessage> ScheduledMessages { get; private set; }
 
-        public bool IsLocked { get; private set; }
+        public bool IsLocked { get; }
 
         [OnDeserialized]
         private void OnDeserialized(StreamingContext context)

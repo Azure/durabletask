@@ -19,7 +19,6 @@ namespace DurableTask.ServiceFabric
     using System.Threading.Tasks;
     using DurableTask.History;
     using Microsoft.ServiceFabric.Data;
-    using Microsoft.ServiceFabric.Data.Collections;
 
     public class FabricOrchestrationServiceClient : IOrchestrationServiceClient
     {

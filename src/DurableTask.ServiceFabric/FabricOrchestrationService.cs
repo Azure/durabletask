@@ -21,7 +21,6 @@ namespace DurableTask.ServiceFabric
     using DurableTask.Common;
     using DurableTask.Tracking;
     using Microsoft.ServiceFabric.Data;
-    using Microsoft.ServiceFabric.Data.Collections;
 
     public class FabricOrchestrationService : IOrchestrationService
     {
