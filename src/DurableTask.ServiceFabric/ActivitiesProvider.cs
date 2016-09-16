@@ -60,7 +60,6 @@ namespace DurableTask.ServiceFabric
             return null;
         }
 
-        //Todo: Should this use the same transaction instance as the above method?
         // Currently the second parameter is ignored in implementation because it's expected that
         // this method gets a call synchronously with the above method. When that changes, the implementation
         // has to change accordingly.

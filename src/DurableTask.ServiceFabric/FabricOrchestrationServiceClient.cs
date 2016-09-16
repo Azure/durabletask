@@ -42,6 +42,8 @@ namespace DurableTask.ServiceFabric
                 throw new Exception("Invalid creation message");
             }
 
+            //Todo: Need to throw if the same instance and execution id is already running
+
             await this.SendTaskOrchestrationMessageAsync(creationMessage);
         }
 
@@ -49,7 +51,6 @@ namespace DurableTask.ServiceFabric
         {
             var orchestrations = await this.GetOrAddOrchestrationsAsync();
 
-            //Todo: Need to understand how dedup should be done here, the whole execution id is a little unclear
             using (var txn = this.stateManager.CreateTransaction())
             {
                 var sessionId = message.OrchestrationInstance.InstanceId;

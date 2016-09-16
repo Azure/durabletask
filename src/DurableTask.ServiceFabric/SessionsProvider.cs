@@ -92,7 +92,6 @@ namespace DurableTask.ServiceFabric
         }
 
         //Todo: This is O(N) and also a frequent operation, do we need to optimize this?
-        //Todo: Should this use the same transation as complete??
         public async Task<PersistentSession> AcceptSessionAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken)
         {
             Stopwatch timer = Stopwatch.StartNew();
