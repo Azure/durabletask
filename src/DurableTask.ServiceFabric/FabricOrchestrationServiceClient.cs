@@ -11,25 +11,22 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System.Collections.Immutable;
-using System.Diagnostics;
-using DurableTask.History;
-using Microsoft.ServiceFabric.Data;
-using Microsoft.ServiceFabric.Data.Collections;
-
 namespace DurableTask.ServiceFabric
 {
     using System;
     using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
+    using DurableTask.History;
+    using Microsoft.ServiceFabric.Data;
+    using Microsoft.ServiceFabric.Data.Collections;
 
     public class FabricOrchestrationServiceClient : IOrchestrationServiceClient
     {
         IReliableStateManager stateManager;
-        IOrchestrationServiceInstanceStore instanceStore;
+        IFabricOrchestrationServiceInstanceStore instanceStore;
 
-        public FabricOrchestrationServiceClient(IReliableStateManager stateManager, IOrchestrationServiceInstanceStore instanceStore)
+        public FabricOrchestrationServiceClient(IReliableStateManager stateManager, IFabricOrchestrationServiceInstanceStore instanceStore)
         {
             this.stateManager = stateManager;
             this.instanceStore = instanceStore;

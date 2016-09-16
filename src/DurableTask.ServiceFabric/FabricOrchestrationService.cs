@@ -11,24 +11,22 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using DurableTask.Common;
-using DurableTask.Tracking;
-
 namespace DurableTask.ServiceFabric
 {
     using System;
     using System.Collections.Generic;
-    using System.Diagnostics;
     using System.Diagnostics.Contracts;
     using System.Threading;
     using System.Threading.Tasks;
+    using DurableTask.Common;
+    using DurableTask.Tracking;
     using Microsoft.ServiceFabric.Data;
     using Microsoft.ServiceFabric.Data.Collections;
 
     public class FabricOrchestrationService : IOrchestrationService
     {
         IReliableStateManager stateManager;
-        IOrchestrationServiceInstanceStore instanceStore;
+        IFabricOrchestrationServiceInstanceStore instanceStore;
 
         SessionsProvider orchestrationProvider;
         ActivitiesProvider activitiesProvider;
@@ -36,7 +34,7 @@ namespace DurableTask.ServiceFabric
         PersistentSession currentSession;
         TaskMessage currentActivity;
 
-        public FabricOrchestrationService(IReliableStateManager stateManager, IOrchestrationServiceInstanceStore instanceStore)
+        public FabricOrchestrationService(IReliableStateManager stateManager, IFabricOrchestrationServiceInstanceStore instanceStore)
         {
             if (stateManager == null)
             {
@@ -177,16 +175,9 @@ namespace DurableTask.ServiceFabric
                     await this.orchestrationProvider.AppendMessageBatchAsync(txn, orchestratorMessages);
                 }
 
-                // Something more is needed for ContinuedAsNew support...
-                //if (continuedAsNewMessage != null)
-                //{
-                //    await this.orchestrationProvider.AppendMessageAsync(txn, continuedAsNewMessage);
-                //}
-
-                // Todo: This is not yet part of the transaction
                 if (this.instanceStore != null)
                 {
-                    await this.instanceStore.WriteEntitesAsync(new InstanceEntityBase[]
+                    await this.instanceStore.WriteEntitesAsync(txn, new InstanceEntityBase[]
                     {
                         new OrchestrationStateInstanceEntity()
                         {

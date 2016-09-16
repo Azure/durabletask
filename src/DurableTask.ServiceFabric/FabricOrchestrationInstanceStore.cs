@@ -20,17 +20,16 @@ namespace DurableTask.ServiceFabric
     using Microsoft.ServiceFabric.Data;
     using Microsoft.ServiceFabric.Data.Collections;
 
-    // For now a simple instance store with no history tracking and only latest state is persisted
-    public class FabricOrchestrationInstanceStore : IOrchestrationServiceInstanceStore
+    // For now a simple instance store with no history tracking and only latest state is persisted.
+    // No support for multiple execution id's yet.
+    public class FabricOrchestrationInstanceStore : IFabricOrchestrationServiceInstanceStore
     {
-        IReliableStateManager stateManager;
+        readonly IReliableStateManager stateManager;
 
         public FabricOrchestrationInstanceStore(IReliableStateManager stateManager)
         {
             this.stateManager = stateManager;
         }
-
-        public int MaxHistoryEntryLength { get; }
 
         public async Task InitializeStoreAsync(bool recreate)
         {
@@ -45,35 +44,25 @@ namespace DurableTask.ServiceFabric
             await this.stateManager.RemoveAsync(Constants.InstanceStoreDictionaryName);
         }
 
-        public async Task<object> WriteEntitesAsync(IEnumerable<InstanceEntityBase> entities)
+        public async Task WriteEntitesAsync(ITransaction transaction, IEnumerable<InstanceEntityBase> entities)
         {
             var instaceStore = await this.GetOrAddInstanceStoreDictionary();
-            using (var txn = this.stateManager.CreateTransaction())
+
+            foreach (var entity in entities)
             {
-                foreach (var entity in entities)
+                var state = entity as OrchestrationStateInstanceEntity;
+                if (state != null)
                 {
-                    var state = entity as OrchestrationStateInstanceEntity;
-                    if (state != null)
-                    {
-                        string key = GetKey(state.State.OrchestrationInstance.InstanceId, state.State.OrchestrationInstance.ExecutionId);
-                        await instaceStore.AddOrUpdateAsync(txn, key, state.State,
-                            (k, oldValue) => state.State); //Todo: Need to check for sequence number?
-                    }
+                    string key = GetKey(state.State.OrchestrationInstance.InstanceId, state.State.OrchestrationInstance.ExecutionId);
+
+                    await instaceStore.AddOrUpdateAsync(transaction, key, state.State,
+                        (k, oldValue) => state.State);
                 }
-
-                await txn.CommitAsync();
+                else
+                {
+                    throw new NotSupportedException();
+                }
             }
-            return null;
-        }
-
-        public Task<IEnumerable<OrchestrationStateInstanceEntity>> GetEntitesAsync(string instanceId, string executionId)
-        {
-            throw new NotImplementedException();
-        }
-
-        public Task<object> DeleteEntitesAsync(IEnumerable<InstanceEntityBase> entities)
-        {
-            throw new NotImplementedException();
         }
 
         public Task<IEnumerable<OrchestrationStateInstanceEntity>> GetOrchestrationStateAsync(string instanceId, bool allInstances)
@@ -105,21 +94,6 @@ namespace DurableTask.ServiceFabric
         }
 
         public Task<int> PurgeOrchestrationHistoryEventsAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType)
-        {
-            throw new NotImplementedException();
-        }
-
-        public Task<object> WriteJumpStartEntitesAsync(IEnumerable<OrchestrationJumpStartInstanceEntity> entities)
-        {
-            throw new NotImplementedException();
-        }
-
-        public Task<object> DeleteJumpStartEntitesAsync(IEnumerable<OrchestrationJumpStartInstanceEntity> entities)
-        {
-            throw new NotImplementedException();
-        }
-
-        public Task<IEnumerable<OrchestrationJumpStartInstanceEntity>> GetJumpStartEntitesAsync(int top)
         {
             throw new NotImplementedException();
         }
