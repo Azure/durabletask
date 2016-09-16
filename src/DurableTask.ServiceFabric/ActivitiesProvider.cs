@@ -86,8 +86,9 @@ namespace DurableTask.ServiceFabric
         public async Task CompleteWorkItem(ITransaction transaction, TaskActivityWorkItem workItem)
         {
             await this.activityQueue.TryRemoveAsync(transaction, workItem.Id);
-            bool ignored;
-            this.lockTable.TryRemove(workItem.Id, out ignored);
+            //Todo: Need to cleanup the lock table only after the transaction commit...
+            //bool ignored;
+            //this.lockTable.TryRemove(workItem.Id, out ignored);
         }
 
         public async Task AppendBatch(ITransaction transaction, IList<TaskMessage> messages)
