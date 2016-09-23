@@ -15,7 +15,6 @@ namespace DurableTask.ServiceFabric
 {
     using System;
     using System.Collections.Generic;
-    using System.Diagnostics.Contracts;
     using System.Collections.Immutable;
     using System.Threading;
     using System.Threading.Tasks;
@@ -31,9 +30,6 @@ namespace DurableTask.ServiceFabric
 
         SessionsProvider orchestrationProvider;
         ActivitiesProvider activitiesProvider;
-
-        PersistentSession currentSession;
-        TaskMessage currentActivity;
 
         public FabricOrchestrationService(IReliableStateManager stateManager, IFabricOrchestrationServiceInstanceStore instanceStore)
         {
@@ -127,16 +123,14 @@ namespace DurableTask.ServiceFabric
 
         public async Task<TaskOrchestrationWorkItem> LockNextTaskOrchestrationWorkItemAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken)
         {
-            Contract.Assert(this.currentSession == null, "How come we get a call for another session while a session is being processed?");
+            var currentSession = await this.orchestrationProvider.AcceptSessionAsync(receiveTimeout, cancellationToken);
 
-            this.currentSession = await this.orchestrationProvider.AcceptSessionAsync(receiveTimeout, cancellationToken);
-
-            if (this.currentSession == null)
+            if (currentSession == null)
             {
                 return null;
             }
 
-            var newMessages = this.orchestrationProvider.GetSessionMessages(this.currentSession);
+            var newMessages = this.orchestrationProvider.GetSessionMessages(currentSession);
             return new TaskOrchestrationWorkItem()
             {
                 NewMessages = newMessages,
@@ -159,8 +153,6 @@ namespace DurableTask.ServiceFabric
             TaskMessage continuedAsNewMessage,
             OrchestrationState orchestrationState)
         {
-            Contract.Assert(this.currentSession != null && string.Equals(currentSession.SessionId, workItem.InstanceId), "Unexpected thing happened, complete should be called with the same session as locked");
-
             if (continuedAsNewMessage != null)
             {
                 throw new Exception("ContinueAsNew is not supported yet");
@@ -170,7 +162,7 @@ namespace DurableTask.ServiceFabric
             {
                 await this.activitiesProvider.AppendBatch(txn, outboundMessages);
 
-                await this.orchestrationProvider.CompleteAndUpdateSession(txn, this.currentSession.SessionId, newOrchestrationRuntimeState, timerMessages);
+                await this.orchestrationProvider.CompleteAndUpdateSession(txn, workItem.InstanceId, newOrchestrationRuntimeState, timerMessages);
 
                 if (orchestratorMessages?.Count > 0)
                 {
@@ -189,14 +181,11 @@ namespace DurableTask.ServiceFabric
                 }
 
                 await txn.CommitAsync();
-                this.currentSession = null;
             }
         }
 
         public Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
-            Contract.Assert(this.currentSession != null && string.Equals(this.currentSession.SessionId, workItem.InstanceId), "Unexpected thing happened, abandon should be called with the same session as locked");
-            this.currentSession = null;
             return Task.FromResult<object>(null);
         }
 
@@ -221,16 +210,14 @@ namespace DurableTask.ServiceFabric
 
         public async Task<TaskActivityWorkItem> LockNextTaskActivityWorkItem(TimeSpan receiveTimeout, CancellationToken cancellationToken)
         {
-            Contract.Assert(this.currentActivity == null, "How come we get a call for another activity while an activity is running?");
+            var currentActivity = await this.activitiesProvider.GetNextWorkItem(receiveTimeout, cancellationToken);
 
-            this.currentActivity = await this.activitiesProvider.GetNextWorkItem(receiveTimeout, cancellationToken);
-
-            if (this.currentActivity != null)
+            if (currentActivity != null)
             {
                 return new TaskActivityWorkItem()
                 {
                     Id = Guid.NewGuid().ToString(), //Todo: Do we need to persist this in activity queue?
-                    TaskMessage = this.currentActivity
+                    TaskMessage = currentActivity
                 };
             }
 
@@ -239,30 +226,24 @@ namespace DurableTask.ServiceFabric
 
         public async Task CompleteTaskActivityWorkItemAsync(TaskActivityWorkItem workItem, TaskMessage responseMessage)
         {
-            Contract.Assert(workItem.TaskMessage == this.currentActivity, "Unexpected thing happened, complete called for an activity that's not the current activity");
-
             using (var txn = this.stateManager.CreateTransaction())
             {
                 await this.activitiesProvider.CompleteWorkItem(txn, workItem.TaskMessage);
                 var sessionId = workItem.TaskMessage.OrchestrationInstance.InstanceId;
                 await this.orchestrationProvider.AppendMessageAsync(txn, responseMessage);
                 await txn.CommitAsync();
-                this.currentActivity = null;
             }
         }
 
         public Task AbandonTaskActivityWorkItemAsync(TaskActivityWorkItem workItem)
         {
-            Contract.Assert(workItem.TaskMessage == this.currentActivity, "Unexpected thing happened, abandon called for an activity that's not the current activity");
-            this.currentActivity = null;
-            return Task.FromResult(workItem);
+            return Task.FromResult<object>(null);
         }
 
         public bool ProcessWorkItemSynchronously => true;
 
         public Task<TaskActivityWorkItem> RenewTaskActivityWorkItemLockAsync(TaskActivityWorkItem workItem)
         {
-            Contract.Assert(workItem.TaskMessage == this.currentActivity, "Unexpected thing happened, renew lock called for an activity that's not the current activity");
             return Task.FromResult(workItem);
         }
     }
