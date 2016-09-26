@@ -165,7 +165,7 @@ namespace DurableTask.ServiceFabric
                 var activityMessages = outboundMessages.Select(m => new Message<string, TaskMessage>(Guid.NewGuid().ToString(), m)).ToList();
                 await this.activitiesProvider.SendBatchBeginAsync(txn, activityMessages);
 
-                await this.orchestrationProvider.CompleteAndUpdateSession(txn, workItem.InstanceId, newOrchestrationRuntimeState, timerMessages);
+                var newSessionValue = await this.orchestrationProvider.CompleteAndUpdateSession(txn, workItem.InstanceId, newOrchestrationRuntimeState, timerMessages);
 
                 if (orchestratorMessages?.Count > 0)
                 {
@@ -184,13 +184,22 @@ namespace DurableTask.ServiceFabric
                 }
 
                 await txn.CommitAsync();
+
                 this.activitiesProvider.SendBatchComplete(activityMessages);
+                this.orchestrationProvider.TryUnlockSession(workItem.InstanceId, putBackInQueue: newSessionValue.Messages.Any());
+                if (orchestratorMessages != null)
+                {
+                    foreach (var subOrchMessage in orchestratorMessages)
+                    {
+                        this.orchestrationProvider.TryEnqueueSession(subOrchMessage.OrchestrationInstance.InstanceId);
+                    }
+                }
             }
         }
 
         public Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
-            //Todo: Implement to unlock session
+            this.orchestrationProvider.TryUnlockSession(workItem.InstanceId, putBackInQueue: true);
             return Task.FromResult<object>(null);
         }
 
@@ -238,6 +247,7 @@ namespace DurableTask.ServiceFabric
                 await this.activitiesProvider.CompleteAsync(txn, workItem.Id);
                 await this.orchestrationProvider.AppendMessageAsync(txn, responseMessage);
                 await txn.CommitAsync();
+                this.orchestrationProvider.TryEnqueueSession(responseMessage.OrchestrationInstance.InstanceId);
             }
         }
 

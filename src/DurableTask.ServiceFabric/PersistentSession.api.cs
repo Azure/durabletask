@@ -53,7 +53,7 @@ namespace DurableTask.ServiceFabric
 
             if (changed)
             {
-                return Create(this.SessionId, this.SessionState, messagesBuilder.ToImmutableList(), remainingScheduledMessagesBuilder.ToImmutableList(), this.IsLocked);
+                return Create(this.SessionId, this.SessionState, messagesBuilder.ToImmutableList(), remainingScheduledMessagesBuilder.ToImmutableList());
             }
 
             return this;
@@ -62,7 +62,7 @@ namespace DurableTask.ServiceFabric
         public PersistentSession ReceiveMessages()
         {
             var newMessages = this.Messages.ToBuilder().ConvertAll(m => ReceivableTaskMessage.Create(m.TaskMessage, isReceived: true));
-            return Create(this.SessionId, this.SessionState, newMessages, this.ScheduledMessages, isLocked: true);
+            return Create(this.SessionId, this.SessionState, newMessages, this.ScheduledMessages);
         }
 
         public PersistentSession CompleteMessages(OrchestrationRuntimeState newState, IList<TaskMessage> addedScheduledMessages)
@@ -74,31 +74,31 @@ namespace DurableTask.ServiceFabric
             {
                 newScheduledMessages = this.ScheduledMessages.AddRange(addedScheduledMessages.Select(tm => ReceivableTaskMessage.Create(tm)));
             }
-            return Create(this.SessionId, newSessionState, newMessages, newScheduledMessages, isLocked: false);
+            return Create(this.SessionId, newSessionState, newMessages, newScheduledMessages);
         }
 
         public PersistentSession AppendMessage(TaskMessage message)
         {
             var newMessages = this.Messages.Add(ReceivableTaskMessage.Create(message));
-            return Create(this.SessionId, this.SessionState, newMessages, this.ScheduledMessages, this.IsLocked);
+            return Create(this.SessionId, this.SessionState, newMessages, this.ScheduledMessages);
         }
 
         public PersistentSession AppendMessageBatch(IEnumerable<TaskMessage> addedMessages)
         {
             var newMessages = this.Messages.AddRange(addedMessages.Select(m => ReceivableTaskMessage.Create(m)));
-            return Create(this.SessionId, this.SessionState, newMessages, this.ScheduledMessages, this.IsLocked);
+            return Create(this.SessionId, this.SessionState, newMessages, this.ScheduledMessages);
         }
 
         public static PersistentSession CreateWithNewMessage(string sessionId, TaskMessage newMessage)
         {
             var newMessages = ImmutableList<ReceivableTaskMessage>.Empty.Add(ReceivableTaskMessage.Create(newMessage));
-            return Create(sessionId, sessionState: null, messages: newMessages, scheduledMessages: null, isLocked: false);
+            return Create(sessionId, sessionState: null, messages: newMessages, scheduledMessages: null);
         }
 
         public static PersistentSession CreateWithNewMessages(string sessionId, IEnumerable<TaskMessage> allMessages)
         {
             var newMessages = ImmutableList<ReceivableTaskMessage>.Empty.AddRange(allMessages.Select(newMessage => ReceivableTaskMessage.Create(newMessage)));
-            return Create(sessionId, sessionState: null, messages: newMessages, scheduledMessages: null, isLocked: false);
+            return Create(sessionId, sessionState: null, messages: newMessages, scheduledMessages: null);
         }
     }
 }

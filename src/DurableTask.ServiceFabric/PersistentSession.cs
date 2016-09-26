@@ -52,8 +52,6 @@ namespace DurableTask.ServiceFabric
         [DataMember]
         IEnumerable<ReceivableTaskMessage> scheduledMessages { get; set; }
 
-        public bool IsLocked { get; }
-
         [OnDeserialized]
         private void OnDeserialized(StreamingContext context)
         {
@@ -62,18 +60,17 @@ namespace DurableTask.ServiceFabric
             this.scheduledMessages = this.scheduledMessages.ToImmutableList();
         }
 
-        private PersistentSession(string sessionId, IImmutableList<HistoryEvent> sessionState, IImmutableList<ReceivableTaskMessage> messages, IImmutableList<ReceivableTaskMessage> scheduledMessages, bool isLocked)
+        private PersistentSession(string sessionId, IImmutableList<HistoryEvent> sessionState, IImmutableList<ReceivableTaskMessage> messages, IImmutableList<ReceivableTaskMessage> scheduledMessages)
         {
             this.SessionId = sessionId;
             this.sessionState = sessionState ?? ImmutableList<HistoryEvent>.Empty;
             this.messages = messages ?? ImmutableList<ReceivableTaskMessage>.Empty;
             this.scheduledMessages = scheduledMessages ?? ImmutableList<ReceivableTaskMessage>.Empty;
-            this.IsLocked = isLocked;
         }
 
-        public static PersistentSession Create(string sessionId, IImmutableList<HistoryEvent> sessionState, IImmutableList<ReceivableTaskMessage> messages, IImmutableList<ReceivableTaskMessage> scheduledMessages, bool isLocked)
+        public static PersistentSession Create(string sessionId, IImmutableList<HistoryEvent> sessionState, IImmutableList<ReceivableTaskMessage> messages, IImmutableList<ReceivableTaskMessage> scheduledMessages)
         {
-            return new PersistentSession(sessionId, sessionState, messages, scheduledMessages, isLocked);
+            return new PersistentSession(sessionId, sessionState, messages, scheduledMessages);
         }
 
         public ImmutableList<HistoryEvent> SessionState => this.sessionState.ToImmutableList();

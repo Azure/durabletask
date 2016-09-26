@@ -52,13 +52,9 @@ namespace DurableTask.ServiceFabric
             ProviderEventSource.Instance.LogOrchestrationCreated(instance.InstanceId);
         }
 
-        public async Task SendTaskOrchestrationMessageAsync(TaskMessage message)
+        public Task SendTaskOrchestrationMessageAsync(TaskMessage message)
         {
-            using (var txn = this.stateManager.CreateTransaction())
-            {
-                await this.orchestrationProvider.AppendMessageAsync(txn, message);
-                await txn.CommitAsync();
-            }
+            return this.orchestrationProvider.AppendMessageAsync(message);
         }
 
         public async Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason)
@@ -101,6 +97,7 @@ namespace DurableTask.ServiceFabric
             return this.instanceStore.PurgeOrchestrationHistoryEventsAsync(thresholdDateTimeUtc);
         }
 
+        //Todo: Timeout logic seems to be broken, don't know why, need to investigate.
         public async Task<OrchestrationState> WaitForOrchestrationAsync(string instanceId, string executionId, TimeSpan timeout, CancellationToken cancellationToken)
         {
             ThrowIfInstanceStoreNotConfigured();

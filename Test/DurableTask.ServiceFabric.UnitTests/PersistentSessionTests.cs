@@ -53,7 +53,7 @@ namespace DurableTask.ServiceFabric.UnitTests
             }
 
             PersistentSession testSession = PersistentSession.Create("testSession", events.ToImmutableList(),
-                messages.ToImmutableList(), scheduledMessages.ToImmutableList(), isLocked: true);
+                messages.ToImmutableList(), scheduledMessages.ToImmutableList());
 
             using (var stream = new MemoryStream())
             {
@@ -71,7 +71,6 @@ namespace DurableTask.ServiceFabric.UnitTests
 
                 Assert.IsNotNull(deserialized);
                 Assert.AreEqual("testSession", deserialized.SessionId);
-                Assert.IsFalse(deserialized.IsLocked);
                 Assert.AreEqual(numberOfItemsInCollections*2 + 2, deserialized.SessionState.Count);
                 Assert.AreEqual(numberOfItemsInCollections, deserialized.Messages.Count);
                 Assert.AreEqual(numberOfItemsInCollections, deserialized.ScheduledMessages.Count);
