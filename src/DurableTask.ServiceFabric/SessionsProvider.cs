@@ -62,7 +62,7 @@ namespace DurableTask.ServiceFabric
                         while (await enumerator.MoveNextAsync(this.cancellationTokenSource.Token))
                         {
                             var entry = enumerator.Current;
-                            if (entry.Value.ScheduledMessages.Any())
+                            if (entry.Value.ScheduledMessages.Count > 0)
                             {
                                 scheduledMessageSessions.Add(entry.Key);
                             }

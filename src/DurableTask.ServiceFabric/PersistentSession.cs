@@ -31,32 +31,43 @@ namespace DurableTask.ServiceFabric
 
         // Note: The properties below are marked IEnumerable but not
         // IImmutableList because DataContract serialization cannot deserialize the latter.
-        // They should really be treated like IImmutableList in the code for this class.
-        [DataMember]
-        public IEnumerable<HistoryEvent> SessionState { get; private set; }
+        // Except for the constructor and serialization methods, rest of the code in this class
+        // should use only the public immutable list members.
 
+        /// <summary>
+        /// Do not use except in the constructor or serialization methods, use <see cref="SessionState"/> property instead.
+        /// </summary>
         [DataMember]
-        public IEnumerable<ReceivableTaskMessage> Messages { get; private set; }
+        IEnumerable<HistoryEvent> sessionState { get; set; }
 
+        /// <summary>
+        /// Do not use except in the constructor or serialization methods, use <see cref="Messages"/> property instead.
+        /// </summary>
         [DataMember]
-        public IEnumerable<ReceivableTaskMessage> ScheduledMessages { get; private set; }
+        IEnumerable<ReceivableTaskMessage> messages { get; set; }
+
+        /// <summary>
+        /// Do not use except in the constructor or serialization methods, use <see cref="ScheduledMessages"/> property instead.
+        /// </summary>
+        [DataMember]
+        IEnumerable<ReceivableTaskMessage> scheduledMessages { get; set; }
 
         public bool IsLocked { get; }
 
         [OnDeserialized]
         private void OnDeserialized(StreamingContext context)
         {
-            this.SessionState = this.SessionState.ToImmutableList();
-            this.Messages = this.Messages.ToImmutableList();
-            this.ScheduledMessages = this.ScheduledMessages.ToImmutableList();
+            this.sessionState = this.sessionState.ToImmutableList();
+            this.messages = this.messages.ToImmutableList();
+            this.scheduledMessages = this.scheduledMessages.ToImmutableList();
         }
 
         private PersistentSession(string sessionId, IImmutableList<HistoryEvent> sessionState, IImmutableList<ReceivableTaskMessage> messages, IImmutableList<ReceivableTaskMessage> scheduledMessages, bool isLocked)
         {
             this.SessionId = sessionId;
-            this.SessionState = sessionState ?? ImmutableList<HistoryEvent>.Empty;
-            this.Messages = messages ?? ImmutableList<ReceivableTaskMessage>.Empty;
-            this.ScheduledMessages = scheduledMessages ?? ImmutableList<ReceivableTaskMessage>.Empty;
+            this.sessionState = sessionState ?? ImmutableList<HistoryEvent>.Empty;
+            this.messages = messages ?? ImmutableList<ReceivableTaskMessage>.Empty;
+            this.scheduledMessages = scheduledMessages ?? ImmutableList<ReceivableTaskMessage>.Empty;
             this.IsLocked = isLocked;
         }
 
@@ -64,6 +75,10 @@ namespace DurableTask.ServiceFabric
         {
             return new PersistentSession(sessionId, sessionState, messages, scheduledMessages, isLocked);
         }
+
+        public ImmutableList<HistoryEvent> SessionState => this.sessionState.ToImmutableList();
+        public ImmutableList<ReceivableTaskMessage> Messages => this.messages.ToImmutableList();
+        public ImmutableList<ReceivableTaskMessage> ScheduledMessages => this.scheduledMessages.ToImmutableList();
     }
 
     [DataContract]

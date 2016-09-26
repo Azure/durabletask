@@ -136,7 +136,7 @@ namespace DurableTask.ServiceFabric
             {
                 NewMessages = newMessages,
                 InstanceId = currentSession.SessionId,
-                OrchestrationRuntimeState = new OrchestrationRuntimeState(currentSession.SessionState.ToImmutableList())
+                OrchestrationRuntimeState = new OrchestrationRuntimeState(currentSession.SessionState)
             };
         }
 
