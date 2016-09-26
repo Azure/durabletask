@@ -73,6 +73,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AsyncManualResetEvent.cs" />
     <Compile Include="Constants.cs" />
     <Compile Include="FabricOrchestrationInstanceStore.cs" />
     <Compile Include="FabricOrchestrationService.cs" />

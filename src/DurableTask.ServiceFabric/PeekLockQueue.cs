@@ -16,7 +16,6 @@ namespace DurableTask.ServiceFabric
     using System;
     using System.Collections.Concurrent;
     using System.Collections.Generic;
-    using System.Diagnostics;
     using System.Runtime.Serialization;
     using System.Threading;
     using System.Threading.Tasks;
@@ -30,7 +29,9 @@ namespace DurableTask.ServiceFabric
         readonly CancellationTokenSource cancellationTokenSource;
 
         IReliableDictionary<TKey, TValue> store;
-        ConcurrentQueue<TKey> inMemoryQueue = new ConcurrentQueue<TKey>();
+        readonly ConcurrentQueue<TKey> inMemoryQueue = new ConcurrentQueue<TKey>();
+
+        readonly AsyncManualResetEvent waitEvent = new AsyncManualResetEvent();
 
         public PeekLockQueue(IReliableStateManager stateManager, string storeName)
         {
@@ -69,31 +70,44 @@ namespace DurableTask.ServiceFabric
 
         public async Task<Message<TKey, TValue>> ReceiveAsync(TimeSpan receiveTimeout)
         {
-            Stopwatch timer = Stopwatch.StartNew();
-            while (timer.Elapsed < receiveTimeout && !this.cancellationTokenSource.IsCancellationRequested)
+            ThrowIfStopped();
+
+            TKey key;
+            bool newItemsBeforeTimeout = true;
+            while (newItemsBeforeTimeout)
             {
-                TKey key;
                 if (this.inMemoryQueue.TryDequeue(out key))
                 {
-                    using (var txn = this.stateManager.CreateTransaction())
+                    try
                     {
-                        var result = await this.store.TryGetValueAsync(txn, key);
-                        if (result.HasValue)
+                        using (var txn = this.stateManager.CreateTransaction())
                         {
-                            return new Message<TKey, TValue>(key, result.Value);
+                            var result = await this.store.TryGetValueAsync(txn, key);
+                            if (result.HasValue)
+                            {
+                                return new Message<TKey, TValue>(key, result.Value);
+                            }
+                            throw new Exception("Internal server error : Unexpectedly ended up not having an item in dictionary while having the item key in memory");
                         }
-                        throw new Exception("Internal server error");
+                    }
+                    catch (TimeoutException)
+                    {
+                        this.inMemoryQueue.Enqueue(key);
+                        throw;
                     }
                 }
 
-                //Todo : Can use a signal mechanism between send and receive
-                await Task.Delay(100, this.cancellationTokenSource.Token);
+                this.waitEvent.Reset();
+                newItemsBeforeTimeout = await this.waitEvent.WaitAsync(receiveTimeout, this.cancellationTokenSource.Token);
             }
+
             return null;
         }
 
         public Task CompleteAsync(ITransaction tx, TKey key)
         {
+            ThrowIfStopped();
+
             return this.store.TryRemoveAsync(tx, key);
         }
 
@@ -103,12 +117,17 @@ namespace DurableTask.ServiceFabric
         /// </summary>
         public Task SendBeginAsync(ITransaction tx, Message<TKey, TValue> item)
         {
+            ThrowIfStopped();
+
             return this.store.TryAddAsync(tx, item.Key, item.Value);
         }
 
         public void SendComplete(Message<TKey, TValue> item)
         {
+            ThrowIfStopped();
+
             this.inMemoryQueue.Enqueue(item.Key);
+            this.waitEvent.Set();
         }
 
         /// <summary>
@@ -117,24 +136,37 @@ namespace DurableTask.ServiceFabric
         /// </summary>
         public async Task SendBatchBeginAsync(ITransaction tx, IEnumerable<Message<TKey, TValue>> items)
         {
+            ThrowIfStopped();
+
             foreach (var item in items)
             {
-                await this.SendBeginAsync(tx, item);
+                await this.store.TryAddAsync(tx, item.Key, item.Value);
             }
         }
 
         public void SendBatchComplete(IEnumerable<Message<TKey, TValue>> items)
         {
+            ThrowIfStopped();
+
             foreach (var item in items)
             {
-                this.SendComplete(item);
+                this.inMemoryQueue.Enqueue(item.Key);
             }
+            this.waitEvent.Set();
         }
 
         public Task AandonAsync(TKey key)
         {
+            ThrowIfStopped();
+
             this.inMemoryQueue.Enqueue(key);
+            this.waitEvent.Set();
             return Task.FromResult<object>(null);
+        }
+
+        void ThrowIfStopped()
+        {
+            this.cancellationTokenSource.Token.ThrowIfCancellationRequested();
         }
     }
 
