@@ -11,11 +11,13 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+using System;
+
 namespace DurableTask.Test.Orchestrations.Stress
 {
     public class TestTaskData
     {
         public string TaskId { get; set; }
-        public int MaxDelayInMinutes { get; set; }
+        public TimeSpan MaxDelay { get; set; }
     }
 }

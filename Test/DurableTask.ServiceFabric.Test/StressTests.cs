@@ -39,7 +39,8 @@ namespace DurableTask.ServiceFabric.Test
                 {
                     NumberOfParallelTasks = 10,
                     NumberOfSerialTasks = 5,
-                    MaxDelayInMinutes = 5 //Todo: This is really seconds... rename it...
+                    MaxDelayTime = 5,
+                    DelayUnit = TimeSpan.FromSeconds(1)
                 }
             };
 

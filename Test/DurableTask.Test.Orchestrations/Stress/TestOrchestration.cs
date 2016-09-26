@@ -21,35 +21,73 @@ namespace DurableTask.Test.Orchestrations.Stress
 
     public class TestOrchestration : TaskOrchestration<int, TestOrchestrationData>
     {
+        readonly Dictionary<string, ActivityInformation> _knownActivityTypes = new Dictionary<string, ActivityInformation>()
+        {
+            {typeof(TestTask).Name, new ActivityInformation(typeof(TestTask), false) },
+            {typeof(FixedTimeWaitingTask).Name, new ActivityInformation(typeof(FixedTimeWaitingTask), true) },
+        };
+
         public override async Task<int> RunTask(OrchestrationContext context, TestOrchestrationData data)
         {
+            var activityInfo = GetActivityInfo(data);
+            var maxDelayTimeSpan = TimeSpan.FromMilliseconds((data.DelayUnit ?? TimeSpan.FromMinutes(1)).TotalMilliseconds * data.MaxDelayTime);
+
             int result = 0;
             List<Task<int>> results = new List<Task<int>>();
             int i = 0;
             int j = 0;
             for (; i < data.NumberOfParallelTasks; i++)
             {
-                results.Add(context.ScheduleTask<int>(typeof(TestTask), new TestTaskData
+                results.Add(context.ScheduleTask<int>(activityInfo.ActivityType, new TestTaskData
                 {
-                    TaskId = "ParallelTask: " + i.ToString(),
-                    MaxDelayInMinutes = data.MaxDelayInMinutes,
+                    TaskId = "ParallelTask: " + i,
+                    MaxDelay = maxDelayTimeSpan,
                 }));
             }
 
             int[] counters = await Task.WhenAll(results.ToArray());
-            result = counters.Max();
+            result = activityInfo.UseSum ? counters.Sum() : counters.Max();
 
             for (; j < data.NumberOfSerialTasks; j++)
             {
-                int c = await context.ScheduleTask<int>(typeof(TestTask), new TestTaskData
+                int c = await context.ScheduleTask<int>(activityInfo.ActivityType, new TestTaskData
                 {
-                    TaskId = "SerialTask" + (i + j).ToString(),
-                    MaxDelayInMinutes = data.MaxDelayInMinutes,
+                    TaskId = "SerialTask" + (i + j),
+                    MaxDelay = maxDelayTimeSpan,
                 });
-                result = Math.Max(result, c);
+                result = activityInfo.UseSum ? result + c : Math.Max(result, c);
             }
 
             return result;
+        }
+
+        ActivityInformation GetActivityInfo(TestOrchestrationData data)
+        {
+            var activityTypeName = data.ActivityTypeName;
+            if (string.IsNullOrEmpty(activityTypeName))
+            {
+                activityTypeName = typeof(TestTask).Name;
+            }
+
+            ActivityInformation activityInfo;
+            if (!this._knownActivityTypes.TryGetValue(activityTypeName, out activityInfo))
+            {
+                throw new InvalidOperationException("Unknown Activity Name");
+            }
+            return activityInfo;
+        }
+
+        class ActivityInformation
+        {
+            public ActivityInformation(Type activityType, bool useSum)
+            {
+                ActivityType = activityType;
+                UseSum = useSum;
+            }
+
+            public Type ActivityType { get; }
+
+            public bool UseSum { get; }
         }
     }
 }

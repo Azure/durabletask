@@ -99,7 +99,7 @@ namespace DurableTask.ServiceFabric.Stress.Tests
                 {
                     NumberOfParallelTasks = 15,
                     NumberOfSerialTasks = 5,
-                    MaxDelayInMinutes = 0
+                    MaxDelayTime = 0
                 };
 
                 totalRequests++;

@@ -30,12 +30,12 @@ namespace DurableTask.Test.Orchestrations.Stress
             int c = Interlocked.Increment(ref this.counter);
             OrchestrationInstance instance = context.OrchestrationInstance;
             Random random = new Random();
-            int minutesToSleep = random.Next(0, input.MaxDelayInMinutes);
+            int secondsToSleep = random.Next(0, (int)input.MaxDelay.TotalSeconds);
 
-            Console.WriteLine(string.Format("[InstanceId: {0}, ExecutionId: {1}, TaskId: {2}, Counter: {3}] ---> Sleeping for '{4}'", 
-                instance.InstanceId, instance.ExecutionId, input.TaskId, c, minutesToSleep));
+            Console.WriteLine(string.Format("[InstanceId: {0}, ExecutionId: {1}, TaskId: {2}, Counter: {3}] ---> Sleeping for '{4}' seconds", 
+                instance.InstanceId, instance.ExecutionId, input.TaskId, c, secondsToSleep));
 
-            await Task.Delay(TimeSpan.FromSeconds(minutesToSleep));
+            await Task.Delay(TimeSpan.FromSeconds(secondsToSleep));
 
             return c;
         }

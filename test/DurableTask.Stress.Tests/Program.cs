@@ -73,7 +73,7 @@ namespace DurableTask.Stress.Tests
                         {
                             NumberOfParallelTasks = int.Parse(ConfigurationManager.AppSettings["ChildOrchestrationParallelTasks"]),
                             NumberOfSerialTasks = int.Parse(ConfigurationManager.AppSettings["ChildOrchestrationSerialTasks"]),
-                            MaxDelayInMinutes = int.Parse(ConfigurationManager.AppSettings["TestTaskMaxDelayInMinutes"]),
+                            MaxDelayTime = int.Parse(ConfigurationManager.AppSettings["TestTaskMaxDelayInMinutes"]),
                         }
                     };
 

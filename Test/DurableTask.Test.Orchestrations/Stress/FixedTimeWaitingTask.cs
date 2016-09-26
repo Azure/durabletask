@@ -12,27 +12,16 @@
 //  ----------------------------------------------------------------------------------
 
 using System;
-using System.Runtime.Serialization;
+using System.Threading.Tasks;
 
 namespace DurableTask.Test.Orchestrations.Stress
 {
-    [DataContract]
-    [KnownType(typeof(TestOrchestrationData))]
-    public class TestOrchestrationData
+    public sealed class FixedTimeWaitingTask : AsyncTaskActivity<TestTaskData, int>
     {
-        [DataMember]
-        public int NumberOfParallelTasks { get; set; }
-
-        [DataMember]
-        public int NumberOfSerialTasks { get; set; }
-
-        [DataMember]
-        public int MaxDelayTime { get; set; }
-
-        [DataMember]
-        public string ActivityTypeName { get; set; }
-
-        [DataMember]
-        public TimeSpan? DelayUnit { get; set; } //default value is TimeSpan.FromMinutes(1), this will be multiplied with MaxDelayTime to determine the wait time.
+        protected override async Task<int> ExecuteAsync(TaskContext context, TestTaskData input)
+        {
+            await Task.Delay(input.MaxDelay);
+            return 1;
+        }
     }
 }
