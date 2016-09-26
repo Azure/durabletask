@@ -73,13 +73,13 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ActivitiesProvider.cs" />
     <Compile Include="Constants.cs" />
     <Compile Include="FabricOrchestrationInstanceStore.cs" />
     <Compile Include="FabricOrchestrationService.cs" />
     <Compile Include="FabricOrchestrationServiceClient.cs" />
     <Compile Include="IFabricOrchestrationServiceInstanceStore.cs" />
     <Compile Include="OrchestrationStatusExtensions.cs" />
+    <Compile Include="PeekLockQueue.cs" />
     <Compile Include="PersistentSession.api.cs">
       <DependentUpon>PersistentSession.cs</DependentUpon>
     </Compile>

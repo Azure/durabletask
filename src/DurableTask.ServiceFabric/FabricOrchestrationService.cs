@@ -16,6 +16,7 @@ namespace DurableTask.ServiceFabric
     using System;
     using System.Collections.Generic;
     using System.Collections.Immutable;
+    using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Common;
@@ -28,7 +29,7 @@ namespace DurableTask.ServiceFabric
         IFabricOrchestrationServiceInstanceStore instanceStore;
 
         SessionsProvider orchestrationProvider;
-        ActivitiesProvider activitiesProvider;
+        PeekLockQueue<string, TaskMessage> activitiesProvider;
 
         public FabricOrchestrationService(IReliableStateManager stateManager, SessionsProvider orchestrationProvider, IFabricOrchestrationServiceInstanceStore instanceStore)
         {
@@ -44,7 +45,7 @@ namespace DurableTask.ServiceFabric
 
         public async Task StartAsync()
         {
-            this.activitiesProvider = new ActivitiesProvider(this.stateManager);
+            this.activitiesProvider = new PeekLockQueue<string, TaskMessage>(this.stateManager, Constants.ActivitiesQueueName);
             await this.activitiesProvider.StartAsync();
             await this.instanceStore.StartAsync();
             await this.orchestrationProvider.StartAsync();
@@ -59,7 +60,7 @@ namespace DurableTask.ServiceFabric
         {
             this.orchestrationProvider.Stop();
             await this.instanceStore.StopAsync(isForced);
-            this.activitiesProvider.Stop();
+            await this.activitiesProvider.StopAsync();
         }
 
         public Task CreateAsync()
@@ -160,7 +161,8 @@ namespace DurableTask.ServiceFabric
 
             using (var txn = this.stateManager.CreateTransaction())
             {
-                await this.activitiesProvider.AppendBatch(txn, outboundMessages);
+                var activityMessages = outboundMessages.Select(m => new Message<string, TaskMessage>(Guid.NewGuid().ToString(), m)).ToList();
+                await this.activitiesProvider.SendBatchBeginAsync(txn, activityMessages);
 
                 await this.orchestrationProvider.CompleteAndUpdateSession(txn, workItem.InstanceId, newOrchestrationRuntimeState, timerMessages);
 
@@ -181,6 +183,7 @@ namespace DurableTask.ServiceFabric
                 }
 
                 await txn.CommitAsync();
+                this.activitiesProvider.SendBatchComplete(activityMessages);
             }
         }
 
@@ -212,14 +215,25 @@ namespace DurableTask.ServiceFabric
         // Note: Do not rely on cancellationToken parameter to this method because the top layer does not yet implement any cancellation.
         public async Task<TaskActivityWorkItem> LockNextTaskActivityWorkItem(TimeSpan receiveTimeout, CancellationToken cancellationToken)
         {
-            return await this.activitiesProvider.GetNextWorkItem(receiveTimeout);
+            var message = await this.activitiesProvider.ReceiveAsync(receiveTimeout);
+
+            if (message != null)
+            {
+                return new TaskActivityWorkItem()
+                {
+                    Id = message.Key,
+                    TaskMessage = message.Value
+                };
+            }
+
+            return null;
         }
 
         public async Task CompleteTaskActivityWorkItemAsync(TaskActivityWorkItem workItem, TaskMessage responseMessage)
         {
             using (var txn = this.stateManager.CreateTransaction())
             {
-                await this.activitiesProvider.CompleteWorkItem(txn, workItem);
+                await this.activitiesProvider.CompleteAsync(txn, workItem.Id);
                 await this.orchestrationProvider.AppendMessageAsync(txn, responseMessage);
                 await txn.CommitAsync();
             }
@@ -227,8 +241,7 @@ namespace DurableTask.ServiceFabric
 
         public Task AbandonTaskActivityWorkItemAsync(TaskActivityWorkItem workItem)
         {
-            //Todo: Implement to add back to in-memory queue
-            return Task.FromResult<object>(null);
+            return this.activitiesProvider.AandonAsync(workItem.Id);
         }
 
         public bool ProcessWorkItemSynchronously => false;
