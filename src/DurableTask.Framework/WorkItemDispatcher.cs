@@ -44,7 +44,6 @@ namespace DurableTask
         volatile int delayOverrideSecs;
         volatile int activeFetchers = 0;
         bool isStarted = false;
-        bool processWorkItemSynchronously;
 
         /// <summary>
         /// Gets or sets the maximum concurrent work items
@@ -92,8 +91,7 @@ namespace DurableTask
             string name, 
             Func<T, string> workItemIdentifier,
             Func<TimeSpan, Task<T>> fetchWorkItem,
-            Func<T, Task> processWorkItem,
-            bool processWorkItemSynchronously
+            Func<T, Task> processWorkItem
             )
         {
             if (workItemIdentifier == null)
@@ -116,7 +114,6 @@ namespace DurableTask
             this.workItemIdentifier = workItemIdentifier;
             this.FetchWorkItem = fetchWorkItem;
             this.ProcessWorkItem = processWorkItem;
-            this.processWorkItemSynchronously = processWorkItemSynchronously;
         }
 
         /// <summary>
@@ -262,11 +259,10 @@ namespace DurableTask
                     else
                     {
                         Interlocked.Increment(ref concurrentWorkItemCount);
-                        var processTask = Task.Run(() => ProcessWorkItemAsync(context, workItem));
-                        if (this.processWorkItemSynchronously)
-                        {
-                            await processTask; //This makes the processing embrassingly sequential :-)
-                        }
+                        // We just want this to Run we intentionally don't wait
+                        #pragma warning disable 4014
+                        Task.Run(() => ProcessWorkItemAsync(context, workItem));
+                        #pragma warning restore 4014
                     }
                 }
 

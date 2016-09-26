@@ -52,8 +52,7 @@ namespace DurableTask
                 "TaskActivityDispatcher",
                 item => item.Id,
                 this.OnFetchWorkItemAsync,
-                this.OnProcessWorkItemAsync,
-                orchestrationService.ProcessWorkItemSynchronously)
+                this.OnProcessWorkItemAsync)
             {
                 AbortWorkItem = orchestrationService.AbandonTaskActivityWorkItemAsync,
                 GetDelayInSecondsAfterOnFetchException = orchestrationService.GetDelayInSecondsAfterOnFetchException,

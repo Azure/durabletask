@@ -121,8 +121,7 @@ namespace DurableTask
                     "TrackingDispatcher",
                     item => item == null ? string.Empty : item.InstanceId,
                     this.FetchTrackingWorkItemAsync,
-                    this.ProcessTrackingWorkItemAsync,
-                    processWorkItemSynchronously: false)
+                    this.ProcessTrackingWorkItemAsync)
                 {
                     GetDelayInSecondsAfterOnFetchException = GetDelayInSecondsAfterOnFetchException,
                     GetDelayInSecondsAfterOnProcessException = GetDelayInSecondsAfterOnProcessException,
@@ -905,11 +904,6 @@ namespace DurableTask
             TraceHelper.Trace(TraceEventType.Information, $"Abandoning message {workItem?.Id}");
             return message?.AbandonAsync();
         }
-
-        /// <summary>
-        /// No need for synchronous processing as we have peek lock.
-        /// </summary>
-        public bool ProcessWorkItemSynchronously => false;
 
         /// <summary>
         ///    Create/start a new Orchestration

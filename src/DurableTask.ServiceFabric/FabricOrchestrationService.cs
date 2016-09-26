@@ -246,8 +246,6 @@ namespace DurableTask.ServiceFabric
             return this.activitiesProvider.AandonAsync(workItem.Id);
         }
 
-        public bool ProcessWorkItemSynchronously => false;
-
         public Task<TaskActivityWorkItem> RenewTaskActivityWorkItemLockAsync(TaskActivityWorkItem workItem)
         {
             return Task.FromResult(workItem);
