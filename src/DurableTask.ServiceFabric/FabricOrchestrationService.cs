@@ -97,6 +97,7 @@ namespace DurableTask.ServiceFabric
 
         public int GetDelayInSecondsAfterOnProcessException(Exception exception)
         {
+            ProviderEventSource.Instance.LogException(exception.Message, exception.StackTrace);
             //Todo: Need to fine tune
             if (exception is TimeoutException)
             {
@@ -108,6 +109,7 @@ namespace DurableTask.ServiceFabric
 
         public int GetDelayInSecondsAfterOnFetchException(Exception exception)
         {
+            ProviderEventSource.Instance.LogException(exception.Message, exception.StackTrace);
             //Todo: Need to fine tune
             if (exception is TimeoutException)
             {

@@ -25,7 +25,6 @@ namespace DurableTask.ServiceFabric.Test
     [TestClass]
     public class StressTests
     {
-        //Todo : Is it better to move this to a separate executable like service bus stress test?
         [TestMethod]
         public async Task ExecuteStressTest()
         {

@@ -11,15 +11,17 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+using System;
 using System.Threading.Tasks;
 
 namespace DurableTask.Test.Orchestrations.Stress
 {
-    public sealed class FixedTimeWaitingTask : AsyncTaskActivity<TestTaskData, int>
+    public sealed class RandomTimeWaitingTask : AsyncTaskActivity<TestTaskData, int>
     {
         protected override async Task<int> ExecuteAsync(TaskContext context, TestTaskData input)
         {
-            await Task.Delay(input.MaxDelay);
+            Random random = new Random();
+            await Task.Delay(random.Next(50, 500));
             return 1;
         }
     }

@@ -46,6 +46,7 @@
     <Compile Include="Stress\DriverOrchestration.cs" />
     <Compile Include="Stress\DriverOrchestrationData.cs" />
     <Compile Include="Stress\FixedTimeWaitingTask.cs" />
+    <Compile Include="Stress\RandomTimeWaitingTask.cs" />
     <Compile Include="Stress\TestOrchestration.cs" />
     <Compile Include="Stress\TestOrchestrationData.cs" />
     <Compile Include="Stress\TestTask.cs" />

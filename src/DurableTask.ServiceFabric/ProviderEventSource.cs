@@ -55,5 +55,14 @@ namespace DurableTask.ServiceFabric
                 WriteEvent(2, instanceId, terminalStatus, runningTimeInSeconds, result);
             }
         }
+
+        [Event(3, Level = EventLevel.Error, Message = "Exception : {0} With Stack Trace: {1}")]
+        public void LogException(string message, string stackTrace)
+        {
+            if (IsEnabled(EventLevel.Informational, Keywords.Orchestration))
+            {
+                WriteEvent(3, message, stackTrace);
+            }
+        }
     }
 }

@@ -182,6 +182,8 @@ namespace TestStatefulService
             typeof(GetUserTask),
             typeof(GreetUserTask),
             typeof(GenerationBasicTask),
+            typeof(FixedTimeWaitingTask),
+            typeof(RandomTimeWaitingTask)
         };
     }
 }
