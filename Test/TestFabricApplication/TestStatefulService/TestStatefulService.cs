@@ -19,13 +19,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using DurableTask;
 using DurableTask.ServiceFabric;
+using DurableTask.Test.Orchestrations.Perf;
 using Microsoft.ServiceFabric.Services.Communication.Runtime;
 using Microsoft.ServiceFabric.Services.Runtime;
 using TestApplication.Common;
 using TestStatefulService.DebugHelper;
 using TestStatefulService.TestOrchestrations;
 using Microsoft.ServiceFabric.Services.Remoting.Runtime;
-using DurableTask.Test.Orchestrations.Stress;
 
 namespace TestStatefulService
 {
@@ -38,7 +38,6 @@ namespace TestStatefulService
         TaskHubClient client;
         ReplicaRole currentRole;
         TestExecutor testExecutor;
-        TestTask testTask;
         object syncLock = new object();
 
         public TestStatefulService(StatefulServiceContext context)
@@ -74,12 +73,9 @@ namespace TestStatefulService
         /// <param name="cancellationToken">Canceled when Service Fabric needs to shut down this service replica.</param>
         protected override async Task RunAsync(CancellationToken cancellationToken)
         {
-            SafeCreateTestTask();
-
             await this.worker
                 .AddTaskOrchestrations(KnownOrchestrationTypeNames.Values.ToArray())
                 .AddTaskActivities(KnownActivities)
-                .AddTaskActivities(testTask)
                 .StartAsync();
 
             //await this.testExecutor.StartAsync();
@@ -103,12 +99,6 @@ namespace TestStatefulService
 
         public async Task<OrchestrationState> RunDriverOrchestrationAsync(DriverOrchestrationData input, TimeSpan waitTimeout)
         {
-            SafeCreateTestTask();
-            // This was done to be able to deploy the test app once and run the stress test sequentially and repeatedly
-            // (faster) and assert the result for different combination of parameter values in the input.
-            // Catch is that if there are 2 simultaneous top level orchestration instances running in parallel,
-            // the result is unpredictable and cannot be verified though.
-            this.testTask.counter = 0;
             return await this.RunOrchestrationAsync(typeof(DriverOrchestration).Name, input, waitTimeout);
         }
 
@@ -143,20 +133,6 @@ namespace TestStatefulService
             return this.client.PurgeOrchestrationInstanceHistoryAsync(DateTime.UtcNow, OrchestrationStateTimeRangeFilterType.OrchestrationCompletedTimeFilter);
         }
 
-        void SafeCreateTestTask()
-        {
-            if (this.testTask == null)
-            {
-                lock (this.syncLock)
-                {
-                    if (this.testTask == null)
-                    {
-                        this.testTask = new TestTask();
-                    }
-                }
-            }
-        }
-
         Type GetOrchestrationType(string typeName)
         {
             if (!KnownOrchestrationTypeNames.ContainsKey(typeName))
@@ -182,7 +158,6 @@ namespace TestStatefulService
             typeof(GetUserTask),
             typeof(GreetUserTask),
             typeof(GenerationBasicTask),
-            typeof(FixedTimeWaitingTask),
             typeof(RandomTimeWaitingTask)
         };
     }

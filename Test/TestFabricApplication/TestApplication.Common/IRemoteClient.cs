@@ -14,7 +14,7 @@
 using System;
 using System.Threading.Tasks;
 using DurableTask;
-using DurableTask.Test.Orchestrations.Stress;
+using DurableTask.Test.Orchestrations.Perf;
 using Microsoft.ServiceFabric.Services.Remoting;
 
 namespace TestApplication.Common

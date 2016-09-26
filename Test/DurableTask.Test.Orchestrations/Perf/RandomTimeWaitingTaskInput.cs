@@ -12,17 +12,17 @@
 //  ----------------------------------------------------------------------------------
 
 using System;
-using System.Threading.Tasks;
 
-namespace DurableTask.Test.Orchestrations.Stress
+namespace DurableTask.Test.Orchestrations.Perf
 {
-    public sealed class RandomTimeWaitingTask : AsyncTaskActivity<TestTaskData, int>
+    public class RandomTimeWaitingTaskInput
     {
-        protected override async Task<int> ExecuteAsync(TaskContext context, TestTaskData input)
-        {
-            Random random = new Random();
-            await Task.Delay(random.Next(50, 500));
-            return 1;
-        }
+        public string TaskId { get; set; }
+
+        public int MaxDelay { get; set; }
+
+        public int MinDelay { get; set; }
+
+        public TimeSpan DelayUnit { get; set; }
     }
 }

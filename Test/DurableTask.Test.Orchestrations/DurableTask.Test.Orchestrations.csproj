@@ -42,11 +42,15 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Perf\DriverOrchestration.cs" />
+    <Compile Include="Perf\DriverOrchestrationData.cs" />
+    <Compile Include="Perf\RandomTimeWaitingTaskInput.cs" />
+    <Compile Include="Perf\TestOrchestration.cs" />
+    <Compile Include="Perf\TestOrchestrationData.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Stress\DriverOrchestration.cs" />
     <Compile Include="Stress\DriverOrchestrationData.cs" />
-    <Compile Include="Stress\FixedTimeWaitingTask.cs" />
-    <Compile Include="Stress\RandomTimeWaitingTask.cs" />
+    <Compile Include="Perf\RandomTimeWaitingTask.cs" />
     <Compile Include="Stress\TestOrchestration.cs" />
     <Compile Include="Stress\TestOrchestrationData.cs" />
     <Compile Include="Stress\TestTask.cs" />

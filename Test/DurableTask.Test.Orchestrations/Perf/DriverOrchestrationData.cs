@@ -11,16 +11,18 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System.Threading.Tasks;
+using System.Runtime.Serialization;
 
-namespace DurableTask.Test.Orchestrations.Stress
+namespace DurableTask.Test.Orchestrations.Perf
 {
-    public sealed class FixedTimeWaitingTask : AsyncTaskActivity<TestTaskData, int>
+    [DataContract]
+    [KnownType(typeof(DriverOrchestrationData))]
+    public class DriverOrchestrationData
     {
-        protected override async Task<int> ExecuteAsync(TaskContext context, TestTaskData input)
-        {
-            await Task.Delay(input.MaxDelay);
-            return 1;
-        }
+        [DataMember]
+        public int NumberOfParallelOrchestrations { get; set; }
+
+        [DataMember]
+        public TestOrchestrationData SubOrchestrationData { get; set; }
     }
 }

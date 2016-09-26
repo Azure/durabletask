@@ -14,7 +14,7 @@
 using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
-using DurableTask.Test.Orchestrations.Stress;
+using DurableTask.Test.Orchestrations.Perf;
 using Microsoft.ServiceFabric.Services.Client;
 using Microsoft.ServiceFabric.Services.Remoting.Client;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -32,13 +32,13 @@ namespace DurableTask.ServiceFabric.Test
 
             var driverConfig = new DriverOrchestrationData()
             {
-                NumberOfIteration = 1,
-                NumberOfParallelTasks = 40,
+                NumberOfParallelOrchestrations = 40,
                 SubOrchestrationData = new TestOrchestrationData()
                 {
                     NumberOfParallelTasks = 10,
                     NumberOfSerialTasks = 5,
-                    MaxDelayTime = 5,
+                    MaxDelay = 5,
+                    MinDelay = 0,
                     DelayUnit = TimeSpan.FromSeconds(1)
                 }
             };
@@ -59,8 +59,7 @@ namespace DurableTask.ServiceFabric.Test
             Console.WriteLine($"Total Meastured Time: {elapsedTimeFormatter(totalTime)}");
             Console.WriteLine($"Top level Orchestration Time: {elapsedTimeFormatter(orchestrationTime)}");
 
-            var expectedResult = driverConfig.NumberOfIteration * driverConfig.NumberOfParallelTasks *
-                (driverConfig.SubOrchestrationData.NumberOfParallelTasks + driverConfig.SubOrchestrationData.NumberOfSerialTasks);
+            var expectedResult = driverConfig.NumberOfParallelOrchestrations * (driverConfig.SubOrchestrationData.NumberOfParallelTasks + driverConfig.SubOrchestrationData.NumberOfSerialTasks);
 
             Assert.AreEqual(expectedResult.ToString(), state.Output);
         }

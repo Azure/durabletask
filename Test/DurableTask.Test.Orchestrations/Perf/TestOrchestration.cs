@@ -11,7 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Test.Orchestrations.Stress
+namespace DurableTask.Test.Orchestrations.Perf
 {
     using System;
     using System.Collections.Generic;
@@ -29,24 +29,28 @@ namespace DurableTask.Test.Orchestrations.Stress
             int j = 0;
             for (; i < data.NumberOfParallelTasks; i++)
             {
-                results.Add(context.ScheduleTask<int>(typeof(TestTask), new TestTaskData
+                results.Add(context.ScheduleTask<int>(typeof(RandomTimeWaitingTask), new RandomTimeWaitingTaskInput
                 {
                     TaskId = "ParallelTask: " + i.ToString(),
-                    MaxDelayInMinutes = data.MaxDelayInMinutes,
+                    MaxDelay = data.MaxDelay,
+                    MinDelay = data.MinDelay,
+                    DelayUnit = data.DelayUnit
                 }));
             }
 
             int[] counters = await Task.WhenAll(results.ToArray());
-            result = counters.Max();
+            result = counters.Sum();
 
             for (; j < data.NumberOfSerialTasks; j++)
             {
-                int c = await context.ScheduleTask<int>(typeof(TestTask), new TestTaskData
+                int c = await context.ScheduleTask<int>(typeof(RandomTimeWaitingTask), new RandomTimeWaitingTaskInput
                 {
                     TaskId = "SerialTask" + (i + j).ToString(),
-                    MaxDelayInMinutes = data.MaxDelayInMinutes,
+                    MaxDelay = data.MaxDelay,
+                    MinDelay = data.MinDelay,
+                    DelayUnit = data.DelayUnit
                 });
-                result = Math.Max(result, c);
+                result += c;
             }
 
             return result;

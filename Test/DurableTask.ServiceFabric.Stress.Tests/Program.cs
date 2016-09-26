@@ -17,7 +17,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
-using DurableTask.Test.Orchestrations.Stress;
+using DurableTask.Test.Orchestrations.Perf;
 using Microsoft.ServiceFabric.Services.Client;
 using Microsoft.ServiceFabric.Services.Remoting.Client;
 using TestApplication.Common;
@@ -99,7 +99,6 @@ namespace DurableTask.ServiceFabric.Stress.Tests
                 {
                     NumberOfParallelTasks = 15,
                     NumberOfSerialTasks = 5,
-                    MaxDelayTime = 0
                 };
 
                 totalRequests++;

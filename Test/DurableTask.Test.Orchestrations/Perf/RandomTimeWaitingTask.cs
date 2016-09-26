@@ -11,12 +11,30 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Test.Orchestrations.Stress
+using System;
+using System.Threading.Tasks;
+
+namespace DurableTask.Test.Orchestrations.Perf
 {
-    public class DriverOrchestrationData
+    public sealed class RandomTimeWaitingTask : AsyncTaskActivity<RandomTimeWaitingTaskInput, int>
     {
-        public int NumberOfParallelTasks { get; set; }
-        public int NumberOfIteration { get; set; }
-        public TestOrchestrationData SubOrchestrationData { get; set; }
+        protected override async Task<int> ExecuteAsync(TaskContext context, RandomTimeWaitingTaskInput input)
+        {
+            int delayTime;
+
+            if (input.MaxDelay == input.MinDelay)
+            {
+                delayTime = input.MaxDelay;
+            }
+            else
+            {
+                Random random = new Random();
+                delayTime = random.Next(input.MinDelay, input.MaxDelay);
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(input.DelayUnit.TotalMilliseconds * delayTime));
+
+            return 1;
+        }
     }
 }

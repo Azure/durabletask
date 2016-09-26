@@ -11,28 +11,12 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-using System.Runtime.Serialization;
-
 namespace DurableTask.Test.Orchestrations.Stress
 {
-    [DataContract]
-    [KnownType(typeof(TestOrchestrationData))]
     public class TestOrchestrationData
     {
-        [DataMember]
         public int NumberOfParallelTasks { get; set; }
-
-        [DataMember]
         public int NumberOfSerialTasks { get; set; }
-
-        [DataMember]
-        public int MaxDelayTime { get; set; }
-
-        [DataMember]
-        public string ActivityTypeName { get; set; }
-
-        [DataMember]
-        public TimeSpan? DelayUnit { get; set; } //default value is TimeSpan.FromMinutes(1), this will be multiplied with MaxDelayTime to determine the wait time.
+        public int MaxDelayInMinutes { get; set; }
     }
 }
