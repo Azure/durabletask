@@ -92,10 +92,10 @@ namespace DurableTask.ServiceFabric
         }
 
         //Todo: This is O(N) and also a frequent operation, do we need to optimize this?
-        public async Task<PersistentSession> AcceptSessionAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken)
+        public async Task<PersistentSession> AcceptSessionAsync(TimeSpan receiveTimeout)
         {
             Stopwatch timer = Stopwatch.StartNew();
-            while (timer.Elapsed < receiveTimeout && !cancellationToken.IsCancellationRequested)
+            while (timer.Elapsed < receiveTimeout && !this.cancellationTokenSource.IsCancellationRequested)
             {
                 string returnSessionId = null;
                 using (var tx = this.stateManager.CreateTransaction())
@@ -103,7 +103,7 @@ namespace DurableTask.ServiceFabric
                     var enumerable = await this.orchestrations.CreateEnumerableAsync(tx, EnumerationMode.Unordered);
                     using (var enumerator = enumerable.GetAsyncEnumerator())
                     {
-                        while (await enumerator.MoveNextAsync(cancellationToken))
+                        while (await enumerator.MoveNextAsync(this.cancellationTokenSource.Token))
                         {
                             var entry = enumerator.Current;
 
@@ -129,7 +129,7 @@ namespace DurableTask.ServiceFabric
                     }
                 }
 
-                await Task.Delay(100, cancellationToken);
+                await Task.Delay(100, this.cancellationTokenSource.Token);
             }
 
             return null;

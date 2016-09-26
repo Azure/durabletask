@@ -23,29 +23,36 @@ namespace DurableTask.ServiceFabric
 
     class ActivitiesProvider
     {
-        IReliableStateManager stateManager;
+        readonly IReliableStateManager stateManager;
+        readonly CancellationTokenSource cancellationTokenSource;
+
         IReliableQueue<TaskMessage> activityQueue;
 
-        public ActivitiesProvider(IReliableStateManager stateManager, IReliableQueue<TaskMessage> activityQueue)
+        public ActivitiesProvider(IReliableStateManager stateManager)
         {
             if (stateManager == null)
             {
                 throw new ArgumentNullException(nameof(stateManager));
             }
 
-            if (activityQueue == null)
-            {
-                throw new ArgumentNullException(nameof(activityQueue));
-            }
-
             this.stateManager = stateManager;
-            this.activityQueue = activityQueue;
+            this.cancellationTokenSource = new CancellationTokenSource();
         }
 
-        public async Task<TaskMessage> GetNextWorkItem(TimeSpan receiveTimeout, CancellationToken cancellationToken)
+        public async Task StartAsync()
+        {
+            this.activityQueue = await this.stateManager.GetOrAddAsync<IReliableQueue<TaskMessage>>(Constants.ActivitiesQueueName);
+        }
+
+        public void Stop()
+        {
+            this.cancellationTokenSource.Cancel();
+        }
+
+        public async Task<TaskMessage> GetNextWorkItem(TimeSpan receiveTimeout)
         {
             Stopwatch timer = Stopwatch.StartNew();
-            while (timer.Elapsed < receiveTimeout && !cancellationToken.IsCancellationRequested)
+            while (timer.Elapsed < receiveTimeout && !this.cancellationTokenSource.IsCancellationRequested)
             {
                 using (var txn = this.stateManager.CreateTransaction())
                 {
@@ -55,7 +62,7 @@ namespace DurableTask.ServiceFabric
                         return activityValue.Value;
                     }
                 }
-                await Task.Delay(100, cancellationToken);
+                await Task.Delay(100, this.cancellationTokenSource.Token);
             }
             return null;
         }

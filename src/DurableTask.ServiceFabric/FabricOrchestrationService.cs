@@ -44,12 +44,12 @@ namespace DurableTask.ServiceFabric
 
         public async Task StartAsync()
         {
-            var activities = await this.stateManager.GetOrAddAsync<IReliableQueue<TaskMessage>>(Constants.ActivitiesQueueName);
             var orchestrations = await this.stateManager.GetOrAddAsync<IReliableDictionary<string, PersistentSession>>(Constants.OrchestrationDictionaryName);
-            this.activitiesProvider = new ActivitiesProvider(this.stateManager, activities);
+            this.activitiesProvider = new ActivitiesProvider(this.stateManager);
             this.orchestrationProvider = new SessionsProvider(stateManager, orchestrations);
             await this.instanceStore.StartAsync();
             await this.orchestrationProvider.StartAsync();
+            await this.activitiesProvider.StartAsync();
         }
 
         public Task StopAsync()
@@ -59,6 +59,7 @@ namespace DurableTask.ServiceFabric
 
         public async Task StopAsync(bool isForced)
         {
+            this.activitiesProvider.Stop();
             this.orchestrationProvider.Stop();
             await this.instanceStore.StopAsync(isForced);
         }
@@ -121,9 +122,10 @@ namespace DurableTask.ServiceFabric
         public int TaskOrchestrationDispatcherCount => 1;
         public int MaxConcurrentTaskOrchestrationWorkItems => 1;
 
+        // Note: Do not rely on cancellationToken parameter to this method because the top layer does not yet implement any cancellation.
         public async Task<TaskOrchestrationWorkItem> LockNextTaskOrchestrationWorkItemAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken)
         {
-            var currentSession = await this.orchestrationProvider.AcceptSessionAsync(receiveTimeout, cancellationToken);
+            var currentSession = await this.orchestrationProvider.AcceptSessionAsync(receiveTimeout);
 
             if (currentSession == null)
             {
@@ -208,9 +210,10 @@ namespace DurableTask.ServiceFabric
         public int TaskActivityDispatcherCount => 1;
         public int MaxConcurrentTaskActivityWorkItems => 1;
 
+        // Note: Do not rely on cancellationToken parameter to this method because the top layer does not yet implement any cancellation.
         public async Task<TaskActivityWorkItem> LockNextTaskActivityWorkItem(TimeSpan receiveTimeout, CancellationToken cancellationToken)
         {
-            var currentActivity = await this.activitiesProvider.GetNextWorkItem(receiveTimeout, cancellationToken);
+            var currentActivity = await this.activitiesProvider.GetNextWorkItem(receiveTimeout);
 
             if (currentActivity != null)
             {
