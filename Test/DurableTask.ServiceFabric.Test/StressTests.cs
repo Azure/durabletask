@@ -12,6 +12,7 @@
 //  ----------------------------------------------------------------------------------
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using DurableTask.Test.Orchestrations.Perf;
@@ -28,8 +29,6 @@ namespace DurableTask.ServiceFabric.Test
         [TestMethod]
         public async Task ExecuteStressTest()
         {
-            var serviceClient = ServiceProxy.Create<IRemoteClient>(new Uri("fabric:/TestFabricApplicationType/TestStatefulService"), new ServicePartitionKey(1));
-
             var driverConfig = new DriverOrchestrationData()
             {
                 NumberOfParallelOrchestrations = 40,
@@ -43,6 +42,27 @@ namespace DurableTask.ServiceFabric.Test
                 }
             };
 
+            await RunDriverOrchestrationHelper(driverConfig);
+        }
+
+        [TestMethod]
+        public async Task SimplePerformanceExperiment()
+        {
+            var testOrchestratorInput = new TestOrchestrationData()
+            {
+                NumberOfParallelTasks = 0,
+                NumberOfSerialTasks = 3,
+                MaxDelay = 3,
+                MinDelay = 3,
+                DelayUnit = TimeSpan.FromSeconds(1)
+            };
+
+            await RunTestOrchestrationsHelper(100, testOrchestratorInput);
+        }
+
+        async Task RunDriverOrchestrationHelper(DriverOrchestrationData driverConfig)
+        {
+            var serviceClient = ServiceProxy.Create<IRemoteClient>(new Uri("fabric:/TestFabricApplicationType/TestStatefulService"), new ServicePartitionKey(1));
             Console.WriteLine($"Orchestration getting scheduled: {DateTime.Now}");
 
             Stopwatch stopWatch = Stopwatch.StartNew();
@@ -62,6 +82,48 @@ namespace DurableTask.ServiceFabric.Test
             var expectedResult = driverConfig.NumberOfParallelOrchestrations * (driverConfig.SubOrchestrationData.NumberOfParallelTasks + driverConfig.SubOrchestrationData.NumberOfSerialTasks);
 
             Assert.AreEqual(expectedResult.ToString(), state.Output);
+        }
+
+        async Task RunTestOrchestrationsHelper(int numberOfInstances, TestOrchestrationData orchestrationInput)
+        {
+            var serviceClient = ServiceProxy.Create<IRemoteClient>(new Uri("fabric:/TestFabricApplicationType/TestStatefulService"), new ServicePartitionKey(1));
+
+            List<Task<OrchestrationState>> waitTasks = new List<Task<OrchestrationState>>();
+            Stopwatch stopWatch = Stopwatch.StartNew();
+            for (int i = 0; i < numberOfInstances; i++)
+            {
+                var instance = await serviceClient.StartTestOrchestrationAsync(orchestrationInput);
+                var waitTask = serviceClient.WaitForOrchestration(instance, TimeSpan.FromMinutes(2));
+                waitTasks.Add(waitTask);
+            }
+
+            var outcomes = await Task.WhenAll(waitTasks);
+            stopWatch.Stop();
+
+            Func<TimeSpan, string> elapsedTimeFormatter = timeSpan => $"{timeSpan.Hours:00}:{timeSpan.Minutes:00}:{timeSpan.Seconds:00}.{timeSpan.Milliseconds / 10:00}";
+            Console.WriteLine($"Total Meastured Time For All Orchestrations: {elapsedTimeFormatter(stopWatch.Elapsed)}");
+
+            var expectedResult = (orchestrationInput.NumberOfParallelTasks + orchestrationInput.NumberOfSerialTasks).ToString();
+            TimeSpan minTime = TimeSpan.MaxValue;
+            TimeSpan maxTime = TimeSpan.FromMilliseconds(0);
+
+            foreach (var outcome in outcomes)
+            {
+                Assert.IsNotNull(outcome);
+                Assert.AreEqual(expectedResult, outcome.Output);
+                TimeSpan orchestrationTime = outcome.CompletedTime - outcome.CreatedTime;
+                if (minTime > orchestrationTime)
+                {
+                    minTime = orchestrationTime;
+                }
+                if (maxTime < orchestrationTime)
+                {
+                    maxTime = orchestrationTime;
+                }
+            }
+
+            Console.WriteLine($"Minimum time taken for any orchestration instance : {elapsedTimeFormatter(minTime)}");
+            Console.WriteLine($"Maximum time taken for any orchestration instance : {elapsedTimeFormatter(maxTime)}");
         }
     }
 }
