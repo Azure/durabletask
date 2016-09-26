@@ -92,7 +92,6 @@ namespace DurableTask.ServiceFabric
 
         public bool IsMaxMessageCountExceeded(int currentMessageCount, OrchestrationRuntimeState runtimeState)
         {
-            //Todo: Do we need to enforce a limit here?
             return false;
         }
 

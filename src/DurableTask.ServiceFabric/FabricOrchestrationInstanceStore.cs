@@ -74,9 +74,7 @@ namespace DurableTask.ServiceFabric
                 {
                     string key = GetKey(state.State.OrchestrationInstance.InstanceId, state.State.OrchestrationInstance.ExecutionId);
 
-                    //Todo : Use the utility function after merging from the other branch
-                    var status = state.State.OrchestrationStatus;
-                    if (status == OrchestrationStatus.Running || status == OrchestrationStatus.Pending)
+                    if (state.State.OrchestrationStatus.IsRunningOrPending())
                     {
                         await this.instanceStore.AddOrUpdateAsync(transaction, key, state.State,
                             (k, oldValue) => state.State);

@@ -43,15 +43,19 @@ namespace DurableTask.ServiceFabric
         {
             this.store = await this.stateManager.GetOrAddAsync<IReliableDictionary<TKey, TValue>>(this.storeName);
 
-            using (var txn = this.stateManager.CreateTransaction())
+            using (var tx = this.stateManager.CreateTransaction())
             {
-                //Todo: Check count first
-                var enumerable = await this.store.CreateEnumerableAsync(txn, EnumerationMode.Unordered);
-                using (var enumerator = enumerable.GetAsyncEnumerator())
+                var count = await this.store.GetCountAsync(tx);
+
+                if (count > 0)
                 {
-                    while (await enumerator.MoveNextAsync(this.cancellationTokenSource.Token))
+                    var enumerable = await this.store.CreateEnumerableAsync(tx, EnumerationMode.Unordered);
+                    using (var enumerator = enumerable.GetAsyncEnumerator())
                     {
-                        this.inMemoryQueue.Enqueue(enumerator.Current.Key);
+                        while (await enumerator.MoveNextAsync(this.cancellationTokenSource.Token))
+                        {
+                            this.inMemoryQueue.Enqueue(enumerator.Current.Key);
+                        }
                     }
                 }
             }
