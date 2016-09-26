@@ -39,14 +39,14 @@ namespace DurableTask.ServiceFabric.Test
                 {
                     NumberOfParallelTasks = 10,
                     NumberOfSerialTasks = 5,
-                    MaxDelayInMinutes = 5
+                    MaxDelayInMinutes = 5 //Todo: This is really seconds... rename it...
                 }
             };
 
             Console.WriteLine($"Orchestration getting scheduled: {DateTime.Now}");
 
             Stopwatch stopWatch = Stopwatch.StartNew();
-            var state = await serviceClient.RunDriverOrchestrationAsync(driverConfig, TimeSpan.FromHours(24));
+            var state = await serviceClient.RunDriverOrchestrationAsync(driverConfig, TimeSpan.FromMinutes(5));
             stopWatch.Stop();
 
             Console.WriteLine($"Orchestration Status: {state.OrchestrationStatus}");
