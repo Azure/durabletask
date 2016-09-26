@@ -231,6 +231,7 @@ namespace DurableTask.ServiceFabric
 
         public async Task CompleteTaskActivityWorkItemAsync(TaskActivityWorkItem workItem, TaskMessage responseMessage)
         {
+            //Todo : If we check for cancellation token, then we could avoid harmless FabricNotPrimaryExceptions that happen when primary node switches
             using (var txn = this.stateManager.CreateTransaction())
             {
                 await this.activitiesProvider.CompleteAsync(txn, workItem.Id);
