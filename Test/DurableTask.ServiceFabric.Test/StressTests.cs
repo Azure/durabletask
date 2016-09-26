@@ -60,6 +60,35 @@ namespace DurableTask.ServiceFabric.Test
             await RunTestOrchestrationsHelper(100, testOrchestratorInput);
         }
 
+        [TestMethod]
+        public async Task RunThousandOrchsWithHundredMilliSecondDelayInBetweenStartingEach()
+        {
+            var testOrchestratorInput = new TestOrchestrationData()
+            {
+                NumberOfParallelTasks = 16,
+                NumberOfSerialTasks = 4,
+                MaxDelay = 500,
+                MinDelay = 50,
+                DelayUnit = TimeSpan.FromMilliseconds(1)
+            };
+
+            await RunTestOrchestrationsHelper(1000, testOrchestratorInput, delayGeneratorFunction: (totalRequestsSoFar) => TimeSpan.FromMilliseconds(100));
+        }
+
+        [TestMethod]
+        public async Task InfrequentLoadScenario()
+        {
+            var testOrchestratorInput = new TestOrchestrationData()
+            {
+                NumberOfParallelTasks = 0,
+                NumberOfSerialTasks = 2,
+                MaxDelay = 0,
+                MinDelay = 0,
+            };
+
+            await RunTestOrchestrationsHelper(200, testOrchestratorInput, delayGeneratorFunction: (totalRequestsSoFar) => TimeSpan.FromSeconds(1));
+        }
+
         async Task RunDriverOrchestrationHelper(DriverOrchestrationData driverConfig)
         {
             var serviceClient = ServiceProxy.Create<IRemoteClient>(new Uri("fabric:/TestFabricApplicationType/TestStatefulService"), new ServicePartitionKey(1));
@@ -84,7 +113,7 @@ namespace DurableTask.ServiceFabric.Test
             Assert.AreEqual(expectedResult.ToString(), state.Output);
         }
 
-        async Task RunTestOrchestrationsHelper(int numberOfInstances, TestOrchestrationData orchestrationInput)
+        async Task RunTestOrchestrationsHelper(int numberOfInstances, TestOrchestrationData orchestrationInput, Func<int, TimeSpan> delayGeneratorFunction = null)
         {
             var serviceClient = ServiceProxy.Create<IRemoteClient>(new Uri("fabric:/TestFabricApplicationType/TestStatefulService"), new ServicePartitionKey(1));
 
@@ -95,6 +124,10 @@ namespace DurableTask.ServiceFabric.Test
                 var instance = await serviceClient.StartTestOrchestrationAsync(orchestrationInput);
                 var waitTask = serviceClient.WaitForOrchestration(instance, TimeSpan.FromMinutes(2));
                 waitTasks.Add(waitTask);
+                if (delayGeneratorFunction != null)
+                {
+                    await Task.Delay(delayGeneratorFunction(i));
+                }
             }
 
             var outcomes = await Task.WhenAll(waitTasks);
