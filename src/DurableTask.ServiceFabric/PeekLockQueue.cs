@@ -68,15 +68,15 @@ namespace DurableTask.ServiceFabric
             Stopwatch timer = Stopwatch.StartNew();
             while (timer.Elapsed < receiveTimeout && !this.cancellationTokenSource.IsCancellationRequested)
             {
-                TKey activityId;
-                if (this.inMemoryQueue.TryDequeue(out activityId))
+                TKey key;
+                if (this.inMemoryQueue.TryDequeue(out key))
                 {
                     using (var txn = this.stateManager.CreateTransaction())
                     {
-                        var activity = await this.store.TryGetValueAsync(txn, activityId);
-                        if (activity.HasValue)
+                        var result = await this.store.TryGetValueAsync(txn, key);
+                        if (result.HasValue)
                         {
-                            return new Message<TKey, TValue>(activityId, activity.Value);
+                            return new Message<TKey, TValue>(key, result.Value);
                         }
                         throw new Exception("Internal server error");
                     }
