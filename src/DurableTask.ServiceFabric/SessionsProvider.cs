@@ -129,11 +129,7 @@ namespace DurableTask.ServiceFabric
 
         public async Task AppendMessageAsync(ITransaction transaction, TaskMessage newMessage)
         {
-            //Workaround to avoid client sending a new message before StartAsync on service is done
-            if (this.orchestrations == null)
-            {
-                this.orchestrations = await this.stateManager.GetOrAddAsync<IReliableDictionary<string, PersistentSession>>(Constants.OrchestrationDictionaryName);
-            }
+            await EnsureOrchestrationStoreInitialized();
 
             Func<string, PersistentSession> newSessionFactory = (sId) => PersistentSession.CreateWithNewMessage(sId, newMessage);
 
@@ -158,9 +154,28 @@ namespace DurableTask.ServiceFabric
             }
         }
 
-        public async Task ReleaseSession(ITransaction transaction, string sessionId)
+        public async Task DropSession(ITransaction transaction, string sessionId)
         {
             await this.orchestrations.TryRemoveAsync(transaction, sessionId);
+        }
+
+        public async Task<bool> SessionExists(string sessionId)
+        {
+            await EnsureOrchestrationStoreInitialized();
+
+            using (var txn = this.stateManager.CreateTransaction())
+            {
+                return await this.orchestrations.ContainsKeyAsync(txn, sessionId);
+            }
+        }
+
+        async Task EnsureOrchestrationStoreInitialized()
+        {
+            //Workaround to avoid client sending a new message before StartAsync on service is done
+            if (this.orchestrations == null)
+            {
+                this.orchestrations = await this.stateManager.GetOrAddAsync<IReliableDictionary<string, PersistentSession>>(Constants.OrchestrationDictionaryName);
+            }
         }
 
         async Task PopulateInMemorySessions()

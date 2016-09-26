@@ -40,10 +40,16 @@ namespace DurableTask.ServiceFabric
                 throw new Exception("Invalid creation message");
             }
 
-            //Todo: Need to throw if the same instance and execution id is already running
+            var instance = creationMessage.OrchestrationInstance;
+
+            //Todo: Does this need to throw only if the orchestration is not running Or an orchestration was ever created before with the same id?
+            if (await this.orchestrationProvider.SessionExists(instance.InstanceId))
+            {
+                throw new InvalidOperationException($"An orchestration with id '{creationMessage.OrchestrationInstance.InstanceId}' is already running.");
+            }
 
             await this.SendTaskOrchestrationMessageAsync(creationMessage);
-            ProviderEventSource.Instance.LogOrchestrationCreated(creationMessage.OrchestrationInstance.InstanceId);
+            ProviderEventSource.Instance.LogOrchestrationCreated(instance.InstanceId);
         }
 
         public async Task SendTaskOrchestrationMessageAsync(TaskMessage message)

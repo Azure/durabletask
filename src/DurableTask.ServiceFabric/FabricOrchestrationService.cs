@@ -198,7 +198,7 @@ namespace DurableTask.ServiceFabric
             {
                 using (var txn = this.stateManager.CreateTransaction())
                 {
-                    await this.orchestrationProvider.ReleaseSession(txn, workItem.InstanceId);
+                    await this.orchestrationProvider.DropSession(txn, workItem.InstanceId);
                     await txn.CommitAsync();
                     ProviderEventSource.Instance.LogOrchestrationFinished(workItem.InstanceId,
                         workItem.OrchestrationRuntimeState.OrchestrationStatus.ToString(),
