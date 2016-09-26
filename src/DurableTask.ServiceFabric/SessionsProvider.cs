@@ -34,6 +34,8 @@ namespace DurableTask.ServiceFabric
         ConcurrentQueue<string> inMemorySessionsQueue = new ConcurrentQueue<string>();
         ConcurrentDictionary<string, LockState> lockedSessions = new ConcurrentDictionary<string, LockState>();
 
+        readonly AsyncManualResetEvent waitEvent = new AsyncManualResetEvent();
+
         public SessionsProvider(IReliableStateManager stateManager)
         {
             if (stateManager == null)
@@ -131,10 +133,12 @@ namespace DurableTask.ServiceFabric
 
         public async Task<PersistentSession> AcceptSessionAsync(TimeSpan receiveTimeout)
         {
-            Stopwatch timer = Stopwatch.StartNew();
-            while (timer.Elapsed < receiveTimeout && !this.cancellationTokenSource.IsCancellationRequested)
+            ThrowIfStopped();
+
+            string returnSessionId;
+            bool newItemsBeforeTimeout = true;
+            while (newItemsBeforeTimeout)
             {
-                string returnSessionId;
 
                 if (this.inMemorySessionsQueue.TryDequeue(out returnSessionId))
                 {
@@ -161,8 +165,8 @@ namespace DurableTask.ServiceFabric
                     }
                 }
 
-                //Todo : Can use a signal mechanism?
-                await Task.Delay(100, this.cancellationTokenSource.Token);
+                this.waitEvent.Reset();
+                newItemsBeforeTimeout = await this.waitEvent.WaitAsync(receiveTimeout, this.cancellationTokenSource.Token);
             }
 
             return null;
@@ -188,6 +192,7 @@ namespace DurableTask.ServiceFabric
 
         public async Task AppendMessageAsync(TaskMessage newMessage)
         {
+            ThrowIfStopped();
             await EnsureOrchestrationStoreInitialized();
 
             using (var txn = this.stateManager.CreateTransaction())
@@ -201,6 +206,7 @@ namespace DurableTask.ServiceFabric
 
         public async Task AppendMessageAsync(ITransaction transaction, TaskMessage newMessage)
         {
+            ThrowIfStopped();
             Func<string, PersistentSession> newSessionFactory = (sId) => PersistentSession.CreateWithNewMessage(sId, newMessage);
 
             await this.orchestrations.AddOrUpdateAsync(transaction, newMessage.OrchestrationInstance.InstanceId,
@@ -210,6 +216,7 @@ namespace DurableTask.ServiceFabric
 
         public async Task AppendMessageBatchAsync(ITransaction transaction, IEnumerable<TaskMessage> newMessages)
         {
+            ThrowIfStopped();
             var groups = newMessages.GroupBy(m => m.OrchestrationInstance.InstanceId);
 
             foreach (var group in groups)
@@ -262,12 +269,18 @@ namespace DurableTask.ServiceFabric
             if (this.lockedSessions.TryAdd(sessionId, LockState.InFetchQueue))
             {
                 this.inMemorySessionsQueue.Enqueue(sessionId);
+                this.waitEvent.Set();
             }
         }
 
         public async Task DropSession(ITransaction transaction, string sessionId)
         {
             await this.orchestrations.TryRemoveAsync(transaction, sessionId);
+        }
+
+        void ThrowIfStopped()
+        {
+            this.cancellationTokenSource.Token.ThrowIfCancellationRequested();
         }
 
         enum LockState
