@@ -59,7 +59,7 @@ namespace DurableTask.ServiceFabric
             this.cancellationTokenSource.Cancel();
         }
 
-        public async Task<TaskMessage> GetNextWorkItem(TimeSpan receiveTimeout)
+        public async Task<TaskActivityWorkItem> GetNextWorkItem(TimeSpan receiveTimeout)
         {
             Stopwatch timer = Stopwatch.StartNew();
             while (timer.Elapsed < receiveTimeout && !this.cancellationTokenSource.IsCancellationRequested)
@@ -72,7 +72,11 @@ namespace DurableTask.ServiceFabric
                         var activity = await this.activityQueue.TryGetValueAsync(txn, activityId);
                         if (activity.HasValue)
                         {
-                            return activity.Value;
+                            return new TaskActivityWorkItem()
+                            {
+                                Id = activityId,
+                                TaskMessage = activity.Value
+                            };
                         }
                         throw new Exception("Internal server error");
                     }

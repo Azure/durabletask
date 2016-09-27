@@ -45,11 +45,9 @@ namespace DurableTask.ServiceFabric
         public async Task StartAsync()
         {
             this.activitiesProvider = new ActivitiesProvider(this.stateManager);
-            this.orchestrationProvider = new SessionsProvider(stateManager);
             await this.activitiesProvider.StartAsync();
             await this.instanceStore.StartAsync();
             await this.orchestrationProvider.StartAsync();
-            await this.activitiesProvider.StartAsync();
         }
 
         public Task StopAsync()
@@ -59,7 +57,6 @@ namespace DurableTask.ServiceFabric
 
         public async Task StopAsync(bool isForced)
         {
-            this.activitiesProvider.Stop();
             this.orchestrationProvider.Stop();
             await this.instanceStore.StopAsync(isForced);
             this.activitiesProvider.Stop();
@@ -215,18 +212,7 @@ namespace DurableTask.ServiceFabric
         // Note: Do not rely on cancellationToken parameter to this method because the top layer does not yet implement any cancellation.
         public async Task<TaskActivityWorkItem> LockNextTaskActivityWorkItem(TimeSpan receiveTimeout, CancellationToken cancellationToken)
         {
-            var currentActivity = await this.activitiesProvider.GetNextWorkItem(receiveTimeout);
-
-            if (currentActivity != null)
-            {
-                return new TaskActivityWorkItem()
-                {
-                    Id = Guid.NewGuid().ToString(), //Todo: Do we need to persist this in activity queue?
-                    TaskMessage = currentActivity
-                };
-            }
-
-            return null;
+            return await this.activitiesProvider.GetNextWorkItem(receiveTimeout);
         }
 
         public async Task CompleteTaskActivityWorkItemAsync(TaskActivityWorkItem workItem, TaskMessage responseMessage)
