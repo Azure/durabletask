@@ -79,6 +79,7 @@
     <Compile Include="FabricOrchestrationService.cs" />
     <Compile Include="FabricOrchestrationServiceClient.cs" />
     <Compile Include="IFabricOrchestrationServiceInstanceStore.cs" />
+    <Compile Include="Message.cs" />
     <Compile Include="OrchestrationStatusExtensions.cs" />
     <Compile Include="PeekLockQueue.cs" />
     <Compile Include="PersistentSession.api.cs">
@@ -89,6 +90,7 @@
     </Compile>
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="ProviderEventSource.cs" />
+    <Compile Include="MessageProviderBase.cs" />
     <Compile Include="SessionsProvider.cs" />
     <Compile Include="TimerFiredEventComparer.cs" />
     <Compile Include="Utils.cs" />
