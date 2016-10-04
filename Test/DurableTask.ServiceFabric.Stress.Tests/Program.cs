@@ -104,26 +104,28 @@ namespace DurableTask.ServiceFabric.Stress.Tests
                 {
                     NumberOfParallelTasks = 15,
                     NumberOfSerialTasks = 5,
+                    MaxDelay = 500,
+                    MinDelay = 50,
+                    DelayUnit = TimeSpan.FromMilliseconds(1),
+                    UseTimeoutTask = false, //Change to true when testing timers
+                    ExecutionTimeout = TimeSpan.FromMinutes(5)
                 };
 
                 totalRequests++;
                 var instance = await serviceClient.StartTestOrchestrationAsync(newOrchData);
                 instances.Add(instance);
-                var waitTask = serviceClient.WaitForOrchestration(instance, TimeSpan.FromMinutes(2));
+                var waitTask = serviceClient.WaitForOrchestration(instance, TimeSpan.FromMinutes(5));
 
                 tasks.Add(waitTask);
 
-                if (totalRequests%10 == 0)
+                var delayBetweenRequests = 100;
+                try
                 {
-                    var delay = totalRequests%100 == 0 ? TimeSpan.FromSeconds(3) : TimeSpan.FromSeconds(1);
-                    try
-                    {
-                        await Task.Delay(delay, cancellationToken);
-                    }
-                    catch (TaskCanceledException)
-                    {
-                        break;
-                    }
+                    await Task.Delay(TimeSpan.FromMilliseconds(delayBetweenRequests), cancellationToken);
+                }
+                catch (TaskCanceledException)
+                {
+                    break;
                 }
             }
 
@@ -132,6 +134,20 @@ namespace DurableTask.ServiceFabric.Stress.Tests
             await Task.WhenAll(tasks);
 
             Console.WriteLine("Done");
+        }
+
+        static int GetVariableDelayForTotalRequests(int totalRequests)
+        {
+            int delay = 0;
+            if (totalRequests%10 == 0)
+            {
+                delay = 1000;
+            }
+            if (totalRequests%100 == 0)
+            {
+                delay = 3000;
+            }
+            return delay;
         }
     }
 }
