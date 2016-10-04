@@ -32,6 +32,11 @@ namespace DurableTask.ServiceFabric.Stress.Tests
 
         static void Main(string[] args)
         {
+            RunTest().Wait();
+        }
+
+        static async Task RunTest()
+        {
             CancellationTokenSource cts1 = new CancellationTokenSource();
             CancellationTokenSource cts2 = new CancellationTokenSource();
 
@@ -43,10 +48,10 @@ namespace DurableTask.ServiceFabric.Stress.Tests
             Console.ReadKey();
 
             cts1.Cancel();
-            programTask.Wait();
+            await programTask;
 
             cts2.Cancel();
-            statusTask.Wait();
+            await statusTask;
             watch.Stop();
 
             Func<TimeSpan, string> elapsedTimeFormatter = timeSpan => $"{timeSpan.Hours:00}:{timeSpan.Minutes:00}:{timeSpan.Seconds:00}.{timeSpan.Milliseconds / 10:00}";
