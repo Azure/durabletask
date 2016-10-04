@@ -46,14 +46,14 @@ namespace DurableTask.ServiceFabric.UnitTests
                 messages.Add(ReceivableTaskMessage.Create(new TaskMessage() { SequenceNumber = i }));
             }
 
-            var scheduledMessages = new List<ReceivableTaskMessage>();
+            var scheduledMessages = new List<TaskMessage>();
             for (int i = 0; i < numberOfItemsInCollections; i++)
             {
-                scheduledMessages.Add(ReceivableTaskMessage.Create(new TaskMessage() { SequenceNumber = i }));
+                scheduledMessages.Add(new TaskMessage() { SequenceNumber = i, Event = new TimerFiredEvent(i) {FireAt = DateTime.Now} });
             }
 
             PersistentSession testSession = PersistentSession.Create("testSession", events.ToImmutableList(),
-                messages.ToImmutableList(), scheduledMessages.ToImmutableList());
+                messages.ToImmutableList(), scheduledMessages.ToImmutableSortedSet(TimerFiredEventComparer.Instance));
 
             using (var stream = new MemoryStream())
             {

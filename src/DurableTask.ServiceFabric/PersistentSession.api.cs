@@ -21,18 +21,18 @@ namespace DurableTask.ServiceFabric
 
     public sealed partial class PersistentSession
     {
-        // Todo: Can optimize in a few other ways, for now, something that works
         public PersistentSession FireScheduledMessages()
         {
             var messagesBuilder = this.Messages.ToBuilder();
-            var remainingScheduledMessagesBuilder = ImmutableList<ReceivableTaskMessage>.Empty.ToBuilder();
+            var scheduledMessagesBuilder = this.ScheduledMessages.ToBuilder();
 
             bool changed = false;
             var currentTime = DateTime.UtcNow;
 
-            foreach (var scheduledMessage in this.ScheduledMessages)
+            while (scheduledMessagesBuilder.Count > 0)
             {
-                var timerEvent = scheduledMessage.TaskMessage.Event as TimerFiredEvent;
+                var firstPendingMessage = scheduledMessagesBuilder.Min;
+                var timerEvent = firstPendingMessage.Event as TimerFiredEvent;
 
                 if (timerEvent == null)
                 {
@@ -42,21 +42,38 @@ namespace DurableTask.ServiceFabric
 
                 if (timerEvent.FireAt <= currentTime)
                 {
-                    messagesBuilder.Add(scheduledMessage);
+                    messagesBuilder.Add(ReceivableTaskMessage.Create(firstPendingMessage));
+                    scheduledMessagesBuilder.Remove(firstPendingMessage);
                     changed = true;
                 }
                 else
                 {
-                    remainingScheduledMessagesBuilder.Add(scheduledMessage);
+                    break;
                 }
             }
 
             if (changed)
             {
-                return Create(this.SessionId, this.SessionState, messagesBuilder.ToImmutableList(), remainingScheduledMessagesBuilder.ToImmutableList());
+                return Create(this.SessionId, this.SessionState, messagesBuilder.ToImmutableList(), scheduledMessagesBuilder.ToImmutableSortedSet());
             }
 
             return this;
+        }
+
+        public bool HasScheduledMessagesDue(DateTime threshHoldTime)
+        {
+            if (this.ScheduledMessages.Count > 0)
+            {
+                var firstPendingMessage = this.ScheduledMessages.Min;
+                var timerEvent = firstPendingMessage.Event as TimerFiredEvent;
+
+                if (timerEvent != null && timerEvent.FireAt <= threshHoldTime)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         public PersistentSession ReceiveMessages()
@@ -69,12 +86,15 @@ namespace DurableTask.ServiceFabric
         {
             var newMessages = this.Messages.RemoveAll(m => m.IsReceived);
             var newSessionState = newState?.Events.ToImmutableList();
-            var newScheduledMessages = this.ScheduledMessages;
+            var newScheduledMessagesBuilder = this.ScheduledMessages.ToBuilder();
             if (addedScheduledMessages?.Count > 0)
             {
-                newScheduledMessages = this.ScheduledMessages.AddRange(addedScheduledMessages.Select(tm => ReceivableTaskMessage.Create(tm)));
+                foreach (var addedScheduledMessage in addedScheduledMessages)
+                {
+                    newScheduledMessagesBuilder.Add(addedScheduledMessage);
+                }
             }
-            return Create(this.SessionId, newSessionState, newMessages, newScheduledMessages);
+            return Create(this.SessionId, newSessionState, newMessages, newScheduledMessagesBuilder.ToImmutableSortedSet());
         }
 
         public PersistentSession AppendMessage(TaskMessage message)

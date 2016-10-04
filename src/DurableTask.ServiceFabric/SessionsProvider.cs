@@ -75,11 +75,13 @@ namespace DurableTask.ServiceFabric
             var nowait = ProcessScheduledMessages();
         }
 
+        // Todo: Can optimize in a few other ways, for now, something that works
         async Task ProcessScheduledMessages()
         {
             while (!this.cancellationTokenSource.IsCancellationRequested)
             {
                 var scheduledMessageSessions = new List<string>();
+                var now = DateTime.UtcNow;
                 using (var txn = this.stateManager.CreateTransaction())
                 {
                     var enumerable = await this.orchestrations.CreateEnumerableAsync(txn, EnumerationMode.Unordered);
@@ -88,7 +90,7 @@ namespace DurableTask.ServiceFabric
                         while (await enumerator.MoveNextAsync(this.cancellationTokenSource.Token))
                         {
                             var entry = enumerator.Current;
-                            if (entry.Value.ScheduledMessages.Count > 0)
+                            if (entry.Value.HasScheduledMessagesDue(now))
                             {
                                 scheduledMessageSessions.Add(entry.Key);
                             }
@@ -105,7 +107,7 @@ namespace DurableTask.ServiceFabric
                 {
                     using (var txn = this.stateManager.CreateTransaction())
                     {
-                        var existingValue = await this.orchestrations.TryGetValueAsync(txn, sessionId);
+                        var existingValue = await this.orchestrations.TryGetValueAsync(txn, sessionId, LockMode.Update);
                         if (existingValue.HasValue)
                         {
                             var old = existingValue.Value;

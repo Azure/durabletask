@@ -50,32 +50,32 @@ namespace DurableTask.ServiceFabric
         /// Do not use except in the constructor or serialization methods, use <see cref="ScheduledMessages"/> property instead.
         /// </summary>
         [DataMember]
-        IEnumerable<ReceivableTaskMessage> scheduledMessages { get; set; }
+        IEnumerable<TaskMessage> scheduledMessages { get; set; }
 
         [OnDeserialized]
         private void OnDeserialized(StreamingContext context)
         {
             this.sessionState = this.sessionState.ToImmutableList();
             this.messages = this.messages.ToImmutableList();
-            this.scheduledMessages = this.scheduledMessages.ToImmutableList();
+            this.scheduledMessages = this.scheduledMessages.ToImmutableSortedSet(TimerFiredEventComparer.Instance);
         }
 
-        private PersistentSession(string sessionId, IImmutableList<HistoryEvent> sessionState, IImmutableList<ReceivableTaskMessage> messages, IImmutableList<ReceivableTaskMessage> scheduledMessages)
+        private PersistentSession(string sessionId, IImmutableList<HistoryEvent> sessionState, IImmutableList<ReceivableTaskMessage> messages, ImmutableSortedSet<TaskMessage> scheduledMessages)
         {
             this.SessionId = sessionId;
             this.sessionState = sessionState ?? ImmutableList<HistoryEvent>.Empty;
             this.messages = messages ?? ImmutableList<ReceivableTaskMessage>.Empty;
-            this.scheduledMessages = scheduledMessages ?? ImmutableList<ReceivableTaskMessage>.Empty;
+            this.scheduledMessages = scheduledMessages ?? ImmutableSortedSet<TaskMessage>.Empty.WithComparer(TimerFiredEventComparer.Instance);
         }
 
-        public static PersistentSession Create(string sessionId, IImmutableList<HistoryEvent> sessionState, IImmutableList<ReceivableTaskMessage> messages, IImmutableList<ReceivableTaskMessage> scheduledMessages)
+        public static PersistentSession Create(string sessionId, IImmutableList<HistoryEvent> sessionState, IImmutableList<ReceivableTaskMessage> messages, ImmutableSortedSet<TaskMessage> scheduledMessages)
         {
             return new PersistentSession(sessionId, sessionState, messages, scheduledMessages);
         }
 
         public ImmutableList<HistoryEvent> SessionState => this.sessionState.ToImmutableList();
         public ImmutableList<ReceivableTaskMessage> Messages => this.messages.ToImmutableList();
-        public ImmutableList<ReceivableTaskMessage> ScheduledMessages => this.scheduledMessages.ToImmutableList();
+        public ImmutableSortedSet<TaskMessage> ScheduledMessages => this.scheduledMessages.ToImmutableSortedSet(TimerFiredEventComparer.Instance);
     }
 
     [DataContract]
