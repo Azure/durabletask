@@ -105,15 +105,19 @@ namespace DurableTask.ServiceFabric
                 {
                     using (var txn = this.stateManager.CreateTransaction())
                     {
-                        await this.orchestrations.AddOrUpdateAsync(txn,
-                            sessionId,
-                            NewSessionFactory,
-                            (sId, oldValue) => oldValue.FireScheduledMessages(),
-                            TimeSpan.FromSeconds(4),
-                            this.cancellationTokenSource.Token);
+                        var existingValue = await this.orchestrations.TryGetValueAsync(txn, sessionId);
+                        if (existingValue.HasValue)
+                        {
+                            var old = existingValue.Value;
+                            var newValue = old.FireScheduledMessages();
 
-                        await txn.CommitAsync();
-                        this.TryEnqueueSession(sessionId);
+                            if (old != newValue)
+                            {
+                                await this.orchestrations.TryUpdateAsync(txn, sessionId, newValue, old, TimeSpan.FromSeconds(4), this.cancellationTokenSource.Token);
+                                await txn.CommitAsync();
+                                this.TryEnqueueSession(sessionId);
+                            }
+                        }
                     }
                 }
 

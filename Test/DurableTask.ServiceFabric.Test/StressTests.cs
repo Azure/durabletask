@@ -43,6 +43,12 @@ namespace DurableTask.ServiceFabric.Test
             };
 
             await RunDriverOrchestrationHelper(driverConfig);
+            Console.WriteLine();
+
+            driverConfig.SubOrchestrationData.UseTimeoutTask = true;
+            driverConfig.SubOrchestrationData.ExecutionTimeout = TimeSpan.FromMinutes(2);
+
+            await RunDriverOrchestrationHelper(driverConfig);
         }
 
         [TestMethod]
@@ -56,6 +62,12 @@ namespace DurableTask.ServiceFabric.Test
                 MinDelay = 3,
                 DelayUnit = TimeSpan.FromSeconds(1)
             };
+
+            await RunTestOrchestrationsHelper(100, testOrchestratorInput);
+            Console.WriteLine();
+
+            testOrchestratorInput.UseTimeoutTask = true;
+            testOrchestratorInput.ExecutionTimeout = TimeSpan.FromMinutes(2);
 
             await RunTestOrchestrationsHelper(100, testOrchestratorInput);
         }
@@ -73,6 +85,12 @@ namespace DurableTask.ServiceFabric.Test
             };
 
             await RunTestOrchestrationsHelper(1000, testOrchestratorInput, delayGeneratorFunction: (totalRequestsSoFar) => TimeSpan.FromMilliseconds(100));
+            Console.WriteLine();
+
+            testOrchestratorInput.UseTimeoutTask = true;
+            testOrchestratorInput.ExecutionTimeout = TimeSpan.FromMinutes(2);
+
+            await RunTestOrchestrationsHelper(1000, testOrchestratorInput, delayGeneratorFunction: (totalRequestsSoFar) => TimeSpan.FromMilliseconds(100));
         }
 
         [TestMethod]
@@ -85,6 +103,12 @@ namespace DurableTask.ServiceFabric.Test
                 MaxDelay = 0,
                 MinDelay = 0,
             };
+
+            await RunTestOrchestrationsHelper(200, testOrchestratorInput, delayGeneratorFunction: (totalRequestsSoFar) => TimeSpan.FromSeconds(1));
+            Console.WriteLine();
+
+            testOrchestratorInput.UseTimeoutTask = true;
+            testOrchestratorInput.ExecutionTimeout = TimeSpan.FromMinutes(2);
 
             await RunTestOrchestrationsHelper(200, testOrchestratorInput, delayGeneratorFunction: (totalRequestsSoFar) => TimeSpan.FromSeconds(1));
         }
