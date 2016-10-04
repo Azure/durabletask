@@ -34,5 +34,11 @@ namespace DurableTask.Test.Orchestrations.Perf
 
         [DataMember]
         public TimeSpan DelayUnit { get; set; }
+
+        [DataMember]
+        public bool UseTimeoutTask { get; set; }
+
+        [DataMember]
+        public TimeSpan ExecutionTimeout { get; set; }
     }
 }

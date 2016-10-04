@@ -11,6 +11,8 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+using System.Threading;
+
 namespace DurableTask.Test.Orchestrations.Perf
 {
     using System;
@@ -22,6 +24,18 @@ namespace DurableTask.Test.Orchestrations.Perf
     public class TestOrchestration : TaskOrchestration<int, TestOrchestrationData>
     {
         public override async Task<int> RunTask(OrchestrationContext context, TestOrchestrationData data)
+        {
+            if (data.UseTimeoutTask)
+            {
+                return await RunTaskWithTimeout(context, data);
+            }
+            else
+            {
+                return await RunTaskCore(context, data);
+            }
+        }
+
+        async Task<int> RunTaskCore(OrchestrationContext context, TestOrchestrationData data)
         {
             int result = 0;
             List<Task<int>> results = new List<Task<int>>();
@@ -54,6 +68,24 @@ namespace DurableTask.Test.Orchestrations.Perf
             }
 
             return result;
+        }
+
+        async Task<int> RunTaskWithTimeout(OrchestrationContext context, TestOrchestrationData data)
+        {
+            var timerCts = new CancellationTokenSource();
+
+            var timer = context.CreateTimer(context.CurrentUtcDateTime.Add(data.ExecutionTimeout), -1, timerCts.Token);
+            var mainTask = RunTaskCore(context, data);
+
+            var resultTask = await Task.WhenAny(mainTask, timer);
+
+            if (resultTask == timer)
+            {
+                throw new TimeoutException("Orchestration timed out");
+            }
+
+            timerCts.Cancel();
+            return mainTask.Result;
         }
     }
 }

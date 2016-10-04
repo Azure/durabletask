@@ -13,6 +13,7 @@
 
 using System;
 using System.Threading.Tasks;
+using DurableTask.Test.Orchestrations.Perf;
 using Microsoft.ServiceFabric.Services.Client;
 using Microsoft.ServiceFabric.Services.Remoting.Client;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -74,6 +75,44 @@ namespace DurableTask.ServiceFabric.Test
 
             Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
             Assert.AreEqual($"\"TaskResult = Hello World , SubOrchestration1Result = Hello Gabbar, SubOrchestration2Result = Hello Gabbar\"", result.Output);
+        }
+
+        [TestMethod]
+        public async Task Orchestration_With_TimeoutWrapper_Test()
+        {
+            // Task finishes within timeout
+            var instance = await this.serviceClient.StartTestOrchestrationAsync(new TestOrchestrationData()
+            {
+                NumberOfParallelTasks = 0,
+                NumberOfSerialTasks = 1,
+                MaxDelay = 0,
+                MinDelay = 0,
+                DelayUnit = TimeSpan.FromMilliseconds(1),
+                UseTimeoutTask = true,
+                ExecutionTimeout = TimeSpan.FromMinutes(1)
+            });
+            var result = await this.serviceClient.WaitForOrchestration(instance, TimeSpan.FromMinutes(2));
+
+            Assert.IsNotNull(result);
+            Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
+            Console.WriteLine($"Time for Orchestration with no delay running task wrapped in 1 minute timeout : {result.CompletedTime - result.CreatedTime}");
+
+            // Task does not finish within timeout
+            instance = await this.serviceClient.StartTestOrchestrationAsync(new TestOrchestrationData()
+            {
+                NumberOfParallelTasks = 0,
+                NumberOfSerialTasks = 1,
+                MaxDelay = 5,
+                MinDelay = 5,
+                DelayUnit = TimeSpan.FromSeconds(1),
+                UseTimeoutTask = true,
+                ExecutionTimeout = TimeSpan.FromSeconds(1)
+            });
+            result = await this.serviceClient.WaitForOrchestration(instance, TimeSpan.FromMinutes(2));
+
+            Assert.IsNotNull(result);
+            Assert.AreEqual(OrchestrationStatus.Failed, result.OrchestrationStatus);
+            Console.WriteLine($"Time for Orchestration with 5 second running task wrapped in 1 second timeout : {result.CompletedTime - result.CreatedTime}");
         }
 
         [TestMethod]
