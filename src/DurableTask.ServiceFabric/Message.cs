@@ -21,6 +21,16 @@ namespace DurableTask.ServiceFabric
     {
         public Message(TKey key, TValue value)
         {
+            if (key == null)
+            {
+                throw new ArgumentNullException(nameof(key));
+            }
+
+            if (value == null)
+            {
+                throw new ArgumentNullException(nameof(value));
+            }
+
             Key = key;
             Value = value;
         }

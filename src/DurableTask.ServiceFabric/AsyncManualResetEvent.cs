@@ -28,6 +28,11 @@ namespace DurableTask.ServiceFabric
 
         public async Task<bool> WaitAsync(TimeSpan timeout, CancellationToken cancellationToken)
         {
+            if (timeout < TimeSpan.Zero)
+            {
+                timeout = TimeSpan.Zero;
+            }
+
             var delayTask = Task.Delay(timeout, cancellationToken);
             var resultTask = await Task.WhenAny(delayTask, this.tcs.Task);
             return delayTask != resultTask;
