@@ -18,11 +18,11 @@ namespace DurableTask.ServiceFabric
     using System.Threading.Tasks;
     using Microsoft.ServiceFabric.Data;
 
-    class PeekLockQueue<TKey, TValue> : MessageProviderBase<TKey, TValue> where TKey : IComparable<TKey>, IEquatable<TKey>
+    class ActivityProvider<TKey, TValue> : MessageProviderBase<TKey, TValue> where TKey : IComparable<TKey>, IEquatable<TKey>
     {
         readonly ConcurrentQueue<TKey> inMemoryQueue = new ConcurrentQueue<TKey>();
 
-        public PeekLockQueue(IReliableStateManager stateManager, string storeName) : base(stateManager, storeName)
+        public ActivityProvider(IReliableStateManager stateManager, string storeName) : base(stateManager, storeName)
         {
         }
 

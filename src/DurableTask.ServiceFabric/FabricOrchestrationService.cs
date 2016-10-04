@@ -27,7 +27,7 @@ namespace DurableTask.ServiceFabric
         IFabricOrchestrationServiceInstanceStore instanceStore;
 
         SessionsProvider orchestrationProvider;
-        PeekLockQueue<string, TaskMessage> activitiesProvider;
+        ActivityProvider<string, TaskMessage> activitiesProvider;
 
         public FabricOrchestrationService(IReliableStateManager stateManager, SessionsProvider orchestrationProvider, IFabricOrchestrationServiceInstanceStore instanceStore)
         {
@@ -43,7 +43,7 @@ namespace DurableTask.ServiceFabric
 
         public async Task StartAsync()
         {
-            this.activitiesProvider = new PeekLockQueue<string, TaskMessage>(this.stateManager, Constants.ActivitiesQueueName);
+            this.activitiesProvider = new ActivityProvider<string, TaskMessage>(this.stateManager, Constants.ActivitiesQueueName);
             await this.activitiesProvider.StartAsync();
             await this.instanceStore.StartAsync();
             await this.orchestrationProvider.StartAsync();

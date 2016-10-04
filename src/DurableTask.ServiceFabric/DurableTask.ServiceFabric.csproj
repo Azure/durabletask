@@ -81,7 +81,7 @@
     <Compile Include="IFabricOrchestrationServiceInstanceStore.cs" />
     <Compile Include="Message.cs" />
     <Compile Include="OrchestrationStatusExtensions.cs" />
-    <Compile Include="PeekLockQueue.cs" />
+    <Compile Include="ActivityProvider.cs" />
     <Compile Include="PersistentSession.api.cs">
       <DependentUpon>PersistentSession.cs</DependentUpon>
     </Compile>
