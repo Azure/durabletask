@@ -22,31 +22,34 @@ namespace DurableTask.ServiceFabric
 
     abstract class MessageProviderBase<TKey, TValue> where TKey : IComparable<TKey>, IEquatable<TKey>
     {
-        readonly IReliableStateManager stateManager;
         readonly string storeName;
         readonly CancellationTokenSource cancellationTokenSource;
         readonly AsyncManualResetEvent waitEvent = new AsyncManualResetEvent();
 
-        IReliableDictionary<TKey, TValue> store;
-
         protected MessageProviderBase(IReliableStateManager stateManager, string storeName)
         {
-            this.stateManager = stateManager;
+            this.StateManager = stateManager;
             this.storeName = storeName;
             this.cancellationTokenSource = new CancellationTokenSource();
         }
 
-        public async Task StartAsync()
-        {
-            this.store = await this.stateManager.GetOrAddAsync<IReliableDictionary<TKey, TValue>>(this.storeName);
+        protected IReliableStateManager StateManager { get; }
 
-            using (var tx = this.stateManager.CreateTransaction())
+        protected CancellationToken CancellationToken => this.cancellationTokenSource.Token;
+
+        protected IReliableDictionary<TKey, TValue> Store { get; private set; }
+
+        public virtual async Task StartAsync()
+        {
+            await InitializeStore();
+
+            using (var tx = this.StateManager.CreateTransaction())
             {
-                var count = await this.store.GetCountAsync(tx);
+                var count = await this.Store.GetCountAsync(tx);
 
                 if (count > 0)
                 {
-                    var enumerable = await this.store.CreateEnumerableAsync(tx, EnumerationMode.Unordered);
+                    var enumerable = await this.Store.CreateEnumerableAsync(tx, EnumerationMode.Unordered);
                     using (var enumerator = enumerable.GetAsyncEnumerator())
                     {
                         while (await enumerator.MoveNextAsync(this.cancellationTokenSource.Token))
@@ -56,6 +59,11 @@ namespace DurableTask.ServiceFabric
                     }
                 }
             }
+        }
+
+        protected async Task InitializeStore()
+        {
+            this.Store = await this.StateManager.GetOrAddAsync<IReliableDictionary<TKey, TValue>>(this.storeName);
         }
 
         public Task StopAsync()
@@ -68,7 +76,17 @@ namespace DurableTask.ServiceFabric
         {
             ThrowIfStopped();
 
-            return this.store.TryRemoveAsync(tx, key);
+            return this.Store.TryRemoveAsync(tx, key);
+        }
+
+        public async Task CompleteBatchAsync(ITransaction tx, IEnumerable<TKey> keys)
+        {
+            ThrowIfStopped();
+
+            foreach (var key in keys)
+            {
+                await this.Store.TryRemoveAsync(tx, key);
+            }
         }
 
         /// <summary>
@@ -79,7 +97,7 @@ namespace DurableTask.ServiceFabric
         {
             ThrowIfStopped();
 
-            return this.store.TryAddAsync(tx, item.Key, item.Value);
+            return this.Store.TryAddAsync(tx, item.Key, item.Value);
         }
 
         public void SendComplete(Message<TKey, TValue> item)
@@ -100,7 +118,7 @@ namespace DurableTask.ServiceFabric
 
             foreach (var item in items)
             {
-                await this.store.TryAddAsync(tx, item.Key, item.Value);
+                await this.Store.TryAddAsync(tx, item.Key, item.Value);
             }
         }
 
@@ -117,9 +135,9 @@ namespace DurableTask.ServiceFabric
 
         protected async Task<Message<TKey, TValue>> GetValueAsync(TKey key)
         {
-            using (var tx = this.stateManager.CreateTransaction())
+            using (var tx = this.StateManager.CreateTransaction())
             {
-                var result = await this.store.TryGetValueAsync(tx, key);
+                var result = await this.Store.TryGetValueAsync(tx, key);
                 if (result.HasValue)
                 {
                     return new Message<TKey, TValue>(key, result.Value);
@@ -144,6 +162,11 @@ namespace DurableTask.ServiceFabric
         protected void ThrowIfStopped()
         {
             this.cancellationTokenSource.Token.ThrowIfCancellationRequested();
+        }
+
+        protected bool IsStopped()
+        {
+            return this.cancellationTokenSource.IsCancellationRequested;
         }
     }
 }

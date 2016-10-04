@@ -46,14 +46,8 @@ namespace DurableTask.ServiceFabric.UnitTests
                 messages.Add(ReceivableTaskMessage.Create(new TaskMessage() { SequenceNumber = i }));
             }
 
-            var scheduledMessages = new List<TaskMessage>();
-            for (int i = 0; i < numberOfItemsInCollections; i++)
-            {
-                scheduledMessages.Add(new TaskMessage() { SequenceNumber = i, Event = new TimerFiredEvent(i) {FireAt = DateTime.Now} });
-            }
-
             PersistentSession testSession = PersistentSession.Create("testSession", events.ToImmutableList(),
-                messages.ToImmutableList(), scheduledMessages.ToImmutableSortedSet(TimerFiredEventComparer.Instance));
+                messages.ToImmutableList());
 
             using (var stream = new MemoryStream())
             {
@@ -73,7 +67,6 @@ namespace DurableTask.ServiceFabric.UnitTests
                 Assert.AreEqual("testSession", deserialized.SessionId);
                 Assert.AreEqual(numberOfItemsInCollections*2 + 2, deserialized.SessionState.Count);
                 Assert.AreEqual(numberOfItemsInCollections, deserialized.Messages.Count);
-                Assert.AreEqual(numberOfItemsInCollections, deserialized.ScheduledMessages.Count);
             }
         }
     }

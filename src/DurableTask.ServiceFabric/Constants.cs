@@ -18,5 +18,6 @@ namespace DurableTask.ServiceFabric
         internal const string OrchestrationDictionaryName = "Orchestrations";
         internal const string ActivitiesQueueName = "Activities";
         internal const string InstanceStoreDictionaryName = "InstanceStore";
+        internal const string ScheduledMessagesDictionaryName = "ScheduledMessages";
     }
 }

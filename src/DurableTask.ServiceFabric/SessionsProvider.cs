@@ -28,7 +28,7 @@ namespace DurableTask.ServiceFabric
         readonly IReliableStateManager stateManager;
         readonly CancellationTokenSource cancellationTokenSource;
 
-        readonly Func<string, PersistentSession> NewSessionFactory = (sId) => PersistentSession.Create(sId, null, null, null);
+        readonly Func<string, PersistentSession> NewSessionFactory = (sId) => PersistentSession.Create(sId, null, null);
         IReliableDictionary<string, PersistentSession> orchestrations;
 
         ConcurrentQueue<string> inMemorySessionsQueue = new ConcurrentQueue<string>();
@@ -71,70 +71,12 @@ namespace DurableTask.ServiceFabric
                     }
                 }
             }
-
-            var nowait = ProcessScheduledMessages();
         }
 
-        // Todo: Can optimize in a few other ways, for now, something that works
-        async Task ProcessScheduledMessages()
-        {
-            while (!this.cancellationTokenSource.IsCancellationRequested)
-            {
-                var scheduledMessageSessions = new List<string>();
-                var now = DateTime.UtcNow;
-                using (var txn = this.stateManager.CreateTransaction())
-                {
-                    var enumerable = await this.orchestrations.CreateEnumerableAsync(txn, EnumerationMode.Unordered);
-                    using (var enumerator = enumerable.GetAsyncEnumerator())
-                    {
-                        while (await enumerator.MoveNextAsync(this.cancellationTokenSource.Token))
-                        {
-                            var entry = enumerator.Current;
-                            if (entry.Value.HasScheduledMessagesDue(now))
-                            {
-                                scheduledMessageSessions.Add(entry.Key);
-                            }
-                        }
-                    }
-                }
-
-                if (this.cancellationTokenSource.IsCancellationRequested)
-                {
-                    break;
-                }
-
-                foreach (var sessionId in scheduledMessageSessions)
-                {
-                    using (var txn = this.stateManager.CreateTransaction())
-                    {
-                        var existingValue = await this.orchestrations.TryGetValueAsync(txn, sessionId, LockMode.Update);
-                        if (existingValue.HasValue)
-                        {
-                            var old = existingValue.Value;
-                            var newValue = old.FireScheduledMessages();
-
-                            if (old != newValue)
-                            {
-                                await this.orchestrations.TryUpdateAsync(txn, sessionId, newValue, old, TimeSpan.FromSeconds(4), this.cancellationTokenSource.Token);
-                                await txn.CommitAsync();
-                                this.TryEnqueueSession(sessionId);
-                            }
-                        }
-                    }
-                }
-
-                if (this.cancellationTokenSource.IsCancellationRequested)
-                {
-                    break;
-                }
-
-                await Task.Delay(TimeSpan.FromMilliseconds(100));
-            }
-        }
-
-        public void Stop()
+        public Task StopAsync()
         {
             this.cancellationTokenSource.Cancel();
+            return Task.FromResult<object>(null);
         }
 
         public async Task<PersistentSession> AcceptSessionAsync(TimeSpan receiveTimeout)
@@ -189,11 +131,10 @@ namespace DurableTask.ServiceFabric
         /// </summary>
         public Task<PersistentSession> CompleteAndUpdateSession(ITransaction transaction,
             string sessionId,
-            OrchestrationRuntimeState newSessionState,
-            IList<TaskMessage> scheduledMessages)
+            OrchestrationRuntimeState newSessionState)
         {
             return this.orchestrations.AddOrUpdateAsync(transaction, sessionId, NewSessionFactory,
-                (sId, oldValue) => oldValue.CompleteMessages(newSessionState, scheduledMessages));
+                (sId, oldValue) => oldValue.CompleteMessages(newSessionState));
         }
 
         public async Task AppendMessageAsync(TaskMessage newMessage)
@@ -218,6 +159,49 @@ namespace DurableTask.ServiceFabric
             await this.orchestrations.AddOrUpdateAsync(transaction, newMessage.OrchestrationInstance.InstanceId,
                 addValueFactory: newSessionFactory,
                 updateValueFactory: (ses, oldValue) => oldValue.AppendMessage(newMessage));
+        }
+
+        public async Task<bool> TryAppendMessageAsync(ITransaction transaction, TaskMessage newMessage)
+        {
+            ThrowIfStopped();
+
+            var sessionId = newMessage.OrchestrationInstance.InstanceId;
+            var existingValue = await this.orchestrations.TryGetValueAsync(transaction, sessionId, LockMode.Update);
+            if (existingValue.HasValue)
+            {
+                var newValue = existingValue.Value.AppendMessage(newMessage);
+                if (newValue != existingValue.Value)
+                {
+                    await this.orchestrations.TryUpdateAsync(transaction, sessionId, newValue, existingValue.Value);
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        public async Task<IList<string>> TryAppendMessageBatchAsync(ITransaction transaction, IEnumerable<TaskMessage> newMessages)
+        {
+            ThrowIfStopped();
+            List<string> modifiedSessions = new List<string>();
+
+            var groups = newMessages.GroupBy(m => m.OrchestrationInstance.InstanceId);
+
+            foreach (var group in groups)
+            {
+                var existingValue = await this.orchestrations.TryGetValueAsync(transaction, group.Key, LockMode.Update);
+                if (existingValue.HasValue)
+                {
+                    var newValue = existingValue.Value.AppendMessageBatch(group.AsEnumerable());
+                    if (newValue != existingValue.Value)
+                    {
+                        await this.orchestrations.TryUpdateAsync(transaction, group.Key, newValue, existingValue.Value);
+                        modifiedSessions.Add(group.Key);
+                    }
+                }
+            }
+
+            return modifiedSessions;
         }
 
         public async Task AppendMessageBatchAsync(ITransaction transaction, IEnumerable<TaskMessage> newMessages)

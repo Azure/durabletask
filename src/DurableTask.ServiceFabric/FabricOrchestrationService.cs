@@ -23,11 +23,11 @@ namespace DurableTask.ServiceFabric
 
     public class FabricOrchestrationService : IOrchestrationService
     {
-        IReliableStateManager stateManager;
-        IFabricOrchestrationServiceInstanceStore instanceStore;
-
-        SessionsProvider orchestrationProvider;
-        ActivityProvider<string, TaskMessage> activitiesProvider;
+        readonly IReliableStateManager stateManager;
+        readonly IFabricOrchestrationServiceInstanceStore instanceStore;
+        readonly SessionsProvider orchestrationProvider;
+        readonly ActivityProvider<string, TaskMessage> activitiesProvider;
+        readonly ScheduledMessageProvider scheduledMessagesProvider;
 
         public FabricOrchestrationService(IReliableStateManager stateManager, SessionsProvider orchestrationProvider, IFabricOrchestrationServiceInstanceStore instanceStore)
         {
@@ -39,12 +39,14 @@ namespace DurableTask.ServiceFabric
             this.stateManager = stateManager;
             this.orchestrationProvider = orchestrationProvider;
             this.instanceStore = instanceStore;
+            this.activitiesProvider = new ActivityProvider<string, TaskMessage>(this.stateManager, Constants.ActivitiesQueueName);
+            this.scheduledMessagesProvider = new ScheduledMessageProvider(this.stateManager, Constants.ScheduledMessagesDictionaryName, orchestrationProvider);
         }
 
         public async Task StartAsync()
         {
-            this.activitiesProvider = new ActivityProvider<string, TaskMessage>(this.stateManager, Constants.ActivitiesQueueName);
             await this.activitiesProvider.StartAsync();
+            await this.scheduledMessagesProvider.StartAsync();
             await this.instanceStore.StartAsync();
             await this.orchestrationProvider.StartAsync();
         }
@@ -56,8 +58,9 @@ namespace DurableTask.ServiceFabric
 
         public async Task StopAsync(bool isForced)
         {
-            this.orchestrationProvider.Stop();
+            await this.orchestrationProvider.StopAsync();
             await this.instanceStore.StopAsync(isForced);
+            await this.scheduledMessagesProvider.StopAsync();
             await this.activitiesProvider.StopAsync();
         }
 
@@ -85,7 +88,13 @@ namespace DurableTask.ServiceFabric
         public async Task DeleteAsync(bool deleteInstanceStore)
         {
             await this.stateManager.RemoveAsync(Constants.OrchestrationDictionaryName);
+            await this.stateManager.RemoveAsync(Constants.ScheduledMessagesDictionaryName);
             await this.stateManager.RemoveAsync(Constants.ActivitiesQueueName);
+
+            if (deleteInstanceStore)
+            {
+                await this.stateManager.RemoveAsync(Constants.InstanceStoreDictionaryName);
+            }
         }
 
         public bool IsMaxMessageCountExceeded(int currentMessageCount, OrchestrationRuntimeState runtimeState)
@@ -160,14 +169,36 @@ namespace DurableTask.ServiceFabric
 
             using (var txn = this.stateManager.CreateTransaction())
             {
-                var activityMessages = outboundMessages.Select(m => new Message<string, TaskMessage>(Guid.NewGuid().ToString(), m)).ToList();
-                await this.activitiesProvider.SendBatchBeginAsync(txn, activityMessages);
+                var previousState = workItem.OrchestrationRuntimeState;
+                IList<string> sessionsToEnqueue = null;
+                List<Message<string, TaskMessage>> scheduledMessages = null;
+                List<Message<string, TaskMessage>> activityMessages = null;
 
-                var newSessionValue = await this.orchestrationProvider.CompleteAndUpdateSession(txn, workItem.InstanceId, newOrchestrationRuntimeState, timerMessages);
+                var newSessionValue = await this.orchestrationProvider.CompleteAndUpdateSession(txn, workItem.InstanceId, newOrchestrationRuntimeState);
+
+                if (outboundMessages?.Count > 0)
+                {
+                    activityMessages = outboundMessages.Select(m => new Message<string, TaskMessage>(Guid.NewGuid().ToString(), m)).ToList();
+                    await this.activitiesProvider.SendBatchBeginAsync(txn, activityMessages);
+                }
+
+                if (timerMessages?.Count > 0)
+                {
+                    scheduledMessages = timerMessages.Select(m => new Message<string, TaskMessage>(Guid.NewGuid().ToString(), m)).ToList();
+                    await this.scheduledMessagesProvider.SendBatchBeginAsync(txn, scheduledMessages);
+                }
 
                 if (orchestratorMessages?.Count > 0)
                 {
-                    await this.orchestrationProvider.AppendMessageBatchAsync(txn, orchestratorMessages);
+                    if (previousState?.ParentInstance != null)
+                    {
+                        sessionsToEnqueue = await this.orchestrationProvider.TryAppendMessageBatchAsync(txn, orchestratorMessages);
+                    }
+                    else
+                    {
+                        await this.orchestrationProvider.AppendMessageBatchAsync(txn, orchestratorMessages);
+                        sessionsToEnqueue = orchestratorMessages.Select(m => m.OrchestrationInstance.InstanceId).ToList();
+                    }
                 }
 
                 if (this.instanceStore != null)
@@ -183,13 +214,20 @@ namespace DurableTask.ServiceFabric
 
                 await txn.CommitAsync();
 
-                this.activitiesProvider.SendBatchComplete(activityMessages);
                 this.orchestrationProvider.TryUnlockSession(workItem.InstanceId, putBackInQueue: newSessionValue.Messages.Any());
-                if (orchestratorMessages != null)
+                if (activityMessages != null)
                 {
-                    foreach (var subOrchMessage in orchestratorMessages)
+                    this.activitiesProvider.SendBatchComplete(activityMessages);
+                }
+                if (scheduledMessages != null)
+                {
+                    this.scheduledMessagesProvider.SendBatchComplete(scheduledMessages);
+                }
+                if (sessionsToEnqueue != null)
+                {
+                    foreach (var sessionId in sessionsToEnqueue)
                     {
-                        this.orchestrationProvider.TryEnqueueSession(subOrchMessage.OrchestrationInstance.InstanceId);
+                        this.orchestrationProvider.TryEnqueueSession(sessionId);
                     }
                 }
             }
@@ -239,13 +277,15 @@ namespace DurableTask.ServiceFabric
 
         public async Task CompleteTaskActivityWorkItemAsync(TaskActivityWorkItem workItem, TaskMessage responseMessage)
         {
-            //Todo : If we check for cancellation token, then we could avoid harmless FabricNotPrimaryExceptions that happen when primary node switches
             using (var txn = this.stateManager.CreateTransaction())
             {
                 await this.activitiesProvider.CompleteAsync(txn, workItem.Id);
-                await this.orchestrationProvider.AppendMessageAsync(txn, responseMessage);
+                bool added = await this.orchestrationProvider.TryAppendMessageAsync(txn, responseMessage);
                 await txn.CommitAsync();
-                this.orchestrationProvider.TryEnqueueSession(responseMessage.OrchestrationInstance.InstanceId);
+                if (added)
+                {
+                    this.orchestrationProvider.TryEnqueueSession(responseMessage.OrchestrationInstance.InstanceId);
+                }
             }
         }
 
