@@ -106,7 +106,7 @@ namespace DurableTask
             var stateEntities = new List<OrchestrationStateEntity>();
             foreach (BrokeredMessage message in newMessages)
             {
-                Utils.CheckAndLogDeliveryCount(message, taskHubDescription.MaxTrackingDeliveryCount);
+                Utils.CheckAndLogDeliveryCount(message, taskHubDescription.MaxTrackingDeliveryCount, this.trackingEntityName);
 
                 if (message.ContentType.Equals(FrameworkConstants.TaskMessageContentType,
                     StringComparison.OrdinalIgnoreCase))

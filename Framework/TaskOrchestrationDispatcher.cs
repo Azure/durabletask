@@ -587,8 +587,11 @@ namespace DurableTask
         {
             foreach (BrokeredMessage message in messages)
             {
-                Utils.CheckAndLogDeliveryCount(sessionId, message,
-                    taskHubDescription.MaxTaskOrchestrationDeliveryCount);
+                Utils.CheckAndLogDeliveryCount(
+                    sessionId,
+                    message,
+                    taskHubDescription.MaxTaskOrchestrationDeliveryCount,
+                    this.orchestratorEntityName);
 
                 TaskMessage taskMessage = await Utils.GetObjectFromBrokeredMessageAsync<TaskMessage>(message);
                 OrchestrationInstance orchestrationInstance = taskMessage.OrchestrationInstance;

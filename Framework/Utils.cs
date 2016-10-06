@@ -297,26 +297,26 @@ namespace DurableTask
             }
         }
 
-        public static void CheckAndLogDeliveryCount(BrokeredMessage message, int maxDeliverycount)
+        public static void CheckAndLogDeliveryCount(BrokeredMessage message, int maxDeliverycount, string entityName)
         {
-            CheckAndLogDeliveryCount(null, message, maxDeliverycount);
+            CheckAndLogDeliveryCount(null, message, maxDeliverycount, entityName);
         }
 
-        public static void CheckAndLogDeliveryCount(string sessionId, BrokeredMessage message, int maxDeliveryCount)
+        public static void CheckAndLogDeliveryCount(string sessionId, BrokeredMessage message, int maxDeliveryCount, string entityName)
         {
             if (message.DeliveryCount >= maxDeliveryCount - 2)
             {
                 if (!string.IsNullOrEmpty(sessionId))
                 {
                     TraceHelper.TraceSession(TraceEventType.Critical, sessionId,
-                        "Delivery count for message with id {0} is {1}. Message will be deadlettered if processing continues to fail.",
-                        message.MessageId, message.DeliveryCount);
+                        "Delivery count for message with id {0} is {1}. Message will be deadlettered if processing continues to fail;entityname={2}",
+                        message.MessageId, message.DeliveryCount, entityName);
                 }
                 else
                 {
                     TraceHelper.Trace(TraceEventType.Critical,
-                        "Delivery count for message with id {0} is {1}. Message will be deadlettered if processing continues to fail.",
-                        message.MessageId, message.DeliveryCount);
+                        "Delivery count for message with id {0} is {1}. Message will be deadlettered if processing continues to fail;entityname={2}",
+                        message.MessageId, message.DeliveryCount, entityName);
                 }
             }
         }

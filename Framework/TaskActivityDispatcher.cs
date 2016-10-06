@@ -69,7 +69,7 @@ namespace DurableTask
 
         protected override async Task OnProcessWorkItem(BrokeredMessage message)
         {
-            Utils.CheckAndLogDeliveryCount(message, taskHubDescription.MaxTaskActivityDeliveryCount);
+            Utils.CheckAndLogDeliveryCount(message, taskHubDescription.MaxTaskActivityDeliveryCount, this.orchestratorQueueName);
 
             Task renewTask = null;
             var renewCancellationTokenSource = new CancellationTokenSource();
