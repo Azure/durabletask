@@ -114,7 +114,7 @@ namespace DurableTask
 
             T deserializedObject;
 
-            object compressionTypeObj = null;
+            object compressionTypeObj;
             string compressionType = string.Empty;
 
             if (message.Properties.TryGetValue(FrameworkConstants.CompressionTypePropertyName, out compressionTypeObj))
