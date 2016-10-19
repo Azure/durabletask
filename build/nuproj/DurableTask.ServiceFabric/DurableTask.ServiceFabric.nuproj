@@ -11,7 +11,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\src\DurableTask.ServiceFabric\DurableTask.ServiceFabric.csproj" />
+    <ProjectReference Include="..\..\..\src\DurableTask.ServiceFabric\DurableTask.ServiceFabric.csproj" />
     <ProjectReference Include="..\DurableTask\DurableTask.nuproj" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

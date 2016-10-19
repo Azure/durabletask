@@ -105,7 +105,7 @@
   <ItemGroup>
     <ProjectReference Include="..\DurableTask.Framework\DurableTask.Framework.csproj">
       <Project>{6f5d2ead-726d-4fe5-a575-aeb96d1cce37}</Project>
-      <Name>DurableTaskFramework</Name>
+      <Name>DurableTask.Framework</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
