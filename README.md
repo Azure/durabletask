@@ -24,6 +24,8 @@ To run unit tests, you must specify your Service Bus connection string for the t
 The associated wiki contains more details about the framework:
 https://github.com/Azure/durabletask/wiki
 
+To load nuproj files successfully in Visual Studio, this extension is required: https://visualstudiogallery.msdn.microsoft.com/fbe9b9b8-34ae-47b5-a751-cb71a16f7e96
+
 <b>TODO</b>
 
 We could have spent a lot of time cleaning up the code and teasing apart various layers but we opted for shipping this earlier and cleaning up post-commit. Consequently there are a lot of TODOs :)
