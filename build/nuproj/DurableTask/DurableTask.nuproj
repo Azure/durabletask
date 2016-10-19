@@ -11,7 +11,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\src\DurableTask.Framework\DurableTask.Framework.csproj" />
+    <ProjectReference Include="..\..\..\src\DurableTask.Framework\DurableTask.Framework.csproj" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>68e5007e-2e0a-4b74-be1e-56ca0e3d4e80</ProjectGuid>
