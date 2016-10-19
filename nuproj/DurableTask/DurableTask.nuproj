@@ -1,0 +1,47 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|AnyCPU">
+      <Configuration>Debug</Configuration>
+      <Platform>AnyCPU</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|AnyCPU">
+      <Configuration>Release</Configuration>
+      <Platform>AnyCPU</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\DurableTask.Framework\DurableTask.Framework.csproj" />
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>68e5007e-2e0a-4b74-be1e-56ca0e3d4e80</ProjectGuid>
+  </PropertyGroup>
+  <PropertyGroup>
+    <NuProjPath Condition=" '$(NuProjPath)' == '' ">$(MSBuildExtensionsPath)\NuProj\</NuProjPath>
+  </PropertyGroup>
+  <Import Project="$(NuProjPath)\NuProj.props" Condition="Exists('$(NuProjPath)\NuProj.props')" />
+  <PropertyGroup Label="Configuration">
+    <Id>DurableTask</Id>
+    <Version>2.0.4-alpha</Version>
+    <Title>Durable Task Framework</Title>
+    <Authors>affandar;siport</Authors>
+    <Owners>affandar;siport</Owners>
+    <Summary>Framework for writing code workflows in C#.
+
+Release notes for this release:
+https://github.com/azure/durabletask/releases/tag/2.0.4-alpha
+    </Summary>
+    <Description>This package provides a C# based durable Task framework for writing long running applications.
+
+It is built from an OSS version of https://www.nuget.org/packages/ServiceBus.DurableTask.
+    </Description>
+    <ReleaseNotes>
+    </ReleaseNotes>
+    <ProjectUrl>https://github.com/azure/durabletask</ProjectUrl>
+    <LicenseUrl>https://github.com/azure/durabletask/blob/vnext/LICENSE</LicenseUrl>
+    <Copyright>Copyright 2013</Copyright>
+    <language>en-US</language>
+    <Tags>ServiceBus Service Bus Azure Task Durable Orchestration Workflow Activity Reliable</Tags>
+  </PropertyGroup>
+  <Import Project="$(NuProjPath)\NuProj.targets" />
+</Project>

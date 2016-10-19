@@ -35,6 +35,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.Samples.Tests",
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.Test.Orchestrations", "Test\DurableTask.Test.Orchestrations\DurableTask.Test.Orchestrations.csproj", "{2BC2A5AD-4200-41B9-A034-332BB1D7187B}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "nuproj", "nuproj", "{E9D6C76F-4F66-49CE-BA5A-F0B355863622}"
+EndProject
+Project("{FF286327-C783-4F7A-AB73-9BCBAD0D4460}") = "DurableTask", "nuproj\DurableTask\DurableTask.nuproj", "{68E5007E-2E0A-4B74-BE1E-56CA0E3D4E80}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -69,6 +73,10 @@ Global
 		{2BC2A5AD-4200-41B9-A034-332BB1D7187B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2BC2A5AD-4200-41B9-A034-332BB1D7187B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2BC2A5AD-4200-41B9-A034-332BB1D7187B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{68E5007E-2E0A-4B74-BE1E-56CA0E3D4E80}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{68E5007E-2E0A-4B74-BE1E-56CA0E3D4E80}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{68E5007E-2E0A-4B74-BE1E-56CA0E3D4E80}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{68E5007E-2E0A-4B74-BE1E-56CA0E3D4E80}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -81,6 +89,7 @@ Global
 		{96980359-8003-4500-B97B-949A7FE01F31} = {95C69A06-7F62-4652-A480-207B614C2869}
 		{1F20B608-0206-4B58-8C0B-CB7430A880FD} = {95C69A06-7F62-4652-A480-207B614C2869}
 		{2BC2A5AD-4200-41B9-A034-332BB1D7187B} = {95C69A06-7F62-4652-A480-207B614C2869}
+		{68E5007E-2E0A-4B74-BE1E-56CA0E3D4E80} = {E9D6C76F-4F66-49CE-BA5A-F0B355863622}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		EnterpriseLibraryConfigurationToolBinariesPath = packages\TransientFaultHandling.Core.5.1.1209.1\lib\NET4
