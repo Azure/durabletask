@@ -22,6 +22,8 @@ namespace DurableTask.ServiceFabric
     using Microsoft.ServiceFabric.Data;
     using Microsoft.ServiceFabric.Data.Collections;
 
+    //Todo: Make this class internal and introduce a factory class for instantiating custom provider interfaces
+    // to pass to TaskHub Worker and Client
     public class SessionsProvider : MessageProviderBase<string, PersistentSession>
     {
         readonly Func<string, PersistentSession> NewSessionFactory = (sId) => PersistentSession.Create(sId, null, null);

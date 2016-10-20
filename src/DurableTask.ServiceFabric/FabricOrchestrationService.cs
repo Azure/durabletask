@@ -21,6 +21,7 @@ namespace DurableTask.ServiceFabric
     using DurableTask.Tracking;
     using Microsoft.ServiceFabric.Data;
 
+    //Todo: Create a settings class to customize interesting properties of this class like number of dispatchers...
     public class FabricOrchestrationService : IOrchestrationService
     {
         readonly IReliableStateManager stateManager;
