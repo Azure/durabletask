@@ -71,7 +71,7 @@ namespace DurableTask.ServiceFabric.Test.DeploymentUtil
 
         public NameValueCollection GetApplicationParameters()
         {
-            var applicationParametersPath = Path.Combine(applicationRootPath, @"ApplicationParameters\Local.xml");
+            var applicationParametersPath = Path.Combine(applicationRootPath, @"ApplicationParameters\Local.5Node.xml");
 
             var applicationParameters = new XmlDocument();
             applicationParameters.Load(applicationParametersPath);

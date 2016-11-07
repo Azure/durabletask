@@ -33,6 +33,7 @@ namespace DurableTask.ServiceFabric
             this.instanceStore = instanceStore;
         }
 
+        //Todo: This should also add to instance store so that querying for status immediately will not return null.
         public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage)
         {
             if (!(creationMessage.Event is ExecutionStartedEvent))
