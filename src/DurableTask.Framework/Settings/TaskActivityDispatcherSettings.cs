@@ -18,7 +18,10 @@ namespace DurableTask.Settings
     /// </summary>
     public class TaskActivityDispatcherSettings
     {
-        internal TaskActivityDispatcherSettings()
+        /// <summary>
+        /// Constructs the activity dispatcher settings with default values.
+        /// </summary>
+        public TaskActivityDispatcherSettings()
         {
             TransientErrorBackOffSecs = FrameworkConstants.ActivityTransientErrorBackOffSecs;
             NonTransientErrorBackOffSecs = FrameworkConstants.ActivityNonTransientErrorBackOffSecs;

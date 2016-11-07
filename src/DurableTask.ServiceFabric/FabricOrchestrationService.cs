@@ -21,7 +21,6 @@ namespace DurableTask.ServiceFabric
     using DurableTask.Tracking;
     using Microsoft.ServiceFabric.Data;
 
-    //Todo: Create a settings class to customize interesting properties of this class like number of dispatchers...
     class FabricOrchestrationService : IOrchestrationService
     {
         readonly IReliableStateManager stateManager;
@@ -29,8 +28,12 @@ namespace DurableTask.ServiceFabric
         readonly SessionsProvider orchestrationProvider;
         readonly ActivityProvider<string, TaskMessage> activitiesProvider;
         readonly ScheduledMessageProvider scheduledMessagesProvider;
+        readonly FabricOrchestrationProviderSettings settings;
 
-        public FabricOrchestrationService(IReliableStateManager stateManager, SessionsProvider orchestrationProvider, IFabricOrchestrationServiceInstanceStore instanceStore)
+        public FabricOrchestrationService(IReliableStateManager stateManager,
+            SessionsProvider orchestrationProvider,
+            IFabricOrchestrationServiceInstanceStore instanceStore,
+            FabricOrchestrationProviderSettings settings)
         {
             if (stateManager == null)
             {
@@ -40,6 +43,7 @@ namespace DurableTask.ServiceFabric
             this.stateManager = stateManager;
             this.orchestrationProvider = orchestrationProvider;
             this.instanceStore = instanceStore;
+            this.settings = settings;
             this.activitiesProvider = new ActivityProvider<string, TaskMessage>(this.stateManager, Constants.ActivitiesQueueName);
             this.scheduledMessagesProvider = new ScheduledMessageProvider(this.stateManager, Constants.ScheduledMessagesDictionaryName, orchestrationProvider);
         }
@@ -127,8 +131,8 @@ namespace DurableTask.ServiceFabric
             return 0;
         }
 
-        public int TaskOrchestrationDispatcherCount => 1;
-        public int MaxConcurrentTaskOrchestrationWorkItems => 1000;
+        public int TaskOrchestrationDispatcherCount => this.settings.TaskOrchestrationDispatcherSettings.DispatcherCount;
+        public int MaxConcurrentTaskOrchestrationWorkItems => this.settings.TaskOrchestrationDispatcherSettings.MaxConcurrentOrchestrations;
 
         // Note: Do not rely on cancellationToken parameter to this method because the top layer does not yet implement any cancellation.
         public async Task<TaskOrchestrationWorkItem> LockNextTaskOrchestrationWorkItemAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken)
@@ -256,8 +260,8 @@ namespace DurableTask.ServiceFabric
             }
         }
 
-        public int TaskActivityDispatcherCount => 1;
-        public int MaxConcurrentTaskActivityWorkItems => 10000;
+        public int TaskActivityDispatcherCount => this.settings.TaskActivityDispatcherSettings.DispatcherCount;
+        public int MaxConcurrentTaskActivityWorkItems => this.settings.TaskActivityDispatcherSettings.MaxConcurrentActivities;
 
         // Note: Do not rely on cancellationToken parameter to this method because the top layer does not yet implement any cancellation.
         public async Task<TaskActivityWorkItem> LockNextTaskActivityWorkItem(TimeSpan receiveTimeout, CancellationToken cancellationToken)

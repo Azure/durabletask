@@ -13,12 +13,14 @@
 
 namespace DurableTask.ServiceFabric
 {
+    using System;
     using Microsoft.ServiceFabric.Data;
 
     public class FabricOrchestrationProviderFactory
     {
         readonly IReliableStateManager stateManager;
         readonly object @lock;
+        readonly FabricOrchestrationProviderSettings settings;
 
         SessionsProvider sessionsProvider;
         FabricOrchestrationService orchestrationService;
@@ -26,9 +28,20 @@ namespace DurableTask.ServiceFabric
         FabricOrchestrationInstanceStore instanceStore;
 
         public FabricOrchestrationProviderFactory(IReliableStateManager stateManager)
+            : this(stateManager, new FabricOrchestrationProviderSettings())
         {
+        }
+
+        public FabricOrchestrationProviderFactory(IReliableStateManager stateManager, FabricOrchestrationProviderSettings settings)
+        {
+            if (stateManager == null)
+            {
+                throw new ArgumentNullException(nameof(stateManager));
+            }
+
             this.stateManager = stateManager;
             @lock = new object();
+            this.settings = settings ?? new FabricOrchestrationProviderSettings();
         }
 
         public IOrchestrationService OrchestrationService
@@ -57,7 +70,7 @@ namespace DurableTask.ServiceFabric
                 {
                     this.sessionsProvider = new SessionsProvider(this.stateManager);
                     this.instanceStore = new FabricOrchestrationInstanceStore(this.stateManager);
-                    this.orchestrationService = new FabricOrchestrationService(this.stateManager, this.sessionsProvider, this.instanceStore);
+                    this.orchestrationService = new FabricOrchestrationService(this.stateManager, this.sessionsProvider, this.instanceStore, this.settings);
                     this.orchestrationClient = new FabricOrchestrationServiceClient(this.stateManager, this.sessionsProvider, this.instanceStore);
                 }
             }
