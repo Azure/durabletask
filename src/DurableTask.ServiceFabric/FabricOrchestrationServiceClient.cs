@@ -20,7 +20,7 @@ namespace DurableTask.ServiceFabric
     using DurableTask.History;
     using Microsoft.ServiceFabric.Data;
 
-    public class FabricOrchestrationServiceClient : IOrchestrationServiceClient
+    class FabricOrchestrationServiceClient : IOrchestrationServiceClient
     {
         IReliableStateManager stateManager;
         IFabricOrchestrationServiceInstanceStore instanceStore;

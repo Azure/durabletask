@@ -21,11 +21,10 @@ using DurableTask;
 using DurableTask.ServiceFabric;
 using DurableTask.Test.Orchestrations.Perf;
 using Microsoft.ServiceFabric.Services.Communication.Runtime;
+using Microsoft.ServiceFabric.Services.Remoting.Runtime;
 using Microsoft.ServiceFabric.Services.Runtime;
 using TestApplication.Common;
-using TestStatefulService.DebugHelper;
 using TestStatefulService.TestOrchestrations;
-using Microsoft.ServiceFabric.Services.Remoting.Runtime;
 
 namespace TestStatefulService
 {
@@ -37,17 +36,12 @@ namespace TestStatefulService
         TaskHubWorker worker;
         TaskHubClient client;
         ReplicaRole currentRole;
-        TestExecutor testExecutor;
-        object syncLock = new object();
 
-        public TestStatefulService(StatefulServiceContext context)
-            : base(context)
+        public TestStatefulService(StatefulServiceContext context) : base(context)
         {
-            var instanceStore = new FabricOrchestrationInstanceStore(this.StateManager);
-            var sessionProvider = new SessionsProvider(this.StateManager);
-            this.worker = new TaskHubWorker(new FabricOrchestrationService(this.StateManager, sessionProvider, instanceStore));
-            this.client = new TaskHubClient(new FabricOrchestrationServiceClient(this.StateManager, sessionProvider, instanceStore));
-            this.testExecutor = new TestExecutor(this.client);
+            var fabricProviderFactory = new FabricOrchestrationProviderFactory(this.StateManager);
+            this.worker = new TaskHubWorker(fabricProviderFactory.OrchestrationService);
+            this.client = new TaskHubClient(fabricProviderFactory.OrchestrationServiceClient);
         }
 
         /// <summary>

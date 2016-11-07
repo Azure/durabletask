@@ -74,6 +74,7 @@
     <Compile Include="AsyncManualResetEvent.cs" />
     <Compile Include="Constants.cs" />
     <Compile Include="FabricOrchestrationInstanceStore.cs" />
+    <Compile Include="FabricOrchestrationProviderFactory.cs" />
     <Compile Include="FabricOrchestrationService.cs" />
     <Compile Include="FabricOrchestrationServiceClient.cs" />
     <Compile Include="IFabricOrchestrationServiceInstanceStore.cs" />
