@@ -20,7 +20,7 @@ namespace DurableTask.ServiceFabric
     using Microsoft.ServiceFabric.Data;
     using Microsoft.ServiceFabric.Data.Collections;
 
-    public abstract class MessageProviderBase<TKey, TValue> where TKey : IComparable<TKey>, IEquatable<TKey>
+    abstract class MessageProviderBase<TKey, TValue> where TKey : IComparable<TKey>, IEquatable<TKey>
     {
         readonly string storeName;
         readonly CancellationTokenSource cancellationTokenSource;
