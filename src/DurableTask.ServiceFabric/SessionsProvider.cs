@@ -111,9 +111,6 @@ namespace DurableTask.ServiceFabric
 
         public async Task AppendMessageAsync(TaskMessage newMessage)
         {
-            ThrowIfStopped();
-            await EnsureOrchestrationStoreInitialized();
-
             using (var txn = this.StateManager.CreateTransaction())
             {
                 await this.AppendMessageAsync(txn, newMessage);
@@ -126,6 +123,8 @@ namespace DurableTask.ServiceFabric
         public async Task AppendMessageAsync(ITransaction transaction, TaskMessage newMessage)
         {
             ThrowIfStopped();
+            await EnsureOrchestrationStoreInitialized();
+
             Func<string, PersistentSession> newSessionFactory = (sId) => PersistentSession.CreateWithNewMessage(sId, newMessage);
 
             await this.Store.AddOrUpdateAsync(transaction, newMessage.OrchestrationInstance.InstanceId,

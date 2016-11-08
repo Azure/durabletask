@@ -18,13 +18,14 @@ namespace DurableTask.ServiceFabric
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.History;
+    using DurableTask.Tracking;
     using Microsoft.ServiceFabric.Data;
 
     class FabricOrchestrationServiceClient : IOrchestrationServiceClient
     {
-        IReliableStateManager stateManager;
-        IFabricOrchestrationServiceInstanceStore instanceStore;
-        SessionsProvider orchestrationProvider;
+        readonly IReliableStateManager stateManager;
+        readonly IFabricOrchestrationServiceInstanceStore instanceStore;
+        readonly SessionsProvider orchestrationProvider;
 
         public FabricOrchestrationServiceClient(IReliableStateManager stateManager, SessionsProvider orchestrationProvider, IFabricOrchestrationServiceInstanceStore instanceStore)
         {
@@ -33,10 +34,10 @@ namespace DurableTask.ServiceFabric
             this.instanceStore = instanceStore;
         }
 
-        //Todo: This should also add to instance store so that querying for status immediately will not return null.
         public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage)
         {
-            if (!(creationMessage.Event is ExecutionStartedEvent))
+            ExecutionStartedEvent startEvent = creationMessage.Event as ExecutionStartedEvent;
+            if (startEvent == null)
             {
                 throw new Exception("Invalid creation message");
             }
@@ -49,8 +50,14 @@ namespace DurableTask.ServiceFabric
                 throw new InvalidOperationException($"An orchestration with id '{creationMessage.OrchestrationInstance.InstanceId}' is already running.");
             }
 
-            await this.SendTaskOrchestrationMessageAsync(creationMessage);
-            ProviderEventSource.Instance.LogOrchestrationCreated(instance.InstanceId);
+            using (var tx = this.stateManager.CreateTransaction())
+            {
+                await this.orchestrationProvider.AppendMessageAsync(tx, creationMessage);
+                await WriteExecutionStartedEventToInstanceStore(tx, startEvent);
+                await tx.CommitAsync();
+                this.orchestrationProvider.TryEnqueueSession(creationMessage.OrchestrationInstance.InstanceId);
+                ProviderEventSource.Instance.LogOrchestrationCreated(instance.InstanceId);
+            }
         }
 
         public Task SendTaskOrchestrationMessageAsync(TaskMessage message)
@@ -119,6 +126,30 @@ namespace DurableTask.ServiceFabric
             }
 
             return null;
+        }
+
+        Task WriteExecutionStartedEventToInstanceStore(ITransaction tx, ExecutionStartedEvent startEvent)
+        {
+            var createdTime = DateTime.UtcNow;
+            var initialState = new OrchestrationState()
+            {
+                Name = startEvent.Name,
+                Version = startEvent.Version,
+                OrchestrationInstance = startEvent.OrchestrationInstance,
+                OrchestrationStatus = OrchestrationStatus.Pending,
+                Input = startEvent.Input,
+                Tags = startEvent.Tags,
+                CreatedTime = createdTime,
+                LastUpdatedTime = createdTime
+            };
+
+            return this.instanceStore.WriteEntitesAsync(tx, new InstanceEntityBase[]
+            {
+                new OrchestrationStateInstanceEntity()
+                {
+                    State = initialState
+                }
+            });
         }
 
         void ThrowIfInstanceStoreNotConfigured()
