@@ -39,7 +39,11 @@ namespace TestStatefulService
 
         public TestStatefulService(StatefulServiceContext context) : base(context)
         {
-            var fabricProviderFactory = new FabricOrchestrationProviderFactory(this.StateManager);
+            var settings = new FabricOrchestrationProviderSettings();
+            settings.TaskOrchestrationDispatcherSettings.DispatcherCount = 5;
+            settings.TaskActivityDispatcherSettings.DispatcherCount = 5;
+
+            var fabricProviderFactory = new FabricOrchestrationProviderFactory(this.StateManager, settings);
             this.worker = new TaskHubWorker(fabricProviderFactory.OrchestrationService);
             this.client = new TaskHubClient(fabricProviderFactory.OrchestrationServiceClient);
         }
