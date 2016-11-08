@@ -15,8 +15,16 @@ namespace DurableTask.ServiceFabric
 {
     using DurableTask.Settings;
 
+    /// <summary>
+    /// Provides settings for service fabric based custom provider implementations
+    /// for <see cref="DurableTask.IOrchestrationService"/> and <see cref="DurableTask.IOrchestrationServiceClient"/>
+    /// to be used in constructing <see cref="DurableTask.TaskHubWorker"/> and <see cref="DurableTask.TaskHubClient"/>.
+    /// </summary>
     public sealed class FabricOrchestrationProviderSettings
     {
+        /// <summary>
+        /// Constructor. Initializes all settings to their default values.
+        /// </summary>
         public FabricOrchestrationProviderSettings()
         {
             TaskOrchestrationDispatcherSettings = new TaskOrchestrationDispatcherSettings()

@@ -19,7 +19,7 @@ namespace DurableTask.ServiceFabric
     using DurableTask.History;
 
     [DataContract]
-    public sealed partial class PersistentSession
+    sealed partial class PersistentSession
     {
         // Note : Ideally all the properties in this class should be readonly because this
         // class is designed to be immutable class. We use private settable properties
@@ -70,7 +70,7 @@ namespace DurableTask.ServiceFabric
     }
 
     [DataContract]
-    public sealed class ReceivableTaskMessage
+    sealed class ReceivableTaskMessage
     {
         [DataMember]
         public TaskMessage TaskMessage { get; private set; }

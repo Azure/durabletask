@@ -40,14 +40,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.ServiceFabric.S
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.ServiceFabric.UnitTests", "Test\DurableTask.ServiceFabric.UnitTests\DurableTask.ServiceFabric.UnitTests.csproj", "{31C9C932-6376-46D4-A68A-A0A7F2726D38}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "nuproj", "nuproj", "{7FD169C2-680D-4B79-908B-6BF0B2FAA576}"
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "build", "build", "{E524ABFA-9845-4D18-8B35-26C21320CC9C}"
-EndProject
-Project("{FF286327-C783-4F7A-AB73-9BCBAD0D4460}") = "DurableTask", "build\nuproj\DurableTask\DurableTask.nuproj", "{68E5007E-2E0A-4B74-BE1E-56CA0E3D4E80}"
-EndProject
-Project("{FF286327-C783-4F7A-AB73-9BCBAD0D4460}") = "DurableTask.ServiceFabric", "build\nuproj\DurableTask.ServiceFabric\DurableTask.ServiceFabric.nuproj", "{33D8EE20-43D5-4D8E-8BEC-36914AE49657}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -148,22 +140,6 @@ Global
 		{31C9C932-6376-46D4-A68A-A0A7F2726D38}.Release|Any CPU.Build.0 = Release|Any CPU
 		{31C9C932-6376-46D4-A68A-A0A7F2726D38}.Release|x64.ActiveCfg = Release|Any CPU
 		{31C9C932-6376-46D4-A68A-A0A7F2726D38}.Release|x64.Build.0 = Release|Any CPU
-		{68E5007E-2E0A-4B74-BE1E-56CA0E3D4E80}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{68E5007E-2E0A-4B74-BE1E-56CA0E3D4E80}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{68E5007E-2E0A-4B74-BE1E-56CA0E3D4E80}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{68E5007E-2E0A-4B74-BE1E-56CA0E3D4E80}.Debug|x64.Build.0 = Debug|Any CPU
-		{68E5007E-2E0A-4B74-BE1E-56CA0E3D4E80}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{68E5007E-2E0A-4B74-BE1E-56CA0E3D4E80}.Release|Any CPU.Build.0 = Release|Any CPU
-		{68E5007E-2E0A-4B74-BE1E-56CA0E3D4E80}.Release|x64.ActiveCfg = Release|Any CPU
-		{68E5007E-2E0A-4B74-BE1E-56CA0E3D4E80}.Release|x64.Build.0 = Release|Any CPU
-		{33D8EE20-43D5-4D8E-8BEC-36914AE49657}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{33D8EE20-43D5-4D8E-8BEC-36914AE49657}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{33D8EE20-43D5-4D8E-8BEC-36914AE49657}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{33D8EE20-43D5-4D8E-8BEC-36914AE49657}.Debug|x64.Build.0 = Debug|Any CPU
-		{33D8EE20-43D5-4D8E-8BEC-36914AE49657}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{33D8EE20-43D5-4D8E-8BEC-36914AE49657}.Release|Any CPU.Build.0 = Release|Any CPU
-		{33D8EE20-43D5-4D8E-8BEC-36914AE49657}.Release|x64.ActiveCfg = Release|Any CPU
-		{33D8EE20-43D5-4D8E-8BEC-36914AE49657}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -182,9 +158,6 @@ Global
 		{2BC2A5AD-4200-41B9-A034-332BB1D7187B} = {5177D1DE-AC86-41B9-8D04-41988A7C2208}
 		{BE4624F3-E565-428F-9EED-E6847530746A} = {5177D1DE-AC86-41B9-8D04-41988A7C2208}
 		{31C9C932-6376-46D4-A68A-A0A7F2726D38} = {5177D1DE-AC86-41B9-8D04-41988A7C2208}
-		{7FD169C2-680D-4B79-908B-6BF0B2FAA576} = {E524ABFA-9845-4D18-8B35-26C21320CC9C}
-		{68E5007E-2E0A-4B74-BE1E-56CA0E3D4E80} = {7FD169C2-680D-4B79-908B-6BF0B2FAA576}
-		{33D8EE20-43D5-4D8E-8BEC-36914AE49657} = {7FD169C2-680D-4B79-908B-6BF0B2FAA576}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		EnterpriseLibraryConfigurationToolBinariesPath = packages\TransientFaultHandling.Core.5.1.1209.1\lib\NET4

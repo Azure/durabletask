@@ -25,18 +25,18 @@ namespace DurableTask.ServiceFabric
     //   - Support for querying state across executions (makes sense only after ContinuedAsNew is supported)
     //   - Support writing multiple state events for a given orchestration instance/execution (?)
     //   - Support writing/querying/purging history events
-    public class FabricOrchestrationInstanceStore : IFabricOrchestrationServiceInstanceStore
+    class FabricOrchestrationInstanceStore : IFabricOrchestrationServiceInstanceStore
     {
         const string TimeFormatString = "yyyy-MM-dd-HH";
         const string TimeFormatStringPrefix = "yyyy-MM-dd-";
         readonly IReliableStateManager stateManager;
-        readonly CancellationTokenSource cancellationTokenSource;
+
+        CancellationTokenSource cancellationTokenSource;
         IReliableDictionary<string, OrchestrationState> instanceStore;
 
         public FabricOrchestrationInstanceStore(IReliableStateManager stateManager)
         {
             this.stateManager = stateManager;
-            this.cancellationTokenSource = new CancellationTokenSource();
         }
 
         public async Task InitializeStoreAsync(bool recreate)
@@ -49,6 +49,7 @@ namespace DurableTask.ServiceFabric
 
         public async Task StartAsync()
         {
+            this.cancellationTokenSource = new CancellationTokenSource();
             this.instanceStore = await this.GetOrAddInstanceStoreDictionary();
             var nowait = CleanupDayOldDictionaries();
         }

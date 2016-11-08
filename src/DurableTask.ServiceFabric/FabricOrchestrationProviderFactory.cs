@@ -16,6 +16,11 @@ namespace DurableTask.ServiceFabric
     using System;
     using Microsoft.ServiceFabric.Data;
 
+    /// <summary>
+    /// Factory to create instances of a service fabric based store provider implementations
+    /// for <see cref="DurableTask.IOrchestrationService"/> and <see cref="DurableTask.IOrchestrationServiceClient"/>
+    /// to be used in constructing <see cref="DurableTask.TaskHubWorker"/> and <see cref="DurableTask.TaskHubClient"/>.
+    /// </summary>
     public class FabricOrchestrationProviderFactory
     {
         readonly IReliableStateManager stateManager;
@@ -27,11 +32,20 @@ namespace DurableTask.ServiceFabric
         FabricOrchestrationServiceClient orchestrationClient;
         FabricOrchestrationInstanceStore instanceStore;
 
+        /// <summary>
+        /// Constructor that uses default <see cref="FabricOrchestrationProviderSettings"/>.
+        /// </summary>
+        /// <param name="stateManager">Reliable state manager instance. Comes from service fabric stateful service implementation.</param>
         public FabricOrchestrationProviderFactory(IReliableStateManager stateManager)
             : this(stateManager, new FabricOrchestrationProviderSettings())
         {
         }
 
+        /// <summary>
+        /// Constructor that takes the custom <see cref="FabricOrchestrationProviderSettings"/>.
+        /// </summary>
+        /// <param name="stateManager">Reliable state manager instance. Comes from service fabric stateful service implementation.</param>
+        /// <param name="settings">Settings to be used for the provider. Refer to <see cref="FabricOrchestrationProviderSettings"/> for documentation about specific settings.</param>
         public FabricOrchestrationProviderFactory(IReliableStateManager stateManager, FabricOrchestrationProviderSettings settings)
         {
             if (stateManager == null)
@@ -44,6 +58,9 @@ namespace DurableTask.ServiceFabric
             this.settings = settings ?? new FabricOrchestrationProviderSettings();
         }
 
+        /// <summary>
+        /// <see cref="DurableTask.IOrchestrationService"/> instance that can be used for constructing <see cref="DurableTask.TaskHubWorker"/>.
+        /// </summary>
         public IOrchestrationService OrchestrationService
         {
             get
@@ -53,6 +70,9 @@ namespace DurableTask.ServiceFabric
             }
         }
 
+        /// <summary>
+        /// <see cref="DurableTask.IOrchestrationServiceClient"/> instance that can be used for constructing <see cref="DurableTask.TaskHubClient"/>.
+        /// </summary>
         public IOrchestrationServiceClient OrchestrationServiceClient
         {
             get

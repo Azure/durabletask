@@ -17,7 +17,7 @@ namespace DurableTask.ServiceFabric
     using System.Threading;
     using System.Threading.Tasks;
 
-    public sealed class AsyncManualResetEvent
+    sealed class AsyncManualResetEvent
     {
         TaskCompletionSource<bool> tcs;
 

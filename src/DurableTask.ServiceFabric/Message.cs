@@ -17,7 +17,7 @@ namespace DurableTask.ServiceFabric
     using System.Runtime.Serialization;
 
     [DataContract]
-    public class Message<TKey, TValue> where TKey : IComparable<TKey>, IEquatable<TKey>
+    class Message<TKey, TValue> where TKey : IComparable<TKey>, IEquatable<TKey>
     {
         public Message(TKey key, TValue value)
         {

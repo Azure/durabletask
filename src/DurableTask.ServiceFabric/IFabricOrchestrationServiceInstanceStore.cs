@@ -19,7 +19,9 @@ namespace DurableTask.ServiceFabric
     using DurableTask.Tracking;
     using Microsoft.ServiceFabric.Data;
 
-    public interface IFabricOrchestrationServiceInstanceStore
+    // Todo: Figure out a way to not include internal XML documentation in the generated documentation file
+    // or change all the below comments to non-xml style.
+    internal interface IFabricOrchestrationServiceInstanceStore
     {
         /// <summary>
         /// Runs initialization to prepare the instance store for use

@@ -19,7 +19,7 @@ namespace DurableTask.ServiceFabric
     using System.Linq;
     using DurableTask.History;
 
-    public sealed partial class PersistentSession
+    sealed partial class PersistentSession
     {
         public PersistentSession ReceiveMessages()
         {

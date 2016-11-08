@@ -1,0 +1,30 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
+  <metadata>
+    <id>DurableTask.ServiceFabric</id>
+    <version>0.0.1-alpha2</version>
+    <title>DurableTask.ServiceFabric</title>
+    <authors>pradeek</authors>
+    <owners>pradeek</owners>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>Service fabric based storage provider for Durable Task Framework.</description>
+    <summary>Service fabric based storage provider for Durable Task Framework.</summary>
+    <copyright>Copyright © 2016</copyright>
+    <tags>ServiceFabric Azure Task Durable Orchestration Workflow Activity Reliable</tags>
+    <dependencies>
+      <group targetFramework="net451">
+        <dependency id="DurableTask" version="2.0.4-alpha2" />
+        <dependency id="Microsoft.ServiceFabric" version="5.1.163" />
+        <dependency id="Microsoft.ServiceFabric.Data" version="2.1.163" />
+        <dependency id="Microsoft.ServiceFabric.Services" version="2.1.163" />
+        <dependency id="Newtonsoft.Json" version="7.0.1" />
+        <dependency id="System.Collections.Immutable" version="1.2.0" />
+      </group>
+    </dependencies>
+  </metadata>
+  <files>
+    <file src="bin\Release\DurableTask.ServiceFabric.dll" target="lib\net451\DurableTask.ServiceFabric.dll" exclude="" />
+    <file src="bin\Release\DurableTask.ServiceFabric.pdb" target="lib\net451\DurableTask.ServiceFabric.pdb" exclude="" />
+    <file src="bin\Release\DurableTask.ServiceFabric.xml" target="lib\net451\DurableTask.ServiceFabric.xml" exclude="" />
+  </files>
+</package>
