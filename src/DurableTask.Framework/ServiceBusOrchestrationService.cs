@@ -969,29 +969,35 @@ namespace DurableTask
         }
 
         /// <summary>
-        ///    Send an orchestration message
+        ///    Sends a set of orchestration messages
         /// </summary>
-        /// <param name="message">The task message to be sent for the orchestration</param>
-        public async Task SendTaskOrchestrationMessageAsync(TaskMessage message)
+        /// <param name="messages">The task message to be sent for the orchestration</param>
+        public async Task SendTaskOrchestrationMessageAsync(params TaskMessage[] messages)
         {
-            BrokeredMessage brokeredMessage = await ServiceBusUtils.GetBrokeredMessageFromObjectAsync(
-                message,
-                Settings.MessageCompressionSettings,
-                Settings.MessageSettings,
-                message.OrchestrationInstance,
-                "SendTaskOrchestrationMessage",
-                this.BlobStore,
-                DateTime.MinValue);
-
-            // Use duplicate detection of ExecutionStartedEvent by addin messageId
-            var executionStartedEvent = message.Event as ExecutionStartedEvent;
-            if (executionStartedEvent != null)
+            var brokeredMessages = new BrokeredMessage[messages.Length];
+            for (int i = 0; i < messages.Length; i++)
             {
-                brokeredMessage.MessageId = string.Format(CultureInfo.InvariantCulture, $"{executionStartedEvent.OrchestrationInstance.InstanceId}_{executionStartedEvent.OrchestrationInstance.ExecutionId}");
+                var message = messages[i];
+
+                brokeredMessages[i] = await ServiceBusUtils.GetBrokeredMessageFromObjectAsync(
+                    message,
+                    Settings.MessageCompressionSettings,
+                    Settings.MessageSettings,
+                    message.OrchestrationInstance,
+                    "SendTaskOrchestrationMessage",
+                    this.BlobStore,
+                    DateTime.MinValue);
+
+                // Use duplicate detection of ExecutionStartedEvent by addin messageId
+                var executionStartedEvent = message.Event as ExecutionStartedEvent;
+                if (executionStartedEvent != null)
+                {
+                    brokeredMessages[i].MessageId = string.Format(CultureInfo.InvariantCulture, $"{executionStartedEvent.OrchestrationInstance.InstanceId}_{executionStartedEvent.OrchestrationInstance.ExecutionId}");
+                }
             }
 
             MessageSender sender = await messagingFactory.CreateMessageSenderAsync(orchestratorEntityName).ConfigureAwait(false);
-            await sender.SendAsync(brokeredMessage).ConfigureAwait(false);
+            await sender.SendBatchAsync(brokeredMessages).ConfigureAwait(false);
             await sender.CloseAsync().ConfigureAwait(false);
         }
 

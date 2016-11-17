@@ -157,6 +157,64 @@ namespace DurableTask
         }
 
         /// <summary>
+        ///     Creates an orchestration instance, and raises an event for it, which eventually causes the OnEvent() method in the
+        ///     orchestration to fire.
+        /// </summary>
+        /// <param name="orchestrationName">Name of the orchestration as specified by the ObjectCreator</param>
+        /// <param name="orchestrationVersion">Name of the orchestration as specified by the ObjectCreator</param>
+        /// <param name="instanceId">Instance id for the orchestration to be created, must be unique across the Task Hub</param>
+        /// <param name="eventName">Name of the event</param>
+        /// <param name="eventData">Data for the event</param>
+        public async Task RaiseEventAsync(
+            string orchestrationName, 
+            string orchestrationVersion, 
+            string instanceId,
+            string eventName, 
+            object eventData)
+        {
+            var orchestrationInstance = new OrchestrationInstance
+            {
+                InstanceId = instanceId,
+                ExecutionId = Guid.NewGuid().ToString("N"),
+            };
+
+            var startedEvent = new ExecutionStartedEvent(-1, null)
+            {
+                Tags = null,
+                Name = orchestrationName,
+                Version = orchestrationVersion,
+                OrchestrationInstance = orchestrationInstance
+            };
+
+            string serializedInput = defaultConverter.Serialize(eventData);
+
+            var taskMessages = new[]
+            {
+                new TaskMessage
+                {
+                    OrchestrationInstance = orchestrationInstance,
+                    Event = startedEvent
+                },
+                new TaskMessage
+                {
+                    OrchestrationInstance = new OrchestrationInstance
+                    {
+                        InstanceId = instanceId,
+
+                        // to ensure that the event gets raised on the running
+			            // orchestration instance, null the execution id
+			            // so that it will find out which execution
+			            // it should use for processing
+                        ExecutionId = null  
+                    },
+                    Event = new EventRaisedEvent(-1, serializedInput) {Name = eventName}
+                }
+            };
+
+            await this.serviceClient.SendTaskOrchestrationMessageAsync(taskMessages);
+        }
+
+        /// <summary>
         ///     Raises an event in the specified orchestration instance, which eventually causes the OnEvent() method in the
         ///     orchestration to fire.
         /// </summary>
