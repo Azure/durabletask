@@ -222,13 +222,13 @@ namespace DurableTask
             NamespaceManager namespaceManager = NamespaceManager.CreateFromConnectionString(connectionString);
 
             await Task.WhenAll(
-                this.SafeDeleteAndCreateQueueAsync(namespaceManager, orchestratorEntityName, true, true, Settings.MaxTaskOrchestrationDeliveryCount),
-                this.SafeDeleteAndCreateQueueAsync(namespaceManager, workerEntityName, false, false, Settings.MaxTaskActivityDeliveryCount)
+                this.SafeDeleteAndCreateQueueAsync(namespaceManager, orchestratorEntityName, true, true, Settings.MaxTaskOrchestrationDeliveryCount, Settings.MaxQueueSizeInMegabytes),
+                this.SafeDeleteAndCreateQueueAsync(namespaceManager, workerEntityName, false, false, Settings.MaxTaskActivityDeliveryCount, Settings.MaxQueueSizeInMegabytes)
                 );
 
             if (InstanceStore != null)
             {
-                await this.SafeDeleteAndCreateQueueAsync(namespaceManager, trackingEntityName, true, false, Settings.MaxTrackingDeliveryCount);
+                await this.SafeDeleteAndCreateQueueAsync(namespaceManager, trackingEntityName, true, false, Settings.MaxTrackingDeliveryCount, Settings.MaxQueueSizeInMegabytes);
                 await InstanceStore.InitializeStoreAsync(recreateInstanceStore);
             }
         }
@@ -241,12 +241,12 @@ namespace DurableTask
             NamespaceManager namespaceManager = NamespaceManager.CreateFromConnectionString(connectionString);
 
             await Task.WhenAll(
-                SafeCreateQueueAsync(namespaceManager, orchestratorEntityName, true, true, Settings.MaxTaskOrchestrationDeliveryCount),
-                SafeCreateQueueAsync(namespaceManager, workerEntityName, false, false, Settings.MaxTaskActivityDeliveryCount)
+                SafeCreateQueueAsync(namespaceManager, orchestratorEntityName, true, true, Settings.MaxTaskOrchestrationDeliveryCount, Settings.MaxQueueSizeInMegabytes),
+                SafeCreateQueueAsync(namespaceManager, workerEntityName, false, false, Settings.MaxTaskActivityDeliveryCount, Settings.MaxQueueSizeInMegabytes)
                 );
             if (InstanceStore != null)
             {
-                await SafeCreateQueueAsync(namespaceManager, trackingEntityName, true, false, Settings.MaxTrackingDeliveryCount);
+                await SafeCreateQueueAsync(namespaceManager, trackingEntityName, true, false, Settings.MaxTrackingDeliveryCount, Settings.MaxQueueSizeInMegabytes);
                 await InstanceStore.InitializeStoreAsync(false);
             }
         }
@@ -997,7 +997,7 @@ namespace DurableTask
                 var executionStartedEvent = message.Event as ExecutionStartedEvent;
                 if (executionStartedEvent != null)
                 {
-                    brokeredMessages[i].MessageId = string.Format(CultureInfo.InvariantCulture, $"{executionStartedEvent.OrchestrationInstance.InstanceId}_{executionStartedEvent.OrchestrationInstance.ExecutionId}");
+                    brokeredMessages[i].MessageId = $"{executionStartedEvent.OrchestrationInstance.InstanceId}_{executionStartedEvent.OrchestrationInstance.ExecutionId}";
                 }
             }
 
@@ -1482,13 +1482,14 @@ namespace DurableTask
             string path,
             bool requiresSessions,
             bool requiresDuplicateDetection,
-            int maxDeliveryCount)
+            int maxDeliveryCount,
+            long maxSizeInMegabytes)
         {
             await Utils.ExecuteWithRetries(async () =>
             {
                 try
                 {
-                await CreateQueueAsync(namespaceManager, path, requiresSessions, requiresDuplicateDetection, maxDeliveryCount);
+                await CreateQueueAsync(namespaceManager, path, requiresSessions, requiresDuplicateDetection, maxDeliveryCount, maxSizeInMegabytes);
                 }
                 catch (MessagingEntityAlreadyExistsException)
                 {
@@ -1502,25 +1503,35 @@ namespace DurableTask
             string path,
             bool requiresSessions,
             bool requiresDuplicateDetection,
-            int maxDeliveryCount)
+            int maxDeliveryCount,
+            long maxSizeInMegabytes)
         {
             await SafeDeleteQueueAsync(namespaceManager, path);
-            await SafeCreateQueueAsync(namespaceManager, path, requiresSessions, requiresDuplicateDetection, maxDeliveryCount);
+            await SafeCreateQueueAsync(namespaceManager, path, requiresSessions, requiresDuplicateDetection, maxDeliveryCount, maxSizeInMegabytes);
         }
+
+        private static readonly long[] ValidQueueSizes = { 1024L, 2048L, 3072L, 4096L, 5120L };
 
         async Task CreateQueueAsync(
             NamespaceManager namespaceManager,
             string path,
             bool requiresSessions,
             bool requiresDuplicateDetection,
-            int maxDeliveryCount)
+            int maxDeliveryCount,
+            long maxSizeInMegabytes)
         {
+            if (!ValidQueueSizes.Contains(maxSizeInMegabytes))
+            {
+                throw new ArgumentException($"The specified value {maxSizeInMegabytes} is invalid for the maximum queue size in megabytes.\r\nIt must be one of the following values:\r\n{string.Join(";", ValidQueueSizes)}", nameof(maxSizeInMegabytes));
+            }
+
             var description = new QueueDescription(path)
             {
                 RequiresSession = requiresSessions,
                 MaxDeliveryCount = maxDeliveryCount,
                 RequiresDuplicateDetection = requiresDuplicateDetection,
-                DuplicateDetectionHistoryTimeWindow = TimeSpan.FromHours(DuplicateDetectionWindowInHours)
+                DuplicateDetectionHistoryTimeWindow = TimeSpan.FromHours(DuplicateDetectionWindowInHours),
+                MaxSizeInMegabytes = maxSizeInMegabytes
             };
 
             await namespaceManager.CreateQueueAsync(description);
