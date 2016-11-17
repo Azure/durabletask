@@ -974,6 +974,11 @@ namespace DurableTask
         /// <param name="messages">The task message to be sent for the orchestration</param>
         public async Task SendTaskOrchestrationMessageAsync(params TaskMessage[] messages)
         {
+            if (messages.Length == 0)
+            {
+                return;
+            }
+
             var brokeredMessages = new BrokeredMessage[messages.Length];
             for (int i = 0; i < messages.Length; i++)
             {

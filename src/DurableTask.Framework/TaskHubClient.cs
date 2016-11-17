@@ -172,6 +172,11 @@ namespace DurableTask
             string eventName, 
             object eventData)
         {
+            if (string.IsNullOrWhiteSpace(instanceId))
+            {
+                instanceId = Guid.NewGuid().ToString("N");
+            }
+
             var orchestrationInstance = new OrchestrationInstance
             {
                 InstanceId = instanceId,
