@@ -190,7 +190,23 @@ namespace DurableTask.Tracing
             {
                 formatted = "msg=" + message;
             }
-            return string.Format(formatted, args);
+
+            if (args == null)
+            {
+                return formatted;
+            }
+
+            try
+            {
+                return string.Format(formatted, args);
+            }
+            catch (FormatException ex)
+            {
+                source.TraceEvent(TraceEventType.Error, 0,
+                     "String FormatException for '{0}'. Args count: {1}. Exception: {2}", formatted, args.Length, ex);
+
+                return formatted;
+            }
         }
 
         static void ExceptionHandlingWrapper(Action innerFunc)
@@ -207,7 +223,7 @@ namespace DurableTask.Tracing
                 }
                 try
                 {
-                    source.TraceEvent(TraceEventType.Critical, 0,
+                    source.TraceEvent(TraceEventType.Error, 0,
                         $"Failed to log actual trace because one or more trace listeners threw an exception: {exception}");
                 }
                 catch (Exception anotherException)
