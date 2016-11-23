@@ -260,7 +260,7 @@ namespace DurableTask
                     {
                         Interlocked.Increment(ref concurrentWorkItemCount);
                         // We just want this to Run we intentionally don't wait
-                        #pragma warning disable 4014 
+                        #pragma warning disable 4014
                         Task.Run(() => ProcessWorkItemAsync(context, workItem));
                         #pragma warning restore 4014
                     }

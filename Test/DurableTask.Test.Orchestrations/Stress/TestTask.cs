@@ -32,7 +32,7 @@ namespace DurableTask.Test.Orchestrations.Stress
             Random random = new Random();
             int minutesToSleep = random.Next(0, input.MaxDelayInMinutes);
 
-            Console.WriteLine(string.Format("[InstanceId: {0}, ExecutionId: {1}, TaskId: {2}, Counter: {3}] ---> Sleeping for '{4}'", 
+            Console.WriteLine(string.Format("[InstanceId: {0}, ExecutionId: {1}, TaskId: {2}, Counter: {3}] ---> Sleeping for '{4}'",
                 instance.InstanceId, instance.ExecutionId, input.TaskId, c, minutesToSleep));
 
             await Task.Delay(TimeSpan.FromMinutes(minutesToSleep));

@@ -18,7 +18,10 @@ namespace DurableTask.Settings
     /// </summary>
     public class TaskOrchestrationDispatcherSettings
     {
-        internal TaskOrchestrationDispatcherSettings()
+        /// <summary>
+        /// Constructs the orchestration dispatcher settings with default values.
+        /// </summary>
+        public TaskOrchestrationDispatcherSettings()
         {
             TransientErrorBackOffSecs = FrameworkConstants.OrchestrationTransientErrorBackOffSecs;
             NonTransientErrorBackOffSecs = FrameworkConstants.OrchestrationNonTransientErrorBackOffSecs;

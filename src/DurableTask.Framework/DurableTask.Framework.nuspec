@@ -1,0 +1,37 @@
+﻿<?xml version="1.0"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2012/06/nuspec.xsd">
+  <metadata>
+    <id>DurableTask</id>
+    <version>2.0.4-alpha2</version>
+    <title>Durable Task Framework</title>
+    <authors>affandar;siport</authors>
+    <owners>affandar;siport</owners>
+    <licenseUrl>https://github.com/azure/durabletask/blob/vnext/LICENSE</licenseUrl>
+    <projectUrl>https://github.com/azure/durabletask</projectUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>This package provides a C# based durable Task framework for writing long running applications.
+
+It is built from an OSS version of https://www.nuget.org/packages/ServiceBus.DurableTask.
+    </description>
+    <summary>Framework for writing code workflows in C#.
+
+Release notes for this release:
+https://github.com/azure/durabletask/releases/tag/2.0.4-alpha
+    </summary>
+    <copyright>Copyright 2013</copyright>
+    <tags>ServiceBus Service Bus Azure Task Durable Orchestration Workflow Activity Reliable</tags>
+    <dependencies>
+      <group targetFramework="net451">
+        <dependency id="ImpromptuInterface" version="6.2.2" />
+        <dependency id="Newtonsoft.Json" version="7.0.1" />
+        <dependency id="WindowsAzure.ServiceBus" version="3.1.7" />
+        <dependency id="WindowsAzure.Storage" version="7.0.0" />
+      </group>
+    </dependencies>
+  </metadata>
+  <files>
+    <file src="bin\Release\DurableTaskFx.dll" target="lib\net451\DurableTaskFx.dll" exclude="" />
+    <file src="bin\Release\DurableTaskFx.pdb" target="lib\net451\DurableTaskFx.pdb" exclude="" />
+    <file src="bin\Release\DurableTaskFx.xml" target="lib\net451\DurableTaskFx.xml" exclude="" />
+  </files>
+</package>
