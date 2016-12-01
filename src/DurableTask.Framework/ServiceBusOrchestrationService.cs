@@ -902,7 +902,10 @@ namespace DurableTask
         {
             var message = GetAndDeleteBrokeredMessageForWorkItem(workItem);
             TraceHelper.Trace(TraceEventType.Information, $"Abandoning message {workItem?.Id}");
-            return message?.AbandonAsync();
+
+            return message == null 
+                ? Task.FromResult<object>(null) 
+                : message.AbandonAsync();
         }
 
         /// <summary>
