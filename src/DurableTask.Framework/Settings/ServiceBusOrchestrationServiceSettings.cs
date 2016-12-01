@@ -63,7 +63,7 @@ namespace DurableTask.Settings
         /// <summary>
         ///     Maximum queue size, in megabytes, for the service bus queues
         /// </summary>
-        public long MaxQueueSizeInMegabytes { get; set; } = 1024;
+        public long MaxQueueSizeInMegabytes { get; set; } = 1024L;
 
         /// <summary>
         /// Gets the message prefetch count

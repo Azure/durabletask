@@ -982,31 +982,38 @@ namespace DurableTask
                 return;
             }
 
-            var brokeredMessages = new BrokeredMessage[messages.Length];
+            var tasks = new Task<BrokeredMessage>[messages.Length];
             for (int i = 0; i < messages.Length; i++)
             {
-                var message = messages[i];
-
-                brokeredMessages[i] = await ServiceBusUtils.GetBrokeredMessageFromObjectAsync(
-                    message,
-                    Settings.MessageCompressionSettings,
-                    Settings.MessageSettings,
-                    message.OrchestrationInstance,
-                    "SendTaskOrchestrationMessage",
-                    this.BlobStore,
-                    DateTime.MinValue);
-
-                // Use duplicate detection of ExecutionStartedEvent by addin messageId
-                var executionStartedEvent = message.Event as ExecutionStartedEvent;
-                if (executionStartedEvent != null)
-                {
-                    brokeredMessages[i].MessageId = $"{executionStartedEvent.OrchestrationInstance.InstanceId}_{executionStartedEvent.OrchestrationInstance.ExecutionId}";
-                }
+                tasks[i] = GetBrokeredMessageAsync(messages[i]);
             }
+
+            var brokeredMessages = await Task.WhenAll(tasks);
 
             MessageSender sender = await messagingFactory.CreateMessageSenderAsync(orchestratorEntityName).ConfigureAwait(false);
             await sender.SendBatchAsync(brokeredMessages).ConfigureAwait(false);
             await sender.CloseAsync().ConfigureAwait(false);
+        }
+
+        async Task<BrokeredMessage> GetBrokeredMessageAsync(TaskMessage message)
+        {
+            var brokeredMessage = await ServiceBusUtils.GetBrokeredMessageFromObjectAsync(
+                message,
+                Settings.MessageCompressionSettings,
+                Settings.MessageSettings,
+                message.OrchestrationInstance,
+                "SendTaskOrchestrationMessage",
+                this.BlobStore,
+                DateTime.MinValue);
+
+            // Use duplicate detection of ExecutionStartedEvent by addin messageId
+            var executionStartedEvent = message.Event as ExecutionStartedEvent;
+            if (executionStartedEvent != null)
+            {
+                brokeredMessage.MessageId = $"{executionStartedEvent.OrchestrationInstance.InstanceId}_{executionStartedEvent.OrchestrationInstance.ExecutionId}";
+            }
+
+            return brokeredMessage;
         }
 
         /// <summary>
@@ -1513,7 +1520,7 @@ namespace DurableTask
             await SafeCreateQueueAsync(namespaceManager, path, requiresSessions, requiresDuplicateDetection, maxDeliveryCount, maxSizeInMegabytes);
         }
 
-        private static readonly long[] ValidQueueSizes = { 1024L, 2048L, 3072L, 4096L, 5120L };
+        static readonly long[] ValidQueueSizes = { 1024L, 2048L, 3072L, 4096L, 5120L };
 
         async Task CreateQueueAsync(
             NamespaceManager namespaceManager,

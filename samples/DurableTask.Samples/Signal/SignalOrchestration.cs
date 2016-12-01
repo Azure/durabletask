@@ -23,7 +23,7 @@ namespace DurableTask.Samples.Signal
         public override async Task<string> RunTask(OrchestrationContext context, string input)
         {
             string user = await WaitForSignal();
-            string greeting = await context.ScheduleTask<string>("DurableTaskSamples.Greetings.SendGreetingTask", string.Empty, user);
+            string greeting = await context.ScheduleTask<string>("DurableTask.Samples.Greetings.SendGreetingTask", string.Empty, user);
             return greeting;
         }
 
