@@ -354,7 +354,7 @@ namespace DurableTask
                 }
             };
 
-            if (!string.IsNullOrEmpty(eventName))
+            if (eventData != null)
             {
                 string serializedEventData = defaultConverter.Serialize(eventData);
                 taskMessages.Add(new TaskMessage
