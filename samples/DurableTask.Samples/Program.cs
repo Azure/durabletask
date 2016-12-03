@@ -104,6 +104,14 @@ namespace DurableTask.Samples
                         case "Signal":
                             instance = taskHubClient.CreateOrchestrationInstanceAsync(typeof(SignalOrchestration), instanceId, null).Result;
                             break;
+                        case "SignalAndRaise":
+                            if (options.Parameters == null || options.Parameters.Length != 1)
+                            {
+                                throw new ArgumentException("parameters");
+                            }
+
+                            instance = taskHubClient.CreateOrchestrationInstanceWithRaisedEventAsync(typeof(SignalOrchestration), instanceId, null, options.Signal, options.Parameters[0]).Result;
+                            break;
                         case "Replat":
                             instance = taskHubClient.CreateOrchestrationInstanceAsync(typeof(MigrateOrchestration), instanceId,
                                 new MigrateOrchestrationData() { SubscriptionId = "03a1cd39-47ac-4a57-9ff5-a2c2a2a76088", IsDisabled = false }).Result;

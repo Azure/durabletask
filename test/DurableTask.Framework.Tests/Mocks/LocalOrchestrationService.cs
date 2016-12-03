@@ -191,7 +191,16 @@ namespace DurableTask.Framework.Tests.Mocks
 
         public Task SendTaskOrchestrationMessageAsync(TaskMessage message)
         {
-            this.orchestratorQueue.SendMessage(message);
+            return SendTaskOrchestrationMessageBatchAsync(message);
+        }
+
+        public Task SendTaskOrchestrationMessageBatchAsync(params TaskMessage[] messages)
+        {
+            foreach (var message in messages)
+            {
+                this.orchestratorQueue.SendMessage(message);
+            }
+
             return Task.FromResult<object>(null);
         }
 

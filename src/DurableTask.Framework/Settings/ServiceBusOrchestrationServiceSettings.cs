@@ -61,6 +61,11 @@ namespace DurableTask.Settings
         public int MaxTrackingDeliveryCount { get; set; }
 
         /// <summary>
+        ///     Maximum queue size, in megabytes, for the service bus queues
+        /// </summary>
+        public long MaxQueueSizeInMegabytes { get; set; } = 1024L;
+
+        /// <summary>
         /// Gets the message prefetch count
         /// </summary>
         public int PrefetchCount { get; } = 50;

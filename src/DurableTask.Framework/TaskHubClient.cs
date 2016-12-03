@@ -57,10 +57,14 @@ namespace DurableTask
         /// <returns>OrchestrationInstance that represents the orchestration that was created</returns>
         public Task<OrchestrationInstance> CreateOrchestrationInstanceAsync(Type orchestrationType, object input)
         {
-            return CreateOrchestrationInstanceAsync(
+            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 NameVersionHelper.GetDefaultName(orchestrationType),
                 NameVersionHelper.GetDefaultVersion(orchestrationType), 
-                input);
+                null,
+                input,
+                null,
+                null,
+                null);
         }
 
         /// <summary>
@@ -75,11 +79,14 @@ namespace DurableTask
             string instanceId,
             object input)
         {
-            return CreateOrchestrationInstanceAsync(
+            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 NameVersionHelper.GetDefaultName(orchestrationType),
                 NameVersionHelper.GetDefaultVersion(orchestrationType), 
                 instanceId, 
-                input);
+                input,
+                null,
+                null,
+                null);
         }
 
         /// <summary>
@@ -91,8 +98,7 @@ namespace DurableTask
         /// <returns>OrchestrationInstance that represents the orchestration that was created</returns>
         public Task<OrchestrationInstance> CreateOrchestrationInstanceAsync(string name, string version, object input)
         {
-            string instanceId = Guid.NewGuid().ToString("N");
-            return CreateOrchestrationInstanceAsync(name, version, instanceId, input);
+            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(name, version, null, input, null, null, null);
         }
 
         /// <summary>
@@ -105,7 +111,7 @@ namespace DurableTask
         /// <returns>OrchestrationInstance that represents the orchestration that was created</returns>
         public Task<OrchestrationInstance> CreateOrchestrationInstanceAsync(string name, string version, string instanceId, object input)
         {
-            return CreateOrchestrationInstanceAsync(name, version, instanceId, input, null);
+            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(name, version, instanceId, input, null, null, null);
         }
 
         /// <summary>
@@ -117,42 +123,257 @@ namespace DurableTask
         /// <param name="input">Input parameter to the specified TaskOrchestration</param>
         /// <param name="tags">Dictionary of key/value tags associated with this instance</param>
         /// <returns>OrchestrationInstance that represents the orchestration that was created</returns>
-        public async Task<OrchestrationInstance> CreateOrchestrationInstanceAsync(
+        public Task<OrchestrationInstance> CreateOrchestrationInstanceAsync(
             string name, 
             string version,
             string instanceId,
             object input, 
             IDictionary<string, string> tags)
         {
-            if (string.IsNullOrWhiteSpace(instanceId))
+            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(name, version, instanceId, input, tags, null, null);
+        }
+
+        /// <summary>
+        ///     Creates an orchestration instance, and raises an event for it, which eventually causes the OnEvent() method in the
+        ///     orchestration to fire.
+        /// </summary>
+        /// <param name="orchestrationType">Type that derives from TaskOrchestration</param>
+        /// <param name="orchestrationInput">Input parameter to the specified TaskOrchestration</param>
+        /// <param name="eventName">Name of the event</param>
+        /// <param name="eventData">Data for the event</param>
+        /// <returns>OrchestrationInstance that represents the orchestration that was created</returns>
+        public Task<OrchestrationInstance> CreateOrchestrationInstanceWithRaisedEventAsync(
+            Type orchestrationType,
+            object orchestrationInput,
+            string eventName,
+            object eventData)
+        {
+            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+                NameVersionHelper.GetDefaultName(orchestrationType),
+                NameVersionHelper.GetDefaultVersion(orchestrationType),
+                null,
+                orchestrationInput,
+                null,
+                eventName,
+                eventData);
+        }
+
+        /// <summary>
+        ///     Creates an orchestration instance, and raises an event for it, which eventually causes the OnEvent() method in the
+        ///     orchestration to fire.
+        /// </summary>
+        /// <param name="orchestrationType">Type that derives from TaskOrchestration</param>
+        /// <param name="instanceId">Instance id for the orchestration to be created, must be unique across the Task Hub</param>
+        /// <param name="orchestrationInput">Input parameter to the specified TaskOrchestration</param>
+        /// <param name="eventName">Name of the event</param>
+        /// <param name="eventData">Data for the event</param>
+        /// <returns>OrchestrationInstance that represents the orchestration that was created</returns>
+        public Task<OrchestrationInstance> CreateOrchestrationInstanceWithRaisedEventAsync(
+            Type orchestrationType,
+            string instanceId,
+            object orchestrationInput,
+            string eventName,
+            object eventData)
+        {
+            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+                NameVersionHelper.GetDefaultName(orchestrationType),
+                NameVersionHelper.GetDefaultVersion(orchestrationType),
+                instanceId,
+                orchestrationInput,
+                null,
+                eventName,
+                eventData);
+        }
+
+        /// <summary>
+        ///     Creates an orchestration instance, and raises an event for it, which eventually causes the OnEvent() method in the
+        ///     orchestration to fire.
+        /// </summary>
+        /// <param name="orchestrationName">Name of the orchestration as specified by the ObjectCreator</param>
+        /// <param name="orchestrationVersion">Name of the orchestration as specified by the ObjectCreator</param>
+        /// <param name="eventName">Name of the event</param>
+        /// <param name="eventData">Data for the event</param>
+        public Task<OrchestrationInstance> CreateOrchestrationInstanceWithRaisedEventAsync(
+            string orchestrationName,
+            string orchestrationVersion,
+            string eventName,
+            object eventData)
+        {
+            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+                orchestrationName,
+                orchestrationVersion,
+                null,
+                null,
+                null, eventName, eventData);
+        }
+
+        /// <summary>
+        ///     Creates an orchestration instance, and raises an event for it, which eventually causes the OnEvent() method in the
+        ///     orchestration to fire.
+        /// </summary>
+        /// <param name="orchestrationName">Name of the TaskOrchestration</param>
+        /// <param name="orchestrationVersion">Version of the TaskOrchestration</param>
+        /// <param name="orchestrationInput">Input parameter to the specified TaskOrchestration</param>
+        /// <param name="eventName">Name of the event</param>
+        /// <param name="eventData">Data for the event</param>
+        /// <returns>OrchestrationInstance that represents the orchestration that was created</returns>
+        public Task<OrchestrationInstance> CreateOrchestrationInstanceWithRaisedEventAsync(
+            string orchestrationName,
+            string orchestrationVersion,
+            object orchestrationInput,
+            string eventName,
+            object eventData)
+        {
+            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+                orchestrationName, 
+                orchestrationVersion, 
+                null, orchestrationInput, 
+                null, 
+                eventName, 
+                eventData);
+        }
+
+        /// <summary>
+        ///     Creates an orchestration instance, and raises an event for it, which eventually causes the OnEvent() method in the
+        ///     orchestration to fire.
+        /// </summary>
+        /// <param name="orchestrationName">Name of the TaskOrchestration</param>
+        /// <param name="orchestrationVersion">Version of the TaskOrchestration</param>
+        /// <param name="instanceId">Instance id for the orchestration to be created, must be unique across the Task Hub</param>
+        /// <param name="orchestrationInput">Input parameter to the specified TaskOrchestration</param>
+        /// <param name="eventName">Name of the event</param>
+        /// <param name="eventData">Data for the event</param>
+        /// <returns>OrchestrationInstance that represents the orchestration that was created</returns>
+        public Task<OrchestrationInstance> CreateOrchestrationInstanceWithRaisedEventAsync(
+            string orchestrationName, 
+            string orchestrationVersion, 
+            string instanceId, 
+            object orchestrationInput,
+            string eventName,
+            object eventData)
+        {
+            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+                orchestrationName, 
+                orchestrationVersion, 
+                instanceId, 
+                orchestrationInput, null, 
+                eventName, 
+                eventData);
+        }
+
+        /// <summary>
+        ///     Creates an orchestration instance, and raises an event for it, which eventually causes the OnEvent() method in the
+        ///     orchestration to fire.
+        /// </summary>
+        /// <param name="orchestrationName">Name of the TaskOrchestration</param>
+        /// <param name="orchestrationVersion">Version of the TaskOrchestration</param>
+        /// <param name="instanceId">Instance id for the orchestration to be created, must be unique across the Task Hub</param>
+        /// <param name="orchestrationInput">Input parameter to the specified TaskOrchestration</param>
+        /// <param name="orchestrationTags">Dictionary of key/value tags associated with this instance</param>
+        /// <param name="eventName">Name of the event</param>
+        /// <param name="eventData">Data for the event</param>
+        /// <returns>OrchestrationInstance that represents the orchestration that was created</returns>
+        public Task<OrchestrationInstance> CreateOrchestrationInstanceWithRaisedEventAsync(
+            string orchestrationName,
+            string orchestrationVersion,
+            string instanceId,
+            object orchestrationInput,
+            IDictionary<string, string> orchestrationTags,
+            string eventName,
+            object eventData)
+        {
+            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+                orchestrationName, 
+                orchestrationVersion, 
+                instanceId, 
+                orchestrationInput, 
+                orchestrationTags, 
+                eventName,
+                eventData);
+        }
+
+        /// <summary>
+        ///     Creates an orchestration instance, and raises an event for it, which eventually causes the OnEvent() method in the
+        ///     orchestration to fire.
+        /// </summary>
+        /// <param name="orchestrationName">Name of the orchestration as specified by the ObjectCreator</param>
+        /// <param name="orchestrationVersion">Name of the orchestration as specified by the ObjectCreator</param>
+        /// <param name="instanceId">Instance id for the orchestration to be created, must be unique across the Task Hub</param>
+        /// <param name="eventName">Name of the event</param>
+        /// <param name="eventData">Data for the event</param>
+        public Task<OrchestrationInstance> CreateOrchestrationInstanceWithRaisedEventAsync(
+            string orchestrationName, 
+            string orchestrationVersion, 
+            string instanceId,
+            string eventName, 
+            object eventData)
+        {
+            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+                orchestrationName,
+                orchestrationVersion,
+                instanceId,
+                null,
+                null, eventName, eventData);
+        }
+
+        async Task<OrchestrationInstance> InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+            string orchestrationName, 
+            string orchestrationVersion, 
+            string orchestrationInstanceId, 
+            object orchestrationInput, 
+            IDictionary<string, string> orchestrationTags, 
+            string eventName, 
+            object eventData)
+        {
+            if (string.IsNullOrWhiteSpace(orchestrationInstanceId))
             {
-                instanceId = Guid.NewGuid().ToString("N");
+                orchestrationInstanceId = Guid.NewGuid().ToString("N");
             }
 
             var orchestrationInstance = new OrchestrationInstance
             {
-                InstanceId = instanceId,
+                InstanceId = orchestrationInstanceId,
                 ExecutionId = Guid.NewGuid().ToString("N"),
             };
 
-            string serializedInput = defaultConverter.Serialize(input);
-
-            var startedEvent = new ExecutionStartedEvent(-1, serializedInput)
+            string serializedOrchestrationData = defaultConverter.Serialize(orchestrationInput);
+            var startedEvent = new ExecutionStartedEvent(-1, serializedOrchestrationData)
             {
-                Tags = tags,
-                Name = name,
-                Version = version,
+                Tags = orchestrationTags,
+                Name = orchestrationName,
+                Version = orchestrationVersion,
                 OrchestrationInstance = orchestrationInstance
             };
 
-            var taskMessage = new TaskMessage
+            var taskMessages = new List<TaskMessage>
             {
-                OrchestrationInstance = orchestrationInstance,
-                Event = startedEvent
+                new TaskMessage
+                {
+                    OrchestrationInstance = orchestrationInstance,
+                    Event = startedEvent
+                }
             };
 
-            await this.serviceClient.CreateTaskOrchestrationAsync(taskMessage);
+            if (eventData != null)
+            {
+                string serializedEventData = defaultConverter.Serialize(eventData);
+                taskMessages.Add(new TaskMessage
+                {
+                    OrchestrationInstance = new OrchestrationInstance
+                    {
+                        InstanceId = orchestrationInstanceId,
 
+                        // to ensure that the event gets raised on the running
+                        // orchestration instance, null the execution id
+                        // so that it will find out which execution
+                        // it should use for processing
+                        ExecutionId = null
+                    },
+                    Event = new EventRaisedEvent(-1, serializedEventData) {Name = eventName}
+                });
+            }
+
+            await this.serviceClient.SendTaskOrchestrationMessageBatchAsync(taskMessages.ToArray());
             return orchestrationInstance;
         }
 

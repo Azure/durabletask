@@ -38,6 +38,13 @@ namespace DurableTask
         Task SendTaskOrchestrationMessageAsync(TaskMessage message);
 
         /// <summary>
+        /// Send a new set of messages for an orchestration
+        /// </summary>
+        /// <param name="messages">Messages to send</param>
+        /// <returns></returns>
+        Task SendTaskOrchestrationMessageBatchAsync(params TaskMessage[] messages);
+
+        /// <summary>
         /// Wait for an orchestration to reach any terminal state within the given timeout
         /// </summary>
         /// <param name="instanceId">Instance id of the orchestration</param>
