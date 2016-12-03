@@ -972,10 +972,19 @@ namespace DurableTask
         }
 
         /// <summary>
+        ///    Sends an orchestration message
+        /// </summary>
+        /// <param name="message">The task message to be sent for the orchestration</param>
+        public Task SendTaskOrchestrationMessageAsync(TaskMessage message)
+        {
+            return SendTaskOrchestrationMessageBatchAsync(message);
+        }
+
+        /// <summary>
         ///    Sends a set of orchestration messages
         /// </summary>
-        /// <param name="messages">The task message to be sent for the orchestration</param>
-        public async Task SendTaskOrchestrationMessageAsync(params TaskMessage[] messages)
+        /// <param name="messages">The task messages to be sent for the orchestration</param>
+        public async Task SendTaskOrchestrationMessageBatchAsync(params TaskMessage[] messages)
         {
             if (messages.Length == 0)
             {

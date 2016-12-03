@@ -373,7 +373,7 @@ namespace DurableTask
                 });
             }
 
-            await this.serviceClient.SendTaskOrchestrationMessageAsync(taskMessages.ToArray());
+            await this.serviceClient.SendTaskOrchestrationMessageBatchAsync(taskMessages.ToArray());
             return orchestrationInstance;
         }
 
