@@ -29,6 +29,10 @@ namespace TestApplication.Common
 
         Task<OrchestrationState> GetOrchestrationState(OrchestrationInstance instance);
 
+        Task<OrchestrationInstance> StartTestOrchestrationWithInstanceIdAsync(string instanceId, TestOrchestrationData input);
+
+        Task<OrchestrationState> GetOrchestrationStateWithInstanceId(string instanceId);
+
         Task<OrchestrationState> WaitForOrchestration(OrchestrationInstance instance, TimeSpan waitTimeout);
 
         Task PurgeOrchestrationHistoryEventsAsync();

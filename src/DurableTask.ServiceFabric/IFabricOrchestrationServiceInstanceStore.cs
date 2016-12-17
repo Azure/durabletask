@@ -60,7 +60,7 @@ namespace DurableTask.ServiceFabric
         /// <param name="instanceId">The instance id to return state for</param>
         /// <param name="allInstances">Flag indiciation whether to get all history execution ids or just the most recent</param>
         /// <returns>List of matching orchestration states</returns>
-        Task<IEnumerable<OrchestrationStateInstanceEntity>> GetOrchestrationStateAsync(string instanceId, bool allInstances);
+        Task<IList<OrchestrationStateInstanceEntity>> GetOrchestrationStateAsync(string instanceId, bool allInstances);
 
         /// <summary>
         /// Gets the orchestration state for a given instance and execution id

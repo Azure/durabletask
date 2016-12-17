@@ -116,6 +116,46 @@ namespace DurableTask.ServiceFabric.Test
         }
 
         [TestMethod]
+        public async Task QueryState_For_Latest_Execution()
+        {
+            var instanceId = "PredicatbleInstanceId";
+            var instance = await this.serviceClient.StartTestOrchestrationWithInstanceIdAsync(instanceId, new TestOrchestrationData()
+            {
+                NumberOfParallelTasks = 0,
+                NumberOfSerialTasks = 1,
+                MaxDelay = 15,
+                MinDelay = 15,
+                DelayUnit = TimeSpan.FromSeconds(1),
+            });
+
+            var state = await this.serviceClient.GetOrchestrationStateWithInstanceId(instanceId);
+
+            Assert.IsNotNull(state);
+            Assert.AreEqual(instance.ExecutionId, state.OrchestrationInstance.ExecutionId);
+
+            var result = await this.serviceClient.WaitForOrchestration(instance, TimeSpan.FromMinutes(2));
+            Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
+
+            var newInstance = await this.serviceClient.StartTestOrchestrationWithInstanceIdAsync(instanceId, new TestOrchestrationData()
+            {
+                NumberOfParallelTasks = 0,
+                NumberOfSerialTasks = 1,
+                MaxDelay = 0,
+                MinDelay = 0,
+                DelayUnit = TimeSpan.FromSeconds(1),
+            });
+
+            var newState = await this.serviceClient.GetOrchestrationStateWithInstanceId(instanceId);
+
+            Assert.IsNotNull(newState);
+            Assert.AreEqual(newInstance.ExecutionId, newState.OrchestrationInstance.ExecutionId);
+            Assert.AreNotEqual(state.OrchestrationInstance.ExecutionId, newState.OrchestrationInstance.ExecutionId);
+
+            result = await this.serviceClient.WaitForOrchestration(instance, TimeSpan.FromMinutes(2));
+            Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
+        }
+
+        [TestMethod]
         public async Task Purge_Removes_State()
         {
             var result = await this.serviceClient.RunOrchestrationAsync(typeof(SimpleOrchestrationWithTasks).Name, null, TimeSpan.FromMinutes(2));

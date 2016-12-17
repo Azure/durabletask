@@ -76,9 +76,21 @@ namespace DurableTask.ServiceFabric
             await SendTaskOrchestrationMessageAsync(taskMessage);
         }
 
-        public Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
+        public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
         {
-            throw new NotImplementedException();
+            ThrowIfInstanceStoreNotConfigured();
+
+            var stateInstances = await this.instanceStore.GetOrchestrationStateAsync(instanceId, allExecutions);
+
+            var result = new List<OrchestrationState>();
+            foreach(var stateInstance in stateInstances)
+            {
+                if (stateInstance != null)
+                {
+                    result.Add(stateInstance.State);
+                }
+            }
+            return result;
         }
 
         public async Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)

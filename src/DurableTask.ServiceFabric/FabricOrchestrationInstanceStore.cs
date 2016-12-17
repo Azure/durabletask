@@ -15,6 +15,7 @@ namespace DurableTask.ServiceFabric
 {
     using System;
     using System.Collections.Generic;
+    using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Tracking;
@@ -30,9 +31,11 @@ namespace DurableTask.ServiceFabric
         const string TimeFormatString = "yyyy-MM-dd-HH";
         const string TimeFormatStringPrefix = "yyyy-MM-dd-";
         readonly IReliableStateManager stateManager;
+        readonly List<OrchestrationStateInstanceEntity> EmptyInstance = new List<OrchestrationStateInstanceEntity>();
 
         CancellationTokenSource cancellationTokenSource;
         IReliableDictionary<string, OrchestrationState> instanceStore;
+        IReliableDictionary<string, string> executionIdStore;
 
         public FabricOrchestrationInstanceStore(IReliableStateManager stateManager)
         {
@@ -50,7 +53,8 @@ namespace DurableTask.ServiceFabric
         public async Task StartAsync()
         {
             this.cancellationTokenSource = new CancellationTokenSource();
-            this.instanceStore = await this.GetOrAddInstanceStoreDictionary();
+            this.instanceStore = await this.stateManager.GetOrAddAsync<IReliableDictionary<string, OrchestrationState>>(Constants.InstanceStoreDictionaryName);
+            this.executionIdStore = await this.stateManager.GetOrAddAsync<IReliableDictionary<string, string>>(Constants.ExecutionStoreDictionaryName);
             var nowait = CleanupDayOldDictionaries();
         }
 
@@ -63,6 +67,7 @@ namespace DurableTask.ServiceFabric
         public async Task DeleteStoreAsync()
         {
             await this.stateManager.RemoveAsync(Constants.InstanceStoreDictionaryName);
+            await this.stateManager.RemoveAsync(Constants.ExecutionStoreDictionaryName);
         }
 
         public async Task WriteEntitesAsync(ITransaction transaction, IEnumerable<InstanceEntityBase> entities)
@@ -73,10 +78,15 @@ namespace DurableTask.ServiceFabric
                 var state = entity as OrchestrationStateInstanceEntity;
                 if (state != null && state.State != null)
                 {
-                    string key = GetKey(state.State.OrchestrationInstance.InstanceId, state.State.OrchestrationInstance.ExecutionId);
+                    var instance = state.State.OrchestrationInstance;
+                    string key = GetKey(instance.InstanceId, instance.ExecutionId);
 
                     if (state.State.OrchestrationStatus.IsRunningOrPending())
                     {
+                        if (state.State.OrchestrationStatus == OrchestrationStatus.Pending)
+                        {
+                            await this.executionIdStore.AddOrUpdateAsync(transaction, instance.InstanceId, instance.ExecutionId, (k, old) => instance.ExecutionId);
+                        }
                         await this.instanceStore.AddOrUpdateAsync(transaction, key, state.State,
                             (k, oldValue) => state.State);
                     }
@@ -98,9 +108,27 @@ namespace DurableTask.ServiceFabric
             }
         }
 
-        public Task<IEnumerable<OrchestrationStateInstanceEntity>> GetOrchestrationStateAsync(string instanceId, bool allInstances)
+        public async Task<IList<OrchestrationStateInstanceEntity>> GetOrchestrationStateAsync(string instanceId, bool allInstances)
         {
-            throw new NotImplementedException();
+            if (allInstances)
+            {
+                throw new NotImplementedException("Querying for state across all executions for an orchestration is not supported, only the latest execution can be queried");
+            }
+
+            using (var tx = this.stateManager.CreateTransaction())
+            {
+                var executionIdValue = await this.executionIdStore.TryGetValueAsync(tx, instanceId);
+                if (executionIdValue.HasValue)
+                {
+                    var state = await GetOrchestrationStateAsync(instanceId, executionIdValue.Value);
+                    if (state != null)
+                    {
+                        return new List<OrchestrationStateInstanceEntity>() { state };
+                    }
+                }
+            }
+
+            return EmptyInstance;
         }
 
         public async Task<OrchestrationStateInstanceEntity> GetOrchestrationStateAsync(string instanceId, string executionId)
@@ -153,11 +181,6 @@ namespace DurableTask.ServiceFabric
         public Task PurgeOrchestrationHistoryEventsAsync(DateTime threshholdHourlyDateTimeUtc)
         {
             return this.stateManager.RemoveAsync(GetDictionaryKeyFromTime(threshholdHourlyDateTimeUtc));
-        }
-
-        Task<IReliableDictionary<string, OrchestrationState>> GetOrAddInstanceStoreDictionary()
-        {
-            return this.stateManager.GetOrAddAsync<IReliableDictionary<string, OrchestrationState>>(Constants.InstanceStoreDictionaryName);
         }
 
         string GetKey(string instanceId, string executionId)

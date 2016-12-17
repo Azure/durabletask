@@ -100,11 +100,9 @@ namespace TestStatefulService
             return await this.RunOrchestrationAsync(typeof(DriverOrchestration).Name, input, waitTimeout);
         }
 
-        public async Task<OrchestrationInstance> StartTestOrchestrationAsync(TestOrchestrationData input)
+        public Task<OrchestrationInstance> StartTestOrchestrationAsync(TestOrchestrationData input)
         {
-            var instance = await client.CreateOrchestrationInstanceAsync(typeof(TestOrchestration), input);
-            ServiceEventSource.Current.Message($"Orchestration Started : {instance.InstanceId}");
-            return instance;
+            return client.CreateOrchestrationInstanceAsync(typeof(TestOrchestration), input);
         }
 
         public Task<OrchestrationState> GetOrchestrationState(OrchestrationInstance instance)
@@ -139,6 +137,17 @@ namespace TestStatefulService
             }
 
             return KnownOrchestrationTypeNames.First(kvp => string.Equals(typeName, kvp.Key)).Value;
+        }
+
+        public Task<OrchestrationInstance> StartTestOrchestrationWithInstanceIdAsync(string instanceId, TestOrchestrationData input)
+        {
+            return client.CreateOrchestrationInstanceAsync(typeof(TestOrchestration), instanceId, input);
+        }
+
+        public async Task<OrchestrationState> GetOrchestrationStateWithInstanceId(string instanceId)
+        {
+            var allStates = await this.client.GetOrchestrationStateAsync(instanceId, allExecutions: false);
+            return allStates.FirstOrDefault();
         }
 
         static Dictionary<string, Type> KnownOrchestrationTypeNames = new Dictionary<string, Type>
