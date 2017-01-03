@@ -116,6 +116,28 @@ namespace DurableTask.ServiceFabric.Test
         }
 
         [TestMethod]
+        public async Task Orchestration_With_Same_Id_Cant_Be_Started_While_Running()
+        {
+            var instanceId = "PredicatbleInstanceId";
+            var testData = new TestOrchestrationData()
+            {
+                NumberOfParallelTasks = 0,
+                NumberOfSerialTasks = 1,
+                MaxDelay = 15,
+                MinDelay = 15,
+                DelayUnit = TimeSpan.FromSeconds(1),
+            };
+
+            var instance = await this.serviceClient.StartTestOrchestrationWithInstanceIdAsync(instanceId, testData);
+
+            await Utilities.ThrowsException<InvalidOperationException>(() => this.serviceClient.StartTestOrchestrationWithInstanceIdAsync(instanceId, testData),
+                $"An orchestration with id '{instanceId}' is already running.");
+
+            var result = await this.serviceClient.WaitForOrchestration(instance, TimeSpan.FromMinutes(2));
+            Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
+        }
+
+        [TestMethod]
         public async Task QueryState_For_Latest_Execution()
         {
             var instanceId = "PredicatbleInstanceId";
@@ -145,6 +167,7 @@ namespace DurableTask.ServiceFabric.Test
                 DelayUnit = TimeSpan.FromSeconds(1),
             });
 
+            // We want to make sure that once an orchestration is complete, we can create another instance with the same id.
             var newState = await this.serviceClient.GetOrchestrationStateWithInstanceId(instanceId);
 
             Assert.IsNotNull(newState);

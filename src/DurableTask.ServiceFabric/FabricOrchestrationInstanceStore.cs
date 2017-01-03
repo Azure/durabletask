@@ -15,7 +15,7 @@ namespace DurableTask.ServiceFabric
 {
     using System;
     using System.Collections.Generic;
-    using System.Linq;
+    using System.Collections.Immutable;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Tracking;
@@ -31,7 +31,6 @@ namespace DurableTask.ServiceFabric
         const string TimeFormatString = "yyyy-MM-dd-HH";
         const string TimeFormatStringPrefix = "yyyy-MM-dd-";
         readonly IReliableStateManager stateManager;
-        readonly List<OrchestrationStateInstanceEntity> EmptyInstance = new List<OrchestrationStateInstanceEntity>();
 
         CancellationTokenSource cancellationTokenSource;
         IReliableDictionary<string, OrchestrationState> instanceStore;
@@ -128,7 +127,7 @@ namespace DurableTask.ServiceFabric
                 }
             }
 
-            return EmptyInstance;
+            return ImmutableList<OrchestrationStateInstanceEntity>.Empty;
         }
 
         public async Task<OrchestrationStateInstanceEntity> GetOrchestrationStateAsync(string instanceId, string executionId)
