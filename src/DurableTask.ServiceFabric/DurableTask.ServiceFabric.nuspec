@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
   <metadata>
     <id>DurableTask.ServiceFabric</id>
-    <version>0.0.1-alpha3</version>
+    <version>0.0.1-alpha4</version>
     <title>DurableTask.ServiceFabric</title>
     <authors>pradeek</authors>
     <owners>pradeek</owners>
