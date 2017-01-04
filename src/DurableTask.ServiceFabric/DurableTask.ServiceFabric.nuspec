@@ -1,19 +1,21 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
   <metadata>
-    <id>DurableTask.ServiceFabric</id>
-    <version>0.0.1-beta1</version>
-    <title>DurableTask.ServiceFabric</title>
+    <id>ServiceBus.DurableTask.ServiceFabric</id>
+    <version>1.0.0-charlie9</version>
+    <title>ServiceBus.DurableTask.ServiceFabric</title>
     <authors>pradeek</authors>
     <owners>pradeek</owners>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
-    <description>Service fabric based storage provider for Durable Task Framework.</description>
+    <description>Service fabric based storage provider for Durable Task Framework.
+This package was generated from vnext_servicefabric branch and is for private use of Azure ServiceBus team.
+    </description>
     <summary>Service fabric based storage provider for Durable Task Framework.</summary>
     <copyright>Copyright © 2016</copyright>
     <tags>ServiceFabric Azure Task Durable Orchestration Workflow Activity Reliable</tags>
     <dependencies>
       <group targetFramework="net451">
-        <dependency id="DurableTask" version="2.0.4-alpha2" />
+        <dependency id="ServiceBus.DurableTask" version="1.0.0-charlie9" />
         <dependency id="Microsoft.ServiceFabric" version="5.1.163" />
         <dependency id="Microsoft.ServiceFabric.Data" version="2.1.163" />
         <dependency id="Microsoft.ServiceFabric.Services" version="2.1.163" />

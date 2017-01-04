@@ -18,7 +18,9 @@ namespace DurableTask
     [DataContract]
     internal class StateMessage : IExtensibleDataObject
     {
+        #pragma warning disable 0649
         [DataMember] public OrchestrationState State;
+        #pragma warning restore 0649
         public ExtensionDataObject ExtensionData { get; set; }
     }
 }

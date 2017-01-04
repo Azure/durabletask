@@ -1,8 +1,8 @@
 ﻿<?xml version="1.0"?>
 <package xmlns="http://schemas.microsoft.com/packaging/2012/06/nuspec.xsd">
   <metadata>
-    <id>DurableTask</id>
-    <version>2.0.4-beta1</version>
+    <id>ServiceBus.DurableTask</id>
+    <version>1.0.0-charlie9</version>
     <title>Durable Task Framework</title>
     <authors>affandar;siport</authors>
     <owners>affandar;siport</owners>
@@ -12,6 +12,8 @@
     <description>This package provides a C# based durable Task framework for writing long running applications.
 
 It is built from an OSS version of https://www.nuget.org/packages/ServiceBus.DurableTask.
+
+This package was generated from vnext_servicefabric branch and is for private use of Azure ServiceBus team.
     </description>
     <summary>Framework for writing code workflows in C#.
 

@@ -34,6 +34,12 @@
     <WarningLevel>4</WarningLevel>
     <DocumentationFile>$(OutputPath)$(AssemblyName).xml</DocumentationFile>
   </PropertyGroup>
+  <PropertyGroup>
+    <SignAssembly>true</SignAssembly>
+  </PropertyGroup>
+  <PropertyGroup>
+    <AssemblyOriginatorKeyFile>sign.snk</AssemblyOriginatorKeyFile>
+  </PropertyGroup>
   <ItemGroup>
     <Reference Include="Microsoft.Diagnostics.Tracing.EventSource">
       <HintPath>$(SolutionDir)\packages\Microsoft.Diagnostics.Tracing.EventSource.Redist.1.1.28\lib\net40\Microsoft.Diagnostics.Tracing.EventSource.dll</HintPath>
@@ -126,6 +132,7 @@
     <None Include="app.config" />
     <None Include="DurableTask.ServiceFabric.nuspec" />
     <None Include="packages.config" />
+    <None Include="sign.snk" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\DurableTask.Framework\DurableTask.Framework.csproj">
