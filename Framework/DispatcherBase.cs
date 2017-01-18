@@ -127,9 +127,14 @@ namespace DurableTask
                     TraceHelper.Trace(TraceEventType.Information,
                         GetFormattedLog(string.Format("Starting fetch with timeout of {0}", DefaultReceiveTimeout)));
                     workItem = await OnFetchWorkItem(DefaultReceiveTimeout);
+
+                    TraceHelper.Trace(TraceEventType.Information,
+                        GetFormattedLog("Fetched workitem"));
                 }
-                catch (TimeoutException)
+                catch (TimeoutException ex)
                 {
+                    TraceHelper.Trace(TraceEventType.Information,
+                        GetFormattedLog("TimeOut while fetching workItem, Will try again."));
                     delaySecs = 0;
                 }
                 catch (Exception exception)

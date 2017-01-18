@@ -28,6 +28,8 @@ namespace DurableTask
     /// </summary>
     public sealed class TaskHubWorker
     {
+        public static string StateProviderKeyName = "StateProvider";
+
         readonly NameVersionObjectManager<TaskActivity> activityManager;
         readonly string connectionString;
         readonly string hubName;
@@ -55,10 +57,12 @@ namespace DurableTask
         }
 
         /// <summary>
-        ///     Create a new TaskHubWorker with given name and Service Bus connection string
+        /// Create a new TaskHubWorker with given name and Service Bus connection string
         /// </summary>
         /// <param name="hubName">Name of the Task Hub</param>
         /// <param name="connectionString">Service Bus connection string</param>
+        /// <param name="workerSettings">TaskHubWorker settings. It can be used to inject 
+        /// services like IStateProvider.</param>
         public TaskHubWorker(string hubName, string connectionString, TaskHubWorkerSettings workerSettings)
             : this(hubName, connectionString, null, workerSettings)
         {
@@ -111,10 +115,19 @@ namespace DurableTask
             this.workerSettings = workerSettings;
         }
 
+
+        /// <summary>
+        /// Gest the instance of TaskOrchestrationDispatcher.
+        /// </summary>
         public TaskOrchestrationDispatcher TaskOrchestrationDispatcher
         {
             get { return orchestrationDispatcher; }
         }
+
+
+        /// <summary>
+        /// Gets the instanc eof TaskActivityDispatcher.
+        /// </summary>
 
         public TaskActivityDispatcher TaskActivityDispatcher
         {
@@ -344,7 +357,7 @@ namespace DurableTask
         /// <returns></returns>
         public TaskHubWorker AddTaskActivitiesFromInterface<T>(T activities, bool useFullyQualifiedMethodNames)
         {
-            Type @interface = typeof (T);
+            Type @interface = typeof(T);
             if (!@interface.IsInterface)
             {
                 throw new Exception("Contract can only be an interface.");
@@ -411,11 +424,26 @@ namespace DurableTask
             CreateQueue(namespaceManager, workerEntityName, false, description.MaxTaskActivityDeliveryCount);
             CreateQueue(namespaceManager, trackingEntityName, true, description.MaxTrackingDeliveryCount);
 
-            if (!string.IsNullOrEmpty(tableStoreConnectionString) && createInstanceStore)
+            IStateProvider client = null;
+
+            if (this.workerSettings.Services.ContainsKey(TaskHubWorker.StateProviderKeyName))
             {
-                var client = new TableClient(hubName, tableStoreConnectionString);
-                client.DeleteTableIfExists();
-                client.CreateTableIfNotExists();
+                client = this.workerSettings.Services[TaskHubWorker.StateProviderKeyName] as IStateProvider;
+                if (client == null)
+                    throw new ArgumentException("The specified 'StateProvider' service does not implement required interface IStateProvider.");
+            }
+            else
+            {
+                if (!string.IsNullOrEmpty(tableStoreConnectionString) && createInstanceStore)
+                {
+                    client = new TableClient(hubName, tableStoreConnectionString);
+                }
+            }
+
+            if (client != null)
+            {
+                client.DeleteStoreIfExistsAsync().Wait();
+                client.CreateStoreIfNotExistsAsync().Wait();
             }
         }
 
@@ -457,11 +485,23 @@ namespace DurableTask
                 SafeCreateQueue(namespaceManager, trackingEntityName, true, description.MaxTrackingDeliveryCount);
             }
 
-            if (!string.IsNullOrEmpty(tableStoreConnectionString))
+            IStateProvider client = null;
+            if (this.workerSettings.Services.ContainsKey(TaskHubWorker.StateProviderKeyName))
             {
-                var client = new TableClient(hubName, tableStoreConnectionString);
-                client.CreateTableIfNotExists();
+                client = this.workerSettings.Services[TaskHubWorker.StateProviderKeyName] as IStateProvider;
+                if (client == null)
+                    throw new ArgumentException("The specified 'StateProvider' service does not implement required interface IStateProvider.");
             }
+            else
+            {
+                if (!string.IsNullOrEmpty(tableStoreConnectionString))
+                {
+                    client = new TableClient(hubName, tableStoreConnectionString);
+                }
+            }
+
+            if (client != null)
+                client.CreateStoreIfNotExistsAsync().Wait();
         }
 
         /// <summary>
@@ -486,10 +526,25 @@ namespace DurableTask
 
             if (deleteInstanceStore)
             {
-                if (!string.IsNullOrEmpty(tableStoreConnectionString))
+                IStateProvider client = null;
+
+                if (this.workerSettings.Services.ContainsKey(TaskHubWorker.StateProviderKeyName))
                 {
-                    var client = new TableClient(hubName, tableStoreConnectionString);
-                    client.DeleteTableIfExists();
+                    client = this.workerSettings.Services[TaskHubWorker.StateProviderKeyName] as IStateProvider;
+                    if (client == null)
+                        throw new ArgumentException("The specified 'StateProvider' service does not implement required interface IStateProvider.");
+                }
+                else
+                {
+                    if (!string.IsNullOrEmpty(tableStoreConnectionString))
+                    {
+                        client = new TableClient(hubName, tableStoreConnectionString);
+                    }
+                }
+
+                if (client != null)
+                {
+                    client.DeleteStoreIfExistsAsync().Wait();
                 }
             }
         }

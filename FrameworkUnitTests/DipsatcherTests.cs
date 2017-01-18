@@ -70,21 +70,40 @@ namespace FrameworkUnitTests
         }
 
         [TestMethod]
-        public void NoCompressionToCompressionCompatTest()
+        public void ResultTest()
         {
-            taskHubNoCompression.AddTaskOrchestrations(typeof (CompressionCompatTest))
-                .AddTaskActivities(typeof (SimpleTask))
+            taskHubNoCompression.AddTaskOrchestrations(typeof(ResultTestOrchestration))
+                .AddTaskActivities(typeof(SimpleTask2))
                 .Start();
 
-            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof (CompressionCompatTest), null);
+            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof(ResultTestOrchestration), null);
+
+            TestHelpers.WaitForInstance(client, id, 60, true);
+
+            var state = client.GetOrchestrationState(id);
+
+            taskHubNoCompression.Stop(true);
+
+            // Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+        }
+
+
+        [TestMethod]
+        public void NoCompressionToCompressionCompatTest()
+        {
+            taskHubNoCompression.AddTaskOrchestrations(typeof(CompressionCompatTest))
+                .AddTaskActivities(typeof(SimpleTask))
+                .Start();
+
+            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof(CompressionCompatTest), null);
 
             TestHelpers.WaitForInstance(client, id, 60, false);
             Thread.Sleep(5000);
 
             taskHubNoCompression.Stop(true);
 
-            taskHub.AddTaskOrchestrations(typeof (CompressionCompatTest))
-                .AddTaskActivities(typeof (SimpleTask))
+            taskHub.AddTaskOrchestrations(typeof(CompressionCompatTest))
+                .AddTaskActivities(typeof(SimpleTask))
                 .Start();
 
             bool isCompleted = TestHelpers.WaitForInstance(client, id, 60);
@@ -95,19 +114,19 @@ namespace FrameworkUnitTests
         [TestMethod]
         public void MessageCompressionToNoCompressionTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (MessageCompressionCompatTest))
-                .AddTaskActivities(typeof (AlternatingPayloadTask))
+            taskHub.AddTaskOrchestrations(typeof(MessageCompressionCompatTest))
+                .AddTaskActivities(typeof(AlternatingPayloadTask))
                 .Start();
 
             OrchestrationInstance id =
-                clientNoCompression.CreateOrchestrationInstance(typeof (MessageCompressionCompatTest), null);
+                clientNoCompression.CreateOrchestrationInstance(typeof(MessageCompressionCompatTest), null);
 
             Thread.Sleep(2000);
 
             taskHub.Stop(true);
 
-            taskHubNoCompression.AddTaskOrchestrations(typeof (MessageCompressionCompatTest))
-                .AddTaskActivities(typeof (AlternatingPayloadTask))
+            taskHubNoCompression.AddTaskOrchestrations(typeof(MessageCompressionCompatTest))
+                .AddTaskActivities(typeof(AlternatingPayloadTask))
                 .Start();
 
             bool isCompleted = TestHelpers.WaitForInstance(client, id, 60);
@@ -122,18 +141,18 @@ namespace FrameworkUnitTests
         [TestMethod]
         public void MessageNoCompressionToCompressionTest()
         {
-            taskHubNoCompression.AddTaskOrchestrations(typeof (MessageCompressionCompatTest))
-                .AddTaskActivities(typeof (AlternatingPayloadTask))
+            taskHubNoCompression.AddTaskOrchestrations(typeof(MessageCompressionCompatTest))
+                .AddTaskActivities(typeof(AlternatingPayloadTask))
                 .Start();
 
-            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof (MessageCompressionCompatTest), null);
+            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof(MessageCompressionCompatTest), null);
 
             Thread.Sleep(2000);
 
             taskHubNoCompression.Stop(true);
 
-            taskHub.AddTaskOrchestrations(typeof (MessageCompressionCompatTest))
-                .AddTaskActivities(typeof (AlternatingPayloadTask))
+            taskHub.AddTaskOrchestrations(typeof(MessageCompressionCompatTest))
+                .AddTaskActivities(typeof(AlternatingPayloadTask))
                 .Start();
 
             bool isCompleted = TestHelpers.WaitForInstance(client, id, 60);
@@ -148,18 +167,18 @@ namespace FrameworkUnitTests
         [TestMethod]
         public void MessageLegacyCompressToAlwaysCompressTest()
         {
-            taskHubLegacyCompression.AddTaskOrchestrations(typeof (MessageCompressionCompatTest))
-                .AddTaskActivities(typeof (AlternatingPayloadTask))
+            taskHubLegacyCompression.AddTaskOrchestrations(typeof(MessageCompressionCompatTest))
+                .AddTaskActivities(typeof(AlternatingPayloadTask))
                 .Start();
 
-            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof (MessageCompressionCompatTest), null);
+            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof(MessageCompressionCompatTest), null);
 
             Thread.Sleep(5000);
 
             taskHubLegacyCompression.Stop(true);
 
-            taskHubAlwaysCompression.AddTaskOrchestrations(typeof (MessageCompressionCompatTest))
-                .AddTaskActivities(typeof (AlternatingPayloadTask))
+            taskHubAlwaysCompression.AddTaskOrchestrations(typeof(MessageCompressionCompatTest))
+                .AddTaskActivities(typeof(AlternatingPayloadTask))
                 .Start();
 
             bool isCompleted = TestHelpers.WaitForInstance(client, id, 60);
@@ -174,18 +193,18 @@ namespace FrameworkUnitTests
         [TestMethod]
         public void MessageAlwaysCompressToLegacyCompressTest()
         {
-            taskHubAlwaysCompression.AddTaskOrchestrations(typeof (MessageCompressionCompatTest))
-                .AddTaskActivities(typeof (AlternatingPayloadTask))
+            taskHubAlwaysCompression.AddTaskOrchestrations(typeof(MessageCompressionCompatTest))
+                .AddTaskActivities(typeof(AlternatingPayloadTask))
                 .Start();
 
-            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof (MessageCompressionCompatTest), null);
+            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof(MessageCompressionCompatTest), null);
 
             Thread.Sleep(5000);
 
             taskHubAlwaysCompression.Stop(true);
 
-            taskHubLegacyCompression.AddTaskOrchestrations(typeof (MessageCompressionCompatTest))
-                .AddTaskActivities(typeof (AlternatingPayloadTask))
+            taskHubLegacyCompression.AddTaskOrchestrations(typeof(MessageCompressionCompatTest))
+                .AddTaskActivities(typeof(AlternatingPayloadTask))
                 .Start();
 
             bool isCompleted = TestHelpers.WaitForInstance(client, id, 60);
@@ -202,12 +221,12 @@ namespace FrameworkUnitTests
         [TestMethod]
         public void NonDeterministicOrchestrationTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (NonDeterministicOrchestration))
-                .AddTaskActivities(typeof (FirstTask))
+            taskHub.AddTaskOrchestrations(typeof(NonDeterministicOrchestration))
+                .AddTaskActivities(typeof(FirstTask))
                 .Start();
             taskHub.TaskActivityDispatcher.IncludeDetails = true;
 
-            OrchestrationInstance instance = client.CreateOrchestrationInstance(typeof (NonDeterministicOrchestration),
+            OrchestrationInstance instance = client.CreateOrchestrationInstance(typeof(NonDeterministicOrchestration),
                 "FAILTIMER");
 
             bool isCompleted = TestHelpers.WaitForInstance(client, instance, 60);
@@ -215,21 +234,21 @@ namespace FrameworkUnitTests
             Assert.AreEqual(OrchestrationStatus.Failed, state.OrchestrationStatus);
             Assert.IsTrue(state.Output.Contains("TimerCreatedEvent"));
 
-            instance = client.CreateOrchestrationInstance(typeof (NonDeterministicOrchestration), "FAILTASK");
+            instance = client.CreateOrchestrationInstance(typeof(NonDeterministicOrchestration), "FAILTASK");
 
             isCompleted = TestHelpers.WaitForInstance(client, instance, 60);
             state = client.GetOrchestrationState(instance);
             Assert.AreEqual(OrchestrationStatus.Failed, state.OrchestrationStatus);
             Assert.IsTrue(state.Output.Contains("TaskScheduledEvent"));
 
-            instance = client.CreateOrchestrationInstance(typeof (NonDeterministicOrchestration), "FAILSUBORCH");
+            instance = client.CreateOrchestrationInstance(typeof(NonDeterministicOrchestration), "FAILSUBORCH");
 
             isCompleted = TestHelpers.WaitForInstance(client, instance, 60);
             state = client.GetOrchestrationState(instance);
             Assert.AreEqual(OrchestrationStatus.Failed, state.OrchestrationStatus);
             Assert.IsTrue(state.Output.Contains("SubOrchestrationInstanceCreatedEvent"));
 
-            instance = client.CreateOrchestrationInstance(typeof (NonDeterministicOrchestration), "PARENTORCH");
+            instance = client.CreateOrchestrationInstance(typeof(NonDeterministicOrchestration), "PARENTORCH");
 
             isCompleted = TestHelpers.WaitForInstance(client, instance, 60);
             state = client.GetOrchestrationState(instance);
@@ -249,7 +268,7 @@ namespace FrameworkUnitTests
         {
             public override async Task<object> RunTask(OrchestrationContext context, string input)
             {
-                await context.ScheduleTask<string>(typeof (FirstTask), string.Empty);
+                await context.ScheduleTask<string>(typeof(FirstTask), string.Empty);
                 if (input == string.Empty)
                 {
                     return null;
@@ -259,7 +278,7 @@ namespace FrameworkUnitTests
                     try
                     {
                         await
-                            context.CreateSubOrchestrationInstance<string>(typeof (NonDeterministicOrchestration),
+                            context.CreateSubOrchestrationInstance<string>(typeof(NonDeterministicOrchestration),
                                 "FAILTASK");
                     }
                     catch (Exception exception)
@@ -277,12 +296,12 @@ namespace FrameworkUnitTests
                     }
                     else if (input == "FAILTASK")
                     {
-                        await context.ScheduleTask<string>(typeof (FirstTask), string.Empty);
+                        await context.ScheduleTask<string>(typeof(FirstTask), string.Empty);
                     }
                     else if (input == "FAILSUBORCH")
                     {
                         await
-                            context.CreateSubOrchestrationInstance<string>(typeof (NonDeterministicOrchestration),
+                            context.CreateSubOrchestrationInstance<string>(typeof(NonDeterministicOrchestration),
                                 string.Empty);
                     }
                 }
@@ -297,17 +316,17 @@ namespace FrameworkUnitTests
         [TestMethod]
         public void TypeMissingTest()
         {
-            fakeTaskHub.AddTaskOrchestrations(typeof (TypeMissingOrchestration))
-                .AddTaskActivities(typeof (ComputeSumTask))
+            fakeTaskHub.AddTaskOrchestrations(typeof(TypeMissingOrchestration))
+                .AddTaskActivities(typeof(ComputeSumTask))
                 .Start();
 
-            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof (TypeMissingOrchestration), "test");
+            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof(TypeMissingOrchestration), "test");
             bool isCompleted = TestHelpers.WaitForInstance(client, id, 10);
             Assert.IsFalse(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 10));
 
             // Bring up the correct orchestration worker
-            taskHub.AddTaskOrchestrations(typeof (TypeMissingOrchestration))
-                .AddTaskActivities(typeof (TypeMissingTask))
+            taskHub.AddTaskOrchestrations(typeof(TypeMissingOrchestration))
+                .AddTaskActivities(typeof(TypeMissingTask))
                 .Start();
 
             isCompleted = TestHelpers.WaitForInstance(client, id, 20);
@@ -346,7 +365,7 @@ namespace FrameworkUnitTests
 
             public override async Task<string> RunTask(OrchestrationContext context, string input)
             {
-                string r = await context.ScheduleTask<string>(typeof (TypeMissingTask), input);
+                string r = await context.ScheduleTask<string>(typeof(TypeMissingTask), input);
 
                 // This is a HACK to get unit test up and running.  Should never be done in actual code.
                 Result = r;
@@ -369,11 +388,11 @@ namespace FrameworkUnitTests
         [TestMethod]
         public void MaxMessagesLimitTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (MaxMessagesLimitOrchestration))
+            taskHub.AddTaskOrchestrations(typeof(MaxMessagesLimitOrchestration))
                 .AddTaskActivities(new MaxMessagesLimitTask())
                 .Start();
 
-            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof (MaxMessagesLimitOrchestration), null);
+            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof(MaxMessagesLimitOrchestration), null);
 
             bool isCompleted = TestHelpers.WaitForInstance(client, id, 120);
             Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 120));
@@ -395,7 +414,7 @@ namespace FrameworkUnitTests
                 for (int i = 0; i < 200; i++)
                 {
                     Sum += Sum;
-                    results.Add(context.ScheduleTask<long>(typeof (MaxMessagesLimitTask), i));
+                    results.Add(context.ScheduleTask<long>(typeof(MaxMessagesLimitTask), i));
                 }
 
                 long[] arr = await Task.WhenAll(results.ToArray());
@@ -428,11 +447,11 @@ namespace FrameworkUnitTests
         {
             AsyncGreetingsOrchestration.Result = null;
 
-            taskHub.AddTaskOrchestrations(typeof (AsyncGreetingsOrchestration))
-                .AddTaskActivities(typeof (AsyncGetUserTask), typeof (AsyncSendGreetingTask))
+            taskHub.AddTaskOrchestrations(typeof(AsyncGreetingsOrchestration))
+                .AddTaskActivities(typeof(AsyncGetUserTask), typeof(AsyncSendGreetingTask))
                 .Start();
 
-            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof (AsyncGreetingsOrchestration), null);
+            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof(AsyncGreetingsOrchestration), null);
 
             bool isCompleted = TestHelpers.WaitForInstance(client, id, 60);
             Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
@@ -446,10 +465,10 @@ namespace FrameworkUnitTests
             AsyncGreetingsOrchestration.Result = null;
 
             var testHost = new OrchestrationTestHost();
-            testHost.AddTaskOrchestrations(typeof (AsyncGreetingsOrchestration))
+            testHost.AddTaskOrchestrations(typeof(AsyncGreetingsOrchestration))
                 .AddTaskActivities(new AsyncGetUserTask(), new AsyncSendGreetingTask());
 
-            string result = await testHost.RunOrchestration<string>(typeof (AsyncGreetingsOrchestration), null);
+            string result = await testHost.RunOrchestration<string>(typeof(AsyncGreetingsOrchestration), null);
 
             Assert.AreEqual("Greeting send to Gabbar", AsyncGreetingsOrchestration.Result,
                 "Orchestration Result is wrong!!!");
@@ -475,8 +494,8 @@ namespace FrameworkUnitTests
 
             public override async Task<string> RunTask(OrchestrationContext context, string input)
             {
-                string user = await context.ScheduleTask<string>(typeof (AsyncGetUserTask));
-                string greeting = await context.ScheduleTask<string>(typeof (AsyncSendGreetingTask), user);
+                string user = await context.ScheduleTask<string>(typeof(AsyncGetUserTask));
+                string greeting = await context.ScheduleTask<string>(typeof(AsyncSendGreetingTask), user);
                 // This is a HACK to get unit test up and running.  Should never be done in actual code.
                 Result = greeting;
 
@@ -506,12 +525,12 @@ namespace FrameworkUnitTests
             AsyncDynamicGreetingsOrchestration.Result = null;
             AsyncDynamicGreetingsOrchestration.Result2 = null;
 
-            taskHub.AddTaskOrchestrations(typeof (AsyncDynamicGreetingsOrchestration))
+            taskHub.AddTaskOrchestrations(typeof(AsyncDynamicGreetingsOrchestration))
                 .AddTaskActivitiesFromInterface<IGreetings>(new GreetingsManager(), true)
                 .AddTaskActivitiesFromInterface<IGreetings2>(new GreetingsManager2(), true)
                 .Start();
 
-            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof (AsyncDynamicGreetingsOrchestration),
+            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof(AsyncDynamicGreetingsOrchestration),
                 null);
 
             bool isCompleted = TestHelpers.WaitForInstance(client, id, 60);
@@ -529,11 +548,11 @@ namespace FrameworkUnitTests
             AsyncDynamicGreetingsOrchestration.Result2 = null;
 
             var testHost = new OrchestrationTestHost();
-            testHost.AddTaskOrchestrations(typeof (AsyncDynamicGreetingsOrchestration))
+            testHost.AddTaskOrchestrations(typeof(AsyncDynamicGreetingsOrchestration))
                 .AddTaskActivitiesFromInterface<IGreetings2>(new GreetingsManager2(), true)
                 .AddTaskActivitiesFromInterface<IGreetings>(new GreetingsManager(), true);
 
-            string result = await testHost.RunOrchestration<string>(typeof (AsyncDynamicGreetingsOrchestration), null);
+            string result = await testHost.RunOrchestration<string>(typeof(AsyncDynamicGreetingsOrchestration), null);
             Assert.AreEqual("Greeting send to Gabbar", result, "Orchestration Result is wrong!!!");
             Assert.AreEqual("Greeting send to Gabbar", AsyncDynamicGreetingsOrchestration.Result,
                 "Orchestration Result is wrong!!!");
@@ -635,11 +654,11 @@ namespace FrameworkUnitTests
         [TestMethod]
         public void SessionExceededLimitTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (LargeSessionOrchestration))
-                .AddTaskActivities(typeof (LargeSessionTaskActivity))
+            taskHub.AddTaskOrchestrations(typeof(LargeSessionOrchestration))
+                .AddTaskActivities(typeof(LargeSessionTaskActivity))
                 .Start();
 
-            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof (LargeSessionOrchestration), 50);
+            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof(LargeSessionOrchestration), 50);
 
             bool isCompleted = TestHelpers.WaitForInstance(client, id, 60, true);
 
@@ -654,11 +673,11 @@ namespace FrameworkUnitTests
         [TestMethod]
         public void SessionNotExceededLimitTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (LargeSessionOrchestration))
-                .AddTaskActivities(typeof (LargeSessionTaskActivity))
+            taskHub.AddTaskOrchestrations(typeof(LargeSessionOrchestration))
+                .AddTaskActivities(typeof(LargeSessionTaskActivity))
                 .Start();
 
-            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof (LargeSessionOrchestration), 15);
+            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof(LargeSessionOrchestration), 15);
 
             bool isCompleted = TestHelpers.WaitForInstance(client, id, 90, true);
 
@@ -672,11 +691,11 @@ namespace FrameworkUnitTests
         [TestMethod]
         public void SessionExceededLimitNoCompressionTest()
         {
-            taskHubNoCompression.AddTaskOrchestrations(typeof (LargeSessionOrchestration))
-                .AddTaskActivities(typeof (LargeSessionTaskActivity))
+            taskHubNoCompression.AddTaskOrchestrations(typeof(LargeSessionOrchestration))
+                .AddTaskActivities(typeof(LargeSessionTaskActivity))
                 .Start();
 
-            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof (LargeSessionOrchestration), 15);
+            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof(LargeSessionOrchestration), 15);
 
             bool isCompleted = TestHelpers.WaitForInstance(client, id, 60, true);
 
@@ -694,7 +713,7 @@ namespace FrameworkUnitTests
             {
                 for (int i = 0; i < input; i++)
                 {
-                    await context.ScheduleTask<byte[]>(typeof (LargeSessionTaskActivity));
+                    await context.ScheduleTask<byte[]>(typeof(LargeSessionTaskActivity));
                 }
 
                 return string.Empty;
@@ -709,7 +728,7 @@ namespace FrameworkUnitTests
 
                 for (int i = 0; i < 1000; i++)
                 {
-                    Guid.NewGuid().ToByteArray().CopyTo(arr, i*16);
+                    Guid.NewGuid().ToByteArray().CopyTo(arr, i * 16);
                 }
 
                 return arr;
@@ -723,19 +742,19 @@ namespace FrameworkUnitTests
         [TestMethod]
         public void CompressionToNoCompressionCompatTest()
         {
-            taskHub.AddTaskOrchestrations(typeof (CompressionCompatTest))
-                .AddTaskActivities(typeof (SimpleTask))
+            taskHub.AddTaskOrchestrations(typeof(CompressionCompatTest))
+                .AddTaskActivities(typeof(SimpleTask))
                 .Start();
 
-            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof (CompressionCompatTest), null);
+            OrchestrationInstance id = client.CreateOrchestrationInstance(typeof(CompressionCompatTest), null);
 
             TestHelpers.WaitForInstance(client, id, 60, false);
             Thread.Sleep(5000);
 
             taskHub.Stop(true);
 
-            taskHubNoCompression.AddTaskOrchestrations(typeof (CompressionCompatTest))
-                .AddTaskActivities(typeof (SimpleTask))
+            taskHubNoCompression.AddTaskOrchestrations(typeof(CompressionCompatTest))
+                .AddTaskActivities(typeof(SimpleTask))
                 .Start();
 
             bool isCompleted = TestHelpers.WaitForInstance(client, id, 60);
@@ -747,7 +766,7 @@ namespace FrameworkUnitTests
         {
             protected override byte[] Execute(TaskContext context, bool largeOutput)
             {
-                byte[] arr = {1, 2, 3, 4};
+                byte[] arr = { 1, 2, 3, 4 };
 
                 if (largeOutput)
                 {
@@ -755,7 +774,7 @@ namespace FrameworkUnitTests
 
                     for (int i = 0; i < 100; i++)
                     {
-                        Guid.NewGuid().ToByteArray().CopyTo(arr, i*16);
+                        Guid.NewGuid().ToByteArray().CopyTo(arr, i * 16);
                     }
                 }
 
@@ -767,11 +786,11 @@ namespace FrameworkUnitTests
         {
             public override async Task<string> RunTask(OrchestrationContext context, string input)
             {
-                string output = await context.ScheduleTask<string>(typeof (SimpleTask), "test");
+                string output = await context.ScheduleTask<string>(typeof(SimpleTask), "test");
 
                 await context.CreateTimer(context.CurrentUtcDateTime.AddSeconds(10), "TimedOut");
 
-                output = await context.ScheduleTask<string>(typeof (SimpleTask), "test");
+                output = await context.ScheduleTask<string>(typeof(SimpleTask), "test");
 
                 await context.CreateTimer(context.CurrentUtcDateTime.AddSeconds(10), "TimedOut");
 
@@ -785,7 +804,7 @@ namespace FrameworkUnitTests
             {
                 for (int i = 0; i < 10; i++)
                 {
-                    await context.ScheduleTask<byte[]>(typeof (AlternatingPayloadTask), (i%2 == 0));
+                    await context.ScheduleTask<byte[]>(typeof(AlternatingPayloadTask), (i % 2 == 0));
                 }
 
                 return string.Empty;
@@ -797,6 +816,31 @@ namespace FrameworkUnitTests
             protected override string Execute(TaskContext context, string input)
             {
                 return "compressed";
+            }
+        }
+
+
+        public class ResultTestOrchestration : TaskOrchestration<Result, string>
+        {
+            public override async Task<Result> RunTask(OrchestrationContext context, string input)
+            {
+                var result = await context.ScheduleTask<Result>(typeof(SimpleTask2), input);
+
+                return result;
+            }
+        }
+
+        public class Result
+        {
+            public int Prop1 { get; set; }
+            public string Prop2 { get; set; }
+        }
+
+        public sealed class SimpleTask2 : TaskActivity<string, Result>
+        {
+            protected override Result Execute(TaskContext context, string input)
+            {
+                return new Result() { Prop1 = 77, Prop2 = "Hello" };
             }
         }
 

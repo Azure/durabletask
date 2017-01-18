@@ -21,6 +21,7 @@ namespace DurableTask
     using History;
     using Microsoft.ServiceBus.Messaging;
     using Tracing;
+    using System.Collections.Generic;
 
     public sealed class TaskActivityDispatcher : DispatcherBase<BrokeredMessage>
     {
@@ -91,7 +92,7 @@ namespace DurableTask
                 }
 
                 // call and get return message
-                var scheduledEvent = (TaskScheduledEvent) taskMessage.Event;
+                var scheduledEvent = (TaskScheduledEvent)taskMessage.Event;
                 TaskActivity taskActivity = objectManager.GetObject(scheduledEvent.Name, scheduledEvent.Version);
                 if (taskActivity == null)
                 {
@@ -107,7 +108,34 @@ namespace DurableTask
 
                 try
                 {
+                    /* string output = null;
+                     Task<string> actionTask = taskActivity.RunAsync(context, scheduledEvent.Input);                   
+                     Task timeOutTask = Task.Delay(30000);
+
+                     List<Task> waitingTasks = new List<Task>();
+                     waitingTasks.Add(actionTask);
+                     waitingTasks.Add(Task.Delay(30000));
+                     bool isTaskCompleted = false;
+
+                     while (isTaskCompleted == false)
+                     {
+                         if (await Task.WhenAny(waitingTasks) == actionTask)
+                         {
+                             output = actionTask.Result;
+                             isTaskCompleted = true;
+                         }
+                         else
+                         {
+                             waitingTasks = new List<Task>();
+                             waitingTasks.Add(actionTask);
+                             waitingTasks.Add(Task.Delay(30000));
+
+                             message.RenewLock();
+                         }
+                     }*/
+
                     string output = await taskActivity.RunAsync(context, scheduledEvent.Input);
+
                     eventToRespond = new TaskCompletedEvent(-1, scheduledEvent.EventId, output);
                 }
                 catch (TaskFailureException e)
@@ -136,9 +164,21 @@ namespace DurableTask
 
                 using (var ts = new TransactionScope())
                 {
+                    //TraceHelper.Trace(TraceEventType.Information, "1 - workerQueueClient.Complete(message.LockToken)", message.MessageId);
                     workerQueueClient.Complete(message.LockToken);
-                    deciderSender.Send(responseMessage);
+
+                    //TraceHelper.Trace(TraceEventType.Information, "2 - deciderSender.Send(responseMessage)", message.MessageId);
+
+                    retry((msg) =>
+                    {
+                        deciderSender.Send(msg);
+                    }, responseMessage);
+
+                    //TraceHelper.Trace(TraceEventType.Information, "3 - deciderSender has sent the message.", message.MessageId);
+
                     ts.Complete();
+
+                    //TraceHelper.Trace(TraceEventType.Information, "4 - ts.Complete()", message.MessageId);
                 }
             }
             finally
@@ -151,45 +191,98 @@ namespace DurableTask
             }
         }
 
+
+        /// <summary>
+        /// The new "retry()" method provides retrying of sending of the new task message to SB.        
+        /// In some rare cases Complete of the current message and sending of the new message, which run in one transaction, 
+        /// might fail du transaction failure.This exceptional case can be mostly reproduced when host is running On-Prem and Azure Service Bus in remote hosting center is used.
+        /// This method is called inside of the transaction, when Complete succeeds and Sending of the new message fails.
+        ///  When that happen, without of sending of the new message, system would stay in inconsistent state:
+        /// looping orchestration would not be dispatched any more and orchestration instance would be still tracked as running.
+        /// </summary>
+        /// <param name="action"></param>
+        /// <param name="msg"></param>
+        private static void retry(Action<BrokeredMessage> action, BrokeredMessage msg)
+        {
+            // TODO: Consider to make configurable.
+            int retries = 5;
+            double delay = 1000;
+
+            while (true)
+            {
+                try
+                {
+                    bool i = false;
+                    if (i)
+                        throw new NotImplementedException(":)");
+
+                    action(msg);
+
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    TraceHelper.TraceException(TraceEventType.Error, ex, "Failed to send message with id='{0}'. Delay: {1}, Retries: {2}",
+                      msg.MessageId, delay, retries);
+
+                    retries--;
+
+                    Thread.Sleep((int)delay);
+
+                    delay = delay * 1.5;
+
+                    if (retries <= 0)
+                    {
+                        string errMsg = String.Format("Fatal Error! Orchestration might run in inconsostent state. Failed to send message with id='{0}' after multiple retries.",
+                        delay, retries);
+                        TraceHelper.TraceException(TraceEventType.Error, ex,
+                        errMsg);
+
+                        throw new TaskFailedException(errMsg, ex);
+                    }
+                    else
+                        msg = msg.Clone();
+                }
+            }
+        }
+
+
+        /// <summary>
+        /// Ensures that long running tasks are not redispatched if execution takes longer than 
+        /// LockDuration, which is usually 1 minute by default.
+        /// It would be good to make default renew interval configurable.
+        /// </summary>
+        /// <param name="message"></param>
+        /// <param name="cancellationToken"></param>
         async void RenewUntil(BrokeredMessage message, CancellationToken cancellationToken)
         {
             try
             {
-                if (message.LockedUntilUtc < DateTime.UtcNow)
-                {
-                    return;
-                }
-
-                DateTime renewAt = message.LockedUntilUtc.Subtract(TimeSpan.FromSeconds(30));
-
-                // service bus clock sku can really mess us up so just always renew every 30 secs regardless of 
-                // what the message.LockedUntilUtc says. if the sku is negative then in the worst case we will be
-                // renewing every 5 secs
-                //
-                renewAt = AdjustRenewAt(renewAt);
+                int renewInterval = 30000;
 
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(5));
-
-                    if (DateTime.UtcNow >= renewAt)
+                    await Task.Delay(TimeSpan.FromMilliseconds(renewInterval));
                     {
-                        try
+                        if (!cancellationToken.IsCancellationRequested)
                         {
-                            TraceHelper.Trace(TraceEventType.Information, "Renewing lock for message id {0}",
-                                message.MessageId);
-                            message.RenewLock();
-                            renewAt = message.LockedUntilUtc.Subtract(TimeSpan.FromSeconds(30));
-                            renewAt = AdjustRenewAt(renewAt);
-                            TraceHelper.Trace(TraceEventType.Information, "Next renew for message id '{0}' at '{1}'",
-                                message.MessageId, renewAt);
-                        }
-                        catch (Exception exception)
-                        {
-                            // might have been completed
-                            TraceHelper.TraceException(TraceEventType.Information, exception,
-                                "Failed to renew lock for message {0}", message.MessageId);
-                            break;
+                            try
+                            {
+                                TraceHelper.Trace(TraceEventType.Information, "Renewing lock for message id {0}",
+                                    message.MessageId);
+
+                                await message.RenewLockAsync();
+
+                                TraceHelper.Trace(TraceEventType.Information, "Next renew for message id '{0}' at '{1}'",
+                                    message.MessageId, DateTime.UtcNow.AddMilliseconds(renewInterval));
+                            }
+                            catch (Exception exception)
+                            {
+                                // might have been completed
+                                TraceHelper.TraceException(TraceEventType.Information, exception,
+                                    "Failed to renew lock for message {0}", message.MessageId);
+                                break;
+                            }
                         }
                     }
                 }
