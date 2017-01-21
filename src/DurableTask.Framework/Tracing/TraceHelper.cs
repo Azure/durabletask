@@ -36,7 +36,7 @@ namespace DurableTask.Tracing
             if (source.Switch.ShouldTrace(eventType))
             {
                 ExceptionHandlingWrapper(
-                    () => source.TraceEvent(eventType, 0, GetFormattedString(null, null, format, args)));
+                    () => source.TraceEvent(eventType, 0, GetFormattedString(null, null, string.Format(format, args))));
             }
         }
 
@@ -55,7 +55,7 @@ namespace DurableTask.Tracing
             if (source.Switch.ShouldTrace(eventType))
             {
                 ExceptionHandlingWrapper(
-                    () => source.TraceEvent(eventType, 0, GetFormattedString(sessionId, null, format, args)));
+                    () => source.TraceEvent(eventType, 0, GetFormattedString(sessionId, null, string.Format(format, args))));
             }
         }
 
@@ -71,7 +71,7 @@ namespace DurableTask.Tracing
                             GetFormattedString(
                                 orchestrationInstance == null ? string.Empty : orchestrationInstance.InstanceId,
                                 orchestrationInstance == null ? string.Empty : orchestrationInstance.ExecutionId,
-                                format, args)));
+                                string.Format(format, args))));
             }
         }
 
@@ -152,11 +152,11 @@ namespace DurableTask.Tracing
         {
             if (source.Switch.ShouldTrace(eventType))
             {
-                string newFormat = format + "\nException: " + exception.GetType() + " : " + exception.Message + "\n\t" +
-                                   exception.StackTrace + "\nInner Exception: " +
-                                   exception.InnerException?.ToString();
+                string message = string.Format(format, args) + "\nException: " + exception.GetType() + " : " + exception.Message + "\n\t" +
+                                 exception.StackTrace + "\nInner Exception: " +
+                                 exception.InnerException?.ToString();
                 ExceptionHandlingWrapper(
-                    () => source.TraceEvent(eventType, 0, GetFormattedString(iid, eid, newFormat, args)));
+                    () => source.TraceEvent(eventType, 0, GetFormattedString(iid, eid, message)));
             }
             return exception;
         }
@@ -164,18 +164,10 @@ namespace DurableTask.Tracing
         static Exception TraceExceptionCore(TraceEventType eventType, string iid, string eid, Exception exception,
             Func<string> generateMessage)
         {
-            if (source.Switch.ShouldTrace(eventType))
-            {
-                string newFormat = generateMessage() + "\nException: " + exception.GetType() + " : " + exception.Message +
-                                   "\n\t" + exception.StackTrace + "\nInner Exception: " +
-                                   exception.InnerException?.ToString();
-                ExceptionHandlingWrapper(
-                    () => source.TraceEvent(eventType, 0, GetFormattedString(iid, eid, newFormat)));
-            }
-            return exception;
+            return TraceExceptionCore(eventType, iid, eid, exception, generateMessage());
         }
 
-        static string GetFormattedString(string iid, string eid, string message, params object[] args)
+        static string GetFormattedString(string iid, string eid, string message)
         {
             string formatted;
             if (!string.IsNullOrEmpty(iid))
@@ -193,7 +185,7 @@ namespace DurableTask.Tracing
             {
                 formatted = "msg=" + message;
             }
-            return string.Format(formatted, args);
+            return formatted;
         }
 
         static void ExceptionHandlingWrapper(Action innerFunc)
