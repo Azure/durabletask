@@ -31,6 +31,7 @@ namespace DurableTask.ServiceFabric
         {
             this.StateManager = stateManager;
             this.storeName = storeName;
+            this.cancellationTokenSource = new CancellationTokenSource();
         }
 
         protected IReliableStateManager StateManager { get; }
@@ -41,7 +42,6 @@ namespace DurableTask.ServiceFabric
 
         public virtual async Task StartAsync()
         {
-            this.cancellationTokenSource = new CancellationTokenSource();
             await InitializeStore();
 
             using (var tx = this.StateManager.CreateTransaction())
@@ -167,7 +167,7 @@ namespace DurableTask.ServiceFabric
 
         protected bool IsStopped()
         {
-            return this.cancellationTokenSource == null || this.cancellationTokenSource.IsCancellationRequested;
+            return this.cancellationTokenSource.IsCancellationRequested;
         }
     }
 }
