@@ -54,7 +54,7 @@ namespace DurableTask.ServiceFabric
             }
 
             this.stateManager = stateManager;
-            @lock = new object();
+            this.@lock = new object();
             this.settings = settings ?? new FabricOrchestrationProviderSettings();
         }
 
@@ -84,14 +84,17 @@ namespace DurableTask.ServiceFabric
 
         void Initialize()
         {
-            lock (@lock)
+            if (this.orchestrationService == null)
             {
-                if (this.orchestrationService == null)
+                lock (this.@lock)
                 {
-                    this.sessionsProvider = new SessionsProvider(this.stateManager);
-                    this.instanceStore = new FabricOrchestrationInstanceStore(this.stateManager);
-                    this.orchestrationService = new FabricOrchestrationService(this.stateManager, this.sessionsProvider, this.instanceStore, this.settings);
-                    this.orchestrationClient = new FabricOrchestrationServiceClient(this.stateManager, this.sessionsProvider, this.instanceStore);
+                    if (this.orchestrationService == null)
+                    {
+                        this.sessionsProvider = new SessionsProvider(this.stateManager);
+                        this.instanceStore = new FabricOrchestrationInstanceStore(this.stateManager);
+                        this.orchestrationService = new FabricOrchestrationService(this.stateManager, this.sessionsProvider, this.instanceStore, this.settings);
+                        this.orchestrationClient = new FabricOrchestrationServiceClient(this.stateManager, this.sessionsProvider, this.instanceStore);
+                    }
                 }
             }
         }
