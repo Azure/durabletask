@@ -15,11 +15,13 @@ namespace DurableTask.ServiceFabric
 {
     using System;
     using System.Collections.Generic;
+    using System.Diagnostics.CodeAnalysis;
     using System.Threading;
     using System.Threading.Tasks;
     using Microsoft.ServiceFabric.Data;
     using Microsoft.ServiceFabric.Data.Collections;
 
+    [SuppressMessage("Microsoft.Design", "CA1001", Justification = "Disposing is done through StartAsync and StopAsync")]
     abstract class MessageProviderBase<TKey, TValue> where TKey : IComparable<TKey>, IEquatable<TKey>
     {
         readonly string storeName;
@@ -70,6 +72,7 @@ namespace DurableTask.ServiceFabric
         public Task StopAsync()
         {
             this.cancellationTokenSource.Cancel();
+            this.cancellationTokenSource.Dispose();
             return Task.FromResult<object>(null);
         }
 
