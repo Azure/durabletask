@@ -26,6 +26,7 @@ namespace DurableTask.ServiceFabric
     {
         readonly string storeName;
         readonly AsyncManualResetEvent waitEvent = new AsyncManualResetEvent();
+        readonly TimeSpan metricsInterval = TimeSpan.FromMinutes(5);
 
         CancellationTokenSource cancellationTokenSource;
 
@@ -62,6 +63,8 @@ namespace DurableTask.ServiceFabric
                     }
                 }
             }
+
+            var nowait = LogMetrics();
         }
 
         protected async Task InitializeStore()
@@ -171,6 +174,22 @@ namespace DurableTask.ServiceFabric
         protected bool IsStopped()
         {
             return this.cancellationTokenSource.IsCancellationRequested;
+        }
+
+        protected async Task LogMetrics()
+        {
+            while (!IsStopped())
+            {
+                await Task.Delay(metricsInterval, this.CancellationToken);
+
+                long count = 0;
+                using (var tx = this.StateManager.CreateTransaction())
+                {
+                    count = await this.Store.GetCountAsync(tx);
+                }
+
+                ProviderEventSource.Instance.LogStoreCount(this.storeName, count);
+            }
         }
     }
 }

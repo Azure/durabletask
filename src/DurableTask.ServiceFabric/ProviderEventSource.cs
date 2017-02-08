@@ -36,6 +36,7 @@ namespace DurableTask.ServiceFabric
         {
             public const EventKeywords Orchestration = (EventKeywords) 0x1L;
             public const EventKeywords Activity = (EventKeywords) 0x2L;
+            public const EventKeywords Common = (EventKeywords)0x4L;
         }
 
         [Event(1, Level = EventLevel.Informational, Message = "Orchestration {0} Created.")]
@@ -62,6 +63,15 @@ namespace DurableTask.ServiceFabric
             if (IsEnabled(EventLevel.Informational, Keywords.Orchestration))
             {
                 WriteEvent(3, message, stackTrace);
+            }
+        }
+
+        [Event(4, Level = EventLevel.Informational, Message = "Current number of entries in store {0} : {1}")]
+        public void LogStoreCount(string storeName, long count)
+        {
+            if (IsEnabled(EventLevel.Informational, Keywords.Common))
+            {
+                WriteEvent(4, storeName, count);
             }
         }
     }

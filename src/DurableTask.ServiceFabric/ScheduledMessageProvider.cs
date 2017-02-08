@@ -60,6 +60,7 @@ namespace DurableTask.ServiceFabric
                 }
             }
 
+            var metricsTask = LogMetrics();
             var nowait = ProcessScheduledMessages();
         }
 
