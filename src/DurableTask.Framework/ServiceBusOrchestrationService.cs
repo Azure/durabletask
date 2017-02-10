@@ -76,6 +76,7 @@ namespace DurableTask
         readonly MessagingFactory messagingFactory;
         QueueClient workerQueueClient;
         MessageSender orchestratorSender;
+        MessageSender orchestratorLocalSender;
         QueueClient orchestratorQueueClient;
         MessageSender workerSender;
         QueueClient trackingQueueClient;
@@ -146,6 +147,7 @@ namespace DurableTask
             orchestrationMessages = new ConcurrentDictionary<string, BrokeredMessage>();
 
             orchestratorSender = await messagingFactory.CreateMessageSenderAsync(orchestratorEntityName, workerEntityName);
+            orchestratorLocalSender = await messagingFactory.CreateMessageSenderAsync(orchestratorEntityName, orchestratorEntityName);
             workerSender = await messagingFactory.CreateMessageSenderAsync(workerEntityName, orchestratorEntityName);
             trackingSender = await messagingFactory.CreateMessageSenderAsync(trackingEntityName, orchestratorEntityName);
             workerQueueClient = messagingFactory.CreateQueueClient(workerEntityName);
@@ -186,6 +188,7 @@ namespace DurableTask
             await Task.WhenAll(
                 workerSender.CloseAsync(),
                 orchestratorSender.CloseAsync(),
+                orchestratorLocalSender.CloseAsync(),
                 trackingSender.CloseAsync(),
                 orchestratorQueueClient.CloseAsync(),
                 trackingQueueClient.CloseAsync(),
@@ -664,8 +667,8 @@ namespace DurableTask
                                  "Sub Orchestration",
                                  this.BlobStore,
                                 DateTime.MinValue,
-                                partitionKey);
-                            await orchestratorQueueClient.SendAsync(message);
+                                partitionKey ?? runtimeState.OrchestrationInstance.InstanceId);
+                            await orchestratorLocalSender.SendAsync(message);
                             return message;
                         }));
                         /*
@@ -877,6 +880,12 @@ namespace DurableTask
         /// <param name="responseMessage">The response message to send</param>
         public async Task CompleteTaskActivityWorkItemAsync(TaskActivityWorkItem workItem, TaskMessage responseMessage)
         {
+            var originalMessage = GetAndDeleteBrokeredMessageForWorkItem(workItem);
+            if (originalMessage == null)
+            {
+                throw new ArgumentNullException("originalMessage");
+            }
+
             BrokeredMessage brokeredResponseMessage = await ServiceBusUtils.GetBrokeredMessageFromObjectAsync(
                 responseMessage,
                 Settings.MessageCompressionSettings,
@@ -885,13 +894,7 @@ namespace DurableTask
                 $"Response for {workItem.TaskMessage.OrchestrationInstance.InstanceId}",
                 this.BlobStore,
                 DateTime.MinValue,
-                workItem.TaskMessage.OrchestrationInstance.InstanceId);
-
-            var originalMessage = GetAndDeleteBrokeredMessageForWorkItem(workItem);
-            if (originalMessage == null)
-            {
-                throw new ArgumentNullException("originalMessage");
-            }
+                originalMessage.PartitionKey);
 
             using (var ts = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled))
             {
