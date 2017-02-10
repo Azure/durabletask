@@ -84,7 +84,7 @@ namespace TestStatefulService
             if (newRole != ReplicaRole.Primary && this.currentRole == ReplicaRole.Primary)
             {
                 //await this.testExecutor.StopAsync();
-                await this.worker.StopAsync();
+                await this.worker.StopAsync(isForced: true);
             }
             this.currentRole = newRole;
         }
