@@ -43,13 +43,16 @@ namespace DurableTask.Test.Orchestrations.Perf
             int j = 0;
             for (; i < data.NumberOfParallelTasks; i++)
             {
-                results.Add(context.ScheduleTask<int>(typeof(RandomTimeWaitingTask), new RandomTimeWaitingTaskInput
-                {
-                    TaskId = "ParallelTask: " + i.ToString(),
-                    MaxDelay = data.MaxDelay,
-                    MinDelay = data.MinDelay,
-                    DelayUnit = data.DelayUnit
-                }));
+                results.Add(context.ScheduleWithRetry<int>(
+                    typeof(RandomTimeWaitingTask),
+                    new RetryOptions(TimeSpan.FromSeconds(5), 5),
+                    new RandomTimeWaitingTaskInput
+                    {
+                        TaskId = "ParallelTask: " + i.ToString(),
+                        MaxDelay = data.MaxDelay,
+                        MinDelay = data.MinDelay,
+                        DelayUnit = data.DelayUnit
+                    }));
             }
 
             int[] counters = await Task.WhenAll(results.ToArray());
@@ -59,7 +62,7 @@ namespace DurableTask.Test.Orchestrations.Perf
             {
                 int c = await context.ScheduleTask<int>(typeof(RandomTimeWaitingTask), new RandomTimeWaitingTaskInput
                 {
-                    TaskId = "SerialTask" + (i + j).ToString(),
+                    TaskId = "SerialTask" + (i + j),
                     MaxDelay = data.MaxDelay,
                     MinDelay = data.MinDelay,
                     DelayUnit = data.DelayUnit

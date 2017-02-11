@@ -74,5 +74,14 @@ namespace DurableTask.ServiceFabric
                 WriteEvent(4, storeName, count);
             }
         }
+
+        [Event(5, Level = EventLevel.Error, Message = "We are seeing something that we don't expect to see : {0}")]
+        public void LogUnexpectedCodeCondition(string uniqueMessage)
+        {
+            if (IsEnabled(EventLevel.Informational, Keywords.Orchestration))
+            {
+                WriteEvent(5, uniqueMessage);
+            }
+        }
     }
 }

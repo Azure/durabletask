@@ -112,16 +112,7 @@ namespace TestStatefulService
 
         public async Task<OrchestrationState> WaitForOrchestration(OrchestrationInstance instance, TimeSpan waitTimeout)
         {
-            var state = await client.WaitForOrchestrationAsync(instance, waitTimeout);
-            if (state == null)
-            {
-                ServiceEventSource.Current.Message($"Orchestration {instance.InstanceId} perhaps timed out while waiting.");
-            }
-            else
-            {
-                ServiceEventSource.Current.Message($"Orchestration {instance.InstanceId} finished with status : {state.OrchestrationStatus}, result : {state.Output}, created time : {state.CreatedTime}, completed time : {state.CompletedTime}.");
-            }
-            return state;
+            return await client.WaitForOrchestrationAsync(instance, waitTimeout);
         }
 
         public Task PurgeOrchestrationHistoryEventsAsync()
