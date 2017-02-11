@@ -78,7 +78,7 @@ namespace DurableTask.ServiceFabric
         [Event(5, Level = EventLevel.Error, Message = "We are seeing something that we don't expect to see : {0}")]
         public void LogUnexpectedCodeCondition(string uniqueMessage)
         {
-            if (IsEnabled(EventLevel.Informational, Keywords.Orchestration))
+            if (IsEnabled(EventLevel.Error, Keywords.Common))
             {
                 WriteEvent(5, uniqueMessage);
             }
