@@ -109,7 +109,7 @@ namespace DurableTask.ServiceFabric
 
         public int GetDelayInSecondsAfterOnProcessException(Exception exception)
         {
-            ProviderEventSource.Instance.LogException(exception.Message, exception.StackTrace);
+            ProviderEventSource.Log.LogException(exception.Message, exception.StackTrace);
             //Todo: Need to fine tune
             if (exception is TimeoutException)
             {
@@ -121,7 +121,7 @@ namespace DurableTask.ServiceFabric
 
         public int GetDelayInSecondsAfterOnFetchException(Exception exception)
         {
-            ProviderEventSource.Instance.LogException(exception.Message, exception.StackTrace);
+            ProviderEventSource.Log.LogException(exception.Message, exception.StackTrace);
             //Todo: Need to fine tune
             if (exception is TimeoutException)
             {
@@ -252,7 +252,7 @@ namespace DurableTask.ServiceFabric
                 {
                     await this.orchestrationProvider.DropSession(txn, workItem.InstanceId);
                     await txn.CommitAsync();
-                    ProviderEventSource.Instance.LogOrchestrationFinished(workItem.InstanceId,
+                    ProviderEventSource.Log.OrchestrationFinished(workItem.InstanceId,
                         workItem.OrchestrationRuntimeState.OrchestrationStatus.ToString(),
                         (workItem.OrchestrationRuntimeState.CompletedTime - workItem.OrchestrationRuntimeState.CreatedTime).TotalSeconds,
                         workItem.OrchestrationRuntimeState.Output);

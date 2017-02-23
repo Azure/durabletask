@@ -55,7 +55,7 @@ namespace DurableTask.ServiceFabric
                             var timerEvent = enumerator.Current.Value?.Event as TimerFiredEvent;
                             if (timerEvent == null)
                             {
-                                ProviderEventSource.Instance.LogUnexpectedCodeCondition($"{nameof(ScheduledMessageProvider)}.{nameof(StartAsync)} : Seeing a non timer event in scheduled messages while filling the pending items collection in role start");
+                                ProviderEventSource.Log.UnexpectedCodeCondition($"{nameof(ScheduledMessageProvider)}.{nameof(StartAsync)} : Seeing a non timer event in scheduled messages while filling the pending items collection in role start");
                             }
                             else
                             {

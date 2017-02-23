@@ -188,7 +188,7 @@ namespace DurableTask.ServiceFabric
                     count = await this.Store.GetCountAsync(tx);
                 }
 
-                ProviderEventSource.Instance.LogStoreCount(this.storeName, count);
+                ProviderEventSource.Log.LogStoreCount(this.storeName, count);
             }
         }
     }

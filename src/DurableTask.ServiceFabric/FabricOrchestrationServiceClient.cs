@@ -56,7 +56,7 @@ namespace DurableTask.ServiceFabric
                 await WriteExecutionStartedEventToInstanceStore(tx, startEvent);
                 await tx.CommitAsync();
                 this.orchestrationProvider.TryEnqueueSession(creationMessage.OrchestrationInstance.InstanceId);
-                ProviderEventSource.Instance.LogOrchestrationCreated(instance.InstanceId);
+                ProviderEventSource.Log.OrchestrationCreated(instance.InstanceId);
             }
         }
 

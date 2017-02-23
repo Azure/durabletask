@@ -13,13 +13,13 @@
 
 namespace DurableTask.ServiceFabric
 {
-    using System.Diagnostics.Tracing;
+    using Microsoft.Diagnostics.Tracing;
     using System.Threading.Tasks;
 
-    [EventSource(Name = "DurableTask-ServiceFabric-Provider")]
+    [EventSource(Name = "DurableTask-ServiceFabricProvider")]
     internal sealed class ProviderEventSource : EventSource
     {
-        public static readonly ProviderEventSource Instance = new ProviderEventSource();
+        public static readonly ProviderEventSource Log = new ProviderEventSource();
 
         static ProviderEventSource()
         {
@@ -28,7 +28,7 @@ namespace DurableTask.ServiceFabric
             Task.Run(() => { });
         }
 
-        private ProviderEventSource() : base()
+        private ProviderEventSource() : base(EventSourceSettings.EtwSelfDescribingEventFormat)
         {
         }
 
@@ -39,8 +39,8 @@ namespace DurableTask.ServiceFabric
             public const EventKeywords Common = (EventKeywords)0x4L;
         }
 
-        [Event(1, Level = EventLevel.Informational, Message = "Orchestration {0} Created.")]
-        public void LogOrchestrationCreated(string instanceId)
+        [Event(1, Level = EventLevel.Informational, Message = "Orchestration {0} Created.", Channel = EventChannel.Operational)]
+        public void OrchestrationCreated(string instanceId)
         {
             if (IsEnabled(EventLevel.Informational, Keywords.Orchestration))
             {
@@ -48,8 +48,8 @@ namespace DurableTask.ServiceFabric
             }
         }
 
-        [Event(2, Level = EventLevel.Informational, Message = "Orchestration {0} Finished with the status {1} and result {3} in {2} seconds.")]
-        public void LogOrchestrationFinished(string instanceId, string terminalStatus, double runningTimeInSeconds, string result)
+        [Event(2, Level = EventLevel.Informational, Message = "Orchestration {0} Finished with the status {1} and result {3} in {2} seconds.", Channel = EventChannel.Operational)]
+        public void OrchestrationFinished(string instanceId, string terminalStatus, double runningTimeInSeconds, string result)
         {
             if (IsEnabled(EventLevel.Informational, Keywords.Orchestration))
             {
@@ -57,16 +57,16 @@ namespace DurableTask.ServiceFabric
             }
         }
 
-        [Event(3, Level = EventLevel.Error, Message = "Exception : {0} With Stack Trace: {1}")]
+        [Event(3, Level = EventLevel.Error, Message = "Exception : {0} With Stack Trace: {1}", Channel = EventChannel.Operational)]
         public void LogException(string message, string stackTrace)
         {
-            if (IsEnabled(EventLevel.Informational, Keywords.Orchestration))
+            if (IsEnabled(EventLevel.Informational, Keywords.Common))
             {
                 WriteEvent(3, message, stackTrace);
             }
         }
 
-        [Event(4, Level = EventLevel.Informational, Message = "Current number of entries in store {0} : {1}")]
+        [Event(4, Level = EventLevel.Informational, Message = "Current number of entries in store {0} : {1}", Channel = EventChannel.Operational)]
         public void LogStoreCount(string storeName, long count)
         {
             if (IsEnabled(EventLevel.Informational, Keywords.Common))
@@ -75,8 +75,8 @@ namespace DurableTask.ServiceFabric
             }
         }
 
-        [Event(5, Level = EventLevel.Error, Message = "We are seeing something that we don't expect to see : {0}")]
-        public void LogUnexpectedCodeCondition(string uniqueMessage)
+        [Event(5, Level = EventLevel.Error, Message = "We are seeing something that we don't expect to see : {0}", Channel = EventChannel.Operational)]
+        public void UnexpectedCodeCondition(string uniqueMessage)
         {
             if (IsEnabled(EventLevel.Error, Keywords.Common))
             {

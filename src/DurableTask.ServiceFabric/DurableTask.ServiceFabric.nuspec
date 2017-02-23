@@ -23,8 +23,10 @@
     </dependencies>
   </metadata>
   <files>
-    <file src="bin\Release\DurableTask.ServiceFabric.dll" target="lib\net451\DurableTask.ServiceFabric.dll" exclude="" />
-    <file src="bin\Release\DurableTask.ServiceFabric.pdb" target="lib\net451\DurableTask.ServiceFabric.pdb" exclude="" />
-    <file src="bin\Release\DurableTask.ServiceFabric.xml" target="lib\net451\DurableTask.ServiceFabric.xml" exclude="" />
+    <file src="bin\Release\DurableTask.ServiceFabric.dll" target="lib\net451\DurableTask.ServiceFabric.dll" />
+    <file src="bin\Release\DurableTask.ServiceFabric.pdb" target="lib\net451\DurableTask.ServiceFabric.pdb" />
+    <file src="bin\Release\DurableTask.ServiceFabric.xml" target="lib\net451\DurableTask.ServiceFabric.xml" />
+    <file src="bin\Release\DurableTask.ServiceFabric.DurableTask-ServiceFabricProvider.etwManifest.man" target="EtwManifest\DurableTask-ServiceFabricProvider.man" />
+    <file src="bin\Release\DurableTask.ServiceFabric.DurableTask-ServiceFabricProvider.etwManifest.dll" target="EtwManifest\DurableTask-ServiceFabricProvider.dll" />
   </files>
 </package>

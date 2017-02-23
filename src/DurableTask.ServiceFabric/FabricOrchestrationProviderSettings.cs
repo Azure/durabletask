@@ -30,13 +30,13 @@ namespace DurableTask.ServiceFabric
             TaskOrchestrationDispatcherSettings = new TaskOrchestrationDispatcherSettings()
             {
                 MaxConcurrentOrchestrations = 1000,
-                DispatcherCount = 1
+                DispatcherCount = 10
             };
 
             TaskActivityDispatcherSettings = new TaskActivityDispatcherSettings()
             {
-                MaxConcurrentActivities = 10000,
-                DispatcherCount = 1
+                MaxConcurrentActivities = 1000,
+                DispatcherCount = 10
             };
         }
 
