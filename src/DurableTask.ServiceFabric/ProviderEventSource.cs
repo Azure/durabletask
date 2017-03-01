@@ -28,7 +28,7 @@ namespace DurableTask.ServiceFabric
             Task.Run(() => { });
         }
 
-        private ProviderEventSource() : base(EventSourceSettings.EtwSelfDescribingEventFormat)
+        private ProviderEventSource() : base()
         {
         }
 
