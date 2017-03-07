@@ -39,12 +39,12 @@ namespace DurableTask.ServiceFabric
             public const EventKeywords Common = (EventKeywords)0x4L;
         }
 
-        [Event(1, Level = EventLevel.Informational, Message = "Orchestration {0} Created.", Channel = EventChannel.Operational)]
-        public void OrchestrationCreated(string instanceId)
+        [Event(1, Level = EventLevel.Informational, Message = "Orchestration with instanceId : '{0}' and executionId : '{1}' is Created.", Channel = EventChannel.Operational)]
+        public void OrchestrationCreated(string instanceId, string executionId)
         {
             if (IsEnabled(EventLevel.Informational, Keywords.Orchestration))
             {
-                WriteEvent(1, instanceId);
+                WriteEvent(1, instanceId, executionId);
             }
         }
 
