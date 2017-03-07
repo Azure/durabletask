@@ -11,22 +11,32 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using DurableTask;
+using System;
+using System.Runtime.Serialization;
 
 namespace TestStatefulService.TestOrchestrations
 {
-    class ExceptionThrowingTask : TaskActivity<int, bool>
+    [Serializable]
+    public class CounterException : Exception
     {
-        protected override bool Execute(TaskContext context, int remainingAttempts)
-        {
-            if (remainingAttempts > 0)
-            {
-                ServiceEventSource.Current.Message($"{nameof(ExceptionThrowingTask)}.{nameof(Execute)} : Throwing Exception, RemainingAttempts = {remainingAttempts}");
-                throw new CounterException(remainingAttempts);
-            }
+        readonly string CounterPropName = "Counter";
 
-            ServiceEventSource.Current.Message($"{nameof(ExceptionThrowingTask)}.{nameof(Execute)} : Returning true, RemainingAttempts = {remainingAttempts}");
-            return true;
+        public CounterException(int counter)
+        {
+            this.Counter = counter;
         }
+
+        protected CounterException(SerializationInfo info, StreamingContext context)
+        {
+            this.Counter = info.GetInt32(CounterPropName);
+        }
+
+        public override void GetObjectData(SerializationInfo info, StreamingContext context)
+        {
+            info.AddValue(CounterPropName, this.Counter);
+            base.GetObjectData(info, context);
+        }
+
+        public int Counter { get; }
     }
 }

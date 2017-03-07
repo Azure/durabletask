@@ -12,14 +12,16 @@
 //  ----------------------------------------------------------------------------------
 
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using DurableTask;
+using DurableTask.Exceptions;
 
 namespace TestStatefulService.TestOrchestrations
 {
     public class OrchestrationRunningIntoRetry : TaskOrchestration<int, int>
     {
-        int retryCount = 0;
+        CounterException LatestException;
 
         public override async Task<int> RunTask(OrchestrationContext context, int numberOfRetriesToEnforce)
         {
@@ -30,11 +32,11 @@ namespace TestStatefulService.TestOrchestrations
                     MaxRetryInterval = TimeSpan.FromMinutes(1),
                     Handle = RetryExceptionHandler
                 },
-                retryCount < numberOfRetriesToEnforce);
+                this.LatestException?.Counter-1 ?? numberOfRetriesToEnforce);
 
             if (result)
             {
-                return retryCount;
+                return numberOfRetriesToEnforce;
             }
 
             throw new Exception($"Unexpected exception thrown from {nameof(OrchestrationRunningIntoRetry)}.");
@@ -42,8 +44,21 @@ namespace TestStatefulService.TestOrchestrations
 
         bool RetryExceptionHandler(Exception e)
         {
-            this.retryCount++;
-            return true;
+            TaskFailedException tfe = e as TaskFailedException;
+
+            if (tfe != null && tfe.InnerException != null)
+            {
+                e = tfe.InnerException;
+            }
+
+            CounterException ce = e as CounterException;
+            if (ce != null)
+            {
+                LatestException = ce;
+                return true;
+            }
+
+            return false;
         }
     }
 }

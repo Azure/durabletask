@@ -33,8 +33,10 @@ namespace TestStatefulService
     /// </summary>
     internal sealed class TestStatefulService : StatefulService, IRemoteClient
     {
+        readonly TaskHubClient client;
+        readonly FabricOrchestrationProviderFactory fabricProviderFactory;
+
         TaskHubWorker worker;
-        TaskHubClient client;
         ReplicaRole currentRole;
 
         public TestStatefulService(StatefulServiceContext context) : base(context)
@@ -43,8 +45,7 @@ namespace TestStatefulService
             settings.TaskOrchestrationDispatcherSettings.DispatcherCount = 5;
             settings.TaskActivityDispatcherSettings.DispatcherCount = 5;
 
-            var fabricProviderFactory = new FabricOrchestrationProviderFactory(this.StateManager, settings);
-            this.worker = new TaskHubWorker(fabricProviderFactory.OrchestrationService);
+            this.fabricProviderFactory = new FabricOrchestrationProviderFactory(this.StateManager, settings);
             this.client = new TaskHubClient(fabricProviderFactory.OrchestrationServiceClient);
         }
 
@@ -71,20 +72,24 @@ namespace TestStatefulService
         /// <param name="cancellationToken">Canceled when Service Fabric needs to shut down this service replica.</param>
         protected override async Task RunAsync(CancellationToken cancellationToken)
         {
+            this.worker = new TaskHubWorker(this.fabricProviderFactory.OrchestrationService);
+
             await this.worker
+                .AddTaskOrchestrations(KnownOrchestrationInstances.Values.Select(instance => new DefaultObjectCreator<TaskOrchestration>(instance)).ToArray())
                 .AddTaskOrchestrations(KnownOrchestrationTypeNames.Values.ToArray())
                 .AddTaskActivities(KnownActivities)
                 .StartAsync();
 
-            //await this.testExecutor.StartAsync();
+            this.worker.TaskActivityDispatcher.IncludeDetails = true;
         }
 
         protected override async Task OnChangeRoleAsync(ReplicaRole newRole, CancellationToken cancellationToken)
         {
             if (newRole != ReplicaRole.Primary && this.currentRole == ReplicaRole.Primary)
             {
-                //await this.testExecutor.StopAsync();
                 await this.worker.StopAsync(isForced: true);
+                this.worker.Dispose();
+                this.worker = null;
             }
             this.currentRole = newRole;
         }
@@ -122,12 +127,17 @@ namespace TestStatefulService
 
         Type GetOrchestrationType(string typeName)
         {
+            if (KnownOrchestrationInstances.ContainsKey(typeName))
+            {
+                return KnownOrchestrationInstances[typeName].GetType();
+            }
+
             if (!KnownOrchestrationTypeNames.ContainsKey(typeName))
             {
                 throw new Exception($"Unknown Orchestration Type Name : {typeName}");
             }
 
-            return KnownOrchestrationTypeNames.First(kvp => string.Equals(typeName, kvp.Key)).Value;
+            return KnownOrchestrationTypeNames[typeName];
         }
 
         public Task<OrchestrationInstance> StartTestOrchestrationWithInstanceIdAsync(string instanceId, TestOrchestrationData input)
@@ -140,6 +150,11 @@ namespace TestStatefulService
             var allStates = await this.client.GetOrchestrationStateAsync(instanceId, allExecutions: false);
             return allStates.FirstOrDefault();
         }
+
+        static Dictionary<string, TaskOrchestration> KnownOrchestrationInstances = new Dictionary<string, TaskOrchestration>
+        {
+            { typeof(OrchestrationRunningIntoRetry).Name, new OrchestrationRunningIntoRetry() },
+        };
 
         static Dictionary<string, Type> KnownOrchestrationTypeNames = new Dictionary<string, Type>
         {
@@ -156,7 +171,8 @@ namespace TestStatefulService
             typeof(GetUserTask),
             typeof(GreetUserTask),
             typeof(GenerationBasicTask),
-            typeof(RandomTimeWaitingTask)
+            typeof(RandomTimeWaitingTask),
+            typeof(ExceptionThrowingTask),
         };
     }
 }

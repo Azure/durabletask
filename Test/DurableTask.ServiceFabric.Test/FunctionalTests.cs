@@ -181,13 +181,15 @@ namespace DurableTask.ServiceFabric.Test
         [TestMethod]
         public async Task Retry_OnException_Test()
         {
-            var minumumExpectedTime = TimeSpan.FromSeconds(3);
-            var result = await this.serviceClient.RunOrchestrationAsync(typeof(OrchestrationRunningIntoRetry).Name, 2, TimeSpan.FromMinutes(2));
+            int retryAttempts = 3;
+            var minumumExpectedTime = TimeSpan.FromSeconds(7); //This should be calculated based on RetryOptions in the Orchestration code.
+
+            var result = await this.serviceClient.RunOrchestrationAsync(typeof(OrchestrationRunningIntoRetry).Name, retryAttempts, TimeSpan.FromMinutes(2));
             Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
-            Assert.AreEqual("2", result.Output);
+            Assert.AreEqual(retryAttempts.ToString(), result.Output);
             var orchestrationTime = result.CompletedTime - result.CreatedTime;
-            Assert.IsTrue(orchestrationTime > minumumExpectedTime);
             Console.WriteLine($"Time for Orchestration : {orchestrationTime}, Minumum expected time : {minumumExpectedTime}");
+            Assert.IsTrue(orchestrationTime > minumumExpectedTime);
         }
 
         [TestMethod]
