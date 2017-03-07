@@ -179,6 +179,18 @@ namespace DurableTask.ServiceFabric.Test
         }
 
         [TestMethod]
+        public async Task Retry_OnException_Test()
+        {
+            var minumumExpectedTime = TimeSpan.FromSeconds(3);
+            var result = await this.serviceClient.RunOrchestrationAsync(typeof(OrchestrationRunningIntoRetry).Name, 2, TimeSpan.FromMinutes(2));
+            Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
+            Assert.AreEqual("2", result.Output);
+            var orchestrationTime = result.CompletedTime - result.CreatedTime;
+            Assert.IsTrue(orchestrationTime > minumumExpectedTime);
+            Console.WriteLine($"Time for Orchestration : {orchestrationTime}, Minumum expected time : {minumumExpectedTime}");
+        }
+
+        [TestMethod]
         public async Task Purge_Removes_State()
         {
             var result = await this.serviceClient.RunOrchestrationAsync(typeof(SimpleOrchestrationWithTasks).Name, null, TimeSpan.FromMinutes(2));

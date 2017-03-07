@@ -109,9 +109,11 @@
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Startup.cs" />
+    <Compile Include="TestOrchestrations\ExceptionThrowingTask.cs" />
     <Compile Include="TestOrchestrations\GenerationBasicOrchestration.cs" />
     <Compile Include="TestOrchestrations\GetUserTask.cs" />
     <Compile Include="TestOrchestrations\GreetUserTask.cs" />
+    <Compile Include="TestOrchestrations\OrchestrationRunningIntoRetry.cs" />
     <Compile Include="TestOrchestrations\SimpleOrchestrationWithSubOrchestration.cs" />
     <Compile Include="TestOrchestrations\SimpleOrchestrationWithTasks.cs" />
     <Compile Include="TestOrchestrations\SimpleOrchestrationWithTimer.cs" />
