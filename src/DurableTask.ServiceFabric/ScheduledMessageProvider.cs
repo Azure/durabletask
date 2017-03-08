@@ -66,7 +66,11 @@ namespace DurableTask.ServiceFabric
 
                     lock (@lock)
                     {
-                        this.inMemorySet = builder.ToImmutableSortedSet();
+                        if (this.inMemorySet.Count > 0)
+                        {
+                            ProviderEventSource.Log.UnexpectedCodeCondition($"{nameof(ScheduledMessageProvider)}.{nameof(StartAsync)} : Before we set the In memory set from the builder, there are items in it which should not happen.");
+                        }
+                        this.inMemorySet = builder.ToImmutableSortedSet(TimerFiredEventComparer.Instance);
                     }
                 }
             }
@@ -82,7 +86,6 @@ namespace DurableTask.ServiceFabric
                 this.inMemorySet = this.inMemorySet.Add(new Message<string, TaskMessage>(key, value));
             }
 
-            //Todo: Do i need to make nextActivationCheck modifications thread safe?
             var timerEvent = value.Event as TimerFiredEvent;
             if (timerEvent != null && timerEvent.FireAt < this.nextActivationCheck)
             {
@@ -90,68 +93,82 @@ namespace DurableTask.ServiceFabric
             }
         }
 
+        // Since this method is started as part of StartAsync, the other stores maynot be immediately initialized
+        // by the time this invokes operations on those stores. But that would be a transient error and the next
+        // iteration of processing should take care of making things right.
         async Task ProcessScheduledMessages()
         {
+            int successiveFailureCount = 0;
             while (!IsStopped())
             {
-                var currentTime = DateTime.UtcNow;
-                var nextCheck = currentTime + TimeSpan.FromSeconds(1);
-
-                var builder = this.inMemorySet.ToBuilder();
-                List<Message<string, TaskMessage>> activatedMessages = new List<Message<string, TaskMessage>>();
-
-                while (builder.Count > 0)
+                try
                 {
-                    var firstPendingMessage = builder.Min;
-                    var timerEvent = firstPendingMessage.Value.Event as TimerFiredEvent;
+                    var currentTime = DateTime.UtcNow;
+                    var nextCheck = currentTime + TimeSpan.FromSeconds(1);
 
-                    if (timerEvent == null)
+                    var builder = this.inMemorySet.ToBuilder();
+                    List<Message<string, TaskMessage>> activatedMessages = new List<Message<string, TaskMessage>>();
+
+                    while (builder.Count > 0)
                     {
-                        throw new Exception("Internal Server Error : Ended up adding non TimerFiredEvent TaskMessage as scheduled message");
+                        var firstPendingMessage = builder.Min;
+                        var timerEvent = firstPendingMessage.Value.Event as TimerFiredEvent;
+
+                        if (timerEvent == null)
+                        {
+                            throw new Exception("Internal Server Error : Ended up adding non TimerFiredEvent TaskMessage as scheduled message");
+                        }
+
+                        if (timerEvent.FireAt <= currentTime)
+                        {
+                            activatedMessages.Add(firstPendingMessage);
+                            builder.Remove(firstPendingMessage);
+                        }
+                        else
+                        {
+                            nextCheck = timerEvent.FireAt;
+                            break;
+                        }
                     }
 
-                    if (timerEvent.FireAt <= currentTime)
+                    if (IsStopped())
                     {
-                        activatedMessages.Add(firstPendingMessage);
-                        builder.Remove(firstPendingMessage);
-                    }
-                    else
-                    {
-                        nextCheck = timerEvent.FireAt;
                         break;
                     }
-                }
 
-                if (IsStopped())
-                {
-                    break;
-                }
-
-                if (activatedMessages.Count > 0)
-                {
-                    var keys = activatedMessages.Select(m => m.Key);
-                    var values = activatedMessages.Select(m => m.Value).ToList();
-
-                    using (var tx = this.StateManager.CreateTransaction())
+                    if (activatedMessages.Count > 0)
                     {
-                        var modifiedSessions = await this.sessionsProvider.TryAppendMessageBatchAsync(tx, values);
-                        await this.CompleteBatchAsync(tx, keys);
-                        await tx.CommitAsync();
+                        var keys = activatedMessages.Select(m => m.Key);
+                        var values = activatedMessages.Select(m => m.Value).ToList();
 
-                        lock (@lock)
+                        using (var tx = this.StateManager.CreateTransaction())
                         {
-                            this.inMemorySet = this.inMemorySet.Except(activatedMessages);
-                        }
+                            var modifiedSessions = await this.sessionsProvider.TryAppendMessageBatchAsync(tx, values);
+                            await this.CompleteBatchAsync(tx, keys);
+                            await tx.CommitAsync();
 
-                        foreach (var sessionId in modifiedSessions)
-                        {
-                            this.sessionsProvider.TryEnqueueSession(sessionId);
+                            lock (@lock)
+                            {
+                                this.inMemorySet = this.inMemorySet.Except(activatedMessages);
+                            }
+
+                            foreach (var sessionId in modifiedSessions)
+                            {
+                                this.sessionsProvider.TryEnqueueSession(sessionId);
+                            }
                         }
                     }
-                }
 
-                this.nextActivationCheck = nextCheck;
-                await WaitForItemsAsync(this.nextActivationCheck - DateTime.UtcNow);
+                    this.nextActivationCheck = nextCheck;
+                    await WaitForItemsAsync(this.nextActivationCheck - DateTime.UtcNow);
+                    successiveFailureCount = 0;
+                }
+                catch (Exception e)
+                {
+                    successiveFailureCount++;
+                    ProviderEventSource.Log.ExceptionWhileProcessingScheduledMessages($"{nameof(ScheduledMessageProvider)}.{nameof(ProcessScheduledMessages)}", successiveFailureCount, e.Message, e.StackTrace);
+                    await Task.Delay(TimeSpan.FromMilliseconds(100));
+                }
             }
         }
     }

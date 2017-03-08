@@ -17,20 +17,12 @@ namespace DurableTask.ServiceFabric
     using Microsoft.ServiceFabric.Data;
 
     /// <summary>
-    /// Factory to create instances of a service fabric based store provider implementations
-    /// for <see cref="DurableTask.IOrchestrationService"/> and <see cref="DurableTask.IOrchestrationServiceClient"/>
-    /// to be used in constructing <see cref="DurableTask.TaskHubWorker"/> and <see cref="DurableTask.TaskHubClient"/>.
+    /// Factory to create instances of <see cref="FabricOrchestrationProvider"/>.
     /// </summary>
     public class FabricOrchestrationProviderFactory
     {
         readonly IReliableStateManager stateManager;
-        readonly object @lock;
         readonly FabricOrchestrationProviderSettings settings;
-
-        SessionsProvider sessionsProvider;
-        FabricOrchestrationService orchestrationService;
-        FabricOrchestrationServiceClient orchestrationClient;
-        FabricOrchestrationInstanceStore instanceStore;
 
         /// <summary>
         /// Constructor that uses default <see cref="FabricOrchestrationProviderSettings"/>.
@@ -54,49 +46,15 @@ namespace DurableTask.ServiceFabric
             }
 
             this.stateManager = stateManager;
-            this.@lock = new object();
             this.settings = settings ?? new FabricOrchestrationProviderSettings();
         }
 
         /// <summary>
-        /// <see cref="DurableTask.IOrchestrationService"/> instance that can be used for constructing <see cref="DurableTask.TaskHubWorker"/>.
+        /// Creates a new <see cref="FabricOrchestrationProvider"/> object using the factory's state manager and settings.
         /// </summary>
-        public IOrchestrationService OrchestrationService
+        public FabricOrchestrationProvider CreateProvider()
         {
-            get
-            {
-                this.Initialize();
-                return this.orchestrationService;
-            }
-        }
-
-        /// <summary>
-        /// <see cref="DurableTask.IOrchestrationServiceClient"/> instance that can be used for constructing <see cref="DurableTask.TaskHubClient"/>.
-        /// </summary>
-        public IOrchestrationServiceClient OrchestrationServiceClient
-        {
-            get
-            {
-                this.Initialize();
-                return this.orchestrationClient;
-            }
-        }
-
-        void Initialize()
-        {
-            if (this.orchestrationService == null)
-            {
-                lock (this.@lock)
-                {
-                    if (this.orchestrationService == null)
-                    {
-                        this.sessionsProvider = new SessionsProvider(this.stateManager);
-                        this.instanceStore = new FabricOrchestrationInstanceStore(this.stateManager);
-                        this.orchestrationService = new FabricOrchestrationService(this.stateManager, this.sessionsProvider, this.instanceStore, this.settings);
-                        this.orchestrationClient = new FabricOrchestrationServiceClient(this.stateManager, this.sessionsProvider, this.instanceStore);
-                    }
-                }
-            }
+            return new FabricOrchestrationProvider(this.stateManager, this.settings);
         }
     }
 }

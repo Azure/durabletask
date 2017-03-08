@@ -23,8 +23,18 @@ namespace DurableTask.ServiceFabric
 
         public int Compare(Message<string, TaskMessage> first, Message<string, TaskMessage> second)
         {
-            var firstTimer = first?.Value.Event as TimerFiredEvent;
-            var secondTimer = second?.Value.Event as TimerFiredEvent;
+            if (first == null)
+            {
+                throw new ArgumentNullException(nameof(first));
+            }
+
+            if (second == null)
+            {
+                throw new ArgumentNullException(nameof(second));
+            }
+
+            var firstTimer = first.Value.Event as TimerFiredEvent;
+            var secondTimer = second.Value.Event as TimerFiredEvent;
 
             if (firstTimer == null)
             {
@@ -35,7 +45,13 @@ namespace DurableTask.ServiceFabric
                 throw new ArgumentException(nameof(second));
             }
 
-            return DateTime.Compare(firstTimer.FireAt, secondTimer.FireAt);
+            int firedAtCompareValue = DateTime.Compare(firstTimer.FireAt, secondTimer.FireAt);
+            if (firedAtCompareValue != 0)
+            {
+                return firedAtCompareValue;
+            }
+
+            return string.Compare(first.Key, second.Key, StringComparison.Ordinal);
         }
     }
 }

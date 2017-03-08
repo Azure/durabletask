@@ -33,10 +33,11 @@ namespace TestStatefulService
     /// </summary>
     internal sealed class TestStatefulService : StatefulService, IRemoteClient
     {
-        readonly TaskHubClient client;
         readonly FabricOrchestrationProviderFactory fabricProviderFactory;
 
+        FabricOrchestrationProvider fabricProvider;
         TaskHubWorker worker;
+        TaskHubClient client;
         ReplicaRole currentRole;
 
         public TestStatefulService(StatefulServiceContext context) : base(context)
@@ -46,7 +47,8 @@ namespace TestStatefulService
             settings.TaskActivityDispatcherSettings.DispatcherCount = 5;
 
             this.fabricProviderFactory = new FabricOrchestrationProviderFactory(this.StateManager, settings);
-            this.client = new TaskHubClient(fabricProviderFactory.OrchestrationServiceClient);
+            this.fabricProvider = this.fabricProviderFactory.CreateProvider();
+            this.client = new TaskHubClient(fabricProvider.OrchestrationServiceClient);
         }
 
         /// <summary>
@@ -72,7 +74,13 @@ namespace TestStatefulService
         /// <param name="cancellationToken">Canceled when Service Fabric needs to shut down this service replica.</param>
         protected override async Task RunAsync(CancellationToken cancellationToken)
         {
-            this.worker = new TaskHubWorker(this.fabricProviderFactory.OrchestrationService);
+            if (this.fabricProvider == null)
+            {
+                this.fabricProvider = this.fabricProviderFactory.CreateProvider();
+                this.client = new TaskHubClient(this.fabricProvider.OrchestrationServiceClient);
+            }
+
+            this.worker = new TaskHubWorker(this.fabricProvider.OrchestrationService);
 
             await this.worker
                 .AddTaskOrchestrations(KnownOrchestrationInstances.Values.Select(instance => new DefaultObjectCreator<TaskOrchestration>(instance)).ToArray())
@@ -89,7 +97,7 @@ namespace TestStatefulService
             {
                 await this.worker.StopAsync(isForced: true);
                 this.worker.Dispose();
-                this.worker = null;
+                this.fabricProvider = null;
             }
             this.currentRole = newRole;
         }

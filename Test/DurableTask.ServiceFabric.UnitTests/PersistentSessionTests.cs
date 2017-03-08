@@ -16,7 +16,6 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Runtime.Serialization;
 using DurableTask.History;
 using Microsoft.VisualStudio.TestTools.UnitTesting;

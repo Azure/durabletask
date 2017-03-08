@@ -60,7 +60,7 @@ namespace DurableTask.ServiceFabric
         [Event(3, Level = EventLevel.Error, Message = "Exception : {0} With Stack Trace: {1}", Channel = EventChannel.Operational)]
         public void LogException(string message, string stackTrace)
         {
-            if (IsEnabled(EventLevel.Informational, Keywords.Common))
+            if (IsEnabled(EventLevel.Error, Keywords.Common))
             {
                 WriteEvent(3, message, stackTrace);
             }
@@ -81,6 +81,15 @@ namespace DurableTask.ServiceFabric
             if (IsEnabled(EventLevel.Error, Keywords.Common))
             {
                 WriteEvent(5, uniqueMessage);
+            }
+        }
+
+        [Event(6, Level = EventLevel.Error, Message = "{0} : Successive Failed Attempt Number : '{1}', Ignored Exception : '{2}' With Stack Trace: '{3}'", Channel = EventChannel.Operational)]
+        public void ExceptionWhileProcessingScheduledMessages(string methodName, int attemptNumber, string message, string stackTrace)
+        {
+            if (IsEnabled(EventLevel.Error, Keywords.Common))
+            {
+                WriteEvent(6, methodName, attemptNumber, message, stackTrace);
             }
         }
     }

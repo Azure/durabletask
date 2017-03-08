@@ -50,10 +50,10 @@ namespace DurableTask.ServiceFabric
 
         public async Task StartAsync()
         {
-            await this.activitiesProvider.StartAsync();
-            await this.scheduledMessagesProvider.StartAsync();
-            await this.instanceStore.StartAsync();
-            await this.orchestrationProvider.StartAsync();
+            await Task.WhenAll(this.activitiesProvider.StartAsync(),
+                this.scheduledMessagesProvider.StartAsync(),
+                this.instanceStore.StartAsync(),
+                this.orchestrationProvider.StartAsync());
         }
 
         public Task StopAsync()
