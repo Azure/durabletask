@@ -78,8 +78,11 @@ namespace DurableTask.Core
                             }
                         }
 
-                        // TODO: It is an error if result is not completed when all OpenTasks are done.
-                        // Throw an exception in that case.
+                        // It is an error if result is not completed when all OpenTasks are done.
+                        context.CompleteOrchestration(
+                            "The orchestration code returned without completing or scheduling new work and cannot move forward. This can happen if there is an await on an unsupported task type.",
+                            string.Empty,
+                            OrchestrationStatus.Failed);
                     }
                 }
                 catch (NonDeterministicOrchestrationException exception)
