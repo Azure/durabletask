@@ -16,7 +16,7 @@ namespace DurableTask
     using System;
     using System.Collections.Generic;
 
-    internal class NameVersionObjectManager<T>
+    internal class NameVersionObjectManager<T> : INameVersionObjectManager<T>
     {
         readonly IDictionary<string, ObjectCreator<T>> creators;
         readonly object thisLock = new object();

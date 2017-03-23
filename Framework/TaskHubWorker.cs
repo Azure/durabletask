@@ -28,10 +28,10 @@ namespace DurableTask
     /// </summary>
     public sealed class TaskHubWorker
     {
-        readonly NameVersionObjectManager<TaskActivity> activityManager;
+        readonly INameVersionObjectManager<TaskActivity> activityManager;
         readonly string connectionString;
         readonly string hubName;
-        readonly NameVersionObjectManager<TaskOrchestration> orchestrationManager;
+        readonly INameVersionObjectManager<TaskOrchestration> orchestrationManager;
         readonly string orchestratorEntityName;
         readonly string tableStoreConnectionString;
 
@@ -74,7 +74,6 @@ namespace DurableTask
             : this(hubName, connectionString, tableStoreConnectionString, new TaskHubWorkerSettings())
         {
         }
-
         /// <summary>
         ///     Create a new TaskHubWorker with given name, Service Bus and Azure Storage connection string
         /// </summary>
@@ -83,6 +82,27 @@ namespace DurableTask
         /// <param name="tableStoreConnectionString">Azure Storage connection string</param>
         /// <param name="workerSettings">Settings for various task hub worker options</param>
         public TaskHubWorker(string hubName, string connectionString, string tableStoreConnectionString,
+            TaskHubWorkerSettings workerSettings)
+            : this(hubName, connectionString, tableStoreConnectionString,
+                  new NameVersionObjectManager<TaskOrchestration>(),
+                  new NameVersionObjectManager<TaskActivity>(), 
+                  workerSettings)
+        {
+        }
+
+        /// <summary>
+        ///     Create a new TaskHubWorker with given name, Service Bus and Azure Storage connection string,
+        ///     and providing custom implementations for managing orchestrations and activities.
+        /// </summary>
+        /// <param name="hubName">Name of the Task Hub</param>
+        /// <param name="connectionString">Service Bus connection string</param>
+        /// <param name="tableStoreConnectionString">Azure Storage connection string</param>
+        /// <param name="orchestrationManager">Custom implementation of <see cref="INameVersionObjectManager{TaskOrchestration}"/>.</param>
+        /// <param name="activityManager">Custom implementation of <see cref="INameVersionObjectManager{TaskActivity}"/>.</param>
+        /// <param name="workerSettings">Settings for various task hub worker options</param>
+        public TaskHubWorker(string hubName, string connectionString, string tableStoreConnectionString,
+            INameVersionObjectManager<TaskOrchestration> orchestrationManager,
+            INameVersionObjectManager<TaskActivity> activityManager,
             TaskHubWorkerSettings workerSettings)
         {
             if (string.IsNullOrEmpty(hubName))
@@ -100,13 +120,23 @@ namespace DurableTask
                 throw new ArgumentException("workerSettings");
             }
 
+            if (orchestrationManager == null)
+            {
+                throw new ArgumentException("orchestrationManager");
+            }
+
+            if (activityManager == null)
+            {
+                throw new ArgumentException("activityManager");
+            }
+
             this.hubName = hubName.ToLower();
             this.connectionString = connectionString;
             workerEntityName = string.Format(FrameworkConstants.WorkerEndpointFormat, this.hubName);
             orchestratorEntityName = string.Format(FrameworkConstants.OrchestratorEndpointFormat, this.hubName);
             trackingEntityName = string.Format(FrameworkConstants.TrackingEndpointFormat, this.hubName);
-            orchestrationManager = new NameVersionObjectManager<TaskOrchestration>();
-            activityManager = new NameVersionObjectManager<TaskActivity>();
+            this.orchestrationManager = orchestrationManager;
+            this.activityManager = activityManager;
             this.tableStoreConnectionString = tableStoreConnectionString;
             this.workerSettings = workerSettings;
         }

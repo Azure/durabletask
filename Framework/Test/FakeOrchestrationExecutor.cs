@@ -26,10 +26,10 @@ namespace DurableTask.Test
         readonly IDictionary<string, TaskOrchestration> currentExecutions = new Dictionary<string, TaskOrchestration>();
         readonly JsonDataConverter dataConverter;
 
-        readonly NameVersionObjectManager<TaskOrchestration> orchestrationObjectManager;
+        readonly INameVersionObjectManager<TaskOrchestration> orchestrationObjectManager;
         readonly TaskScheduler scheduler;
 
-        public FakeOrchestrationExecutor(NameVersionObjectManager<TaskOrchestration> orchestrationObjectManager)
+        public FakeOrchestrationExecutor(INameVersionObjectManager<TaskOrchestration> orchestrationObjectManager)
         {
             scheduler = new SynchronousTaskScheduler();
             dataConverter = new JsonDataConverter();

@@ -44,7 +44,7 @@ namespace DurableTask
 
         protected readonly MessagingFactory messagingFactory;
 
-        readonly NameVersionObjectManager<TaskOrchestration> objectManager;
+        readonly INameVersionObjectManager<TaskOrchestration> objectManager;
         protected readonly string orchestratorEntityName;
         readonly TaskHubWorkerSettings settings;
         readonly TaskHubDescription taskHubDescription;
@@ -62,7 +62,7 @@ namespace DurableTask
             string orchestratorEntityName,
             string workerEntityName,
             string trackingEntityName,
-            NameVersionObjectManager<TaskOrchestration> objectManager)
+            INameVersionObjectManager<TaskOrchestration> objectManager)
             : base("TaskOrchestration Dispatcher", item => item.Session == null ? string.Empty : item.Session.SessionId)
         {
             this.taskHubDescription = taskHubDescription;

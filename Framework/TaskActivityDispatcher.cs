@@ -26,7 +26,7 @@ namespace DurableTask
     {
         readonly MessagingFactory messagingFactory;
 
-        readonly NameVersionObjectManager<TaskActivity> objectManager;
+        readonly INameVersionObjectManager<TaskActivity> objectManager;
         readonly string orchestratorQueueName;
         readonly TaskHubWorkerSettings settings;
         readonly TaskHubDescription taskHubDescription;
@@ -39,7 +39,7 @@ namespace DurableTask
             TaskHubWorkerSettings workerSettings,
             string orchestratorQueueName,
             string workerQueueName,
-            NameVersionObjectManager<TaskActivity> objectManager)
+            INameVersionObjectManager<TaskActivity> objectManager)
             : base("TaskActivityDispatcher", item => item.MessageId)
         {
             this.taskHubDescription = taskHubDescription;
