@@ -81,6 +81,8 @@ namespace DurableTask.AzureStorage
             this.workItemQueueBackoff = new BackoffPollingHelper(maxPollingDelay, minPollingDelayThreshold);
         }
 
+        public event EventHandler<HistoryEventArgs> OnNewEvent;
+
         #region IOrchestrationService
         /// <summary>
         /// Gets or sets the maximum number of orchestrations that can be processed concurrently on a single node.
@@ -193,6 +195,7 @@ namespace DurableTask.AzureStorage
             PendingMessageBatch nextBatch = StashMessagesAndGetNextBatch(queueMessageBatch);
             if (nextBatch == null)
             {
+                // TODO: Keep looping locally instead of returning.
                 await Task.Delay(this.controlQueueBackoff.GetNextDelay());
                 return null;
             }
@@ -208,10 +211,26 @@ namespace DurableTask.AzureStorage
                 messageContext,
                 cancellationToken);
 
+            var taskMessages = new List<TaskMessage>(nextBatch.Messages.Count);
+            foreach (MessageData messageData in nextBatch.Messages)
+            {
+                TaskMessage taskMessage = messageData.TaskMessage;
+                if (runtimeState.OrchestrationInstance != null)
+                {
+                    this.OnNewEvent?.Invoke(this, new HistoryEventArgs(taskMessage.Event, runtimeState));
+                }
+                else
+                {
+                    this.OnNewEvent?.Invoke(this, new HistoryEventArgs(taskMessage.Event, instanceId));
+                }
+
+                taskMessages.Add(taskMessage);
+            }
+
             var orchestrationWorkItem = new TaskOrchestrationWorkItem
             {
                 InstanceId = instanceId,
-                NewMessages = messageContext.MessageDataBatch.Select(e => e.TaskMessage).ToList(),
+                NewMessages = taskMessages,
                 OrchestrationRuntimeState = runtimeState,
                 LockedUntilUtc = messageContext.GetNextMessageExpirationTimeUtc()
             };
@@ -455,6 +474,9 @@ namespace DurableTask.AzureStorage
             }
 
             await Task.WhenAll(enqueueTasks);
+
+            // TODO: Signal queue listeners to start polling immediately to reduce
+            //       unnecessary wait time between sending and receiving.
         }
 
         public async Task RenewTaskOrchestrationWorkItemLockAsync(TaskOrchestrationWorkItem workItem)
@@ -579,10 +601,13 @@ namespace DurableTask.AzureStorage
                 return null;
             }
 
+            TaskMessage taskMessage = context.MessageData.TaskMessage;
+            this.OnNewEvent?.Invoke(this, new HistoryEventArgs(taskMessage.Event, taskMessage.OrchestrationInstance.InstanceId));
+
             return new TaskActivityWorkItem
             {
                 Id = queueMessage.Id,
-                TaskMessage = context.MessageData.TaskMessage,
+                TaskMessage = taskMessage,
                 LockedUntilUtc = context.GetNextMessageExpirationTimeUtc(),
             };
         }
@@ -605,6 +630,9 @@ namespace DurableTask.AzureStorage
                 null /* initialVisibilityDelay */,
                 this.settings.WorkItemQueueRequestOptions,
                 context.StorageOperationContext);
+
+            // TODO: Signal the control queue listener thread to poll immediately
+            //       to avoid unnecessary delay between sending and receiving.
 
             // Next, delete the work item queue message. This must come after enqueuing the response message.
             AnalyticsEventSource.Log.DeletingMessage(

@@ -52,6 +52,7 @@
     <Compile Include="AzureStorageOrchestrationService.cs" />
     <Compile Include="AzureStorageOrchestrationServiceSettings.cs" />
     <Compile Include="BackoffPollingHelper.cs" />
+    <Compile Include="HistoryEventArgs.cs" />
     <Compile Include="MessageData.cs" />
     <Compile Include="ReceivedMessageContext.cs" />
     <Compile Include="TableEntityConverter.cs" />
