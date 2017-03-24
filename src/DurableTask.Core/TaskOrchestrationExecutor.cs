@@ -77,12 +77,12 @@ namespace DurableTask.Core
                                 context.CompleteOrchestration(result.Result);
                             }
                         }
-
-                        // It is an error if result is not completed when all OpenTasks are done.
-                        context.CompleteOrchestration(
-                            "The orchestration code returned without completing or scheduling new work and cannot move forward. This can happen if there is an await on an unsupported task type.",
-                            string.Empty,
-                            OrchestrationStatus.Failed);
+                        else
+                        {
+                            // It is an error if result is not completed when all OpenTasks are done.
+                            string message = "The orchestration code returned without completing or scheduling new work and cannot move forward. This can happen if there is an await on an unsupported task type.";
+                            context.FailOrchestration(new OrchestrationFailureException(message));
+                        }
                     }
                 }
                 catch (NonDeterministicOrchestrationException exception)
