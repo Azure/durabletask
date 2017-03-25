@@ -184,20 +184,24 @@ namespace DurableTask.AzureStorage
             TimeSpan receiveTimeout,
             CancellationToken cancellationToken)
         {
-            // Each iteration we fetch a batch of messages and sort them into in-memory buckets according to their instance ID.
-            IEnumerable<CloudQueueMessage> queueMessageBatch = await this.controlQueue.GetMessagesAsync(
-                this.settings.ControlQueueBatchSize,
-                this.settings.ControlQueueVisibilityTimeout,
-                this.settings.ControlQueueRequestOptions,
-                null /* operationContext */,
-                cancellationToken);
-
-            PendingMessageBatch nextBatch = StashMessagesAndGetNextBatch(queueMessageBatch);
-            if (nextBatch == null)
+            PendingMessageBatch nextBatch;
+            while (true)
             {
-                // TODO: Keep looping locally instead of returning.
-                await Task.Delay(this.controlQueueBackoff.GetNextDelay());
-                return null;
+                // Each iteration we fetch a batch of messages and sort them into in-memory buckets according to their instance ID.
+                IEnumerable<CloudQueueMessage> queueMessageBatch = await this.controlQueue.GetMessagesAsync(
+                    this.settings.ControlQueueBatchSize,
+                    this.settings.ControlQueueVisibilityTimeout,
+                    this.settings.ControlQueueRequestOptions,
+                    null /* operationContext */,
+                    cancellationToken);
+
+                nextBatch = StashMessagesAndGetNextBatch(queueMessageBatch);
+                if (nextBatch != null)
+                {
+                    break;
+                }
+
+                await this.controlQueueBackoff.WaitAsync(cancellationToken);
             }
 
             this.controlQueueBackoff.Reset();
@@ -417,11 +421,15 @@ namespace DurableTask.AzureStorage
                     stopwatch.ElapsedMilliseconds);
             }
 
+            bool addedControlMessages = false;
+            bool addedWorkItemMessages = false;
+
             // Second persistence step is to commit outgoing messages to their respective queues. If there is
             // any failures here, then the messages may get written again later.
-            var enqueueTasks = new List<Task>();
+            var enqueueTasks = new List<Task>(newEvents.Count);
             if (orchestratorMessages?.Count > 0)
             {
+                addedControlMessages = true;
                 foreach (TaskMessage taskMessage in orchestratorMessages)
                 {
                     enqueueTasks.Add(this.controlQueue.AddMessageAsync(
@@ -435,6 +443,7 @@ namespace DurableTask.AzureStorage
 
             if (timerMessages?.Count > 0)
             {
+                addedControlMessages = true;
                 foreach (TaskMessage taskMessage in timerMessages)
                 {
                     DateTime messageFireTime = ((TimerFiredEvent)taskMessage.Event).FireAt;
@@ -452,6 +461,7 @@ namespace DurableTask.AzureStorage
 
             if (outboundMessages?.Count > 0)
             {
+                addedWorkItemMessages = true;
                 foreach (TaskMessage taskMessage in outboundMessages)
                 {
                     enqueueTasks.Add(this.workItemQueue.AddMessageAsync(
@@ -465,6 +475,7 @@ namespace DurableTask.AzureStorage
 
             if (continuedAsNewMessage != null)
             {
+                addedControlMessages = true;
                 enqueueTasks.Add(this.controlQueue.AddMessageAsync(
                     context.CreateOutboundQueueMessage(continuedAsNewMessage),
                     null /* timeToLive */,
@@ -475,8 +486,17 @@ namespace DurableTask.AzureStorage
 
             await Task.WhenAll(enqueueTasks);
 
-            // TODO: Signal queue listeners to start polling immediately to reduce
-            //       unnecessary wait time between sending and receiving.
+            // Signal queue listeners to start polling immediately to reduce
+            // unnecessary wait time between sending and receiving.
+            if (addedControlMessages)
+            {
+                this.controlQueueBackoff.Reset();
+            }
+
+            if (addedWorkItemMessages)
+            {
+                this.workItemQueueBackoff.Reset();
+            }
         }
 
         public async Task RenewTaskOrchestrationWorkItemLockAsync(TaskOrchestrationWorkItem workItem)
@@ -490,13 +510,20 @@ namespace DurableTask.AzureStorage
             }
 
             // Reset the visibility of the message to ensure it doesn't get picked up by anyone else.
-            await Task.WhenAll(context.MessageDataBatch.Select(e =>
-                this.controlQueue.UpdateMessageAsync(
-                    e.OriginalQueueMessage,
-                    this.settings.ControlQueueVisibilityTimeout,
-                    MessageUpdateFields.Visibility,
-                    this.settings.ControlQueueRequestOptions,
-                    context.StorageOperationContext)));
+            try
+            {
+                await Task.WhenAll(context.MessageDataBatch.Select(e =>
+                    this.controlQueue.UpdateMessageAsync(
+                        e.OriginalQueueMessage,
+                        this.settings.ControlQueueVisibilityTimeout,
+                        MessageUpdateFields.Visibility,
+                        this.settings.ControlQueueRequestOptions,
+                        context.StorageOperationContext)));
+            }
+            catch (StorageException e) when (e.RequestInformation?.HttpStatusCode == 404)
+            {
+                // Message may have been processed and deleted already.
+            }
         }
 
         public async Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
@@ -579,15 +606,21 @@ namespace DurableTask.AzureStorage
         #region Task Activity Methods
         public async Task<TaskActivityWorkItem> LockNextTaskActivityWorkItem(TimeSpan receiveTimeout, CancellationToken cancellationToken)
         {
-            CloudQueueMessage queueMessage = await this.workItemQueue.GetMessageAsync(
-                this.settings.WorkItemQueueVisibilityTimeout,
-                this.settings.WorkItemQueueRequestOptions,
-                null /* operationContext */,
-                cancellationToken);
-            if (queueMessage == null)
+            CloudQueueMessage queueMessage;
+            while (true)
             {
-                await Task.Delay(this.workItemQueueBackoff.GetNextDelay(), cancellationToken);
-                return null;
+                queueMessage = await this.workItemQueue.GetMessageAsync(
+                    this.settings.WorkItemQueueVisibilityTimeout,
+                    this.settings.WorkItemQueueRequestOptions,
+                    null /* operationContext */,
+                    cancellationToken);
+
+                if (queueMessage != null)
+                {
+                    break;
+                }
+
+                await this.workItemQueueBackoff.WaitAsync(cancellationToken);
             }
 
             this.workItemQueueBackoff.Reset();
@@ -631,8 +664,9 @@ namespace DurableTask.AzureStorage
                 this.settings.WorkItemQueueRequestOptions,
                 context.StorageOperationContext);
 
-            // TODO: Signal the control queue listener thread to poll immediately
-            //       to avoid unnecessary delay between sending and receiving.
+            // Signal the control queue listener thread to poll immediately 
+            // to avoid unnecessary delay between sending and receiving.
+            this.controlQueueBackoff.Reset();
 
             // Next, delete the work item queue message. This must come after enqueuing the response message.
             AnalyticsEventSource.Log.DeletingMessage(
@@ -666,12 +700,19 @@ namespace DurableTask.AzureStorage
             }
 
             // Reset the visibility of the message to ensure it doesn't get picked up by anyone else.
-            await this.workItemQueue.UpdateMessageAsync(
-                context.MessageData.OriginalQueueMessage,
-                this.settings.WorkItemQueueVisibilityTimeout,
-                MessageUpdateFields.Visibility,
-                this.settings.WorkItemQueueRequestOptions,
-                context.StorageOperationContext);
+            try
+            {
+                await this.workItemQueue.UpdateMessageAsync(
+                    context.MessageData.OriginalQueueMessage,
+                    this.settings.WorkItemQueueVisibilityTimeout,
+                    MessageUpdateFields.Visibility,
+                    this.settings.WorkItemQueueRequestOptions,
+                    context.StorageOperationContext);
+            }
+            catch (StorageException e) when (e.RequestInformation?.HttpStatusCode == 404)
+            {
+                // Message was deleted
+            }
 
             return workItem;
         }
@@ -692,12 +733,19 @@ namespace DurableTask.AzureStorage
                 workItem.TaskMessage.OrchestrationInstance.InstanceId);
 
             // We "abandon" the message by settings its visibility timeout to zero.
-            await this.workItemQueue.UpdateMessageAsync(
-                context.MessageData.OriginalQueueMessage,
-                TimeSpan.Zero,
-                MessageUpdateFields.Visibility,
-                this.settings.WorkItemQueueRequestOptions,
-                context.StorageOperationContext);
+            try
+            {
+                await this.workItemQueue.UpdateMessageAsync(
+                    context.MessageData.OriginalQueueMessage,
+                    TimeSpan.Zero,
+                    MessageUpdateFields.Visibility,
+                    this.settings.WorkItemQueueRequestOptions,
+                    context.StorageOperationContext);
+            }
+            catch (StorageException e) when (e.RequestInformation?.HttpStatusCode == 404)
+            {
+                // Message was deleted
+            }
 
             ReceivedMessageContext.RemoveContext(workItem);
         }
@@ -750,17 +798,20 @@ namespace DurableTask.AzureStorage
         /// Sends a message to an orchestration.
         /// </summary>
         /// <param name="message">The message to send.</param>
-        public Task SendTaskOrchestrationMessageAsync(TaskMessage message)
+        public async Task SendTaskOrchestrationMessageAsync(TaskMessage message)
         {
             var operationContext = new OperationContext();
             operationContext.SendingRequest += ReceivedMessageContext.OnSendingRequest;
 
-            return this.controlQueue.AddMessageAsync(
+            await this.controlQueue.AddMessageAsync(
                 ReceivedMessageContext.CreateOutboundQueueMessageInternal(message),
                 null /* timeToLive */,
                 null /* initialVisibilityDelay */,
                 this.settings.ControlQueueRequestOptions,
                 operationContext);
+
+            // Notify the control queue poller that there are new messages to process.
+            this.controlQueueBackoff.Reset();
         }
 
         /// <summary>

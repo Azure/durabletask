@@ -49,6 +49,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AnalyticsEventSource.cs" />
+    <Compile Include="AsyncAutoResetEvent.cs" />
     <Compile Include="AzureStorageOrchestrationService.cs" />
     <Compile Include="AzureStorageOrchestrationServiceSettings.cs" />
     <Compile Include="BackoffPollingHelper.cs" />

@@ -6,9 +6,11 @@ namespace DurableTask.AzureStorage
 {
     using System;
     using System.Diagnostics;
+    using System.Threading;
+    using System.Threading.Tasks;
 
     /// <summary>
-    /// Utility class for implementing semi-intelligent backoff polling for Azure queues.
+    /// Utility for implementing semi-intelligent backoff polling for Azure queues.
     /// </summary>
     class BackoffPollingHelper
     {
@@ -16,6 +18,9 @@ namespace DurableTask.AzureStorage
         readonly long minDelayThreasholdMs;
         readonly double sleepToWaitRatio;
         readonly Stopwatch stopwatch;
+
+        TimeSpan delayTimeout;
+        AsyncAutoResetEvent resetEvent;
 
         public BackoffPollingHelper(TimeSpan maxDelay, TimeSpan minDelayThreshold, double sleepToWaitRatio = 0.1)
         {
@@ -26,14 +31,28 @@ namespace DurableTask.AzureStorage
             this.minDelayThreasholdMs = (long)minDelayThreshold.TotalMilliseconds;
             this.sleepToWaitRatio = sleepToWaitRatio;
             this.stopwatch = new Stopwatch();
+            this.resetEvent = new AsyncAutoResetEvent(signaled: false);
+            this.delayTimeout = TimeSpan.Zero;
         }
 
         public void Reset()
         {
             this.stopwatch.Reset();
+            this.resetEvent.Set();
         }
 
-        public TimeSpan GetNextDelay()
+        public async Task<bool> WaitAsync(CancellationToken hostCancellationToken)
+        {
+            bool signaled = await this.resetEvent.WaitAsync(this.delayTimeout, hostCancellationToken);
+            if (!signaled)
+            {
+                this.IncreaseDelay();
+            }
+
+            return signaled;
+        }
+
+        private void IncreaseDelay()
         {
             if (!this.stopwatch.IsRunning)
             {
@@ -42,17 +61,23 @@ namespace DurableTask.AzureStorage
 
             long elapsedMs = this.stopwatch.ElapsedMilliseconds;
             double sleepDelayMs = elapsedMs * this.sleepToWaitRatio;
+
+            TimeSpan nextDelay;
             if (sleepDelayMs < minDelayThreasholdMs)
             {
-                return TimeSpan.Zero;
+                nextDelay = TimeSpan.Zero;
             }
-
-            if (sleepDelayMs > this.maxDelayMs)
+            else
             {
-                sleepDelayMs = this.maxDelayMs;
+                if (sleepDelayMs > this.maxDelayMs)
+                {
+                    sleepDelayMs = this.maxDelayMs;
+                }
+
+                nextDelay = TimeSpan.FromMilliseconds(sleepDelayMs);
             }
 
-            return TimeSpan.FromMilliseconds(sleepDelayMs);
+            this.delayTimeout = nextDelay;
         }
     }
 }
