@@ -28,8 +28,9 @@ namespace DurableTask.ServiceFabric
     //   - Support writing/querying/purging history events
     class FabricOrchestrationInstanceStore : IFabricOrchestrationServiceInstanceStore
     {
-        const string TimeFormatString = "yyyy-MM-dd-HH";
-        const string TimeFormatStringPrefix = "yyyy-MM-dd-";
+        const string InstanceStoreCollectionNamePrefix = "InstSt_";
+        const string TimeFormatString = Constants.CollectionNameUniquenessPrefix + InstanceStoreCollectionNamePrefix + "yyyy-MM-dd-HH";
+        const string TimeFormatStringPrefix = Constants.CollectionNameUniquenessPrefix + InstanceStoreCollectionNamePrefix + "yyyy-MM-dd-";
         readonly IReliableStateManager stateManager;
 
         CancellationTokenSource cancellationTokenSource;
@@ -71,7 +72,6 @@ namespace DurableTask.ServiceFabric
 
         public async Task WriteEntitesAsync(ITransaction transaction, IEnumerable<InstanceEntityBase> entities)
         {
-            var backupDictionaryName = GetDictionaryKeyFromTime(DateTime.UtcNow);
             foreach (var entity in entities)
             {
                 var state = entity as OrchestrationStateInstanceEntity;
@@ -91,6 +91,7 @@ namespace DurableTask.ServiceFabric
                     }
                     else
                     {
+                        var backupDictionaryName = GetDictionaryKeyFromTime(DateTime.UtcNow);
                         // It's intentional to not pass 'transaction' parameter to this call, this API doesn't seem to follow
                         // see-what-you-commit-within-the-transaction rules. If we add it within the transaction and immediately
                         // try to AddOrUpdateAsync an entry in dictionary that doesn't work.

@@ -15,10 +15,11 @@ namespace DurableTask.ServiceFabric
 {
     static class Constants
     {
-        internal const string OrchestrationDictionaryName = "Orchestrations";
-        internal const string ActivitiesQueueName = "Activities";
-        internal const string InstanceStoreDictionaryName = "InstanceStore";
-        internal const string ExecutionStoreDictionaryName = "ExecutionIdStore";
-        internal const string ScheduledMessagesDictionaryName = "ScheduledMessages";
+        internal const string CollectionNameUniquenessPrefix = "DtfxSfp_";
+        internal const string OrchestrationDictionaryName = CollectionNameUniquenessPrefix + "Orchestrations";
+        internal const string ActivitiesQueueName = CollectionNameUniquenessPrefix + "Activities";
+        internal const string InstanceStoreDictionaryName = CollectionNameUniquenessPrefix + "InstanceStore";
+        internal const string ExecutionStoreDictionaryName = CollectionNameUniquenessPrefix + "ExecutionIdStore";
+        internal const string ScheduledMessagesDictionaryName = CollectionNameUniquenessPrefix + "ScheduledMessages";
     }
 }
