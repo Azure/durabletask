@@ -5,6 +5,7 @@
 namespace DurableTask.AzureStorage
 {
     using System;
+    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Linq;
@@ -31,6 +32,7 @@ namespace DurableTask.AzureStorage
         readonly CloudQueue workItemQueue;
         readonly CloudTable historyTable;
         readonly LinkedList<PendingMessageBatch> pendingOrchestrationMessages;
+        readonly ConcurrentDictionary<string, object> activeOrchestrationInstances;
 
         readonly TableEntityConverter tableEntityConverter;
         readonly IReadOnlyDictionary<EventType, Type> eventTypeMap;
@@ -38,6 +40,9 @@ namespace DurableTask.AzureStorage
         readonly BackoffPollingHelper controlQueueBackoff;
         readonly BackoffPollingHelper workItemQueueBackoff;
 
+        readonly object hubCreationLock;
+
+        Task cachedTaskHubCreationTask;
         bool isStarted;
 
         public AzureStorageOrchestrationService(AzureStorageOrchestrationServiceSettings settings)
@@ -46,6 +51,8 @@ namespace DurableTask.AzureStorage
             {
                 throw new ArgumentNullException(nameof(settings));
             }
+
+            ValidateSettings(settings);
 
             this.settings = settings;
             this.tableEntityConverter = new TableEntityConverter();
@@ -64,6 +71,7 @@ namespace DurableTask.AzureStorage
             this.historyTable = tableClient.GetTableReference(historyTableName);
 
             this.pendingOrchestrationMessages = new LinkedList<PendingMessageBatch>();
+            this.activeOrchestrationInstances = new ConcurrentDictionary<string, object>(StringComparer.OrdinalIgnoreCase);
 
             // Use reflection to learn all the different event types supported by DTFx.
             // This could have been hardcoded, but I generally try to avoid hardcoding of point-in-time DTFx knowledge.
@@ -79,9 +87,21 @@ namespace DurableTask.AzureStorage
             var minPollingDelayThreshold = TimeSpan.FromMilliseconds(500);
             this.controlQueueBackoff = new BackoffPollingHelper(maxPollingDelay, minPollingDelayThreshold);
             this.workItemQueueBackoff = new BackoffPollingHelper(maxPollingDelay, minPollingDelayThreshold);
+
+            this.hubCreationLock = new object();
         }
 
         public event EventHandler<HistoryEventArgs> OnNewEvent;
+
+        static void ValidateSettings(AzureStorageOrchestrationServiceSettings settings)
+        {
+            if (settings.ControlQueueBatchSize > 32)
+            {
+                throw new ArgumentOutOfRangeException(nameof(settings), "The control queue batch size must not exceed 32.");
+            }
+
+            // TODO: More validation.
+        }
 
         #region IOrchestrationService
         /// <summary>
@@ -112,21 +132,31 @@ namespace DurableTask.AzureStorage
         {
             await this.DeleteAsync();
 
-            Task createControlQueue = this.controlQueue.CreateAsync();
-            Task createWorkItemQueue = this.workItemQueue.CreateAsync();
-            Task createHistoryTable = this.historyTable.CreateAsync();
-            await Task.WhenAll(createControlQueue, createWorkItemQueue, createHistoryTable);
+            lock (this.hubCreationLock)
+            {
+                this.cachedTaskHubCreationTask = Task.WhenAll(
+                    this.controlQueue.CreateAsync(),
+                    this.workItemQueue.CreateAsync(),
+                    this.historyTable.CreateAsync());
+            }
+
+            await this.cachedTaskHubCreationTask;
         }
 
         /// <summary>
         /// Creates the necessary Azure Storage resources for the orchestration service if they don't already exist.
         /// </summary>
-        public async Task CreateIfNotExistsAsync()
+        public Task CreateIfNotExistsAsync()
         {
-            Task createControlQueue = this.controlQueue.CreateIfNotExistsAsync();
-            Task createWorkItemQueue = this.workItemQueue.CreateIfNotExistsAsync();
-            Task createHistoryTable = this.historyTable.CreateIfNotExistsAsync();
-            await Task.WhenAll(createControlQueue, createWorkItemQueue, createHistoryTable);
+            lock (this.hubCreationLock)
+            {
+                this.cachedTaskHubCreationTask = Task.WhenAll(
+                    this.controlQueue.CreateIfNotExistsAsync(),
+                    this.workItemQueue.CreateIfNotExistsAsync(),
+                    this.historyTable.CreateIfNotExistsAsync());
+            }
+
+            return this.cachedTaskHubCreationTask;
         }
 
         /// <summary>
@@ -134,10 +164,16 @@ namespace DurableTask.AzureStorage
         /// </summary>
         public async Task DeleteAsync()
         {
-            Task<bool> deleteControlQueue = this.controlQueue.DeleteIfExistsAsync();
-            Task<bool> deleteWorkItemQueue = this.workItemQueue.DeleteIfExistsAsync();
-            Task<bool> deleteHistoryTable = this.historyTable.DeleteIfExistsAsync();
-            await Task.WhenAll(deleteControlQueue, deleteWorkItemQueue, deleteHistoryTable);
+            await Task.WhenAll(
+                this.controlQueue.DeleteIfExistsAsync(),
+                this.workItemQueue.DeleteIfExistsAsync(),
+                this.historyTable.DeleteIfExistsAsync());
+            this.cachedTaskHubCreationTask = null;
+        }
+
+        Task EnsuredCreatedIfNotExistsAsync()
+        {
+            return this.cachedTaskHubCreationTask ?? this.CreateIfNotExistsAsync();
         }
 
         public Task CreateAsync(bool recreateInstanceStore)
@@ -184,6 +220,8 @@ namespace DurableTask.AzureStorage
             TimeSpan receiveTimeout,
             CancellationToken cancellationToken)
         {
+            await this.EnsuredCreatedIfNotExistsAsync();
+
             PendingMessageBatch nextBatch;
             while (true)
             {
@@ -195,7 +233,7 @@ namespace DurableTask.AzureStorage
                     null /* operationContext */,
                     cancellationToken);
 
-                nextBatch = StashMessagesAndGetNextBatch(queueMessageBatch);
+                nextBatch = this.StashMessagesAndGetNextBatch(queueMessageBatch);
                 if (nextBatch != null)
                 {
                     break;
@@ -248,6 +286,8 @@ namespace DurableTask.AzureStorage
         {
             lock (this.pendingOrchestrationMessages)
             {
+                LinkedListNode<PendingMessageBatch> node;
+
                 // If the queue is empty, queueMessages will be an empty enumerable and this foreach will be skipped.
                 foreach (MessageData data in queueMessages.Select(Utils.DeserializeQueueMessage))
                 {
@@ -255,7 +295,7 @@ namespace DurableTask.AzureStorage
 
                     // Walk backwards through the list of batches until we find one with a matching Instance ID.
                     // This is assumed to be more efficient than walking forward if most messages arrive in the queue in groups.
-                    LinkedListNode<PendingMessageBatch> node = this.pendingOrchestrationMessages.Last;
+                    node = this.pendingOrchestrationMessages.Last;
                     while (node != null)
                     {
                         PendingMessageBatch batch = node.Value;
@@ -279,11 +319,19 @@ namespace DurableTask.AzureStorage
                 }
 
                 // Pull batches of messages off the linked-list in FIFO order to ensure fairness.
-                if (this.pendingOrchestrationMessages.Count > 0)
+                // Skip over instances which are currently being processed.
+                node = this.pendingOrchestrationMessages.First;
+                while (node != null)
                 {
-                    PendingMessageBatch nextBatch = this.pendingOrchestrationMessages.First.Value;
-                    this.pendingOrchestrationMessages.RemoveFirst();
-                    return nextBatch;
+                    PendingMessageBatch nextBatch = node.Value;
+                    if (!this.activeOrchestrationInstances.ContainsKey(nextBatch.OrchestrationInstanceId))
+                    {
+                        this.activeOrchestrationInstances.TryAdd(nextBatch.OrchestrationInstanceId, null);
+                        this.pendingOrchestrationMessages.Remove(node);
+                        return nextBatch;
+                    }
+
+                    node = node.Next;
                 }
 
                 return null;
@@ -382,6 +430,9 @@ namespace DurableTask.AzureStorage
 
             var newEventList = new StringBuilder(newEvents.Count * 40);
             var batchOperation = new TableBatchOperation();
+            var tableBatchBatches = new List<TableBatchOperation>();
+            tableBatchBatches.Add(batchOperation);
+
             for (int i = 0; i < newEvents.Count; i++)
             {
                 HistoryEvent historyEvent = newEvents[i];
@@ -394,6 +445,13 @@ namespace DurableTask.AzureStorage
                 entity.RowKey = $"{sequenceNumber:X16}";
                 entity.PartitionKey = instanceId;
 
+                // Table storage only supports inserts of up to 100 entities at a time.
+                if (batchOperation.Count == 100)
+                {
+                    tableBatchBatches.Add(batchOperation);
+                    batchOperation = new TableBatchOperation();
+                }
+
                 // Replacement can happen if the orchestration episode gets replayed due to a commit failure in one of the steps below.
                 batchOperation.InsertOrReplace(entity);
             }
@@ -405,20 +463,27 @@ namespace DurableTask.AzureStorage
             //       that the requirements for this may change in the near future.
 
             // First persistence step is to commit history to the history table. Messages must come after.
-            if (batchOperation.Count > 0)
+            // CONSIDER: If there are a large number of history items and messages, we could potentially
+            //           improve overall system throughput by incrementally enqueuing batches of messages
+            //           as we write to the table rather than waiting for all table batches to complete
+            //           before we enqueue messages.
+            foreach (TableBatchOperation operation in tableBatchBatches)
             {
-                Stopwatch stopwatch = Stopwatch.StartNew();
-                await this.historyTable.ExecuteBatchAsync(
-                    batchOperation,
-                    this.settings.HistoryTableRequestOptions,
-                    context.StorageOperationContext);
+                if (operation.Count > 0)
+                {
+                    Stopwatch stopwatch = Stopwatch.StartNew();
+                    await this.historyTable.ExecuteBatchAsync(
+                        operation,
+                        this.settings.HistoryTableRequestOptions,
+                        context.StorageOperationContext);
 
-                AnalyticsEventSource.Log.AppendedInstanceState(
-                    instanceId,
-                    newEvents.Count,
-                    allEvents.Count,
-                    newEventList.ToString(0, newEventList.Length - 1),
-                    stopwatch.ElapsedMilliseconds);
+                    AnalyticsEventSource.Log.AppendedInstanceState(
+                        instanceId,
+                        newEvents.Count,
+                        allEvents.Count,
+                        newEventList.ToString(0, newEventList.Length - 1),
+                        stopwatch.ElapsedMilliseconds);
+                }
             }
 
             bool addedControlMessages = false;
@@ -449,6 +514,10 @@ namespace DurableTask.AzureStorage
                     DateTime messageFireTime = ((TimerFiredEvent)taskMessage.Event).FireAt;
                     TimeSpan initialVisibilityDelay = messageFireTime.Subtract(DateTime.UtcNow);
                     Debug.Assert(initialVisibilityDelay <= TimeSpan.FromDays(7));
+                    if (initialVisibilityDelay < TimeSpan.Zero)
+                    {
+                        initialVisibilityDelay = TimeSpan.Zero;
+                    }
 
                     enqueueTasks.Add(this.controlQueue.AddMessageAsync(
                         context.CreateOutboundQueueMessage(taskMessage),
@@ -600,12 +669,17 @@ namespace DurableTask.AzureStorage
             }
 
             ReceivedMessageContext.RemoveContext(workItem);
+
+            object ignored;
+            this.activeOrchestrationInstances.TryRemove(workItem.InstanceId, out ignored);
         }
         #endregion
 
         #region Task Activity Methods
         public async Task<TaskActivityWorkItem> LockNextTaskActivityWorkItem(TimeSpan receiveTimeout, CancellationToken cancellationToken)
         {
+            await this.EnsuredCreatedIfNotExistsAsync();
+
             CloudQueueMessage queueMessage;
             while (true)
             {
@@ -753,10 +827,10 @@ namespace DurableTask.AzureStorage
 
         public bool IsMaxMessageCountExceeded(int currentMessageCount, OrchestrationRuntimeState runtimeState)
         {
-            // Azure Table storage only supports inserting batches of 100 at a time.
-            // Azure Queues do not support batches at all, but we don't rely on transactional
-            // enqueue operations so we are not affected by this limitation.
-            return runtimeState.NewEvents.Count > 100;
+            // This orchestration service implementation will manage batch sizes by itself.
+            // We don't want to rely on the underlying framework's backoff mechanism because
+            // it would require us to implement some kind of duplicate message detection.
+            return false;
         }
 
         public int GetDelayInSecondsAfterOnFetchException(Exception exception)
@@ -800,6 +874,9 @@ namespace DurableTask.AzureStorage
         /// <param name="message">The message to send.</param>
         public async Task SendTaskOrchestrationMessageAsync(TaskMessage message)
         {
+            // Client operations will auto-create the task hub if it doesn't already exist.
+            await this.EnsuredCreatedIfNotExistsAsync();
+
             var operationContext = new OperationContext();
             operationContext.SendingRequest += ReceivedMessageContext.OnSendingRequest;
 
@@ -834,6 +911,9 @@ namespace DurableTask.AzureStorage
         /// <returns>The <see cref="OrchestrationState"/> object that represents the orchestration.</returns>
         public async Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)
         {
+            // Client operations will auto-create the task hub if it doesn't already exist.
+            await this.EnsuredCreatedIfNotExistsAsync();
+
             // TODO: Need to consider the execution ID
             OrchestrationRuntimeState runtimeState = await this.GetOrchestrationRuntimeStateAsync(
                 instanceId,

@@ -11,8 +11,11 @@ namespace DurableTask.AzureStorage
     /// <summary>
     /// ETW Event Provider for the DurableTask.AzureStorage provider extension.
     /// </summary>
+    /// <remarks>
+    /// The ETW Provider ID for this event source is {2ac15994-1f60-58dd-3d9a-58a0484fad3f}.
+    /// </remarks>
     [EventSource(Name = "DurableTask.AzureStorage")]
-    class AnalyticsEventSource : EventSource
+    public class AnalyticsEventSource : EventSource
     {
         const string TraceActivityIdSlot = "TraceActivityId";
 

@@ -14,14 +14,15 @@ namespace DurableTask.AzureStorage
     public class AzureStorageOrchestrationServiceSettings
     {
         /// <summary>
-        /// Gets or sets the number of messages to pull from the control queue at a time. The default is 20.
+        /// Gets or sets the number of messages to pull from the control queue at a time. The default is 32.
+        /// The maximum batch size supported by Azure Storage Queues is 32.
         /// </summary>
-        public int ControlQueueBatchSize { get; set; } = 20;
+        public int ControlQueueBatchSize { get; set; } = 32;
 
         /// <summary>
-        /// Gets or sets the visibility timeout of dequeued control queue messages. The default is 30 seconds.
+        /// Gets or sets the visibility timeout of dequeued control queue messages. The default is 90 seconds.
         /// </summary>
-        public TimeSpan ControlQueueVisibilityTimeout { get; set; } = TimeSpan.FromSeconds(30);
+        public TimeSpan ControlQueueVisibilityTimeout { get; set; } = TimeSpan.FromSeconds(90);
 
         /// <summary>
         /// Gets or sets the <see cref="QueueRequestOptions"/> that are provided to all internal 
@@ -30,9 +31,9 @@ namespace DurableTask.AzureStorage
         public QueueRequestOptions ControlQueueRequestOptions { get; set; }
 
         /// <summary>
-        /// /// Gets or sets the visibility timeout of dequeued work item queue messages. The default is 30 seconds.
+        /// /// Gets or sets the visibility timeout of dequeued work item queue messages. The default is 90 seconds.
         /// </summary>
-        public TimeSpan WorkItemQueueVisibilityTimeout { get; set; } = TimeSpan.FromSeconds(30);
+        public TimeSpan WorkItemQueueVisibilityTimeout { get; set; } = TimeSpan.FromSeconds(90);
 
         /// <summary>
         /// Gets or sets the <see cref="QueueRequestOptions"/> that are provided to all internal 
@@ -68,7 +69,5 @@ namespace DurableTask.AzureStorage
         /// The default value is 100.
         /// </summary>
         public int MaxConcurrentTaskOrchestrationWorkItems { get; set; } = 100;
-
-
     }
 }
