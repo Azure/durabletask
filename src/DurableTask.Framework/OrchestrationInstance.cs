@@ -19,7 +19,7 @@ namespace DurableTask
     /// Represents the state of an orchestration instance
     /// </summary>
     [DataContract]
-    public class OrchestrationInstance
+    public class OrchestrationInstance : IExtensibleDataObject
     {
         /// <summary>
         /// The instance id, assigned as unique to the orchestration
@@ -63,5 +63,10 @@ namespace DurableTask
         {
             return $"[InstanceId: {InstanceId}, ExecutionId: {ExecutionId}]";
         }
+
+        /// <summary>
+        /// Implementation for <see cref="IExtensibleDataObject.ExtensionData"/>.
+        /// </summary>
+        public ExtensionDataObject ExtensionData { get; set; }
     }
 }
