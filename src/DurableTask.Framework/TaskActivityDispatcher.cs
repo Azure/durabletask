@@ -27,13 +27,13 @@ namespace DurableTask
     /// </summary>
     public sealed class TaskActivityDispatcher
     {
-        readonly NameVersionObjectManager<TaskActivity> objectManager;
+        readonly INameVersionObjectManager<TaskActivity> objectManager;
         readonly WorkItemDispatcher<TaskActivityWorkItem> dispatcher; 
         readonly IOrchestrationService orchestrationService;
         
         internal TaskActivityDispatcher(
             IOrchestrationService orchestrationService,
-            NameVersionObjectManager<TaskActivity> objectManager)
+            INameVersionObjectManager<TaskActivity> objectManager)
         {
             if (orchestrationService == null)
             {

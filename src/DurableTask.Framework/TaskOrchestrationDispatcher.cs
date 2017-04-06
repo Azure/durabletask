@@ -31,14 +31,14 @@ namespace DurableTask
     /// </summary>
     public class TaskOrchestrationDispatcher 
     {
-        readonly NameVersionObjectManager<TaskOrchestration> objectManager;
+        readonly INameVersionObjectManager<TaskOrchestration> objectManager;
         readonly IOrchestrationService orchestrationService;
         readonly WorkItemDispatcher<TaskOrchestrationWorkItem> dispatcher;
         static readonly DataConverter DataConverter = new JsonDataConverter();
 
         internal TaskOrchestrationDispatcher(
             IOrchestrationService orchestrationService,
-            NameVersionObjectManager<TaskOrchestration> objectManager)
+            INameVersionObjectManager<TaskOrchestration> objectManager)
         {
             if (orchestrationService == null)
             {

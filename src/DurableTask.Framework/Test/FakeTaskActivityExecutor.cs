@@ -23,10 +23,10 @@ namespace DurableTask.Test
     internal class FakeTaskActivityExecutor
     {
         readonly JsonDataConverter dataConverter;
-        readonly NameVersionObjectManager<TaskActivity> objectManager;
+        readonly INameVersionObjectManager<TaskActivity> objectManager;
         int pendingExecutions;
 
-        public FakeTaskActivityExecutor(NameVersionObjectManager<TaskActivity> objectManager)
+        public FakeTaskActivityExecutor(INameVersionObjectManager<TaskActivity> objectManager)
         {
             dataConverter = new JsonDataConverter();
             pendingExecutions = 0;
