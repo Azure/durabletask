@@ -19,7 +19,7 @@ namespace DurableTask.ServiceFabric
     using DurableTask.History;
 
     [DataContract]
-    sealed partial class PersistentSession
+    sealed partial class PersistentSession : IExtensibleDataObject
     {
         // Note : Ideally all the properties in this class should be readonly because this
         // class is designed to be immutable class. We use private settable properties
@@ -67,10 +67,12 @@ namespace DurableTask.ServiceFabric
 
         public ImmutableList<HistoryEvent> SessionState => this.sessionState.ToImmutableList();
         public ImmutableList<ReceivableTaskMessage> Messages => this.messages.ToImmutableList();
+
+        public ExtensionDataObject ExtensionData { get; set; }
     }
 
     [DataContract]
-    sealed class ReceivableTaskMessage
+    sealed class ReceivableTaskMessage : IExtensibleDataObject
     {
         [DataMember]
         public TaskMessage TaskMessage { get; private set; }
@@ -87,5 +89,7 @@ namespace DurableTask.ServiceFabric
         {
             return new ReceivableTaskMessage(taskMessage, isReceived);
         }
+
+        public ExtensionDataObject ExtensionData { get; set; }
     }
 }
