@@ -576,7 +576,7 @@ namespace DurableTask.ServiceBus.Tests
                 }
                 catch (SubOrchestrationFailedException ex)
                 {
-                    result = ex.Message.Replace(": @DurableTask.ServiceBus.Tests.ErrorHandlingTests+IRetryTask.DoWork", "");
+                    result = ex.Message;
                 }
 
                 Result = result;
@@ -613,7 +613,7 @@ namespace DurableTask.ServiceBus.Tests
                 }
                 catch (TaskFailedException e)
                 {
-                    result = e.Message.Replace(": @DurableTask.ServiceBus.Tests.ErrorHandlingTests+IRetryTask.DoWork", "");
+                    result = e.Message;
                     if (rethrowException)
                     {
                         throw e;

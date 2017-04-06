@@ -82,10 +82,10 @@ namespace DurableTask.Tracking
             table.CreateIfNotExists();
         }
 
-        internal Task CreateTableIfNotExistsAsync()
+        internal async Task CreateTableIfNotExistsAsync()
         {
             table = tableClient.GetTableReference(TableName);
-            return table.CreateIfNotExistsAsync();
+            await table.CreateIfNotExistsAsync();
         }
 
         internal void CreateJumpStartTableIfNotExists()
@@ -94,10 +94,10 @@ namespace DurableTask.Tracking
             jumpStartTable.CreateIfNotExists();
         }
 
-        internal Task CreateJumpStartTableIfNotExistsAsync()
+        internal async Task CreateJumpStartTableIfNotExistsAsync()
         {
             jumpStartTable = tableClient.GetTableReference(this.JumpStartTableName);
-            return jumpStartTable.CreateIfNotExistsAsync();
+            await jumpStartTable.CreateIfNotExistsAsync();
         }
 
         internal void DeleteTableIfExists()
