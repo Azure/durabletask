@@ -17,7 +17,7 @@
         <dependency id="Microsoft.ServiceFabric" version="5.1.163" />
         <dependency id="Microsoft.ServiceFabric.Data" version="2.1.163" />
         <dependency id="Microsoft.ServiceFabric.Services" version="2.1.163" />
-        <dependency id="Newtonsoft.Json" version="7.0.1" />
+        <dependency id="Newtonsoft.Json" version="8.0.3" />
         <dependency id="System.Collections.Immutable" version="1.2.0" />
         <dependency id="Microsoft.Diagnostics.Tracing.EventSource.Redist" version="1.1.28" />
       </group>
