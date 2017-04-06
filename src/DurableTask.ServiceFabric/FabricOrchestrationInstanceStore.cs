@@ -28,9 +28,9 @@ namespace DurableTask.ServiceFabric
     //   - Support writing/querying/purging history events
     class FabricOrchestrationInstanceStore : IFabricOrchestrationServiceInstanceStore
     {
-        const string InstanceStoreCollectionNamePrefix = "InstSt_";
-        const string TimeFormatString = Constants.CollectionNameUniquenessPrefix + InstanceStoreCollectionNamePrefix + "yyyy-MM-dd-HH";
-        const string TimeFormatStringPrefix = Constants.CollectionNameUniquenessPrefix + InstanceStoreCollectionNamePrefix + "yyyy-MM-dd-";
+        const string InstanceStoreCollectionNamePrefix = Constants.CollectionNameUniquenessPrefix + "InstSt_";
+        const string TimeFormatString =  "yyyy-MM-dd-HH";
+        const string TimeFormatStringPrefix = "yyyy-MM-dd-";
         readonly IReliableStateManager stateManager;
 
         CancellationTokenSource cancellationTokenSource;
@@ -91,7 +91,7 @@ namespace DurableTask.ServiceFabric
                     }
                     else
                     {
-                        var backupDictionaryName = GetDictionaryKeyFromTime(DateTime.UtcNow);
+                        var backupDictionaryName = GetDictionaryKeyFromTimeFormat(DateTime.UtcNow);
                         // It's intentional to not pass 'transaction' parameter to this call, this API doesn't seem to follow
                         // see-what-you-commit-within-the-transaction rules. If we add it within the transaction and immediately
                         // try to AddOrUpdateAsync an entry in dictionary that doesn't work.
@@ -149,7 +149,7 @@ namespace DurableTask.ServiceFabric
                 var now = DateTime.UtcNow;
                 for (int i = 0; i < 2; i++)
                 {
-                    var backupDictionaryName = GetDictionaryKeyFromTime(now - TimeSpan.FromHours(i));
+                    var backupDictionaryName = GetDictionaryKeyFromTimeFormat(now - TimeSpan.FromHours(i));
                     var backupDictionary = await this.stateManager.TryGetAsync<IReliableDictionary<string, OrchestrationState>>(backupDictionaryName);
 
                     if (backupDictionary.HasValue)
@@ -180,7 +180,7 @@ namespace DurableTask.ServiceFabric
         // are completed between 9.00 to 9.59!!!
         public Task PurgeOrchestrationHistoryEventsAsync(DateTime threshholdHourlyDateTimeUtc)
         {
-            return this.stateManager.RemoveAsync(GetDictionaryKeyFromTime(threshholdHourlyDateTimeUtc));
+            return this.stateManager.RemoveAsync(GetDictionaryKeyFromTimeFormat(threshholdHourlyDateTimeUtc));
         }
 
         string GetKey(string instanceId, string executionId)
@@ -188,16 +188,26 @@ namespace DurableTask.ServiceFabric
             return string.Concat(instanceId, "_", executionId);
         }
 
-        string GetDictionaryKeyFromTime(DateTime time)
+        string GetDictionaryKeyFromTimeFormat(DateTime time)
         {
-            return time.ToString(TimeFormatString);
+            return GetInstanceStoreBackupDictionaryKey(time, TimeFormatString);
+        }
+
+        string GetDictionaryKeyFromTimePrefixFormat(DateTime time)
+        {
+            return GetInstanceStoreBackupDictionaryKey(time, TimeFormatStringPrefix);
+        }
+
+        string GetInstanceStoreBackupDictionaryKey(DateTime time, string formatString)
+        {
+            return InstanceStoreCollectionNamePrefix + time.ToString(formatString);
         }
 
         async Task CleanupDayOldDictionaries()
         {
             while (!this.cancellationTokenSource.IsCancellationRequested)
             {
-                var purgeTime = (DateTime.UtcNow - TimeSpan.FromDays(1)).ToString(TimeFormatStringPrefix);
+                var purgeTime = GetDictionaryKeyFromTimePrefixFormat(DateTime.UtcNow - TimeSpan.FromDays(1));
 
                 for (int i = 0; i < 24; i++)
                 {
