@@ -373,7 +373,7 @@ namespace DurableTask
                 });
             }
 
-            await Task.WhenAll(taskMessages.Select(async taskMessage => await this.serviceClient.CreateTaskOrchestrationAsync(taskMessage)));
+            await Task.WhenAll(taskMessages.Select(this.serviceClient.CreateTaskOrchestrationAsync));
             return orchestrationInstance;
         }
 

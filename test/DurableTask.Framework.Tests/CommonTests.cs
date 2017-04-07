@@ -27,7 +27,11 @@ namespace DurableTask.Framework.Tests
             Assert.IsTrue(DateTime.MaxValue.IsSet());
             Assert.IsFalse(DateTime.MinValue.IsSet());
             Assert.IsFalse(DateTimeUtils.MinDateTime.IsSet());
-            Assert.IsFalse(DateTime.FromFileTimeUtc(0).IsSet());
+
+            if (DateTimeUtils.MinDateTime == DateTime.FromFileTimeUtc(0))
+            {
+                Assert.IsFalse(DateTime.FromFileTimeUtc(0).IsSet());
+            }
         }
     }
 }

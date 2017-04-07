@@ -45,12 +45,6 @@ namespace DurableTask.Samples
                 string storageConnectionString = Program.GetSetting("StorageConnectionString");
                 string taskHubName = ConfigurationManager.AppSettings["taskHubName"];
 
-                // Workaround a bug in the Storage Emulator that throws exceptions for any date < 1600 so DateTime.Min cannot be used
-                if (storageConnectionString.Contains("UseDevelopmentStorage=true"))
-                {
-                    DateTimeUtils.SetMinDateTimeForStorageEmulator();
-                }
-
                 IOrchestrationServiceInstanceStore instanceStore = new AzureTableInstanceStore(taskHubName, storageConnectionString);
 
                 ServiceBusOrchestrationService orchestrationServiceAndClient =

@@ -29,12 +29,6 @@ namespace DurableTask.Stress.Tests
         {
             string tableConnectionString = ConfigurationManager.AppSettings["StorageConnectionString"];
 
-            // Workaround a bug in the Storage Emulator that throws exceptions for any date < 1600 so DateTime.Min cannot be used
-            if (tableConnectionString.Contains("UseDevelopmentStorage=true"))
-            {
-                DateTimeUtils.SetMinDateTimeForStorageEmulator();
-            }
-
             if (CommandLine.Parser.Default.ParseArgumentsStrict(args, options))
             {
                 string connectionString = ConfigurationManager.ConnectionStrings["Microsoft.ServiceBus.ConnectionString"].ConnectionString;
