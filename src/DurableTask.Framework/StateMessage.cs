@@ -16,8 +16,9 @@ namespace DurableTask
     using System.Runtime.Serialization;
 
     [DataContract]
-    internal class StateMessage
+    internal class StateMessage : IExtensibleDataObject
     {
         [DataMember] public OrchestrationState State;
+        public ExtensionDataObject ExtensionData { get; set; }
     }
 }
