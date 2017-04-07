@@ -36,7 +36,7 @@ namespace DurableTask.History
     [KnownType(typeof (EventRaisedEvent))]
     [KnownType(typeof (ContinueAsNewEvent))]
     [KnownType(typeof (HistoryStateEvent))]
-    public abstract class HistoryEvent
+    public abstract class HistoryEvent : IExtensibleDataObject
     {
         /// <summary>
         /// Creates a new history event with the supplied eventid
@@ -72,5 +72,10 @@ namespace DurableTask.History
         /// </summary>
         [DataMember]
         public virtual EventType EventType { get; private set; }
+
+        /// <summary>
+        /// Implementation for <see cref="IExtensibleDataObject.ExtensionData"/>.
+        /// </summary>
+        public ExtensionDataObject ExtensionData { get; set; }
     }
 }
