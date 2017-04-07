@@ -21,7 +21,7 @@ namespace DurableTask
     /// Wire level transport object for task messages containing events and orchestration instance information
     /// </summary>
     [DataContract]
-    public class TaskMessage
+    public class TaskMessage : IExtensibleDataObject
     {
         /// <summary>
         /// Even information for this taks message
@@ -37,5 +37,10 @@ namespace DurableTask
         /// The orchestration instance information
         /// </summary>
         [DataMember] public OrchestrationInstance OrchestrationInstance;
+
+        /// <summary>
+        /// Implementation for <see cref="IExtensibleDataObject.ExtensionData"/>.
+        /// </summary>
+        public ExtensionDataObject ExtensionData { get; set; }
     }
 }

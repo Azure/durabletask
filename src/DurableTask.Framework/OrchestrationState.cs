@@ -21,7 +21,7 @@ namespace DurableTask
     /// Represents the state of an orchestration
     /// </summary>
     [DataContract]
-    public class OrchestrationState
+    public class OrchestrationState : IExtensibleDataObject
     {
         /// <summary>
         /// Completion datetime of the orchestration
@@ -92,5 +92,10 @@ namespace DurableTask
         /// The orchestration version
         /// </summary>
         [DataMember] public string Version;
+
+        /// <summary>
+        /// Implementation for <see cref="IExtensibleDataObject.ExtensionData"/>.
+        /// </summary>
+        public ExtensionDataObject ExtensionData { get; set; }
     }
 }
