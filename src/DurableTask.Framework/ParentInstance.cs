@@ -19,7 +19,7 @@ namespace DurableTask
     /// Represents the parent orchestation of a sub orchestration
     /// </summary>
     [DataContract]
-    public class ParentInstance
+    public class ParentInstance : IExtensibleDataObject
     {
         /// <summary>
         /// The orchestration name of the parent instance
@@ -51,5 +51,10 @@ namespace DurableTask
                 OrchestrationInstance = OrchestrationInstance.Clone()
             };
         }
+
+        /// <summary>
+        /// Implementation for <see cref="IExtensibleDataObject.ExtensionData"/>.
+        /// </summary>
+        public ExtensionDataObject ExtensionData { get; set; }
     }
 }
