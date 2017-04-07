@@ -55,80 +55,51 @@ namespace DurableTask.Tracking
                 throw new ArgumentException("Invalid hub name", "hubName");
             }
 
-            tableClient = CloudStorageAccount.Parse(tableConnectionString).CreateCloudTableClient();
-            tableClient.DefaultRequestOptions.RetryPolicy = new ExponentialRetry(DeltaBackOff,
+            this.tableClient = CloudStorageAccount.Parse(tableConnectionString).CreateCloudTableClient();
+            this.tableClient.DefaultRequestOptions.RetryPolicy = new ExponentialRetry(DeltaBackOff,
                 MaxRetries);
-            tableClient.DefaultRequestOptions.MaximumExecutionTime = MaximumExecutionTime;
+            this.tableClient.DefaultRequestOptions.MaximumExecutionTime = MaximumExecutionTime;
 
             this.hubName = hubName;
-            historyTable = tableClient.GetTableReference(TableName);
-            jumpStartTable = tableClient.GetTableReference(this.JumpStartTableName);
+            this.historyTable = tableClient.GetTableReference(TableName);
+            this.jumpStartTable = tableClient.GetTableReference(this.JumpStartTableName);
         }
 
         public string TableName
         {
-            get { return AzureTableConstants.InstanceHistoryTableNamePrefix + "00" + hubName; }
+            get { return AzureTableConstants.InstanceHistoryTableNamePrefix + "00" + this.hubName; }
         }
 
         public string JumpStartTableName
         {
-            get { return AzureTableConstants.JumpStartTableNamePrefix + "00" + hubName; }
-        }
-
-
-        internal void CreateTableIfNotExists()
-        {
-            historyTable = tableClient.GetTableReference(TableName);
-            historyTable.CreateIfNotExists();
+            get { return AzureTableConstants.JumpStartTableNamePrefix + "00" + this.hubName; }
         }
 
         internal async Task CreateTableIfNotExistsAsync()
         {
-            historyTable = tableClient.GetTableReference(TableName);
-            await historyTable.CreateIfNotExistsAsync();
-        }
-
-        internal void CreateJumpStartTableIfNotExists()
-        {
-            jumpStartTable = tableClient.GetTableReference(this.JumpStartTableName);
-            jumpStartTable.CreateIfNotExists();
+            this.historyTable = tableClient.GetTableReference(TableName);
+            await this.historyTable.CreateIfNotExistsAsync();
         }
 
         internal async Task CreateJumpStartTableIfNotExistsAsync()
         {
             jumpStartTable = tableClient.GetTableReference(this.JumpStartTableName);
-            await jumpStartTable.CreateIfNotExistsAsync();
-        }
-
-        internal void DeleteTableIfExists()
-        {
-            if (historyTable != null)
-            {
-                historyTable.DeleteIfExists();
-            }
+            await this.jumpStartTable.CreateIfNotExistsAsync();
         }
 
         internal async Task DeleteTableIfExistsAsync()
         {
-            if (historyTable != null)
+            if (this.historyTable != null)
             {
-                await historyTable.DeleteIfExistsAsync();
-            }
-        }
-
-        internal void DeleteJumpStartTableIfExists()
-        {
-            if (jumpStartTable != null)
-            {
-                jumpStartTable.DeleteIfExists();
+                await this.historyTable.DeleteIfExistsAsync();
             }
         }
 
         internal async Task DeleteJumpStartTableIfExistsAsync()
         {
-            if (jumpStartTable != null)
+            if (this.jumpStartTable != null)
             {
-                await jumpStartTable.DeleteIfExistsAsync();
+                await this.jumpStartTable.DeleteIfExistsAsync();
             }
         }
 
@@ -483,7 +454,6 @@ namespace DurableTask.Tracking
             }
 
             IList<TableResult> results = await table.ExecuteBatchAsync(batchOperation);
-
             foreach (TableResult result in results)
             {
                 if (result.HttpStatusCode < 200 || result.HttpStatusCode > 299)

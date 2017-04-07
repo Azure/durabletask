@@ -11,30 +11,23 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Common
+namespace DurableTask.Framework.Tests
 {
     using System;
-    using System.Diagnostics;
-    using Microsoft.ServiceBus.Messaging;
-    using Tracing;
+    using DurableTask.Common;
+    using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-    /// <summary>
-    /// Extension methods for BrokeredMessage
-    /// </summary>
-    public static class BrokeredMessageExtensions
+    [TestClass]
+    public class CommonTests
     {
-        /// <summary>
-        /// Returns delivery latency of the message
-        /// </summary>        
-        public static double DeliveryLatency(this BrokeredMessage message)
+        [TestMethod]
+        public void DateTimeExtensionsIsSetTest()
         {
-            if (message == null)
-            {
-                return 0;
-            }
-
-            DateTime actualEnqueueTimeUtc = (!message.ScheduledEnqueueTimeUtc.IsSet()) ? message.EnqueuedTimeUtc : message.ScheduledEnqueueTimeUtc;
-            return (DateTime.UtcNow - actualEnqueueTimeUtc).TotalMilliseconds;
+            Assert.IsTrue(DateTime.Now.IsSet());
+            Assert.IsTrue(DateTime.MaxValue.IsSet());
+            Assert.IsFalse(DateTime.MinValue.IsSet());
+            Assert.IsFalse(DateTimeUtils.MinDateTime.IsSet());
+            Assert.IsFalse(DateTime.FromFileTimeUtc(0).IsSet());
         }
     }
 }

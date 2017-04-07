@@ -102,6 +102,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Common\DateTimeUtils.cs" />
     <Compile Include="Common\BrokeredMessageExtensions.cs" />
     <Compile Include="History\HistoryStateEvent.cs" />
     <Compile Include="INameVersionObjectManager.cs" />

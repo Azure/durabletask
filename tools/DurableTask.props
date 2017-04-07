@@ -1,12 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
     <PropertyGroup>
+      <!-- Build Settings -->
+      <DebugType Condition="'$(Configuration)'=='Release'">pdbonly</DebugType>
+      <DebugSymbols>True</DebugSymbols>
       <TargetFrameworkVersion>v4.5.1</TargetFrameworkVersion>
+
+      <!-- Code Analysis Settings -->
       <RunCodeAnalysis>True</RunCodeAnalysis>
       <RunCodeAnalysis Condition=" '$(Configuration)' == 'Debug' ">False</RunCodeAnalysis>
       <RunCodeAnalysis Condition=" $(MSBuildProjectName.EndsWith('.Tests')) ">False</RunCodeAnalysis>
       <CodeAnalysisTreatWarningsAsErrors>True</CodeAnalysisTreatWarningsAsErrors>
-	  <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
+	    <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
     </PropertyGroup>
   <Target Name="Build">
   </Target>

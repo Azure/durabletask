@@ -26,7 +26,7 @@ namespace DurableTask.Tracking
         /// <summary>
         /// Gets or sets the task timestamp on the entity
         /// </summary>
-        public DateTime TaskTimeStamp { get; set; }
+        public DateTime TaskTimeStamp { get; set; } = DateTime.Now;
 
         /// <summary>
         /// Gets or sets the entity partition key
@@ -41,7 +41,7 @@ namespace DurableTask.Tracking
         /// <summary>
         /// Gets or sets the row timestamp
         /// </summary>
-        public DateTimeOffset Timestamp { get; set; }
+        public DateTimeOffset Timestamp { get; set; } = DateTimeOffset.Now;
 
         /// <summary>
         /// Gets or sets the entity etag

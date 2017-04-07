@@ -497,7 +497,7 @@ namespace DurableTask
                 Tags = executionStartedEvent.Tags,
                 CreatedTime = executionStartedEvent.Timestamp,
                 LastUpdatedTime = DateTime.UtcNow,
-                CompletedTime = DateTime.MinValue
+                CompletedTime = DateTimeUtils.MinDateTime
             };
 
             var orchestrationStateEntity = new OrchestrationStateInstanceEntity()
@@ -608,7 +608,7 @@ namespace DurableTask
                                 null,
                                 "Worker outbound message",
                                 this.BlobStore,
-                                DateTime.MinValue);
+                                DateTimeUtils.MinDateTime);
                             return new MessageContainer(message, m);
                         }));
                         await workerSender.SendBatchAsync(outboundBrokeredMessages.Select(m => m.Message));
@@ -651,7 +651,7 @@ namespace DurableTask
                                 m.OrchestrationInstance,
                                 "Sub Orchestration",
                                 this.BlobStore,
-                                DateTime.MinValue);
+                                DateTimeUtils.MinDateTime);
                             return new MessageContainer(message, m);
                         }));
                         await orchestratorQueueClient.SendBatchAsync(orchestrationBrokeredMessages.Select(m => m.Message));
@@ -670,7 +670,7 @@ namespace DurableTask
                             newOrchestrationRuntimeState.OrchestrationInstance,
                             "Continue as new",
                             this.BlobStore,
-                            DateTime.MinValue);
+                            DateTimeUtils.MinDateTime);
                         await orchestratorQueueClient.SendAsync(continuedAsNewBrokeredMessage);
                         this.LogSentMessages(session, "Continue as new", new List<MessageContainer>() { new MessageContainer(continuedAsNewBrokeredMessage, null) });
                         this.ServiceStats.OrchestrationDispatcherStats.MessageBatchesSent.Increment();
@@ -858,7 +858,7 @@ namespace DurableTask
                 workItem.TaskMessage.OrchestrationInstance,
                 $"Response for {workItem.TaskMessage.OrchestrationInstance.InstanceId}",
                 this.BlobStore,
-                DateTime.MinValue);
+                DateTimeUtils.MinDateTime);
 
             var originalMessage = GetAndDeleteBrokeredMessageForWorkItem(workItem);
             if (originalMessage == null)
@@ -959,13 +959,14 @@ namespace DurableTask
                 Input = executionStartedEvent?.Input,
                 Tags = executionStartedEvent?.Tags,
                 CreatedTime = createTime,
-                LastUpdatedTime = createTime
+                LastUpdatedTime = createTime,
+                CompletedTime = DateTimeUtils.MinDateTime
             };
 
             var jumpStartEntity = new OrchestrationJumpStartInstanceEntity()
             {
                 State = orchestrationState,
-                JumpStartTime = DateTime.MinValue
+                JumpStartTime = DateTimeUtils.MinDateTime
             };
 
             await this.InstanceStore.WriteJumpStartEntitesAsync(new[] { jumpStartEntity });
@@ -1013,7 +1014,7 @@ namespace DurableTask
                 message.OrchestrationInstance,
                 "SendTaskOrchestrationMessage",
                 this.BlobStore,
-                DateTime.MinValue);
+                DateTimeUtils.MinDateTime);
 
             // Use duplicate detection of ExecutionStartedEvent by addin messageId
             var executionStartedEvent = message.Event as ExecutionStartedEvent;
@@ -1238,7 +1239,7 @@ namespace DurableTask
                         runtimeState.OrchestrationInstance,
                         "History Tracking Message",
                         this.BlobStore,
-                        DateTime.MinValue);
+                        DateTimeUtils.MinDateTime);
                     trackingMessages.Add(new MessageContainer(trackingMessage, null));
                 }
             }
@@ -1257,7 +1258,7 @@ namespace DurableTask
                 runtimeState.OrchestrationInstance,
                 "State Tracking Message",
                 BlobStore,
-                DateTime.MinValue);
+                DateTimeUtils.MinDateTime);
             trackingMessages.Add(new MessageContainer(brokeredStateMessage, null));
 
             return trackingMessages;
@@ -1572,7 +1573,7 @@ namespace DurableTask
                 newOrchestrationInstance,
                 "Forced Terminate",
                 this.BlobStore,
-                DateTime.MinValue);
+                DateTimeUtils.MinDateTime);
         }
 
         void ThrowIfInstanceStoreNotConfigured()
