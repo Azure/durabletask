@@ -77,13 +77,13 @@ namespace DurableTask.Tracking
 
         internal async Task CreateTableIfNotExistsAsync()
         {
-            this.historyTable = tableClient.GetTableReference(TableName);
+            this.historyTable = this.tableClient.GetTableReference(TableName);
             await this.historyTable.CreateIfNotExistsAsync();
         }
 
         internal async Task CreateJumpStartTableIfNotExistsAsync()
         {
-            jumpStartTable = tableClient.GetTableReference(this.JumpStartTableName);
+            jumpStartTable = this.tableClient.GetTableReference(this.JumpStartTableName);
             await this.jumpStartTable.CreateIfNotExistsAsync();
         }
 
@@ -471,7 +471,7 @@ namespace DurableTask.Tracking
 
         public async Task<object> WriteJumpStartEntitesAsync(IEnumerable<AzureTableCompositeTableEntity> entities)
         {
-            return await PerformBatchTableOperationAsync("Write Entities", this.jumpStartTable, entities, (bo, te) => bo.Insert(te));
+            return await PerformBatchTableOperationAsync("Write Entities", this.jumpStartTable, entities, (bo, te) => bo.InsertOrReplace(te));
         }
 
         public async Task<object> DeleteEntitesAsync(IEnumerable<AzureTableCompositeTableEntity> entities)
