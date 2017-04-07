@@ -65,6 +65,11 @@ namespace DurableTask.ServiceFabric
             return this.orchestrationProvider.AppendMessageAsync(message);
         }
 
+        public Task SendTaskOrchestrationMessageBatchAsync(params TaskMessage[] messages)
+        {
+            throw new NotImplementedException();
+        }
+
         public async Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason)
         {
             var taskMessage = new TaskMessage
