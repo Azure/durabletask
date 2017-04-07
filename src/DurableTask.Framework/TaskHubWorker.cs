@@ -25,8 +25,8 @@ namespace DurableTask
     /// </summary>
     public sealed class TaskHubWorker : IDisposable
     {
-        readonly NameVersionObjectManager<TaskActivity> activityManager;
-        readonly NameVersionObjectManager<TaskOrchestration> orchestrationManager;
+        readonly INameVersionObjectManager<TaskActivity> activityManager;
+        readonly INameVersionObjectManager<TaskOrchestration> orchestrationManager;
 
         readonly SemaphoreSlim slimLock = new SemaphoreSlim(1, 1);
 
@@ -41,19 +41,31 @@ namespace DurableTask
         TaskOrchestrationDispatcher orchestrationDispatcher;
 
         /// <summary>
-        ///     Create a new TaskHubWorker with given OrchestrationService and settings
+        ///     Create a new TaskHubWorker with given OrchestrationService
         /// </summary>
         /// <param name="orchestrationService">Reference the orchestration service implmentaion</param>
         public TaskHubWorker(IOrchestrationService orchestrationService)
+            : this(
+                  orchestrationService,
+                  new NameVersionObjectManager<TaskOrchestration>(),
+                  new NameVersionObjectManager<TaskActivity>())
         {
-            if (orchestrationService == null)
-            {
-                throw new ArgumentException("orchestrationService");
-            }
+        }
 
-            orchestrationManager = new NameVersionObjectManager<TaskOrchestration>();
-            activityManager = new NameVersionObjectManager<TaskActivity>();
-            this.orchestrationService = orchestrationService;
+        /// <summary>
+        ///     Create a new TaskHubWorker with given OrchestrationService and name version managers
+        /// </summary>
+        /// <param name="orchestrationService">Reference the orchestration service implmentaion</param>
+        /// <param name="orchestrationObjectManager">NameVersionObjectManager for Orchestrations</param>
+        /// <param name="activityObjectManager">NameVersionObjectManager for Activities</param>
+        public TaskHubWorker(
+            IOrchestrationService orchestrationService,
+            INameVersionObjectManager<TaskOrchestration> orchestrationObjectManager,
+            INameVersionObjectManager<TaskActivity> activityObjectManager)
+        {
+            this.orchestrationManager = orchestrationObjectManager ?? throw new ArgumentException("orchestrationObjectManager");
+            this.activityManager = activityObjectManager ?? throw new ArgumentException("activityObjectManager");
+            this.orchestrationService = orchestrationService ?? throw new ArgumentException("orchestrationService");
         }
 
         /// <summary>

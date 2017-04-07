@@ -23,10 +23,10 @@ namespace DurableTask.Test
 
     public class OrchestrationTestHost
     {
-        readonly NameVersionObjectManager<TaskActivity> activityObjectManager;
+        readonly INameVersionObjectManager<TaskActivity> activityObjectManager;
         readonly FakeOrchestrationClock clock;
         readonly FakeOrchestrationExecutor orchestrationExecutor;
-        readonly NameVersionObjectManager<TaskOrchestration> orchestrationObjectManager;
+        readonly INameVersionObjectManager<TaskOrchestration> orchestrationObjectManager;
         readonly FakeTaskActivityExecutor taskActivityExecutor;
         JsonDataConverter dataConverter;
 
