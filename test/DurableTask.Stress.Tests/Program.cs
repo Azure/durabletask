@@ -19,6 +19,7 @@ namespace DurableTask.Stress.Tests
     using DurableTask.Settings;
     using DurableTask.Test.Orchestrations.Stress;
     using DurableTask.Tracking;
+    using DurableTask.Common;
 
     class Program
     {
@@ -27,6 +28,13 @@ namespace DurableTask.Stress.Tests
         static void Main(string[] args)
         {
             string tableConnectionString = ConfigurationManager.AppSettings["StorageConnectionString"];
+
+            // Workaround a bug in the Storage Emulator that throws exceptions for any date < 1600 so DateTime.Min cannot be used
+            if (tableConnectionString.Contains("UseDevelopmentStorage=true"))
+            {
+                DateTimeUtils.SetMinDateTimeForStorageEmulator();
+            }
+
             if (CommandLine.Parser.Default.ParseArgumentsStrict(args, options))
             {
                 string connectionString = ConfigurationManager.ConnectionStrings["Microsoft.ServiceBus.ConnectionString"].ConnectionString;

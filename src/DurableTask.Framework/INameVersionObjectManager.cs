@@ -13,34 +13,23 @@
 
 namespace DurableTask
 {
-    using System;
-    using System.Runtime.Serialization;
-    using DurableTask.History;
-
     /// <summary>
-    /// Wire level transport object for task messages containing events and orchestration instance information
+    /// Interface for name and version manager class to be used in type lookup mappings
     /// </summary>
-    [DataContract]
-    public class TaskMessage : IExtensibleDataObject
+    public interface INameVersionObjectManager<T>
     {
         /// <summary>
-        /// Even information for this taks message
+        /// Adds a new ObjectCreator to the name version Object manager
         /// </summary>
-        [DataMember] public HistoryEvent Event;
+        /// <param name="creator">Class for creation of a new name and version instance</param>
+        void Add(ObjectCreator<T> creator);
 
         /// <summary>
-        /// Sequence number for ordering of messages in history tracking
+        /// Gets a creator class instance based on a name and version
         /// </summary>
-        [DataMember] public long SequenceNumber;
-
-        /// <summary>
-        /// The orchestration instance information
-        /// </summary>
-        [DataMember] public OrchestrationInstance OrchestrationInstance;
-
-        /// <summary>
-        /// Implementation for <see cref="IExtensibleDataObject.ExtensionData"/>.
-        /// </summary>
-        public ExtensionDataObject ExtensionData { get; set; }
+        /// <param name="name">Name of the class to return the creator for</param>
+        /// <param name="version">Version of the class to return the creator for</param>
+        /// <returns>Class instance based on the matching creator class for the supplied name and version</returns>
+        T GetObject(string name, string version);
     }
 }

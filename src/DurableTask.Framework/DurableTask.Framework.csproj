@@ -12,7 +12,6 @@
     <AssemblyName>DurableTaskFx</AssemblyName>
     <FileAlignment>512</FileAlignment>
     <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">..\..\</SolutionDir>
-    <RestorePackages>true</RestorePackages>
     <TargetFrameworkProfile />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
@@ -71,8 +70,10 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Common\DateTimeUtils.cs" />
     <Compile Include="Common\BrokeredMessageExtensions.cs" />
     <Compile Include="History\HistoryStateEvent.cs" />
+    <Compile Include="INameVersionObjectManager.cs" />
     <Compile Include="IOrchestrationServiceInstanceStore.cs" />
     <Compile Include="OrchestrationSessionState.cs" />
     <Compile Include="Serializing\RuntimeStateStreamConverter.cs" />
@@ -211,7 +212,6 @@
   </ItemGroup>
   <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <Import Project="$(SolutionDir)\.nuget\nuget.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">

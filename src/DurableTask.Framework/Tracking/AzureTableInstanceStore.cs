@@ -54,12 +54,12 @@ namespace DurableTask.Tracking
         {
             if (recreateStorage)
             {
-                await Task.WhenAll(this.tableClient.DeleteTableIfExistsAsync(),
-                this.tableClient.DeleteJumpStartTableIfExistsAsync());
+                await this.tableClient.DeleteTableIfExistsAsync();
+                await this.tableClient.DeleteJumpStartTableIfExistsAsync();
             }
 
-            await Task.WhenAll(this.tableClient.CreateTableIfNotExistsAsync(),
-                this.tableClient.CreateJumpStartTableIfNotExistsAsync());
+            await this.tableClient.CreateTableIfNotExistsAsync();
+            await this.tableClient.CreateJumpStartTableIfNotExistsAsync();
         }
 
         /// <summary>
@@ -278,7 +278,7 @@ namespace DurableTask.Tracking
                 TableQuerySegment<AzureTableOrchestrationStateEntity> resultSegment =
                     (await tableClient.QueryOrchestrationStatesSegmentedAsync(
                         new OrchestrationStateQuery()
-                            .AddTimeRangeFilter(DateTime.MinValue, thresholdDateTimeUtc, timeRangeFilterType),
+                            .AddTimeRangeFilter(DateTimeUtils.MinDateTime, thresholdDateTimeUtc, timeRangeFilterType),
                         continuationToken, 100)
                         .ConfigureAwait(false));
 

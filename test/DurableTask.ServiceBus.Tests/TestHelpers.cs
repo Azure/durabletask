@@ -24,6 +24,7 @@ namespace DurableTask.ServiceBus.Tests
     using Microsoft.ServiceBus;
     using Microsoft.ServiceBus.Messaging;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
+
     public static class TestHelpers
     {
         static string ServiceBusConnectionString;
@@ -45,6 +46,12 @@ namespace DurableTask.ServiceBus.Tests
             }
 
             TaskHubName = ConfigurationManager.AppSettings.Get("TaskHubName");
+
+            // Workaround a bug in the Storage Emulator that throws exceptions for any date < 1600 so DateTime.Min cannot be used
+            if (StorageConnectionString.Contains("UseDevelopmentStorage=true"))
+            {
+                DateTimeUtils.SetMinDateTimeForStorageEmulator();
+            }
         }
 
         public static ServiceBusOrchestrationServiceSettings CreateTestWorkerSettings(CompressionStyle style = CompressionStyle.Threshold)

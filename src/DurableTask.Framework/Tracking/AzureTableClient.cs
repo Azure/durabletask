@@ -40,7 +40,7 @@ namespace DurableTask.Tracking
         readonly CloudTableClient tableClient;
         readonly object thisLock = new object();
 
-        volatile CloudTable table;
+        volatile CloudTable historyTable;
         volatile CloudTable jumpStartTable;
 
         public AzureTableClient(string hubName, string tableConnectionString)
@@ -55,80 +55,51 @@ namespace DurableTask.Tracking
                 throw new ArgumentException("Invalid hub name", "hubName");
             }
 
-            tableClient = CloudStorageAccount.Parse(tableConnectionString).CreateCloudTableClient();
-            tableClient.DefaultRequestOptions.RetryPolicy = new ExponentialRetry(DeltaBackOff,
+            this.tableClient = CloudStorageAccount.Parse(tableConnectionString).CreateCloudTableClient();
+            this.tableClient.DefaultRequestOptions.RetryPolicy = new ExponentialRetry(DeltaBackOff,
                 MaxRetries);
-            tableClient.DefaultRequestOptions.MaximumExecutionTime = MaximumExecutionTime;
+            this.tableClient.DefaultRequestOptions.MaximumExecutionTime = MaximumExecutionTime;
 
             this.hubName = hubName;
-            table = tableClient.GetTableReference(TableName);
-            jumpStartTable = tableClient.GetTableReference(this.JumpStartTableName);
+            this.historyTable = tableClient.GetTableReference(TableName);
+            this.jumpStartTable = tableClient.GetTableReference(this.JumpStartTableName);
         }
 
         public string TableName
         {
-            get { return AzureTableConstants.InstanceHistoryTableNamePrefix + "00" + hubName; }
+            get { return AzureTableConstants.InstanceHistoryTableNamePrefix + "00" + this.hubName; }
         }
 
         public string JumpStartTableName
         {
-            get { return AzureTableConstants.JumpStartTableNamePrefix + "00" + hubName; }
+            get { return AzureTableConstants.JumpStartTableNamePrefix + "00" + this.hubName; }
         }
 
-
-        internal void CreateTableIfNotExists()
+        internal async Task CreateTableIfNotExistsAsync()
         {
-            table = tableClient.GetTableReference(TableName);
-            table.CreateIfNotExists();
+            this.historyTable = tableClient.GetTableReference(TableName);
+            await this.historyTable.CreateIfNotExistsAsync();
         }
 
-        internal Task CreateTableIfNotExistsAsync()
-        {
-            table = tableClient.GetTableReference(TableName);
-            return table.CreateIfNotExistsAsync();
-        }
-
-        internal void CreateJumpStartTableIfNotExists()
+        internal async Task CreateJumpStartTableIfNotExistsAsync()
         {
             jumpStartTable = tableClient.GetTableReference(this.JumpStartTableName);
-            jumpStartTable.CreateIfNotExists();
-        }
-
-        internal Task CreateJumpStartTableIfNotExistsAsync()
-        {
-            jumpStartTable = tableClient.GetTableReference(this.JumpStartTableName);
-            return jumpStartTable.CreateIfNotExistsAsync();
-        }
-
-        internal void DeleteTableIfExists()
-        {
-            if (table != null)
-            {
-                table.DeleteIfExists();
-            }
+            await this.jumpStartTable.CreateIfNotExistsAsync();
         }
 
         internal async Task DeleteTableIfExistsAsync()
         {
-            if (table != null)
+            if (this.historyTable != null)
             {
-                await table.DeleteIfExistsAsync();
-            }
-        }
-
-        internal void DeleteJumpStartTableIfExists()
-        {
-            if (jumpStartTable != null)
-            {
-                jumpStartTable.DeleteIfExists();
+                await this.historyTable.DeleteIfExistsAsync();
             }
         }
 
         internal async Task DeleteJumpStartTableIfExistsAsync()
         {
-            if (jumpStartTable != null)
+            if (this.jumpStartTable != null)
             {
-                await jumpStartTable.DeleteIfExistsAsync();
+                await this.jumpStartTable.DeleteIfExistsAsync();
             }
         }
 
@@ -136,14 +107,14 @@ namespace DurableTask.Tracking
             OrchestrationStateQuery stateQuery)
         {
             TableQuery<AzureTableOrchestrationStateEntity> query = CreateQueryInternal(stateQuery, -JumpStartTableScanIntervalInDays, false);
-            return ReadAllEntitiesAsync(query, this.table);
+            return ReadAllEntitiesAsync(query, this.historyTable);
         }
 
         public Task<TableQuerySegment<AzureTableOrchestrationStateEntity>> QueryOrchestrationStatesSegmentedAsync(
             OrchestrationStateQuery stateQuery, TableContinuationToken continuationToken, int count)
         {
             TableQuery<AzureTableOrchestrationStateEntity> query = CreateQueryInternal(stateQuery, count, false);
-            return table.ExecuteQuerySegmentedAsync(query, continuationToken);
+            return historyTable.ExecuteQuerySegmentedAsync(query, continuationToken);
         }
 
         public Task<IEnumerable<AzureTableOrchestrationStateEntity>> QueryJumpStartOrchestrationsAsync(OrchestrationStateQuery stateQuery)
@@ -405,7 +376,7 @@ namespace DurableTask.Tracking
 
             TableQuery<AzureTableOrchestrationHistoryEventEntity> query =
                 new TableQuery<AzureTableOrchestrationHistoryEventEntity>().Where(filter);
-            return ReadAllEntitiesAsync(query, this.table);
+            return ReadAllEntitiesAsync(query, this.historyTable);
         }
 
         async Task<IEnumerable<T>> ReadAllEntitiesAsync<T>(TableQuery<T> query, CloudTable table)
@@ -483,7 +454,6 @@ namespace DurableTask.Tracking
             }
 
             IList<TableResult> results = await table.ExecuteBatchAsync(batchOperation);
-
             foreach (TableResult result in results)
             {
                 if (result.HttpStatusCode < 200 || result.HttpStatusCode > 299)
@@ -496,17 +466,17 @@ namespace DurableTask.Tracking
 
         public async Task<object> WriteEntitesAsync(IEnumerable<AzureTableCompositeTableEntity> entities)
         {
-            return await PerformBatchTableOperationAsync("Write Entities", this.table, entities, (bo, te) => bo.InsertOrReplace(te));
+            return await PerformBatchTableOperationAsync("Write Entities", this.historyTable, entities, (bo, te) => bo.InsertOrReplace(te));
         }
 
         public async Task<object> WriteJumpStartEntitesAsync(IEnumerable<AzureTableCompositeTableEntity> entities)
         {
-            return await PerformBatchTableOperationAsync("Write Entities", this.jumpStartTable, entities, (bo, te) => bo.InsertOrReplace(te));
+            return await PerformBatchTableOperationAsync("Write Entities", this.jumpStartTable, entities, (bo, te) => bo.Insert(te));
         }
 
         public async Task<object> DeleteEntitesAsync(IEnumerable<AzureTableCompositeTableEntity> entities)
         {
-            return await PerformBatchTableOperationAsync("Delete Entities", this.table, entities, (bo, te) =>
+            return await PerformBatchTableOperationAsync("Delete Entities", this.historyTable, entities, (bo, te) =>
             {
                 te.ETag = "*";
                 bo.Delete(te);

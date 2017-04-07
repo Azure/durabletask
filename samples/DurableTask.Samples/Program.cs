@@ -30,6 +30,7 @@ namespace DurableTask.Samples
     using DurableTask.Samples.Replat;
     using DurableTask.Samples.Signal;
     using DurableTask.Samples.SumOfSquares;
+    using DurableTask.Common;
 
     class Program
     {
@@ -43,6 +44,12 @@ namespace DurableTask.Samples
                 string servicebusConnectionString = Program.GetSetting("ServiceBusConnectionString");
                 string storageConnectionString = Program.GetSetting("StorageConnectionString");
                 string taskHubName = ConfigurationManager.AppSettings["taskHubName"];
+
+                // Workaround a bug in the Storage Emulator that throws exceptions for any date < 1600 so DateTime.Min cannot be used
+                if (storageConnectionString.Contains("UseDevelopmentStorage=true"))
+                {
+                    DateTimeUtils.SetMinDateTimeForStorageEmulator();
+                }
 
                 IOrchestrationServiceInstanceStore instanceStore = new AzureTableInstanceStore(taskHubName, storageConnectionString);
 
@@ -103,6 +110,14 @@ namespace DurableTask.Samples
                             break;
                         case "Signal":
                             instance = taskHubClient.CreateOrchestrationInstanceAsync(typeof(SignalOrchestration), instanceId, null).Result;
+                            break;
+                        case "SignalAndRaise":
+                            if (options.Parameters == null || options.Parameters.Length != 1)
+                            {
+                                throw new ArgumentException("parameters");
+                            }
+
+                            instance = taskHubClient.CreateOrchestrationInstanceWithRaisedEventAsync(typeof(SignalOrchestration), instanceId, null, options.Signal, options.Parameters[0]).Result;
                             break;
                         case "Replat":
                             instance = taskHubClient.CreateOrchestrationInstanceAsync(typeof(MigrateOrchestration), instanceId,

@@ -11,14 +11,23 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask
+namespace DurableTask.Framework.Tests
 {
-    using System.Runtime.Serialization;
+    using System;
+    using DurableTask.Common;
+    using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-    [DataContract]
-    internal class StateMessage : IExtensibleDataObject
+    [TestClass]
+    public class CommonTests
     {
-        [DataMember] public OrchestrationState State;
-        public ExtensionDataObject ExtensionData { get; set; }
+        [TestMethod]
+        public void DateTimeExtensionsIsSetTest()
+        {
+            Assert.IsTrue(DateTime.Now.IsSet());
+            Assert.IsTrue(DateTime.MaxValue.IsSet());
+            Assert.IsFalse(DateTime.MinValue.IsSet());
+            Assert.IsFalse(DateTimeUtils.MinDateTime.IsSet());
+            Assert.IsFalse(DateTime.FromFileTimeUtc(0).IsSet());
+        }
     }
 }

@@ -122,7 +122,7 @@ namespace DurableTask.Tracking
                 // It seems orchestration started, delete entity from JumpStart table
                 await this.service.InstanceStore.DeleteJumpStartEntitesAsync(new[] { jumpStartEntity });
             }
-            else if (jumpStartEntity.JumpStartTime == DateTime.MinValue &&
+            else if (!jumpStartEntity.JumpStartTime.IsSet() &&
                 jumpStartEntity.State.CreatedTime + this.ignoreWindow < DateTime.UtcNow)
             {
                 // JumpStart orchestration

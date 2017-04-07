@@ -285,8 +285,7 @@ namespace DurableTask.ServiceBus.Tests
                 }
                 catch (TaskFailedException e)
                 {
-                    // Setting a custom error message, strip the exception to just the specific message
-                    result = e.Message.Replace(": @DurableTask.ServiceBus.Tests.DynamicProxyTests+IRetryTask.DoWork", "");
+                    result = e.Message;
                 }
 
                 Result = result;

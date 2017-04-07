@@ -77,7 +77,8 @@ namespace DurableTask
             if (methodParameters.Length < parameterCount)
             {
                 throw new TaskFailureException(
-                    this.FormatExceptionMessage("TaskActivity implementation cannot be invoked due to more than expected input parameters.  Signature mismatch."));
+                    "TaskActivity implementation cannot be invoked due to more than expected input parameters.  Signature mismatch.")
+                    .WithFailureSource(this.MethodInfoString());
             }
             var inputParameters = new object[methodParameters.Length];
             for (int i = 0; i < methodParameters.Length; i++)
@@ -136,12 +137,14 @@ namespace DurableTask
             {
                 Exception realException = e.InnerException ?? e;
                 string details = Utils.SerializeCause(realException, DataConverter);
-                throw new TaskFailureException(this.FormatExceptionMessage(realException.Message), details);
+                throw new TaskFailureException(realException.Message, details)
+                    .WithFailureSource(this.MethodInfoString());
             }
             catch (Exception e) when (!Utils.IsFatal(e))
             {
                 string details = Utils.SerializeCause(e, DataConverter);
-                throw new TaskFailureException(this.FormatExceptionMessage(e.Message), e, details);
+                throw new TaskFailureException(e.Message, e, details)
+                    .WithFailureSource(this.MethodInfoString());
             }
 
             return serializedReturn;
@@ -157,9 +160,9 @@ namespace DurableTask
             return MethodInfo.Invoke(activityObject, inputParameters);
         }
 
-        string FormatExceptionMessage(string message)
+        string MethodInfoString()
         {
-            return $"{message}: @{this.MethodInfo.ReflectedType?.FullName}.{this.MethodInfo.Name}";
+            return $"{this.MethodInfo.ReflectedType?.FullName}.{this.MethodInfo.Name}";
         }
     }
 }

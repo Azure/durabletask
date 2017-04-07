@@ -22,7 +22,7 @@ namespace DurableTask.Test
 
     public class DebugTestHost
     {
-        NameVersionObjectManager<TaskOrchestration> orchestrationObjectManager;
+        INameVersionObjectManager<TaskOrchestration> orchestrationObjectManager;
 
         public DebugTestHost()
         {
