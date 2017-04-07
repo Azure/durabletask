@@ -44,6 +44,12 @@ namespace DurableTask.Tracking
         public AzureTableInstanceStore(string hubName, string tableConnectionString)
         {
             this.tableClient = new AzureTableClient(hubName, tableConnectionString);
+
+            // Workaround a bug in the Storage Emulator that throws exceptions for any date < 1600 so DateTime.Min cannot be used
+            if (tableConnectionString.Contains("UseDevelopmentStorage=true"))
+            {
+                DateTimeUtils.SetMinDateTimeForStorageEmulator();
+            }
         }
 
         /// <summary>
@@ -52,10 +58,10 @@ namespace DurableTask.Tracking
         /// <param name="recreateStorage">Flag to indicate whether the storage should be recreated.</param>
         public async Task InitializeStoreAsync(bool recreateStorage)
         {
+            // Keep calls sequential, running in parallel can be flaky, in particular the storage emulator will fail 50%+ of the time
             if (recreateStorage)
             {
-                await this.tableClient.DeleteTableIfExistsAsync();
-                await this.tableClient.DeleteJumpStartTableIfExistsAsync();
+                await DeleteStoreAsync();
             }
 
             await this.tableClient.CreateTableIfNotExistsAsync();
@@ -67,8 +73,9 @@ namespace DurableTask.Tracking
         /// </summary>
         public async Task DeleteStoreAsync()
         {
-            await Task.WhenAll(this.tableClient.DeleteTableIfExistsAsync(),
-                this.tableClient.DeleteJumpStartTableIfExistsAsync());
+            // Keep calls sequential, running in parallel can be flaky, in particular the storage emulator will fail 50%+ of the time
+            await this.tableClient.DeleteTableIfExistsAsync();
+            await this.tableClient.DeleteJumpStartTableIfExistsAsync();
         }
 
         /// <summary>
