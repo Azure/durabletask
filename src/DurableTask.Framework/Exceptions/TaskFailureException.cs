@@ -14,6 +14,7 @@
 namespace DurableTask.Exceptions
 {
     using System;
+    using System.Runtime.Serialization;
 
     [Serializable]
     internal class TaskFailureException : Exception
@@ -44,6 +45,38 @@ namespace DurableTask.Exceptions
             this.Details = details;
         }
 
+        public TaskFailureException WithFailureSource(string failureSource)
+        {
+            this.FailureSource = failureSource;
+            return this;
+        }
+
+        protected TaskFailureException(SerializationInfo info, StreamingContext context)
+            : base(info, context)
+        {
+            this.Details = info.GetString(Details);
+            this.FailureSource = info.GetString(FailureSource);
+        }
+
+        public override void GetObjectData(SerializationInfo info, StreamingContext context)
+        {
+            base.GetObjectData(info, context);
+            info.AddValue(Details, this.Details);
+            info.AddValue(FailureSource, this.FailureSource);
+        }
+
+        public override string ToString()
+        {
+            return string.Format("FailureSource: {1}{0}Details: {2}{0}Message: {3}{0}Exception: {4}", 
+                Environment.NewLine,
+                this.FailureSource,
+                this.Details,
+                this.Message,
+                base.ToString());
+        }
+
         public string Details { get; set; }
+
+        public string FailureSource { get; set; }
     }
 }

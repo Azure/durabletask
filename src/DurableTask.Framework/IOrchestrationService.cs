@@ -21,28 +21,6 @@ namespace DurableTask
     // AFFANDAR : TODO : MASTER
     //      + implement batched message receive
     //      + proper exception model for orchestration service providers
-    //      + rethink method names?
-    //      + rename xxx2 classes to xxx and remove old ones
-    //      + clean up XML doc comments in public classes
-    //
-    //  DONE:
-    //      + write tests for terminate, raise event, suborch and exception passing
-    //      + write tests for generations
-    //      + implement LocalOrchestrationService and LocalOrchestrationServiceClient
-    //      + fix up taskhubworker
-    //      + add TaskActivityDispatcher
-    //      + test checkpoint
-    //      + move public classes to separate files
-    //      + add instance store methods to IOrchestrationService
-    //      + replumb taskhubclient on top of IOrchestrationService
-    //      + sbus provider: force terminate if session size is greater than supported
-    //      + make dispatcher start/stop methods async
-    //      + task hub description
-    //      + implement ServiceBusOrchestrationService
-    //      + fix up all tests to use the new APIs
-    //      + change TaskOrchestrationDispatcher to use this
-    //      + build trackingdispatcher2 inside the service bus layer
-    //      
 
     /// <summary>
     /// Orchestration Service interface for performing task hub management operations 

@@ -195,7 +195,7 @@ namespace DurableTask.Common
                 catch (Exception exception) when (!Utils.IsFatal(exception))
                 {
                     TraceHelper.TraceSession(TraceEventType.Warning, sessionId,
-                        $"Error attempting operation {operation}. Attempt count = {numberOfAttempts - retryCount}. Exception: {exception.Message}\n\t{exception.StackTrace}");
+                        $"Error attempting operation {operation}. Attempt count: {numberOfAttempts - retryCount}. Exception: {exception.Message}\n\t{exception.StackTrace}");
                     lastException = exception;
                 }
 
@@ -225,7 +225,7 @@ namespace DurableTask.Common
                 catch (Exception exception) when (!Utils.IsFatal(exception))
                 {
                     TraceHelper.TraceSession(TraceEventType.Warning, sessionId,
-                        $"Error attempting operation {operation}. Attempt count = {numberOfAttempts - retryCount}. Exception: {exception.Message}\n\t{exception.StackTrace}");
+                        $"Error attempting operation {operation}. Attempt count: {numberOfAttempts - retryCount}. Exception: {exception.Message}\n\t{exception.StackTrace}");
                     lastException = exception;
                 }
 
