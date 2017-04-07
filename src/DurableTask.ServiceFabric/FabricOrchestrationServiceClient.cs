@@ -39,7 +39,8 @@ namespace DurableTask.ServiceFabric
             ExecutionStartedEvent startEvent = creationMessage.Event as ExecutionStartedEvent;
             if (startEvent == null)
             {
-                throw new Exception("Invalid creation message");
+                await this.SendTaskOrchestrationMessageAsync(creationMessage);
+                return;
             }
 
             var instance = creationMessage.OrchestrationInstance;
