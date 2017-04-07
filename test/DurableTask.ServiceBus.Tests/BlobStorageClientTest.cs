@@ -22,6 +22,7 @@ namespace DurableTask.ServiceBus.Tests
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Microsoft.WindowsAzure.Storage.Blob;
     using DurableTask.Tracking;
+    using DurableTask.Common;
 
     [TestClass]
     public class BlobStorageClientTest
@@ -32,9 +33,16 @@ namespace DurableTask.ServiceBus.Tests
         public void TestInitialize()
         {
             var r = new Random();
+            string storageConnectionString = TestHelpers.GetTestSetting("StorageConnectionString");
             blobStorageClient = new BlobStorageClient(
-                "Test00" + r.Next(0, 10000),
-                TestHelpers.GetTestSetting("StorageConnectionString"));
+                "Test00" + r.Next(0, 10000), storageConnectionString
+                );
+            
+            // Workaround a bug in the Storage Emulator that throws exceptions for any date < 1600 so DateTime.Min cannot be used
+            if (storageConnectionString.Contains("UseDevelopmentStorage=true"))
+            {
+                DateTimeUtils.SetMinDateTimeForStorageEmulator();
+            }
         }
 
         [TestCleanup]

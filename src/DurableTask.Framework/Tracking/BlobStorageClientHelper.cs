@@ -11,14 +11,14 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System.Globalization;
-
 namespace DurableTask.Tracking
 {
     using System;
     using System.Diagnostics;
+    using System.Globalization;
     using System.Text.RegularExpressions;
     using DurableTask.Tracing;
+    using DurableTask.Common;
 
     /// <summary>
     /// A helper class for the Azure blob storage client.
@@ -85,7 +85,7 @@ namespace DurableTask.Tracking
             string id = Guid.NewGuid().ToString("N");
             return string.Format(
                 "{0}{1}{2}{3}{4}",
-                BuildContainerNameSuffix("session", DateTime.MinValue),
+                BuildContainerNameSuffix("session", DateTimeUtils.MinDateTime),
                 KeyDelimiter,
                 sessionId,
                 BlobNameDelimiter,
@@ -96,7 +96,7 @@ namespace DurableTask.Tracking
         // otherwise, use the current utc time as the date string as part of the container name
         static string GetDateStringForContainerName(DateTime messageFireTime)
         {
-            return messageFireTime != DateTime.MinValue ?
+            return messageFireTime.IsSet() ?
                 messageFireTime.ToString(DateFormat) :
                 DateTime.UtcNow.ToString(DateFormat);
         }

@@ -60,6 +60,7 @@
     <Compile Include="Mocks\PeekLockQueue.cs" />
     <Compile Include="Mocks\PeekLockSessionQueue.cs" />
     <Compile Include="Mocks\TaskSession.cs" />
+    <Compile Include="CommonTests.cs" />
     <Compile Include="OrchestrationTestHostTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="TestObjectCreator.cs" />

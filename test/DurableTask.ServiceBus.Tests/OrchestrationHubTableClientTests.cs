@@ -35,7 +35,7 @@ namespace DurableTask.ServiceBus.Tests
             var r = new Random();
             tableClient = new AzureTableClient("test00" + r.Next(0, 10000),
                 "UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://127.0.0.1:10002/");
-            tableClient.CreateTableIfNotExists();
+            tableClient.CreateTableIfNotExistsAsync().Wait();
 
             client = TestHelpers.CreateTaskHubClient();
 
@@ -47,7 +47,7 @@ namespace DurableTask.ServiceBus.Tests
         [TestCleanup]
         public void TestCleanup()
         {
-            tableClient.DeleteTableIfExists();
+            tableClient.DeleteTableIfExistsAsync().Wait();
             taskHub.StopAsync(true).Wait();
             taskHub.orchestrationService.DeleteAsync(true).Wait();
         }
