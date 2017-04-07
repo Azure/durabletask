@@ -26,7 +26,7 @@ namespace DurableTask.Tracking
         /// <summary>
         /// Gets or sets the task timestamp on the entity
         /// </summary>
-        public DateTime TaskTimeStamp { get; set; } = DateTime.Now;
+        public DateTime TaskTimeStamp { get; set; } = DateTime.UtcNow;
 
         /// <summary>
         /// Gets or sets the entity partition key
