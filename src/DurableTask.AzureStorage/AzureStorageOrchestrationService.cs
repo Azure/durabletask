@@ -27,6 +27,8 @@ namespace DurableTask.AzureStorage
     /// </summary>
     public class AzureStorageOrchestrationService : IOrchestrationService, IOrchestrationServiceClient
     {
+        static readonly HistoryEvent[] EmptyHistoryEventList = new HistoryEvent[0];
+
         readonly AzureStorageOrchestrationServiceSettings settings;
         readonly CloudQueue controlQueue;
         readonly CloudQueue workItemQueue;
@@ -247,10 +249,11 @@ namespace DurableTask.AzureStorage
             ReceivedMessageContext messageContext = 
                 ReceivedMessageContext.CreateFromReceivedMessageBatch(nextBatch.Messages);
 
-            string instanceId = messageContext.InstanceId;
+            OrchestrationInstance instance = messageContext.Instance;
             OrchestrationRuntimeState runtimeState = await this.GetOrchestrationRuntimeStateAsync(
-                instanceId,
-                messageContext,
+                instance.InstanceId,
+                instance.ExecutionId,
+                messageContext.StorageOperationContext,
                 cancellationToken);
 
             var taskMessages = new List<TaskMessage>(nextBatch.Messages.Count);
@@ -263,7 +266,7 @@ namespace DurableTask.AzureStorage
                 }
                 else
                 {
-                    this.OnNewEvent?.Invoke(this, new HistoryEventArgs(taskMessage.Event, instanceId));
+                    this.OnNewEvent?.Invoke(this, new HistoryEventArgs(taskMessage.Event, instance.InstanceId));
                 }
 
                 taskMessages.Add(taskMessage);
@@ -271,7 +274,7 @@ namespace DurableTask.AzureStorage
 
             var orchestrationWorkItem = new TaskOrchestrationWorkItem
             {
-                InstanceId = instanceId,
+                InstanceId = instance.InstanceId,
                 NewMessages = taskMessages,
                 OrchestrationRuntimeState = runtimeState,
                 LockedUntilUtc = messageContext.GetNextMessageExpirationTimeUtc()
@@ -338,19 +341,44 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        async Task<OrchestrationRuntimeState> GetOrchestrationRuntimeStateAsync(
+        Task<OrchestrationRuntimeState> GetOrchestrationRuntimeStateAsync(
             string instanceId,
-            ReceivedMessageContext receivedMessageContext,
+            OperationContext storageOperationContext,
             CancellationToken cancellationToken = default(CancellationToken))
         {
-            TableContinuationToken continuationToken = null;
-            TableQuery query = new TableQuery().Where(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, instanceId));
+            return this.GetOrchestrationRuntimeStateAsync(instanceId, null, storageOperationContext, cancellationToken);
+        }
 
+        async Task<OrchestrationRuntimeState> GetOrchestrationRuntimeStateAsync(
+            string instanceId,
+            string expectedExecutionId,
+            OperationContext storageOperationContext,
+            CancellationToken cancellationToken = default(CancellationToken))
+        {
+            var filterCondition = new StringBuilder(200);
+
+            const char Quote = '\'';
+
+            // e.g. "PartitionKey eq 'c138dd969a1e4a699b0644c7d8279f81'"
+            filterCondition.Append("PartitionKey eq ").Append(Quote).Append(instanceId).Append(Quote); // = TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, instanceId);
+            if (expectedExecutionId != null)
+            {
+                // Filter down to a specific generation.
+                // e.g. "PartitionKey eq 'c138dd969a1e4a699b0644c7d8279f81' and RowKey gt '85f05ce1494c4a29989f64d3fe0f9089' and ExecutionId eq '85f05ce1494c4a29989f64d3fe0f9089'"
+                filterCondition.Append(" and RowKey gt ").Append(Quote).Append(expectedExecutionId).Append(Quote);
+                filterCondition.Append(" and ExecutionId eq ").Append(Quote).Append(expectedExecutionId).Append(Quote);
+            }
+
+            TableQuery query = new TableQuery().Where(filterCondition.ToString());
+                    
             // TODO: Write-through caching should ensure that we rarely need to make this call?
-            var historyEvents = new List<HistoryEvent>(25);
+            var historyEventEntities = new List<DynamicTableEntity>(100);
 
             var stopwatch = new Stopwatch();
             int requestCount = 0;
+
+            bool finishedEarly = false;
+            TableContinuationToken continuationToken = null;
             while (true)
             {
                 requestCount++;
@@ -359,22 +387,49 @@ namespace DurableTask.AzureStorage
                     query,
                     continuationToken,
                     this.settings.HistoryTableRequestOptions,
-                    receivedMessageContext?.StorageOperationContext,
+                    storageOperationContext,
                     cancellationToken);
                 stopwatch.Stop();
 
-                continuationToken = segment.ContinuationToken;
-                historyEvents.AddRange(
-                    segment.Select(e => (HistoryEvent)this.tableEntityConverter.ConvertFromTableEntity(e, GetTypeForTableEntity)));
+                historyEventEntities.AddRange(segment);
 
-                if (continuationToken == null || cancellationToken.IsCancellationRequested)
+                continuationToken = segment.ContinuationToken;
+                if (finishedEarly || continuationToken == null || cancellationToken.IsCancellationRequested)
                 {
                     break;
                 }
             }
 
+            IList<HistoryEvent> historyEvents;
+            string executionId;
+            if (historyEventEntities.Count > 0)
+            {
+                // Check to see whether the list of history events might contain multiple generations. If so,
+                // consider only the latest generation. The timestamp on the first entry of each generation
+                // is used to deterine the "age" of that generation. This assumes that rows within a generation
+                // are sorted in chronological order.
+                IGrouping<string, DynamicTableEntity> mostRecentGeneration = historyEventEntities
+                    .GroupBy(e => e.Properties["ExecutionId"].StringValue)
+                    .OrderByDescending(g => g.First().Timestamp)
+                    .First();
+                executionId = mostRecentGeneration.Key;
+
+                // Convert the table entities into history events.
+                var events = new List<HistoryEvent>(100);
+                events.AddRange(
+                    mostRecentGeneration.Select(
+                        entity => (HistoryEvent)this.tableEntityConverter.ConvertFromTableEntity(entity, GetTypeForTableEntity)));
+                historyEvents = events;
+            }
+            else
+            {
+                historyEvents = EmptyHistoryEventList;
+                executionId = expectedExecutionId ?? string.Empty;
+            }
+
             AnalyticsEventSource.Log.FetchedInstanceState(
                 instanceId,
+                executionId,
                 historyEvents.Count,
                 requestCount,
                 stopwatch.ElapsedMilliseconds);
@@ -423,10 +478,12 @@ namespace DurableTask.AzureStorage
                 return;
             }
 
-            string instanceId = workItem.InstanceId;
+            OrchestrationRuntimeState runtimeState = workItem.OrchestrationRuntimeState;
+            IList<HistoryEvent> newEvents = runtimeState.NewEvents;
+            IList<HistoryEvent> allEvents = runtimeState.Events;
 
-            IList<HistoryEvent> newEvents = workItem.OrchestrationRuntimeState.NewEvents;
-            IList<HistoryEvent> allEvents = workItem.OrchestrationRuntimeState.Events;
+            string instanceId = workItem.InstanceId;
+            string executionId = runtimeState.OrchestrationInstance.ExecutionId;
 
             var newEventList = new StringBuilder(newEvents.Count * 40);
             var batchOperation = new TableBatchOperation();
@@ -440,10 +497,12 @@ namespace DurableTask.AzureStorage
 
                 newEventList.Append(historyEvent.EventType.ToString()).Append(',');
 
-                // The row key is a sortable 64-bit hex number string, e.g. 000000000000001B
+                // The row key is in the form "{ExecutionId}.{SequenceNumber}" where {ExecutionId} represents the generation
+                // of a particular instance and {SequenceNumber} represents the chronological ordinal of the event.
                 long sequenceNumber = i + (allEvents.Count - newEvents.Count);
-                entity.RowKey = $"{sequenceNumber:X16}";
+                entity.RowKey = $"{executionId}.{sequenceNumber:X16}";
                 entity.PartitionKey = instanceId;
+                entity.Properties["ExecutionId"] = new EntityProperty(executionId);
 
                 // Table storage only supports inserts of up to 100 entities at a time.
                 if (batchOperation.Count == 100)
@@ -458,9 +517,6 @@ namespace DurableTask.AzureStorage
 
             // TODO: Check to see if the orchestration has completed (newOrchestrationRuntimeState == null)
             //       and schedule a time to clean up that state from the history table.
-
-            // TODO: May need some special handling for the continuedAsNewMessage scenario, though SiPort says
-            //       that the requirements for this may change in the near future.
 
             // First persistence step is to commit history to the history table. Messages must come after.
             // CONSIDER: If there are a large number of history items and messages, we could potentially
@@ -479,6 +535,7 @@ namespace DurableTask.AzureStorage
 
                     AnalyticsEventSource.Log.AppendedInstanceState(
                         instanceId,
+                        executionId,
                         newEvents.Count,
                         allEvents.Count,
                         newEventList.ToString(0, newEventList.Length - 1),
@@ -615,7 +672,8 @@ namespace DurableTask.AzureStorage
                 AnalyticsEventSource.Log.AbandoningMessage(
                     taskMessage.Event.EventType.ToString(),
                     queueMessage.Id,
-                    taskMessage.OrchestrationInstance.InstanceId);
+                    taskMessage.OrchestrationInstance.InstanceId,
+                    taskMessage.OrchestrationInstance.ExecutionId);
 
                 updates[i] = this.controlQueue.UpdateMessageAsync(
                     queueMessage,
@@ -804,7 +862,8 @@ namespace DurableTask.AzureStorage
             AnalyticsEventSource.Log.AbandoningMessage(
                 workItem.TaskMessage.Event.EventType.ToString(),
                 context.MessageData.OriginalQueueMessage.Id,
-                workItem.TaskMessage.OrchestrationInstance.InstanceId);
+                workItem.TaskMessage.OrchestrationInstance.InstanceId,
+                workItem.TaskMessage.OrchestrationInstance.ExecutionId);
 
             // We "abandon" the message by settings its visibility timeout to zero.
             try
@@ -892,14 +951,13 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
-        /// Get a list of orchestration states from storage for the most current execution (generation) of the specified instance.
+        /// Get the most current execution (generation) of the specified instance.
         /// </summary>
         /// <param name="instanceId">Instance ID of the orchestration.</param>
-        /// <param name="allExecutions">True if method should fetch all executions of the instance, false if the method should only fetch the most recent execution</param>
+        /// <param name="allExecutions">This parameter is not used.</param>
         /// <returns>List of <see cref="OrchestrationState"/> objects that represent the list of orchestrations.</returns>
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
         {
-            // TODO: Need to consider the execution ID
             return new[] { await this.GetOrchestrationStateAsync(instanceId, executionId: null) };
         }
 
@@ -907,20 +965,20 @@ namespace DurableTask.AzureStorage
         /// Get a the state of the specified execution (generation) of the specified orchestration instance.
         /// </summary>
         /// <param name="instanceId">Instance ID of the orchestration.</param>
-        /// <param name="executionId">True if method should fetch all executions of the instance, false if the method should only fetch the most recent execution</param>
+        /// <param name="executionId">The execution ID (generation) of the specified instance.</param>
         /// <returns>The <see cref="OrchestrationState"/> object that represents the orchestration.</returns>
         public async Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)
         {
             // Client operations will auto-create the task hub if it doesn't already exist.
             await this.EnsuredCreatedIfNotExistsAsync();
 
-            // TODO: Need to consider the execution ID
             OrchestrationRuntimeState runtimeState = await this.GetOrchestrationRuntimeStateAsync(
                 instanceId,
-                receivedMessageContext: null);
+                executionId,
+                storageOperationContext: null);
             if (runtimeState.Events.Count == 0)
             {
-                return new OrchestrationState { OrchestrationStatus = OrchestrationStatus.Pending };
+                return null;
             }
 
             return new OrchestrationState
@@ -962,22 +1020,22 @@ namespace DurableTask.AzureStorage
         /// Get a string dump of the execution history of the specified execution (generation) of the specified instance.
         /// </summary>
         /// <param name="instanceId">Instance ID of the orchestration.</param>
-        /// <param name="executionId">Exectuion ID (generation) of the orchestration instance.</param>
+        /// <param name="executionId">The execution ID (generation) of the specified instance.</param>
         /// <returns>String with formatted JSON array representing the execution history.</returns>
         public async Task<string> GetOrchestrationHistoryAsync(string instanceId, string executionId)
         {
-            // TODO: Need to consider the execution ID
             OrchestrationRuntimeState runtimeState = await this.GetOrchestrationRuntimeStateAsync(
                 instanceId,
-                receivedMessageContext: null);
+                executionId,
+                storageOperationContext: null);
             return JsonConvert.SerializeObject(runtimeState.Events);
         }
 
         /// <summary>
         /// Wait for an orchestration to reach any terminal state within the given timeout
         /// </summary>
-        /// <param name="executionId">The execution ID (generation) of the orchestration instance.</param>
         /// <param name="instanceId">The orchestration instance to wait for.</param>
+        /// <param name="executionId">The execution ID (generation) of the specified instance.</param>
         /// <param name="timeout">Max timeout to wait.</param>
         /// <param name="cancellationToken">Task cancellation token.</param>
         public async Task<OrchestrationState> WaitForOrchestrationAsync(
@@ -988,13 +1046,13 @@ namespace DurableTask.AzureStorage
         {
             if (string.IsNullOrWhiteSpace(instanceId))
             {
-                throw new ArgumentException("instanceId");
+                throw new ArgumentException(nameof(instanceId));
             }
 
             TimeSpan statusPollingInterval = TimeSpan.FromSeconds(2);
             while (!cancellationToken.IsCancellationRequested && timeout > TimeSpan.Zero)
             {
-                OrchestrationState state = (await GetOrchestrationStateAsync(instanceId, false))?.FirstOrDefault();
+                OrchestrationState state = await GetOrchestrationStateAsync(instanceId, executionId);
                 if (state == null || 
                     state.OrchestrationStatus == OrchestrationStatus.Running ||
                     state.OrchestrationStatus == OrchestrationStatus.Pending)
@@ -1011,6 +1069,9 @@ namespace DurableTask.AzureStorage
             return null;
         }
 
+        /// <summary>
+        /// This method is not supported.
+        /// </summary>
         public Task PurgeOrchestrationHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType)
         {
             throw new NotSupportedException();

@@ -74,17 +74,17 @@ namespace DurableTask.AzureStorage
             get { return this.messageDataBatch; }
         }
 
-        public string InstanceId
+        public OrchestrationInstance Instance
         {
             get
             {
                 if (this.messageData != null)
                 {
-                    return this.messageData.TaskMessage.OrchestrationInstance.InstanceId;
+                    return this.messageData.TaskMessage.OrchestrationInstance;
                 }
                 else
                 {
-                    return this.messageDataBatch[0].TaskMessage.OrchestrationInstance.InstanceId;
+                    return this.messageDataBatch[0].TaskMessage.OrchestrationInstance;
                 }
             }
         }

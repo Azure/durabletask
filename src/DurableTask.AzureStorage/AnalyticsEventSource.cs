@@ -76,10 +76,10 @@ namespace DurableTask.AzureStorage
         }
 
         [Event(4, Level = EventLevel.Warning, Message = "Abandoning message of type {0} with ID = {1}. Orchestration ID = {2}.")]
-        public void AbandoningMessage(string EventType, string MessageId, string InstanceId)
+        public void AbandoningMessage(string EventType, string MessageId, string InstanceId, string ExecutionId)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(4, EventType, MessageId, InstanceId);
+            this.WriteEvent(4, EventType, MessageId, InstanceId, ExecutionId);
         }
 
         [Event(5, Level = EventLevel.Warning, Message = "An unexpected condition was detected: {0}")]
@@ -90,14 +90,14 @@ namespace DurableTask.AzureStorage
         }
 
         [Event(10, Level = EventLevel.Informational)]
-        public void FetchedInstanceState(string InstanceId, int EventCount, int RequestCount, long LatencyMs)
+        public void FetchedInstanceState(string InstanceId, string ExecutionId, int EventCount, int RequestCount, long LatencyMs)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(10, InstanceId, EventCount, RequestCount, LatencyMs);
+            this.WriteEvent(10, InstanceId, ExecutionId, EventCount, RequestCount, LatencyMs);
         }
 
         [Event(11, Level = EventLevel.Informational)]
-        public void AppendedInstanceState(string InstanceId, int NewEventCount, int TotalEventCount, string NewEvents, long LatencyMs)
+        public void AppendedInstanceState(string InstanceId, string ExecutionId, int NewEventCount, int TotalEventCount, string NewEvents, long LatencyMs)
         {
             EnsureLogicalTraceActivityId();
             this.WriteEvent(11, InstanceId, NewEventCount, TotalEventCount, NewEvents, LatencyMs);
