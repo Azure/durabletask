@@ -16,8 +16,6 @@ namespace DurableTask.Tracing
     using System;
     using System.Diagnostics;
     using System.Diagnostics.Tracing;
-    using System.Globalization;
-    using System.Runtime.InteropServices;
 
     [EventSource(
         Name = "DurableTask-Default",
@@ -40,7 +38,7 @@ namespace DurableTask.Tracing
         public static readonly DefaultEventSource Log = new DefaultEventSource();
 
         readonly string processName;
-
+        
         DefaultEventSource()
         {
             using (Process process = Process.GetCurrentProcess())
@@ -194,7 +192,7 @@ namespace DurableTask.Tracing
         unsafe void WriteEventInternal(int eventId, string source, string instanceId, string executionId, string sessionId, string message, string exception)
         {
             const int EventDataCount = 7;
-            fixed (char* chPtrProcessName = this.processName)
+            fixed (char* chPtrProcessName = processName)
             fixed (char* chPtrSource = source)
             fixed (char* chPtrInstanceId = instanceId)
             fixed (char* chPtrExecutionId = executionId)
@@ -204,7 +202,7 @@ namespace DurableTask.Tracing
             {
                 EventData* data = stackalloc EventData[EventDataCount];
                 data[0].DataPointer = (IntPtr)chPtrProcessName;
-                data[0].Size = (this.processName.Length + 1) * 2;
+                data[0].Size = (processName.Length + 1) * 2;
                 data[1].DataPointer = (IntPtr)chPtrSource;
                 data[1].Size = (source.Length + 1) * 2;
                 data[2].DataPointer = (IntPtr)chPtrInstanceId;
