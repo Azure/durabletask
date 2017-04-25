@@ -24,6 +24,7 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <DocumentationFile>bin\debugB\DurableTaskFx.xml</DocumentationFile>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -173,7 +174,6 @@
     <Compile Include="Test\DebugTestHost.cs" />
     <Compile Include="Settings\TrackingDispatcherSettings.cs" />
     <Compile Include="Settings\TaskOrchestrationDispatcherSettings.cs" />
-    <Compile Include="Tracing\OrchestrationConsoleTraceListener.cs" />
     <Compile Include="Test\FakeOrchestrationClock.cs" />
     <Compile Include="Test\FakeOrchestrationExecutor.cs" />
     <Compile Include="Test\FakeTaskActivityExecutor.cs" />

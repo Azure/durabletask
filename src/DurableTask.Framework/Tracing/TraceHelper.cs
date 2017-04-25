@@ -194,7 +194,6 @@ namespace DurableTask.Tracing
                 }
                 catch (Exception anotherException) when (!Utils.IsFatal(anotherException))
                 {
-
                 }
             }
         }

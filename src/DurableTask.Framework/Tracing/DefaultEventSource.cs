@@ -16,10 +16,12 @@ namespace DurableTask.Tracing
     using System;
     using System.Diagnostics;
     using System.Diagnostics.Tracing;
+    using System.Globalization;
 
     [EventSource(
         Name = "DurableTask-Default",
         Guid = "7DA4779A-152E-44A2-A6F2-F80D991A5BEE")]
+    // todo: leverage WriteEventCore and WriteEventWithRelatedActivityIdCore for better perf
     internal class DefaultEventSource : EventSource
     {
         const int TraceEventId = 1;
@@ -27,6 +29,7 @@ namespace DurableTask.Tracing
         const int InfoEventId = 3;
         const int WarningEventId = 4;
         const int ErrorEventId = 5;
+        const int CriticalEventId = 6;
 
         public class Keywords
         {
@@ -50,12 +53,16 @@ namespace DurableTask.Tracing
 
         public bool IsErrorEnabled => this.IsEnabled(EventLevel.Error, EventKeywords.None);
 
+        public bool IsCriticalEnabled => this.IsEnabled(EventLevel.Critical, EventKeywords.None);
+
         [NonEvent]
         public void TraceEvent(TraceEventType eventType, string source, string instanceId, string executionId, string sessionId, string message)
         {
             switch (eventType)
             {
                 case TraceEventType.Critical:
+                    this.Critical(source, instanceId, executionId, sessionId, message);
+                    break;
                 case TraceEventType.Error:
                     this.Error(source, instanceId, executionId, sessionId, message);
                     break;
@@ -88,7 +95,7 @@ namespace DurableTask.Tracing
         {
             if (this.IsTraceEnabled)
             {
-                this.WriteEvent(TraceEventId, source, instanceId, executionId, sessionId, message, info);
+                this.WriteEventInternal(TraceEventId, source, instanceId, executionId, sessionId, message, info);
             }
         }
 
@@ -105,7 +112,7 @@ namespace DurableTask.Tracing
         {
             if (this.IsDebugEnabled)
             {
-                this.WriteEvent(DebugEventId, source, instanceId, executionId, sessionId, message, info);
+                this.WriteEventInternal(DebugEventId, source, instanceId, executionId, sessionId, message, info);
             }
         }
 
@@ -122,7 +129,7 @@ namespace DurableTask.Tracing
         {
             if (this.IsInfoEnabled)
             {
-                this.WriteEvent(InfoEventId, source, instanceId, executionId, sessionId, message, info);
+                this.WriteEventInternal(InfoEventId, source, instanceId, executionId, sessionId, message, info);
             }
         }
 
@@ -139,7 +146,7 @@ namespace DurableTask.Tracing
         {
             if (this.IsWarningEnabled)
             {
-                this.WriteEvent(WarningEventId, source, instanceId, executionId, sessionId, message, exception);
+                this.WriteEventInternal(WarningEventId, source, instanceId, executionId, sessionId, message, exception);
             }
         }
 
@@ -156,7 +163,53 @@ namespace DurableTask.Tracing
         {
             if (this.IsErrorEnabled)
             {
-                this.WriteEvent(ErrorEventId, instanceId, executionId, sessionId, source, message, exception);
+                this.WriteEventInternal(ErrorEventId, instanceId, executionId, sessionId, source, message, exception);
+            }
+        }
+
+        [NonEvent]
+        public void Critical(string source, string instanceId, string executionId, string sessionId, string message) =>
+            this.Critical(source, instanceId, executionId, sessionId, message, string.Empty);
+
+        [NonEvent]
+        public void Critical(string source, string instanceId, string executionId, string sessionId, string message, Exception exception) =>
+            this.Critical(source, instanceId, executionId, sessionId, message, exception?.ToString() ?? string.Empty);
+
+        [Event(CriticalEventId, Level = EventLevel.Critical)]
+        public void Critical(string source, string instanceId, string executionId, string sessionId, string message, string exception)
+        {
+            if (this.IsCriticalEnabled)
+            {
+                this.WriteEventInternal(CriticalEventId, instanceId, executionId, sessionId, source, message, exception);
+            }
+        }
+
+        [NonEvent]
+        unsafe void WriteEventInternal(int eventId, string source, string instanceId, string executionId, string sessionId, string message, string exception)
+        {
+            const int EventDataCount = 6;
+            fixed (char* chPtrSource = source)
+            fixed (char* chPtrInstanceId = instanceId)
+            fixed (char* chPtrExecutionId = executionId)
+            fixed (char* chPtrSessionId = sessionId)
+            fixed (char* chPtrMessage = message)
+            fixed (char* chPtrException = exception)
+            {
+                EventData* data = stackalloc EventData[EventDataCount];
+                data[0].DataPointer = (IntPtr)chPtrSource;
+                data[0].Size = (source.Length + 1) * 2;
+                data[1].DataPointer = (IntPtr)chPtrInstanceId;
+                data[1].Size = (instanceId.Length + 1) * 2;
+                data[2].DataPointer = (IntPtr)chPtrExecutionId;
+                data[2].Size = (executionId.Length + 1) * 2;
+                data[3].DataPointer = (IntPtr)chPtrSessionId;
+                data[3].Size = (sessionId.Length + 1) * 2;
+                data[4].DataPointer = (IntPtr)chPtrMessage;
+                data[4].Size = (message.Length + 1) * 2;
+                data[5].DataPointer = (IntPtr)chPtrException;
+                data[5].Size = (exception.Length + 1) * 2;
+
+                this.WriteEventCore(eventId, EventDataCount, data);
             }
         }
     }

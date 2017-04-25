@@ -15,21 +15,25 @@ namespace DurableTask.ServiceBus.Tests
 {
     using System;
     using System.Configuration;
+    using System.Diagnostics.Tracing;
     using System.Threading.Tasks;
     using DurableTask;
     using DurableTask.Common;
     using DurableTask.History;
     using DurableTask.Settings;
+    using DurableTask.Tracing;
     using DurableTask.Tracking;
     using Microsoft.ServiceBus;
     using Microsoft.ServiceBus.Messaging;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
+    using Microsoft.Practices.EnterpriseLibrary.SemanticLogging;
 
     public static class TestHelpers
     {
         static string ServiceBusConnectionString;
         static string StorageConnectionString;
         static string TaskHubName;
+        static ObservableEventListener eventListener;
 
         static TestHelpers()
         {
@@ -46,6 +50,10 @@ namespace DurableTask.ServiceBus.Tests
             }
 
             TaskHubName = ConfigurationManager.AppSettings.Get("TaskHubName");
+
+            eventListener = new ObservableEventListener();
+            eventListener.LogToConsole();
+            eventListener.EnableEvents(DefaultEventSource.Log, EventLevel.LogAlways);
         }
 
         public static ServiceBusOrchestrationServiceSettings CreateTestWorkerSettings(CompressionStyle style = CompressionStyle.Threshold)
