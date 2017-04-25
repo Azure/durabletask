@@ -17,6 +17,7 @@ namespace DurableTask.Tracing
     using System.Diagnostics;
     using System.Diagnostics.Tracing;
     using System.Globalization;
+    using System.Runtime.InteropServices;
 
     [EventSource(
         Name = "DurableTask-Default",
@@ -38,8 +39,14 @@ namespace DurableTask.Tracing
 
         public static readonly DefaultEventSource Log = new DefaultEventSource();
 
+        readonly string processName;
+
         DefaultEventSource()
         {
+            using (Process process = Process.GetCurrentProcess())
+            {
+                this.processName = process.ProcessName.ToLowerInvariant();
+            }
         }
 
         public bool IsTraceEnabled => this.IsEnabled(EventLevel.Verbose, Keywords.TraceEventKeyword);
@@ -186,7 +193,8 @@ namespace DurableTask.Tracing
         [NonEvent]
         unsafe void WriteEventInternal(int eventId, string source, string instanceId, string executionId, string sessionId, string message, string exception)
         {
-            const int EventDataCount = 6;
+            const int EventDataCount = 7;
+            fixed (char* chPtrProcessName = this.processName)
             fixed (char* chPtrSource = source)
             fixed (char* chPtrInstanceId = instanceId)
             fixed (char* chPtrExecutionId = executionId)
@@ -195,18 +203,20 @@ namespace DurableTask.Tracing
             fixed (char* chPtrException = exception)
             {
                 EventData* data = stackalloc EventData[EventDataCount];
-                data[0].DataPointer = (IntPtr)chPtrSource;
-                data[0].Size = (source.Length + 1) * 2;
-                data[1].DataPointer = (IntPtr)chPtrInstanceId;
-                data[1].Size = (instanceId.Length + 1) * 2;
-                data[2].DataPointer = (IntPtr)chPtrExecutionId;
-                data[2].Size = (executionId.Length + 1) * 2;
-                data[3].DataPointer = (IntPtr)chPtrSessionId;
-                data[3].Size = (sessionId.Length + 1) * 2;
-                data[4].DataPointer = (IntPtr)chPtrMessage;
-                data[4].Size = (message.Length + 1) * 2;
-                data[5].DataPointer = (IntPtr)chPtrException;
-                data[5].Size = (exception.Length + 1) * 2;
+                data[0].DataPointer = (IntPtr)chPtrProcessName;
+                data[0].Size = (this.processName.Length + 1) * 2;
+                data[1].DataPointer = (IntPtr)chPtrSource;
+                data[1].Size = (source.Length + 1) * 2;
+                data[2].DataPointer = (IntPtr)chPtrInstanceId;
+                data[2].Size = (instanceId.Length + 1) * 2;
+                data[3].DataPointer = (IntPtr)chPtrExecutionId;
+                data[3].Size = (executionId.Length + 1) * 2;
+                data[4].DataPointer = (IntPtr)chPtrSessionId;
+                data[4].Size = (sessionId.Length + 1) * 2;
+                data[5].DataPointer = (IntPtr)chPtrMessage;
+                data[5].Size = (message.Length + 1) * 2;
+                data[6].DataPointer = (IntPtr)chPtrException;
+                data[6].Size = (exception.Length + 1) * 2;
 
                 // todo: use WriteEventWithRelatedActivityIdCore for correlation
                 this.WriteEventCore(eventId, EventDataCount, data);
