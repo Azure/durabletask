@@ -16,6 +16,7 @@ namespace DurableTask.Tracing
     using System;
     using System.Diagnostics;
     using System.Diagnostics.Tracing;
+    using System.Runtime.InteropServices;
 
     [EventSource(
         Name = "DurableTask-Default",
@@ -37,13 +38,16 @@ namespace DurableTask.Tracing
 
         public static readonly DefaultEventSource Log = new DefaultEventSource();
 
-        readonly string processName;
-        
-        DefaultEventSource()
+        readonly GCHandle processNameGCHandle;
+        readonly int processNameLength;
+
+        unsafe DefaultEventSource()
         {
             using (Process process = Process.GetCurrentProcess())
             {
-                this.processName = process.ProcessName.ToLowerInvariant();
+                string processName = process.ProcessName.ToLowerInvariant();
+                this.processNameGCHandle = GCHandle.Alloc(processName, GCHandleType.Pinned);
+                this.processNameLength = (processName.Length + 1) * 2;
             }
         }
 
@@ -192,7 +196,6 @@ namespace DurableTask.Tracing
         unsafe void WriteEventInternal(int eventId, string source, string instanceId, string executionId, string sessionId, string message, string exception)
         {
             const int EventDataCount = 7;
-            fixed (char* chPtrProcessName = processName)
             fixed (char* chPtrSource = source)
             fixed (char* chPtrInstanceId = instanceId)
             fixed (char* chPtrExecutionId = executionId)
@@ -201,8 +204,8 @@ namespace DurableTask.Tracing
             fixed (char* chPtrException = exception)
             {
                 EventData* data = stackalloc EventData[EventDataCount];
-                data[0].DataPointer = (IntPtr)chPtrProcessName;
-                data[0].Size = (processName.Length + 1) * 2;
+                data[0].DataPointer = this.processNameGCHandle.AddrOfPinnedObject();
+                data[0].Size = this.processNameLength;
                 data[1].DataPointer = (IntPtr)chPtrSource;
                 data[1].Size = (source.Length + 1) * 2;
                 data[2].DataPointer = (IntPtr)chPtrInstanceId;
