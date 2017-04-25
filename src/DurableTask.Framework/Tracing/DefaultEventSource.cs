@@ -39,7 +39,7 @@ namespace DurableTask.Tracing
         public static readonly DefaultEventSource Log = new DefaultEventSource();
 
         readonly GCHandle processNameGCHandle;
-        readonly int processNameLength;
+        readonly int processNameSize;
 
         unsafe DefaultEventSource()
         {
@@ -47,7 +47,7 @@ namespace DurableTask.Tracing
             {
                 string processName = process.ProcessName.ToLowerInvariant();
                 this.processNameGCHandle = GCHandle.Alloc(processName, GCHandleType.Pinned);
-                this.processNameLength = (processName.Length + 1) * 2;
+                this.processNameSize = (processName.Length + 1) * 2;
             }
         }
 
@@ -205,7 +205,7 @@ namespace DurableTask.Tracing
             {
                 EventData* data = stackalloc EventData[EventDataCount];
                 data[0].DataPointer = this.processNameGCHandle.AddrOfPinnedObject();
-                data[0].Size = this.processNameLength;
+                data[0].Size = this.processNameSize;
                 data[1].DataPointer = (IntPtr)chPtrSource;
                 data[1].Size = (source.Length + 1) * 2;
                 data[2].DataPointer = (IntPtr)chPtrInstanceId;
