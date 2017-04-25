@@ -21,7 +21,6 @@ namespace DurableTask.Tracing
     [EventSource(
         Name = "DurableTask-Default",
         Guid = "7DA4779A-152E-44A2-A6F2-F80D991A5BEE")]
-    // todo: leverage WriteEventCore and WriteEventWithRelatedActivityIdCore for better perf
     internal class DefaultEventSource : EventSource
     {
         const int TraceEventId = 1;
@@ -209,6 +208,7 @@ namespace DurableTask.Tracing
                 data[5].DataPointer = (IntPtr)chPtrException;
                 data[5].Size = (exception.Length + 1) * 2;
 
+                // todo: use WriteEventWithRelatedActivityIdCore for correlation
                 this.WriteEventCore(eventId, EventDataCount, data);
             }
         }
