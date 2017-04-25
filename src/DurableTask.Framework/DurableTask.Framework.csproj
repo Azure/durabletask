@@ -116,6 +116,7 @@
     <Compile Include="Stats\Counter.cs" />
     <Compile Include="Stats\ServiceBusOrchestrationServiceStats.cs" />
     <Compile Include="Stats\ServiceBusQueueStats.cs" />
+    <Compile Include="Tracing\DefaultEventSource.cs" />
     <Compile Include="Tracking\AzureStorageBlobStore.cs" />
     <Compile Include="Tracking\AzureTableOrchestrationJumpStartEntity.cs" />
     <Compile Include="TrackingWorkItem.cs" />
