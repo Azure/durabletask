@@ -12,9 +12,9 @@ namespace DurableTask.AzureStorage
     /// ETW Event Provider for the DurableTask.AzureStorage provider extension.
     /// </summary>
     /// <remarks>
-    /// The ETW Provider ID for this event source is {2ac15994-1f60-58dd-3d9a-58a0484fad3f}.
+    /// The ETW Provider ID for this event source is {4c4ad4a2-f396-5e18-01b6-618c12a10433}.
     /// </remarks>
-    [EventSource(Name = "DurableTask.AzureStorage")]
+    [EventSource(Name = "DurableTask-AzureStorage")]
     public class AnalyticsEventSource : EventSource
     {
         const string TraceActivityIdSlot = "TraceActivityId";
@@ -100,7 +100,7 @@ namespace DurableTask.AzureStorage
         public void AppendedInstanceState(string InstanceId, string ExecutionId, int NewEventCount, int TotalEventCount, string NewEvents, long LatencyMs)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(11, InstanceId, NewEventCount, TotalEventCount, NewEvents, LatencyMs);
+            this.WriteEvent(11, InstanceId, ExecutionId, NewEventCount, TotalEventCount, NewEvents, LatencyMs);
         }
     }
 }
