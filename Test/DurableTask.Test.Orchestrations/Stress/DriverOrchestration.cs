@@ -17,6 +17,7 @@ namespace DurableTask.Test.Orchestrations.Stress
     using System.Linq;
     using System.Threading.Tasks;
 
+    [System.Runtime.InteropServices.ComVisible(false)]
     public class DriverOrchestration : TaskOrchestration<int, DriverOrchestrationData>
     {
         public override async Task<int> RunTask(OrchestrationContext context, DriverOrchestrationData data)

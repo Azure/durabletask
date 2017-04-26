@@ -11,6 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+[assembly: System.Runtime.InteropServices.ComVisible(false)]
 namespace DurableTask.Stress.Tests
 {
     using System;
