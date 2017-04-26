@@ -19,7 +19,6 @@ namespace DurableTask.Stress.Tests
     using DurableTask.Settings;
     using DurableTask.Test.Orchestrations.Stress;
     using DurableTask.Tracking;
-    using DurableTask.Common;
 
     class Program
     {

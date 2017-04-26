@@ -11,21 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System.Reflection;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
-
-[assembly: AssemblyTitle("Durable Task Framework")]
-[assembly: AssemblyDescription(@"This package provides a C# based durable Task framework for writing long running applications.")]
-[assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("Microsoft")]
-[assembly: AssemblyProduct("Durable Task Framework")]
-[assembly: AssemblyTrademark("")]
-[assembly: AssemblyCulture("")]
-[assembly: ComVisible(false)]
-[assembly: Guid("1d626d8b-330b-4c6a-b689-c0fefbeb99cd")]
-[assembly: AssemblyVersion("1.0.0.6")]
-[assembly: AssemblyFileVersion("1.0.0.6")]
 
 [assembly: InternalsVisibleTo("DurableTask.Framework.Tests")]
 [assembly: InternalsVisibleTo("DurableTask.ServiceBus.Tests")]
