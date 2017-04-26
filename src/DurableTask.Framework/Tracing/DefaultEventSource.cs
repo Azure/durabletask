@@ -19,7 +19,7 @@ namespace DurableTask.Tracing
     using System.Runtime.InteropServices;
 
     [EventSource(
-        Name = "DurableTask-Default",
+        Name = "DurableTask-Core",
         Guid = "7DA4779A-152E-44A2-A6F2-F80D991A5BEE")]
     internal class DefaultEventSource : EventSource
     {
@@ -194,11 +194,12 @@ namespace DurableTask.Tracing
         {
             source = string.Concat(source, '-', this.processName);
 
-            instanceId = instanceId ?? string.Empty;
-            executionId = executionId ?? string.Empty;
-            sessionId = sessionId ?? string.Empty;
-            message = message ?? string.Empty;
-            info = info ?? string.Empty;
+            MakeSafe(ref source);
+            MakeSafe(ref instanceId);
+            MakeSafe(ref executionId);
+            MakeSafe(ref sessionId);
+            MakeSafe(ref message);
+            MakeSafe(ref info);
 
             const int EventDataCount = 6;
             fixed (char* chPtrSource = source)
@@ -224,6 +225,17 @@ namespace DurableTask.Tracing
 
                 // todo: use WriteEventWithRelatedActivityIdCore for correlation
                 this.WriteEventCore(eventId, EventDataCount, data);
+            }
+        }
+
+        static void MakeSafe(ref string value)
+        {
+            const int MaxLength = 0x7C00; // max event size is 64k, truncating to roughly 31k chars
+            value = value ?? string.Empty;
+
+            if (value.Length > MaxLength)
+            {
+                value = value.Remove(MaxLength);
             }
         }
     }
