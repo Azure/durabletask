@@ -38,16 +38,13 @@ namespace DurableTask.Tracing
 
         public static readonly DefaultEventSource Log = new DefaultEventSource();
 
-        readonly GCHandle processNameGCHandle;
-        readonly int processNameSize;
+        readonly string processName;
 
-        unsafe DefaultEventSource()
+        DefaultEventSource()
         {
             using (Process process = Process.GetCurrentProcess())
             {
-                string processName = process.ProcessName.ToLowerInvariant();
-                this.processNameGCHandle = GCHandle.Alloc(processName, GCHandleType.Pinned);
-                this.processNameSize = (processName.Length + 1) * 2;
+                this.processName = process.ProcessName.ToLowerInvariant();
             }
         }
 
@@ -193,31 +190,37 @@ namespace DurableTask.Tracing
         }
 
         [NonEvent]
-        unsafe void WriteEventInternal(int eventId, string source, string instanceId, string executionId, string sessionId, string message, string exception)
+        unsafe void WriteEventInternal(int eventId, string source, string instanceId, string executionId, string sessionId, string message, string info)
         {
-            const int EventDataCount = 7;
+            source = string.Concat(source, '-', this.processName);
+
+            instanceId = instanceId ?? string.Empty;
+            executionId = executionId ?? string.Empty;
+            sessionId = sessionId ?? string.Empty;
+            message = message ?? string.Empty;
+            info = info ?? string.Empty;
+
+            const int EventDataCount = 6;
             fixed (char* chPtrSource = source)
             fixed (char* chPtrInstanceId = instanceId)
             fixed (char* chPtrExecutionId = executionId)
             fixed (char* chPtrSessionId = sessionId)
             fixed (char* chPtrMessage = message)
-            fixed (char* chPtrException = exception)
+            fixed (char* chPtrInfo = info)
             {
                 EventData* data = stackalloc EventData[EventDataCount];
-                data[0].DataPointer = this.processNameGCHandle.AddrOfPinnedObject();
-                data[0].Size = this.processNameSize;
-                data[1].DataPointer = (IntPtr)chPtrSource;
-                data[1].Size = (source.Length + 1) * 2;
-                data[2].DataPointer = (IntPtr)chPtrInstanceId;
-                data[2].Size = (instanceId.Length + 1) * 2;
-                data[3].DataPointer = (IntPtr)chPtrExecutionId;
-                data[3].Size = (executionId.Length + 1) * 2;
-                data[4].DataPointer = (IntPtr)chPtrSessionId;
-                data[4].Size = (sessionId.Length + 1) * 2;
-                data[5].DataPointer = (IntPtr)chPtrMessage;
-                data[5].Size = (message.Length + 1) * 2;
-                data[6].DataPointer = (IntPtr)chPtrException;
-                data[6].Size = (exception.Length + 1) * 2;
+                data[0].DataPointer = (IntPtr)chPtrSource;
+                data[0].Size = (source.Length + 1) * 2;
+                data[1].DataPointer = (IntPtr)chPtrInstanceId;
+                data[1].Size = (instanceId.Length + 1) * 2;
+                data[2].DataPointer = (IntPtr)chPtrExecutionId;
+                data[2].Size = (executionId.Length + 1) * 2;
+                data[3].DataPointer = (IntPtr)chPtrSessionId;
+                data[3].Size = (sessionId.Length + 1) * 2;
+                data[4].DataPointer = (IntPtr)chPtrMessage;
+                data[4].Size = (message.Length + 1) * 2;
+                data[5].DataPointer = (IntPtr)chPtrInfo;
+                data[5].Size = (info.Length + 1) * 2;
 
                 // todo: use WriteEventWithRelatedActivityIdCore for correlation
                 this.WriteEventCore(eventId, EventDataCount, data);
