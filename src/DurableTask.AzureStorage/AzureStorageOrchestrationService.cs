@@ -282,6 +282,16 @@ namespace DurableTask.AzureStorage
 
             // Associate this message context with the work item. We'll restore it back later.
             messageContext.TrySave(orchestrationWorkItem);
+
+            if (runtimeState.ExecutionStartedEvent != null &&
+                runtimeState.OrchestrationStatus != OrchestrationStatus.Running &&
+                runtimeState.OrchestrationStatus != OrchestrationStatus.Pending)
+            {
+                // The instance has already completed. Delete this message batch.
+                await this.ReleaseTaskOrchestrationWorkItemAsync(orchestrationWorkItem);
+                return null;
+            }
+
             return orchestrationWorkItem;
         }
 
