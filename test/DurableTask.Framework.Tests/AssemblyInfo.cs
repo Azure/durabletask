@@ -11,18 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System.Reflection;
-using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 
-[assembly: AssemblyTitle("FrameworkUnitTests")]
-[assembly: AssemblyDescription("")]
-[assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("FrameworkUnitTests")]
-[assembly: AssemblyCopyright("Copyright ©  2013")]
-[assembly: AssemblyTrademark("")]
-[assembly: AssemblyCulture("")]
-[assembly: ComVisible(false)]
-[assembly: Guid("af955d48-f1ba-4cbb-a8ed-e3aba1bb6373")]
-[assembly: AssemblyVersion("1.0.0.0")]
-[assembly: AssemblyFileVersion("1.0.0.0")]
+[assembly: InternalsVisibleTo("DurableTask.ServiceBus.Tests")]
+[assembly: InternalsVisibleTo("DurableTask.Stress.Tests")]

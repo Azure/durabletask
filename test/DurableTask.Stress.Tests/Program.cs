@@ -11,6 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+[assembly: System.Runtime.InteropServices.ComVisible(false)]
 namespace DurableTask.Stress.Tests
 {
     using System;
@@ -20,7 +21,6 @@ namespace DurableTask.Stress.Tests
     using DurableTask.Test.Orchestrations.Stress;
     using DurableTask.Tracing;
     using DurableTask.Tracking;
-    using DurableTask.Common;
     using Microsoft.Practices.EnterpriseLibrary.SemanticLogging;
     using System.Diagnostics.Tracing;
 

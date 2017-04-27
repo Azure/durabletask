@@ -17,6 +17,7 @@ namespace DurableTask.Test.Orchestrations.Stress
     using System.Threading;
     using System.Threading.Tasks;
 
+    [System.Runtime.InteropServices.ComVisible(false)]
     public sealed class TestTask : AsyncTaskActivity<TestTaskData, int>
     {
         public int counter = 0;
