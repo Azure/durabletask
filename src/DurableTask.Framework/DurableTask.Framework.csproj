@@ -5,6 +5,7 @@
     <TargetFramework>net451</TargetFramework>
     <AssemblyName>DurableTaskFx</AssemblyName>
     <RootNamespace>DurableTask</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
