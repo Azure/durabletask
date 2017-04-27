@@ -18,15 +18,23 @@ namespace DurableTask.Stress.Tests
     using System.Diagnostics;
     using DurableTask.Settings;
     using DurableTask.Test.Orchestrations.Stress;
+    using DurableTask.Tracing;
     using DurableTask.Tracking;
     using DurableTask.Common;
+    using Microsoft.Practices.EnterpriseLibrary.SemanticLogging;
+    using System.Diagnostics.Tracing;
 
     class Program
     {
         static Options options = new Options();
+        static ObservableEventListener eventListener;
 
         static void Main(string[] args)
         {
+            eventListener = new ObservableEventListener();
+            eventListener.LogToFlatFile("Trace.log");
+            eventListener.EnableEvents(DefaultEventSource.Log, EventLevel.Warning);
+
             string tableConnectionString = ConfigurationManager.AppSettings["StorageConnectionString"];
 
             if (CommandLine.Parser.Default.ParseArgumentsStrict(args, options))

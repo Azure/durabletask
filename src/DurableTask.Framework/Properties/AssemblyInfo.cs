@@ -29,3 +29,4 @@ using System.Runtime.InteropServices;
 
 [assembly: InternalsVisibleTo("DurableTask.Framework.Tests")]
 [assembly: InternalsVisibleTo("DurableTask.ServiceBus.Tests")]
+[assembly: InternalsVisibleTo("DurableTask.Stress.Tests")]

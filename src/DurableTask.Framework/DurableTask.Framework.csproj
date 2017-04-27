@@ -24,6 +24,7 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <DocumentationFile>bin\debugB\DurableTaskFx.xml</DocumentationFile>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -116,6 +117,7 @@
     <Compile Include="Stats\Counter.cs" />
     <Compile Include="Stats\ServiceBusOrchestrationServiceStats.cs" />
     <Compile Include="Stats\ServiceBusQueueStats.cs" />
+    <Compile Include="Tracing\DefaultEventSource.cs" />
     <Compile Include="Tracking\AzureStorageBlobStore.cs" />
     <Compile Include="Tracking\AzureTableOrchestrationJumpStartEntity.cs" />
     <Compile Include="TrackingWorkItem.cs" />
@@ -172,7 +174,6 @@
     <Compile Include="Test\DebugTestHost.cs" />
     <Compile Include="Settings\TrackingDispatcherSettings.cs" />
     <Compile Include="Settings\TaskOrchestrationDispatcherSettings.cs" />
-    <Compile Include="Tracing\OrchestrationConsoleTraceListener.cs" />
     <Compile Include="Test\FakeOrchestrationClock.cs" />
     <Compile Include="Test\FakeOrchestrationExecutor.cs" />
     <Compile Include="Test\FakeTaskActivityExecutor.cs" />
