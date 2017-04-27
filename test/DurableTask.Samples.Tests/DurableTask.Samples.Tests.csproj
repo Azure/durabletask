@@ -3,8 +3,6 @@
 	<Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
 	<PropertyGroup>
 		<TargetFramework>net451</TargetFramework>
-		<RuntimeIdentifier>win7-x64</RuntimeIdentifier>
-		<BaseNuGetRuntimeIdentifier>win7-x64</BaseNuGetRuntimeIdentifier>
 	</PropertyGroup>
 
 	<ItemGroup>
