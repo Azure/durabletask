@@ -42,12 +42,14 @@ namespace DurableTask.ServiceFabric
             this.stateManager = stateManager;
         }
 
-        public async Task InitializeStoreAsync(bool recreate)
+        public Task InitializeStoreAsync(bool recreate)
         {
             if (recreate)
             {
-                await DeleteStoreAsync();
+                return DeleteStoreAsync();
             }
+
+            return CompletedTask.Default;
         }
 
         public async Task StartAsync()
@@ -60,7 +62,7 @@ namespace DurableTask.ServiceFabric
         public Task StopAsync(bool isForced)
         {
             this.cancellationTokenSource.Cancel();
-            return Task.FromResult<object>(null);
+            return CompletedTask.Default;
         }
 
         public async Task DeleteStoreAsync()

@@ -48,9 +48,9 @@ namespace DurableTask.ServiceFabric
             this.scheduledMessagesProvider = new ScheduledMessageProvider(this.stateManager, Constants.ScheduledMessagesDictionaryName, orchestrationProvider);
         }
 
-        public async Task StartAsync()
+        public Task StartAsync()
         {
-            await Task.WhenAll(this.activitiesProvider.StartAsync(),
+            return Task.WhenAll(this.activitiesProvider.StartAsync(),
                 this.scheduledMessagesProvider.StartAsync(),
                 this.instanceStore.StartAsync(),
                 this.orchestrationProvider.StartAsync());
@@ -61,12 +61,12 @@ namespace DurableTask.ServiceFabric
             return StopAsync(false);
         }
 
-        public async Task StopAsync(bool isForced)
+        public Task StopAsync(bool isForced)
         {
-            await this.orchestrationProvider.StopAsync();
-            await this.instanceStore.StopAsync(isForced);
-            await this.scheduledMessagesProvider.StopAsync();
-            await this.activitiesProvider.StopAsync();
+            return Task.WhenAll(this.orchestrationProvider.StopAsync(),
+                this.instanceStore.StopAsync(isForced),
+                this.scheduledMessagesProvider.StopAsync(),
+                this.activitiesProvider.StopAsync());
         }
 
         public Task CreateAsync()
@@ -74,15 +74,15 @@ namespace DurableTask.ServiceFabric
             return CreateAsync(true);
         }
 
-        public async Task CreateAsync(bool recreateInstanceStore)
+        public Task CreateAsync(bool recreateInstanceStore)
         {
-            await DeleteAsync(deleteInstanceStore: recreateInstanceStore);
+            return DeleteAsync(deleteInstanceStore: recreateInstanceStore);
             // Actual creation will be done on demand when we call GetOrAddAsync in StartAsync method.
         }
 
         public Task CreateIfNotExistsAsync()
         {
-            return Task.FromResult<object>(null);
+            return CompletedTask.Default;
         }
 
         public Task DeleteAsync()
@@ -90,16 +90,19 @@ namespace DurableTask.ServiceFabric
             return DeleteAsync(true);
         }
 
-        public async Task DeleteAsync(bool deleteInstanceStore)
+        public Task DeleteAsync(bool deleteInstanceStore)
         {
-            await this.stateManager.RemoveAsync(Constants.OrchestrationDictionaryName);
-            await this.stateManager.RemoveAsync(Constants.ScheduledMessagesDictionaryName);
-            await this.stateManager.RemoveAsync(Constants.ActivitiesQueueName);
+            List<Task> tasks = new List<Task>();
+            tasks.Add(this.stateManager.RemoveAsync(Constants.OrchestrationDictionaryName));
+            tasks.Add(this.stateManager.RemoveAsync(Constants.ScheduledMessagesDictionaryName));
+            tasks.Add(this.stateManager.RemoveAsync(Constants.ActivitiesQueueName));
 
             if (deleteInstanceStore)
             {
-                await this.stateManager.RemoveAsync(Constants.InstanceStoreDictionaryName);
+                tasks.Add(this.stateManager.RemoveAsync(Constants.InstanceStoreDictionaryName));
             }
+
+            return Task.WhenAll(tasks);
         }
 
         public bool IsMaxMessageCountExceeded(int currentMessageCount, OrchestrationRuntimeState runtimeState)
@@ -241,7 +244,7 @@ namespace DurableTask.ServiceFabric
         public Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
             this.orchestrationProvider.TryUnlockSession(workItem.InstanceId, putBackInQueue: true);
-            return Task.FromResult<object>(null);
+            return CompletedTask.Default;
         }
 
         public async Task ReleaseTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)

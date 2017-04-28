@@ -89,6 +89,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AsyncManualResetEvent.cs" />
+    <Compile Include="CompletedTask.cs" />
     <Compile Include="Constants.cs" />
     <Compile Include="FabricOrchestrationInstanceStore.cs" />
     <Compile Include="FabricOrchestrationProvider.cs" />

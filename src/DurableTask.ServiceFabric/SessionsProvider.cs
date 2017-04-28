@@ -216,13 +216,15 @@ namespace DurableTask.ServiceFabric
             }
         }
 
-        async Task EnsureOrchestrationStoreInitialized()
+        Task EnsureOrchestrationStoreInitialized()
         {
             //Workaround to avoid client sending a new message before StartAsync on service is done
             if (this.Store == null)
             {
-                await InitializeStore();
+                return InitializeStore();
             }
+
+            return CompletedTask.Default;
         }
 
         public void TryEnqueueSession(string sessionId)
@@ -234,9 +236,9 @@ namespace DurableTask.ServiceFabric
             }
         }
 
-        public async Task DropSession(ITransaction transaction, string sessionId)
+        public Task DropSession(ITransaction transaction, string sessionId)
         {
-            await this.Store.TryRemoveAsync(transaction, sessionId);
+            return this.Store.TryRemoveAsync(transaction, sessionId);
         }
 
         enum LockState

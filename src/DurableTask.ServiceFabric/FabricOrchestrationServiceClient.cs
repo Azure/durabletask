@@ -71,7 +71,7 @@ namespace DurableTask.ServiceFabric
             throw new NotImplementedException();
         }
 
-        public async Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason)
+        public Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason)
         {
             var taskMessage = new TaskMessage
             {
@@ -79,7 +79,7 @@ namespace DurableTask.ServiceFabric
                 Event = new ExecutionTerminatedEvent(-1, reason)
             };
 
-            await SendTaskOrchestrationMessageAsync(taskMessage);
+            return SendTaskOrchestrationMessageAsync(taskMessage);
         }
 
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
@@ -139,7 +139,7 @@ namespace DurableTask.ServiceFabric
                     return currentState;
                 }
 
-                await Task.Delay(2000, cancellationToken);
+                await Task.Delay(2000, cancellationToken).ConfigureAwait(false);
                 timeoutSeconds -= 2;
             }
 

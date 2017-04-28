@@ -76,7 +76,7 @@ namespace DurableTask.ServiceFabric
         {
             this.cancellationTokenSource.Cancel();
             this.cancellationTokenSource.Dispose();
-            return Task.FromResult<object>(null);
+            return CompletedTask.Default;
         }
 
         public Task CompleteAsync(ITransaction tx, TKey key)
@@ -86,14 +86,17 @@ namespace DurableTask.ServiceFabric
             return this.Store.TryRemoveAsync(tx, key);
         }
 
-        public async Task CompleteBatchAsync(ITransaction tx, IEnumerable<TKey> keys)
+        public Task CompleteBatchAsync(ITransaction tx, IEnumerable<TKey> keys)
         {
             ThrowIfStopped();
 
+            List<Task> tasks = new List<Task>();
             foreach (var key in keys)
             {
-                await this.Store.TryRemoveAsync(tx, key);
+                tasks.Add(this.Store.TryRemoveAsync(tx, key));
             }
+
+            return Task.WhenAll(tasks);
         }
 
         /// <summary>
@@ -119,14 +122,17 @@ namespace DurableTask.ServiceFabric
         /// Caller has to pass in a transaction and must call SendBatchComplete with the same items
         /// after the transaction commit succeeded.
         /// </summary>
-        public async Task SendBatchBeginAsync(ITransaction tx, IEnumerable<Message<TKey, TValue>> items)
+        public Task SendBatchBeginAsync(ITransaction tx, IEnumerable<Message<TKey, TValue>> items)
         {
             ThrowIfStopped();
 
+            List<Task> tasks = new List<Task>();
             foreach (var item in items)
             {
-                await this.Store.TryAddAsync(tx, item.Key, item.Value);
+                tasks.Add(this.Store.TryAddAsync(tx, item.Key, item.Value));
             }
+
+            return Task.WhenAll(tasks);
         }
 
         public void SendBatchComplete(IEnumerable<Message<TKey, TValue>> items)
@@ -180,7 +186,7 @@ namespace DurableTask.ServiceFabric
         {
             while (!IsStopped())
             {
-                await Task.Delay(metricsInterval, this.CancellationToken);
+                await Task.Delay(metricsInterval, this.CancellationToken).ConfigureAwait(false);
 
                 long count = 0;
                 using (var tx = this.StateManager.CreateTransaction())
