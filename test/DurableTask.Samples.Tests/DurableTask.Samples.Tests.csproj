@@ -12,7 +12,6 @@
 	</ItemGroup>
 	
 	<ItemGroup>
-		<ProjectReference Include="..\..\src\DurableTask.Framework\DurableTask.Framework.csproj" />
 		<ProjectReference Include="..\..\samples\DurableTask.Samples\DurableTask.Samples.csproj" />
 	</ItemGroup>	
 	

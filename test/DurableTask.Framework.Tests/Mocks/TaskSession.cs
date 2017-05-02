@@ -13,7 +13,7 @@
 
 namespace DurableTask.Framework.Tests.Mocks
 {
-    using DurableTask;
+    using DurableTask.Core;
     using System.Collections.Generic;
 
     class TaskSession

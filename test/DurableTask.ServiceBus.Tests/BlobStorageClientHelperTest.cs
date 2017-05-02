@@ -16,7 +16,7 @@ namespace DurableTask.ServiceBus.Tests
     using System;
     using System.Text.RegularExpressions;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
-    using DurableTask.Tracking;
+    using DurableTask.ServiceBus.Tracking;
 
     [TestClass]
     public class BlobStorageClientHelperTest

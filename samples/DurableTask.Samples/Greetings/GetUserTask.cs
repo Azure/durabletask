@@ -15,7 +15,7 @@ namespace DurableTask.Samples.Greetings
 {
     using System;
     using System.Windows.Forms;
-    using DurableTask;
+    using DurableTask.Core;
     using DurableTaskSamples.Greetings;
 
     public sealed class GetUserTask : TaskActivity<string, string>
@@ -24,7 +24,7 @@ namespace DurableTask.Samples.Greetings
         {
         }
 
-        protected override string Execute(DurableTask.TaskContext context, string input)
+        protected override string Execute(DurableTask.Core.TaskContext context, string input)
         {
             GetUserName userNamedialog = new GetUserName();
             Console.WriteLine("Waiting for user to enter name...");

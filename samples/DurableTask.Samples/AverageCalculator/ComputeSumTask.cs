@@ -14,7 +14,7 @@
 namespace DurableTask.Samples.AverageCalculator
 {
     using System;
-    using DurableTask;
+    using DurableTask.Core;
 
     public sealed class ComputeSumTask : TaskActivity<int[], int>
     {
@@ -22,7 +22,7 @@ namespace DurableTask.Samples.AverageCalculator
         {
         }
 
-        protected override int Execute(DurableTask.TaskContext context, int[] chunk)
+        protected override int Execute(DurableTask.Core.TaskContext context, int[] chunk)
         {
             if (chunk == null || chunk.Length != 2)
             {

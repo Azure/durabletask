@@ -19,9 +19,9 @@ namespace DurableTask.Framework.Tests
     using System.Threading.Tasks;
     using System.Linq;
 
-    using DurableTask;
-    using DurableTask.Exceptions;
-    using DurableTask.Test;
+    using DurableTask.Core;
+    using DurableTask.Core.Exceptions;
+    using DurableTask.Core.Test;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]

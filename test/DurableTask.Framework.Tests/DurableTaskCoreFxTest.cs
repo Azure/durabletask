@@ -18,8 +18,8 @@ namespace DurableTask.Framework.Tests
     using System.Diagnostics;
     using System.Threading;
     using System.Threading.Tasks;
-    using DurableTask;
-    using DurableTask.Settings;
+    using DurableTask.Core;
+    using DurableTask.Core.Settings;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using DurableTask.Framework.Tests.Mocks;
 

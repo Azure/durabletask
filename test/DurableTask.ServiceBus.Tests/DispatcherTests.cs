@@ -19,10 +19,11 @@ namespace DurableTask.ServiceBus.Tests
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
-    using DurableTask;
-    using DurableTask.Common;
-    using DurableTask.Settings;
-    using DurableTask.Test;
+    using DurableTask.Core;
+    using DurableTask.Core.Common;
+    using DurableTask.Core.Settings;
+    using DurableTask.Core.Test;
+    using DurableTask.ServiceBus.Settings;
     using Framework.Tests;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 

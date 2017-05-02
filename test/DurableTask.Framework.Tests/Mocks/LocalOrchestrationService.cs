@@ -13,9 +13,9 @@
 
 namespace DurableTask.Framework.Tests.Mocks
 {
-    using DurableTask;
-    using DurableTask.History;
-    using DurableTask.Tracing;
+    using DurableTask.Core;
+    using DurableTask.Core.History;
+    using DurableTask.Core.Tracing;
     using Newtonsoft.Json;
     using System;
     using System.Collections.Concurrent;

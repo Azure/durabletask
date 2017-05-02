@@ -14,7 +14,7 @@
 namespace DurableTask.Samples.Tests
 {
     using System;
-    using DurableTask;
+    using DurableTask.Core;
 
     class MockObjectCreator<T> : ObjectCreator<T>
     {

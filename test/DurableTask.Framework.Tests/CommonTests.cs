@@ -14,7 +14,7 @@
 namespace DurableTask.Framework.Tests
 {
     using System;
-    using DurableTask.Common;
+    using DurableTask.Core.Common;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]

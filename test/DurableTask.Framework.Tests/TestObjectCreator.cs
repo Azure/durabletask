@@ -14,7 +14,7 @@
 namespace DurableTask.Framework.Tests
 {
     using System;
-    using DurableTask;
+    using DurableTask.Core;
 
     internal class TestObjectCreator<T> : ObjectCreator<T>
     {

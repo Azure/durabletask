@@ -15,8 +15,8 @@ namespace DurableTask.Samples.ErrorHandling
 {
     using System;
     using System.Threading.Tasks;
-    using DurableTask;
-    using DurableTask.Exceptions;
+    using DurableTask.Core;
+    using DurableTask.Core.Exceptions;
 
     public class ErrorHandlingOrchestration : TaskOrchestration<string, string>
     {

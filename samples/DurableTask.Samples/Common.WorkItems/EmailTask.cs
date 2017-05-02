@@ -15,7 +15,7 @@ namespace DurableTask.Samples.Common.WorkItems
 {
     using System.Net;
     using System.Net.Mail;
-    using DurableTask;
+    using DurableTask.Core;
 
     public sealed class EmailInput
     {

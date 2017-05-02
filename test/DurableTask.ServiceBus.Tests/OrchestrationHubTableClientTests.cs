@@ -17,9 +17,9 @@ namespace DurableTask.ServiceBus.Tests
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Threading.Tasks;
-    using DurableTask;
-    using DurableTask.History;
-    using DurableTask.Tracking;
+    using DurableTask.Core;
+    using DurableTask.Core.History;
+    using DurableTask.ServiceBus.Tracking;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]

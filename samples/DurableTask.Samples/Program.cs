@@ -20,8 +20,6 @@ namespace DurableTask.Samples
     using System.IO;
     using System.Linq;
     using System.Threading;
-    using DurableTask;
-    using DurableTask.Tracking;
     using DurableTask.Samples.AverageCalculator;
     using DurableTask.Samples.Common.WorkItems;
     using DurableTask.Samples.Cron;
@@ -31,7 +29,11 @@ namespace DurableTask.Samples
     using DurableTask.Samples.Replat;
     using DurableTask.Samples.Signal;
     using DurableTask.Samples.SumOfSquares;
-    using DurableTask.Common;
+    using DurableTask.Core;
+    using DurableTask.Core.Common;
+    using DurableTask.Core.Tracking;
+    using DurableTask.ServiceBus;
+    using DurableTask.ServiceBus.Tracking;
 
     class Program
     {

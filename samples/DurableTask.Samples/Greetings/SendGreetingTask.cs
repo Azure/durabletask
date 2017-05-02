@@ -15,7 +15,7 @@ namespace DurableTask.Samples.Greetings
 {
     using System;
     using System.Threading;
-    using DurableTask;
+    using DurableTask.Core;
 
     public sealed class SendGreetingTask : TaskActivity<string, string>
     {
@@ -23,7 +23,7 @@ namespace DurableTask.Samples.Greetings
         {
         }
 
-        protected override string Execute(DurableTask.TaskContext context, string user)
+        protected override string Execute(DurableTask.Core.TaskContext context, string user)
         {
             string message = null;
             if (!string.IsNullOrWhiteSpace(user) && user.Equals("TimedOut"))
