@@ -53,8 +53,7 @@ namespace DurableTask.ServiceFabric
         public async Task StartAsync()
         {
             this.cancellationTokenSource = new CancellationTokenSource();
-            this.instanceStore = await this.stateManager.GetOrAddAsync<IReliableDictionary<string, OrchestrationState>>(Constants.InstanceStoreDictionaryName);
-            this.executionIdStore = await this.stateManager.GetOrAddAsync<IReliableDictionary<string, string>>(Constants.ExecutionStoreDictionaryName);
+            await EnsureStoreInitialized();
             var nowait = CleanupDayOldDictionaries();
         }
 
@@ -72,6 +71,7 @@ namespace DurableTask.ServiceFabric
 
         public async Task WriteEntitesAsync(ITransaction transaction, IEnumerable<InstanceEntityBase> entities)
         {
+            await EnsureStoreInitialized();
             foreach (var entity in entities)
             {
                 var state = entity as OrchestrationStateInstanceEntity;
@@ -115,6 +115,8 @@ namespace DurableTask.ServiceFabric
                 throw new NotImplementedException("Querying for state across all executions for an orchestration is not supported, only the latest execution can be queried");
             }
 
+            await EnsureStoreInitialized();
+
             using (var tx = this.stateManager.CreateTransaction())
             {
                 var executionIdValue = await this.executionIdStore.TryGetValueAsync(tx, instanceId);
@@ -133,6 +135,7 @@ namespace DurableTask.ServiceFabric
 
         public async Task<OrchestrationStateInstanceEntity> GetOrchestrationStateAsync(string instanceId, string executionId)
         {
+            await EnsureStoreInitialized();
             var queryKey = this.GetKey(instanceId, executionId);
             using (var txn = this.stateManager.CreateTransaction())
             {
@@ -215,6 +218,18 @@ namespace DurableTask.ServiceFabric
                 }
 
                 await Task.Delay(TimeSpan.FromHours(12), this.cancellationTokenSource.Token).ConfigureAwait(false);
+            }
+        }
+
+        async Task EnsureStoreInitialized()
+        {
+            if (this.instanceStore == null)
+            {
+                this.instanceStore = await this.stateManager.GetOrAddAsync<IReliableDictionary<string, OrchestrationState>>(Constants.InstanceStoreDictionaryName);
+            }
+            if (this.executionIdStore == null)
+            {
+                this.executionIdStore = await this.stateManager.GetOrAddAsync<IReliableDictionary<string, string>>(Constants.ExecutionStoreDictionaryName);
             }
         }
     }
