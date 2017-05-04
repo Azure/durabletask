@@ -52,6 +52,17 @@ namespace DurableTask.ServiceFabric.Test
         }
 
         [TestMethod]
+        public async Task Test_Lot_Of_Activities_Per_Orchestration()
+        {
+            int numberOfActivities = 256;
+            var serviceClient = ServiceProxy.Create<IRemoteClient>(new Uri("fabric:/TestFabricApplicationType/TestStatefulService"), new ServicePartitionKey(1));
+            var state = await serviceClient.RunOrchestrationAsync(typeof(ExecutionCountingOrchestration).Name, numberOfActivities, TimeSpan.FromMinutes(1));
+            Assert.IsNotNull(state);
+            Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
+            Assert.AreEqual(numberOfActivities.ToString(), state.Output);
+        }
+
+        [TestMethod]
         public async Task SimplePerformanceExperiment()
         {
             var testOrchestratorInput = new TestOrchestrationData()

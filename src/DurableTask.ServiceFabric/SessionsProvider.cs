@@ -46,30 +46,35 @@ namespace DurableTask.ServiceFabric
                 {
                     try
                     {
-                        using (var txn = this.StateManager.CreateTransaction())
+                        PersistentSession result = null;
+                        await RetryHelper.ExecuteWithRetryOnTransient(async () =>
                         {
-                            var existingValue = await this.Store.TryGetValueAsync(txn, returnSessionId, LockMode.Update);
-
-                            if (existingValue.HasValue)
+                            using (var txn = this.StateManager.CreateTransaction())
                             {
-                                var newValue = existingValue.Value.ReceiveMessages();
-                                if (await this.Store.TryUpdateAsync(txn, returnSessionId, newValue, existingValue.Value))
-                                {
-                                    await txn.CommitAsync();
+                                var existingValue = await this.Store.TryGetValueAsync(txn, returnSessionId, LockMode.Update);
 
-                                    if (!this.lockedSessions.TryUpdate(returnSessionId, newValue: LockState.Locked, comparisonValue: LockState.InFetchQueue))
+                                if (existingValue.HasValue)
+                                {
+                                    var newValue = existingValue.Value.ReceiveMessages();
+                                    if (await this.Store.TryUpdateAsync(txn, returnSessionId, newValue, existingValue.Value))
                                     {
-                                        throw new Exception("Internal Server Error : Unexpected to dequeue a session which was already locked before");
-                                    }
+                                        await txn.CommitAsync();
 
-                                    return newValue;
-                                }
-                                else
-                                {
-                                    TryEnqueueSession(returnSessionId);
+                                        if (!this.lockedSessions.TryUpdate(returnSessionId, newValue: LockState.Locked, comparisonValue: LockState.InFetchQueue))
+                                        {
+                                            throw new Exception("Internal Server Error : Unexpected to dequeue a session which was already locked before");
+                                        }
+
+                                        result = newValue;
+                                    }
+                                    else
+                                    {
+                                        TryEnqueueSession(returnSessionId);
+                                    }
                                 }
                             }
-                        }
+                        });
+                        return result;
                     }
                     catch (TimeoutException)
                     {
@@ -111,11 +116,14 @@ namespace DurableTask.ServiceFabric
 
         public async Task AppendMessageAsync(TaskMessage newMessage)
         {
-            using (var txn = this.StateManager.CreateTransaction())
+            await RetryHelper.ExecuteWithRetryOnTransient(async () =>
             {
-                await this.AppendMessageAsync(txn, newMessage);
-                await txn.CommitAsync();
-            }
+                using (var txn = this.StateManager.CreateTransaction())
+                {
+                    await this.AppendMessageAsync(txn, newMessage);
+                    await txn.CommitAsync();
+                }
+            });
 
             this.TryEnqueueSession(newMessage.OrchestrationInstance.InstanceId);
         }

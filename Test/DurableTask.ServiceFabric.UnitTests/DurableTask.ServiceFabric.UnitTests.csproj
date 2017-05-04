@@ -47,6 +47,7 @@
     <Reference Include="Microsoft.VisualStudio.QualityTools.UnitTestFramework" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="CountBasedFixedDelayRetryPolicyTests.cs" />
     <Compile Include="TimerFiredEventComparerTests.cs" />
     <Compile Include="PersistentSessionTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

@@ -175,68 +175,73 @@ namespace DurableTask.ServiceFabric
                 throw new Exception("ContinueAsNew is not supported yet");
             }
 
-            using (var txn = this.stateManager.CreateTransaction())
+            IList<string> sessionsToEnqueue = null;
+            List<Message<string, TaskMessage>> scheduledMessages = null;
+            List<Message<string, TaskMessage>> activityMessages = null;
+            PersistentSession newSessionValue = null;
+
+            await RetryHelper.ExecuteWithRetryOnTransient(async () =>
             {
-                var previousState = workItem.OrchestrationRuntimeState;
-                IList<string> sessionsToEnqueue = null;
-                List<Message<string, TaskMessage>> scheduledMessages = null;
-                List<Message<string, TaskMessage>> activityMessages = null;
-
-                var newSessionValue = await this.orchestrationProvider.CompleteAndUpdateSession(txn, workItem.InstanceId, newOrchestrationRuntimeState);
-
-                if (outboundMessages?.Count > 0)
+                using (var txn = this.stateManager.CreateTransaction())
                 {
-                    activityMessages = outboundMessages.Select(m => new Message<string, TaskMessage>(Guid.NewGuid().ToString(), m)).ToList();
-                    await this.activitiesProvider.SendBatchBeginAsync(txn, activityMessages);
-                }
+                    var previousState = workItem.OrchestrationRuntimeState;
 
-                if (timerMessages?.Count > 0)
-                {
-                    scheduledMessages = timerMessages.Select(m => new Message<string, TaskMessage>(Guid.NewGuid().ToString(), m)).ToList();
-                    await this.scheduledMessagesProvider.SendBatchBeginAsync(txn, scheduledMessages);
-                }
+                    newSessionValue = await this.orchestrationProvider.CompleteAndUpdateSession(txn, workItem.InstanceId, newOrchestrationRuntimeState);
 
-                if (orchestratorMessages?.Count > 0)
-                {
-                    if (previousState?.ParentInstance != null)
+                    if (outboundMessages?.Count > 0)
                     {
-                        sessionsToEnqueue = await this.orchestrationProvider.TryAppendMessageBatchAsync(txn, orchestratorMessages);
+                        activityMessages = outboundMessages.Select(m => new Message<string, TaskMessage>(Guid.NewGuid().ToString(), m)).ToList();
+                        await this.activitiesProvider.SendBatchBeginAsync(txn, activityMessages);
                     }
-                    else
-                    {
-                        await this.orchestrationProvider.AppendMessageBatchAsync(txn, orchestratorMessages);
-                        sessionsToEnqueue = orchestratorMessages.Select(m => m.OrchestrationInstance.InstanceId).ToList();
-                    }
-                }
 
-                if (this.instanceStore != null)
-                {
-                    await this.instanceStore.WriteEntitesAsync(txn, new InstanceEntityBase[]
+                    if (timerMessages?.Count > 0)
                     {
+                        scheduledMessages = timerMessages.Select(m => new Message<string, TaskMessage>(Guid.NewGuid().ToString(), m)).ToList();
+                        await this.scheduledMessagesProvider.SendBatchBeginAsync(txn, scheduledMessages);
+                    }
+
+                    if (orchestratorMessages?.Count > 0)
+                    {
+                        if (previousState?.ParentInstance != null)
+                        {
+                            sessionsToEnqueue = await this.orchestrationProvider.TryAppendMessageBatchAsync(txn, orchestratorMessages);
+                        }
+                        else
+                        {
+                            await this.orchestrationProvider.AppendMessageBatchAsync(txn, orchestratorMessages);
+                            sessionsToEnqueue = orchestratorMessages.Select(m => m.OrchestrationInstance.InstanceId).ToList();
+                        }
+                    }
+
+                    if (this.instanceStore != null)
+                    {
+                        await this.instanceStore.WriteEntitesAsync(txn, new InstanceEntityBase[]
+                        {
                         new OrchestrationStateInstanceEntity()
                         {
                             State = Utils.BuildOrchestrationState(workItem.OrchestrationRuntimeState)
                         }
-                    });
-                }
-
-                await txn.CommitAsync();
-
-                this.orchestrationProvider.TryUnlockSession(workItem.InstanceId, putBackInQueue: newSessionValue.Messages.Any());
-                if (activityMessages != null)
-                {
-                    this.activitiesProvider.SendBatchComplete(activityMessages);
-                }
-                if (scheduledMessages != null)
-                {
-                    this.scheduledMessagesProvider.SendBatchComplete(scheduledMessages);
-                }
-                if (sessionsToEnqueue != null)
-                {
-                    foreach (var sessionId in sessionsToEnqueue)
-                    {
-                        this.orchestrationProvider.TryEnqueueSession(sessionId);
+                        });
                     }
+
+                    await txn.CommitAsync();
+                }
+            });
+
+            this.orchestrationProvider.TryUnlockSession(workItem.InstanceId, putBackInQueue: (newSessionValue != null && newSessionValue.Messages.Any()));
+            if (activityMessages != null)
+            {
+                this.activitiesProvider.SendBatchComplete(activityMessages);
+            }
+            if (scheduledMessages != null)
+            {
+                this.scheduledMessagesProvider.SendBatchComplete(scheduledMessages);
+            }
+            if (sessionsToEnqueue != null)
+            {
+                foreach (var sessionId in sessionsToEnqueue)
+                {
+                    this.orchestrationProvider.TryEnqueueSession(sessionId);
                 }
             }
         }
@@ -251,15 +256,18 @@ namespace DurableTask.ServiceFabric
         {
             if (workItem.OrchestrationRuntimeState.OrchestrationStatus.IsTerminalState())
             {
-                using (var txn = this.stateManager.CreateTransaction())
+                await RetryHelper.ExecuteWithRetryOnTransient(async () =>
                 {
-                    await this.orchestrationProvider.DropSession(txn, workItem.InstanceId);
-                    await txn.CommitAsync();
-                    ProviderEventSource.Log.OrchestrationFinished(workItem.InstanceId,
-                        workItem.OrchestrationRuntimeState.OrchestrationStatus.ToString(),
-                        (workItem.OrchestrationRuntimeState.CompletedTime - workItem.OrchestrationRuntimeState.CreatedTime).TotalSeconds,
-                        workItem.OrchestrationRuntimeState.Output);
-                }
+                    using (var txn = this.stateManager.CreateTransaction())
+                    {
+                        await this.orchestrationProvider.DropSession(txn, workItem.InstanceId);
+                        await txn.CommitAsync();
+                        ProviderEventSource.Log.OrchestrationFinished(workItem.InstanceId,
+                            workItem.OrchestrationRuntimeState.OrchestrationStatus.ToString(),
+                            (workItem.OrchestrationRuntimeState.CompletedTime - workItem.OrchestrationRuntimeState.CreatedTime).TotalSeconds,
+                            workItem.OrchestrationRuntimeState.Output);
+                    }
+                });
             }
         }
 
@@ -285,15 +293,21 @@ namespace DurableTask.ServiceFabric
 
         public async Task CompleteTaskActivityWorkItemAsync(TaskActivityWorkItem workItem, TaskMessage responseMessage)
         {
-            using (var txn = this.stateManager.CreateTransaction())
+            bool added = false;
+
+            await RetryHelper.ExecuteWithRetryOnTransient(async () =>
             {
-                await this.activitiesProvider.CompleteAsync(txn, workItem.Id);
-                bool added = await this.orchestrationProvider.TryAppendMessageAsync(txn, responseMessage);
-                await txn.CommitAsync();
-                if (added)
+                using (var txn = this.stateManager.CreateTransaction())
                 {
-                    this.orchestrationProvider.TryEnqueueSession(responseMessage.OrchestrationInstance.InstanceId);
+                    await this.activitiesProvider.CompleteAsync(txn, workItem.Id);
+                    added = await this.orchestrationProvider.TryAppendMessageAsync(txn, responseMessage);
+                    await txn.CommitAsync();
                 }
+            });
+
+            if (added)
+            {
+                this.orchestrationProvider.TryEnqueueSession(responseMessage.OrchestrationInstance.InstanceId);
             }
         }
 

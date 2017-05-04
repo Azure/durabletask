@@ -91,6 +91,7 @@
     <Compile Include="AsyncManualResetEvent.cs" />
     <Compile Include="CompletedTask.cs" />
     <Compile Include="Constants.cs" />
+    <Compile Include="CountBasedFixedDelayRetryPolicy.cs" />
     <Compile Include="FabricOrchestrationInstanceStore.cs" />
     <Compile Include="FabricOrchestrationProvider.cs" />
     <Compile Include="FabricOrchestrationProviderFactory.cs" />
@@ -110,6 +111,8 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="ProviderEventSource.cs" />
     <Compile Include="MessageProviderBase.cs" />
+    <Compile Include="RetryHelper.cs" />
+    <Compile Include="RetryPolicy.cs" />
     <Compile Include="ScheduledMessageProvider.cs" />
     <Compile Include="SessionsProvider.cs" />
     <Compile Include="TimerFiredEventComparer.cs" />

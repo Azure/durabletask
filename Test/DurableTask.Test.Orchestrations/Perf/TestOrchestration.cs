@@ -23,13 +23,6 @@ namespace DurableTask.Test.Orchestrations.Perf
 
     public class TestOrchestration : TaskOrchestration<int, TestOrchestrationData>
     {
-        readonly static RetryOptions RetryOptions = new RetryOptions(TimeSpan.FromMilliseconds(10), 10)
-        {
-            BackoffCoefficient = 2,
-            MaxRetryInterval = TimeSpan.FromSeconds(10),
-            Handle = (e) => true
-        };
-
         public override async Task<int> RunTask(OrchestrationContext context, TestOrchestrationData data)
         {
             if (data.UseTimeoutTask)
@@ -50,9 +43,8 @@ namespace DurableTask.Test.Orchestrations.Perf
             int j = 0;
             for (; i < data.NumberOfParallelTasks; i++)
             {
-                results.Add(context.ScheduleWithRetry<int>(
+                results.Add(context.ScheduleTask<int>(
                     typeof(RandomTimeWaitingTask),
-                    RetryOptions,
                     new RandomTimeWaitingTaskInput
                     {
                         TaskId = "ParallelTask: " + i.ToString(),
@@ -67,8 +59,7 @@ namespace DurableTask.Test.Orchestrations.Perf
 
             for (; j < data.NumberOfSerialTasks; j++)
             {
-                int c = await context.ScheduleWithRetry<int>(typeof(RandomTimeWaitingTask),
-                    RetryOptions,
+                int c = await context.ScheduleTask<int>(typeof(RandomTimeWaitingTask),
                     new RandomTimeWaitingTaskInput
                     {
                         TaskId = "SerialTask" + (i + j),

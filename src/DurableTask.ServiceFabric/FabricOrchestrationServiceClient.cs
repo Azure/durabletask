@@ -51,14 +51,17 @@ namespace DurableTask.ServiceFabric
                 throw new InvalidOperationException($"An orchestration with id '{creationMessage.OrchestrationInstance.InstanceId}' is already running.");
             }
 
-            using (var tx = this.stateManager.CreateTransaction())
+            await RetryHelper.ExecuteWithRetryOnTransient(async () =>
             {
-                await this.orchestrationProvider.AppendMessageAsync(tx, creationMessage);
-                await WriteExecutionStartedEventToInstanceStore(tx, startEvent);
-                await tx.CommitAsync();
-                this.orchestrationProvider.TryEnqueueSession(creationMessage.OrchestrationInstance.InstanceId);
-                ProviderEventSource.Log.OrchestrationCreated(instance.InstanceId, instance.ExecutionId);
-            }
+                using (var tx = this.stateManager.CreateTransaction())
+                {
+                    await this.orchestrationProvider.AppendMessageAsync(tx, creationMessage);
+                    await WriteExecutionStartedEventToInstanceStore(tx, startEvent);
+                    await tx.CommitAsync();
+                    ProviderEventSource.Log.OrchestrationCreated(instance.InstanceId, instance.ExecutionId);
+                }
+            });
+            this.orchestrationProvider.TryEnqueueSession(creationMessage.OrchestrationInstance.InstanceId);
         }
 
         public Task SendTaskOrchestrationMessageAsync(TaskMessage message)

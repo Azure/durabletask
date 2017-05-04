@@ -172,6 +172,7 @@ namespace TestStatefulService
             { typeof(SimpleOrchestrationWithSubOrchestration).Name, typeof(SimpleOrchestrationWithSubOrchestration) },
             { typeof(DriverOrchestration).Name, typeof(DriverOrchestration) },
             { typeof(TestOrchestration).Name, typeof(TestOrchestration) },
+            { typeof(ExecutionCountingOrchestration).Name, typeof(ExecutionCountingOrchestration) },
         };
 
         static Type[] KnownActivities = 
@@ -181,6 +182,7 @@ namespace TestStatefulService
             typeof(GenerationBasicTask),
             typeof(RandomTimeWaitingTask),
             typeof(ExceptionThrowingTask),
+            typeof(ExecutionCountingActivity),
         };
     }
 }

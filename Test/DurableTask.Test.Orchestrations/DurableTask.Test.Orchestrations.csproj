@@ -44,6 +44,8 @@
   <ItemGroup>
     <Compile Include="Perf\DriverOrchestration.cs" />
     <Compile Include="Perf\DriverOrchestrationData.cs" />
+    <Compile Include="Perf\ExecutionCountingActivity.cs" />
+    <Compile Include="Perf\ExecutionCountingOrchestration.cs" />
     <Compile Include="Perf\RandomTimeWaitingTaskInput.cs" />
     <Compile Include="Perf\TestOrchestration.cs" />
     <Compile Include="Perf\TestOrchestrationData.cs" />

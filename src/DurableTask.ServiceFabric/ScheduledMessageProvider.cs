@@ -141,17 +141,24 @@ namespace DurableTask.ServiceFabric
                         var keys = activatedMessages.Select(m => m.Key);
                         var values = activatedMessages.Select(m => m.Value).ToList();
 
-                        using (var tx = this.StateManager.CreateTransaction())
+                        IList<string> modifiedSessions = null;
+                        await RetryHelper.ExecuteWithRetryOnTransient(async () =>
                         {
-                            var modifiedSessions = await this.sessionsProvider.TryAppendMessageBatchAsync(tx, values);
-                            await this.CompleteBatchAsync(tx, keys);
-                            await tx.CommitAsync();
-
-                            lock (@lock)
+                            using (var tx = this.StateManager.CreateTransaction())
                             {
-                                this.inMemorySet = this.inMemorySet.Except(activatedMessages);
+                                modifiedSessions = await this.sessionsProvider.TryAppendMessageBatchAsync(tx, values);
+                                await this.CompleteBatchAsync(tx, keys);
+                                await tx.CommitAsync();
                             }
+                        });
 
+                        lock (@lock)
+                        {
+                            this.inMemorySet = this.inMemorySet.Except(activatedMessages);
+                        }
+
+                        if (modifiedSessions != null)
+                        {
                             foreach (var sessionId in modifiedSessions)
                             {
                                 this.sessionsProvider.TryEnqueueSession(sessionId);
