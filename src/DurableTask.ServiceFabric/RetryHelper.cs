@@ -34,10 +34,17 @@ namespace DurableTask.ServiceFabric
                     await action();
                     return;
                 }
-                catch (TimeoutException e)
+                catch (Exception e)
                 {
                     lastException = e;
-                    await Task.Delay(retryPolicy.GetNextDelay());
+                    if (ExceptionUtilities.IsRetryableFabricException(e))
+                    {
+                        await Task.Delay(retryPolicy.GetNextDelay());
+                    }
+                    else
+                    {
+                        throw;
+                    }
                 }
             }
 
@@ -59,10 +66,17 @@ namespace DurableTask.ServiceFabric
                 {
                     return await action();
                 }
-                catch (TimeoutException e)
+                catch (Exception e)
                 {
                     lastException = e;
-                    await Task.Delay(retryPolicy.GetNextDelay());
+                    if (ExceptionUtilities.IsRetryableFabricException(e))
+                    {
+                        await Task.Delay(retryPolicy.GetNextDelay());
+                    }
+                    else
+                    {
+                        throw;
+                    }
                 }
             }
 

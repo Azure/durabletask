@@ -92,6 +92,7 @@
     <Compile Include="CompletedTask.cs" />
     <Compile Include="Constants.cs" />
     <Compile Include="CountBasedFixedDelayRetryPolicy.cs" />
+    <Compile Include="ExceptionUtilities.cs" />
     <Compile Include="FabricOrchestrationInstanceStore.cs" />
     <Compile Include="FabricOrchestrationProvider.cs" />
     <Compile Include="FabricOrchestrationProviderFactory.cs" />

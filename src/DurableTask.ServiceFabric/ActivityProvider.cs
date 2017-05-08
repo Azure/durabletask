@@ -45,7 +45,7 @@ namespace DurableTask.ServiceFabric
                     {
                         return await GetValueAsync(key);
                     }
-                    catch (TimeoutException)
+                    catch (Exception)
                     {
                         this.inMemoryQueue.Enqueue(key);
                         throw;

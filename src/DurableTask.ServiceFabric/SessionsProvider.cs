@@ -76,7 +76,7 @@ namespace DurableTask.ServiceFabric
                         });
                         return result;
                     }
-                    catch (TimeoutException)
+                    catch (Exception)
                     {
                         this.inMemorySessionsQueue.Enqueue(returnSessionId);
                         throw;
