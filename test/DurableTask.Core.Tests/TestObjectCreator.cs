@@ -11,23 +11,25 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Framework.Tests.Mocks
+namespace DurableTask.Core.Tests
 {
+    using System;
     using DurableTask.Core;
-    using System.Collections.Generic;
 
-    class TaskSession
+    internal class TestObjectCreator<T> : ObjectCreator<T>
     {
-        public string Id;
-        public byte[] SessionState;
-        public List<TaskMessage> Messages;
-        public HashSet<TaskMessage> LockTable;
+        readonly Func<T> creator;
 
-        public TaskSession()
+        public TestObjectCreator(string name, string version, Func<T> creator)
         {
-            this.SessionState = null;
-            this.Messages = new List<TaskMessage>();
-            this.LockTable = new HashSet<TaskMessage>();
+            Name = name;
+            Version = version;
+            this.creator = creator;
+        }
+
+        public override T Create()
+        {
+            return creator();
         }
     }
 }

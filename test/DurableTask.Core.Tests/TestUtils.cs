@@ -11,27 +11,23 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Framework.Tests
+namespace DurableTask.Core.Tests
 {
     using System;
-    using DurableTask.Core.Common;
-    using Microsoft.VisualStudio.TestTools.UnitTesting;
+    using System.Text;
 
-    [TestClass]
-    public class CommonTests
+    public static class TestUtils
     {
-        [TestMethod]
-        public void DateTimeExtensionsIsSetTest()
+        public static string GenerateRandomString(int length)
         {
-            Assert.IsTrue(DateTime.Now.IsSet());
-            Assert.IsTrue(DateTime.MaxValue.IsSet());
-            Assert.IsFalse(DateTime.MinValue.IsSet());
-            Assert.IsFalse(DateTimeUtils.MinDateTime.IsSet());
-
-            if (DateTimeUtils.MinDateTime == DateTime.FromFileTimeUtc(0))
+            var result = new StringBuilder(length);
+            while (result.Length < length)
             {
-                Assert.IsFalse(DateTime.FromFileTimeUtc(0).IsSet());
+                // Use Guids so these don't compress well
+                result.Append(Guid.NewGuid().ToString("N"));
             }
+
+            return result.ToString(0, length);
         }
     }
 }

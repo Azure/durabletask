@@ -11,7 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Framework.Tests.Mocks
+namespace DurableTask.Core.Tests.Mocks
 {
     using DurableTask.Core;
     using DurableTask.Core.History;

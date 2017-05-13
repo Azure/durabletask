@@ -25,7 +25,7 @@ namespace DurableTask.ServiceBus.Tests
     using DurableTask.Core.Serializing;
     using DurableTask.ServiceBus.Settings;
     using DurableTask.ServiceBus.Tracking;
-    using Framework.Tests;
+    using DurableTask.Core.Tests;
 
     [TestClass]
     public class RuntimeStateStreamConverterTest

@@ -11,7 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Framework.Tests
+namespace DurableTask.Core.Tests
 {
     using System;
     using System.Collections.Generic;

@@ -23,7 +23,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tools", "tools", "{C0904C83
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "samples", "samples", "{AF4E71A6-B16E-4488-B22D-2761101A601A}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.Framework.Tests", "test\DurableTask.Framework.Tests\DurableTask.Framework.Tests.csproj", "{879670A7-919B-4AF9-8AFB-7C4EDAA0CC04}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.Core.Tests", "test\DurableTask.Core.Tests\DurableTask.Core.Tests.csproj", "{879670A7-919B-4AF9-8AFB-7C4EDAA0CC04}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.Samples", "samples\DurableTask.Samples\DurableTask.Samples.csproj", "{BC204374-927C-4A48-8473-F5BF8C97EAEA}"
 EndProject

@@ -24,7 +24,7 @@ namespace DurableTask.ServiceBus.Tests
     using DurableTask.Core.Serializing;
     using DurableTask.Core.Test;
     using DurableTask.ServiceBus.Settings;
-    using Framework.Tests;
+    using DurableTask.Core.Tests;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]

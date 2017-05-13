@@ -12,7 +12,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Framework.Tests
+namespace DurableTask.Core.Tests
 {
     using System;
     using System.Diagnostics;
@@ -21,7 +21,7 @@ namespace DurableTask.Framework.Tests
     using DurableTask.Core;
     using DurableTask.Core.Settings;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
-    using DurableTask.Framework.Tests.Mocks;
+    using DurableTask.Core.Tests.Mocks;
 
     /// <summary>
     /// Test the core dtfx via a mock orchestration service and client provider
