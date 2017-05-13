@@ -16,6 +16,7 @@ namespace DurableTask.ServiceFabric
     static class Constants
     {
         internal const string CollectionNameUniquenessPrefix = "DtfxSfp_";
+        internal const string SessionMessagesDictionaryPrefix = CollectionNameUniquenessPrefix + "SessionMessages_";
         internal const string OrchestrationDictionaryName = CollectionNameUniquenessPrefix + "Orchestrations";
         internal const string ActivitiesQueueName = CollectionNameUniquenessPrefix + "Activities";
         internal const string InstanceStoreDictionaryName = CollectionNameUniquenessPrefix + "InstanceStore";

@@ -92,5 +92,27 @@ namespace DurableTask.ServiceFabric
                 WriteEvent(6, methodName, attemptNumber, message, stackTrace);
             }
         }
+
+        [Event(101, Level = EventLevel.Verbose, Message = "Trace Message for Session {0} : {1}", Channel = EventChannel.Debug)]
+        public void TraceMessage(string instanceId, string message)
+        {
+#if DEBUG
+            if (IsEnabled(EventLevel.Verbose, Keywords.Common))
+            {
+                //WriteEvent(101, instanceId, message);
+            }
+#endif
+        }
+
+        [Event(102, Level = EventLevel.Verbose, Message = "Time taken for {0} : {1} milli seconds.", Channel = EventChannel.Debug)]
+        public void LogMeasurement(string uniqueActionIdentifier, long elapsedMilliseconds)
+        {
+#if DEBUG
+            if (IsEnabled(EventLevel.Verbose, Keywords.Common))
+            {
+                //WriteEvent(102, uniqueActionIdentifier, elapsedMilliseconds);
+            }
+#endif
+        }
     }
 }

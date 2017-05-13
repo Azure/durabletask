@@ -14,35 +14,44 @@
 namespace DurableTask.ServiceFabric
 {
     using System;
+    using System.Diagnostics;
     using System.Threading.Tasks;
 
     static class RetryHelper
     {
-        public static Task ExecuteWithRetryOnTransient(Func<Task> action)
+        public static Task ExecuteWithRetryOnTransient(Func<Task> action, string uniqueActionIdentifier)
         {
-            return ExecuteWithRetryOnTransient(action, CountBasedFixedDelayRetryPolicy.GetNewDefaultPolicy());
+            return ExecuteWithRetryOnTransient(action, CountBasedFixedDelayRetryPolicy.GetNewDefaultPolicy(), uniqueActionIdentifier);
         }
 
-        public static async Task ExecuteWithRetryOnTransient(Func<Task> action, RetryPolicy retryPolicy)
+        static async Task ExecuteWithRetryOnTransient(Func<Task> action, RetryPolicy retryPolicy, string uniqueActionIdentifier)
         {
             Exception lastException = null;
 
+            int attemptNumber = 0;
             while (retryPolicy.ShouldExecute())
             {
+                attemptNumber++;
+                Stopwatch timer = Stopwatch.StartNew();
                 try
                 {
                     await action();
+                    timer.Stop();
+                    ProviderEventSource.Log.LogMeasurement($"{uniqueActionIdentifier}, Attempt Number : {attemptNumber}, Result : Success", timer.ElapsedMilliseconds);
                     return;
                 }
                 catch (Exception e)
                 {
+                    timer.Stop();
                     lastException = e;
                     if (ExceptionUtilities.IsRetryableFabricException(e))
                     {
+                        ProviderEventSource.Log.LogMeasurement($"{uniqueActionIdentifier}, Attempt Number : {attemptNumber}, Result : Retryable exception", timer.ElapsedMilliseconds);
                         await Task.Delay(retryPolicy.GetNextDelay());
                     }
                     else
                     {
+                        ProviderEventSource.Log.LogMeasurement($"{uniqueActionIdentifier}, Attempt Number : {attemptNumber}, Result : Non Retryable exception", timer.ElapsedMilliseconds);
                         throw;
                     }
                 }
@@ -51,30 +60,39 @@ namespace DurableTask.ServiceFabric
             throw lastException;
         }
 
-        public static Task<TResult> ExecuteWithRetryOnTransient<TResult>(Func<Task<TResult>> action)
+        public static Task<TResult> ExecuteWithRetryOnTransient<TResult>(Func<Task<TResult>> action, string uniqueActionIdentifier)
         {
-            return ExecuteWithRetryOnTransient(action, CountBasedFixedDelayRetryPolicy.GetNewDefaultPolicy());
+            return ExecuteWithRetryOnTransient(action, CountBasedFixedDelayRetryPolicy.GetNewDefaultPolicy(), uniqueActionIdentifier);
         }
 
-        public static async Task<TResult> ExecuteWithRetryOnTransient<TResult>(Func<Task<TResult>> action, RetryPolicy retryPolicy)
+        public static async Task<TResult> ExecuteWithRetryOnTransient<TResult>(Func<Task<TResult>> action, RetryPolicy retryPolicy, string uniqueActionIdentifier)
         {
             Exception lastException = null;
 
+            int attemptNumber = 0;
             while (retryPolicy.ShouldExecute())
             {
+                attemptNumber++;
+                Stopwatch timer = Stopwatch.StartNew();
                 try
                 {
-                    return await action();
+                    var result = await action();
+                    timer.Stop();
+                    ProviderEventSource.Log.LogMeasurement($"{uniqueActionIdentifier}, Attempt Number : {attemptNumber}, Result : Success", timer.ElapsedMilliseconds);
+                    return result;
                 }
                 catch (Exception e)
                 {
+                    timer.Stop();
                     lastException = e;
                     if (ExceptionUtilities.IsRetryableFabricException(e))
                     {
+                        ProviderEventSource.Log.LogMeasurement($"{uniqueActionIdentifier}, Attempt Number : {attemptNumber}, Result : Retryable exception", timer.ElapsedMilliseconds);
                         await Task.Delay(retryPolicy.GetNextDelay());
                     }
                     else
                     {
+                        ProviderEventSource.Log.LogMeasurement($"{uniqueActionIdentifier}, Attempt Number : {attemptNumber}, Result : Non Retryable exception", timer.ElapsedMilliseconds);
                         throw;
                     }
                 }

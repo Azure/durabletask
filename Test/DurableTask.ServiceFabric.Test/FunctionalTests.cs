@@ -118,7 +118,7 @@ namespace DurableTask.ServiceFabric.Test
         [TestMethod]
         public async Task Orchestration_With_Same_Id_Cant_Be_Started_While_Running()
         {
-            var instanceId = "PredicatbleInstanceId";
+            var instanceId = nameof(Orchestration_With_Same_Id_Cant_Be_Started_While_Running);
             var testData = new TestOrchestrationData()
             {
                 NumberOfParallelTasks = 0,
@@ -140,7 +140,7 @@ namespace DurableTask.ServiceFabric.Test
         [TestMethod]
         public async Task QueryState_For_Latest_Execution()
         {
-            var instanceId = "PredicatbleInstanceId";
+            var instanceId = nameof(QueryState_For_Latest_Execution);
             var instance = await this.serviceClient.StartTestOrchestrationWithInstanceIdAsync(instanceId, new TestOrchestrationData()
             {
                 NumberOfParallelTasks = 0,

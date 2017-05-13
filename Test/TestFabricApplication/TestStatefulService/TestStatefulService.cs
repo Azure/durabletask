@@ -104,6 +104,12 @@ namespace TestStatefulService
 
         public async Task<OrchestrationState> RunOrchestrationAsync(string orchestrationTypeName, object input, TimeSpan waitTimeout)
         {
+            if (orchestrationTypeName == typeof(ExecutionCountingOrchestration).Name)
+            {
+                // See ExecutionCountingActivity notes on why we do this.
+                ExecutionCountingActivity.Counter = 0;
+            }
+
             var instance = await client.CreateOrchestrationInstanceAsync(GetOrchestrationType(orchestrationTypeName), input);
             return await client.WaitForOrchestrationAsync(instance, waitTimeout);
         }

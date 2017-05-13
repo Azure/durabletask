@@ -103,9 +103,6 @@
     <Compile Include="Message.cs" />
     <Compile Include="OrchestrationStatusExtensions.cs" />
     <Compile Include="ActivityProvider.cs" />
-    <Compile Include="PersistentSession.api.cs">
-      <DependentUpon>PersistentSession.cs</DependentUpon>
-    </Compile>
     <Compile Include="PersistentSession.cs">
       <Generator>MSBuild:GenerateCodeFromAttributes</Generator>
     </Compile>
@@ -115,6 +112,7 @@
     <Compile Include="RetryHelper.cs" />
     <Compile Include="RetryPolicy.cs" />
     <Compile Include="ScheduledMessageProvider.cs" />
+    <Compile Include="SessionMessagesProvider.cs" />
     <Compile Include="SessionsProvider.cs" />
     <Compile Include="TimerFiredEventComparer.cs" />
     <Compile Include="Utils.cs" />

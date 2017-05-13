@@ -58,13 +58,12 @@ namespace DurableTask.ServiceFabric
             return null;
         }
 
-        public Task AandonAsync(TKey key)
+        public void Abandon(TKey key)
         {
             ThrowIfStopped();
 
             this.inMemoryQueue.Enqueue(key);
             SetWaiterForNewItems();
-            return Task.FromResult<object>(null);
         }
     }
 }

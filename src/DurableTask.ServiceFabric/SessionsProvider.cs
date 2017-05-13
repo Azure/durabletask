@@ -16,18 +16,18 @@ namespace DurableTask.ServiceFabric
     using System;
     using System.Collections.Concurrent;
     using System.Collections.Generic;
+    using System.Collections.Immutable;
     using System.Linq;
-    using System.Threading;
     using System.Threading.Tasks;
     using Microsoft.ServiceFabric.Data;
-    using Microsoft.ServiceFabric.Data.Collections;
 
     class SessionsProvider : MessageProviderBase<string, PersistentSession>
     {
-        readonly Func<string, PersistentSession> NewSessionFactory = (sId) => PersistentSession.Create(sId, null, null);
-
         ConcurrentQueue<string> inMemorySessionsQueue = new ConcurrentQueue<string>();
         ConcurrentDictionary<string, LockState> lockedSessions = new ConcurrentDictionary<string, LockState>();
+
+        ConcurrentDictionary<string, SessionMessagesProvider<Guid, TaskMessage>> sessionMessageProviders = new ConcurrentDictionary<string, SessionMessagesProvider<Guid, TaskMessage>>();
+        ConcurrentDictionary<string, List<Guid>> lockedSessionMessageTokens = new ConcurrentDictionary<string, List<Guid>>();
 
         public SessionsProvider(IReliableStateManager stateManager) : base(stateManager, Constants.OrchestrationDictionaryName)
         {
@@ -46,35 +46,25 @@ namespace DurableTask.ServiceFabric
                 {
                     try
                     {
-                        PersistentSession result = null;
-                        await RetryHelper.ExecuteWithRetryOnTransient(async () =>
+                        return await RetryHelper.ExecuteWithRetryOnTransient(async () =>
                         {
                             using (var txn = this.StateManager.CreateTransaction())
                             {
-                                var existingValue = await this.Store.TryGetValueAsync(txn, returnSessionId, LockMode.Update);
+                                var existingValue = await this.Store.TryGetValueAsync(txn, returnSessionId);
 
                                 if (existingValue.HasValue)
                                 {
-                                    var newValue = existingValue.Value.ReceiveMessages();
-                                    if (await this.Store.TryUpdateAsync(txn, returnSessionId, newValue, existingValue.Value))
+                                    if (!this.lockedSessions.TryUpdate(returnSessionId, newValue: LockState.Locked, comparisonValue: LockState.InFetchQueue))
                                     {
-                                        await txn.CommitAsync();
-
-                                        if (!this.lockedSessions.TryUpdate(returnSessionId, newValue: LockState.Locked, comparisonValue: LockState.InFetchQueue))
-                                        {
-                                            throw new Exception("Internal Server Error : Unexpected to dequeue a session which was already locked before");
-                                        }
-
-                                        result = newValue;
+                                        throw new Exception("Internal Server Error : Unexpected to dequeue a session which was already locked before");
                                     }
-                                    else
-                                    {
-                                        TryEnqueueSession(returnSessionId);
-                                    }
+
+                                    ProviderEventSource.Log.TraceMessage(returnSessionId, "Session Locked Accepted");
+                                    return existingValue.Value;
                                 }
                             }
-                        });
-                        return result;
+                            return null;
+                        }, uniqueActionIdentifier: $"{nameof(AcceptSessionAsync)}");
                     }
                     catch (Exception)
                     {
@@ -91,27 +81,70 @@ namespace DurableTask.ServiceFabric
 
         protected override void AddItemInMemory(string key, PersistentSession value)
         {
-            if (value.Messages.Count > 0)
-            {
-                this.TryEnqueueSession(key);
-            }
+            this.TryEnqueueSession(key);
         }
 
-        public List<TaskMessage> GetSessionMessages(PersistentSession session)
+        string GetSessionMessagesDictionaryName(string sessionId)
         {
-            return session.Messages.Where(m => m.IsReceived).Select(m => m.TaskMessage).ToList();
+            return Constants.SessionMessagesDictionaryPrefix + sessionId;
+        }
+
+        async Task<SessionMessagesProvider<Guid, TaskMessage>> GetOrAddSessionMessagesInstance(string sessionId)
+        {
+            var newInstance = new SessionMessagesProvider<Guid, TaskMessage>(this.StateManager, GetSessionMessagesDictionaryName(sessionId));
+            var sessionMessageProvider = this.sessionMessageProviders.GetOrAdd(sessionId, newInstance);
+
+            if (sessionMessageProvider == newInstance)
+            {
+                await sessionMessageProvider.StartAsync();
+            }
+
+            return sessionMessageProvider;
+        }
+
+        public async Task<List<TaskMessage>> ReceiveSessionMessagesAsync(PersistentSession session)
+        {
+            var sessionMessageProvider = await GetOrAddSessionMessagesInstance(session.SessionId);
+            var messages = await sessionMessageProvider.ReceiveBatchAsync();
+            ProviderEventSource.Log.TraceMessage(session.SessionId, $"Number of received messages {messages.Count}");
+            if (!this.lockedSessionMessageTokens.TryAdd(session.SessionId, messages.Select(m => m.Key).ToList()))
+            {
+                ProviderEventSource.Log.UnexpectedCodeCondition($"{nameof(SessionsProvider)}.{nameof(ReceiveSessionMessagesAsync)} : Multiple receivers processing the same session : {session.SessionId}?");
+                return new List<TaskMessage>();
+            }
+            return messages.Select(m => m.Value).ToList();
         }
 
         /// <summary>
         /// Callers should pass the transaction and once the transaction is commited successfully,
         /// should call <see cref="DurableTask.ServiceFabric.SessionsProvider.TryUnlockSession"/>.
         /// </summary>
-        public Task<PersistentSession> CompleteAndUpdateSession(ITransaction transaction,
+        public async Task CompleteAndUpdateSession(ITransaction transaction,
             string sessionId,
             OrchestrationRuntimeState newSessionState)
         {
-            return this.Store.AddOrUpdateAsync(transaction, sessionId, NewSessionFactory,
-                (sId, oldValue) => oldValue.CompleteMessages(newSessionState));
+            List<Guid> lockTokens;
+            if (this.lockedSessionMessageTokens.TryGetValue(sessionId, out lockTokens))
+            {
+                SessionMessagesProvider<Guid, TaskMessage> sessionMessageProvider;
+                if (this.sessionMessageProviders.TryGetValue(sessionId, out sessionMessageProvider))
+                {
+                    ProviderEventSource.Log.TraceMessage(sessionId, $"Number of completed messages {lockTokens.Count}");
+                    await sessionMessageProvider.CompleteBatchAsync(transaction, lockTokens);
+                }
+                else
+                {
+                    ProviderEventSource.Log.UnexpectedCodeCondition($"{nameof(SessionsProvider)}.{nameof(CompleteAndUpdateSession)} : Did not find session messages provider instance for session : {sessionId}.");
+                }
+            }
+            else
+            {
+                ProviderEventSource.Log.UnexpectedCodeCondition($"{nameof(SessionsProvider)}.{nameof(CompleteAndUpdateSession)} : Did not find lock tokens dictionary for session messages for session : {sessionId}.");
+            }
+
+            var sessionStateEvents = newSessionState?.Events.ToImmutableList();
+            var result = PersistentSession.Create(sessionId, sessionStateEvents);
+            await this.Store.SetAsync(transaction, sessionId, result);
         }
 
         public async Task AppendMessageAsync(TaskMessage newMessage)
@@ -123,7 +156,7 @@ namespace DurableTask.ServiceFabric
                     await this.AppendMessageAsync(txn, newMessage);
                     await txn.CommitAsync();
                 }
-            });
+            }, uniqueActionIdentifier: $"{nameof(SessionsProvider)}.{nameof(AppendMessageAsync)}");
 
             this.TryEnqueueSession(newMessage.OrchestrationInstance.InstanceId);
         }
@@ -133,11 +166,10 @@ namespace DurableTask.ServiceFabric
             ThrowIfStopped();
             await EnsureOrchestrationStoreInitialized();
 
-            Func<string, PersistentSession> newSessionFactory = (sId) => PersistentSession.CreateWithNewMessage(sId, newMessage);
-
-            await this.Store.AddOrUpdateAsync(transaction, newMessage.OrchestrationInstance.InstanceId,
-                addValueFactory: newSessionFactory,
-                updateValueFactory: (ses, oldValue) => oldValue.AppendMessage(newMessage));
+            var sessionId = newMessage.OrchestrationInstance.InstanceId;
+            await this.Store.TryAddAsync(transaction, sessionId, PersistentSession.Create(sessionId));
+            var sessionMessageProvider = await GetOrAddSessionMessagesInstance(sessionId);
+            await sessionMessageProvider.SendBeginAsync(transaction, new Message<Guid, TaskMessage>(Guid.NewGuid(), newMessage));
         }
 
         public async Task<bool> TryAppendMessageAsync(ITransaction transaction, TaskMessage newMessage)
@@ -145,15 +177,11 @@ namespace DurableTask.ServiceFabric
             ThrowIfStopped();
 
             var sessionId = newMessage.OrchestrationInstance.InstanceId;
-            var existingValue = await this.Store.TryGetValueAsync(transaction, sessionId, LockMode.Update);
-            if (existingValue.HasValue)
+            if (await this.Store.ContainsKeyAsync(transaction, sessionId))
             {
-                var newValue = existingValue.Value.AppendMessage(newMessage);
-                if (newValue != existingValue.Value)
-                {
-                    await this.Store.TryUpdateAsync(transaction, sessionId, newValue, existingValue.Value);
-                    return true;
-                }
+                var sessionMessageProvider = await GetOrAddSessionMessagesInstance(newMessage.OrchestrationInstance.InstanceId);
+                await sessionMessageProvider.SendBeginAsync(transaction, new Message<Guid, TaskMessage>(Guid.NewGuid(), newMessage));
+                return true;
             }
 
             return false;
@@ -168,15 +196,11 @@ namespace DurableTask.ServiceFabric
 
             foreach (var group in groups)
             {
-                var existingValue = await this.Store.TryGetValueAsync(transaction, group.Key, LockMode.Update);
-                if (existingValue.HasValue)
+                if (await this.Store.ContainsKeyAsync(transaction, group.Key))
                 {
-                    var newValue = existingValue.Value.AppendMessageBatch(group.AsEnumerable());
-                    if (newValue != existingValue.Value)
-                    {
-                        await this.Store.TryUpdateAsync(transaction, group.Key, newValue, existingValue.Value);
-                        modifiedSessions.Add(group.Key);
-                    }
+                    var sessionMessageProvider = await GetOrAddSessionMessagesInstance(group.Key);
+                    await sessionMessageProvider.SendBatchBeginAsync(transaction, group.Select(tm => new Message<Guid, TaskMessage>(Guid.NewGuid(), tm)));
+                    modifiedSessions.Add(group.Key);
                 }
             }
 
@@ -192,26 +216,29 @@ namespace DurableTask.ServiceFabric
             {
                 var groupMessages = group.AsEnumerable();
 
-                Func<string, PersistentSession> newSessionFactory = (sId) => PersistentSession.CreateWithNewMessages(sId, groupMessages);
-
-                await this.Store.AddOrUpdateAsync(transaction, group.Key,
-                    addValueFactory: newSessionFactory,
-                    updateValueFactory: (ses, oldValue) => oldValue.AppendMessageBatch(groupMessages));
+                await this.Store.TryAddAsync(transaction, group.Key, PersistentSession.Create(group.Key));
+                var sessionMessageProvider = await GetOrAddSessionMessagesInstance(group.Key);
+                await sessionMessageProvider.SendBatchBeginAsync(transaction, group.Select(tm => new Message<Guid, TaskMessage>(Guid.NewGuid(), tm)));
             }
         }
 
-        public void TryUnlockSession(string sessionId, bool putBackInQueue)
+        public void TryUnlockSession(string sessionId, bool abandon = false)
         {
+            ProviderEventSource.Log.TraceMessage(sessionId, $"Session Unlock Begin, Abandon = {abandon}");
             LockState lockState;
-            if (!this.lockedSessions.TryRemove(sessionId, out lockState) || lockState != LockState.Locked)
+            if (!this.lockedSessions.TryRemove(sessionId, out lockState) || lockState == LockState.InFetchQueue)
             {
                 throw new Exception("Internal Server Error : Unexpectedly trying to unlock a session which was not locked.");
             }
 
-            if (putBackInQueue)
+            List<Guid> ignored;
+            this.lockedSessionMessageTokens.TryRemove(sessionId, out ignored);
+
+            if (abandon || lockState == LockState.NewMessagesWhileLocked)
             {
-                TryEnqueueSession(sessionId);
+                this.TryEnqueueSession(sessionId);
             }
+            ProviderEventSource.Log.TraceMessage(sessionId, $"Session Unlock End, Abandon = {abandon}, removed lock state = {lockState}");
         }
 
         public async Task<bool> SessionExists(string sessionId)
@@ -237,16 +264,39 @@ namespace DurableTask.ServiceFabric
 
         public void TryEnqueueSession(string sessionId)
         {
-            if (this.lockedSessions.TryAdd(sessionId, LockState.InFetchQueue))
+            bool enqueue = true;
+            this.lockedSessions.AddOrUpdate(sessionId, LockState.InFetchQueue, (ses, old) =>
             {
+                enqueue = false;
+                return old == LockState.Locked ? LockState.NewMessagesWhileLocked : old;
+            });
+
+            if (enqueue)
+            {
+                ProviderEventSource.Log.TraceMessage(sessionId, "Session Getting Enqueued");
                 this.inMemorySessionsQueue.Enqueue(sessionId);
                 SetWaiterForNewItems();
             }
         }
 
-        public Task DropSession(ITransaction transaction, string sessionId)
+        public Task DropSession(string sessionId)
         {
-            return this.Store.TryRemoveAsync(transaction, sessionId);
+            return RetryHelper.ExecuteWithRetryOnTransient(async () =>
+            {
+                SessionMessagesProvider<Guid, TaskMessage> sessionMessagesProvider;
+                if (this.sessionMessageProviders.TryRemove(sessionId, out sessionMessagesProvider))
+                {
+                    await sessionMessagesProvider.StopAsync();
+                    var name = GetSessionMessagesDictionaryName(sessionId);
+                    await this.StateManager.RemoveAsync(name);
+                }
+
+                using (var txn = this.StateManager.CreateTransaction())
+                {
+                    await this.Store.TryRemoveAsync(txn, sessionId);
+                    await txn.CommitAsync();
+                }
+            }, uniqueActionIdentifier: $"{nameof(DropSession)}");
         }
 
         enum LockState
@@ -254,6 +304,8 @@ namespace DurableTask.ServiceFabric
             InFetchQueue = 0,
 
             Locked,
+
+            NewMessagesWhileLocked
         }
     }
 }

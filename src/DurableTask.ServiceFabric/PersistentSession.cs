@@ -40,55 +40,29 @@ namespace DurableTask.ServiceFabric
         [DataMember]
         IEnumerable<HistoryEvent> sessionState { get; set; }
 
-        /// <summary>
-        /// Do not use except in the constructor or serialization methods, use <see cref="Messages"/> property instead.
-        /// </summary>
-        [DataMember]
-        IEnumerable<ReceivableTaskMessage> messages { get; set; }
-
         [OnDeserialized]
         private void OnDeserialized(StreamingContext context)
         {
             this.sessionState = this.sessionState.ToImmutableList();
-            this.messages = this.messages.ToImmutableList();
         }
 
-        private PersistentSession(string sessionId, IImmutableList<HistoryEvent> sessionState, IImmutableList<ReceivableTaskMessage> messages)
+        private PersistentSession(string sessionId, IImmutableList<HistoryEvent> sessionState)
         {
             this.SessionId = sessionId;
             this.sessionState = sessionState ?? ImmutableList<HistoryEvent>.Empty;
-            this.messages = messages ?? ImmutableList<ReceivableTaskMessage>.Empty;
         }
 
-        public static PersistentSession Create(string sessionId, IImmutableList<HistoryEvent> sessionState, IImmutableList<ReceivableTaskMessage> messages)
+        public static PersistentSession Create(string sessionId)
         {
-            return new PersistentSession(sessionId, sessionState, messages);
+            return Create(sessionId, null);
+        }
+
+        public static PersistentSession Create(string sessionId, IImmutableList<HistoryEvent> sessionState)
+        {
+            return new PersistentSession(sessionId, sessionState);
         }
 
         public ImmutableList<HistoryEvent> SessionState => this.sessionState.ToImmutableList();
-        public ImmutableList<ReceivableTaskMessage> Messages => this.messages.ToImmutableList();
-
-        public ExtensionDataObject ExtensionData { get; set; }
-    }
-
-    [DataContract]
-    sealed class ReceivableTaskMessage : IExtensibleDataObject
-    {
-        [DataMember]
-        public TaskMessage TaskMessage { get; private set; }
-
-        public bool IsReceived { get; private set; }
-
-        private ReceivableTaskMessage(TaskMessage taskMessage, bool isReceived)
-        {
-            this.TaskMessage = taskMessage;
-            this.IsReceived = isReceived;
-        }
-
-        public static ReceivableTaskMessage Create(TaskMessage taskMessage, bool isReceived = false)
-        {
-            return new ReceivableTaskMessage(taskMessage, isReceived);
-        }
 
         public ExtensionDataObject ExtensionData { get; set; }
     }

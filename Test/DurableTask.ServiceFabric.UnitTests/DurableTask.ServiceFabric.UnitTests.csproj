@@ -48,6 +48,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="CountBasedFixedDelayRetryPolicyTests.cs" />
+    <Compile Include="Measure.cs" />
+    <Compile Include="SerializationPerformanceExperiments.cs" />
     <Compile Include="TimerFiredEventComparerTests.cs" />
     <Compile Include="PersistentSessionTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

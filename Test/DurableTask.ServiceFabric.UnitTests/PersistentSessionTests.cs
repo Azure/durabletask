@@ -26,47 +26,26 @@ namespace DurableTask.ServiceFabric.UnitTests
     public class PersistentSessionTests
     {
         [TestMethod]
-        public void SerializationTest()
+        public void PersistentSession_SerializationTest()
         {
-            int numberOfItemsInCollections = 2;
+            int numberOfHistoryEvents = 256;
 
             var events = new List<HistoryEvent>();
             events.Add(new ExecutionStartedEvent(-1, "TestInput"));
-            for (int i = 0; i < numberOfItemsInCollections; i++)
+            for (int i = 0; i < numberOfHistoryEvents; i++)
             {
                 events.Add(new TaskScheduledEvent(-1));
                 events.Add(new TaskCompletedEvent(-1, -1, $"Task {i} Result"));
             }
             events.Add(new ExecutionCompletedEvent(-1, "FinalResult", OrchestrationStatus.Completed));
 
-            var messages = new List<ReceivableTaskMessage>();
-            for (int i = 0; i < numberOfItemsInCollections; i++)
-            {
-                messages.Add(ReceivableTaskMessage.Create(new TaskMessage() { SequenceNumber = i }));
-            }
+            PersistentSession testSession = PersistentSession.Create("testSession", events.ToImmutableList());
 
-            PersistentSession testSession = PersistentSession.Create("testSession", events.ToImmutableList(),
-                messages.ToImmutableList());
+            var actual = Measure.DataContractSerialization(testSession);
 
-            using (var stream = new MemoryStream())
-            {
-                var serializer = new DataContractSerializer(typeof(PersistentSession));
-                Stopwatch timer = Stopwatch.StartNew();
-                serializer.WriteObject(stream, testSession);
-                timer.Stop();
-                Console.WriteLine($"Time for serialization : {timer.ElapsedMilliseconds} ms");
-
-                stream.Position = 0;
-                timer.Restart();
-                var deserialized = (PersistentSession)serializer.ReadObject(stream);
-                timer.Stop();
-                Console.WriteLine($"Time for deserialization : {timer.ElapsedMilliseconds} ms");
-
-                Assert.IsNotNull(deserialized);
-                Assert.AreEqual("testSession", deserialized.SessionId);
-                Assert.AreEqual(numberOfItemsInCollections*2 + 2, deserialized.SessionState.Count);
-                Assert.AreEqual(numberOfItemsInCollections, deserialized.Messages.Count);
-            }
+            Assert.IsNotNull(actual);
+            Assert.AreEqual("testSession", actual.SessionId);
+            Assert.AreEqual(numberOfHistoryEvents * 2 + 2, actual.SessionState.Count);
         }
     }
 }

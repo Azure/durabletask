@@ -54,12 +54,17 @@ namespace DurableTask.ServiceFabric.Test
         [TestMethod]
         public async Task Test_Lot_Of_Activities_Per_Orchestration()
         {
-            int numberOfActivities = 256;
-            var serviceClient = ServiceProxy.Create<IRemoteClient>(new Uri("fabric:/TestFabricApplicationType/TestStatefulService"), new ServicePartitionKey(1));
-            var state = await serviceClient.RunOrchestrationAsync(typeof(ExecutionCountingOrchestration).Name, numberOfActivities, TimeSpan.FromMinutes(1));
-            Assert.IsNotNull(state);
-            Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
-            Assert.AreEqual(numberOfActivities.ToString(), state.Output);
+            var tests = new[] { 256, 1024, 2048, 3500, 4000 };
+            foreach (var numberOfActivities in tests)
+            {
+                Console.WriteLine($"Begin testing orchestration with {numberOfActivities} parallel activities");
+                var serviceClient = ServiceProxy.Create<IRemoteClient>(new Uri("fabric:/TestFabricApplicationType/TestStatefulService"), new ServicePartitionKey(1));
+                var state = await serviceClient.RunOrchestrationAsync(typeof(ExecutionCountingOrchestration).Name, numberOfActivities, TimeSpan.FromMinutes(1));
+                Assert.IsNotNull(state);
+                Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
+                Console.WriteLine($"Time for orchestration {state.OrchestrationInstance.InstanceId} with {numberOfActivities} parallel activities : {state.CompletedTime - state.CreatedTime}");
+                Assert.AreEqual(numberOfActivities.ToString(), state.Output);
+            }
         }
 
         [TestMethod]
@@ -104,6 +109,7 @@ namespace DurableTask.ServiceFabric.Test
             await RunTestOrchestrationsHelper(1000, testOrchestratorInput, delayGeneratorFunction: (totalRequestsSoFar) => TimeSpan.FromMilliseconds(100));
         }
 
+        [Ignore] //Long running test and not too interesting anyway. (The test is passing - enable as needed to test and ensure).
         [TestMethod]
         public async Task InfrequentLoadScenario()
         {
@@ -152,20 +158,24 @@ namespace DurableTask.ServiceFabric.Test
         {
             var serviceClient = ServiceProxy.Create<IRemoteClient>(new Uri("fabric:/TestFabricApplicationType/TestStatefulService"), new ServicePartitionKey(1));
 
-            List<Task<OrchestrationState>> waitTasks = new List<Task<OrchestrationState>>();
+            Dictionary<OrchestrationInstance, OrchestrationState> results = new Dictionary<OrchestrationInstance, OrchestrationState>();
+            List<Task> waitTasks = new List<Task>();
             Stopwatch stopWatch = Stopwatch.StartNew();
             for (int i = 0; i < numberOfInstances; i++)
             {
                 var instance = await serviceClient.StartTestOrchestrationAsync(orchestrationInput);
-                var waitTask = serviceClient.WaitForOrchestration(instance, TimeSpan.FromMinutes(2));
-                waitTasks.Add(waitTask);
+                waitTasks.Add(Task.Run(async () =>
+                {
+                    var state = await serviceClient.WaitForOrchestration(instance, TimeSpan.FromMinutes(2));
+                    results.Add(instance, state);
+                }));
                 if (delayGeneratorFunction != null)
                 {
                     await Task.Delay(delayGeneratorFunction(i));
                 }
             }
 
-            var outcomes = await Task.WhenAll(waitTasks);
+            await Task.WhenAll(waitTasks);
             stopWatch.Stop();
 
             Func<TimeSpan, string> elapsedTimeFormatter = timeSpan => $"{timeSpan.Hours:00}:{timeSpan.Minutes:00}:{timeSpan.Seconds:00}.{timeSpan.Milliseconds / 10:00}";
@@ -175,11 +185,19 @@ namespace DurableTask.ServiceFabric.Test
             TimeSpan minTime = TimeSpan.MaxValue;
             TimeSpan maxTime = TimeSpan.FromMilliseconds(0);
 
-            foreach (var outcome in outcomes)
+            int failedOrchestrations = 0;
+            foreach (var kvp in results)
             {
-                Assert.IsNotNull(outcome);
-                Assert.AreEqual(expectedResult, outcome.Output);
-                TimeSpan orchestrationTime = outcome.CompletedTime - outcome.CreatedTime;
+                if (kvp.Value == null)
+                {
+                    failedOrchestrations++;
+                    var state = await serviceClient.GetOrchestrationState(kvp.Key);
+                    Console.WriteLine($"Unfinished orchestration {kvp.Key}, state : {kvp.Value?.OrchestrationStatus}");
+                    continue;
+                }
+
+                Assert.AreEqual(expectedResult, kvp.Value.Output, $"Unexpected output for Orchestration : {kvp.Key.InstanceId}");
+                TimeSpan orchestrationTime = kvp.Value.CompletedTime - kvp.Value.CreatedTime;
                 if (minTime > orchestrationTime)
                 {
                     minTime = orchestrationTime;
@@ -192,6 +210,8 @@ namespace DurableTask.ServiceFabric.Test
 
             Console.WriteLine($"Minimum time taken for any orchestration instance : {elapsedTimeFormatter(minTime)}");
             Console.WriteLine($"Maximum time taken for any orchestration instance : {elapsedTimeFormatter(maxTime)}");
+
+            Assert.AreEqual(0, failedOrchestrations, $"{failedOrchestrations} orchestrations failed out of {numberOfInstances}.");
         }
     }
 }

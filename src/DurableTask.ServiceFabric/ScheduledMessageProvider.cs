@@ -150,7 +150,7 @@ namespace DurableTask.ServiceFabric
                                 await this.CompleteBatchAsync(tx, keys);
                                 await tx.CommitAsync();
                             }
-                        });
+                        }, uniqueActionIdentifier: $"{nameof(ProcessScheduledMessages)}");
 
                         lock (@lock)
                         {

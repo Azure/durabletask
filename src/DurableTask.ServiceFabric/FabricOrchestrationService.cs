@@ -147,7 +147,14 @@ namespace DurableTask.ServiceFabric
                 return null;
             }
 
-            var newMessages = this.orchestrationProvider.GetSessionMessages(currentSession);
+            var newMessages = await this.orchestrationProvider.ReceiveSessionMessagesAsync(currentSession);
+
+            if (newMessages.Count == 0)
+            {
+                this.orchestrationProvider.TryUnlockSession(currentSession.SessionId);
+                return null;
+            }
+
             return new TaskOrchestrationWorkItem()
             {
                 NewMessages = newMessages,
@@ -178,7 +185,6 @@ namespace DurableTask.ServiceFabric
             IList<string> sessionsToEnqueue = null;
             List<Message<string, TaskMessage>> scheduledMessages = null;
             List<Message<string, TaskMessage>> activityMessages = null;
-            PersistentSession newSessionValue = null;
 
             await RetryHelper.ExecuteWithRetryOnTransient(async () =>
             {
@@ -186,7 +192,7 @@ namespace DurableTask.ServiceFabric
                 {
                     var previousState = workItem.OrchestrationRuntimeState;
 
-                    newSessionValue = await this.orchestrationProvider.CompleteAndUpdateSession(txn, workItem.InstanceId, newOrchestrationRuntimeState);
+                    await this.orchestrationProvider.CompleteAndUpdateSession(txn, workItem.InstanceId, newOrchestrationRuntimeState);
 
                     if (outboundMessages?.Count > 0)
                     {
@@ -217,18 +223,18 @@ namespace DurableTask.ServiceFabric
                     {
                         await this.instanceStore.WriteEntitesAsync(txn, new InstanceEntityBase[]
                         {
-                        new OrchestrationStateInstanceEntity()
-                        {
-                            State = Utils.BuildOrchestrationState(workItem.OrchestrationRuntimeState)
-                        }
+                            new OrchestrationStateInstanceEntity()
+                            {
+                                State = Utils.BuildOrchestrationState(workItem.OrchestrationRuntimeState)
+                            }
                         });
                     }
 
                     await txn.CommitAsync();
                 }
-            });
+            }, uniqueActionIdentifier: $"{nameof(CompleteTaskOrchestrationWorkItemAsync)}");
 
-            this.orchestrationProvider.TryUnlockSession(workItem.InstanceId, putBackInQueue: (newSessionValue != null && newSessionValue.Messages.Any()));
+            this.orchestrationProvider.TryUnlockSession(workItem.InstanceId);
             if (activityMessages != null)
             {
                 this.activitiesProvider.SendBatchComplete(activityMessages);
@@ -248,7 +254,7 @@ namespace DurableTask.ServiceFabric
 
         public Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
-            this.orchestrationProvider.TryUnlockSession(workItem.InstanceId, putBackInQueue: true);
+            this.orchestrationProvider.TryUnlockSession(workItem.InstanceId, abandon: true);
             return CompletedTask.Default;
         }
 
@@ -256,18 +262,11 @@ namespace DurableTask.ServiceFabric
         {
             if (workItem.OrchestrationRuntimeState.OrchestrationStatus.IsTerminalState())
             {
-                await RetryHelper.ExecuteWithRetryOnTransient(async () =>
-                {
-                    using (var txn = this.stateManager.CreateTransaction())
-                    {
-                        await this.orchestrationProvider.DropSession(txn, workItem.InstanceId);
-                        await txn.CommitAsync();
-                        ProviderEventSource.Log.OrchestrationFinished(workItem.InstanceId,
-                            workItem.OrchestrationRuntimeState.OrchestrationStatus.ToString(),
-                            (workItem.OrchestrationRuntimeState.CompletedTime - workItem.OrchestrationRuntimeState.CreatedTime).TotalSeconds,
-                            workItem.OrchestrationRuntimeState.Output);
-                    }
-                });
+                await this.orchestrationProvider.DropSession(workItem.InstanceId);
+                ProviderEventSource.Log.OrchestrationFinished(workItem.InstanceId,
+                    workItem.OrchestrationRuntimeState.OrchestrationStatus.ToString(),
+                    (workItem.OrchestrationRuntimeState.CompletedTime - workItem.OrchestrationRuntimeState.CreatedTime).TotalSeconds,
+                    workItem.OrchestrationRuntimeState.Output);
             }
         }
 
@@ -303,7 +302,7 @@ namespace DurableTask.ServiceFabric
                     added = await this.orchestrationProvider.TryAppendMessageAsync(txn, responseMessage);
                     await txn.CommitAsync();
                 }
-            });
+            }, uniqueActionIdentifier: $"{nameof(CompleteTaskActivityWorkItemAsync)}");
 
             if (added)
             {
@@ -313,7 +312,8 @@ namespace DurableTask.ServiceFabric
 
         public Task AbandonTaskActivityWorkItemAsync(TaskActivityWorkItem workItem)
         {
-            return this.activitiesProvider.AandonAsync(workItem.Id);
+            this.activitiesProvider.Abandon(workItem.Id);
+            return CompletedTask.Default;
         }
 
         public Task<TaskActivityWorkItem> RenewTaskActivityWorkItemLockAsync(TaskActivityWorkItem workItem)

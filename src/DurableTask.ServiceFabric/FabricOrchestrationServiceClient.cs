@@ -60,7 +60,7 @@ namespace DurableTask.ServiceFabric
                     await tx.CommitAsync();
                     ProviderEventSource.Log.OrchestrationCreated(instance.InstanceId, instance.ExecutionId);
                 }
-            });
+            }, uniqueActionIdentifier: $"{nameof(CreateTaskOrchestrationAsync)}");
             this.orchestrationProvider.TryEnqueueSession(creationMessage.OrchestrationInstance.InstanceId);
         }
 
