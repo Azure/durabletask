@@ -15,7 +15,7 @@ namespace DurableTask.Samples.Cron
 {
     using System;
     using System.Threading;
-    using DurableTask;
+    using DurableTask.Core;
 
     public sealed class CronTask : TaskActivity<string,string>
     {
@@ -23,7 +23,7 @@ namespace DurableTask.Samples.Cron
         {
         }
 
-        protected override string Execute(DurableTask.TaskContext context, string input)
+        protected override string Execute(DurableTask.Core.TaskContext context, string input)
         {
             Console.WriteLine($"Executing Cron Job.  Started At: '{DateTime.Now}' Number: {input}");
 

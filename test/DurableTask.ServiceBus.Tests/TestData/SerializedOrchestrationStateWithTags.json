@@ -1,17 +1,17 @@
 ﻿{
-  "$type": "DurableTask.OrchestrationRuntimeState, DurableTaskFx",
+  "$type": "DurableTask.Core.OrchestrationRuntimeState, DurableTask.Core",
   "Events": [
     {
-      "$type": "DurableTask.History.OrchestratorStartedEvent, DurableTaskFx",
+      "$type": "DurableTask.Core.History.OrchestratorStartedEvent, DurableTask.Core",
       "EventType": 12,
       "EventId": -1,
       "IsPlayed": false,
       "Timestamp": "2016-04-05T17:35:31.9077064Z"
     },
     {
-      "$type": "DurableTask.History.ExecutionStartedEvent, DurableTaskFx",
+      "$type": "DurableTask.Core.History.ExecutionStartedEvent, DurableTask.Core",
       "OrchestrationInstance": {
-        "$type": "DurableTask.OrchestrationInstance, DurableTaskFx",
+        "$type": "DurableTask.Core.OrchestrationInstance, DurableTask.Core",
         "InstanceId": "TestInstance",
         "ExecutionId": "eda9e8417d3943c193ac6214481865e7"
       },
@@ -29,7 +29,7 @@
       "Timestamp": "2016-04-05T17:35:31.9062038Z"
     },
     {
-      "$type": "DurableTask.History.OrchestratorCompletedEvent, DurableTaskFx",
+      "$type": "DurableTask.Core.History.OrchestratorCompletedEvent, DurableTask.Core",
       "EventType": 13,
       "EventId": -1,
       "IsPlayed": false,
@@ -38,16 +38,16 @@
   ],
   "NewEvents": [
     {
-      "$type": "DurableTask.History.OrchestratorStartedEvent, DurableTaskFx",
+      "$type": "DurableTask.Core.History.OrchestratorStartedEvent, DurableTask.Core",
       "EventType": 12,
       "EventId": -1,
       "IsPlayed": false,
       "Timestamp": "2016-04-05T17:35:31.9077064Z"
     },
     {
-      "$type": "DurableTask.History.ExecutionStartedEvent, DurableTaskFx",
+      "$type": "DurableTask.Core.History.ExecutionStartedEvent, DurableTask.Core",
       "OrchestrationInstance": {
-        "$type": "DurableTask.OrchestrationInstance, DurableTaskFx",
+        "$type": "DurableTask.Core.OrchestrationInstance, DurableTask.Core",
         "InstanceId": "TestInstance",
         "ExecutionId": "eda9e8417d3943c193ac6214481865e7"
       },
@@ -65,7 +65,7 @@
       "Timestamp": "2016-04-05T17:35:31.9062038Z"
     },
     {
-      "$type": "DurableTask.History.OrchestratorCompletedEvent, DurableTaskFx",
+      "$type": "DurableTask.Core.History.OrchestratorCompletedEvent, DurableTask.Core",
       "EventType": 13,
       "EventId": -1,
       "IsPlayed": false,
@@ -87,7 +87,7 @@
   },
   "OrchestrationStatus": 0,
   "OrchestrationInstance": {
-    "$type": "DurableTask.OrchestrationInstance, DurableTaskFx",
+    "$type": "DurableTask.Core.OrchestrationInstance, DurableTask.Core",
     "InstanceId": "TestInstance",
     "ExecutionId": "eda9e8417d3943c193ac6214481865e7"
   },

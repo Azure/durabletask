@@ -1,7 +1,7 @@
 ﻿{
-  "$type": "DurableTask.History.ExecutionStartedEvent, DurableTaskFx",
+  "$type": "DurableTask.Core.History.ExecutionStartedEvent, DurableTask.Core",
   "OrchestrationInstance": {
-    "$type": "DurableTask.OrchestrationInstance, DurableTaskFx",
+    "$type": "DurableTask.Core.OrchestrationInstance, DurableTask.Core",
     "InstanceId": "TestInstance",
     "ExecutionId": "eda9e8417d3943c193ac6214481865e7"
   },

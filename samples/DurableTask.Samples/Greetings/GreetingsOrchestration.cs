@@ -14,7 +14,7 @@
 namespace DurableTask.Samples.Greetings
 {
     using System.Threading.Tasks;
-    using DurableTask;
+    using DurableTask.Core;
 
     public class GreetingsOrchestration : TaskOrchestration<string,string>
     {

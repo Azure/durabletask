@@ -16,9 +16,9 @@ namespace DurableTask.ServiceBus.Tests
     using System;
     using System.IO;
     using System.Threading.Tasks;
-    using DurableTask;
-    using DurableTask.History;
-    using DurableTask.Serializing;
+    using DurableTask.Core;
+    using DurableTask.Core.History;
+    using DurableTask.Core.Serializing;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]

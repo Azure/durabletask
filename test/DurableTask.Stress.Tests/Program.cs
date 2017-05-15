@@ -17,10 +17,12 @@ namespace DurableTask.Stress.Tests
     using System;
     using System.Configuration;
     using System.Diagnostics;
-    using DurableTask.Settings;
+    using DurableTask.Core;
+    using DurableTask.Core.Tracing;
+    using DurableTask.ServiceBus.Settings;
+    using DurableTask.ServiceBus;
     using DurableTask.Test.Orchestrations.Stress;
-    using DurableTask.Tracing;
-    using DurableTask.Tracking;
+    using DurableTask.ServiceBus.Tracking;
     using Microsoft.Practices.EnterpriseLibrary.SemanticLogging;
     using System.Diagnostics.Tracing;
 

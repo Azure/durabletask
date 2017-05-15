@@ -17,11 +17,10 @@ namespace DurableTask.Samples
     using System;
     using System.Collections.Generic;
     using System.Configuration;
+    using System.Diagnostics.Tracing;
     using System.IO;
     using System.Linq;
     using System.Threading;
-    using DurableTask;
-    using DurableTask.Tracking;
     using DurableTask.Samples.AverageCalculator;
     using DurableTask.Samples.Common.WorkItems;
     using DurableTask.Samples.Cron;
@@ -31,15 +30,24 @@ namespace DurableTask.Samples
     using DurableTask.Samples.Replat;
     using DurableTask.Samples.Signal;
     using DurableTask.Samples.SumOfSquares;
-    using DurableTask.Common;
+    using DurableTask.Core;
+    using DurableTask.Core.Tracing;
+    using DurableTask.ServiceBus;
+    using DurableTask.ServiceBus.Tracking;
+    using Microsoft.Practices.EnterpriseLibrary.SemanticLogging;
 
     class Program
     {
         static Options options = new Options();
+        static ObservableEventListener eventListener;
 
         [STAThread]
         static void Main(string[] args)
         {
+            eventListener = new ObservableEventListener();
+            eventListener.LogToConsole();
+            eventListener.EnableEvents(DefaultEventSource.Log, EventLevel.LogAlways);
+
             if (CommandLine.Parser.Default.ParseArgumentsStrict(args, options))
             {
                 string servicebusConnectionString = Program.GetSetting("ServiceBusConnectionString");

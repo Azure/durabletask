@@ -18,9 +18,9 @@ namespace DurableTask.ServiceBus.Tests
     using System.Diagnostics;
     using System.Linq;
     using System.Threading.Tasks;
-    using DurableTask;
-    using DurableTask.Exceptions;
-    using DurableTask.Framework.Tests;
+    using DurableTask.Core;
+    using DurableTask.Core.Exceptions;
+    using DurableTask.Core.Tests;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]

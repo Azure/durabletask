@@ -16,7 +16,7 @@ namespace DurableTask.Samples.Tests
     using System;
     using System.Threading.Tasks;
     using DurableTask.Samples.AverageCalculator;
-    using DurableTask.Test;
+    using DurableTask.Core.Test;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]

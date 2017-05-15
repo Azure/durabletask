@@ -25,8 +25,9 @@
 	</ItemGroup>
 	
 	<ItemGroup>
-		<ProjectReference Include="..\..\src\DurableTask.Framework\DurableTask.Framework.csproj" />
-		<ProjectReference Include="..\DurableTask.Framework.Tests\DurableTask.Framework.Tests.csproj" />
+		<ProjectReference Include="..\..\src\DurableTask.Core\DurableTask.Core.csproj" />
+		<ProjectReference Include="..\..\src\DurableTask.ServiceBus\DurableTask.ServiceBus.csproj" />
+		<ProjectReference Include="..\DurableTask.Core.Tests\DurableTask.Core.Tests.csproj" />
 	</ItemGroup>	
 	
 	<ItemGroup>

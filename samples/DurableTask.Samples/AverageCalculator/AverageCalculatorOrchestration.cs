@@ -16,7 +16,7 @@ namespace DurableTask.Samples.AverageCalculator
     using System;
     using System.Collections.Generic;
     using System.Threading.Tasks;
-    using DurableTask;
+    using DurableTask.Core;
 
     public class AverageCalculatorOrchestration : TaskOrchestration<double, int[]>
     {

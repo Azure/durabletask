@@ -15,9 +15,9 @@ namespace DurableTask.Samples.Tests
 {
     using System;
     using System.Threading.Tasks;
-    using DurableTask;
+    using DurableTask.Core;
     using DurableTask.Samples.Cron;
-    using DurableTask.Test;
+    using DurableTask.Core.Test;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]
@@ -31,7 +31,7 @@ namespace DurableTask.Samples.Tests
             {
             }
 
-            protected override string Execute(DurableTask.TaskContext context, string input)
+            protected override string Execute(DurableTask.Core.TaskContext context, string input)
             {
                 Console.WriteLine("Executing Cron Job.  Started At: '" + DateTime.Now.ToString() + "' Number: " + input);
 

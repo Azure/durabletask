@@ -4,9 +4,8 @@
   <PropertyGroup>
     <TargetFramework>net451</TargetFramework>
   </PropertyGroup>
-
   <ItemGroup>
-    <ProjectReference Include="..\..\src\DurableTask.Framework\DurableTask.Framework.csproj" />
+    <ProjectReference Include="..\..\src\DurableTask.Core\DurableTask.Core.csproj" />
   </ItemGroup>
 
 </Project>
