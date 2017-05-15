@@ -21,7 +21,7 @@ namespace DurableTask.Core.Tracing
     [EventSource(
         Name = "DurableTask-Core",
         Guid = "7DA4779A-152E-44A2-A6F2-F80D991A5BEE")]
-    internal class DefaultEventSource : EventSource
+    public class DefaultEventSource : EventSource
     {
         const int TraceEventId = 1;
         const int DebugEventId = 2;

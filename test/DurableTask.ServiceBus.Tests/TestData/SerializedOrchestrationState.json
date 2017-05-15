@@ -1,17 +1,17 @@
 ﻿{
-  "$type": "DurableTask.OrchestrationRuntimeState, DurableTaskFx",
+  "$type": "DurableTask.Core.OrchestrationRuntimeState, DurableTask.Core",
   "Events": [
     {
-      "$type": "DurableTask.History.OrchestratorStartedEvent, DurableTaskFx",
+      "$type": "DurableTask.Core.History.OrchestratorStartedEvent, DurableTask.Core",
       "EventType": 12,
       "EventId": -1,
       "IsPlayed": false,
       "Timestamp": "2016-04-05T17:18:44.5851025Z"
     },
     {
-      "$type": "DurableTask.History.ExecutionStartedEvent, DurableTaskFx",
+      "$type": "DurableTask.Core.History.ExecutionStartedEvent, DurableTask.Core",
       "OrchestrationInstance": {
-        "$type": "DurableTask.OrchestrationInstance, DurableTaskFx",
+        "$type": "DurableTask.Core.OrchestrationInstance, DurableTask.Core",
         "InstanceId": "b26d0baea1934549b087add7a9dd2b83",
         "ExecutionId": "06722b8ac29e49e9962230d474483720"
       },
@@ -26,7 +26,7 @@
       "Timestamp": "2016-04-05T17:18:40.9632Z"
     },
     {
-      "$type": "DurableTask.History.TaskScheduledEvent, DurableTaskFx",
+      "$type": "DurableTask.Core.History.TaskScheduledEvent, DurableTask.Core",
       "EventType": 4,
       "Name": "FrameworkUnitTests.FunctionalTests+GenerationBasicTask",
       "Version": "",
@@ -36,7 +36,7 @@
       "Timestamp": "2016-04-05T17:18:44.6098492Z"
     },
     {
-      "$type": "DurableTask.History.OrchestratorCompletedEvent, DurableTaskFx",
+      "$type": "DurableTask.Core.History.OrchestratorCompletedEvent, DurableTask.Core",
       "EventType": 13,
       "EventId": -1,
       "IsPlayed": false,
@@ -45,16 +45,16 @@
   ],
   "NewEvents": [
     {
-      "$type": "DurableTask.History.OrchestratorStartedEvent, DurableTaskFx",
+      "$type": "DurableTask.Core.History.OrchestratorStartedEvent, DurableTask.Core",
       "EventType": 12,
       "EventId": -1,
       "IsPlayed": false,
       "Timestamp": "2016-04-05T17:18:44.5851025Z"
     },
     {
-      "$type": "DurableTask.History.ExecutionStartedEvent, DurableTaskFx",
+      "$type": "DurableTask.Core.History.ExecutionStartedEvent, DurableTask.Core",
       "OrchestrationInstance": {
-        "$type": "DurableTask.OrchestrationInstance, DurableTaskFx",
+        "$type": "DurableTask.Core.OrchestrationInstance, DurableTask.Core",
         "InstanceId": "b26d0baea1934549b087add7a9dd2b83",
         "ExecutionId": "06722b8ac29e49e9962230d474483720"
       },
@@ -69,7 +69,7 @@
       "Timestamp": "2016-04-05T17:18:40.9632Z"
     },
     {
-      "$type": "DurableTask.History.TaskScheduledEvent, DurableTaskFx",
+      "$type": "DurableTask.Core.History.TaskScheduledEvent, DurableTask.Core",
       "EventType": 4,
       "Name": "FrameworkUnitTests.FunctionalTests+GenerationBasicTask",
       "Version": "",
@@ -79,7 +79,7 @@
       "Timestamp": "2016-04-05T17:18:44.6098492Z"
     },
     {
-      "$type": "DurableTask.History.OrchestratorCompletedEvent, DurableTaskFx",
+      "$type": "DurableTask.Core.History.OrchestratorCompletedEvent, DurableTask.Core",
       "EventType": 13,
       "EventId": -1,
       "IsPlayed": false,
@@ -98,7 +98,7 @@
   "Tags": null,
   "OrchestrationStatus": 0,
   "OrchestrationInstance": {
-    "$type": "DurableTask.OrchestrationInstance, DurableTaskFx",
+    "$type": "DurableTask.Core.OrchestrationInstance, DurableTask.Core",
     "InstanceId": "b26d0baea1934549b087add7a9dd2b83",
     "ExecutionId": "06722b8ac29e49e9962230d474483720"
   },
