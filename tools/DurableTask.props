@@ -11,7 +11,7 @@
       <RunCodeAnalysis Condition=" '$(Configuration)' == 'Debug' ">False</RunCodeAnalysis>
       <RunCodeAnalysis Condition=" $(MSBuildProjectName.EndsWith('.Tests')) ">False</RunCodeAnalysis>
       <CodeAnalysisTreatWarningsAsErrors>True</CodeAnalysisTreatWarningsAsErrors>
-	    <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
+      <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
     </PropertyGroup>
   <Target Name="Build">
   </Target>

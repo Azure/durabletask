@@ -17,7 +17,7 @@ namespace DurableTask.ServiceBus.Tests
     using System.Collections.Generic;
     using System.Threading.Tasks;
     using DurableTask.Core;
-    using DurableTask.Core.Tests;
+    using DurableTask.Test.Orchestrations;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]
@@ -54,18 +54,18 @@ namespace DurableTask.ServiceBus.Tests
         public async Task SimplestGreetingsJumpStartTest()
         {
             var sbService = (ServiceBusOrchestrationService)taskHub.orchestrationService;
-            string name = NameVersionHelper.GetDefaultName(typeof(DurableTaskCoreFxTest.SimplestGreetingsOrchestration));
-            string version = NameVersionHelper.GetDefaultVersion(typeof(DurableTaskCoreFxTest.SimplestGreetingsOrchestration));
+            string name = NameVersionHelper.GetDefaultName(typeof(SimplestGreetingsOrchestration));
+            string version = NameVersionHelper.GetDefaultVersion(typeof(SimplestGreetingsOrchestration));
 
-            await taskHub.AddTaskOrchestrations(typeof(DurableTaskCoreFxTest.SimplestGreetingsOrchestration))
-                .AddTaskActivities(typeof(DurableTaskCoreFxTest.SimplestGetUserTask), typeof(DurableTaskCoreFxTest.SimplestSendGreetingTask))
+            await taskHub.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
+                .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
                 .StartAsync();
 
             OrchestrationInstance id = await TestHelpers.CreateOrchestrationInstanceAsync(sbService, name, version, null, null, true, false);
 
             bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
             Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
-            Assert.AreEqual("Greeting send to Gabbar", DurableTaskCoreFxTest.SimplestGreetingsOrchestration.Result,
+            Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,
                 "Orchestration Result is wrong!!!");
         }
 
@@ -73,11 +73,11 @@ namespace DurableTask.ServiceBus.Tests
         public async Task SimplestGreetingsJumpStartDelayTest()
         {
             var sbService = (ServiceBusOrchestrationService)taskHub.orchestrationService;
-            string name = NameVersionHelper.GetDefaultName(typeof(DurableTaskCoreFxTest.SimplestGreetingsOrchestration));
-            string version = NameVersionHelper.GetDefaultVersion(typeof(DurableTaskCoreFxTest.SimplestGreetingsOrchestration));
+            string name = NameVersionHelper.GetDefaultName(typeof(SimplestGreetingsOrchestration));
+            string version = NameVersionHelper.GetDefaultVersion(typeof(SimplestGreetingsOrchestration));
 
-            await taskHub.AddTaskOrchestrations(typeof(DurableTaskCoreFxTest.SimplestGreetingsOrchestration))
-                .AddTaskActivities(typeof(DurableTaskCoreFxTest.SimplestGetUserTask), typeof(DurableTaskCoreFxTest.SimplestSendGreetingTask))
+            await taskHub.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
+                .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
                 .StartAsync();
 
             OrchestrationInstance id = await TestHelpers.CreateOrchestrationInstanceAsync(sbService, name, version, null, null, true, false);
@@ -91,11 +91,11 @@ namespace DurableTask.ServiceBus.Tests
         public async Task DupeDetectionByInstanceStoreTest()
         {
             var sbService = (ServiceBusOrchestrationService)taskHub.orchestrationService;
-            string name = NameVersionHelper.GetDefaultName(typeof(DurableTaskCoreFxTest.SimplestGreetingsOrchestration));
-            string version = NameVersionHelper.GetDefaultVersion(typeof(DurableTaskCoreFxTest.SimplestGreetingsOrchestration));
+            string name = NameVersionHelper.GetDefaultName(typeof(SimplestGreetingsOrchestration));
+            string version = NameVersionHelper.GetDefaultVersion(typeof(SimplestGreetingsOrchestration));
 
-            await taskHub.AddTaskOrchestrations(typeof(DurableTaskCoreFxTest.SimplestGreetingsOrchestration))
-                .AddTaskActivities(typeof(DurableTaskCoreFxTest.SimplestGetUserTask), typeof(DurableTaskCoreFxTest.SimplestSendGreetingTask))
+            await taskHub.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
+                .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
                 .StartAsync();
 
             // Write to jumpstart table only
@@ -110,18 +110,18 @@ namespace DurableTask.ServiceBus.Tests
         public async Task DupeDetectionByServiceBusQueueTest()
         {
             var sbService = (ServiceBusOrchestrationService)taskHub.orchestrationService;
-            string name = NameVersionHelper.GetDefaultName(typeof(DurableTaskCoreFxTest.SimplestGreetingsOrchestration));
-            string version = NameVersionHelper.GetDefaultVersion(typeof(DurableTaskCoreFxTest.SimplestGreetingsOrchestration));
+            string name = NameVersionHelper.GetDefaultName(typeof(SimplestGreetingsOrchestration));
+            string version = NameVersionHelper.GetDefaultVersion(typeof(SimplestGreetingsOrchestration));
 
-            await taskHub.AddTaskOrchestrations(typeof(DurableTaskCoreFxTest.GenerationBasicOrchestration))
-                .AddTaskActivities(new DurableTaskCoreFxTest.GenerationBasicTask())
-                .AddTaskOrchestrations(typeof(DurableTaskCoreFxTest.SimplestGreetingsOrchestration))
-                .AddTaskActivities(typeof(DurableTaskCoreFxTest.SimplestGetUserTask), typeof(DurableTaskCoreFxTest.SimplestSendGreetingTask))
+            await taskHub.AddTaskOrchestrations(typeof(GenerationBasicOrchestration))
+                .AddTaskActivities(new GenerationBasicTask())
+                .AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
+                .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
                 .StartAsync();
 
-            DurableTaskCoreFxTest.GenerationBasicTask.GenerationCount = 0;
+            GenerationBasicTask.GenerationCount = 0;
             int generationCount = 0;
-            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof(DurableTaskCoreFxTest.GenerationBasicOrchestration), generationCount);
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof(GenerationBasicOrchestration), generationCount);
 
             bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
             Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));

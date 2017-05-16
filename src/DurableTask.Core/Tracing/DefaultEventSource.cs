@@ -16,11 +16,11 @@ namespace DurableTask.Core.Tracing
     using System;
     using System.Diagnostics;
     using System.Diagnostics.Tracing;
-    using System.Runtime.InteropServices;
 
     [EventSource(
         Name = "DurableTask-Core",
         Guid = "7DA4779A-152E-44A2-A6F2-F80D991A5BEE")]
+    [System.Runtime.InteropServices.ComVisible(false)]
     public class DefaultEventSource : EventSource
     {
         const int TraceEventId = 1;
