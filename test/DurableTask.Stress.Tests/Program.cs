@@ -89,7 +89,7 @@ namespace DurableTask.Stress.Tests
                         }
                     };
 
-                    instance = taskHubClient.CreateOrchestrationInstanceAsync(typeof(SimpleOrchestrations), instanceId, driverConfig).Result;
+                    instance = taskHubClient.CreateOrchestrationInstanceAsync(typeof(DriverOrchestration), instanceId, driverConfig).Result;
                 }
                 else
                 {
@@ -101,7 +101,7 @@ namespace DurableTask.Stress.Tests
 
                 TestTask testTask = new TestTask();
                 taskHub.AddTaskActivities(testTask);
-                taskHub.AddTaskOrchestrations(typeof(SimpleOrchestrations));
+                taskHub.AddTaskOrchestrations(typeof(DriverOrchestration));
                 taskHub.AddTaskOrchestrations(typeof(TestOrchestration));
                 taskHub.StartAsync().Wait();
 
