@@ -93,24 +93,33 @@ namespace DurableTask.ServiceFabric
             }
         }
 
+        [Event(7, Level = EventLevel.Error, Message = "Hint : {0}, Exception: {1}", Channel = EventChannel.Operational)]
+        public void ExceptionWhileProcessingReliableCollectionTransaction(string uniqueIdentifier, string exception)
+        {
+            if (IsEnabled(EventLevel.Error, Keywords.Common))
+            {
+                WriteEvent(7, uniqueIdentifier, exception);
+            }
+        }
+
         [Event(101, Level = EventLevel.Verbose, Message = "Trace Message for Session {0} : {1}", Channel = EventChannel.Debug)]
         public void TraceMessage(string instanceId, string message)
         {
 #if DEBUG
             if (IsEnabled(EventLevel.Verbose, Keywords.Common))
             {
-                //WriteEvent(101, instanceId, message);
+                WriteEvent(101, instanceId, message);
             }
 #endif
         }
 
-        [Event(102, Level = EventLevel.Verbose, Message = "Time taken for {0} : {1} milli seconds.", Channel = EventChannel.Debug)]
+        [Event(102, Level = EventLevel.Verbose, Message = "Time taken for {0} : {1} milli seconds.", Channel = EventChannel.Analytic)]
         public void LogMeasurement(string uniqueActionIdentifier, long elapsedMilliseconds)
         {
 #if DEBUG
             if (IsEnabled(EventLevel.Verbose, Keywords.Common))
             {
-                //WriteEvent(102, uniqueActionIdentifier, elapsedMilliseconds);
+                WriteEvent(102, uniqueActionIdentifier, elapsedMilliseconds);
             }
 #endif
         }

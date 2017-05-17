@@ -30,19 +30,24 @@ namespace DurableTask.ServiceFabric.UnitTests
             using (var stream = new MemoryStream())
             {
                 var serializer = new DataContractSerializer(testType);
-                Stopwatch timer = Stopwatch.StartNew();
-                serializer.WriteObject(stream, testObject);
-                timer.Stop();
-                Console.WriteLine($"Time for serialization : {timer.ElapsedMilliseconds} ms");
+                var time = MeasureTime(() => serializer.WriteObject(stream, testObject));
+                Console.WriteLine($"Time for serialization : {time.TotalMilliseconds} ms");
                 Console.WriteLine($"Size of serialized stream : {stream.Length} bytes.");
 
                 stream.Position = 0;
-                timer.Restart();
-                var deserialized = serializer.ReadObject(stream);
-                timer.Stop();
-                Console.WriteLine($"Time for deserialization : {timer.ElapsedMilliseconds} ms");
+                object deserialized = null;
+                time = MeasureTime(() => { deserialized = serializer.ReadObject(stream); });
+                Console.WriteLine($"Time for deserialization : {time.TotalMilliseconds} ms");
                 return deserialized;
             }
+        }
+
+        public static TimeSpan MeasureTime(Action action)
+        {
+            Stopwatch timer = Stopwatch.StartNew();
+            action();
+            timer.Stop();
+            return timer.Elapsed;
         }
     }
 }

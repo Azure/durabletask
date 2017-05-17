@@ -115,7 +115,6 @@
     <Compile Include="SessionMessagesProvider.cs" />
     <Compile Include="SessionsProvider.cs" />
     <Compile Include="TimerFiredEventComparer.cs" />
-    <Compile Include="Utils.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />

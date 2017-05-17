@@ -64,7 +64,7 @@ namespace DurableTask.ServiceFabric
                                 }
                             }
                             return null;
-                        }, uniqueActionIdentifier: $"{nameof(AcceptSessionAsync)}");
+                        }, uniqueActionIdentifier: $"OrchestrationId = '{returnSessionId}', Action = '{nameof(AcceptSessionAsync)}'");
                     }
                     catch (Exception)
                     {
@@ -84,14 +84,9 @@ namespace DurableTask.ServiceFabric
             this.TryEnqueueSession(key);
         }
 
-        string GetSessionMessagesDictionaryName(string sessionId)
-        {
-            return Constants.SessionMessagesDictionaryPrefix + sessionId;
-        }
-
         async Task<SessionMessagesProvider<Guid, TaskMessage>> GetOrAddSessionMessagesInstance(string sessionId)
         {
-            var newInstance = new SessionMessagesProvider<Guid, TaskMessage>(this.StateManager, GetSessionMessagesDictionaryName(sessionId));
+            var newInstance = new SessionMessagesProvider<Guid, TaskMessage>(this.StateManager, sessionId);
             var sessionMessageProvider = this.sessionMessageProviders.GetOrAdd(sessionId, newInstance);
 
             if (sessionMessageProvider == newInstance)
@@ -156,7 +151,7 @@ namespace DurableTask.ServiceFabric
                     await this.AppendMessageAsync(txn, newMessage);
                     await txn.CommitAsync();
                 }
-            }, uniqueActionIdentifier: $"{nameof(SessionsProvider)}.{nameof(AppendMessageAsync)}");
+            }, uniqueActionIdentifier: $"OrchestrationId = '{newMessage.OrchestrationInstance.InstanceId}', Action = '{nameof(SessionsProvider)}.{nameof(AppendMessageAsync)}'");
 
             this.TryEnqueueSession(newMessage.OrchestrationInstance.InstanceId);
         }
@@ -228,7 +223,9 @@ namespace DurableTask.ServiceFabric
             LockState lockState;
             if (!this.lockedSessions.TryRemove(sessionId, out lockState) || lockState == LockState.InFetchQueue)
             {
-                throw new Exception("Internal Server Error : Unexpectedly trying to unlock a session which was not locked.");
+                var errorMessage = $"{nameof(SessionsProvider)}.{nameof(TryUnlockSession)} : Trying to unlock the session {sessionId} which was not locked.";
+                ProviderEventSource.Log.UnexpectedCodeCondition(errorMessage);
+                throw new Exception(errorMessage);
             }
 
             List<Guid> ignored;
@@ -287,8 +284,7 @@ namespace DurableTask.ServiceFabric
                 if (this.sessionMessageProviders.TryRemove(sessionId, out sessionMessagesProvider))
                 {
                     await sessionMessagesProvider.StopAsync();
-                    var name = GetSessionMessagesDictionaryName(sessionId);
-                    await this.StateManager.RemoveAsync(name);
+                    await sessionMessagesProvider.DropStoreAsync();
                 }
 
                 using (var txn = this.StateManager.CreateTransaction())
@@ -296,7 +292,7 @@ namespace DurableTask.ServiceFabric
                     await this.Store.TryRemoveAsync(txn, sessionId);
                     await txn.CommitAsync();
                 }
-            }, uniqueActionIdentifier: $"{nameof(DropSession)}");
+            }, uniqueActionIdentifier: $"OrchestrationId = '{sessionId}', Action = '{nameof(DropSession)}'");
         }
 
         enum LockState

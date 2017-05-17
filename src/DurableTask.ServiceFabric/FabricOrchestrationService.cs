@@ -112,11 +112,10 @@ namespace DurableTask.ServiceFabric
 
         public int GetDelayInSecondsAfterOnProcessException(Exception exception)
         {
-            ProviderEventSource.Log.LogException(exception.Message, exception.StackTrace);
             //Todo: Need to fine tune
             if (exception is TimeoutException)
             {
-                return 1;
+                return 2;
             }
 
             return 0;
@@ -124,11 +123,10 @@ namespace DurableTask.ServiceFabric
 
         public int GetDelayInSecondsAfterOnFetchException(Exception exception)
         {
-            ProviderEventSource.Log.LogException(exception.Message, exception.StackTrace);
             //Todo: Need to fine tune
             if (exception is TimeoutException)
             {
-                return 1;
+                return 2;
             }
 
             return 0;
@@ -190,8 +188,6 @@ namespace DurableTask.ServiceFabric
             {
                 using (var txn = this.stateManager.CreateTransaction())
                 {
-                    var previousState = workItem.OrchestrationRuntimeState;
-
                     await this.orchestrationProvider.CompleteAndUpdateSession(txn, workItem.InstanceId, newOrchestrationRuntimeState);
 
                     if (outboundMessages?.Count > 0)
@@ -208,7 +204,7 @@ namespace DurableTask.ServiceFabric
 
                     if (orchestratorMessages?.Count > 0)
                     {
-                        if (previousState?.ParentInstance != null)
+                        if (workItem.OrchestrationRuntimeState?.ParentInstance != null)
                         {
                             sessionsToEnqueue = await this.orchestrationProvider.TryAppendMessageBatchAsync(txn, orchestratorMessages);
                         }
@@ -219,20 +215,20 @@ namespace DurableTask.ServiceFabric
                         }
                     }
 
-                    if (this.instanceStore != null)
+                    if (this.instanceStore != null && orchestrationState != null)
                     {
                         await this.instanceStore.WriteEntitesAsync(txn, new InstanceEntityBase[]
                         {
                             new OrchestrationStateInstanceEntity()
                             {
-                                State = Utils.BuildOrchestrationState(workItem.OrchestrationRuntimeState)
+                                State = orchestrationState
                             }
                         });
                     }
 
                     await txn.CommitAsync();
                 }
-            }, uniqueActionIdentifier: $"{nameof(CompleteTaskOrchestrationWorkItemAsync)}");
+            }, uniqueActionIdentifier: $"OrchestrationId = '{workItem.InstanceId}', Action = '{nameof(CompleteTaskOrchestrationWorkItemAsync)}'");
 
             this.orchestrationProvider.TryUnlockSession(workItem.InstanceId);
             if (activityMessages != null)
@@ -302,7 +298,7 @@ namespace DurableTask.ServiceFabric
                     added = await this.orchestrationProvider.TryAppendMessageAsync(txn, responseMessage);
                     await txn.CommitAsync();
                 }
-            }, uniqueActionIdentifier: $"{nameof(CompleteTaskActivityWorkItemAsync)}");
+            }, uniqueActionIdentifier: $"OrchestrationId = '{responseMessage.OrchestrationInstance.InstanceId}', ActivityId = '{workItem.Id}', Action = '{nameof(CompleteTaskActivityWorkItemAsync)}'");
 
             if (added)
             {

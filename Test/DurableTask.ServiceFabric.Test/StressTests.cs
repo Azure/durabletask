@@ -54,12 +54,12 @@ namespace DurableTask.ServiceFabric.Test
         [TestMethod]
         public async Task Test_Lot_Of_Activities_Per_Orchestration()
         {
-            var tests = new[] { 256, 1024, 2048, 3500, 4000 };
+            var tests = new[] { 256, 1024, 2048, 3500, 4000, 8000, 10000, 15000, 20000 };
             foreach (var numberOfActivities in tests)
             {
                 Console.WriteLine($"Begin testing orchestration with {numberOfActivities} parallel activities");
                 var serviceClient = ServiceProxy.Create<IRemoteClient>(new Uri("fabric:/TestFabricApplicationType/TestStatefulService"), new ServicePartitionKey(1));
-                var state = await serviceClient.RunOrchestrationAsync(typeof(ExecutionCountingOrchestration).Name, numberOfActivities, TimeSpan.FromMinutes(1));
+                var state = await serviceClient.RunOrchestrationAsync(typeof(ExecutionCountingOrchestration).Name, numberOfActivities, TimeSpan.FromMinutes(2));
                 Assert.IsNotNull(state);
                 Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
                 Console.WriteLine($"Time for orchestration {state.OrchestrationInstance.InstanceId} with {numberOfActivities} parallel activities : {state.CompletedTime - state.CreatedTime}");

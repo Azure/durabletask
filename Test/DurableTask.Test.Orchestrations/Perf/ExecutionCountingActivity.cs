@@ -11,19 +11,22 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+using System;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace DurableTask.Test.Orchestrations.Perf
 {
-    public sealed class ExecutionCountingActivity : TaskActivity<int, int>
+    public sealed class ExecutionCountingActivity : AsyncTaskActivity<int, int>
     {
         // This has to be reset before starting the orchestration and the orchestration
         // must be run in sequence for this to determine the correct number of times all
         // the activities together executed.
         public static int Counter = 0;
 
-        protected override int Execute(TaskContext context, int taskId)
+        protected override async Task<int> ExecuteAsync(TaskContext context, int taskId)
         {
+            await Task.Delay(new Random().Next(50, 100));
             Interlocked.Increment(ref Counter);
             return Counter;
         }

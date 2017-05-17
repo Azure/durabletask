@@ -149,7 +149,9 @@ namespace DurableTask.ServiceFabric
                 {
                     return new Message<TKey, TValue>(key, result.Value);
                 }
-                throw new Exception("Internal server error : Unexpectedly ended up not having an item in dictionary while having the item key in memory");
+                var errorMessage = $"Internal Server Error: Did not find an item in reliable dictionary while having the item key {key} in memory";
+                ProviderEventSource.Log.UnexpectedCodeCondition(errorMessage);
+                throw new Exception(errorMessage);
             }
         }
 

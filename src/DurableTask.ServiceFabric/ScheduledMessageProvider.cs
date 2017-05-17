@@ -142,6 +142,7 @@ namespace DurableTask.ServiceFabric
                         var values = activatedMessages.Select(m => m.Value).ToList();
 
                         IList<string> modifiedSessions = null;
+
                         await RetryHelper.ExecuteWithRetryOnTransient(async () =>
                         {
                             using (var tx = this.StateManager.CreateTransaction())
@@ -150,7 +151,7 @@ namespace DurableTask.ServiceFabric
                                 await this.CompleteBatchAsync(tx, keys);
                                 await tx.CommitAsync();
                             }
-                        }, uniqueActionIdentifier: $"{nameof(ProcessScheduledMessages)}");
+                        }, uniqueActionIdentifier: $"Action = '{nameof(ScheduledMessageProvider)}.{nameof(ProcessScheduledMessages)}'");
 
                         lock (@lock)
                         {
