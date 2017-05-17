@@ -30,10 +30,9 @@ namespace DurableTask.Core.Tracing
         const int ErrorEventId = 5;
         const int CriticalEventId = 6;
 
-        public class Keywords
+        public static class Keywords
         {
-            public const EventKeywords TraceEventKeyword = (EventKeywords)(1);
-            public const EventKeywords DebugEventKeyword = (EventKeywords)(1 << 1);
+            public const EventKeywords Diagnostics = (EventKeywords)1L;
         }
 
         public static readonly DefaultEventSource Log = new DefaultEventSource();
@@ -48,9 +47,9 @@ namespace DurableTask.Core.Tracing
             }
         }
 
-        public bool IsTraceEnabled => this.IsEnabled(EventLevel.Verbose, Keywords.TraceEventKeyword);
+        public bool IsTraceEnabled => this.IsEnabled(EventLevel.Verbose, Keywords.Diagnostics);
 
-        public bool IsDebugEnabled => this.IsEnabled(EventLevel.Verbose, Keywords.DebugEventKeyword);
+        public bool IsDebugEnabled => this.IsEnabled(EventLevel.Verbose, Keywords.Diagnostics);
 
         public bool IsInfoEnabled => this.IsEnabled(EventLevel.Informational, EventKeywords.None);
 
@@ -95,7 +94,7 @@ namespace DurableTask.Core.Tracing
         public void Trace(string source, string instanceId, string executionId, string sessionId, string message, Exception exception) =>
              this.Trace(source, instanceId, executionId, sessionId, message, exception?.ToString() ?? string.Empty);
 
-        [Event(TraceEventId, Level = EventLevel.Verbose, Keywords = Keywords.TraceEventKeyword)]
+        [Event(TraceEventId, Level = EventLevel.Verbose, Keywords = Keywords.Diagnostics)]
         public void Trace(string source, string instanceId, string executionId, string sessionId, string message, string info)
         {
             if (this.IsTraceEnabled)
@@ -112,7 +111,7 @@ namespace DurableTask.Core.Tracing
         public void Debug(string source, string instanceId, string executionId, string sessionId, string message, Exception exception) =>
             this.Debug(source, instanceId, executionId, sessionId, message, exception?.ToString() ?? string.Empty);
 
-        [Event(DebugEventId, Level = EventLevel.Verbose, Keywords = Keywords.DebugEventKeyword)]
+        [Event(DebugEventId, Level = EventLevel.Verbose, Keywords = Keywords.Diagnostics)]
         public void Debug(string source, string instanceId, string executionId, string sessionId, string message, string info)
         {
             if (this.IsDebugEnabled)
@@ -129,7 +128,7 @@ namespace DurableTask.Core.Tracing
         public void Info(string source, string instanceId, string executionId, string sessionId, string message, Exception exception) =>
             this.Info(source, instanceId, executionId, sessionId, message, exception?.ToString() ?? string.Empty);
 
-        [Event(InfoEventId, Level = EventLevel.Informational)]
+        [Event(InfoEventId, Level = EventLevel.Informational, Keywords = EventKeywords.None)]
         public void Info(string source, string instanceId, string executionId, string sessionId, string message, string info)
         {
             if (this.IsInfoEnabled)
@@ -146,7 +145,7 @@ namespace DurableTask.Core.Tracing
         public void Warning(string source, string instanceId, string executionId, string sessionId, string message, Exception exception) =>
             this.Warning(source, instanceId, executionId, sessionId, message, exception?.ToString() ?? string.Empty);
 
-        [Event(WarningEventId, Level = EventLevel.Warning)]
+        [Event(WarningEventId, Level = EventLevel.Warning, Keywords = EventKeywords.None)]
         public void Warning(string source, string instanceId, string executionId, string sessionId, string message, string exception)
         {
             if (this.IsWarningEnabled)
@@ -163,12 +162,12 @@ namespace DurableTask.Core.Tracing
         public void Error(string source, string instanceId, string executionId, string sessionId, string message, Exception exception) =>
             this.Error(source, instanceId, executionId, sessionId, message, exception?.ToString() ?? string.Empty);
 
-        [Event(ErrorEventId, Level = EventLevel.Error)]
+        [Event(ErrorEventId, Level = EventLevel.Error, Keywords = EventKeywords.None)]
         public void Error(string source, string instanceId, string executionId, string sessionId, string message, string exception)
         {
             if (this.IsErrorEnabled)
             {
-                this.WriteEventInternal(ErrorEventId, instanceId, executionId, sessionId, source, message, exception);
+                this.WriteEventInternal(ErrorEventId, source, instanceId, executionId, sessionId, message, exception);
             }
         }
 
@@ -180,12 +179,12 @@ namespace DurableTask.Core.Tracing
         public void Critical(string source, string instanceId, string executionId, string sessionId, string message, Exception exception) =>
             this.Critical(source, instanceId, executionId, sessionId, message, exception?.ToString() ?? string.Empty);
 
-        [Event(CriticalEventId, Level = EventLevel.Critical)]
+        [Event(CriticalEventId, Level = EventLevel.Critical, Keywords = EventKeywords.None)]
         public void Critical(string source, string instanceId, string executionId, string sessionId, string message, string exception)
         {
             if (this.IsCriticalEnabled)
             {
-                this.WriteEventInternal(CriticalEventId, instanceId, executionId, sessionId, source, message, exception);
+                this.WriteEventInternal(CriticalEventId, source, instanceId, executionId, sessionId, message, exception);
             }
         }
 
