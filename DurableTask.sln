@@ -29,11 +29,13 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.Samples", "samp
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.Stress.Tests", "test\DurableTask.Stress.Tests\DurableTask.Stress.Tests.csproj", "{96980359-8003-4500-B97B-949A7FE01F31}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.Samples.Tests", "test\DurableTask.Samples.Tests\DurableTask.Samples.Tests.csproj", "{1F20B608-0206-4B58-8C0B-CB7430A880FD}"
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.Test.Orchestrations", "Test\DurableTask.Test.Orchestrations\DurableTask.Test.Orchestrations.csproj", "{2BC2A5AD-4200-41B9-A034-332BB1D7187B}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.Core", "src\DurableTask.Core\DurableTask.Core.csproj", "{C8634F14-BE3B-4685-B0E1-C5726F8F3758}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.Emulator", "src\DurableTask.Emulator\DurableTask.Emulator.csproj", "{ACC997BF-D541-4BAF-A91C-7EC0B65426A9}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.Emulator.Tests", "test\DurableTask.Emulator.Tests\DurableTask.Emulator.Tests.csproj", "{295A38D6-F8BF-446A-A274-E78BD1C56514}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -61,10 +63,6 @@ Global
 		{96980359-8003-4500-B97B-949A7FE01F31}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{96980359-8003-4500-B97B-949A7FE01F31}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{96980359-8003-4500-B97B-949A7FE01F31}.Release|Any CPU.Build.0 = Release|Any CPU
-		{1F20B608-0206-4B58-8C0B-CB7430A880FD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{1F20B608-0206-4B58-8C0B-CB7430A880FD}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{1F20B608-0206-4B58-8C0B-CB7430A880FD}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{1F20B608-0206-4B58-8C0B-CB7430A880FD}.Release|Any CPU.Build.0 = Release|Any CPU
 		{2BC2A5AD-4200-41B9-A034-332BB1D7187B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{2BC2A5AD-4200-41B9-A034-332BB1D7187B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2BC2A5AD-4200-41B9-A034-332BB1D7187B}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -73,6 +71,14 @@ Global
 		{C8634F14-BE3B-4685-B0E1-C5726F8F3758}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C8634F14-BE3B-4685-B0E1-C5726F8F3758}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C8634F14-BE3B-4685-B0E1-C5726F8F3758}.Release|Any CPU.Build.0 = Release|Any CPU
+		{ACC997BF-D541-4BAF-A91C-7EC0B65426A9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{ACC997BF-D541-4BAF-A91C-7EC0B65426A9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{ACC997BF-D541-4BAF-A91C-7EC0B65426A9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{ACC997BF-D541-4BAF-A91C-7EC0B65426A9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{295A38D6-F8BF-446A-A274-E78BD1C56514}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{295A38D6-F8BF-446A-A274-E78BD1C56514}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{295A38D6-F8BF-446A-A274-E78BD1C56514}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{295A38D6-F8BF-446A-A274-E78BD1C56514}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -83,9 +89,10 @@ Global
 		{879670A7-919B-4AF9-8AFB-7C4EDAA0CC04} = {95C69A06-7F62-4652-A480-207B614C2869}
 		{BC204374-927C-4A48-8473-F5BF8C97EAEA} = {AF4E71A6-B16E-4488-B22D-2761101A601A}
 		{96980359-8003-4500-B97B-949A7FE01F31} = {95C69A06-7F62-4652-A480-207B614C2869}
-		{1F20B608-0206-4B58-8C0B-CB7430A880FD} = {95C69A06-7F62-4652-A480-207B614C2869}
 		{2BC2A5AD-4200-41B9-A034-332BB1D7187B} = {95C69A06-7F62-4652-A480-207B614C2869}
 		{C8634F14-BE3B-4685-B0E1-C5726F8F3758} = {DBCD161C-D409-48E5-924E-9B7FA1C36B84}
+		{ACC997BF-D541-4BAF-A91C-7EC0B65426A9} = {DBCD161C-D409-48E5-924E-9B7FA1C36B84}
+		{295A38D6-F8BF-446A-A274-E78BD1C56514} = {95C69A06-7F62-4652-A480-207B614C2869}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		EnterpriseLibraryConfigurationToolBinariesPath = packages\TransientFaultHandling.Core.5.1.1209.1\lib\NET4

@@ -11,7 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Tests.Mocks
+namespace DurableTask.Emulator
 {
     using DurableTask.Core;
     using System;
@@ -51,7 +51,7 @@ namespace DurableTask.Core.Tests.Mocks
                     }
                 }
 
-                await Task.Delay(TimeSpan.FromSeconds(1));
+                await Task.Delay(TimeSpan.FromMilliseconds(500));
             }
 
             if (cancellationToken.IsCancellationRequested)

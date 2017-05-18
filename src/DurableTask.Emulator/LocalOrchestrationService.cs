@@ -11,16 +11,14 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Tests.Mocks
+namespace DurableTask.Emulator
 {
     using DurableTask.Core;
     using DurableTask.Core.History;
-    using DurableTask.Core.Tracing;
     using Newtonsoft.Json;
     using System;
     using System.Collections.Concurrent;
     using System.Collections.Generic;
-    using System.Diagnostics;
     using System.Linq;
     using System.Text;
     using System.Threading;
@@ -29,7 +27,7 @@ namespace DurableTask.Core.Tests.Mocks
     /// <summary>
     /// Fully functional in-proc orchestration service for testing
     /// </summary>
-    public class LocalOrchestrationService : IOrchestrationService, IOrchestrationServiceClient
+    public class LocalOrchestrationService : IOrchestrationService, IOrchestrationServiceClient, IDisposable
     {
         Dictionary<string, byte[]> sessionState;
         List<TaskMessage> timerMessages;
@@ -89,7 +87,7 @@ namespace DurableTask.Core.Tests.Mocks
                     }
                 }
 
-                await Task.Delay(TimeSpan.FromSeconds(5));
+                await Task.Delay(TimeSpan.FromSeconds(1));
             }
 
             return;
@@ -558,6 +556,21 @@ namespace DurableTask.Core.Tests.Mocks
             string serializedState = Encoding.UTF8.GetString(stateBytes);
             IList<HistoryEvent> events = JsonConvert.DeserializeObject<IList<HistoryEvent>>(serializedState, new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.Auto });
             return new OrchestrationRuntimeState(events);
+        }
+
+        public void Dispose()
+        {
+            this.Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                this.cancellationTokenSource.Cancel();
+                this.cancellationTokenSource.Dispose();
+            }
         }
     }
 }

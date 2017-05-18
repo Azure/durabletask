@@ -11,7 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Tests.Mocks
+namespace DurableTask.Emulator
 {
     using DurableTask.Core;
     using System.Collections.Generic;

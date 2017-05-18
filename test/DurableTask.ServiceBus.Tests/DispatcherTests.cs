@@ -22,7 +22,6 @@ namespace DurableTask.ServiceBus.Tests
     using DurableTask.Core;
     using DurableTask.Core.Common;
     using DurableTask.Core.Settings;
-    using DurableTask.Core.Test;
     using DurableTask.ServiceBus.Settings;
     using DurableTask.Core.Tests;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -440,22 +439,6 @@ namespace DurableTask.ServiceBus.Tests
                 "Orchestration Result is wrong!!!");
         }
 
-        [TestMethod]
-        public async Task AsyncGreetingsTestHostTest()
-        {
-            AsyncGreetingsOrchestration.Result = null;
-
-            var testHost = new OrchestrationTestHost();
-            testHost.AddTaskOrchestrations(typeof (AsyncGreetingsOrchestration))
-                .AddTaskActivities(new AsyncGetUserTask(), new AsyncSendGreetingTask());
-
-            string result = await testHost.RunOrchestration<string>(typeof (AsyncGreetingsOrchestration), null);
-
-            Assert.AreEqual("Greeting send to Gabbar", AsyncGreetingsOrchestration.Result,
-                "Orchestration Result is wrong!!!");
-            Assert.AreEqual("Greeting send to Gabbar", result, "Orchestration Result is wrong!!!");
-        }
-
         public sealed class AsyncGetUserTask : AsyncTaskActivity<string, string>
         {
             protected override async Task<string> ExecuteAsync(TaskContext context, string input)
@@ -516,25 +499,6 @@ namespace DurableTask.ServiceBus.Tests
 
             bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
             Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
-            Assert.AreEqual("Greeting send to Gabbar", AsyncDynamicGreetingsOrchestration.Result,
-                "Orchestration Result is wrong!!!");
-            Assert.AreEqual("Greeting NOT sent to Samba", AsyncDynamicGreetingsOrchestration.Result2,
-                "Orchestration Result is wrong!!!");
-        }
-
-        [TestMethod]
-        public async Task AsyncDynamicProxyGreetingsTestHostTest()
-        {
-            AsyncDynamicGreetingsOrchestration.Result = null;
-            AsyncDynamicGreetingsOrchestration.Result2 = null;
-
-            var testHost = new OrchestrationTestHost();
-            testHost.AddTaskOrchestrations(typeof (AsyncDynamicGreetingsOrchestration))
-                .AddTaskActivitiesFromInterface<IGreetings2>(new GreetingsManager2(), true)
-                .AddTaskActivitiesFromInterface<IGreetings>(new GreetingsManager(), true);
-
-            string result = await testHost.RunOrchestration<string>(typeof (AsyncDynamicGreetingsOrchestration), null);
-            Assert.AreEqual("Greeting send to Gabbar", result, "Orchestration Result is wrong!!!");
             Assert.AreEqual("Greeting send to Gabbar", AsyncDynamicGreetingsOrchestration.Result,
                 "Orchestration Result is wrong!!!");
             Assert.AreEqual("Greeting NOT sent to Samba", AsyncDynamicGreetingsOrchestration.Result2,

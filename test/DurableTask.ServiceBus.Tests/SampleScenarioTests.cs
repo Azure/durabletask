@@ -22,7 +22,6 @@ namespace DurableTask.ServiceBus.Tests
 
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
-    using DurableTask.Core.Test;
     using DurableTask.Core.Tests;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -761,18 +760,6 @@ namespace DurableTask.ServiceBus.Tests
 
             bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
             Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
-            Assert.AreEqual("foo_instance", SimpleChildWorkflow.ChildInstanceId);
-        }
-
-        [TestMethod]
-        public async Task TestHostSubOrchestrationExplicitIdTest()
-        {
-            SimpleChildWorkflow.ChildInstanceId = null;
-            var testHost = new OrchestrationTestHost();
-            testHost.AddTaskOrchestrations(typeof (SimpleParentWorkflow), typeof (SimpleChildWorkflow));
-
-            object res = await testHost.RunOrchestration<object>(typeof (SimpleParentWorkflow), null);
-
             Assert.AreEqual("foo_instance", SimpleChildWorkflow.ChildInstanceId);
         }
 
