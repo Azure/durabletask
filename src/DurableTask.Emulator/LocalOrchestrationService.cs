@@ -67,19 +67,19 @@ namespace DurableTask.Emulator
         {
             while (!this.cancellationTokenSource.Token.IsCancellationRequested)
             {
-                lock(this.thisLock)
+                lock (this.thisLock)
                 {
-                    foreach(TaskMessage tm in this.timerMessages)
+                    foreach (TaskMessage tm in this.timerMessages)
                     {
                         TimerFiredEvent te = tm.Event as TimerFiredEvent;
 
-                        if(te == null)
+                        if (te == null)
                         {
                             // AFFANDAR : TODO : unobserved task exception
                             throw new InvalidOperationException("Invalid timer message");
                         }
 
-                        if(te.FireAt <= DateTime.UtcNow)
+                        if (te.FireAt <= DateTime.UtcNow)
                         {
                             this.orchestratorQueue.SendMessage(tm);
                             this.timerMessages.Remove(tm);
@@ -150,12 +150,12 @@ namespace DurableTask.Emulator
         {
             ExecutionStartedEvent ee = creationMessage.Event as ExecutionStartedEvent;
 
-            if(ee == null)
+            if (ee == null)
             {
                 throw new InvalidOperationException("Invalid creation task message");
             }
 
-            lock(this.thisLock)
+            lock (this.thisLock)
             {
                 this.orchestratorQueue.SendMessage(creationMessage);
 
@@ -208,7 +208,7 @@ namespace DurableTask.Emulator
             TimeSpan timeout,
             CancellationToken cancellationToken)
         {
-            if(string.IsNullOrWhiteSpace(executionId))
+            if (string.IsNullOrWhiteSpace(executionId))
             {
                 executionId = string.Empty;
             }
@@ -343,7 +343,7 @@ namespace DurableTask.Emulator
             TaskSession taskSession = await this.orchestratorQueue.AcceptSessionAsync(receiveTimeout,
                 CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, this.cancellationTokenSource.Token).Token);
 
-            if(taskSession == null)
+            if (taskSession == null)
             {
                 return null;
             }
@@ -370,15 +370,15 @@ namespace DurableTask.Emulator
             TaskMessage continuedAsNewMessage,
             OrchestrationState state)
         {
-            lock(this.thisLock)
+            lock (this.thisLock)
             {
                 this.orchestratorQueue.CompleteSession(
                     workItem.InstanceId,
                     newOrchestrationRuntimeState != null ?
-                        this.SerializeOrchestrationRuntimeState(newOrchestrationRuntimeState) : null,
+                    this.SerializeOrchestrationRuntimeState(newOrchestrationRuntimeState) : null,
                     orchestratorMessages,
                     continuedAsNewMessage
-                );
+                    );
 
                 if (outboundMessages != null)
                 {
@@ -507,7 +507,7 @@ namespace DurableTask.Emulator
             TaskMessage taskMessage = await this.workerQueue.ReceiveMessageAsync(receiveTimeout,
                 CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, this.cancellationTokenSource.Token).Token);
 
-            if(taskMessage == null)
+            if (taskMessage == null)
             {
                 return null;
             }
@@ -528,7 +528,7 @@ namespace DurableTask.Emulator
 
         public Task CompleteTaskActivityWorkItemAsync(TaskActivityWorkItem workItem, TaskMessage responseMessage)
         {
-            lock(this.thisLock)
+            lock (this.thisLock)
             {
                 this.workerQueue.CompleteMessageAsync(workItem.TaskMessage);
                 this.orchestratorQueue.SendMessage(responseMessage);
