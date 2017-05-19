@@ -46,14 +46,14 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        [Event(1, Level = EventLevel.Informational, Opcode = EventOpcode.Send)]
+        [Event(101, Level = EventLevel.Informational, Opcode = EventOpcode.Send)]
         public void SendingMessage(Guid relatedActivityId, string EventType, string InstanceId, string ExecutionId, long SizeInBytes)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEventWithRelatedActivityId(1, relatedActivityId, EventType, InstanceId, ExecutionId, SizeInBytes);
+            this.WriteEventWithRelatedActivityId(101, relatedActivityId, EventType, InstanceId, ExecutionId, SizeInBytes);
         }
 
-        [Event(2, Level = EventLevel.Informational, Opcode = EventOpcode.Receive)]
+        [Event(102, Level = EventLevel.Informational, Opcode = EventOpcode.Receive)]
         public void ReceivedMessage(
             Guid relatedActivityId,
             string EventType,
@@ -65,42 +65,42 @@ namespace DurableTask.AzureStorage
             long SizeInBytes)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEventWithRelatedActivityId(2, relatedActivityId, EventType, InstanceId, ExecutionId, MessageId, Age, DequeueCount, SizeInBytes);
+            this.WriteEventWithRelatedActivityId(102, relatedActivityId, EventType, InstanceId, ExecutionId, MessageId, Age, DequeueCount, SizeInBytes);
         }
 
-        [Event(3, Level = EventLevel.Informational)]
+        [Event(103, Level = EventLevel.Informational)]
         public void DeletingMessage(string EventType, string MessageId, string InstanceId)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(3, EventType, MessageId, InstanceId);
+            this.WriteEvent(103, EventType, MessageId, InstanceId);
         }
 
-        [Event(4, Level = EventLevel.Warning, Message = "Abandoning message of type {0} with ID = {1}. Orchestration ID = {2}.")]
+        [Event(104, Level = EventLevel.Warning, Message = "Abandoning message of type {0} with ID = {1}. Orchestration ID = {2}.")]
         public void AbandoningMessage(string EventType, string MessageId, string InstanceId, string ExecutionId)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(4, EventType, MessageId, InstanceId, ExecutionId);
+            this.WriteEvent(104, EventType, MessageId, InstanceId, ExecutionId);
         }
 
-        [Event(5, Level = EventLevel.Warning, Message = "An unexpected condition was detected: {0}")]
+        [Event(105, Level = EventLevel.Warning, Message = "An unexpected condition was detected: {0}")]
         public void AssertFailure(string Details)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(5, Details);
+            this.WriteEvent(105, Details);
         }
 
-        [Event(10, Level = EventLevel.Informational)]
+        [Event(110, Level = EventLevel.Informational)]
         public void FetchedInstanceState(string InstanceId, string ExecutionId, int EventCount, int RequestCount, long LatencyMs)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(10, InstanceId, ExecutionId, EventCount, RequestCount, LatencyMs);
+            this.WriteEvent(110, InstanceId, ExecutionId, EventCount, RequestCount, LatencyMs);
         }
 
-        [Event(11, Level = EventLevel.Informational)]
+        [Event(111, Level = EventLevel.Informational)]
         public void AppendedInstanceState(string InstanceId, string ExecutionId, int NewEventCount, int TotalEventCount, string NewEvents, long LatencyMs)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(11, InstanceId, ExecutionId, NewEventCount, TotalEventCount, NewEvents, LatencyMs);
+            this.WriteEvent(111, InstanceId, ExecutionId, NewEventCount, TotalEventCount, NewEvents, LatencyMs);
         }
     }
 }

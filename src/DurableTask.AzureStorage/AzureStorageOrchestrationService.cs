@@ -63,11 +63,8 @@ namespace DurableTask.AzureStorage
             CloudTableClient tableClient = account.CreateCloudTableClient();
 
             // TODO: Need to do input validation on the TaskHubName.
-            string controlQueueName = $"{settings.TaskHubName.ToLowerInvariant()}-control";
-            this.controlQueue = queueClient.GetQueueReference(controlQueueName);
-
-            string workItemQueueName = $"{settings.TaskHubName.ToLowerInvariant()}-workitems";
-            this.workItemQueue = queueClient.GetQueueReference(workItemQueueName);
+            this.controlQueue = GetControlQueue(account, settings.TaskHubName);
+            this.workItemQueue = GetWorkItemQueue(account, settings.TaskHubName);
 
             string historyTableName = $"{settings.TaskHubName}History";
             this.historyTable = tableClient.GetTableReference(historyTableName);
@@ -94,6 +91,32 @@ namespace DurableTask.AzureStorage
         }
 
         public event EventHandler<HistoryEventArgs> OnNewEvent;
+
+        public static CloudQueue GetControlQueue(CloudStorageAccount account, string taskHub)
+        {
+            return GetQueueInternal(account, taskHub, "control");
+        }
+
+        public static CloudQueue GetWorkItemQueue(CloudStorageAccount account, string taskHub)
+        {
+            return GetQueueInternal(account, taskHub, "workitems");
+        }
+
+        static CloudQueue GetQueueInternal(CloudStorageAccount account, string taskHub, string suffix)
+        {
+            if (account == null)
+            {
+                throw new ArgumentNullException(nameof(account));
+            }
+
+            if (string.IsNullOrEmpty(taskHub))
+            {
+                throw new ArgumentNullException(nameof(taskHub));
+            }
+
+            string queueName = $"{taskHub.ToLowerInvariant()}-{suffix}";
+            return account.CreateCloudQueueClient().GetQueueReference(queueName);
+        }
 
         static void ValidateSettings(AzureStorageOrchestrationServiceSettings settings)
         {

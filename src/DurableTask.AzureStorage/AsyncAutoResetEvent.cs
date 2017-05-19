@@ -60,9 +60,12 @@ namespace DurableTask.AzureStorage
             {
                 // We timed-out; remove our reference to the task.
                 // This is an O(n) operation since waiters is a LinkedList<T>.
-                bool removed = this.waiters.Remove(tcs);
-                Debug.Assert(removed);
-                return false;
+                lock (this.waiters)
+                {
+                    bool removed = this.waiters.Remove(tcs);
+                    Debug.Assert(removed);
+                    return false;
+                }
             }
         }
 
