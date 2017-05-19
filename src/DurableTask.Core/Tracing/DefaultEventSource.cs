@@ -94,7 +94,7 @@ namespace DurableTask.Core.Tracing
         public void Trace(string source, string instanceId, string executionId, string sessionId, string message, Exception exception) =>
              this.Trace(source, instanceId, executionId, sessionId, message, exception?.ToString() ?? string.Empty);
 
-        [Event(TraceEventId, Level = EventLevel.Verbose, Keywords = Keywords.Diagnostics)]
+        [Event(TraceEventId, Level = EventLevel.Verbose, Keywords = Keywords.Diagnostics, Version = 2)]
         public void Trace(string source, string instanceId, string executionId, string sessionId, string message, string info)
         {
             if (this.IsTraceEnabled)
@@ -111,7 +111,7 @@ namespace DurableTask.Core.Tracing
         public void Debug(string source, string instanceId, string executionId, string sessionId, string message, Exception exception) =>
             this.Debug(source, instanceId, executionId, sessionId, message, exception?.ToString() ?? string.Empty);
 
-        [Event(DebugEventId, Level = EventLevel.Verbose, Keywords = Keywords.Diagnostics)]
+        [Event(DebugEventId, Level = EventLevel.Verbose, Keywords = Keywords.Diagnostics, Version = 2)]
         public void Debug(string source, string instanceId, string executionId, string sessionId, string message, string info)
         {
             if (this.IsDebugEnabled)
@@ -128,7 +128,7 @@ namespace DurableTask.Core.Tracing
         public void Info(string source, string instanceId, string executionId, string sessionId, string message, Exception exception) =>
             this.Info(source, instanceId, executionId, sessionId, message, exception?.ToString() ?? string.Empty);
 
-        [Event(InfoEventId, Level = EventLevel.Informational, Keywords = EventKeywords.None)]
+        [Event(InfoEventId, Level = EventLevel.Informational, Keywords = EventKeywords.None, Version = 2)]
         public void Info(string source, string instanceId, string executionId, string sessionId, string message, string info)
         {
             if (this.IsInfoEnabled)
@@ -145,7 +145,7 @@ namespace DurableTask.Core.Tracing
         public void Warning(string source, string instanceId, string executionId, string sessionId, string message, Exception exception) =>
             this.Warning(source, instanceId, executionId, sessionId, message, exception?.ToString() ?? string.Empty);
 
-        [Event(WarningEventId, Level = EventLevel.Warning, Keywords = EventKeywords.None)]
+        [Event(WarningEventId, Level = EventLevel.Warning, Keywords = EventKeywords.None, Version = 2)]
         public void Warning(string source, string instanceId, string executionId, string sessionId, string message, string exception)
         {
             if (this.IsWarningEnabled)
@@ -162,7 +162,7 @@ namespace DurableTask.Core.Tracing
         public void Error(string source, string instanceId, string executionId, string sessionId, string message, Exception exception) =>
             this.Error(source, instanceId, executionId, sessionId, message, exception?.ToString() ?? string.Empty);
 
-        [Event(ErrorEventId, Level = EventLevel.Error, Keywords = EventKeywords.None)]
+        [Event(ErrorEventId, Level = EventLevel.Error, Keywords = EventKeywords.None, Version = 2)]
         public void Error(string source, string instanceId, string executionId, string sessionId, string message, string exception)
         {
             if (this.IsErrorEnabled)
@@ -179,7 +179,7 @@ namespace DurableTask.Core.Tracing
         public void Critical(string source, string instanceId, string executionId, string sessionId, string message, Exception exception) =>
             this.Critical(source, instanceId, executionId, sessionId, message, exception?.ToString() ?? string.Empty);
 
-        [Event(CriticalEventId, Level = EventLevel.Critical, Keywords = EventKeywords.None)]
+        [Event(CriticalEventId, Level = EventLevel.Critical, Keywords = EventKeywords.None, Version = 2)]
         public void Critical(string source, string instanceId, string executionId, string sessionId, string message, string exception)
         {
             if (this.IsCriticalEnabled)
