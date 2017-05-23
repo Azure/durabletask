@@ -33,28 +33,28 @@ namespace DurableTask.ServiceFabric
 
         public async Task<Message<TKey, TValue>> ReceiveAsync(TimeSpan receiveTimeout)
         {
-            ThrowIfStopped();
-
-            TKey key;
-            bool newItemsBeforeTimeout = true;
-            while (newItemsBeforeTimeout)
+            if (!IsStopped())
             {
-                if (this.inMemoryQueue.TryDequeue(out key))
+                TKey key;
+                bool newItemsBeforeTimeout = true;
+                while (newItemsBeforeTimeout)
                 {
-                    try
+                    if (this.inMemoryQueue.TryDequeue(out key))
                     {
-                        return await GetValueAsync(key);
+                        try
+                        {
+                            return await GetValueAsync(key);
+                        }
+                        catch (Exception)
+                        {
+                            this.inMemoryQueue.Enqueue(key);
+                            throw;
+                        }
                     }
-                    catch (Exception)
-                    {
-                        this.inMemoryQueue.Enqueue(key);
-                        throw;
-                    }
+
+                    newItemsBeforeTimeout = await WaitForItemsAsync(receiveTimeout);
                 }
-
-                newItemsBeforeTimeout = await WaitForItemsAsync(receiveTimeout);
             }
-
             return null;
         }
 

@@ -15,9 +15,11 @@ namespace DurableTask.ServiceFabric
 {
     using System;
     using System.Collections.Generic;
+    using System.Fabric;
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
+    using DurableTask.History;
     using DurableTask.Tracking;
     using Microsoft.ServiceFabric.Data;
 
@@ -35,12 +37,7 @@ namespace DurableTask.ServiceFabric
             IFabricOrchestrationServiceInstanceStore instanceStore,
             FabricOrchestrationProviderSettings settings)
         {
-            if (stateManager == null)
-            {
-                throw new ArgumentNullException(nameof(stateManager));
-            }
-
-            this.stateManager = stateManager;
+            this.stateManager = stateManager ?? throw new ArgumentNullException(nameof(stateManager));
             this.orchestrationProvider = orchestrationProvider;
             this.instanceStore = instanceStore;
             this.settings = settings;
@@ -145,7 +142,17 @@ namespace DurableTask.ServiceFabric
                 return null;
             }
 
-            var newMessages = await this.orchestrationProvider.ReceiveSessionMessagesAsync(currentSession);
+            List<TaskMessage> newMessages;
+            try
+            {
+                newMessages = await this.orchestrationProvider.ReceiveSessionMessagesAsync(currentSession);
+            }
+            catch(Exception e)
+            {
+                ProviderEventSource.Log.ExceptionWhileProcessingReliableCollectionTransaction($"OrchestrationId = '{currentSession.SessionId}', Action = 'ReceiveSessionMessagesAsync'", e.ToString());
+                this.orchestrationProvider.TryUnlockSession(currentSession.SessionId);
+                throw;
+            }
 
             if (newMessages.Count == 0)
             {
@@ -186,48 +193,73 @@ namespace DurableTask.ServiceFabric
 
             await RetryHelper.ExecuteWithRetryOnTransient(async () =>
             {
-                using (var txn = this.stateManager.CreateTransaction())
+                bool retryOnException;
+                do
                 {
-                    await this.orchestrationProvider.CompleteAndUpdateSession(txn, workItem.InstanceId, newOrchestrationRuntimeState);
-
-                    if (outboundMessages?.Count > 0)
+                    try
                     {
-                        activityMessages = outboundMessages.Select(m => new Message<string, TaskMessage>(Guid.NewGuid().ToString(), m)).ToList();
-                        await this.activitiesProvider.SendBatchBeginAsync(txn, activityMessages);
-                    }
+                        retryOnException = false;
+                        sessionsToEnqueue = null;
+                        scheduledMessages = null;
+                        activityMessages = null;
 
-                    if (timerMessages?.Count > 0)
-                    {
-                        scheduledMessages = timerMessages.Select(m => new Message<string, TaskMessage>(Guid.NewGuid().ToString(), m)).ToList();
-                        await this.scheduledMessagesProvider.SendBatchBeginAsync(txn, scheduledMessages);
-                    }
-
-                    if (orchestratorMessages?.Count > 0)
-                    {
-                        if (workItem.OrchestrationRuntimeState?.ParentInstance != null)
+                        using (var txn = this.stateManager.CreateTransaction())
                         {
-                            sessionsToEnqueue = await this.orchestrationProvider.TryAppendMessageBatchAsync(txn, orchestratorMessages);
-                        }
-                        else
-                        {
-                            await this.orchestrationProvider.AppendMessageBatchAsync(txn, orchestratorMessages);
-                            sessionsToEnqueue = orchestratorMessages.Select(m => m.OrchestrationInstance.InstanceId).ToList();
-                        }
-                    }
+                            await this.orchestrationProvider.CompleteAndUpdateSession(txn, workItem.InstanceId, newOrchestrationRuntimeState);
 
-                    if (this.instanceStore != null && orchestrationState != null)
-                    {
-                        await this.instanceStore.WriteEntitesAsync(txn, new InstanceEntityBase[]
-                        {
+                            if (outboundMessages?.Count > 0)
+                            {
+                                activityMessages = outboundMessages.Select(m => new Message<string, TaskMessage>(Guid.NewGuid().ToString(), m)).ToList();
+                                await this.activitiesProvider.SendBatchBeginAsync(txn, activityMessages);
+                            }
+
+                            if (timerMessages?.Count > 0)
+                            {
+                                scheduledMessages = timerMessages.Select(m => new Message<string, TaskMessage>(Guid.NewGuid().ToString(), m)).ToList();
+                                await this.scheduledMessagesProvider.SendBatchBeginAsync(txn, scheduledMessages);
+                            }
+
+                            if (orchestratorMessages?.Count > 0)
+                            {
+                                if (workItem.OrchestrationRuntimeState?.ParentInstance != null)
+                                {
+                                    sessionsToEnqueue = await this.orchestrationProvider.TryAppendMessageBatchAsync(txn, orchestratorMessages);
+                                }
+                                else
+                                {
+                                    await this.orchestrationProvider.AppendMessageBatchAsync(txn, orchestratorMessages);
+                                    sessionsToEnqueue = orchestratorMessages.Select(m => m.OrchestrationInstance.InstanceId).ToList();
+                                }
+                            }
+
+                            if (this.instanceStore != null && orchestrationState != null)
+                            {
+                                await this.instanceStore.WriteEntitesAsync(txn, new InstanceEntityBase[]
+                                {
                             new OrchestrationStateInstanceEntity()
                             {
                                 State = orchestrationState
                             }
-                        });
-                    }
+                                });
+                            }
 
-                    await txn.CommitAsync();
-                }
+                            await txn.CommitAsync();
+                        }
+                    }
+                    catch (FabricReplicationOperationTooLargeException ex)
+                    {
+                        retryOnException = true;
+                        newOrchestrationRuntimeState = null;
+                        outboundMessages = null;
+                        timerMessages = null;
+                        orchestratorMessages = null;
+                        if (orchestrationState != null)
+                        {
+                            orchestrationState.OrchestrationStatus = OrchestrationStatus.Failed;
+                            orchestrationState.Output = $"Fabric exception when trying to process orchestration: {ex}. Investigate and consider reducing the serialization size of orchestration inputs/outputs/overall length to avoid the issue.";
+                        }
+                    }
+                } while (retryOnException);
             }, uniqueActionIdentifier: $"OrchestrationId = '{workItem.InstanceId}', Action = '{nameof(CompleteTaskOrchestrationWorkItemAsync)}'");
 
             this.orchestrationProvider.TryUnlockSession(workItem.InstanceId);
@@ -292,12 +324,30 @@ namespace DurableTask.ServiceFabric
 
             await RetryHelper.ExecuteWithRetryOnTransient(async () =>
             {
-                using (var txn = this.stateManager.CreateTransaction())
+                bool retryOnException;
+                do
                 {
-                    await this.activitiesProvider.CompleteAsync(txn, workItem.Id);
-                    added = await this.orchestrationProvider.TryAppendMessageAsync(txn, responseMessage);
-                    await txn.CommitAsync();
-                }
+                    try
+                    {
+                        added = false;
+                        retryOnException = false;
+
+                        using (var txn = this.stateManager.CreateTransaction())
+                        {
+                            await this.activitiesProvider.CompleteAsync(txn, workItem.Id);
+                            added = await this.orchestrationProvider.TryAppendMessageAsync(txn, responseMessage);
+                            await txn.CommitAsync();
+                        }
+                    }
+                    catch (FabricReplicationOperationTooLargeException ex)
+                    {
+                        retryOnException = true;
+                        var originalEvent = responseMessage.Event;
+                        int taskScheduledId = GetTaskScheduledId(originalEvent);
+                        string details = $"Fabric exception when trying to save activity result: {ex}. Consider reducing the serialization size of activity result to avoid the issue.";
+                        responseMessage.Event = new TaskFailedEvent(originalEvent.EventId, taskScheduledId, ex.Message, details);
+                    }
+                } while (retryOnException);
             }, uniqueActionIdentifier: $"OrchestrationId = '{responseMessage.OrchestrationInstance.InstanceId}', ActivityId = '{workItem.Id}', Action = '{nameof(CompleteTaskActivityWorkItemAsync)}'");
 
             if (added)
@@ -315,6 +365,23 @@ namespace DurableTask.ServiceFabric
         public Task<TaskActivityWorkItem> RenewTaskActivityWorkItemLockAsync(TaskActivityWorkItem workItem)
         {
             return Task.FromResult(workItem);
+        }
+
+        int GetTaskScheduledId(HistoryEvent historyEvent)
+        {
+            TaskCompletedEvent tce = historyEvent as TaskCompletedEvent;
+            if (tce != null)
+            {
+                return tce.TaskScheduledId;
+            }
+
+            TaskFailedEvent tfe = historyEvent as TaskFailedEvent;
+            if (tfe != null)
+            {
+                return tfe.TaskScheduledId;
+            }
+
+            return -1;
         }
     }
 }

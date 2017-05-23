@@ -123,5 +123,16 @@ namespace DurableTask.ServiceFabric
             }
 #endif
         }
+
+        [Event(103, Level = EventLevel.Verbose, Message = "Size of {0} : {1} bytes.", Channel = EventChannel.Analytic)]
+        public void LogSizeMeasure(string uniqueObjectIdentifier, long sizeInBytes)
+        {
+#if DEBUG
+            if (IsEnabled(EventLevel.Verbose, Keywords.Common))
+            {
+                WriteEvent(103, uniqueObjectIdentifier, sizeInBytes);
+            }
+#endif
+        }
     }
 }

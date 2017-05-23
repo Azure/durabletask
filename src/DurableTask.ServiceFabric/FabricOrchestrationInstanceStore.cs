@@ -119,16 +119,22 @@ namespace DurableTask.ServiceFabric
 
             await EnsureStoreInitialized();
 
+            string latestExecutionId = null;
             using (var tx = this.stateManager.CreateTransaction())
             {
                 var executionIdValue = await this.executionIdStore.TryGetValueAsync(tx, instanceId);
                 if (executionIdValue.HasValue)
                 {
-                    var state = await GetOrchestrationStateAsync(instanceId, executionIdValue.Value);
-                    if (state != null)
-                    {
-                        return new List<OrchestrationStateInstanceEntity>() { state };
-                    }
+                    latestExecutionId = executionIdValue.Value;
+                }
+            }
+
+            if (latestExecutionId != null)
+            {
+                var state = await GetOrchestrationStateAsync(instanceId, latestExecutionId);
+                if (state != null)
+                {
+                    return new List<OrchestrationStateInstanceEntity>() { state };
                 }
             }
 
@@ -149,17 +155,20 @@ namespace DurableTask.ServiceFabric
                         State = state.Value,
                     };
                 }
+            }
 
-                // If querying for orchestration which completed an hour ago, we won't return the results.
-                var now = DateTime.UtcNow;
-                for (int i = 0; i < 2; i++)
+            // If querying for orchestration which completed an hour ago, we won't return the results.
+            var now = DateTime.UtcNow;
+            for (int i = 0; i < 2; i++)
+            {
+                var backupDictionaryName = GetDictionaryKeyFromTimeFormat(now - TimeSpan.FromHours(i));
+                var backupDictionary = await this.stateManager.TryGetAsync<IReliableDictionary<string, OrchestrationState>>(backupDictionaryName);
+
+                if (backupDictionary.HasValue)
                 {
-                    var backupDictionaryName = GetDictionaryKeyFromTimeFormat(now - TimeSpan.FromHours(i));
-                    var backupDictionary = await this.stateManager.TryGetAsync<IReliableDictionary<string, OrchestrationState>>(backupDictionaryName);
-
-                    if (backupDictionary.HasValue)
+                    using (var txn = this.stateManager.CreateTransaction())
                     {
-                        state = await backupDictionary.Value.TryGetValueAsync(txn, queryKey);
+                        var state = await backupDictionary.Value.TryGetValueAsync(txn, queryKey);
                         if (state.HasValue)
                         {
                             return new OrchestrationStateInstanceEntity()

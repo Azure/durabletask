@@ -39,14 +39,13 @@ namespace DurableTask.ServiceFabric
             return InitializeStore();
         }
 
-        public Task<List<Message<TKey, TValue>>> ReceiveBatchAsync()
+        public async Task<List<Message<TKey, TValue>>> ReceiveBatchAsync()
         {
-            return RetryHelper.ExecuteWithRetryOnTransient(async () =>
+            List<Message<TKey, TValue>> result = new List<Message<TKey, TValue>>();
+            if (!IsStopped())
             {
-                ThrowIfStopped();
                 using (var tx = this.StateManager.CreateTransaction())
                 {
-                    List<Message<TKey, TValue>> result = new List<Message<TKey, TValue>>();
                     var count = await this.Store.GetCountAsync(tx);
 
                     if (count > 0)
@@ -60,9 +59,9 @@ namespace DurableTask.ServiceFabric
                             }
                         }
                     }
-                    return result;
                 }
-            }, uniqueActionIdentifier: $"OrchestrationId = '{this.sessionId}', Action = 'SessionMessagesProvider.{nameof(ReceiveBatchAsync)}'");
+            }
+            return result;
         }
 
         public Task DropStoreAsync()

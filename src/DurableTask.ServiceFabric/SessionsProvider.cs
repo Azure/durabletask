@@ -35,18 +35,15 @@ namespace DurableTask.ServiceFabric
 
         public async Task<PersistentSession> AcceptSessionAsync(TimeSpan receiveTimeout)
         {
-            ThrowIfStopped();
-
-            string returnSessionId;
-            bool newItemsBeforeTimeout = true;
-            while (newItemsBeforeTimeout)
+            if (!IsStopped())
             {
-
-                if (this.inMemorySessionsQueue.TryDequeue(out returnSessionId))
+                string returnSessionId;
+                bool newItemsBeforeTimeout = true;
+                while (newItemsBeforeTimeout)
                 {
-                    try
+                    if (this.inMemorySessionsQueue.TryDequeue(out returnSessionId))
                     {
-                        return await RetryHelper.ExecuteWithRetryOnTransient(async () =>
+                        try
                         {
                             using (var txn = this.StateManager.CreateTransaction())
                             {
@@ -56,26 +53,32 @@ namespace DurableTask.ServiceFabric
                                 {
                                     if (!this.lockedSessions.TryUpdate(returnSessionId, newValue: LockState.Locked, comparisonValue: LockState.InFetchQueue))
                                     {
-                                        throw new Exception("Internal Server Error : Unexpected to dequeue a session which was already locked before");
+                                        var errorMessage = $"Internal Server Error : Unexpected to dequeue the session {returnSessionId} which was already locked before";
+                                        ProviderEventSource.Log.UnexpectedCodeCondition(errorMessage);
+                                        throw new Exception(errorMessage);
                                     }
 
                                     ProviderEventSource.Log.TraceMessage(returnSessionId, "Session Locked Accepted");
                                     return existingValue.Value;
                                 }
+                                else
+                                {
+                                    var errorMessage = $"Internal Server Error: Did not find the session object in reliable dictionary while having the session {returnSessionId} in memory";
+                                    ProviderEventSource.Log.UnexpectedCodeCondition(errorMessage);
+                                    throw new Exception(errorMessage);
+                                }
                             }
-                            return null;
-                        }, uniqueActionIdentifier: $"OrchestrationId = '{returnSessionId}', Action = '{nameof(AcceptSessionAsync)}'");
+                        }
+                        catch (Exception)
+                        {
+                            this.inMemorySessionsQueue.Enqueue(returnSessionId);
+                            throw;
+                        }
                     }
-                    catch (Exception)
-                    {
-                        this.inMemorySessionsQueue.Enqueue(returnSessionId);
-                        throw;
-                    }
+
+                    newItemsBeforeTimeout = await WaitForItemsAsync(receiveTimeout);
                 }
-
-                newItemsBeforeTimeout = await WaitForItemsAsync(receiveTimeout);
             }
-
             return null;
         }
 
@@ -139,6 +142,9 @@ namespace DurableTask.ServiceFabric
 
             var sessionStateEvents = newSessionState?.Events.ToImmutableList();
             var result = PersistentSession.Create(sessionId, sessionStateEvents);
+#if DEBUG
+            ProviderEventSource.Log.LogSizeMeasure($"Value in SessionsProvider for SessionId = {sessionId}", DebugSerializationUtil.GetDataContractSerializationSize(result));
+#endif
             await this.Store.SetAsync(transaction, sessionId, result);
         }
 
@@ -162,9 +168,9 @@ namespace DurableTask.ServiceFabric
             await EnsureOrchestrationStoreInitialized();
 
             var sessionId = newMessage.OrchestrationInstance.InstanceId;
-            await this.Store.TryAddAsync(transaction, sessionId, PersistentSession.Create(sessionId));
             var sessionMessageProvider = await GetOrAddSessionMessagesInstance(sessionId);
             await sessionMessageProvider.SendBeginAsync(transaction, new Message<Guid, TaskMessage>(Guid.NewGuid(), newMessage));
+            await this.Store.TryAddAsync(transaction, sessionId, PersistentSession.Create(sessionId));
         }
 
         public async Task<bool> TryAppendMessageAsync(ITransaction transaction, TaskMessage newMessage)
