@@ -155,8 +155,9 @@ namespace DurableTask.AzureStorage
         }
 
         // We always leave the dispatcher counts at one unless we can find a customer workload that requires more.
-        int IOrchestrationService.TaskActivityDispatcherCount { get; } = 1;
-        int IOrchestrationService.TaskOrchestrationDispatcherCount { get; } = 1;
+        public int TaskActivityDispatcherCount { get; } = 1;
+
+        public int TaskOrchestrationDispatcherCount { get; } = 1;
 
         #region Management Operations (Create/Delete/Start/Stop)
         /// <summary>

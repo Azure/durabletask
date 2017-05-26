@@ -17,7 +17,7 @@ namespace DurableTask.AzureStorage
     using DurableTask.Core;
     using DurableTask.Core.History;
 
-    public class HistoryEventArgs
+    public class HistoryEventArgs : EventArgs
     {
         internal HistoryEventArgs(HistoryEvent newHistoryEvent, OrchestrationRuntimeState state)
         {
