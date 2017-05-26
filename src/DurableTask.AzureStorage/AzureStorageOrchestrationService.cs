@@ -1,6 +1,15 @@
-﻿//------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.  All rights reserved.
-//------------------------------------------------------------
+﻿//  ----------------------------------------------------------------------------------
+//  Copyright Microsoft Corporation
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//  http://www.apache.org/licenses/LICENSE-2.0
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+//  ----------------------------------------------------------------------------------
 
 namespace DurableTask.AzureStorage
 {
@@ -15,8 +24,8 @@ namespace DurableTask.AzureStorage
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
-    using DurableTask;
-    using DurableTask.History;
+    using DurableTask.Core;
+    using DurableTask.Core.History;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Queue;
     using Microsoft.WindowsAzure.Storage.Table;
@@ -247,6 +256,7 @@ namespace DurableTask.AzureStorage
         {
             await this.EnsuredCreatedIfNotExistsAsync();
 
+            Stopwatch receiveTimeoutStopwatch = Stopwatch.StartNew();
             PendingMessageBatch nextBatch;
             while (true)
             {
@@ -262,6 +272,11 @@ namespace DurableTask.AzureStorage
                 if (nextBatch != null)
                 {
                     break;
+                }
+
+                if (receiveTimeoutStopwatch.Elapsed > receiveTimeout)
+                {
+                    return null;
                 }
 
                 await this.controlQueueBackoff.WaitAsync(cancellationToken);
@@ -767,10 +782,13 @@ namespace DurableTask.AzureStorage
         #endregion
 
         #region Task Activity Methods
-        public async Task<TaskActivityWorkItem> LockNextTaskActivityWorkItem(TimeSpan receiveTimeout, CancellationToken cancellationToken)
+        public async Task<TaskActivityWorkItem> LockNextTaskActivityWorkItem(
+            TimeSpan receiveTimeout,
+            CancellationToken cancellationToken)
         {
             await this.EnsuredCreatedIfNotExistsAsync();
 
+            Stopwatch receiveTimeoutStopwatch = Stopwatch.StartNew();
             CloudQueueMessage queueMessage;
             while (true)
             {
@@ -783,6 +801,11 @@ namespace DurableTask.AzureStorage
                 if (queueMessage != null)
                 {
                     break;
+                }
+
+                if (receiveTimeoutStopwatch.Elapsed > receiveTimeout)
+                {
+                    return null;
                 }
 
                 await this.workItemQueueBackoff.WaitAsync(cancellationToken);
