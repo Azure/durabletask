@@ -236,10 +236,10 @@ namespace DurableTask.ServiceFabric
                             {
                                 await this.instanceStore.WriteEntitesAsync(txn, new InstanceEntityBase[]
                                 {
-                            new OrchestrationStateInstanceEntity()
-                            {
-                                State = orchestrationState
-                            }
+                                    new OrchestrationStateInstanceEntity()
+                                    {
+                                        State = orchestrationState
+                                    }
                                 });
                             }
 
