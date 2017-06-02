@@ -41,10 +41,5 @@ namespace DurableTask.AzureStorage
 
             return envelope;
         }
-
-        public static string GetPartitionKeyForInstance(string instanceId, string executionId)
-        {
-            return instanceId + "_" + executionId;
-        }
     }
 }
