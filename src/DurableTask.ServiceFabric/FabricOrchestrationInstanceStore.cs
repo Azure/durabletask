@@ -16,6 +16,8 @@ namespace DurableTask.ServiceFabric
     using System;
     using System.Collections.Generic;
     using System.Collections.Immutable;
+    using System.Diagnostics;
+    using System.Globalization;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Tracking;
@@ -56,7 +58,7 @@ namespace DurableTask.ServiceFabric
         {
             this.cancellationTokenSource = new CancellationTokenSource();
             await EnsureStoreInitialized();
-            var nowait = CleanupDayOldDictionaries();
+            var nowait = CleanupOldDictionaries();
         }
 
         public Task StopAsync(bool isForced)
@@ -217,9 +219,9 @@ namespace DurableTask.ServiceFabric
             return InstanceStoreCollectionNamePrefix + time.ToString(formatString);
         }
 
-        async Task CleanupDayOldDictionaries()
+        Task CleanupDayOldDictionaries()
         {
-            while (!this.cancellationTokenSource.IsCancellationRequested)
+            return Utils.RunBackgroundJob(async () =>
             {
                 var purgeTime = GetDictionaryKeyFromTimePrefixFormat(DateTime.UtcNow - TimeSpan.FromDays(1));
 
@@ -227,9 +229,52 @@ namespace DurableTask.ServiceFabric
                 {
                     await this.stateManager.RemoveAsync($"{purgeTime}{i:D2}");
                 }
+            }, delayOnSuccess: TimeSpan.FromHours(12), delayOnException: TimeSpan.FromHours(1), actionName: $"{nameof(CleanupDayOldDictionaries)}", token: this.cancellationTokenSource.Token);
+        }
 
-                await Task.Delay(TimeSpan.FromHours(12), this.cancellationTokenSource.Token).ConfigureAwait(false);
-            }
+        Task CleanupOldDictionaries()
+        {
+            return Utils.RunBackgroundJob(async () =>
+            {
+                List<string> toDelete = new List<string>();
+                List<string> toKeep = new List<string>();
+                var currentTime = DateTime.UtcNow;
+                var ttl = TimeSpan.FromDays(1);
+
+                var enumerationTime = await Utils.MeasureAsync(async () =>
+                {
+                    var enumerator = this.stateManager.GetAsyncEnumerator();
+                    while (await enumerator.MoveNextAsync(this.cancellationTokenSource.Token))
+                    {
+                        var storeName = enumerator.Current.Name.AbsolutePath.Trim('/');
+                        if (storeName.StartsWith(InstanceStoreCollectionNamePrefix))
+                        {
+                            DateTime storeTime;
+                            if (DateTime.TryParseExact(storeName.Substring(InstanceStoreCollectionNamePrefix.Length), TimeFormatString, CultureInfo.InvariantCulture, DateTimeStyles.None, out storeTime)
+                                && (currentTime - storeTime > ttl))
+                            {
+                                toDelete.Add(storeName);
+                                continue;
+                            }
+                        }
+
+                        toKeep.Add(storeName);
+                    }
+                });
+                ProviderEventSource.Log.LogTimeTaken($"Enumerating all reliable states (count: {toDelete.Count + toKeep.Count})", enumerationTime.TotalMilliseconds);
+
+                ProviderEventSource.Log.ReliableStateManagement($"Deleting {toDelete.Count} stores", String.Join(",", toDelete));
+                ProviderEventSource.Log.ReliableStateManagement($"All remaining {toKeep.Count} stores", String.Join(",", toKeep));
+
+                foreach (var storeName in toDelete)
+                {
+                    var deleteTime = await Utils.MeasureAsync(async () =>
+                    {
+                        await this.stateManager.RemoveAsync(storeName);
+                    });
+                    ProviderEventSource.Log.LogTimeTaken($"Deleting reliable state {storeName}", deleteTime.TotalMilliseconds);
+                }
+            }, delayOnSuccess: TimeSpan.FromHours(1), delayOnException: TimeSpan.FromMinutes(10), actionName: $"{nameof(CleanupOldDictionaries)}", token: this.cancellationTokenSource.Token);
         }
 
         async Task EnsureStoreInitialized()

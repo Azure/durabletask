@@ -154,18 +154,32 @@ namespace DurableTask.ServiceFabric
                 throw;
             }
 
+            var currentRuntimeState = new OrchestrationRuntimeState(currentSession.SessionState);
+            var workItem = new TaskOrchestrationWorkItem()
+            {
+                NewMessages = newMessages,
+                InstanceId = currentSession.SessionId,
+                OrchestrationRuntimeState = currentRuntimeState
+            };
+
             if (newMessages.Count == 0)
             {
+                if (currentRuntimeState.ExecutionStartedEvent == null)
+                {
+                    return null;
+                }
+
+                if (currentRuntimeState.OrchestrationStatus.IsTerminalState())
+                {
+                    await this.ReleaseTaskOrchestrationWorkItemAsync(workItem);
+                    return null;
+                }
+
                 this.orchestrationProvider.TryUnlockSession(currentSession.SessionId);
                 return null;
             }
 
-            return new TaskOrchestrationWorkItem()
-            {
-                NewMessages = newMessages,
-                InstanceId = currentSession.SessionId,
-                OrchestrationRuntimeState = new OrchestrationRuntimeState(currentSession.SessionState)
-            };
+            return workItem;
         }
 
         public Task RenewTaskOrchestrationWorkItemLockAsync(TaskOrchestrationWorkItem workItem)
@@ -232,7 +246,11 @@ namespace DurableTask.ServiceFabric
                                 }
                             }
 
-                            if (this.instanceStore != null && orchestrationState != null)
+                            // We skip writing to instanceStore when orchestration reached terminal state to avoid a minor timing issue that
+                            // wait for an orchestration completes but another orchestration with the same name cannot be started immediately
+                            // because the session is still in store. We update the instance store on orchestration completion and drop the
+                            // session as part of a single transaction when we release the work item.
+                            if (this.instanceStore != null && orchestrationState != null && !orchestrationState.OrchestrationStatus.IsTerminalState())
                             {
                                 await this.instanceStore.WriteEntitesAsync(txn, new InstanceEntityBase[]
                                 {
@@ -290,7 +308,22 @@ namespace DurableTask.ServiceFabric
         {
             if (workItem.OrchestrationRuntimeState.OrchestrationStatus.IsTerminalState())
             {
-                await this.orchestrationProvider.DropSession(workItem.InstanceId);
+                await RetryHelper.ExecuteWithRetryOnTransient(async () =>
+                {
+                    using (var txn = this.stateManager.CreateTransaction())
+                    {
+                        await this.orchestrationProvider.DropSession(txn, workItem.InstanceId);
+                        await this.instanceStore.WriteEntitesAsync(txn, new InstanceEntityBase[]
+                        {
+                            new OrchestrationStateInstanceEntity()
+                            {
+                                State = Utils.BuildOrchestrationState(workItem.OrchestrationRuntimeState)
+                            }
+                        });
+                        await txn.CommitAsync();
+                    }
+                }, uniqueActionIdentifier: $"OrchestrationId = '{workItem.InstanceId}', Action = '{nameof(ReleaseTaskOrchestrationWorkItemAsync)}'");
+
                 ProviderEventSource.Log.OrchestrationFinished(workItem.InstanceId,
                     workItem.OrchestrationRuntimeState.OrchestrationStatus.ToString(),
                     (workItem.OrchestrationRuntimeState.CompletedTime - workItem.OrchestrationRuntimeState.CreatedTime).TotalSeconds,

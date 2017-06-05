@@ -21,12 +21,9 @@ namespace DurableTask.ServiceFabric
 
     class SessionMessagesProvider<TKey, TValue> : MessageProviderBase<TKey, TValue> where TKey : IComparable<TKey>, IEquatable<TKey>
     {
-        readonly string sessionId;
-
-        public SessionMessagesProvider(IReliableStateManager stateManager, string sessionId)
-            : base(stateManager, GetSessionMessagesDictionaryName(sessionId))
+        public SessionMessagesProvider(IReliableStateManager stateManager, string storeName)
+            : base(stateManager, storeName)
         {
-            this.sessionId = sessionId;
         }
 
         protected override void AddItemInMemory(TKey key, TValue value)
@@ -62,16 +59,6 @@ namespace DurableTask.ServiceFabric
                 }
             }
             return result;
-        }
-
-        public Task DropStoreAsync()
-        {
-            return this.StateManager.RemoveAsync(this.Store.Name);
-        }
-
-        static string GetSessionMessagesDictionaryName(string sessionId)
-        {
-            return Constants.SessionMessagesDictionaryPrefix + sessionId;
         }
     }
 }

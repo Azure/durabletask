@@ -15,6 +15,7 @@ namespace DurableTask.ServiceFabric
 {
     using Microsoft.Diagnostics.Tracing;
     using System.Threading.Tasks;
+    using System;
 
     [EventSource(Name = "DurableTask-ServiceFabricProvider")]
     internal sealed class ProviderEventSource : EventSource
@@ -82,6 +83,11 @@ namespace DurableTask.ServiceFabric
             {
                 WriteEvent(5, uniqueMessage);
             }
+
+#if DEBUG
+            // This is so that tests fail when this event happens.
+            throw new Exception(uniqueMessage);
+#endif
         }
 
         [Event(6, Level = EventLevel.Error, Message = "{0} : Successive Failed Attempt Number : '{1}', Ignored Exception : '{2}' With Stack Trace: '{3}'", Channel = EventChannel.Operational)]
@@ -99,6 +105,33 @@ namespace DurableTask.ServiceFabric
             if (IsEnabled(EventLevel.Error, Keywords.Common))
             {
                 WriteEvent(7, uniqueIdentifier, exception);
+            }
+        }
+
+        [Event(8, Level = EventLevel.Informational, Message = "Time taken for {0} : {1} milli seconds.", Channel = EventChannel.Operational)]
+        public void LogTimeTaken(string uniqueActionIdentifier, double elapsedMilliseconds)
+        {
+            if (IsEnabled(EventLevel.Informational, Keywords.Common))
+            {
+                WriteEvent(8, uniqueActionIdentifier, elapsedMilliseconds);
+            }
+        }
+
+        [Event(9, Level = EventLevel.Informational, Message = "{0} : {1}", Channel = EventChannel.Operational)]
+        public void ReliableStateManagement(string operationIdentifier, string operationData)
+        {
+            if (IsEnabled(EventLevel.Informational, Keywords.Common))
+            {
+                WriteEvent(9, operationIdentifier, operationData);
+            }
+        }
+
+        [Event(1000, Level = EventLevel.Warning, Message = "Exception in the background job {0} : {1}", Channel = EventChannel.Operational)]
+        public void ExceptionWhileRunningBackgroundJob(string operationIdentifier, string exception)
+        {
+            if (IsEnabled(EventLevel.Warning, Keywords.Common))
+            {
+                WriteEvent(1000, operationIdentifier, exception);
             }
         }
 

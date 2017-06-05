@@ -89,7 +89,7 @@ namespace DurableTask.ServiceFabric
 
         async Task<SessionMessagesProvider<Guid, TaskMessage>> GetOrAddSessionMessagesInstance(string sessionId)
         {
-            var newInstance = new SessionMessagesProvider<Guid, TaskMessage>(this.StateManager, sessionId);
+            var newInstance = new SessionMessagesProvider<Guid, TaskMessage>(this.StateManager, GetSessionMessagesDictionaryName(sessionId));
             var sessionMessageProvider = this.sessionMessageProviders.GetOrAdd(sessionId, newInstance);
 
             if (sessionMessageProvider == newInstance)
@@ -282,23 +282,21 @@ namespace DurableTask.ServiceFabric
             }
         }
 
-        public Task DropSession(string sessionId)
+        public async Task DropSession(ITransaction txn, string sessionId)
         {
-            return RetryHelper.ExecuteWithRetryOnTransient(async () =>
+            SessionMessagesProvider<Guid, TaskMessage> sessionMessagesProvider;
+            if (this.sessionMessageProviders.TryRemove(sessionId, out sessionMessagesProvider))
             {
-                SessionMessagesProvider<Guid, TaskMessage> sessionMessagesProvider;
-                if (this.sessionMessageProviders.TryRemove(sessionId, out sessionMessagesProvider))
-                {
-                    await sessionMessagesProvider.StopAsync();
-                    await sessionMessagesProvider.DropStoreAsync();
-                }
+                await sessionMessagesProvider.StopAsync();
+            }
 
-                using (var txn = this.StateManager.CreateTransaction())
-                {
-                    await this.Store.TryRemoveAsync(txn, sessionId);
-                    await txn.CommitAsync();
-                }
-            }, uniqueActionIdentifier: $"OrchestrationId = '{sessionId}', Action = '{nameof(DropSession)}'");
+            await this.StateManager.RemoveAsync(GetSessionMessagesDictionaryName(sessionId));
+            await this.Store.TryRemoveAsync(txn, sessionId);
+        }
+
+        string GetSessionMessagesDictionaryName(string sessionId)
+        {
+            return Constants.SessionMessagesDictionaryPrefix + sessionId;
         }
 
         enum LockState

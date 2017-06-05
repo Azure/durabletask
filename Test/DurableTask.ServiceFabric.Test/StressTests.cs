@@ -26,6 +26,8 @@ namespace DurableTask.ServiceFabric.Test
     [TestClass]
     public class StressTests
     {
+        const string TestFabricApplicationAddress = "fabric:/TestFabricApplicationType/TestStatefulService";
+
         [TestMethod]
         public async Task ExecuteStressTest()
         {
@@ -51,6 +53,44 @@ namespace DurableTask.ServiceFabric.Test
             await RunDriverOrchestrationHelper(driverConfig);
         }
 
+        // This test uses an implementation detail of client - the polling interval in the client for WaitForOrchestration API.
+        // The sleep time is chosen carefully to be close to polling interval to simulate WaitForOrchestration succeeding while
+        // the session could still be there in the store (with a previous implementation which was fixed when the test was introduced).
+        // The test should be modified if the polling interval changes or should be re thought if the polling logic itself changes.
+        [TestMethod]
+        public async Task ExecuteSameOrchestrationBackToBack()
+        {
+            int numberOfAttempts = 10; //Try a few times to make sure there is no failure.
+            var instanceId = nameof(ExecuteSameOrchestrationBackToBack);
+            var serviceClient = ServiceProxy.Create<IRemoteClient>(new Uri(TestFabricApplicationAddress), new ServicePartitionKey(1));
+
+            Dictionary<int, Tuple<OrchestrationInstance, OrchestrationState>> results = new Dictionary<int, Tuple<OrchestrationInstance, OrchestrationState>>();
+
+            for (int attemptNumber = 0; attemptNumber < numberOfAttempts; attemptNumber++)
+            {
+                var instance = await serviceClient.StartTestOrchestrationWithInstanceIdAsync(instanceId, new TestOrchestrationData()
+                {
+                    NumberOfParallelTasks = 0,
+                    NumberOfSerialTasks = 1,
+                    MaxDelay = 1980,
+                    MinDelay = 1900,
+                    DelayUnit = TimeSpan.FromMilliseconds(1),
+                });
+
+                var state = await serviceClient.WaitForOrchestration(instance, TimeSpan.FromMinutes(1));
+                results.Add(attemptNumber, new Tuple<OrchestrationInstance, OrchestrationState>(instance, state));
+            }
+
+            for(int attemptNumber = 0; attemptNumber < numberOfAttempts; attemptNumber++)
+            {
+                var instance = results[attemptNumber].Item1;
+                var state = results[attemptNumber].Item2;
+                Assert.IsNotNull(state, $"Attempt number {attemptNumber} with execution id {instance.ExecutionId} Failed with null value for WaitForOrchestration");
+                Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus, $"Attempt number {attemptNumber} with execution id {instance.ExecutionId} did not reach 'Completed' state.");
+                Console.WriteLine($"Time for orchestration in attempt number {attemptNumber} : {state.CompletedTime - state.CreatedTime}");
+            }
+        }
+
         [TestMethod]
         public async Task Test_Lot_Of_Activities_Per_Orchestration()
         {
@@ -58,7 +98,7 @@ namespace DurableTask.ServiceFabric.Test
             foreach (var numberOfActivities in tests)
             {
                 Console.WriteLine($"Begin testing orchestration with {numberOfActivities} parallel activities");
-                var serviceClient = ServiceProxy.Create<IRemoteClient>(new Uri("fabric:/TestFabricApplicationType/TestStatefulService"), new ServicePartitionKey(1));
+                var serviceClient = ServiceProxy.Create<IRemoteClient>(new Uri(TestFabricApplicationAddress), new ServicePartitionKey(1));
                 var state = await serviceClient.RunOrchestrationAsync(typeof(ExecutionCountingOrchestration).Name, numberOfActivities, TimeSpan.FromMinutes(2));
                 Assert.IsNotNull(state);
                 Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
@@ -132,7 +172,7 @@ namespace DurableTask.ServiceFabric.Test
 
         async Task RunDriverOrchestrationHelper(DriverOrchestrationData driverConfig)
         {
-            var serviceClient = ServiceProxy.Create<IRemoteClient>(new Uri("fabric:/TestFabricApplicationType/TestStatefulService"), new ServicePartitionKey(1));
+            var serviceClient = ServiceProxy.Create<IRemoteClient>(new Uri(TestFabricApplicationAddress), new ServicePartitionKey(1));
             Console.WriteLine($"Orchestration getting scheduled: {DateTime.Now}");
 
             Stopwatch stopWatch = Stopwatch.StartNew();
@@ -156,7 +196,7 @@ namespace DurableTask.ServiceFabric.Test
 
         async Task RunTestOrchestrationsHelper(int numberOfInstances, TestOrchestrationData orchestrationInput, Func<int, TimeSpan> delayGeneratorFunction = null)
         {
-            var serviceClient = ServiceProxy.Create<IRemoteClient>(new Uri("fabric:/TestFabricApplicationType/TestStatefulService"), new ServicePartitionKey(1));
+            var serviceClient = ServiceProxy.Create<IRemoteClient>(new Uri(TestFabricApplicationAddress), new ServicePartitionKey(1));
 
             Dictionary<OrchestrationInstance, OrchestrationState> results = new Dictionary<OrchestrationInstance, OrchestrationState>();
             List<Task> waitTasks = new List<Task>();

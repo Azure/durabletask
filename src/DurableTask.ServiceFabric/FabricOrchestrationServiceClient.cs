@@ -58,10 +58,10 @@ namespace DurableTask.ServiceFabric
                     await this.orchestrationProvider.AppendMessageAsync(tx, creationMessage);
                     await WriteExecutionStartedEventToInstanceStore(tx, startEvent);
                     await tx.CommitAsync();
-                    ProviderEventSource.Log.OrchestrationCreated(instance.InstanceId, instance.ExecutionId);
                 }
             }, uniqueActionIdentifier: $"OrchestrationId = '{instance.InstanceId}', Action = '{nameof(CreateTaskOrchestrationAsync)}'");
 
+            ProviderEventSource.Log.OrchestrationCreated(instance.InstanceId, instance.ExecutionId);
             this.orchestrationProvider.TryEnqueueSession(creationMessage.OrchestrationInstance.InstanceId);
         }
 
