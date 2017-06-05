@@ -17,7 +17,7 @@ namespace DurableTask.Core
     using System.Reflection;
     using System.Threading;
     using System.Threading.Tasks;
-    using DurableTask.Core.Settings;
+    using DurableTask.Core.Middleware;
 
     /// <summary>
     ///     Allows users to load the TaskOrchestration and TaskActivity classes and start
@@ -27,6 +27,9 @@ namespace DurableTask.Core
     {
         readonly INameVersionObjectManager<TaskActivity> activityManager;
         readonly INameVersionObjectManager<TaskOrchestration> orchestrationManager;
+
+        readonly DispatchMiddlewarePipeline orchestrationDispatchPipeline = new DispatchMiddlewarePipeline();
+        readonly DispatchMiddlewarePipeline activityDispatchPipeline = new DispatchMiddlewarePipeline();
 
         readonly SemaphoreSlim slimLock = new SemaphoreSlim(1, 1);
 
@@ -79,6 +82,24 @@ namespace DurableTask.Core
         public TaskActivityDispatcher TaskActivityDispatcher => activityDispatcher;
 
         /// <summary>
+        /// Adds a middleware delegate to the orchestration dispatch pipeline.
+        /// </summary>
+        /// <param name="middleware">Delegate to invoke whenever a message is dispatched to an orchestration.</param>
+        public void AddOrchestrationDispatcherMiddleware(Func<DispatchMiddlewareContext, Func<Task>, Task> middleware)
+        {
+            orchestrationDispatchPipeline.Add(middleware ?? throw new ArgumentNullException(nameof(middleware)));
+        }
+
+        /// <summary>
+        /// Adds a middleware delegate to the activity dispatch pipeline.
+        /// </summary>
+        /// <param name="middleware">Delegate to invoke whenever a message is dispatched to an activity.</param>
+        public void AddActivityDispatcherMiddleware(Func<DispatchMiddlewareContext, Func<Task>, Task> middleware)
+        {
+            activityDispatchPipeline.Add(middleware ?? throw new ArgumentNullException(nameof(middleware)));
+        }
+
+        /// <summary>
         ///     Starts the TaskHubWorker so it begins processing orchestrations and activities
         /// </summary>
         /// <returns></returns>
@@ -92,8 +113,14 @@ namespace DurableTask.Core
                     throw new InvalidOperationException("Worker is already started");
                 }
 
-                orchestrationDispatcher = new TaskOrchestrationDispatcher(orchestrationService, orchestrationManager);
-                activityDispatcher = new TaskActivityDispatcher(orchestrationService, activityManager);
+                orchestrationDispatcher = new TaskOrchestrationDispatcher(
+                    orchestrationService,
+                    orchestrationManager,
+                    orchestrationDispatchPipeline);
+                activityDispatcher = new TaskActivityDispatcher(
+                    orchestrationService,
+                    activityManager,
+                    activityDispatchPipeline);
 
                 await orchestrationService.StartAsync();
                 await orchestrationDispatcher.StartAsync();

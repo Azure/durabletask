@@ -20,6 +20,7 @@ namespace DurableTask.Core
     using DurableTask.Core.Common;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
+    using DurableTask.Core.Middleware;
     using DurableTask.Core.Tracing;
 
     /// <summary>
@@ -30,23 +31,16 @@ namespace DurableTask.Core
         readonly INameVersionObjectManager<TaskActivity> objectManager;
         readonly WorkItemDispatcher<TaskActivityWorkItem> dispatcher; 
         readonly IOrchestrationService orchestrationService;
-        
+        readonly DispatchMiddlewarePipeline dispatchPipeline;
+
         internal TaskActivityDispatcher(
             IOrchestrationService orchestrationService,
-            INameVersionObjectManager<TaskActivity> objectManager)
+            INameVersionObjectManager<TaskActivity> objectManager,
+            DispatchMiddlewarePipeline dispatchPipeline)
         {
-            if (orchestrationService == null)
-            {
-                throw new ArgumentNullException(nameof(orchestrationService));
-            }
-
-            if (objectManager == null)
-            {
-                throw new ArgumentNullException(nameof(objectManager));
-            }
-
-            this.orchestrationService = orchestrationService;
-            this.objectManager = objectManager;
+            this.orchestrationService = orchestrationService ?? throw new ArgumentNullException(nameof(orchestrationService));
+            this.objectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
+            this.dispatchPipeline = dispatchPipeline ?? throw new ArgumentNullException(nameof(dispatchPipeline));
 
             this.dispatcher = new WorkItemDispatcher<TaskActivityWorkItem>(
                 "TaskActivityDispatcher",
@@ -124,25 +118,33 @@ namespace DurableTask.Core
                 var context = new TaskContext(taskMessage.OrchestrationInstance);
                 HistoryEvent eventToRespond = null;
 
-                try
+                var dispatchContext = new DispatchMiddlewareContext();
+                dispatchContext.SetProperty(taskMessage.OrchestrationInstance);
+                dispatchContext.SetProperty(taskActivity);
+                dispatchContext.SetProperty(scheduledEvent);
+
+                await this.dispatchPipeline.RunAsync(dispatchContext, async _ =>
                 {
-                    string output = await taskActivity.RunAsync(context, scheduledEvent.Input);
-                    eventToRespond = new TaskCompletedEvent(-1, scheduledEvent.EventId, output);
-                }
-                catch (TaskFailureException e)
-                {
-                    TraceHelper.TraceExceptionInstance(TraceEventType.Error, taskMessage.OrchestrationInstance, e);
-                    string details = IncludeDetails ? e.Details : null;
-                    eventToRespond = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details);
-                }
-                catch (Exception e) when (!Utils.IsFatal(e))
-                {
-                    TraceHelper.TraceExceptionInstance(TraceEventType.Error, taskMessage.OrchestrationInstance, e);
-                    string details = IncludeDetails
-                        ? $"Unhandled exception while executing task: {e}\n\t{e.StackTrace}"
-                        : null;
-                    eventToRespond = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details);
-                }
+                    try
+                    {
+                        string output = await taskActivity.RunAsync(context, scheduledEvent.Input);
+                        eventToRespond = new TaskCompletedEvent(-1, scheduledEvent.EventId, output);
+                    }
+                    catch (TaskFailureException e)
+                    {
+                        TraceHelper.TraceExceptionInstance(TraceEventType.Error, taskMessage.OrchestrationInstance, e);
+                        string details = IncludeDetails ? e.Details : null;
+                        eventToRespond = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details);
+                    }
+                    catch (Exception e) when (!Utils.IsFatal(e))
+                    {
+                        TraceHelper.TraceExceptionInstance(TraceEventType.Error, taskMessage.OrchestrationInstance, e);
+                        string details = IncludeDetails
+                            ? $"Unhandled exception while executing task: {e}\n\t{e.StackTrace}"
+                            : null;
+                        eventToRespond = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details);
+                    }
+                });
 
                 var responseTaskMessage = new TaskMessage
                 {

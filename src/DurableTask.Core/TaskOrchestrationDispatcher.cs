@@ -23,6 +23,7 @@ namespace DurableTask.Core
     using DurableTask.Core.Common;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
+    using DurableTask.Core.Middleware;
     using DurableTask.Core.Serializing;
     using DurableTask.Core.Tracing;
 
@@ -34,25 +35,18 @@ namespace DurableTask.Core
         readonly INameVersionObjectManager<TaskOrchestration> objectManager;
         readonly IOrchestrationService orchestrationService;
         readonly WorkItemDispatcher<TaskOrchestrationWorkItem> dispatcher;
+        readonly DispatchMiddlewarePipeline dispatchPipeline;
         static readonly DataConverter DataConverter = new JsonDataConverter();
 
         internal TaskOrchestrationDispatcher(
             IOrchestrationService orchestrationService,
-            INameVersionObjectManager<TaskOrchestration> objectManager)
+            INameVersionObjectManager<TaskOrchestration> objectManager,
+            DispatchMiddlewarePipeline dispatchPipeline)
         {
-            if (orchestrationService == null)
-            {
-                throw new ArgumentNullException(nameof(orchestrationService));
-            }
+            this.objectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
+            this.orchestrationService = orchestrationService ?? throw new ArgumentNullException(nameof(orchestrationService));
+            this.dispatchPipeline = dispatchPipeline ?? throw new ArgumentNullException(nameof(dispatchPipeline));
 
-            if (objectManager == null)
-            {
-                throw new ArgumentNullException(nameof(objectManager));
-            }
-
-            this.objectManager = objectManager;
-
-            this.orchestrationService = orchestrationService;
             this.dispatcher = new WorkItemDispatcher<TaskOrchestrationWorkItem>(
                 "TaskOrchestrationDispatcher",
                 item => item == null ? string.Empty : item.InstanceId,
@@ -140,7 +134,7 @@ namespace DurableTask.Core
                     "Executing user orchestration: {0}",
                     DataConverter.Serialize(runtimeState.GetOrchestrationRuntimeStateDump(), true));
 
-                IList<OrchestratorAction> decisions = ExecuteOrchestration(runtimeState).ToList();
+                IList<OrchestratorAction> decisions = (await ExecuteOrchestrationAsync(runtimeState)).ToList();
 
                 TraceHelper.TraceInstance(TraceEventType.Information,
                     runtimeState.OrchestrationInstance,
@@ -269,7 +263,7 @@ namespace DurableTask.Core
                 instanceState);
         }
 
-        internal virtual IEnumerable<OrchestratorAction> ExecuteOrchestration(OrchestrationRuntimeState runtimeState)
+        async Task<IEnumerable<OrchestratorAction>> ExecuteOrchestrationAsync(OrchestrationRuntimeState runtimeState)
         {
             TaskOrchestration taskOrchestration = objectManager.GetObject(runtimeState.Name, runtimeState.Version);
             if (taskOrchestration == null)
@@ -278,8 +272,20 @@ namespace DurableTask.Core
                     new TypeMissingException($"Orchestration not found: ({runtimeState.Name}, {runtimeState.Version})"));
             }
 
-            var taskOrchestrationExecutor = new TaskOrchestrationExecutor(runtimeState, taskOrchestration);
-            IEnumerable<OrchestratorAction> decisions = taskOrchestrationExecutor.Execute();
+            var dispatchContext = new DispatchMiddlewareContext();
+            dispatchContext.SetProperty(runtimeState.OrchestrationInstance);
+            dispatchContext.SetProperty(taskOrchestration);
+            dispatchContext.SetProperty(runtimeState);
+
+            IEnumerable<OrchestratorAction> decisions = null;
+            await this.dispatchPipeline.RunAsync(dispatchContext, _ =>
+            {
+                var taskOrchestrationExecutor = new TaskOrchestrationExecutor(runtimeState, taskOrchestration);
+                decisions = taskOrchestrationExecutor.Execute();
+
+                return Task.FromResult(0);
+            });
+
             return decisions;
         }
 
