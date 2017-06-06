@@ -27,7 +27,7 @@ namespace DurableTask.ServiceFabric
         // in the code within this class as that would violate the immutable design. Any
         // method that mutates the state should return a new instance instead.
         [DataMember]
-        public string SessionId { get; private set; }
+        public OrchestrationInstance SessionId { get; private set; }
 
         // Note: The properties below are marked IEnumerable but not
         // IImmutableList because DataContract serialization cannot deserialize the latter.
@@ -46,18 +46,18 @@ namespace DurableTask.ServiceFabric
             this.sessionState = this.sessionState.ToImmutableList();
         }
 
-        private PersistentSession(string sessionId, IImmutableList<HistoryEvent> sessionState)
+        private PersistentSession(OrchestrationInstance sessionId, IImmutableList<HistoryEvent> sessionState)
         {
             this.SessionId = sessionId;
             this.sessionState = sessionState ?? ImmutableList<HistoryEvent>.Empty;
         }
 
-        public static PersistentSession Create(string sessionId)
+        public static PersistentSession Create(OrchestrationInstance sessionId)
         {
             return Create(sessionId, null);
         }
 
-        public static PersistentSession Create(string sessionId, IImmutableList<HistoryEvent> sessionState)
+        public static PersistentSession Create(OrchestrationInstance sessionId, IImmutableList<HistoryEvent> sessionState)
         {
             return new PersistentSession(sessionId, sessionState);
         }

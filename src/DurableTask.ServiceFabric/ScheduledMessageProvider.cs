@@ -141,7 +141,7 @@ namespace DurableTask.ServiceFabric
                         var keys = activatedMessages.Select(m => m.Key);
                         var values = activatedMessages.Select(m => m.Value).ToList();
 
-                        IList<string> modifiedSessions = null;
+                        IList<OrchestrationInstance> modifiedSessions = null;
 
                         await RetryHelper.ExecuteWithRetryOnTransient(async () =>
                         {

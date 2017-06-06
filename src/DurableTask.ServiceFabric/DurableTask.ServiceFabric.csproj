@@ -102,6 +102,7 @@
     <Compile Include="FabricOrchestrationServiceClient.cs" />
     <Compile Include="IFabricOrchestrationServiceInstanceStore.cs" />
     <Compile Include="Message.cs" />
+    <Compile Include="OrchestrationInstanceComparer.cs" />
     <Compile Include="OrchestrationStatusExtensions.cs" />
     <Compile Include="ActivityProvider.cs" />
     <Compile Include="PersistentSession.cs">

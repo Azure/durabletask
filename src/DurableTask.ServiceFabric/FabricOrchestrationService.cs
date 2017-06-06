@@ -14,6 +14,7 @@
 namespace DurableTask.ServiceFabric
 {
     using System;
+    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Fabric;
     using System.Linq;
@@ -31,6 +32,8 @@ namespace DurableTask.ServiceFabric
         readonly ActivityProvider<string, TaskMessage> activitiesProvider;
         readonly ScheduledMessageProvider scheduledMessagesProvider;
         readonly FabricOrchestrationProviderSettings settings;
+
+        ConcurrentDictionary<string, SessionInformation> sessionInfos = new ConcurrentDictionary<string, SessionInformation>();
 
         public FabricOrchestrationService(IReliableStateManager stateManager,
             SessionsProvider orchestrationProvider,
@@ -142,7 +145,7 @@ namespace DurableTask.ServiceFabric
                 return null;
             }
 
-            List<TaskMessage> newMessages;
+            List<Message<Guid, TaskMessage>> newMessages;
             try
             {
                 newMessages = await this.orchestrationProvider.ReceiveSessionMessagesAsync(currentSession);
@@ -150,15 +153,15 @@ namespace DurableTask.ServiceFabric
             catch(Exception e)
             {
                 ProviderEventSource.Log.ExceptionWhileProcessingReliableCollectionTransaction($"OrchestrationId = '{currentSession.SessionId}', Action = 'ReceiveSessionMessagesAsync'", e.ToString());
-                this.orchestrationProvider.TryUnlockSession(currentSession.SessionId);
+                this.orchestrationProvider.TryUnlockSession(currentSession.SessionId, abandon: true);
                 throw;
             }
 
             var currentRuntimeState = new OrchestrationRuntimeState(currentSession.SessionState);
             var workItem = new TaskOrchestrationWorkItem()
             {
-                NewMessages = newMessages,
-                InstanceId = currentSession.SessionId,
+                NewMessages = newMessages.Select(m => m.Value).ToList(),
+                InstanceId = currentSession.SessionId.InstanceId,
                 OrchestrationRuntimeState = currentRuntimeState
             };
 
@@ -169,14 +172,25 @@ namespace DurableTask.ServiceFabric
                     return null;
                 }
 
-                if (currentRuntimeState.OrchestrationStatus.IsTerminalState())
+                bool isComplete = currentRuntimeState.OrchestrationStatus.IsTerminalState();
+                if (isComplete)
                 {
                     await this.ReleaseTaskOrchestrationWorkItemAsync(workItem);
-                    return null;
                 }
 
-                this.orchestrationProvider.TryUnlockSession(currentSession.SessionId);
+                this.orchestrationProvider.TryUnlockSession(currentSession.SessionId, isComplete: isComplete);
                 return null;
+            }
+
+            var sessionInfo = new SessionInformation()
+            {
+                Instance = currentSession.SessionId,
+                LockTokens = newMessages.Select(m => m.Key).ToList()
+            };
+
+            if (!this.sessionInfos.TryAdd(workItem.InstanceId, sessionInfo))
+            {
+                ProviderEventSource.Log.UnexpectedCodeCondition($"{nameof(FabricOrchestrationService)}.{nameof(LockNextTaskOrchestrationWorkItemAsync)} : Multiple receivers processing the same session : {currentSession.SessionId.InstanceId}?");
             }
 
             return workItem;
@@ -196,12 +210,14 @@ namespace DurableTask.ServiceFabric
             TaskMessage continuedAsNewMessage,
             OrchestrationState orchestrationState)
         {
+            SessionInformation sessionInfo = GetSessionInfo(workItem.InstanceId);
+
             if (continuedAsNewMessage != null)
             {
                 throw new Exception("ContinueAsNew is not supported yet");
             }
 
-            IList<string> sessionsToEnqueue = null;
+            IList<OrchestrationInstance> sessionsToEnqueue = null;
             List<Message<string, TaskMessage>> scheduledMessages = null;
             List<Message<string, TaskMessage>> activityMessages = null;
 
@@ -219,7 +235,7 @@ namespace DurableTask.ServiceFabric
 
                         using (var txn = this.stateManager.CreateTransaction())
                         {
-                            await this.orchestrationProvider.CompleteAndUpdateSession(txn, workItem.InstanceId, newOrchestrationRuntimeState);
+                            await this.orchestrationProvider.CompleteAndUpdateSession(txn, sessionInfo.Instance, newOrchestrationRuntimeState, sessionInfo.LockTokens);
 
                             if (outboundMessages?.Count > 0)
                             {
@@ -242,7 +258,7 @@ namespace DurableTask.ServiceFabric
                                 else
                                 {
                                     await this.orchestrationProvider.AppendMessageBatchAsync(txn, orchestratorMessages);
-                                    sessionsToEnqueue = orchestratorMessages.Select(m => m.OrchestrationInstance.InstanceId).ToList();
+                                    sessionsToEnqueue = orchestratorMessages.Select(m => m.OrchestrationInstance).ToList();
                                 }
                             }
 
@@ -280,7 +296,6 @@ namespace DurableTask.ServiceFabric
                 } while (retryOnException);
             }, uniqueActionIdentifier: $"OrchestrationId = '{workItem.InstanceId}', Action = '{nameof(CompleteTaskOrchestrationWorkItemAsync)}'");
 
-            this.orchestrationProvider.TryUnlockSession(workItem.InstanceId);
             if (activityMessages != null)
             {
                 this.activitiesProvider.SendBatchComplete(activityMessages);
@@ -291,28 +306,44 @@ namespace DurableTask.ServiceFabric
             }
             if (sessionsToEnqueue != null)
             {
-                foreach (var sessionId in sessionsToEnqueue)
+                foreach (var instance in sessionsToEnqueue)
                 {
-                    this.orchestrationProvider.TryEnqueueSession(sessionId);
+                    this.orchestrationProvider.TryEnqueueSession(instance);
                 }
             }
         }
 
         public Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
-            this.orchestrationProvider.TryUnlockSession(workItem.InstanceId, abandon: true);
+            SessionInformation sessionInfo = TryRemoveSessionInfo(workItem.InstanceId);
+            if (sessionInfo == null)
+            {
+                ProviderEventSource.Log.UnexpectedCodeCondition($"{nameof(AbandonTaskOrchestrationWorkItemAsync)} : Could not get a session info object while trying to abandon session {workItem.InstanceId}");
+            }
+            else
+            {
+                this.orchestrationProvider.TryUnlockSession(sessionInfo.Instance, abandon: true);
+            }
             return CompletedTask.Default;
         }
 
         public async Task ReleaseTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
-            if (workItem.OrchestrationRuntimeState.OrchestrationStatus.IsTerminalState())
+            bool isComplete = workItem.OrchestrationRuntimeState.OrchestrationStatus.IsTerminalState();
+
+            SessionInformation sessionInfo = TryRemoveSessionInfo(workItem.InstanceId);
+            if (sessionInfo != null)
+            {
+                this.orchestrationProvider.TryUnlockSession(sessionInfo.Instance, isComplete: isComplete);
+            }
+
+            if (isComplete)
             {
                 await RetryHelper.ExecuteWithRetryOnTransient(async () =>
                 {
                     using (var txn = this.stateManager.CreateTransaction())
                     {
-                        await this.orchestrationProvider.DropSession(txn, workItem.InstanceId);
+                        await this.orchestrationProvider.DropSession(txn, workItem.OrchestrationRuntimeState.OrchestrationInstance);
                         await this.instanceStore.WriteEntitesAsync(txn, new InstanceEntityBase[]
                         {
                             new OrchestrationStateInstanceEntity()
@@ -385,7 +416,7 @@ namespace DurableTask.ServiceFabric
 
             if (added)
             {
-                this.orchestrationProvider.TryEnqueueSession(responseMessage.OrchestrationInstance.InstanceId);
+                this.orchestrationProvider.TryEnqueueSession(responseMessage.OrchestrationInstance);
             }
         }
 
@@ -415,6 +446,33 @@ namespace DurableTask.ServiceFabric
             }
 
             return -1;
+        }
+
+        SessionInformation GetSessionInfo(string sessionId)
+        {
+            SessionInformation sessionInfo;
+            if (!this.sessionInfos.TryGetValue(sessionId, out sessionInfo))
+            {
+                var message = $"{nameof(GetSessionInfo)}. Trying to get a session that's not in locked sessions {sessionId}";
+                ProviderEventSource.Log.UnexpectedCodeCondition(message);
+                throw new Exception(message);
+            }
+
+            return sessionInfo;
+        }
+
+        SessionInformation TryRemoveSessionInfo(string sessionId)
+        {
+            SessionInformation sessionInfo;
+            this.sessionInfos.TryRemove(sessionId, out sessionInfo);
+            return sessionInfo;
+        }
+
+        class SessionInformation
+        {
+            public OrchestrationInstance Instance { get; set; }
+
+            public List<Guid> LockTokens { get; set; }
         }
     }
 }

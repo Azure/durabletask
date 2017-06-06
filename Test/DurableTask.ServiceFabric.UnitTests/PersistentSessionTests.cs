@@ -39,12 +39,19 @@ namespace DurableTask.ServiceFabric.UnitTests
             }
             events.Add(new ExecutionCompletedEvent(-1, "FinalResult", OrchestrationStatus.Completed));
 
-            PersistentSession testSession = PersistentSession.Create("testSession", events.ToImmutableList());
+            var instance = new OrchestrationInstance()
+            {
+                InstanceId = "testSession",
+                ExecutionId = Guid.NewGuid().ToString("N")
+            };
+
+            PersistentSession testSession = PersistentSession.Create(instance, events.ToImmutableList());
 
             var actual = Measure.DataContractSerialization(testSession);
 
             Assert.IsNotNull(actual);
-            Assert.AreEqual("testSession", actual.SessionId);
+            Assert.AreEqual(instance.InstanceId, actual.SessionId.InstanceId);
+            Assert.AreEqual(instance.ExecutionId, actual.SessionId.ExecutionId);
             Assert.AreEqual(numberOfHistoryEvents * 2 + 2, actual.SessionState.Count);
         }
     }

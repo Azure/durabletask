@@ -138,6 +138,24 @@ namespace DurableTask.ServiceFabric.Test
         }
 
         [TestMethod]
+        public async Task Orchestration_With_Long_InstanceId_Name_Test()
+        {
+            var instanceId = $"MySomewhatLongNamespaceName|MyRelativelyLongRootEntityName|{Guid.NewGuid().ToString("N")}|MyRatherLongRuleName";
+            var instance = await this.serviceClient.StartTestOrchestrationWithInstanceIdAsync(instanceId, new TestOrchestrationData()
+            {
+                NumberOfParallelTasks = 16,
+                NumberOfSerialTasks = 5,
+                MaxDelay = 0,
+                MinDelay = 0,
+                DelayUnit = TimeSpan.FromMilliseconds(1)
+            });
+
+            var result = await this.serviceClient.WaitForOrchestration(instance, TimeSpan.FromMinutes(1));
+            Assert.IsNotNull(result);
+            Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
+        }
+
+        [TestMethod]
         public async Task QueryState_For_Latest_Execution()
         {
             var instanceId = nameof(QueryState_For_Latest_Execution);
