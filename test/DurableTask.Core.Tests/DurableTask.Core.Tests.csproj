@@ -14,7 +14,9 @@
 
 	<ItemGroup>
 	  <ProjectReference Include="..\..\src\DurableTask.Core\DurableTask.Core.csproj" />
+	  <ProjectReference Include="..\..\src\DurableTask.Emulator\DurableTask.Emulator.csproj" />
 	  <ProjectReference Include="..\..\src\DurableTask.ServiceBus\DurableTask.ServiceBus.csproj" />
+	  <ProjectReference Include="..\DurableTask.Test.Orchestrations\DurableTask.Test.Orchestrations.csproj" />
 	</ItemGroup>	
 	
 	<ItemGroup>
