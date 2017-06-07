@@ -161,6 +161,7 @@ namespace DurableTask.ServiceFabric.Test
             }
 
             var scheduledInstances = await Task.WhenAll(startTasks);
+            await Task.Delay(TimeSpan.FromSeconds(2));
 
             var allInstances = (await this.serviceClient.GetRunningOrchestrations()).ToList();
             Assert.AreEqual(numberOfInstances, allInstances.Count);
@@ -170,6 +171,8 @@ namespace DurableTask.ServiceFabric.Test
                 var returnedInstance = allInstances.FirstOrDefault(i => string.Equals(i.InstanceId, scheduledInstance.InstanceId));
                 Assert.IsNotNull(returnedInstance);
                 Assert.AreEqual(scheduledInstance.ExecutionId, returnedInstance.ExecutionId);
+                var runtimeState = await this.serviceClient.GetOrchestrationRuntimeState(scheduledInstance.InstanceId);
+                Console.WriteLine($"Runtime Orchestration State for {scheduledInstance} : {runtimeState}");
             }
 
             var waitTasks = new List<Task<OrchestrationState>>();

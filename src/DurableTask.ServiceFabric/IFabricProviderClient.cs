@@ -13,6 +13,7 @@
 
 namespace DurableTask.ServiceFabric
 {
+    using System;
     using System.Collections.Generic;
     using System.Threading.Tasks;
 
@@ -26,5 +27,17 @@ namespace DurableTask.ServiceFabric
         /// </summary>
         /// <returns></returns>
         Task<IEnumerable<OrchestrationInstance>> GetRunningOrchestrations();
+
+        /// <summary>
+        /// Gets runtime state of a running or pending orchestration which includes the history events.
+        /// </summary>
+        /// <param name="instanceId">The <see cref="DurableTask.OrchestrationInstance.InstanceId"/>
+        /// of the orchestration.</param>
+        /// <returns>Returns serialized runtime state which includes all the history events if the 
+        /// orchestration is running or pending.</returns>
+        /// <remarks>The API is intended for diagnostics purpose, so current implementation returns 
+        /// a formatted json serialized string which can be very large.</remarks>
+        /// <exception cref="ArgumentException">When the orchestration already completed or was never started.</exception>
+        Task<string> GetOrchestrationRuntimeState(string instanceId);
     }
 }

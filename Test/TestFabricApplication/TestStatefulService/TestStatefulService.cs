@@ -183,6 +183,11 @@ namespace TestStatefulService
             return this.fabricProvider.FabricProviderClient.GetRunningOrchestrations();
         }
 
+        public Task<string> GetOrchestrationRuntimeState(string instanceId)
+        {
+            return this.fabricProvider.FabricProviderClient.GetOrchestrationRuntimeState(instanceId);
+        }
+
         static Dictionary<string, TaskOrchestration> KnownOrchestrationInstances = new Dictionary<string, TaskOrchestration>
         {
             { typeof(OrchestrationRunningIntoRetry).Name, new OrchestrationRunningIntoRetry() },

@@ -24,6 +24,8 @@ namespace TestApplication.Common
     {
         Task<IEnumerable<OrchestrationInstance>> GetRunningOrchestrations();
 
+        Task<string> GetOrchestrationRuntimeState(string instanceId);
+
         Task<OrchestrationState> RunOrchestrationAsync(string orchestrationTypeName, object input, TimeSpan waitTimeout);
 
         Task<OrchestrationState> RunDriverOrchestrationAsync(DriverOrchestrationData input, TimeSpan waitTimeout);

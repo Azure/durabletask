@@ -230,6 +230,22 @@ namespace DurableTask.ServiceFabric
             }
         }
 
+        public async Task<PersistentSession> GetSession(string instanceId)
+        {
+            await EnsureOrchestrationStoreInitialized();
+
+            using (var txn = this.StateManager.CreateTransaction())
+            {
+                var value = await this.Store.TryGetValueAsync(txn, instanceId);
+                if (value.HasValue)
+                {
+                    return value.Value;
+                }
+            }
+
+            return null;
+        }
+
         public void TryEnqueueSession(OrchestrationInstance instance)
         {
             this.TryEnqueueSession(instance.InstanceId);
