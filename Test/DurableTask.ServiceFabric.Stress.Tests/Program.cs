@@ -11,143 +11,65 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Threading;
-using System.Threading.Tasks;
-using DurableTask.Test.Orchestrations.Perf;
-using Microsoft.ServiceFabric.Services.Client;
-using Microsoft.ServiceFabric.Services.Remoting.Client;
-using TestApplication.Common;
-
-namespace DurableTask.ServiceFabric.Stress.Tests
+namespace DurableTask.ServiceFabric.Failover.Tests
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Diagnostics;
+    using System.Threading;
+    using System.Threading.Tasks;
+
     class Program
     {
-        static ConcurrentBag<OrchestrationInstance> instances = new ConcurrentBag<OrchestrationInstance>();
-        static IRemoteClient serviceClient = ServiceProxy.Create<IRemoteClient>(new Uri("fabric:/TestFabricApplication/TestStatefulService"), new ServicePartitionKey(1));
-        static Dictionary<string, long> outcomeFrequencies = new Dictionary<string, long>();
-
         static void Main(string[] args)
         {
-            RunTest().Wait();
+            MainAsync(args).Wait();
         }
 
-        static async Task RunTest()
+        static async Task MainAsync(string[] args)
         {
-            CancellationTokenSource cts1 = new CancellationTokenSource();
-            CancellationTokenSource cts2 = new CancellationTokenSource();
+            var timeToRun = ValidateArgs(args);
 
-            Stopwatch watch = Stopwatch.StartNew();
-            var programTask = RunOrchestrations(cts1.Token);
-            var statusTask = PollState(cts2.Token);
-
-            Console.WriteLine("Press any key to stop running orchestrations and print results");
-            Console.ReadKey();
-
-            cts1.Cancel();
-            await programTask;
-
-            cts2.Cancel();
-            await statusTask;
-            watch.Stop();
-
-            Func<TimeSpan, string> elapsedTimeFormatter = timeSpan => $"{timeSpan.Hours:00}:{timeSpan.Minutes:00}:{timeSpan.Seconds:00}.{timeSpan.Milliseconds / 10:00}";
-            Console.WriteLine($"Total elapsed time for the program : {elapsedTimeFormatter(watch.Elapsed)}");
-        }
-
-        static async Task PollState(CancellationToken cancellationToken)
-        {
-            while (!cancellationToken.IsCancellationRequested)
+            var tasks = new List<Task>();
+            if (timeToRun != TimeSpan.Zero)
             {
-                await PrintStatusAggregation();
-                await Task.Delay(TimeSpan.FromSeconds(10));
-            }
-            await PrintStatusAggregation();
-        }
-
-        static async Task PrintStatusAggregation()
-        {
-            Console.WriteLine($"Numer of instances so far : {instances.Count}");
-            foreach (var instance in instances)
-            {
-                var state = await serviceClient.GetOrchestrationState(instance);
-                var key = state != null ? state.OrchestrationStatus.ToString() : "NullState";
-
-                if (!outcomeFrequencies.ContainsKey(key))
+                CancellationTokenSource cts = new CancellationTokenSource();
+                if (timeToRun <= TimeSpan.FromMinutes(Int32.MaxValue)) //Cancellation token can't take more time than Int32.MaxValue
                 {
-                    outcomeFrequencies.Add(key, 0);
+                    cts.CancelAfter(timeToRun);
                 }
 
-                outcomeFrequencies[key]++;
+                var runner = new OrchestrationRunner();
+                tasks.Add(runner.RunTestAsync(cts.Token));
+
+                await Task.Delay(TimeSpan.FromMinutes(2));
+
+                var chaosRunner = new ChaosRunner();
+                tasks.Add(chaosRunner.RunFailoverScenario(timeToRun, cts.Token));
+
+                Console.WriteLine("Press any key to stop running orchestrations and print results");
+                Console.ReadKey();
+                cts.Cancel();
             }
 
-            foreach (var kvp in outcomeFrequencies)
-            {
-                Console.WriteLine($"{kvp.Key} : {kvp.Value}");
-            }
-
-            outcomeFrequencies.Clear();
-        }
-
-        static async Task RunOrchestrations(CancellationToken cancellationToken)
-        {
-            int totalRequests = 0;
-            List<Task> tasks = new List<Task>();
-            Console.WriteLine("Starting orchestrations");
-
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                var newOrchData = new TestOrchestrationData()
-                {
-                    NumberOfParallelTasks = 15,
-                    NumberOfSerialTasks = 5,
-                    MaxDelay = 500,
-                    MinDelay = 50,
-                    DelayUnit = TimeSpan.FromMilliseconds(1),
-                    UseTimeoutTask = false, //Change to true when testing timers
-                    ExecutionTimeout = TimeSpan.FromMinutes(5)
-                };
-
-                totalRequests++;
-                var instance = await serviceClient.StartTestOrchestrationAsync(newOrchData);
-                instances.Add(instance);
-                var waitTask = serviceClient.WaitForOrchestration(instance, TimeSpan.FromMinutes(5));
-
-                tasks.Add(waitTask);
-
-                var delayBetweenRequests = 100;
-                try
-                {
-                    await Task.Delay(TimeSpan.FromMilliseconds(delayBetweenRequests), cancellationToken);
-                }
-                catch (TaskCanceledException)
-                {
-                    break;
-                }
-            }
-
-            Console.WriteLine($"Total orchestrations : {totalRequests}");
-            Console.WriteLine("Waiting for pending orchestrations");
             await Task.WhenAll(tasks);
-
-            Console.WriteLine("Done");
         }
 
-        static int GetVariableDelayForTotalRequests(int totalRequests)
+        static TimeSpan ValidateArgs(string[] args)
         {
-            int delay = 0;
-            if (totalRequests%10 == 0)
+            if (args == null || args.Length == 0)
             {
-                delay = 1000;
+                return TimeSpan.MaxValue; //Indicates that test should run till user stops it.
             }
-            if (totalRequests%100 == 0)
+
+            var first = args[0];
+            int toBeRunTime = 0;
+            if (!int.TryParse(first, out toBeRunTime))
             {
-                delay = 3000;
+                Console.WriteLine($"{Process.GetCurrentProcess().ProcessName} [Time to run (minutes)]");
             }
-            return delay;
+
+            return TimeSpan.FromMinutes(toBeRunTime);
         }
     }
 }

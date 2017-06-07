@@ -229,7 +229,7 @@ namespace DurableTask.ServiceFabric
                 {
                     await this.stateManager.RemoveAsync($"{purgeTime}{i:D2}");
                 }
-            }, delayOnSuccess: TimeSpan.FromHours(12), delayOnException: TimeSpan.FromHours(1), actionName: $"{nameof(CleanupDayOldDictionaries)}", token: this.cancellationTokenSource.Token);
+            }, initialDelay: TimeSpan.FromMinutes(5), delayOnSuccess: TimeSpan.FromHours(12), delayOnException: TimeSpan.FromHours(1), actionName: $"{nameof(CleanupDayOldDictionaries)}", token: this.cancellationTokenSource.Token);
         }
 
         Task CleanupOldDictionaries()
@@ -274,7 +274,7 @@ namespace DurableTask.ServiceFabric
                     });
                     ProviderEventSource.Log.LogTimeTaken($"Deleting reliable state {storeName}", deleteTime.TotalMilliseconds);
                 }
-            }, delayOnSuccess: TimeSpan.FromHours(1), delayOnException: TimeSpan.FromMinutes(10), actionName: $"{nameof(CleanupOldDictionaries)}", token: this.cancellationTokenSource.Token);
+            }, initialDelay: TimeSpan.FromMinutes(5), delayOnSuccess: TimeSpan.FromHours(1), delayOnException: TimeSpan.FromMinutes(10), actionName: $"{nameof(CleanupOldDictionaries)}", token: this.cancellationTokenSource.Token);
         }
 
         async Task EnsureStoreInitialized()

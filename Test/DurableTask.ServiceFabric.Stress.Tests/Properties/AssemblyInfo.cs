@@ -5,11 +5,11 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("DurableTask.ServiceFabric.Stress.Tests")]
+[assembly: AssemblyTitle("DurableTask.ServiceFabric.Failover.Tests")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("DurableTask.ServiceFabric.Stress.Tests")]
+[assembly: AssemblyProduct("DurableTask.ServiceFabric.Failover.Tests")]
 [assembly: AssemblyCopyright("Copyright ©  2016")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]

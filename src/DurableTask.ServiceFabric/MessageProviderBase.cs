@@ -189,7 +189,7 @@ namespace DurableTask.ServiceFabric
                 }
 
                 ProviderEventSource.Log.LogStoreCount(this.storeName, count);
-            }, delayOnSuccess: metricsInterval, delayOnException: metricsInterval, actionName: $"Log Store Count of {this.storeName}", token: this.CancellationToken);
+            }, initialDelay: metricsInterval, delayOnSuccess: metricsInterval, delayOnException: metricsInterval, actionName: $"Log Store Count of {this.storeName}", token: this.CancellationToken);
         }
     }
 }

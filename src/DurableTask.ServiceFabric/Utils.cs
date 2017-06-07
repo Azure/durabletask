@@ -57,8 +57,16 @@ namespace DurableTask.ServiceFabric
             return timer.Elapsed;
         }
 
-        public static async Task RunBackgroundJob(Func<Task> loopAction, TimeSpan delayOnSuccess, TimeSpan delayOnException, string actionName, CancellationToken token)
+        public static async Task RunBackgroundJob(Func<Task> loopAction, TimeSpan initialDelay, TimeSpan delayOnSuccess, TimeSpan delayOnException, string actionName, CancellationToken token)
         {
+            try
+            {
+                await Task.Delay(initialDelay, token);
+            }
+            catch(TaskCanceledException)
+            {
+            }
+
             while (!token.IsCancellationRequested)
             {
                 try

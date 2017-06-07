@@ -8,8 +8,8 @@
     <ProjectGuid>{BE4624F3-E565-428F-9EED-E6847530746A}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>DurableTask.ServiceFabric.Stress.Tests</RootNamespace>
-    <AssemblyName>DurableTask.ServiceFabric.Stress.Tests</AssemblyName>
+    <RootNamespace>DurableTask.ServiceFabric.Failover.Tests</RootNamespace>
+    <AssemblyName>DurableTask.ServiceFabric.Failover.Tests</AssemblyName>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
   </PropertyGroup>
@@ -72,8 +72,11 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ChaosRunner.cs" />
+    <Compile Include="OrchestrationRunner.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Utils.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

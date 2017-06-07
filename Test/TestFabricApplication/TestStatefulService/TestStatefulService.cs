@@ -93,13 +93,25 @@ namespace TestStatefulService
 
         protected override async Task OnChangeRoleAsync(ReplicaRole newRole, CancellationToken cancellationToken)
         {
+            ServiceEventSource.Current.ServiceRequestStart($"Fabric On Change Role Async, current role = {this.currentRole}, new role = {newRole}");
             if (newRole != ReplicaRole.Primary && this.currentRole == ReplicaRole.Primary)
             {
-                await this.worker.StopAsync(isForced: true);
-                this.worker.Dispose();
-                this.fabricProvider = null;
+                try
+                {
+                    ServiceEventSource.Current.ServiceMessage(this, "Replica Role Changed From Primary to Non-Primary, Stopping Taskhub Worker");
+                    await this.worker.StopAsync(isForced: true);
+                    this.worker.Dispose();
+                    this.fabricProvider = null;
+                    ServiceEventSource.Current.ServiceMessage(this, "Replica Role Changed From Primary to Non-Primary, Stopped Taskhub Worker");
+                }
+                catch (Exception e)
+                {
+                    ServiceEventSource.Current.ServiceRequestFailed("Fabric On Change Role Async - Stop Worker On Primary Move", e.ToString());
+                    throw;
+                }
             }
             this.currentRole = newRole;
+            ServiceEventSource.Current.ServiceRequestStop($"Fabric On Change Role Async, current role = {this.currentRole}");
         }
 
         public async Task<OrchestrationState> RunOrchestrationAsync(string orchestrationTypeName, object input, TimeSpan waitTimeout)

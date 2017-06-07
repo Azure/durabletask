@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 14
-VisualStudioVersion = 14.0.25420.1
+# Visual Studio 15
+VisualStudioVersion = 15.0.26403.7
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".nuget", ".nuget", "{501E1168-418C-4832-B88C-617735BD02C9}"
 	ProjectSection(SolutionItems) = preProject
@@ -36,7 +36,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.Framework.Tests
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.Test.Orchestrations", "Test\DurableTask.Test.Orchestrations\DurableTask.Test.Orchestrations.csproj", "{2BC2A5AD-4200-41B9-A034-332BB1D7187B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.ServiceFabric.Stress.Tests", "Test\DurableTask.ServiceFabric.Stress.Tests\DurableTask.ServiceFabric.Stress.Tests.csproj", "{BE4624F3-E565-428F-9EED-E6847530746A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.ServiceFabric.Failover.Tests", "Test\DurableTask.ServiceFabric.Stress.Tests\DurableTask.ServiceFabric.Failover.Tests.csproj", "{BE4624F3-E565-428F-9EED-E6847530746A}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.ServiceFabric.UnitTests", "Test\DurableTask.ServiceFabric.UnitTests\DurableTask.ServiceFabric.UnitTests.csproj", "{31C9C932-6376-46D4-A68A-A0A7F2726D38}"
 EndProject
