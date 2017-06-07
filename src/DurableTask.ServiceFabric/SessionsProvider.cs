@@ -18,6 +18,7 @@ namespace DurableTask.ServiceFabric
     using System.Collections.Generic;
     using System.Collections.Immutable;
     using System.Linq;
+    using System.Threading;
     using System.Threading.Tasks;
     using Microsoft.ServiceFabric.Data;
 
@@ -28,7 +29,7 @@ namespace DurableTask.ServiceFabric
 
         ConcurrentDictionary<OrchestrationInstance, SessionMessagesProvider<Guid, TaskMessage>> sessionMessageProviders = new ConcurrentDictionary<OrchestrationInstance, SessionMessagesProvider<Guid, TaskMessage>>(OrchestrationInstanceComparer.Default);
 
-        public SessionsProvider(IReliableStateManager stateManager) : base(stateManager, Constants.OrchestrationDictionaryName)
+        public SessionsProvider(IReliableStateManager stateManager, CancellationToken token) : base(stateManager, Constants.OrchestrationDictionaryName, token)
         {
         }
 
@@ -249,10 +250,7 @@ namespace DurableTask.ServiceFabric
             }
 
             SessionMessagesProvider<Guid, TaskMessage> sessionMessagesProvider;
-            if (this.sessionMessageProviders.TryRemove(instance, out sessionMessagesProvider))
-            {
-                await sessionMessagesProvider.StopAsync();
-            }
+            this.sessionMessageProviders.TryRemove(instance, out sessionMessagesProvider);
 
             var noWait = Task.Run(() => this.StateManager.RemoveAsync(GetSessionMessagesDictionaryName(instance)));
             await this.Store.TryRemoveAsync(txn, instance.InstanceId);
@@ -271,7 +269,7 @@ namespace DurableTask.ServiceFabric
 
         async Task<SessionMessagesProvider<Guid, TaskMessage>> GetOrAddSessionMessagesInstance(OrchestrationInstance instance)
         {
-            var newInstance = new SessionMessagesProvider<Guid, TaskMessage>(this.StateManager, GetSessionMessagesDictionaryName(instance));
+            var newInstance = new SessionMessagesProvider<Guid, TaskMessage>(this.StateManager, GetSessionMessagesDictionaryName(instance), this.CancellationToken);
             var sessionMessageProvider = this.sessionMessageProviders.GetOrAdd(instance, newInstance);
 
             if (sessionMessageProvider == newInstance)

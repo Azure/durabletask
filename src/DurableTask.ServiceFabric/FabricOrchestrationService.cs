@@ -32,20 +32,23 @@ namespace DurableTask.ServiceFabric
         readonly ActivityProvider<string, TaskMessage> activitiesProvider;
         readonly ScheduledMessageProvider scheduledMessagesProvider;
         readonly FabricOrchestrationProviderSettings settings;
+        readonly CancellationTokenSource cancellationTokenSource;
 
         ConcurrentDictionary<string, SessionInformation> sessionInfos = new ConcurrentDictionary<string, SessionInformation>();
 
         public FabricOrchestrationService(IReliableStateManager stateManager,
             SessionsProvider orchestrationProvider,
             IFabricOrchestrationServiceInstanceStore instanceStore,
-            FabricOrchestrationProviderSettings settings)
+            FabricOrchestrationProviderSettings settings,
+            CancellationTokenSource cancellationTokenSource)
         {
             this.stateManager = stateManager ?? throw new ArgumentNullException(nameof(stateManager));
             this.orchestrationProvider = orchestrationProvider;
             this.instanceStore = instanceStore;
             this.settings = settings;
-            this.activitiesProvider = new ActivityProvider<string, TaskMessage>(this.stateManager, Constants.ActivitiesQueueName);
-            this.scheduledMessagesProvider = new ScheduledMessageProvider(this.stateManager, Constants.ScheduledMessagesDictionaryName, orchestrationProvider);
+            this.cancellationTokenSource = cancellationTokenSource;
+            this.activitiesProvider = new ActivityProvider<string, TaskMessage>(this.stateManager, Constants.ActivitiesQueueName, cancellationTokenSource.Token);
+            this.scheduledMessagesProvider = new ScheduledMessageProvider(this.stateManager, Constants.ScheduledMessagesDictionaryName, orchestrationProvider, cancellationTokenSource.Token);
         }
 
         public Task StartAsync()
@@ -63,10 +66,12 @@ namespace DurableTask.ServiceFabric
 
         public Task StopAsync(bool isForced)
         {
-            return Task.WhenAll(this.orchestrationProvider.StopAsync(),
-                this.instanceStore.StopAsync(isForced),
-                this.scheduledMessagesProvider.StopAsync(),
-                this.activitiesProvider.StopAsync());
+            if (!this.cancellationTokenSource.IsCancellationRequested)
+            {
+                this.cancellationTokenSource.Cancel();
+            }
+
+            return CompletedTask.Default;
         }
 
         public Task CreateAsync()

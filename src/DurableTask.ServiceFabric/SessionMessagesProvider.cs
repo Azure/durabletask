@@ -15,14 +15,15 @@ namespace DurableTask.ServiceFabric
 {
     using System;
     using System.Collections.Generic;
+    using System.Threading;
     using System.Threading.Tasks;
     using Microsoft.ServiceFabric.Data;
     using Microsoft.ServiceFabric.Data.Collections;
 
     class SessionMessagesProvider<TKey, TValue> : MessageProviderBase<TKey, TValue> where TKey : IComparable<TKey>, IEquatable<TKey>
     {
-        public SessionMessagesProvider(IReliableStateManager stateManager, string storeName)
-            : base(stateManager, storeName)
+        public SessionMessagesProvider(IReliableStateManager stateManager, string storeName, CancellationToken token)
+            : base(stateManager, storeName, token)
         {
         }
 

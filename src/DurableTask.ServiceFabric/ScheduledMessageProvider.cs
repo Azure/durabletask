@@ -17,6 +17,7 @@ namespace DurableTask.ServiceFabric
     using System.Collections.Generic;
     using System.Collections.Immutable;
     using System.Linq;
+    using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.History;
     using Microsoft.ServiceFabric.Data;
@@ -30,7 +31,7 @@ namespace DurableTask.ServiceFabric
         ImmutableSortedSet<Message<string, TaskMessage>> inMemorySet = ImmutableSortedSet<Message<string, TaskMessage>>.Empty.WithComparer(TimerFiredEventComparer.Instance);
         DateTime nextActivationCheck;
 
-        public ScheduledMessageProvider(IReliableStateManager stateManager, string storeName, SessionsProvider sessionsProvider) : base(stateManager, storeName)
+        public ScheduledMessageProvider(IReliableStateManager stateManager, string storeName, SessionsProvider sessionsProvider, CancellationToken token) : base(stateManager, storeName, token)
         {
             this.sessionsProvider = sessionsProvider;
         }

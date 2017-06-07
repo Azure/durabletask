@@ -28,18 +28,16 @@ namespace DurableTask.ServiceFabric
         readonly AsyncManualResetEvent waitEvent = new AsyncManualResetEvent();
         readonly TimeSpan metricsInterval = TimeSpan.FromMinutes(1);
 
-        CancellationTokenSource cancellationTokenSource;
-
-        protected MessageProviderBase(IReliableStateManager stateManager, string storeName)
+        protected MessageProviderBase(IReliableStateManager stateManager, string storeName, CancellationToken token)
         {
             this.StateManager = stateManager;
             this.storeName = storeName;
-            this.cancellationTokenSource = new CancellationTokenSource();
+            this.CancellationToken = token;
         }
 
         protected IReliableStateManager StateManager { get; }
 
-        protected CancellationToken CancellationToken => this.cancellationTokenSource.Token;
+        protected CancellationToken CancellationToken { get; private set; }
 
         protected IReliableDictionary<TKey, TValue> Store { get; private set; }
 
@@ -56,7 +54,7 @@ namespace DurableTask.ServiceFabric
                     var enumerable = await this.Store.CreateEnumerableAsync(tx, EnumerationMode.Unordered);
                     using (var enumerator = enumerable.GetAsyncEnumerator())
                     {
-                        while (await enumerator.MoveNextAsync(this.cancellationTokenSource.Token))
+                        while (await enumerator.MoveNextAsync(this.CancellationToken))
                         {
                             AddItemInMemory(enumerator.Current.Key, enumerator.Current.Value);
                         }
@@ -70,13 +68,6 @@ namespace DurableTask.ServiceFabric
         protected async Task InitializeStore()
         {
             this.Store = await this.StateManager.GetOrAddAsync<IReliableDictionary<TKey, TValue>>(this.storeName);
-        }
-
-        public Task StopAsync()
-        {
-            this.cancellationTokenSource.Cancel();
-            this.cancellationTokenSource.Dispose();
-            return CompletedTask.Default;
         }
 
         public Task CompleteAsync(ITransaction tx, TKey key)
@@ -158,7 +149,7 @@ namespace DurableTask.ServiceFabric
         protected Task<bool> WaitForItemsAsync(TimeSpan timeout)
         {
             this.waitEvent.Reset();
-            return this.waitEvent.WaitAsync(timeout, this.cancellationTokenSource.Token);
+            return this.waitEvent.WaitAsync(timeout, this.CancellationToken);
         }
 
         protected void SetWaiterForNewItems()
@@ -170,12 +161,12 @@ namespace DurableTask.ServiceFabric
 
         protected void ThrowIfStopped()
         {
-            this.cancellationTokenSource.Token.ThrowIfCancellationRequested();
+            this.CancellationToken.ThrowIfCancellationRequested();
         }
 
         protected bool IsStopped()
         {
-            return this.cancellationTokenSource.IsCancellationRequested;
+            return this.CancellationToken.IsCancellationRequested;
         }
 
         protected Task LogMetrics()

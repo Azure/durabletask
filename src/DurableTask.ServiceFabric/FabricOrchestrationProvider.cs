@@ -13,6 +13,8 @@
 
 namespace DurableTask.ServiceFabric
 {
+    using System;
+    using System.Threading;
     using Microsoft.ServiceFabric.Data;
 
     /// <summary>
@@ -25,27 +27,60 @@ namespace DurableTask.ServiceFabric
     /// Note that this provider object should not be used once <see cref="DurableTask.TaskHubWorker.StopAsync()"/> method is called
     /// on the worker object created using this provider. A new provider object should be created after that point.
     /// </remarks>
-    public sealed class FabricOrchestrationProvider
+    public sealed class FabricOrchestrationProvider : IDisposable
     {
         readonly FabricOrchestrationService orchestrationService;
         readonly FabricOrchestrationServiceClient orchestrationClient;
+        readonly CancellationTokenSource cancellationTokenSource;
 
         internal FabricOrchestrationProvider(IReliableStateManager stateManager, FabricOrchestrationProviderSettings settings)
         {
-            var sessionsProvider = new SessionsProvider(stateManager);
-            var instanceStore = new FabricOrchestrationInstanceStore(stateManager);
-            this.orchestrationService = new FabricOrchestrationService(stateManager, sessionsProvider, instanceStore, settings);
+            this.cancellationTokenSource = new CancellationTokenSource();
+            var sessionsProvider = new SessionsProvider(stateManager, cancellationTokenSource.Token);
+            var instanceStore = new FabricOrchestrationInstanceStore(stateManager, cancellationTokenSource.Token);
+            this.orchestrationService = new FabricOrchestrationService(stateManager, sessionsProvider, instanceStore, settings, cancellationTokenSource);
             this.orchestrationClient = new FabricOrchestrationServiceClient(stateManager, sessionsProvider, instanceStore);
         }
 
         /// <summary>
         /// <see cref="DurableTask.IOrchestrationService"/> instance that can be used for constructing <see cref="DurableTask.TaskHubWorker"/>.
         /// </summary>
-        public IOrchestrationService OrchestrationService => orchestrationService;
+        public IOrchestrationService OrchestrationService
+        {
+            get
+            {
+                EnsureValidInstance();
+                return this.orchestrationService;
+            }
+        }
 
         /// <summary>
         /// <see cref="DurableTask.IOrchestrationServiceClient"/> instance that can be used for constructing <see cref="DurableTask.TaskHubClient"/>.
         /// </summary>
-        public IOrchestrationServiceClient OrchestrationServiceClient => orchestrationClient;
+        public IOrchestrationServiceClient OrchestrationServiceClient
+        {
+            get
+            {
+                EnsureValidInstance();
+                return this.orchestrationClient;
+            }
+        }
+
+        /// <summary>
+        /// Disposes the object. The object should be disposed after <see cref="DurableTask.TaskHubWorker.StopAsync()"/>
+        /// is invoked on the <see cref="DurableTask.TaskHubWorker" /> created with the <see cref="OrchestrationService"/>.
+        /// </summary>
+        public void Dispose()
+        {
+            this.cancellationTokenSource.Dispose();
+        }
+
+        void EnsureValidInstance()
+        {
+            if (this.cancellationTokenSource.IsCancellationRequested)
+            {
+                throw new InvalidOperationException($"{nameof(IOrchestrationService)} instance has been stopped. Discard this provider instance and create a new provider object.");
+            }
+        }
     }
 }

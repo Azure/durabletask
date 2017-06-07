@@ -16,7 +16,6 @@ namespace DurableTask.ServiceFabric
     using System;
     using System.Collections.Generic;
     using System.Collections.Immutable;
-    using System.Diagnostics;
     using System.Globalization;
     using System.Threading;
     using System.Threading.Tasks;
@@ -34,14 +33,15 @@ namespace DurableTask.ServiceFabric
         const string TimeFormatString =  "yyyy-MM-dd-HH";
         const string TimeFormatStringPrefix = "yyyy-MM-dd-";
         readonly IReliableStateManager stateManager;
+        readonly CancellationToken cancellationToken;
 
-        CancellationTokenSource cancellationTokenSource;
         IReliableDictionary<string, OrchestrationState> instanceStore;
         IReliableDictionary<string, string> executionIdStore;
 
-        public FabricOrchestrationInstanceStore(IReliableStateManager stateManager)
+        public FabricOrchestrationInstanceStore(IReliableStateManager stateManager, CancellationToken token)
         {
             this.stateManager = stateManager;
+            this.cancellationToken = token;
         }
 
         public Task InitializeStoreAsync(bool recreate)
@@ -56,15 +56,8 @@ namespace DurableTask.ServiceFabric
 
         public async Task StartAsync()
         {
-            this.cancellationTokenSource = new CancellationTokenSource();
             await EnsureStoreInitialized();
             var nowait = CleanupOldDictionaries();
-        }
-
-        public Task StopAsync(bool isForced)
-        {
-            this.cancellationTokenSource.Cancel();
-            return CompletedTask.Default;
         }
 
         public async Task DeleteStoreAsync()
@@ -229,7 +222,7 @@ namespace DurableTask.ServiceFabric
                 {
                     await this.stateManager.RemoveAsync($"{purgeTime}{i:D2}");
                 }
-            }, initialDelay: TimeSpan.FromMinutes(5), delayOnSuccess: TimeSpan.FromHours(12), delayOnException: TimeSpan.FromHours(1), actionName: $"{nameof(CleanupDayOldDictionaries)}", token: this.cancellationTokenSource.Token);
+            }, initialDelay: TimeSpan.FromMinutes(5), delayOnSuccess: TimeSpan.FromHours(12), delayOnException: TimeSpan.FromHours(1), actionName: $"{nameof(CleanupDayOldDictionaries)}", token: this.cancellationToken);
         }
 
         Task CleanupOldDictionaries()
@@ -244,7 +237,7 @@ namespace DurableTask.ServiceFabric
                 var enumerationTime = await Utils.MeasureAsync(async () =>
                 {
                     var enumerator = this.stateManager.GetAsyncEnumerator();
-                    while (await enumerator.MoveNextAsync(this.cancellationTokenSource.Token))
+                    while (await enumerator.MoveNextAsync(this.cancellationToken))
                     {
                         var storeName = enumerator.Current.Name.AbsolutePath.Trim('/');
                         if (storeName.StartsWith(InstanceStoreCollectionNamePrefix))
@@ -274,7 +267,7 @@ namespace DurableTask.ServiceFabric
                     });
                     ProviderEventSource.Log.LogTimeTaken($"Deleting reliable state {storeName}", deleteTime.TotalMilliseconds);
                 }
-            }, initialDelay: TimeSpan.FromMinutes(5), delayOnSuccess: TimeSpan.FromHours(1), delayOnException: TimeSpan.FromMinutes(10), actionName: $"{nameof(CleanupOldDictionaries)}", token: this.cancellationTokenSource.Token);
+            }, initialDelay: TimeSpan.FromMinutes(5), delayOnSuccess: TimeSpan.FromHours(1), delayOnException: TimeSpan.FromMinutes(10), actionName: $"{nameof(CleanupOldDictionaries)}", token: this.cancellationToken);
         }
 
         async Task EnsureStoreInitialized()

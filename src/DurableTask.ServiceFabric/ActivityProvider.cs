@@ -15,6 +15,7 @@ namespace DurableTask.ServiceFabric
 {
     using System;
     using System.Collections.Concurrent;
+    using System.Threading;
     using System.Threading.Tasks;
     using Microsoft.ServiceFabric.Data;
 
@@ -22,7 +23,7 @@ namespace DurableTask.ServiceFabric
     {
         readonly ConcurrentQueue<TKey> inMemoryQueue = new ConcurrentQueue<TKey>();
 
-        public ActivityProvider(IReliableStateManager stateManager, string storeName) : base(stateManager, storeName)
+        public ActivityProvider(IReliableStateManager stateManager, string storeName, CancellationToken token) : base(stateManager, storeName, token)
         {
         }
 

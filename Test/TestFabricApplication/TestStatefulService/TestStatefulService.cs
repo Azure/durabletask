@@ -101,6 +101,7 @@ namespace TestStatefulService
                     ServiceEventSource.Current.ServiceMessage(this, "Replica Role Changed From Primary to Non-Primary, Stopping Taskhub Worker");
                     await this.worker.StopAsync(isForced: true);
                     this.worker.Dispose();
+                    this.fabricProvider.Dispose();
                     this.fabricProvider = null;
                     ServiceEventSource.Current.ServiceMessage(this, "Replica Role Changed From Primary to Non-Primary, Stopped Taskhub Worker");
                 }

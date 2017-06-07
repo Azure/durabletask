@@ -106,7 +106,7 @@ namespace DurableTask.ServiceFabric.Failover.Tests
                 if (instance != null)
                 {
                     instances.Add(instance);
-                    var waitTask = Utils.ExceptionWrapper(() => serviceClient.WaitForOrchestration(instance, TimeSpan.FromMinutes(15)), $"WaitForOrchestration {totalRequests}");
+                    var waitTask = Utils.ExceptionWrapper(() => serviceClient.WaitForOrchestration(instance, TimeSpan.FromMinutes(10)), $"WaitForOrchestration {totalRequests}");
                     tasks.Add(waitTask);
                 }
 

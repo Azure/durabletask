@@ -36,13 +36,6 @@ namespace DurableTask.ServiceFabric
         Task StartAsync();
 
         /// <summary>
-        /// Stops the instance store object.
-        /// </summary>
-        /// <param name="isForced">When set to true, aborts ungracefully.</param>
-        /// <returns></returns>
-        Task StopAsync(bool isForced);
-
-        /// <summary>
         /// Deletes instances instance store
         /// </summary>
         Task DeleteStoreAsync();
