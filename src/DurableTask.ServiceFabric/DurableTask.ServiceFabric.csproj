@@ -101,6 +101,7 @@
     <Compile Include="FabricOrchestrationService.cs" />
     <Compile Include="FabricOrchestrationServiceClient.cs" />
     <Compile Include="IFabricOrchestrationServiceInstanceStore.cs" />
+    <Compile Include="IFabricProviderClient.cs" />
     <Compile Include="Message.cs" />
     <Compile Include="OrchestrationInstanceComparer.cs" />
     <Compile Include="OrchestrationStatusExtensions.cs" />

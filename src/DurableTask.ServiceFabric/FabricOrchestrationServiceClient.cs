@@ -15,13 +15,14 @@ namespace DurableTask.ServiceFabric
 {
     using System;
     using System.Collections.Generic;
+    using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.History;
     using DurableTask.Tracking;
     using Microsoft.ServiceFabric.Data;
 
-    class FabricOrchestrationServiceClient : IOrchestrationServiceClient
+    class FabricOrchestrationServiceClient : IOrchestrationServiceClient, IFabricProviderClient
     {
         readonly IReliableStateManager stateManager;
         readonly IFabricOrchestrationServiceInstanceStore instanceStore;
@@ -34,6 +35,7 @@ namespace DurableTask.ServiceFabric
             this.instanceStore = instanceStore;
         }
 
+        #region IOrchestrationServiceClient
         public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage)
         {
             ExecutionStartedEvent startEvent = creationMessage.Event as ExecutionStartedEvent;
@@ -149,6 +151,15 @@ namespace DurableTask.ServiceFabric
 
             return null;
         }
+        #endregion
+
+        #region IFabricProviderClient
+        public async Task<IEnumerable<OrchestrationInstance>> GetRunningOrchestrations()
+        {
+            var sessions = await this.orchestrationProvider.GetSessions();
+            return sessions.Select(s => s.SessionId);
+        }
+        #endregion
 
         Task WriteExecutionStartedEventToInstanceStore(ITransaction tx, ExecutionStartedEvent startEvent)
         {

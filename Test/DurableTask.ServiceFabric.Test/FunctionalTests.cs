@@ -11,17 +11,19 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-using System.Threading.Tasks;
-using DurableTask.Test.Orchestrations.Perf;
-using Microsoft.ServiceFabric.Services.Client;
-using Microsoft.ServiceFabric.Services.Remoting.Client;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using TestApplication.Common;
-using TestStatefulService.TestOrchestrations;
-
 namespace DurableTask.ServiceFabric.Test
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Linq;
+    using System.Threading.Tasks;
+    using DurableTask.Test.Orchestrations.Perf;
+    using Microsoft.ServiceFabric.Services.Client;
+    using Microsoft.ServiceFabric.Services.Remoting.Client;
+    using Microsoft.VisualStudio.TestTools.UnitTesting;
+    using TestApplication.Common;
+    using TestStatefulService.TestOrchestrations;
+
     [TestClass]
     public class FunctionalTests
     {
@@ -123,8 +125,8 @@ namespace DurableTask.ServiceFabric.Test
             {
                 NumberOfParallelTasks = 0,
                 NumberOfSerialTasks = 1,
-                MaxDelay = 15,
-                MinDelay = 15,
+                MaxDelay = 5,
+                MinDelay = 5,
                 DelayUnit = TimeSpan.FromSeconds(1),
             };
 
@@ -135,6 +137,52 @@ namespace DurableTask.ServiceFabric.Test
 
             var result = await this.serviceClient.WaitForOrchestration(instance, TimeSpan.FromMinutes(2));
             Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
+        }
+
+        [TestMethod]
+        public async Task FabricProviderClient_ReturnsRunningOrchestrations()
+        {
+            var instanceIdPrefix = nameof(FabricProviderClient_ReturnsRunningOrchestrations);
+            int numberOfInstances = 5;
+            var startTasks = new List<Task<OrchestrationInstance>>();
+
+            for (int i = 0; i < numberOfInstances; i++)
+            {
+                var testData = new TestOrchestrationData()
+                {
+                    NumberOfParallelTasks = 0,
+                    NumberOfSerialTasks = 1,
+                    MaxDelay = 5,
+                    MinDelay = 5,
+                    DelayUnit = TimeSpan.FromSeconds(1),
+                };
+
+                startTasks.Add(this.serviceClient.StartTestOrchestrationWithInstanceIdAsync(instanceIdPrefix + i, testData));
+            }
+
+            var scheduledInstances = await Task.WhenAll(startTasks);
+
+            var allInstances = (await this.serviceClient.GetRunningOrchestrations()).ToList();
+            Assert.AreEqual(numberOfInstances, allInstances.Count);
+
+            foreach (var scheduledInstance in scheduledInstances)
+            {
+                var returnedInstance = allInstances.FirstOrDefault(i => string.Equals(i.InstanceId, scheduledInstance.InstanceId));
+                Assert.IsNotNull(returnedInstance);
+                Assert.AreEqual(scheduledInstance.ExecutionId, returnedInstance.ExecutionId);
+            }
+
+            var waitTasks = new List<Task<OrchestrationState>>();
+            foreach (var scheduledInstance in scheduledInstances)
+            {
+                waitTasks.Add(this.serviceClient.WaitForOrchestration(scheduledInstance, TimeSpan.FromMinutes(2)));
+            }
+
+            var results = await Task.WhenAll(waitTasks);
+            foreach(var result in results)
+            {
+                Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
+            }
         }
 
         [TestMethod]

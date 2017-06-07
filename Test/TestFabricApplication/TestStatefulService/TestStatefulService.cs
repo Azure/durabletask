@@ -178,6 +178,11 @@ namespace TestStatefulService
             return allStates.FirstOrDefault();
         }
 
+        public Task<IEnumerable<OrchestrationInstance>> GetRunningOrchestrations()
+        {
+            return this.fabricProvider.FabricProviderClient.GetRunningOrchestrations();
+        }
+
         static Dictionary<string, TaskOrchestration> KnownOrchestrationInstances = new Dictionary<string, TaskOrchestration>
         {
             { typeof(OrchestrationRunningIntoRetry).Name, new OrchestrationRunningIntoRetry() },

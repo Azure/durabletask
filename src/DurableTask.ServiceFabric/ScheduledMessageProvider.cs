@@ -40,40 +40,28 @@ namespace DurableTask.ServiceFabric
         {
             await InitializeStore();
 
-            using (var tx = this.StateManager.CreateTransaction())
+            var builder = this.inMemorySet.ToBuilder();
+
+            await this.EnumerateItems(kvp =>
             {
-                var count = await this.Store.GetCountAsync(tx);
-
-                if (count > 0)
+                var timerEvent = kvp.Value?.Event as TimerFiredEvent;
+                if (timerEvent == null)
                 {
-                    var builder = this.inMemorySet.ToBuilder();
-
-                    var enumerable = await this.Store.CreateEnumerableAsync(tx, EnumerationMode.Unordered);
-                    using (var enumerator = enumerable.GetAsyncEnumerator())
-                    {
-                        while (await enumerator.MoveNextAsync(this.CancellationToken))
-                        {
-                            var timerEvent = enumerator.Current.Value?.Event as TimerFiredEvent;
-                            if (timerEvent == null)
-                            {
-                                ProviderEventSource.Log.UnexpectedCodeCondition($"{nameof(ScheduledMessageProvider)}.{nameof(StartAsync)} : Seeing a non timer event in scheduled messages while filling the pending items collection in role start");
-                            }
-                            else
-                            {
-                                builder.Add(new Message<string, TaskMessage>(enumerator.Current.Key, enumerator.Current.Value));
-                            }
-                        }
-                    }
-
-                    lock (@lock)
-                    {
-                        if (this.inMemorySet.Count > 0)
-                        {
-                            ProviderEventSource.Log.UnexpectedCodeCondition($"{nameof(ScheduledMessageProvider)}.{nameof(StartAsync)} : Before we set the In memory set from the builder, there are items in it which should not happen.");
-                        }
-                        this.inMemorySet = builder.ToImmutableSortedSet(TimerFiredEventComparer.Instance);
-                    }
+                    ProviderEventSource.Log.UnexpectedCodeCondition($"{nameof(ScheduledMessageProvider)}.{nameof(StartAsync)} : Seeing a non timer event in scheduled messages while filling the pending items collection in role start");
                 }
+                else
+                {
+                    builder.Add(new Message<string, TaskMessage>(kvp.Key, kvp.Value));
+                }
+            });
+
+            lock (@lock)
+            {
+                if (this.inMemorySet.Count > 0)
+                {
+                    ProviderEventSource.Log.UnexpectedCodeCondition($"{nameof(ScheduledMessageProvider)}.{nameof(StartAsync)} : Before we set the In memory set from the builder, there are items in it which should not happen.");
+                }
+                this.inMemorySet = builder.ToImmutableSortedSet(TimerFiredEventComparer.Instance);
             }
 
             var metricsTask = LogMetrics();

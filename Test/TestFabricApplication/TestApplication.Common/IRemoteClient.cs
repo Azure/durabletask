@@ -11,16 +11,19 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-using System.Threading.Tasks;
-using DurableTask;
-using DurableTask.Test.Orchestrations.Perf;
-using Microsoft.ServiceFabric.Services.Remoting;
-
 namespace TestApplication.Common
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Threading.Tasks;
+    using DurableTask;
+    using DurableTask.Test.Orchestrations.Perf;
+    using Microsoft.ServiceFabric.Services.Remoting;
+
     public interface IRemoteClient : IService
     {
+        Task<IEnumerable<OrchestrationInstance>> GetRunningOrchestrations();
+
         Task<OrchestrationState> RunOrchestrationAsync(string orchestrationTypeName, object input, TimeSpan waitTimeout);
 
         Task<OrchestrationState> RunDriverOrchestrationAsync(DriverOrchestrationData input, TimeSpan waitTimeout);

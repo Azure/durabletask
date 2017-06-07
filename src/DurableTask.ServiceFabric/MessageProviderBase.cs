@@ -44,24 +44,7 @@ namespace DurableTask.ServiceFabric
         public virtual async Task StartAsync()
         {
             await InitializeStore();
-
-            using (var tx = this.StateManager.CreateTransaction())
-            {
-                var count = await this.Store.GetCountAsync(tx);
-
-                if (count > 0)
-                {
-                    var enumerable = await this.Store.CreateEnumerableAsync(tx, EnumerationMode.Unordered);
-                    using (var enumerator = enumerable.GetAsyncEnumerator())
-                    {
-                        while (await enumerator.MoveNextAsync(this.CancellationToken))
-                        {
-                            AddItemInMemory(enumerator.Current.Key, enumerator.Current.Value);
-                        }
-                    }
-                }
-            }
-
+            await EnumerateItems(kvp => AddItemInMemory(kvp.Key, kvp.Value));
             var nowait = LogMetrics();
         }
 
@@ -143,6 +126,26 @@ namespace DurableTask.ServiceFabric
                 var errorMessage = $"Internal Server Error: Did not find an item in reliable dictionary while having the item key {key} in memory";
                 ProviderEventSource.Log.UnexpectedCodeCondition(errorMessage);
                 throw new Exception(errorMessage);
+            }
+        }
+
+        protected async Task EnumerateItems(Action<KeyValuePair<TKey, TValue>> itemAction)
+        {
+            using (var tx = this.StateManager.CreateTransaction())
+            {
+                var count = await this.Store.GetCountAsync(tx);
+
+                if (count > 0)
+                {
+                    var enumerable = await this.Store.CreateEnumerableAsync(tx, EnumerationMode.Unordered);
+                    using (var enumerator = enumerable.GetAsyncEnumerator())
+                    {
+                        while (await enumerator.MoveNextAsync(this.CancellationToken))
+                        {
+                            itemAction(enumerator.Current);
+                        }
+                    }
+                }
             }
         }
 

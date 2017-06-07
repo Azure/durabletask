@@ -42,22 +42,7 @@ namespace DurableTask.ServiceFabric
             List<Message<TKey, TValue>> result = new List<Message<TKey, TValue>>();
             if (!IsStopped())
             {
-                using (var tx = this.StateManager.CreateTransaction())
-                {
-                    var count = await this.Store.GetCountAsync(tx);
-
-                    if (count > 0)
-                    {
-                        var enumerable = await this.Store.CreateEnumerableAsync(tx, EnumerationMode.Unordered);
-                        using (var enumerator = enumerable.GetAsyncEnumerator())
-                        {
-                            while (await enumerator.MoveNextAsync(this.CancellationToken))
-                            {
-                                result.Add(new Message<TKey, TValue>(enumerator.Current.Key, enumerator.Current.Value));
-                            }
-                        }
-                    }
-                }
+                await this.EnumerateItems(kvp => result.Add(new Message<TKey, TValue>(kvp.Key, kvp.Value)));
             }
             return result;
         }

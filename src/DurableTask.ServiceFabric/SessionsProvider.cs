@@ -21,6 +21,7 @@ namespace DurableTask.ServiceFabric
     using System.Threading;
     using System.Threading.Tasks;
     using Microsoft.ServiceFabric.Data;
+    using Microsoft.ServiceFabric.Data.Collections;
 
     class SessionsProvider : MessageProviderBase<string, PersistentSession>
     {
@@ -190,6 +191,15 @@ namespace DurableTask.ServiceFabric
                 var sessionMessageProvider = await GetOrAddSessionMessagesInstance(group.Key);
                 await sessionMessageProvider.SendBatchBeginAsync(transaction, group.Select(tm => new Message<Guid, TaskMessage>(Guid.NewGuid(), tm)));
             }
+        }
+
+        public async Task<IEnumerable<PersistentSession>> GetSessions()
+        {
+            await EnsureOrchestrationStoreInitialized();
+
+            var result = new List<PersistentSession>();
+            await this.EnumerateItems(kvp => result.Add(kvp.Value));
+            return result;
         }
 
         public void TryUnlockSession(OrchestrationInstance instance, bool abandon = false, bool isComplete = false)

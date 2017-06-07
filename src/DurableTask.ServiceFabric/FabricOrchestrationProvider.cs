@@ -67,6 +67,18 @@ namespace DurableTask.ServiceFabric
         }
 
         /// <summary>
+        /// An instance of <see cref="IFabricProviderClient"/>.
+        /// </summary>
+        public IFabricProviderClient FabricProviderClient
+        {
+            get
+            {
+                EnsureValidInstance();
+                return this.orchestrationClient;
+            }
+        }
+
+        /// <summary>
         /// Disposes the object. The object should be disposed after <see cref="DurableTask.TaskHubWorker.StopAsync()"/>
         /// is invoked on the <see cref="DurableTask.TaskHubWorker" /> created with the <see cref="OrchestrationService"/>.
         /// </summary>

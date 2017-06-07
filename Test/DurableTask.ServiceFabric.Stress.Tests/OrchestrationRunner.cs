@@ -55,16 +55,24 @@ namespace DurableTask.ServiceFabric.Failover.Tests
                 await PrintStatusAggregation();
                 await Task.Delay(TimeSpan.FromSeconds(10));
             }
-            await PrintStatusAggregation();
+            await PrintStatusAggregation(printFailedInstances: true);
         }
 
-        async Task PrintStatusAggregation()
+        async Task PrintStatusAggregation(bool printFailedInstances = false)
         {
             Console.WriteLine($"{nameof(PrintStatusAggregation)}: Number of instances so far : {instances.Count}");
+
+            var failedInstances = new Dictionary<OrchestrationInstance, OrchestrationState>();
+
             foreach (var instance in instances)
             {
                 var state = await Utils.ExceptionWrapper(() => serviceClient.GetOrchestrationState(instance), $"Get Orchestration State {instance}");
-                var key = state != null ? state.OrchestrationStatus.ToString() : "NullState";
+                var key = state?.OrchestrationStatus.ToString() ?? "NullState";
+
+                if (state?.OrchestrationStatus != OrchestrationStatus.Completed)
+                {
+                    failedInstances.Add(instance, state);
+                }
 
                 if (!outcomeFrequencies.ContainsKey(key))
                 {
@@ -77,6 +85,15 @@ namespace DurableTask.ServiceFabric.Failover.Tests
             foreach (var kvp in outcomeFrequencies)
             {
                 Console.WriteLine($"{nameof(PrintStatusAggregation)}: {kvp.Key} : {kvp.Value}");
+            }
+
+            if (printFailedInstances && failedInstances.Count > 0)
+            {
+                Console.WriteLine("Unsuccessful Orchestrations:");
+                foreach (var kvp in failedInstances)
+                {
+                    Console.WriteLine($"{kvp.Key} : {kvp.Value?.OrchestrationStatus}");
+                }
             }
 
             outcomeFrequencies.Clear();
