@@ -87,7 +87,6 @@ namespace DurableTask.ServiceFabric
         // iteration of processing should take care of making things right.
         async Task ProcessScheduledMessages()
         {
-            int successiveFailureCount = 0;
             while (!IsStopped())
             {
                 try
@@ -158,12 +157,10 @@ namespace DurableTask.ServiceFabric
 
                     this.nextActivationCheck = nextCheck;
                     await WaitForItemsAsync(this.nextActivationCheck - DateTime.UtcNow);
-                    successiveFailureCount = 0;
                 }
                 catch (Exception e)
                 {
-                    successiveFailureCount++;
-                    ProviderEventSource.Log.ExceptionWhileProcessingScheduledMessages($"{nameof(ScheduledMessageProvider)}.{nameof(ProcessScheduledMessages)}", successiveFailureCount, e.Message, e.StackTrace);
+                    ProviderEventSource.Log.ExceptionWhileRunningBackgroundJob($"{nameof(ScheduledMessageProvider)}.{nameof(ProcessScheduledMessages)}", e.ToString());
                     await Task.Delay(TimeSpan.FromMilliseconds(100));
                 }
             }

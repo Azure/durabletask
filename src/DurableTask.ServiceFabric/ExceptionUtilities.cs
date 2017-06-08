@@ -22,5 +22,17 @@ namespace DurableTask.ServiceFabric
         {
             return e is TimeoutException || e is FabricTransientException;
         }
+
+        public static void LogReliableCollectionException(string uniqueIdentifier, int attemptNumber, Exception e, bool isTransient)
+        {
+            if (isTransient)
+            {
+                ProviderEventSource.Log.RetryableFabricException(uniqueIdentifier, attemptNumber, e.ToString());
+            }
+            else
+            {
+                ProviderEventSource.Log.ExceptionInReliableCollectionOperations(uniqueIdentifier, e.ToString());
+            }
+        }
     }
 }

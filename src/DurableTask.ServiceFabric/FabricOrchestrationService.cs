@@ -117,24 +117,12 @@ namespace DurableTask.ServiceFabric
 
         public int GetDelayInSecondsAfterOnProcessException(Exception exception)
         {
-            //Todo: Need to fine tune
-            if (exception is TimeoutException)
-            {
-                return 2;
-            }
-
-            return 0;
+            return GetDelayForFetchOrProcessException(exception);
         }
 
         public int GetDelayInSecondsAfterOnFetchException(Exception exception)
         {
-            //Todo: Need to fine tune
-            if (exception is TimeoutException)
-            {
-                return 2;
-            }
-
-            return 0;
+            return GetDelayForFetchOrProcessException(exception);
         }
 
         public int TaskOrchestrationDispatcherCount => this.settings.TaskOrchestrationDispatcherSettings.DispatcherCount;
@@ -157,7 +145,7 @@ namespace DurableTask.ServiceFabric
             }
             catch(Exception e)
             {
-                ProviderEventSource.Log.ExceptionWhileProcessingReliableCollectionTransaction($"OrchestrationId = '{currentSession.SessionId}', Action = 'ReceiveSessionMessagesAsync'", e.ToString());
+                ProviderEventSource.Log.ExceptionInReliableCollectionOperations($"OrchestrationId = '{currentSession.SessionId}', Action = 'ReceiveSessionMessagesAsync'", e.ToString());
                 this.orchestrationProvider.TryUnlockSession(currentSession.SessionId, abandon: true);
                 throw;
             }
@@ -287,6 +275,7 @@ namespace DurableTask.ServiceFabric
                     }
                     catch (FabricReplicationOperationTooLargeException ex)
                     {
+                        ProviderEventSource.Log.ExceptionInReliableCollectionOperations($"OrchestrationInstance = {sessionInfo.Instance}, Action = {nameof(CompleteTaskOrchestrationWorkItemAsync)}", ex.ToString());
                         retryOnException = true;
                         newOrchestrationRuntimeState = null;
                         outboundMessages = null;
@@ -410,6 +399,7 @@ namespace DurableTask.ServiceFabric
                     }
                     catch (FabricReplicationOperationTooLargeException ex)
                     {
+                        ProviderEventSource.Log.ExceptionInReliableCollectionOperations($"OrchestrationInstance = {responseMessage.OrchestrationInstance}, ActivityId = {workItem.Id}, Action = {nameof(CompleteTaskActivityWorkItemAsync)}", ex.ToString());
                         retryOnException = true;
                         var originalEvent = responseMessage.Event;
                         int taskScheduledId = GetTaskScheduledId(originalEvent);
@@ -451,6 +441,22 @@ namespace DurableTask.ServiceFabric
             }
 
             return -1;
+        }
+
+        int GetDelayForFetchOrProcessException(Exception exception)
+        {
+            //Todo: Need to fine tune
+            if (exception is TimeoutException)
+            {
+                return 1;
+            }
+
+            if (exception is FabricNotReadableException)
+            {
+                return 2;
+            }
+
+            return 0;
         }
 
         SessionInformation GetSessionInfo(string sessionId)

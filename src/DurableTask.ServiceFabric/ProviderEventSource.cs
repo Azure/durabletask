@@ -40,6 +40,7 @@ namespace DurableTask.ServiceFabric
             public const EventKeywords Common = (EventKeywords)0x4L;
         }
 
+        #region Informational 1-500
         [Event(1, Level = EventLevel.Informational, Message = "Orchestration with instanceId : '{0}' and executionId : '{1}' is Created.", Channel = EventChannel.Operational)]
         public void OrchestrationCreated(string instanceId, string executionId)
         {
@@ -58,53 +59,12 @@ namespace DurableTask.ServiceFabric
             }
         }
 
-        [Event(3, Level = EventLevel.Error, Message = "Exception : {0} With Stack Trace: {1}", Channel = EventChannel.Operational)]
-        public void LogException(string message, string stackTrace)
-        {
-            if (IsEnabled(EventLevel.Error, Keywords.Common))
-            {
-                WriteEvent(3, message, stackTrace);
-            }
-        }
-
         [Event(4, Level = EventLevel.Informational, Message = "Current number of entries in store {0} : {1}", Channel = EventChannel.Operational)]
         public void LogStoreCount(string storeName, long count)
         {
             if (IsEnabled(EventLevel.Informational, Keywords.Common))
             {
                 WriteEvent(4, storeName, count);
-            }
-        }
-
-        [Event(5, Level = EventLevel.Error, Message = "We are seeing something that we don't expect to see : {0}", Channel = EventChannel.Operational)]
-        public void UnexpectedCodeCondition(string uniqueMessage)
-        {
-            if (IsEnabled(EventLevel.Error, Keywords.Common))
-            {
-                WriteEvent(5, uniqueMessage);
-            }
-
-#if DEBUG
-            // This is so that tests fail when this event happens.
-            throw new Exception(uniqueMessage);
-#endif
-        }
-
-        [Event(6, Level = EventLevel.Error, Message = "{0} : Successive Failed Attempt Number : '{1}', Ignored Exception : '{2}' With Stack Trace: '{3}'", Channel = EventChannel.Operational)]
-        public void ExceptionWhileProcessingScheduledMessages(string methodName, int attemptNumber, string message, string stackTrace)
-        {
-            if (IsEnabled(EventLevel.Error, Keywords.Common))
-            {
-                WriteEvent(6, methodName, attemptNumber, message, stackTrace);
-            }
-        }
-
-        [Event(7, Level = EventLevel.Error, Message = "Hint : {0}, Exception: {1}", Channel = EventChannel.Operational)]
-        public void ExceptionWhileProcessingReliableCollectionTransaction(string uniqueIdentifier, string exception)
-        {
-            if (IsEnabled(EventLevel.Error, Keywords.Common))
-            {
-                WriteEvent(7, uniqueIdentifier, exception);
             }
         }
 
@@ -125,47 +85,86 @@ namespace DurableTask.ServiceFabric
                 WriteEvent(9, operationIdentifier, operationData);
             }
         }
+        #endregion
 
-        [Event(1000, Level = EventLevel.Warning, Message = "Exception in the background job {0} : {1}", Channel = EventChannel.Operational)]
+        #region Warnings 1001-1500
+        [Event(1001, Level = EventLevel.Warning, Message = "Exception in the background job {0} : {1}", Channel = EventChannel.Operational)]
         public void ExceptionWhileRunningBackgroundJob(string operationIdentifier, string exception)
         {
             if (IsEnabled(EventLevel.Warning, Keywords.Common))
             {
-                WriteEvent(1000, operationIdentifier, exception);
+                WriteEvent(1001, operationIdentifier, exception);
             }
         }
 
-        [Event(101, Level = EventLevel.Verbose, Message = "Trace Message for Session {0} : {1}", Channel = EventChannel.Debug)]
+        [Event(1002, Level = EventLevel.Warning, Message = "Hint : {0}, Exception: {1}", Channel = EventChannel.Operational)]
+        public void RetryableFabricException(string uniqueIdentifier, int attemptNumber, string exception)
+        {
+            if (IsEnabled(EventLevel.Warning, Keywords.Common))
+            {
+                WriteEvent(1002, uniqueIdentifier, exception);
+            }
+        }
+        #endregion
+
+        #region Errors 1501-2000
+        [Event(1501, Level = EventLevel.Error, Message = "We are seeing something that we don't expect to see : {0}", Channel = EventChannel.Operational)]
+        public void UnexpectedCodeCondition(string uniqueMessage)
+        {
+            if (IsEnabled(EventLevel.Error, Keywords.Common))
+            {
+                WriteEvent(1501, uniqueMessage);
+            }
+
+#if DEBUG
+            // This is so that tests fail when this event happens.
+            throw new Exception(uniqueMessage);
+#endif
+        }
+
+        [Event(1502, Level = EventLevel.Error, Message = "Hint : {0}, Exception: {1}", Channel = EventChannel.Operational)]
+        public void ExceptionInReliableCollectionOperations(string uniqueIdentifier, string exception)
+        {
+            if (IsEnabled(EventLevel.Error, Keywords.Common))
+            {
+                WriteEvent(1502, uniqueIdentifier, exception);
+            }
+        }
+        #endregion
+
+        #region Verbose Events 501-1000
+        [Event(501, Level = EventLevel.Verbose, Message = "Trace Message for Session {0} : {1}", Channel = EventChannel.Debug)]
         public void TraceMessage(string instanceId, string message)
         {
 #if DEBUG
             if (IsEnabled(EventLevel.Verbose, Keywords.Common))
             {
-                WriteEvent(101, instanceId, message);
+                WriteEvent(501, instanceId, message);
             }
 #endif
         }
 
-        [Event(102, Level = EventLevel.Verbose, Message = "Time taken for {0} : {1} milli seconds.", Channel = EventChannel.Analytic)]
+        [Event(502, Level = EventLevel.Verbose, Message = "Time taken for {0} : {1} milli seconds.", Channel = EventChannel.Analytic)]
         public void LogMeasurement(string uniqueActionIdentifier, long elapsedMilliseconds)
         {
 #if DEBUG
             if (IsEnabled(EventLevel.Verbose, Keywords.Common))
             {
-                WriteEvent(102, uniqueActionIdentifier, elapsedMilliseconds);
+                WriteEvent(502, uniqueActionIdentifier, elapsedMilliseconds);
             }
 #endif
         }
 
-        [Event(103, Level = EventLevel.Verbose, Message = "Size of {0} : {1} bytes.", Channel = EventChannel.Analytic)]
+        [Event(503, Level = EventLevel.Verbose, Message = "Size of {0} : {1} bytes.", Channel = EventChannel.Analytic)]
         public void LogSizeMeasure(string uniqueObjectIdentifier, long sizeInBytes)
         {
 #if DEBUG
             if (IsEnabled(EventLevel.Verbose, Keywords.Common))
             {
-                WriteEvent(103, uniqueObjectIdentifier, sizeInBytes);
+                WriteEvent(503, uniqueObjectIdentifier, sizeInBytes);
             }
 #endif
         }
+        #endregion
     }
 }

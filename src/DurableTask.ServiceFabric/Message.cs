@@ -16,8 +16,7 @@ namespace DurableTask.ServiceFabric
     using System;
     using System.Runtime.Serialization;
 
-    [DataContract]
-    sealed class Message<TKey, TValue> : IExtensibleDataObject where TKey : IComparable<TKey>, IEquatable<TKey>
+    sealed class Message<TKey, TValue> where TKey : IComparable<TKey>, IEquatable<TKey>
     {
         public Message(TKey key, TValue value)
         {
@@ -35,12 +34,8 @@ namespace DurableTask.ServiceFabric
             Value = value;
         }
 
-        [DataMember]
         public TKey Key { get; private set; }
 
-        [DataMember]
         public TValue Value { get; private set; }
-
-        public ExtensionDataObject ExtensionData { get; set; }
     }
 }

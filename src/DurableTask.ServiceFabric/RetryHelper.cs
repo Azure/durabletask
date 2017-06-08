@@ -46,7 +46,7 @@ namespace DurableTask.ServiceFabric
                     lastException = e;
                     bool shouldRetry = ExceptionUtilities.IsRetryableFabricException(e);
 
-                    ProviderEventSource.Log.ExceptionWhileProcessingReliableCollectionTransaction($"{uniqueActionIdentifier}, Attempt Number : {attemptNumber}, ShouldRetry : {shouldRetry}", e.ToString());
+                    ExceptionUtilities.LogReliableCollectionException(uniqueActionIdentifier, attemptNumber, e, shouldRetry);
                     ProviderEventSource.Log.LogMeasurement($"{uniqueActionIdentifier}, Attempt Number : {attemptNumber}, ShouldRetry : {shouldRetry}", timer.ElapsedMilliseconds);
 
                     if (shouldRetry)
@@ -90,7 +90,7 @@ namespace DurableTask.ServiceFabric
                     lastException = e;
                     bool shouldRetry = ExceptionUtilities.IsRetryableFabricException(e);
 
-                    ProviderEventSource.Log.ExceptionWhileProcessingReliableCollectionTransaction($"{uniqueActionIdentifier}, Attempt Number : {attemptNumber}, ShouldRetry : {shouldRetry}", e.ToString());
+                    ExceptionUtilities.LogReliableCollectionException(uniqueActionIdentifier, attemptNumber, e, shouldRetry);
                     ProviderEventSource.Log.LogMeasurement($"{uniqueActionIdentifier}, Attempt Number : {attemptNumber}, ShouldRetry : {shouldRetry}", timer.ElapsedMilliseconds);
 
                     if (shouldRetry)
