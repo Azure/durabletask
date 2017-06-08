@@ -34,36 +34,43 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Microsoft.ServiceFabric.Data">
-      <HintPath>..\..\packages\Microsoft.ServiceFabric.Data.2.1.163\lib\net45\Microsoft.ServiceFabric.Data.dll</HintPath>
+      <HintPath>..\..\packages\Microsoft.ServiceFabric.Data.2.5.216\lib\net45\Microsoft.ServiceFabric.Data.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Microsoft.ServiceFabric.Data.Interfaces">
-      <HintPath>..\..\packages\Microsoft.ServiceFabric.Data.2.1.163\lib\net45\Microsoft.ServiceFabric.Data.Interfaces.dll</HintPath>
+      <HintPath>..\..\packages\Microsoft.ServiceFabric.Data.2.5.216\lib\net45\Microsoft.ServiceFabric.Data.Interfaces.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="Microsoft.ServiceFabric.FabricTransport, Version=5.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=AMD64">
+      <HintPath>..\..\packages\Microsoft.ServiceFabric.FabricTransport.Internal.2.5.216\lib\net45\Microsoft.ServiceFabric.FabricTransport.dll</HintPath>
+    </Reference>
     <Reference Include="Microsoft.ServiceFabric.Internal">
-      <HintPath>..\..\packages\Microsoft.ServiceFabric.5.1.163\lib\net45\Microsoft.ServiceFabric.Internal.dll</HintPath>
+      <HintPath>..\..\packages\Microsoft.ServiceFabric.5.5.216\lib\net45\Microsoft.ServiceFabric.Internal.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Microsoft.ServiceFabric.Internal.Strings">
-      <HintPath>..\..\packages\Microsoft.ServiceFabric.5.1.163\lib\net45\Microsoft.ServiceFabric.Internal.Strings.dll</HintPath>
+      <HintPath>..\..\packages\Microsoft.ServiceFabric.5.5.216\lib\net45\Microsoft.ServiceFabric.Internal.Strings.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Microsoft.ServiceFabric.Services">
-      <HintPath>..\..\packages\Microsoft.ServiceFabric.Services.2.1.163\lib\net45\Microsoft.ServiceFabric.Services.dll</HintPath>
+      <HintPath>..\..\packages\Microsoft.ServiceFabric.Services.2.5.216\lib\net45\Microsoft.ServiceFabric.Services.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="Microsoft.ServiceFabric.Services.Remoting, Version=5.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=AMD64">
+      <HintPath>..\..\packages\Microsoft.ServiceFabric.Services.Remoting.2.5.216\lib\net45\Microsoft.ServiceFabric.Services.Remoting.dll</HintPath>
+    </Reference>
     <Reference Include="ServiceFabricServiceModel">
-      <HintPath>..\..\packages\Microsoft.ServiceFabric.Services.2.1.163\lib\net45\ServiceFabricServiceModel.dll</HintPath>
+      <HintPath>..\..\packages\Microsoft.ServiceFabric.Services.2.5.216\lib\net45\ServiceFabricServiceModel.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Fabric, Version=5.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=AMD64">
-      <HintPath>..\..\packages\Microsoft.ServiceFabric.5.1.163\lib\net45\System.Fabric.dll</HintPath>
+      <HintPath>..\..\packages\Microsoft.ServiceFabric.5.5.216\lib\net45\System.Fabric.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="System.Runtime.Serialization" />
+    <Reference Include="System.ServiceModel" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
@@ -79,6 +86,7 @@
     <Compile Include="Utils.cs" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="app.config" />
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>

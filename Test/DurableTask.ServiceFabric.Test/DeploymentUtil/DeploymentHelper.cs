@@ -46,7 +46,7 @@ namespace DurableTask.ServiceFabric.Test.DeploymentUtil
             var applications = await client.QueryManager.GetApplicationListAsync();
             foreach (var application in applications)
             {
-                await client.ApplicationManager.DeleteApplicationAsync(application.ApplicationName);
+                await client.ApplicationManager.DeleteApplicationAsync(new DeleteApplicationDescription(application.ApplicationName) { ForceDelete = true });
 
                 foreach (var node in await client.QueryManager.GetNodeListAsync())
                 {
