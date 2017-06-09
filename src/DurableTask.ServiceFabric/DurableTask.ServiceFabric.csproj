@@ -117,6 +117,7 @@
     <Compile Include="ScheduledMessageProvider.cs" />
     <Compile Include="SessionMessagesProvider.cs" />
     <Compile Include="SessionsProvider.cs" />
+    <Compile Include="TaskMessageItem.cs" />
     <Compile Include="TimerFiredEventComparer.cs" />
     <Compile Include="Utils.cs" />
   </ItemGroup>

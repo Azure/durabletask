@@ -23,12 +23,12 @@ namespace DurableTask.ServiceFabric
     using Microsoft.ServiceFabric.Data;
     using Microsoft.ServiceFabric.Data.Collections;
 
-    class ScheduledMessageProvider : MessageProviderBase<string, TaskMessage>
+    class ScheduledMessageProvider : MessageProviderBase<string, TaskMessageItem>
     {
         readonly SessionsProvider sessionsProvider;
         readonly object @lock = new object();
 
-        ImmutableSortedSet<Message<string, TaskMessage>> inMemorySet = ImmutableSortedSet<Message<string, TaskMessage>>.Empty.WithComparer(TimerFiredEventComparer.Instance);
+        ImmutableSortedSet<Message<string, TaskMessageItem>> inMemorySet = ImmutableSortedSet<Message<string, TaskMessageItem>>.Empty.WithComparer(TimerFiredEventComparer.Instance);
         DateTime nextActivationCheck;
 
         public ScheduledMessageProvider(IReliableStateManager stateManager, string storeName, SessionsProvider sessionsProvider, CancellationToken token) : base(stateManager, storeName, token)
@@ -44,14 +44,14 @@ namespace DurableTask.ServiceFabric
 
             await this.EnumerateItems(kvp =>
             {
-                var timerEvent = kvp.Value?.Event as TimerFiredEvent;
+                var timerEvent = kvp.Value?.Message?.Event as TimerFiredEvent;
                 if (timerEvent == null)
                 {
                     ProviderEventSource.Log.UnexpectedCodeCondition($"{nameof(ScheduledMessageProvider)}.{nameof(StartAsync)} : Seeing a non timer event in scheduled messages while filling the pending items collection in role start");
                 }
                 else
                 {
-                    builder.Add(new Message<string, TaskMessage>(kvp.Key, kvp.Value));
+                    builder.Add(new Message<string, TaskMessageItem>(kvp.Key, kvp.Value));
                 }
             });
 
@@ -68,14 +68,14 @@ namespace DurableTask.ServiceFabric
             var nowait = ProcessScheduledMessages();
         }
 
-        protected override void AddItemInMemory(string key, TaskMessage value)
+        protected override void AddItemInMemory(string key, TaskMessageItem value)
         {
             lock (@lock)
             {
-                this.inMemorySet = this.inMemorySet.Add(new Message<string, TaskMessage>(key, value));
+                this.inMemorySet = this.inMemorySet.Add(new Message<string, TaskMessageItem>(key, value));
             }
 
-            var timerEvent = value.Event as TimerFiredEvent;
+            var timerEvent = value.Message.Event as TimerFiredEvent;
             if (timerEvent != null && timerEvent.FireAt < this.nextActivationCheck)
             {
                 SetWaiterForNewItems();
@@ -95,12 +95,12 @@ namespace DurableTask.ServiceFabric
                     var nextCheck = currentTime + TimeSpan.FromSeconds(1);
 
                     var builder = this.inMemorySet.ToBuilder();
-                    List<Message<string, TaskMessage>> activatedMessages = new List<Message<string, TaskMessage>>();
+                    List<Message<string, TaskMessageItem>> activatedMessages = new List<Message<string, TaskMessageItem>>();
 
                     while (builder.Count > 0)
                     {
                         var firstPendingMessage = builder.Min;
-                        var timerEvent = firstPendingMessage.Value.Event as TimerFiredEvent;
+                        var timerEvent = firstPendingMessage.Value.Message.Event as TimerFiredEvent;
 
                         if (timerEvent == null)
                         {

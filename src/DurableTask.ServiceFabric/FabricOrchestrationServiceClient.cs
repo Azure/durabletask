@@ -60,7 +60,7 @@ namespace DurableTask.ServiceFabric
             {
                 using (var tx = this.stateManager.CreateTransaction())
                 {
-                    await this.orchestrationProvider.AppendMessageAsync(tx, creationMessage);
+                    await this.orchestrationProvider.AppendMessageAsync(tx, new TaskMessageItem(creationMessage));
                     await WriteExecutionStartedEventToInstanceStore(tx, startEvent);
                     await tx.CommitAsync();
                 }
@@ -72,7 +72,7 @@ namespace DurableTask.ServiceFabric
 
         public Task SendTaskOrchestrationMessageAsync(TaskMessage message)
         {
-            return this.orchestrationProvider.AppendMessageAsync(message);
+            return this.orchestrationProvider.AppendMessageAsync(new TaskMessageItem(message));
         }
 
         public Task SendTaskOrchestrationMessageBatchAsync(params TaskMessage[] messages)

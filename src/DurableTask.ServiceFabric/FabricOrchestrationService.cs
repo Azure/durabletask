@@ -29,7 +29,7 @@ namespace DurableTask.ServiceFabric
         readonly IReliableStateManager stateManager;
         readonly IFabricOrchestrationServiceInstanceStore instanceStore;
         readonly SessionsProvider orchestrationProvider;
-        readonly ActivityProvider<string, TaskMessage> activitiesProvider;
+        readonly ActivityProvider<string, TaskMessageItem> activitiesProvider;
         readonly ScheduledMessageProvider scheduledMessagesProvider;
         readonly FabricOrchestrationProviderSettings settings;
         readonly CancellationTokenSource cancellationTokenSource;
@@ -47,7 +47,7 @@ namespace DurableTask.ServiceFabric
             this.instanceStore = instanceStore;
             this.settings = settings;
             this.cancellationTokenSource = cancellationTokenSource;
-            this.activitiesProvider = new ActivityProvider<string, TaskMessage>(this.stateManager, Constants.ActivitiesQueueName, cancellationTokenSource.Token);
+            this.activitiesProvider = new ActivityProvider<string, TaskMessageItem>(this.stateManager, Constants.ActivitiesQueueName, cancellationTokenSource.Token);
             this.scheduledMessagesProvider = new ScheduledMessageProvider(this.stateManager, Constants.ScheduledMessagesDictionaryName, orchestrationProvider, cancellationTokenSource.Token);
         }
 
@@ -138,7 +138,7 @@ namespace DurableTask.ServiceFabric
                 return null;
             }
 
-            List<Message<Guid, TaskMessage>> newMessages;
+            List<Message<Guid, TaskMessageItem>> newMessages;
             try
             {
                 newMessages = await this.orchestrationProvider.ReceiveSessionMessagesAsync(currentSession);
@@ -153,7 +153,7 @@ namespace DurableTask.ServiceFabric
             var currentRuntimeState = new OrchestrationRuntimeState(currentSession.SessionState);
             var workItem = new TaskOrchestrationWorkItem()
             {
-                NewMessages = newMessages.Select(m => m.Value).ToList(),
+                NewMessages = newMessages.Select(m => m.Value.Message).ToList(),
                 InstanceId = currentSession.SessionId.InstanceId,
                 OrchestrationRuntimeState = currentRuntimeState
             };
@@ -211,8 +211,8 @@ namespace DurableTask.ServiceFabric
             }
 
             IList<OrchestrationInstance> sessionsToEnqueue = null;
-            List<Message<string, TaskMessage>> scheduledMessages = null;
-            List<Message<string, TaskMessage>> activityMessages = null;
+            List<Message<string, TaskMessageItem>> scheduledMessages = null;
+            List<Message<string, TaskMessageItem>> activityMessages = null;
 
             await RetryHelper.ExecuteWithRetryOnTransient(async () =>
             {
@@ -232,13 +232,13 @@ namespace DurableTask.ServiceFabric
 
                             if (outboundMessages?.Count > 0)
                             {
-                                activityMessages = outboundMessages.Select(m => new Message<string, TaskMessage>(Guid.NewGuid().ToString(), m)).ToList();
+                                activityMessages = outboundMessages.Select(m => new Message<string, TaskMessageItem>(Guid.NewGuid().ToString(), new TaskMessageItem(m))).ToList();
                                 await this.activitiesProvider.SendBatchBeginAsync(txn, activityMessages);
                             }
 
                             if (timerMessages?.Count > 0)
                             {
-                                scheduledMessages = timerMessages.Select(m => new Message<string, TaskMessage>(Guid.NewGuid().ToString(), m)).ToList();
+                                scheduledMessages = timerMessages.Select(m => new Message<string, TaskMessageItem>(Guid.NewGuid().ToString(), new TaskMessageItem(m))).ToList();
                                 await this.scheduledMessagesProvider.SendBatchBeginAsync(txn, scheduledMessages);
                             }
 
@@ -246,11 +246,11 @@ namespace DurableTask.ServiceFabric
                             {
                                 if (workItem.OrchestrationRuntimeState?.ParentInstance != null)
                                 {
-                                    sessionsToEnqueue = await this.orchestrationProvider.TryAppendMessageBatchAsync(txn, orchestratorMessages);
+                                    sessionsToEnqueue = await this.orchestrationProvider.TryAppendMessageBatchAsync(txn, orchestratorMessages.Select(tm => new TaskMessageItem(tm)));
                                 }
                                 else
                                 {
-                                    await this.orchestrationProvider.AppendMessageBatchAsync(txn, orchestratorMessages);
+                                    await this.orchestrationProvider.AppendMessageBatchAsync(txn, orchestratorMessages.Select(tm => new TaskMessageItem(tm)));
                                     sessionsToEnqueue = orchestratorMessages.Select(m => m.OrchestrationInstance).ToList();
                                 }
                             }
@@ -325,19 +325,12 @@ namespace DurableTask.ServiceFabric
         {
             bool isComplete = workItem.OrchestrationRuntimeState.OrchestrationStatus.IsTerminalState();
 
-            SessionInformation sessionInfo = TryRemoveSessionInfo(workItem.InstanceId);
-            if (sessionInfo != null)
-            {
-                this.orchestrationProvider.TryUnlockSession(sessionInfo.Instance, isComplete: isComplete);
-            }
-
             if (isComplete)
             {
                 await RetryHelper.ExecuteWithRetryOnTransient(async () =>
                 {
                     using (var txn = this.stateManager.CreateTransaction())
                     {
-                        await this.orchestrationProvider.DropSession(txn, workItem.OrchestrationRuntimeState.OrchestrationInstance);
                         await this.instanceStore.WriteEntitesAsync(txn, new InstanceEntityBase[]
                         {
                             new OrchestrationStateInstanceEntity()
@@ -345,6 +338,7 @@ namespace DurableTask.ServiceFabric
                                 State = Utils.BuildOrchestrationState(workItem.OrchestrationRuntimeState)
                             }
                         });
+                        await this.orchestrationProvider.DropSession(txn, workItem.OrchestrationRuntimeState.OrchestrationInstance);
                         await txn.CommitAsync();
                     }
                 }, uniqueActionIdentifier: $"OrchestrationId = '{workItem.InstanceId}', Action = '{nameof(ReleaseTaskOrchestrationWorkItemAsync)}'");
@@ -353,6 +347,12 @@ namespace DurableTask.ServiceFabric
                     workItem.OrchestrationRuntimeState.OrchestrationStatus.ToString(),
                     (workItem.OrchestrationRuntimeState.CompletedTime - workItem.OrchestrationRuntimeState.CreatedTime).TotalSeconds,
                     workItem.OrchestrationRuntimeState.Output);
+            }
+
+            SessionInformation sessionInfo = TryRemoveSessionInfo(workItem.InstanceId);
+            if (sessionInfo != null)
+            {
+                this.orchestrationProvider.TryUnlockSession(sessionInfo.Instance, isComplete: isComplete);
             }
         }
 
@@ -369,7 +369,7 @@ namespace DurableTask.ServiceFabric
                 return new TaskActivityWorkItem()
                 {
                     Id = message.Key,
-                    TaskMessage = message.Value
+                    TaskMessage = message.Value.Message
                 };
             }
 
@@ -393,7 +393,7 @@ namespace DurableTask.ServiceFabric
                         using (var txn = this.stateManager.CreateTransaction())
                         {
                             await this.activitiesProvider.CompleteAsync(txn, workItem.Id);
-                            added = await this.orchestrationProvider.TryAppendMessageAsync(txn, responseMessage);
+                            added = await this.orchestrationProvider.TryAppendMessageAsync(txn, new TaskMessageItem(responseMessage));
                             await txn.CommitAsync();
                         }
                     }

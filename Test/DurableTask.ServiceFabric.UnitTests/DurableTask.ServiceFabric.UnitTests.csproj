@@ -51,6 +51,7 @@
     <Compile Include="Measure.cs" />
     <Compile Include="OrchestrationInstanceComparerTests.cs" />
     <Compile Include="SerializationPerformanceExperiments.cs" />
+    <Compile Include="TaskMessageItemTests.cs" />
     <Compile Include="TimerFiredEventComparerTests.cs" />
     <Compile Include="PersistentSessionTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

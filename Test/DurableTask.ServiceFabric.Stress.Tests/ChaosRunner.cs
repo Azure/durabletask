@@ -45,6 +45,9 @@ namespace DurableTask.ServiceFabric.Failover.Tests
             {
                 await testScenario.ExecuteAsync(token);
             }
+            catch (TaskCanceledException)
+            {
+            }
             catch (AggregateException ae)
             {
                 Console.Error.WriteLine($"{DateTime.UtcNow} : Exception inside the failover test scenario : {ae.InnerException}");
