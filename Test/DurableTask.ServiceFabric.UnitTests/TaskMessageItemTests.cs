@@ -32,10 +32,10 @@ namespace DurableTask.ServiceFabric.UnitTests
             var actual = Measure.DataContractSerialization(expected);
 
             Assert.IsNotNull(actual);
-            Assert.AreEqual(expected.Message.OrchestrationInstance.InstanceId, actual.Message.OrchestrationInstance.InstanceId);
-            Assert.AreEqual(expected.Message.OrchestrationInstance.ExecutionId, actual.Message.OrchestrationInstance.ExecutionId);
-            Assert.AreEqual(expected.Message.SequenceNumber, actual.Message.SequenceNumber);
-            Assert.AreEqual(expected.Message.Event.EventId, actual.Message.Event.EventId);
+            Assert.AreEqual(expected.TaskMessage.OrchestrationInstance.InstanceId, actual.TaskMessage.OrchestrationInstance.InstanceId);
+            Assert.AreEqual(expected.TaskMessage.OrchestrationInstance.ExecutionId, actual.TaskMessage.OrchestrationInstance.ExecutionId);
+            Assert.AreEqual(expected.TaskMessage.SequenceNumber, actual.TaskMessage.SequenceNumber);
+            Assert.AreEqual(expected.TaskMessage.Event.EventId, actual.TaskMessage.Event.EventId);
         }
     }
 }

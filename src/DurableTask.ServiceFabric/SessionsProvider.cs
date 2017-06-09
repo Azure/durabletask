@@ -130,9 +130,9 @@ namespace DurableTask.ServiceFabric
                     await this.AppendMessageAsync(txn, newMessage);
                     await txn.CommitAsync();
                 }
-            }, uniqueActionIdentifier: $"OrchestrationId = '{newMessage.Message.OrchestrationInstance.InstanceId}', Action = '{nameof(SessionsProvider)}.{nameof(AppendMessageAsync)}'");
+            }, uniqueActionIdentifier: $"OrchestrationId = '{newMessage.TaskMessage.OrchestrationInstance.InstanceId}', Action = '{nameof(SessionsProvider)}.{nameof(AppendMessageAsync)}'");
 
-            this.TryEnqueueSession(newMessage.Message.OrchestrationInstance);
+            this.TryEnqueueSession(newMessage.TaskMessage.OrchestrationInstance);
         }
 
         public async Task AppendMessageAsync(ITransaction transaction, TaskMessageItem newMessage)
@@ -140,18 +140,18 @@ namespace DurableTask.ServiceFabric
             ThrowIfStopped();
             await EnsureOrchestrationStoreInitialized();
 
-            var sessionMessageProvider = await GetOrAddSessionMessagesInstance(newMessage.Message.OrchestrationInstance);
+            var sessionMessageProvider = await GetOrAddSessionMessagesInstance(newMessage.TaskMessage.OrchestrationInstance);
             await sessionMessageProvider.SendBeginAsync(transaction, new Message<Guid, TaskMessageItem>(Guid.NewGuid(), newMessage));
-            await this.Store.TryAddAsync(transaction, newMessage.Message.OrchestrationInstance.InstanceId, PersistentSession.Create(newMessage.Message.OrchestrationInstance));
+            await this.Store.TryAddAsync(transaction, newMessage.TaskMessage.OrchestrationInstance.InstanceId, PersistentSession.Create(newMessage.TaskMessage.OrchestrationInstance));
         }
 
         public async Task<bool> TryAppendMessageAsync(ITransaction transaction, TaskMessageItem newMessage)
         {
             ThrowIfStopped();
 
-            if (await this.Store.ContainsKeyAsync(transaction, newMessage.Message.OrchestrationInstance.InstanceId))
+            if (await this.Store.ContainsKeyAsync(transaction, newMessage.TaskMessage.OrchestrationInstance.InstanceId))
             {
-                var sessionMessageProvider = await GetOrAddSessionMessagesInstance(newMessage.Message.OrchestrationInstance);
+                var sessionMessageProvider = await GetOrAddSessionMessagesInstance(newMessage.TaskMessage.OrchestrationInstance);
                 await sessionMessageProvider.SendBeginAsync(transaction, new Message<Guid, TaskMessageItem>(Guid.NewGuid(), newMessage));
                 return true;
             }
@@ -164,7 +164,7 @@ namespace DurableTask.ServiceFabric
             ThrowIfStopped();
             List<OrchestrationInstance> modifiedSessions = new List<OrchestrationInstance>();
 
-            var groups = newMessages.GroupBy(m => m.Message.OrchestrationInstance, OrchestrationInstanceComparer.Default);
+            var groups = newMessages.GroupBy(m => m.TaskMessage.OrchestrationInstance, OrchestrationInstanceComparer.Default);
 
             foreach (var group in groups)
             {
@@ -182,7 +182,7 @@ namespace DurableTask.ServiceFabric
         public async Task AppendMessageBatchAsync(ITransaction transaction, IEnumerable<TaskMessageItem> newMessages)
         {
             ThrowIfStopped();
-            var groups = newMessages.GroupBy(m => m.Message.OrchestrationInstance, OrchestrationInstanceComparer.Default);
+            var groups = newMessages.GroupBy(m => m.TaskMessage.OrchestrationInstance, OrchestrationInstanceComparer.Default);
 
             foreach (var group in groups)
             {

@@ -19,13 +19,13 @@ namespace DurableTask.ServiceFabric
     [DataContract]
     sealed class TaskMessageItem : IExtensibleDataObject
     {
-        public TaskMessageItem(TaskMessage message)
+        public TaskMessageItem(TaskMessage taskMessage)
         {
-            this.Message = message ?? throw new ArgumentNullException(nameof(message));
+            this.TaskMessage = taskMessage ?? throw new ArgumentNullException(nameof(taskMessage));
         }
 
         [DataMember]
-        public TaskMessage Message { get; private set; }
+        public TaskMessage TaskMessage { get; private set; }
 
         public ExtensionDataObject ExtensionData { get; set; }
     }

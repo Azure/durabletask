@@ -33,8 +33,8 @@ namespace DurableTask.ServiceFabric
                 throw new ArgumentNullException(nameof(second));
             }
 
-            var firstTimer = first.Value.Message.Event as TimerFiredEvent;
-            var secondTimer = second.Value.Message.Event as TimerFiredEvent;
+            var firstTimer = first.Value.TaskMessage.Event as TimerFiredEvent;
+            var secondTimer = second.Value.TaskMessage.Event as TimerFiredEvent;
 
             if (firstTimer == null)
             {

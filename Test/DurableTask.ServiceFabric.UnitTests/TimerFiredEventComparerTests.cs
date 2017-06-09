@@ -95,7 +95,7 @@ namespace DurableTask.ServiceFabric.UnitTests
             {
                 var min = timerMessages.Min;
                 timerMessages = timerMessages.Remove(min);
-                var firedAt = (min.Value.Message.Event as TimerFiredEvent)?.FireAt;
+                var firedAt = (min.Value.TaskMessage.Event as TimerFiredEvent)?.FireAt;
                 Assert.AreEqual(currentTime + TimeSpan.FromSeconds(i), firedAt, "Ordering seems to be broken");
                 Assert.AreEqual($"Message{6 - i}", min.Key);
             }

@@ -44,7 +44,7 @@ namespace DurableTask.ServiceFabric
 
             await this.EnumerateItems(kvp =>
             {
-                var timerEvent = kvp.Value?.Message?.Event as TimerFiredEvent;
+                var timerEvent = kvp.Value?.TaskMessage?.Event as TimerFiredEvent;
                 if (timerEvent == null)
                 {
                     ProviderEventSource.Log.UnexpectedCodeCondition($"{nameof(ScheduledMessageProvider)}.{nameof(StartAsync)} : Seeing a non timer event in scheduled messages while filling the pending items collection in role start");
@@ -75,7 +75,7 @@ namespace DurableTask.ServiceFabric
                 this.inMemorySet = this.inMemorySet.Add(new Message<string, TaskMessageItem>(key, value));
             }
 
-            var timerEvent = value.Message.Event as TimerFiredEvent;
+            var timerEvent = value.TaskMessage.Event as TimerFiredEvent;
             if (timerEvent != null && timerEvent.FireAt < this.nextActivationCheck)
             {
                 SetWaiterForNewItems();
@@ -100,7 +100,7 @@ namespace DurableTask.ServiceFabric
                     while (builder.Count > 0)
                     {
                         var firstPendingMessage = builder.Min;
-                        var timerEvent = firstPendingMessage.Value.Message.Event as TimerFiredEvent;
+                        var timerEvent = firstPendingMessage.Value.TaskMessage.Event as TimerFiredEvent;
 
                         if (timerEvent == null)
                         {

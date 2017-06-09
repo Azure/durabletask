@@ -153,7 +153,7 @@ namespace DurableTask.ServiceFabric
             var currentRuntimeState = new OrchestrationRuntimeState(currentSession.SessionState);
             var workItem = new TaskOrchestrationWorkItem()
             {
-                NewMessages = newMessages.Select(m => m.Value.Message).ToList(),
+                NewMessages = newMessages.Select(m => m.Value.TaskMessage).ToList(),
                 InstanceId = currentSession.SessionId.InstanceId,
                 OrchestrationRuntimeState = currentRuntimeState
             };
@@ -369,7 +369,7 @@ namespace DurableTask.ServiceFabric
                 return new TaskActivityWorkItem()
                 {
                     Id = message.Key,
-                    TaskMessage = message.Value.Message
+                    TaskMessage = message.Value.TaskMessage
                 };
             }
 
