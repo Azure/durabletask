@@ -114,39 +114,45 @@ namespace DurableTask.ServiceFabric
             this.waitEvent.Set();
         }
 
-        protected async Task<Message<TKey, TValue>> GetValueAsync(TKey key)
+        protected Task<Message<TKey, TValue>> GetValueAsync(TKey key)
         {
-            using (var tx = this.StateManager.CreateTransaction())
+            return RetryHelper.ExecuteWithRetryOnTransient(async () =>
             {
-                var result = await this.Store.TryGetValueAsync(tx, key);
-                if (result.HasValue)
+                using (var tx = this.StateManager.CreateTransaction())
                 {
-                    return new Message<TKey, TValue>(key, result.Value);
+                    var result = await this.Store.TryGetValueAsync(tx, key);
+                    if (result.HasValue)
+                    {
+                        return new Message<TKey, TValue>(key, result.Value);
+                    }
+                    var errorMessage = $"Internal Server Error: Did not find an item in reliable dictionary while having the item key {key} in memory";
+                    ProviderEventSource.Log.UnexpectedCodeCondition(errorMessage);
+                    throw new Exception(errorMessage);
                 }
-                var errorMessage = $"Internal Server Error: Did not find an item in reliable dictionary while having the item key {key} in memory";
-                ProviderEventSource.Log.UnexpectedCodeCondition(errorMessage);
-                throw new Exception(errorMessage);
-            }
+            }, uniqueActionIdentifier: $"Key = {key}, Action = MessageProviderBase.GetValueAsync, StoreName : {this.storeName}");
         }
 
-        protected async Task EnumerateItems(Action<KeyValuePair<TKey, TValue>> itemAction)
+        protected Task EnumerateItems(Action<KeyValuePair<TKey, TValue>> itemAction)
         {
-            using (var tx = this.StateManager.CreateTransaction())
+            return RetryHelper.ExecuteWithRetryOnTransient(async () =>
             {
-                var count = await this.Store.GetCountAsync(tx);
-
-                if (count > 0)
+                using (var tx = this.StateManager.CreateTransaction())
                 {
-                    var enumerable = await this.Store.CreateEnumerableAsync(tx, EnumerationMode.Unordered);
-                    using (var enumerator = enumerable.GetAsyncEnumerator())
+                    var count = await this.Store.GetCountAsync(tx);
+
+                    if (count > 0)
                     {
-                        while (await enumerator.MoveNextAsync(this.CancellationToken))
+                        var enumerable = await this.Store.CreateEnumerableAsync(tx, EnumerationMode.Unordered);
+                        using (var enumerator = enumerable.GetAsyncEnumerator())
                         {
-                            itemAction(enumerator.Current);
+                            while (await enumerator.MoveNextAsync(this.CancellationToken))
+                            {
+                                itemAction(enumerator.Current);
+                            }
                         }
                     }
                 }
-            }
+            }, uniqueActionIdentifier: $"Action = MessageProviderBase.EnumerateItems, StoreName : {this.storeName}");
         }
 
         protected Task<bool> WaitForItemsAsync(TimeSpan timeout)

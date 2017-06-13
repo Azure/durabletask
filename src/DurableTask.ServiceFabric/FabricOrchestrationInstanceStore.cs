@@ -115,14 +115,17 @@ namespace DurableTask.ServiceFabric
             await EnsureStoreInitialized();
 
             string latestExecutionId = null;
-            using (var tx = this.stateManager.CreateTransaction())
+            await RetryHelper.ExecuteWithRetryOnTransient(async () =>
             {
-                var executionIdValue = await this.executionIdStore.TryGetValueAsync(tx, instanceId);
-                if (executionIdValue.HasValue)
+                using (var tx = this.stateManager.CreateTransaction())
                 {
-                    latestExecutionId = executionIdValue.Value;
+                    var executionIdValue = await this.executionIdStore.TryGetValueAsync(tx, instanceId);
+                    if (executionIdValue.HasValue)
+                    {
+                        latestExecutionId = executionIdValue.Value;
+                    }
                 }
-            }
+            }, uniqueActionIdentifier: $"Orchestration Instance Id = {instanceId}, Action = {nameof(FabricOrchestrationInstanceStore)}.{nameof(GetOrchestrationStateAsync)}:GetLatestExecutionId");
 
             if (latestExecutionId != null)
             {
@@ -140,16 +143,25 @@ namespace DurableTask.ServiceFabric
         {
             await EnsureStoreInitialized();
             var queryKey = this.GetKey(instanceId, executionId);
-            using (var txn = this.stateManager.CreateTransaction())
+            var result = await RetryHelper.ExecuteWithRetryOnTransient(async () =>
             {
-                var state = await this.instanceStore.TryGetValueAsync(txn, queryKey);
-                if (state.HasValue)
+                using (var txn = this.stateManager.CreateTransaction())
                 {
-                    return new OrchestrationStateInstanceEntity()
+                    var state = await this.instanceStore.TryGetValueAsync(txn, queryKey);
+                    if (state.HasValue)
                     {
-                        State = state.Value,
-                    };
+                        return new OrchestrationStateInstanceEntity()
+                        {
+                            State = state.Value,
+                        };
+                    }
                 }
+                return null;
+            }, uniqueActionIdentifier: $"Orchestration Instance Id = {instanceId}, ExecutionId = {executionId}, Action = {nameof(FabricOrchestrationInstanceStore)}.{nameof(GetOrchestrationStateAsync)}:QueryInstanceStore");
+
+            if (result != null)
+            {
+                return result;
             }
 
             // If querying for orchestration which completed an hour ago, we won't return the results.
@@ -161,16 +173,26 @@ namespace DurableTask.ServiceFabric
 
                 if (backupDictionary.HasValue)
                 {
-                    using (var txn = this.stateManager.CreateTransaction())
+                    result = await RetryHelper.ExecuteWithRetryOnTransient(async () =>
                     {
-                        var state = await backupDictionary.Value.TryGetValueAsync(txn, queryKey);
-                        if (state.HasValue)
+                        using (var txn = this.stateManager.CreateTransaction())
                         {
-                            return new OrchestrationStateInstanceEntity()
+                            var state = await backupDictionary.Value.TryGetValueAsync(txn, queryKey);
+                            if (state.HasValue)
                             {
-                                State = state.Value,
-                            };
+                                return new OrchestrationStateInstanceEntity()
+                                {
+                                    State = state.Value,
+                                };
+                            }
                         }
+
+                        return null;
+                    }, uniqueActionIdentifier: $"Orchestration Instance Id = {instanceId}, ExecutionId = {executionId}, Action = {nameof(FabricOrchestrationInstanceStore)}.{nameof(GetOrchestrationStateAsync)}:QueryBackupInstanceStore {backupDictionaryName}");
+
+                    if (result != null)
+                    {
+                        return result;
                     }
                 }
             }

@@ -46,29 +46,32 @@ namespace DurableTask.ServiceFabric
                     {
                         try
                         {
-                            using (var txn = this.StateManager.CreateTransaction())
+                            return await RetryHelper.ExecuteWithRetryOnTransient(async () =>
                             {
-                                var existingValue = await this.Store.TryGetValueAsync(txn, returnInstanceId);
-
-                                if (existingValue.HasValue)
+                                using (var txn = this.StateManager.CreateTransaction())
                                 {
-                                    if (!this.lockedSessions.TryUpdate(returnInstanceId, newValue: LockState.Locked, comparisonValue: LockState.InFetchQueue))
+                                    var existingValue = await this.Store.TryGetValueAsync(txn, returnInstanceId);
+
+                                    if (existingValue.HasValue)
                                     {
-                                        var errorMessage = $"Internal Server Error : Unexpected to dequeue the session {returnInstanceId} which was already locked before";
+                                        if (!this.lockedSessions.TryUpdate(returnInstanceId, newValue: LockState.Locked, comparisonValue: LockState.InFetchQueue))
+                                        {
+                                            var errorMessage = $"Internal Server Error : Unexpected to dequeue the session {returnInstanceId} which was already locked before";
+                                            ProviderEventSource.Log.UnexpectedCodeCondition(errorMessage);
+                                            throw new Exception(errorMessage);
+                                        }
+
+                                        ProviderEventSource.Log.TraceMessage(returnInstanceId, "Session Locked Accepted");
+                                        return existingValue.Value;
+                                    }
+                                    else
+                                    {
+                                        var errorMessage = $"Internal Server Error: Did not find the session object in reliable dictionary while having the session {returnInstanceId} in memory";
                                         ProviderEventSource.Log.UnexpectedCodeCondition(errorMessage);
                                         throw new Exception(errorMessage);
                                     }
-
-                                    ProviderEventSource.Log.TraceMessage(returnInstanceId, "Session Locked Accepted");
-                                    return existingValue.Value;
                                 }
-                                else
-                                {
-                                    var errorMessage = $"Internal Server Error: Did not find the session object in reliable dictionary while having the session {returnInstanceId} in memory";
-                                    ProviderEventSource.Log.UnexpectedCodeCondition(errorMessage);
-                                    throw new Exception(errorMessage);
-                                }
-                            }
+                            }, uniqueActionIdentifier: $"{nameof(SessionsProvider)}.{nameof(AcceptSessionAsync)}, SessionId : {returnInstanceId}");
                         }
                         catch (Exception e)
                         {
@@ -225,26 +228,31 @@ namespace DurableTask.ServiceFabric
         {
             await EnsureOrchestrationStoreInitialized();
 
-            using (var txn = this.StateManager.CreateTransaction())
+            return await RetryHelper.ExecuteWithRetryOnTransient(async () =>
             {
-                return await this.Store.ContainsKeyAsync(txn, instance.InstanceId);
-            }
+                using (var txn = this.StateManager.CreateTransaction())
+                {
+                    return await this.Store.ContainsKeyAsync(txn, instance.InstanceId);
+                }
+            }, uniqueActionIdentifier: $"Orchestration = {instance}, Action = {nameof(SessionsProvider)}.{nameof(SessionExists)}");
         }
 
         public async Task<PersistentSession> GetSession(string instanceId)
         {
             await EnsureOrchestrationStoreInitialized();
 
-            using (var txn = this.StateManager.CreateTransaction())
+            return await RetryHelper.ExecuteWithRetryOnTransient(async () =>
             {
-                var value = await this.Store.TryGetValueAsync(txn, instanceId);
-                if (value.HasValue)
+                using (var txn = this.StateManager.CreateTransaction())
                 {
-                    return value.Value;
+                    var value = await this.Store.TryGetValueAsync(txn, instanceId);
+                    if (value.HasValue)
+                    {
+                        return value.Value;
+                    }
                 }
-            }
-
-            return null;
+                return null;
+            }, uniqueActionIdentifier: $"Orchestration InstanceId = {instanceId}, Action = {nameof(SessionsProvider)}.{nameof(GetSession)}");
         }
 
         public void TryEnqueueSession(OrchestrationInstance instance)
