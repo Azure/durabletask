@@ -346,7 +346,8 @@ namespace DurableTask.ServiceFabric
                 ProviderEventSource.Log.OrchestrationFinished(workItem.InstanceId,
                     workItem.OrchestrationRuntimeState.OrchestrationStatus.ToString(),
                     (workItem.OrchestrationRuntimeState.CompletedTime - workItem.OrchestrationRuntimeState.CreatedTime).TotalSeconds,
-                    workItem.OrchestrationRuntimeState.Output);
+                    workItem.OrchestrationRuntimeState.Output,
+                    workItem.OrchestrationRuntimeState.OrchestrationInstance.ExecutionId);
             }
 
             SessionInformation sessionInfo = TryRemoveSessionInfo(workItem.InstanceId);

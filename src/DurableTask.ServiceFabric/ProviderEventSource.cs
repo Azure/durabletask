@@ -50,12 +50,12 @@ namespace DurableTask.ServiceFabric
             }
         }
 
-        [Event(2, Level = EventLevel.Informational, Message = "Orchestration {0} Finished with the status {1} and result {3} in {2} seconds.", Channel = EventChannel.Operational)]
-        public void OrchestrationFinished(string instanceId, string terminalStatus, double runningTimeInSeconds, string result)
+        [Event(2, Level = EventLevel.Informational, Message = "Orchestration with instanceId : '{0}' and executionId : '{4}' Finished with the status {1} and result {3} in {2} seconds.", Channel = EventChannel.Operational)]
+        public void OrchestrationFinished(string instanceId, string terminalStatus, double runningTimeInSeconds, string result, string executionId)
         {
             if (IsEnabled(EventLevel.Informational, Keywords.Orchestration))
             {
-                WriteEvent(2, instanceId, terminalStatus, runningTimeInSeconds, result);
+                WriteEvent(2, instanceId, terminalStatus, runningTimeInSeconds, result, executionId);
             }
         }
 
@@ -97,12 +97,12 @@ namespace DurableTask.ServiceFabric
             }
         }
 
-        [Event(1002, Level = EventLevel.Warning, Message = "Hint : {0}, Exception: {1}", Channel = EventChannel.Operational)]
+        [Event(1002, Level = EventLevel.Warning, Message = "Hint : {0}, AttemptNumber : {1}, Exception: {2}", Channel = EventChannel.Operational)]
         public void RetryableFabricException(string uniqueIdentifier, int attemptNumber, string exception)
         {
             if (IsEnabled(EventLevel.Warning, Keywords.Common))
             {
-                WriteEvent(1002, uniqueIdentifier, exception);
+                WriteEvent(1002, uniqueIdentifier, attemptNumber, exception);
             }
         }
         #endregion
