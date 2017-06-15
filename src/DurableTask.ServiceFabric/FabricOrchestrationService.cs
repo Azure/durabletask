@@ -228,8 +228,6 @@ namespace DurableTask.ServiceFabric
 
                         using (var txn = this.stateManager.CreateTransaction())
                         {
-                            await this.orchestrationProvider.CompleteAndUpdateSession(txn, sessionInfo.Instance, newOrchestrationRuntimeState, sessionInfo.LockTokens);
-
                             if (outboundMessages?.Count > 0)
                             {
                                 activityMessages = outboundMessages.Select(m => new Message<string, TaskMessageItem>(Guid.NewGuid().ToString(), new TaskMessageItem(m))).ToList();
@@ -255,6 +253,8 @@ namespace DurableTask.ServiceFabric
                                 }
                             }
 
+                            await this.orchestrationProvider.CompleteAndUpdateSession(txn, sessionInfo.Instance, newOrchestrationRuntimeState, sessionInfo.LockTokens);
+
                             // We skip writing to instanceStore when orchestration reached terminal state to avoid a minor timing issue that
                             // wait for an orchestration completes but another orchestration with the same name cannot be started immediately
                             // because the session is still in store. We update the instance store on orchestration completion and drop the
@@ -269,7 +269,6 @@ namespace DurableTask.ServiceFabric
                                     }
                                 });
                             }
-
                             await txn.CommitAsync();
                         }
                     }
@@ -331,6 +330,7 @@ namespace DurableTask.ServiceFabric
                 {
                     using (var txn = this.stateManager.CreateTransaction())
                     {
+                        await this.orchestrationProvider.DropSession(txn, workItem.OrchestrationRuntimeState.OrchestrationInstance);
                         await this.instanceStore.WriteEntitesAsync(txn, new InstanceEntityBase[]
                         {
                             new OrchestrationStateInstanceEntity()
@@ -338,7 +338,6 @@ namespace DurableTask.ServiceFabric
                                 State = Utils.BuildOrchestrationState(workItem.OrchestrationRuntimeState)
                             }
                         });
-                        await this.orchestrationProvider.DropSession(txn, workItem.OrchestrationRuntimeState.OrchestrationInstance);
                         await txn.CommitAsync();
                     }
                 }, uniqueActionIdentifier: $"OrchestrationId = '{workItem.InstanceId}', Action = '{nameof(ReleaseTaskOrchestrationWorkItemAsync)}'");
