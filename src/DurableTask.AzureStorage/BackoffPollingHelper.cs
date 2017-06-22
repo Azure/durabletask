@@ -31,7 +31,12 @@ namespace DurableTask.AzureStorage
         TimeSpan delayTimeout;
         AsyncAutoResetEvent resetEvent;
 
-        public BackoffPollingHelper(TimeSpan maxDelay, TimeSpan minDelayThreshold, double sleepToWaitRatio = 0.1)
+        public BackoffPollingHelper(TimeSpan maxDelay, TimeSpan minDelayThreshold)
+            : this(maxDelay, minDelayThreshold, sleepToWaitRatio: 0.1)
+        {
+        }
+
+        public BackoffPollingHelper(TimeSpan maxDelay, TimeSpan minDelayThreshold, double sleepToWaitRatio)
         {
             Debug.Assert(maxDelay >= TimeSpan.Zero);
             Debug.Assert(sleepToWaitRatio > 0 && sleepToWaitRatio <= 1);

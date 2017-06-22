@@ -56,7 +56,7 @@ namespace DurableTask.AzureStorage
         ReceivedMessageContext(Guid traceActivityId, MessageData message)
         {
             this.traceActivityId = traceActivityId;
-            this.messageData = message;
+            this.messageData = message ?? throw new ArgumentNullException(nameof(message));
 
             this.storageOperationContext = new OperationContext();
             this.storageOperationContext.ClientRequestID = traceActivityId.ToString();
@@ -66,7 +66,7 @@ namespace DurableTask.AzureStorage
         ReceivedMessageContext(Guid traceActivityId, List<MessageData> messageBatch)
         {
             this.traceActivityId = traceActivityId;
-            this.messageDataBatch = messageBatch;
+            this.messageDataBatch = messageBatch ?? throw new ArgumentNullException(nameof(messageBatch));
 
             this.storageOperationContext = new OperationContext();
             this.storageOperationContext.ClientRequestID = traceActivityId.ToString();
@@ -105,6 +105,16 @@ namespace DurableTask.AzureStorage
 
         public static ReceivedMessageContext CreateFromReceivedMessageBatch(List<MessageData> batch)
         {
+            if (batch == null)
+            {
+                throw new ArgumentNullException(nameof(batch));
+            }
+
+            if (batch.Count == 0)
+            {
+                throw new ArgumentException("The list must not be empty.", nameof(batch));
+            }
+
             Guid newTraceActivityId = StartNewLogicalTraceScope();
             batch.ForEach(TraceMessageReceived);
 

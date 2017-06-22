@@ -697,7 +697,14 @@ namespace DurableTask.AzureStorage
             }
             catch (StorageException e) when (e.RequestInformation?.HttpStatusCode == 404)
             {
-                // Message may have been processed and deleted already.
+                // Message(s) may have been processed and deleted already.
+                foreach (MessageData message in context.MessageDataBatch)
+                {
+                    AnalyticsEventSource.Log.MessageGone(
+                        message.OriginalQueueMessage.Id,
+                        workItem.InstanceId,
+                        nameof(RenewTaskOrchestrationWorkItemLockAsync));
+                }
             }
         }
 
@@ -739,6 +746,13 @@ namespace DurableTask.AzureStorage
             catch (StorageException e) when (e.RequestInformation?.HttpStatusCode == 404)
             {
                 // Message may have been processed and deleted already.
+                foreach (MessageData message in context.MessageDataBatch)
+                {
+                    AnalyticsEventSource.Log.MessageGone(
+                        message.OriginalQueueMessage.Id,
+                        workItem.InstanceId,
+                        nameof(AbandonTaskOrchestrationWorkItemAsync));
+                }
             }
         }
 
@@ -772,7 +786,14 @@ namespace DurableTask.AzureStorage
             }
             catch (StorageException e) when (e.RequestInformation?.HttpStatusCode == 404)
             {
-                // Message was already deleted
+                // Message may have been processed and deleted already.
+                foreach (MessageData message in context.MessageDataBatch)
+                {
+                    AnalyticsEventSource.Log.MessageGone(
+                        message.OriginalQueueMessage.Id,
+                        workItem.InstanceId,
+                        nameof(ReleaseTaskOrchestrationWorkItemAsync));
+                }
             }
 
             ReceivedMessageContext.RemoveContext(workItem);
@@ -873,6 +894,10 @@ namespace DurableTask.AzureStorage
             catch (StorageException e) when (e.RequestInformation?.HttpStatusCode == 404)
             {
                 // Message was already deleted
+                AnalyticsEventSource.Log.MessageGone(
+                    context.MessageData.OriginalQueueMessage.Id,
+                    workItem.TaskMessage.OrchestrationInstance.InstanceId,
+                    nameof(CompleteTaskActivityWorkItemAsync));
             }
 
             ReceivedMessageContext.RemoveContext(workItem);
@@ -901,6 +926,10 @@ namespace DurableTask.AzureStorage
             catch (StorageException e) when (e.RequestInformation?.HttpStatusCode == 404)
             {
                 // Message was deleted
+                AnalyticsEventSource.Log.MessageGone(
+                    context.MessageData.OriginalQueueMessage.Id,
+                    workItem.TaskMessage.OrchestrationInstance.InstanceId,
+                    nameof(RenewTaskActivityWorkItemLockAsync));
             }
 
             return workItem;
@@ -935,6 +964,10 @@ namespace DurableTask.AzureStorage
             catch (StorageException e) when (e.RequestInformation?.HttpStatusCode == 404)
             {
                 // Message was deleted
+                AnalyticsEventSource.Log.MessageGone(
+                    context.MessageData.OriginalQueueMessage.Id,
+                    workItem.TaskMessage.OrchestrationInstance.InstanceId,
+                    nameof(AbandonTaskActivityWorkItemAsync));
             }
 
             ReceivedMessageContext.RemoveContext(workItem);

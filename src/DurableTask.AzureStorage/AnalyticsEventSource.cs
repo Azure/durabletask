@@ -98,6 +98,13 @@ namespace DurableTask.AzureStorage
             this.WriteEvent(105, Details);
         }
 
+        [Event(106, Level = EventLevel.Warning)]
+        public void MessageGone(string MessageId, string InstanceId, string Details)
+        {
+            EnsureLogicalTraceActivityId();
+            this.WriteEvent(106, MessageId, InstanceId, Details);
+        }
+
         [Event(110, Level = EventLevel.Informational)]
         public void FetchedInstanceState(string InstanceId, string ExecutionId, int EventCount, int RequestCount, long LatencyMs)
         {
