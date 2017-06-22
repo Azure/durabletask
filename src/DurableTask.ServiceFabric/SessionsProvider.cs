@@ -73,9 +73,8 @@ namespace DurableTask.ServiceFabric
                                 }
                             }, uniqueActionIdentifier: $"{nameof(SessionsProvider)}.{nameof(AcceptSessionAsync)}, SessionId : {returnInstanceId}");
                         }
-                        catch (Exception e)
+                        catch (Exception)
                         {
-                            ProviderEventSource.Log.ExceptionInReliableCollectionOperations($"OrchestrationId = '{returnInstanceId}', Action = 'AcceptSessionAsync'", e.ToString());
                             this.inMemorySessionsQueue.Enqueue(returnInstanceId);
                             throw;
                         }

@@ -46,9 +46,8 @@ namespace DurableTask.ServiceFabric
                         {
                             return await GetValueAsync(key);
                         }
-                        catch (Exception e)
+                        catch (Exception)
                         {
-                            ProviderEventSource.Log.ExceptionInReliableCollectionOperations($"ActivityId = {key}, Action = ActivityProvider.{nameof(ReceiveAsync)}", e.ToString());
                             this.inMemoryQueue.Enqueue(key);
                             throw;
                         }

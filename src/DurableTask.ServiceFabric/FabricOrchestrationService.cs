@@ -143,9 +143,8 @@ namespace DurableTask.ServiceFabric
             {
                 newMessages = await this.orchestrationProvider.ReceiveSessionMessagesAsync(currentSession);
             }
-            catch(Exception e)
+            catch(Exception)
             {
-                ProviderEventSource.Log.ExceptionInReliableCollectionOperations($"OrchestrationId = '{currentSession.SessionId}', Action = 'ReceiveSessionMessagesAsync'", e.ToString());
                 this.orchestrationProvider.TryUnlockSession(currentSession.SessionId, abandon: true);
                 throw;
             }
