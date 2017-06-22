@@ -96,23 +96,16 @@ namespace TestStatefulService
             ServiceEventSource.Current.ServiceRequestStart($"Fabric On Change Role Async, current role = {this.currentRole}, new role = {newRole}");
             if (newRole != ReplicaRole.Primary && this.currentRole == ReplicaRole.Primary)
             {
-                try
-                {
-                    ServiceEventSource.Current.ServiceMessage(this, "Replica Role Changed From Primary to Non-Primary, Stopping Taskhub Worker");
-                    await this.worker.StopAsync(isForced: true);
-                    this.worker.Dispose();
-                    this.fabricProvider.Dispose();
-                    this.fabricProvider = null;
-                    ServiceEventSource.Current.ServiceMessage(this, "Replica Role Changed From Primary to Non-Primary, Stopped Taskhub Worker");
-                }
-                catch (Exception e)
-                {
-                    ServiceEventSource.Current.ServiceRequestFailed("Fabric On Change Role Async - Stop Worker On Primary Move", e.ToString());
-                    throw;
-                }
+                await ShutdownAsync();
             }
             this.currentRole = newRole;
             ServiceEventSource.Current.ServiceRequestStop($"Fabric On Change Role Async, current role = {this.currentRole}");
+        }
+
+        protected override async Task OnCloseAsync(CancellationToken cancellationToken)
+        {
+            ServiceEventSource.Current.ServiceMessage(this, "OnCloseAsync - will shutdown primary if not already done");
+            await ShutdownAsync();
         }
 
         public async Task<OrchestrationState> RunOrchestrationAsync(string orchestrationTypeName, object input, TimeSpan waitTimeout)
@@ -150,6 +143,28 @@ namespace TestStatefulService
         public Task PurgeOrchestrationHistoryEventsAsync()
         {
             return this.client.PurgeOrchestrationInstanceHistoryAsync(DateTime.UtcNow, OrchestrationStateTimeRangeFilterType.OrchestrationCompletedTimeFilter);
+        }
+
+        async Task ShutdownAsync()
+        {
+            try
+            {
+                if (this.worker != null)
+                {
+                    ServiceEventSource.Current.ServiceMessage(this, "Stopping Taskhub Worker");
+                    await this.worker.StopAsync(isForced: true);
+                    this.worker.Dispose();
+                    this.fabricProvider.Dispose();
+                    this.fabricProvider = null;
+                    this.worker = null;
+                    ServiceEventSource.Current.ServiceMessage(this, "Stopped Taskhub Worker");
+                }
+            }
+            catch (Exception e)
+            {
+                ServiceEventSource.Current.ServiceRequestFailed("Exception when Stopping Worker On Primary Stop", e.ToString());
+                throw;
+            }
         }
 
         Type GetOrchestrationType(string typeName)
