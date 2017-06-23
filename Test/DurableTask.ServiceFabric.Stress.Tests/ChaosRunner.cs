@@ -25,7 +25,7 @@ namespace DurableTask.ServiceFabric.Failover.Tests
         public async Task RunFailoverScenario(TimeSpan timeToRun, CancellationToken token)
         {
             var partitionSelector = PartitionSelector.PartitionKeyOf(new Uri("fabric:/TestFabricApplication/TestStatefulService"), 1);
-            TimeSpan maxServiceStabilizationTimeout = TimeSpan.FromMinutes(2);
+            TimeSpan maxServiceStabilizationTimeout = TimeSpan.FromMinutes(3);
             var client = new FabricClient("localhost:19000");
 
             var parameters = new FailoverTestScenarioParameters(
