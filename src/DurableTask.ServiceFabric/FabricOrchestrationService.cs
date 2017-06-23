@@ -161,6 +161,7 @@ namespace DurableTask.ServiceFabric
             {
                 if (currentRuntimeState.ExecutionStartedEvent == null)
                 {
+                    ProviderEventSource.Log.UnexpectedCodeCondition($"Orchestration with no execution started event found: {currentSession.SessionId}");
                     return null;
                 }
 
@@ -252,7 +253,18 @@ namespace DurableTask.ServiceFabric
                                 }
                             }
 
-                            await this.orchestrationProvider.CompleteAndUpdateSession(txn, sessionInfo.Instance, newOrchestrationRuntimeState, sessionInfo.LockTokens);
+                            await this.orchestrationProvider.CompleteMessages(txn, sessionInfo.Instance, sessionInfo.LockTokens);
+
+                            // When an orchestration is completed, we won't update the instance store or drop session as part
+                            // of this transaction (to avoid dropping session in an already big transaction where we may complete a few messages).
+                            // Instead, we drop the session and update instance store as part of Releasing the work item.
+                            // However, framework passes us 'null' value for 'newOrchestrationRuntimeState' when orchestration is completed and
+                            // if we updated the session state to null and this transaction succeded, and a node failures occurs and we
+                            // never call Release method, we will lose the runtime state of orchestration and never will be able to
+                            // mark it as complete even if it is. So we use the work item's runtime state when 'newOrchestrationRuntimeState' is null
+                            // so that the latest state is what is stored for the session.
+                            // As part of Release, we are going to remove the row anyway for the session and it doesn't matter to update it to 'null'.
+                            await this.orchestrationProvider.UpdateSessionState(txn, sessionInfo.Instance, newOrchestrationRuntimeState ?? workItem.OrchestrationRuntimeState);
 
                             // We skip writing to instanceStore when orchestration reached terminal state to avoid a minor timing issue that
                             // wait for an orchestration completes but another orchestration with the same name cannot be started immediately
@@ -460,6 +472,7 @@ namespace DurableTask.ServiceFabric
 
         SessionInformation GetSessionInfo(string sessionId)
         {
+            ProviderEventSource.Log.TraceMessage(sessionId, $"{nameof(GetSessionInfo)} - Getting session info");
             SessionInformation sessionInfo;
             if (!this.sessionInfos.TryGetValue(sessionId, out sessionInfo))
             {
@@ -474,7 +487,8 @@ namespace DurableTask.ServiceFabric
         SessionInformation TryRemoveSessionInfo(string sessionId)
         {
             SessionInformation sessionInfo;
-            this.sessionInfos.TryRemove(sessionId, out sessionInfo);
+            var removed = this.sessionInfos.TryRemove(sessionId, out sessionInfo);
+            ProviderEventSource.Log.TraceMessage(sessionId, $"{nameof(TryRemoveSessionInfo)}: Removed = {removed}");
             return sessionInfo;
         }
 

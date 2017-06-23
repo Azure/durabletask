@@ -99,10 +99,7 @@ namespace DurableTask.ServiceFabric
             return messages;
         }
 
-        public async Task CompleteAndUpdateSession(ITransaction transaction,
-            OrchestrationInstance instance,
-            OrchestrationRuntimeState newSessionState,
-            List<Guid> lockTokens)
+        public async Task CompleteMessages(ITransaction transaction, OrchestrationInstance instance, List<Guid> lockTokens)
         {
             SessionMessagesProvider<Guid, TaskMessageItem> sessionMessageProvider;
             if (this.sessionMessageProviders.TryGetValue(instance, out sessionMessageProvider))
@@ -112,9 +109,12 @@ namespace DurableTask.ServiceFabric
             }
             else
             {
-                ProviderEventSource.Log.UnexpectedCodeCondition($"{nameof(SessionsProvider)}.{nameof(CompleteAndUpdateSession)} : Did not find session messages provider instance for session : {instance}.");
+                ProviderEventSource.Log.UnexpectedCodeCondition($"{nameof(SessionsProvider)}.{nameof(CompleteMessages)} : Did not find session messages provider instance for session : {instance}.");
             }
+        }
 
+        public async Task UpdateSessionState(ITransaction transaction, OrchestrationInstance instance, OrchestrationRuntimeState newSessionState)
+        {
             var sessionStateEvents = newSessionState?.Events.ToImmutableList();
             var result = PersistentSession.Create(instance, sessionStateEvents);
 #if DEBUG

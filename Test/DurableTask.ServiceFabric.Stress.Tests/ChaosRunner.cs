@@ -32,7 +32,6 @@ namespace DurableTask.ServiceFabric.Failover.Tests
                 partitionSelector,
                 timeToRun,
                 maxServiceStabilizationTimeout);
-            parameters.WaitTimeBetweenFaults = TimeSpan.FromMinutes(1);
 
             Console.WriteLine($"FailoverTest Info : TimeToRun = {parameters.TimeToRun}");
             Console.WriteLine($"FailoverTest Info : WaitTimeBetweenFaults = {parameters.WaitTimeBetweenFaults}");
