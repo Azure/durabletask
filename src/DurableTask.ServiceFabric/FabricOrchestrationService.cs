@@ -210,6 +210,8 @@ namespace DurableTask.ServiceFabric
                 throw new Exception("ContinueAsNew is not supported yet");
             }
 
+            bool isComplete = orchestrationState != null && orchestrationState.OrchestrationStatus.IsTerminalState();
+
             IList<OrchestrationInstance> sessionsToEnqueue = null;
             List<Message<string, TaskMessageItem>> scheduledMessages = null;
             List<Message<string, TaskMessageItem>> activityMessages = null;
@@ -253,24 +255,17 @@ namespace DurableTask.ServiceFabric
                                 }
                             }
 
-                            await this.orchestrationProvider.CompleteMessages(txn, sessionInfo.Instance, sessionInfo.LockTokens);
+                            if (isComplete)
+                            {
+                                await this.orchestrationProvider.DropSession(txn, sessionInfo.Instance);
+                            }
+                            else
+                            {
+                                await this.orchestrationProvider.CompleteMessages(txn, sessionInfo.Instance, sessionInfo.LockTokens);
+                                await this.orchestrationProvider.UpdateSessionState(txn, sessionInfo.Instance, newOrchestrationRuntimeState);
+                            }
 
-                            // When an orchestration is completed, we won't update the instance store or drop session as part
-                            // of this transaction (to avoid dropping session in an already big transaction where we may complete a few messages).
-                            // Instead, we drop the session and update instance store as part of Releasing the work item.
-                            // However, framework passes us 'null' value for 'newOrchestrationRuntimeState' when orchestration is completed and
-                            // if we updated the session state to null and this transaction succeded, and a node failures occurs and we
-                            // never call Release method, we will lose the runtime state of orchestration and never will be able to
-                            // mark it as complete even if it is. So we use the work item's runtime state when 'newOrchestrationRuntimeState' is null
-                            // so that the latest state is what is stored for the session.
-                            // As part of Release, we are going to remove the row anyway for the session and it doesn't matter to update it to 'null'.
-                            await this.orchestrationProvider.UpdateSessionState(txn, sessionInfo.Instance, newOrchestrationRuntimeState ?? workItem.OrchestrationRuntimeState);
-
-                            // We skip writing to instanceStore when orchestration reached terminal state to avoid a minor timing issue that
-                            // wait for an orchestration completes but another orchestration with the same name cannot be started immediately
-                            // because the session is still in store. We update the instance store on orchestration completion and drop the
-                            // session as part of a single transaction when we release the work item.
-                            if (this.instanceStore != null && orchestrationState != null && !orchestrationState.OrchestrationStatus.IsTerminalState())
+                            if (this.instanceStore != null && orchestrationState != null)
                             {
                                 await this.instanceStore.WriteEntitesAsync(txn, new InstanceEntityBase[]
                                 {
@@ -331,28 +326,12 @@ namespace DurableTask.ServiceFabric
             return CompletedTask.Default;
         }
 
-        public async Task ReleaseTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
+        public Task ReleaseTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
             bool isComplete = workItem.OrchestrationRuntimeState.OrchestrationStatus.IsTerminalState();
 
             if (isComplete)
             {
-                await RetryHelper.ExecuteWithRetryOnTransient(async () =>
-                {
-                    using (var txn = this.stateManager.CreateTransaction())
-                    {
-                        await this.orchestrationProvider.DropSession(txn, workItem.OrchestrationRuntimeState.OrchestrationInstance);
-                        await this.instanceStore.WriteEntitesAsync(txn, new InstanceEntityBase[]
-                        {
-                            new OrchestrationStateInstanceEntity()
-                            {
-                                State = Utils.BuildOrchestrationState(workItem.OrchestrationRuntimeState)
-                            }
-                        });
-                        await txn.CommitAsync();
-                    }
-                }, uniqueActionIdentifier: $"OrchestrationId = '{workItem.InstanceId}', Action = '{nameof(ReleaseTaskOrchestrationWorkItemAsync)}'");
-
                 ProviderEventSource.Log.OrchestrationFinished(workItem.InstanceId,
                     workItem.OrchestrationRuntimeState.OrchestrationStatus.ToString(),
                     (workItem.OrchestrationRuntimeState.CompletedTime - workItem.OrchestrationRuntimeState.CreatedTime).TotalSeconds,
@@ -365,6 +344,8 @@ namespace DurableTask.ServiceFabric
             {
                 this.orchestrationProvider.TryUnlockSession(sessionInfo.Instance, isComplete: isComplete);
             }
+
+            return CompletedTask.Default;
         }
 
         public int TaskActivityDispatcherCount => this.settings.TaskActivityDispatcherSettings.DispatcherCount;
