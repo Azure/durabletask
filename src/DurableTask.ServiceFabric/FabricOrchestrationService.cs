@@ -255,9 +255,13 @@ namespace DurableTask.ServiceFabric
 
                             await this.orchestrationProvider.CompleteMessages(txn, sessionInfo.Instance, sessionInfo.LockTokens);
 
-                            // When an orchestration is completed, we won't update the instance store or drop session as part
-                            // of this transaction (to avoid dropping session in an already big transaction where we may complete a few messages).
-                            // Instead, we drop the session and update instance store as part of Releasing the work item.
+                            // When an orchestration is completed, we need to drop the session which involves 2 steps (1) Removing the row from sessions
+                            // (2) Dropping the session messages dictionary. The second step is done in background thread for performance so is not
+                            // part of transaction. Since it will happen outside the trasanction, if this transaction fails for some reason and we dropped
+                            // the session as part of this transaction, we wouldn't have updated the session state but would have lost the messages
+                            // in the session messages dictionary which are needed for state to reach complete state (when the orchestration is picked up again in next fetch).
+                            // So we don't want to drop session as part of this transaction.
+                            // Instead, we drop the session as part of Releasing the work item. (Just for a subsequent different transaction)
                             // However, framework passes us 'null' value for 'newOrchestrationRuntimeState' when orchestration is completed and
                             // if we updated the session state to null and this transaction succeded, and a node failures occurs and we
                             // never call Release method, we will lose the runtime state of orchestration and never will be able to
@@ -341,7 +345,6 @@ namespace DurableTask.ServiceFabric
                 {
                     using (var txn = this.stateManager.CreateTransaction())
                     {
-                        await this.orchestrationProvider.DropSession(txn, workItem.OrchestrationRuntimeState.OrchestrationInstance);
                         await this.instanceStore.WriteEntitesAsync(txn, new InstanceEntityBase[]
                         {
                             new OrchestrationStateInstanceEntity()
@@ -349,6 +352,12 @@ namespace DurableTask.ServiceFabric
                                 State = Utils.BuildOrchestrationState(workItem.OrchestrationRuntimeState)
                             }
                         });
+                        // DropSession does 2 things (like mentioned in the comments in Complete method) - remove the row from sessions dictionary
+                        // and delete the session messages dictionary. The second step is in a background thread and not part of transaction.
+                        // However even if this transaction failed but we ended up deleting session messages dictionary, that's ok - at
+                        // that time, it should be an empty dictionary and we would have updated the runtime session state to full completed
+                        // state in the transaction from Complete method. So the subsequent attempt would be able to complete the session.
+                        await this.orchestrationProvider.DropSession(txn, workItem.OrchestrationRuntimeState.OrchestrationInstance);
                         await txn.CommitAsync();
                     }
                 }, uniqueActionIdentifier: $"OrchestrationId = '{workItem.InstanceId}', Action = '{nameof(ReleaseTaskOrchestrationWorkItemAsync)}'");
