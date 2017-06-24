@@ -132,12 +132,38 @@ namespace TestStatefulService
 
         public Task<OrchestrationState> GetOrchestrationState(OrchestrationInstance instance)
         {
-            return client.GetOrchestrationStateAsync(instance);
+            if (instance == null)
+            {
+                throw new ArgumentNullException(nameof(instance));
+            }
+
+            try
+            {
+                return client.GetOrchestrationStateAsync(instance);
+            }
+            catch(Exception ex)
+            {
+                ServiceEventSource.Current.ServiceRequestFailed($"{nameof(GetOrchestrationState)}", ex.ToString());
+                throw;
+            }
         }
 
         public async Task<OrchestrationState> WaitForOrchestration(OrchestrationInstance instance, TimeSpan waitTimeout)
         {
-            return await client.WaitForOrchestrationAsync(instance, waitTimeout);
+            if (instance == null)
+            {
+                throw new ArgumentNullException(nameof(instance));
+            }
+
+            try
+            {
+                return await client.WaitForOrchestrationAsync(instance, waitTimeout);
+            }
+            catch(Exception ex)
+            {
+                ServiceEventSource.Current.ServiceRequestFailed($"{nameof(WaitForOrchestration)}", ex.ToString());
+                throw;
+            }
         }
 
         public Task PurgeOrchestrationHistoryEventsAsync()

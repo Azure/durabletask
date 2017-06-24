@@ -14,6 +14,7 @@
 namespace DurableTask.ServiceFabric
 {
     using System;
+    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Linq;
     using System.Threading;
@@ -33,9 +34,9 @@ namespace DurableTask.ServiceFabric
 
         public FabricOrchestrationServiceClient(IReliableStateManager stateManager, SessionsProvider orchestrationProvider, IFabricOrchestrationServiceInstanceStore instanceStore)
         {
-            this.stateManager = stateManager;
-            this.orchestrationProvider = orchestrationProvider;
-            this.instanceStore = instanceStore;
+            this.stateManager = stateManager ?? throw new ArgumentNullException(nameof(stateManager));
+            this.orchestrationProvider = orchestrationProvider ?? throw new ArgumentNullException(nameof(orchestrationProvider));
+            this.instanceStore = instanceStore ?? throw new ArgumentNullException(nameof(instanceStore));
         }
 
         #region IOrchestrationServiceClient
@@ -93,8 +94,6 @@ namespace DurableTask.ServiceFabric
 
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
         {
-            ThrowIfInstanceStoreNotConfigured();
-
             var stateInstances = await this.instanceStore.GetOrchestrationStateAsync(instanceId, allExecutions);
 
             var result = new List<OrchestrationState>();
@@ -110,7 +109,6 @@ namespace DurableTask.ServiceFabric
 
         public async Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)
         {
-            ThrowIfInstanceStoreNotConfigured();
             var stateInstance = await this.instanceStore.GetOrchestrationStateAsync(instanceId, executionId);
             return stateInstance?.State;
         }
@@ -122,8 +120,6 @@ namespace DurableTask.ServiceFabric
 
         public Task PurgeOrchestrationHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType)
         {
-            ThrowIfInstanceStoreNotConfigured();
-
             if (timeRangeFilterType != OrchestrationStateTimeRangeFilterType.OrchestrationCompletedTimeFilter)
             {
                 throw new NotSupportedException("Purging is supported only for Orchestration completed time filter.");
@@ -132,27 +128,11 @@ namespace DurableTask.ServiceFabric
             return this.instanceStore.PurgeOrchestrationHistoryEventsAsync(thresholdDateTimeUtc);
         }
 
-        //Todo: Timeout logic seems to be broken, don't know why, need to investigate.
         public async Task<OrchestrationState> WaitForOrchestrationAsync(string instanceId, string executionId, TimeSpan timeout, CancellationToken cancellationToken)
         {
-            ThrowIfInstanceStoreNotConfigured();
-
-            var timeoutSeconds = timeout.TotalSeconds;
-
-            while (timeoutSeconds > 0 && !cancellationToken.IsCancellationRequested)
-            {
-                var currentState = await this.GetOrchestrationStateAsync(instanceId, executionId);
-
-                if (currentState != null && currentState.OrchestrationStatus.IsTerminalState())
-                {
-                    return currentState;
-                }
-
-                await Task.Delay(2000, cancellationToken).ConfigureAwait(false);
-                timeoutSeconds -= 2;
-            }
-
-            return null;
+            var instance = new OrchestrationInstance() { InstanceId = instanceId, ExecutionId = executionId };
+            var state = await this.instanceStore.WaitForOrchestrationAsync(instance, timeout);
+            return state?.State;
         }
         #endregion
 
@@ -196,14 +176,6 @@ namespace DurableTask.ServiceFabric
                     State = initialState
                 }
             });
-        }
-
-        void ThrowIfInstanceStoreNotConfigured()
-        {
-            if (this.instanceStore == null)
-            {
-                throw new InvalidOperationException("Instance store is not configured");
-            }
         }
     }
 }

@@ -32,7 +32,7 @@ namespace DurableTask.ServiceFabric.Test
         [TestInitialize]
         public void TestInitialize()
         {
-            this.serviceClient = ServiceProxy.Create<IRemoteClient>(new Uri("fabric:/TestFabricApplicationType/TestStatefulService"), new ServicePartitionKey(1));
+            this.serviceClient = ServiceProxy.Create<IRemoteClient>(new Uri(Constants.TestFabricApplicationAddress), new ServicePartitionKey(1));
         }
 
         [TestMethod]

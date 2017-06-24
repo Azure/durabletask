@@ -288,7 +288,8 @@ namespace DurableTask.ServiceFabric
             SessionMessagesProvider<Guid, TaskMessageItem> sessionMessagesProvider;
             this.sessionMessageProviders.TryRemove(instance, out sessionMessagesProvider);
 
-            var noWait = Task.Run(() => this.StateManager.RemoveAsync(GetSessionMessagesDictionaryName(instance)));
+            var noWait = RetryHelper.ExecuteWithRetryOnTransient(() => this.StateManager.RemoveAsync(GetSessionMessagesDictionaryName(instance)),
+                uniqueActionIdentifier: $"Orchestration = '{instance}', Action = 'DropSessionMessagesDictionaryBackgroundTask'");
         }
 
         Task EnsureOrchestrationStoreInitialized()

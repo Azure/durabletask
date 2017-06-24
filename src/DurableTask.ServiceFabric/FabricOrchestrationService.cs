@@ -345,6 +345,8 @@ namespace DurableTask.ServiceFabric
                     }
                 }, uniqueActionIdentifier: $"OrchestrationId = '{workItem.InstanceId}', Action = '{nameof(ReleaseTaskOrchestrationWorkItemAsync)}'");
 
+                this.instanceStore.OnOrchestrationCompleted(workItem.OrchestrationRuntimeState.OrchestrationInstance);
+
                 ProviderEventSource.Log.OrchestrationFinished(workItem.InstanceId,
                     workItem.OrchestrationRuntimeState.OrchestrationStatus.ToString(),
                     (workItem.OrchestrationRuntimeState.CompletedTime - workItem.OrchestrationRuntimeState.CreatedTime).TotalSeconds,

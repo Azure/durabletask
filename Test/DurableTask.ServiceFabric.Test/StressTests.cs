@@ -26,8 +26,6 @@ namespace DurableTask.ServiceFabric.Test
     [TestClass]
     public class StressTests
     {
-        const string TestFabricApplicationAddress = "fabric:/TestFabricApplicationType/TestStatefulService";
-
         [TestMethod]
         public async Task ExecuteStressTest()
         {
@@ -62,7 +60,7 @@ namespace DurableTask.ServiceFabric.Test
         {
             int numberOfAttempts = 10; //Try a few times to make sure there is no failure.
             var instanceId = nameof(ExecuteSameOrchestrationBackToBack);
-            var serviceClient = ServiceProxy.Create<IRemoteClient>(new Uri(TestFabricApplicationAddress), new ServicePartitionKey(1));
+            var serviceClient = ServiceProxy.Create<IRemoteClient>(new Uri(Constants.TestFabricApplicationAddress), new ServicePartitionKey(1));
 
             Dictionary<int, Tuple<OrchestrationInstance, OrchestrationState>> results = new Dictionary<int, Tuple<OrchestrationInstance, OrchestrationState>>();
 
@@ -98,8 +96,8 @@ namespace DurableTask.ServiceFabric.Test
             foreach (var numberOfActivities in tests)
             {
                 Console.WriteLine($"Begin testing orchestration with {numberOfActivities} parallel activities");
-                var serviceClient = ServiceProxy.Create<IRemoteClient>(new Uri(TestFabricApplicationAddress), new ServicePartitionKey(1));
-                var state = await serviceClient.RunOrchestrationAsync(typeof(ExecutionCountingOrchestration).Name, numberOfActivities, TimeSpan.FromMinutes(2));
+                var serviceClient = ServiceProxy.Create<IRemoteClient>(new Uri(Constants.TestFabricApplicationAddress), new ServicePartitionKey(1));
+                var state = await serviceClient.RunOrchestrationAsync(typeof(ExecutionCountingOrchestration).Name, numberOfActivities, TimeSpan.FromMinutes(3));
                 Assert.IsNotNull(state);
                 Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
                 Console.WriteLine($"Time for orchestration {state.OrchestrationInstance.InstanceId} with {numberOfActivities} parallel activities : {state.CompletedTime - state.CreatedTime}");
@@ -172,7 +170,7 @@ namespace DurableTask.ServiceFabric.Test
 
         async Task RunDriverOrchestrationHelper(DriverOrchestrationData driverConfig)
         {
-            var serviceClient = ServiceProxy.Create<IRemoteClient>(new Uri(TestFabricApplicationAddress), new ServicePartitionKey(1));
+            var serviceClient = ServiceProxy.Create<IRemoteClient>(new Uri(Constants.TestFabricApplicationAddress), new ServicePartitionKey(1));
             Console.WriteLine($"Orchestration getting scheduled: {DateTime.Now}");
 
             Stopwatch stopWatch = Stopwatch.StartNew();
@@ -196,9 +194,9 @@ namespace DurableTask.ServiceFabric.Test
 
         async Task RunTestOrchestrationsHelper(int numberOfInstances, TestOrchestrationData orchestrationInput, Func<int, TimeSpan> delayGeneratorFunction = null)
         {
-            var serviceClient = ServiceProxy.Create<IRemoteClient>(new Uri(TestFabricApplicationAddress), new ServicePartitionKey(1));
+            var serviceClient = ServiceProxy.Create<IRemoteClient>(new Uri(Constants.TestFabricApplicationAddress), new ServicePartitionKey(1));
 
-            Dictionary<OrchestrationInstance, OrchestrationState> results = new Dictionary<OrchestrationInstance, OrchestrationState>();
+            List<Tuple<OrchestrationInstance, OrchestrationState>> results = new List<Tuple<OrchestrationInstance, OrchestrationState>>();
             List<Task> waitTasks = new List<Task>();
             Stopwatch stopWatch = Stopwatch.StartNew();
             for (int i = 0; i < numberOfInstances; i++)
@@ -207,7 +205,7 @@ namespace DurableTask.ServiceFabric.Test
                 waitTasks.Add(Task.Run(async () =>
                 {
                     var state = await serviceClient.WaitForOrchestration(instance, TimeSpan.FromMinutes(2));
-                    results.Add(instance, state);
+                    results.Add(Tuple.Create(instance, state));
                 }));
                 if (delayGeneratorFunction != null)
                 {
@@ -228,16 +226,16 @@ namespace DurableTask.ServiceFabric.Test
             int failedOrchestrations = 0;
             foreach (var kvp in results)
             {
-                if (kvp.Value == null)
+                if (kvp.Item2 == null)
                 {
                     failedOrchestrations++;
-                    var state = await serviceClient.GetOrchestrationState(kvp.Key);
-                    Console.WriteLine($"Unfinished orchestration {kvp.Key}, state : {kvp.Value?.OrchestrationStatus}");
+                    var state = await serviceClient.GetOrchestrationState(kvp.Item1);
+                    Console.WriteLine($"Unfinished orchestration {kvp.Item1}, state : {kvp.Item2?.OrchestrationStatus}");
                     continue;
                 }
 
-                Assert.AreEqual(expectedResult, kvp.Value.Output, $"Unexpected output for Orchestration : {kvp.Key.InstanceId}");
-                TimeSpan orchestrationTime = kvp.Value.CompletedTime - kvp.Value.CreatedTime;
+                Assert.AreEqual(expectedResult, kvp.Item2.Output, $"Unexpected output for Orchestration : {kvp.Item1.InstanceId}");
+                TimeSpan orchestrationTime = kvp.Item2.CompletedTime - kvp.Item2.CreatedTime;
                 if (minTime > orchestrationTime)
                 {
                     minTime = orchestrationTime;

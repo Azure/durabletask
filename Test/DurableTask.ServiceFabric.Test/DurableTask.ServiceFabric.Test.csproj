@@ -80,12 +80,14 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AssemblySetup.cs" />
+    <Compile Include="Constants.cs" />
     <Compile Include="DeploymentUtil\ApplicationInfoReader.cs" />
     <Compile Include="DeploymentUtil\DeploymentHelper.cs" />
     <Compile Include="FunctionalTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="StressTests.cs" />
     <Compile Include="Utilities.cs" />
+    <Compile Include="WaitForOrchestrationTests.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\DurableTask.Framework\DurableTask.Framework.csproj">

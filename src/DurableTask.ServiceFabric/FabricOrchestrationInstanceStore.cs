@@ -14,6 +14,7 @@
 namespace DurableTask.ServiceFabric
 {
     using System;
+    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Collections.Immutable;
     using System.Globalization;
@@ -34,6 +35,7 @@ namespace DurableTask.ServiceFabric
         const string TimeFormatStringPrefix = "yyyy-MM-dd-";
         readonly IReliableStateManager stateManager;
         readonly CancellationToken cancellationToken;
+        readonly ConcurrentDictionary<OrchestrationInstance, AsyncManualResetEvent> orchestrationWaiters = new ConcurrentDictionary<OrchestrationInstance, AsyncManualResetEvent>(OrchestrationInstanceComparer.Default);
 
         IReliableDictionary<string, OrchestrationState> instanceStore;
         IReliableDictionary<string, string> executionIdStore;
@@ -301,6 +303,47 @@ namespace DurableTask.ServiceFabric
             if (this.executionIdStore == null)
             {
                 this.executionIdStore = await this.stateManager.GetOrAddAsync<IReliableDictionary<string, string>>(Constants.ExecutionStoreDictionaryName);
+            }
+        }
+
+        public async Task<OrchestrationStateInstanceEntity> WaitForOrchestrationAsync(OrchestrationInstance instance, TimeSpan timeout)
+        {
+            var currentState = await this.GetOrchestrationStateAsync(instance.InstanceId, instance.ExecutionId);
+
+            // If querying state for an orchestration that's not started or completed and state cleaned up, we will immediately return null.
+            if (currentState?.State == null)
+            {
+                return null;
+            }
+
+            if (currentState.State.OrchestrationStatus.IsTerminalState())
+            {
+                return currentState;
+            }
+
+            var waiter = this.orchestrationWaiters.GetOrAdd(instance, new AsyncManualResetEvent());
+            bool completed = await waiter.WaitAsync(timeout, this.cancellationToken);
+
+            if (!completed)
+            {
+                this.orchestrationWaiters.TryRemove(instance, out waiter);
+            }
+
+            currentState = await this.GetOrchestrationStateAsync(instance.InstanceId, instance.ExecutionId);
+            if (currentState?.State != null && currentState.State.OrchestrationStatus.IsTerminalState())
+            {
+                return currentState;
+            }
+
+            return null;
+        }
+
+        public void OnOrchestrationCompleted(OrchestrationInstance instance)
+        {
+            AsyncManualResetEvent resetEvent;
+            if (this.orchestrationWaiters.TryRemove(instance, out resetEvent))
+            {
+                resetEvent.Set();
             }
         }
     }

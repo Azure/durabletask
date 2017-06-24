@@ -11,12 +11,13 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-using System.Threading.Tasks;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-
 namespace DurableTask.ServiceFabric.Test
 {
+    using System;
+    using System.Diagnostics;
+    using System.Threading.Tasks;
+    using Microsoft.VisualStudio.TestTools.UnitTesting;
+
     public static class Utilities
     {
         public static async Task ThrowsException<TException>(Func<Task> action, string expectedMessage) where TException : Exception
@@ -44,6 +45,14 @@ namespace DurableTask.ServiceFabric.Test
                     Assert.Fail($"Method {action.Method} is expected to throw exception with message '{expectedMessage}' but has thrown the message '{expected.Message}' instead.");
                 }
             }
+        }
+
+        public static async Task<TimeSpan> MeasureAsync(Func<Task> asyncAction)
+        {
+            var timer = Stopwatch.StartNew();
+            await asyncAction();
+            timer.Stop();
+            return timer.Elapsed;
         }
     }
 }

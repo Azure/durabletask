@@ -15,6 +15,7 @@ namespace DurableTask.ServiceFabric
 {
     using System;
     using System.Collections.Generic;
+    using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Tracking;
     using Microsoft.ServiceFabric.Data;
@@ -76,5 +77,9 @@ namespace DurableTask.ServiceFabric
         /// </summary>
         /// <param name="thresholdHourlyDateTimeUtc">The datetime in UTC to use as the threshold for purging history</param>
         Task PurgeOrchestrationHistoryEventsAsync(DateTime thresholdHourlyDateTimeUtc);
+
+        void OnOrchestrationCompleted(OrchestrationInstance instance);
+
+        Task<OrchestrationStateInstanceEntity> WaitForOrchestrationAsync(OrchestrationInstance instance, TimeSpan timeout);
     }
 }
