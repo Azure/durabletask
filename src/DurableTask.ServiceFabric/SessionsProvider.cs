@@ -140,7 +140,7 @@ namespace DurableTask.ServiceFabric
         public async Task AppendMessageAsync(ITransaction transaction, TaskMessageItem newMessage)
         {
             ThrowIfStopped();
-            await EnsureOrchestrationStoreInitialized();
+            await EnsureStoreInitialized();
 
             var sessionMessageProvider = await GetOrAddSessionMessagesInstance(newMessage.TaskMessage.OrchestrationInstance);
             await sessionMessageProvider.SendBeginAsync(transaction, new Message<Guid, TaskMessageItem>(Guid.NewGuid(), newMessage));
@@ -198,7 +198,7 @@ namespace DurableTask.ServiceFabric
 
         public async Task<IEnumerable<PersistentSession>> GetSessions()
         {
-            await EnsureOrchestrationStoreInitialized();
+            await EnsureStoreInitialized();
 
             var result = new List<PersistentSession>();
             await this.EnumerateItems(kvp => result.Add(kvp.Value));
@@ -225,7 +225,7 @@ namespace DurableTask.ServiceFabric
 
         public async Task<bool> SessionExists(OrchestrationInstance instance)
         {
-            await EnsureOrchestrationStoreInitialized();
+            await EnsureStoreInitialized();
 
             return await RetryHelper.ExecuteWithRetryOnTransient(async () =>
             {
@@ -238,7 +238,7 @@ namespace DurableTask.ServiceFabric
 
         public async Task<PersistentSession> GetSession(string instanceId)
         {
-            await EnsureOrchestrationStoreInitialized();
+            await EnsureStoreInitialized();
 
             return await RetryHelper.ExecuteWithRetryOnTransient(async () =>
             {
@@ -292,27 +292,11 @@ namespace DurableTask.ServiceFabric
                 uniqueActionIdentifier: $"Orchestration = '{instance}', Action = 'DropSessionMessagesDictionaryBackgroundTask'");
         }
 
-        Task EnsureOrchestrationStoreInitialized()
-        {
-            //Workaround to avoid client sending a new message before StartAsync on service is done
-            if (this.Store == null)
-            {
-                return InitializeStore();
-            }
-
-            return CompletedTask.Default;
-        }
-
         async Task<SessionMessagesProvider<Guid, TaskMessageItem>> GetOrAddSessionMessagesInstance(OrchestrationInstance instance)
         {
             var newInstance = new SessionMessagesProvider<Guid, TaskMessageItem>(this.StateManager, GetSessionMessagesDictionaryName(instance), this.CancellationToken);
             var sessionMessageProvider = this.sessionMessageProviders.GetOrAdd(instance, newInstance);
-
-            if (sessionMessageProvider == newInstance)
-            {
-                await sessionMessageProvider.StartAsync();
-            }
-
+            await sessionMessageProvider.EnsureStoreInitialized();
             return sessionMessageProvider;
         }
 

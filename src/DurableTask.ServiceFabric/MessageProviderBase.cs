@@ -155,6 +155,16 @@ namespace DurableTask.ServiceFabric
             }, uniqueActionIdentifier: $"Action = MessageProviderBase.EnumerateItems, StoreName : {this.storeName}");
         }
 
+        public Task EnsureStoreInitialized()
+        {
+            if (this.Store == null)
+            {
+                return InitializeStore();
+            }
+
+            return CompletedTask.Default;
+        }
+
         protected Task<bool> WaitForItemsAsync(TimeSpan timeout)
         {
             this.waitEvent.Reset();
