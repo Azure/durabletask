@@ -39,6 +39,13 @@ namespace DurableTask.ServiceFabric.Failover.Tests
                     cts.CancelAfter(timeToRun);
                 }
 
+                Console.WriteLine("Press CTRL+C to stop running orchestrations and print results");
+                Console.CancelKeyPress += (sender, e) =>
+                {
+                    cts.Cancel();
+                    e.Cancel = true;
+                };
+
                 var runner = new OrchestrationRunner();
                 tasks.Add(runner.RunTestAsync(cts.Token));
 
@@ -46,10 +53,6 @@ namespace DurableTask.ServiceFabric.Failover.Tests
 
                 var chaosRunner = new ChaosRunner();
                 tasks.Add(chaosRunner.RunFailoverScenario(timeToRun, cts.Token));
-
-                Console.WriteLine("Press any key to stop running orchestrations and print results");
-                Console.ReadKey();
-                cts.Cancel();
             }
 
             await Task.WhenAll(tasks);
