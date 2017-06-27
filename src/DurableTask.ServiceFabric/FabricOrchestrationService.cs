@@ -142,51 +142,51 @@ namespace DurableTask.ServiceFabric
             try
             {
                 newMessages = await this.orchestrationProvider.ReceiveSessionMessagesAsync(currentSession);
+
+                var currentRuntimeState = new OrchestrationRuntimeState(currentSession.SessionState);
+                var workItem = new TaskOrchestrationWorkItem()
+                {
+                    NewMessages = newMessages.Select(m => m.Value.TaskMessage).ToList(),
+                    InstanceId = currentSession.SessionId.InstanceId,
+                    OrchestrationRuntimeState = currentRuntimeState
+                };
+
+                if (newMessages.Count == 0)
+                {
+                    if (currentRuntimeState.ExecutionStartedEvent == null)
+                    {
+                        ProviderEventSource.Log.UnexpectedCodeCondition($"Orchestration with no execution started event found: {currentSession.SessionId}");
+                        return null;
+                    }
+
+                    bool isComplete = currentRuntimeState.OrchestrationStatus.IsTerminalState();
+                    if (isComplete)
+                    {
+                        await this.HandleCompletedOrchestration(workItem);
+                    }
+
+                    this.orchestrationProvider.TryUnlockSession(currentSession.SessionId, isComplete: isComplete);
+                    return null;
+                }
+
+                var sessionInfo = new SessionInformation()
+                {
+                    Instance = currentSession.SessionId,
+                    LockTokens = newMessages.Select(m => m.Key).ToList()
+                };
+
+                if (!this.sessionInfos.TryAdd(workItem.InstanceId, sessionInfo))
+                {
+                    ProviderEventSource.Log.UnexpectedCodeCondition($"{nameof(FabricOrchestrationService)}.{nameof(LockNextTaskOrchestrationWorkItemAsync)} : Multiple receivers processing the same session : {currentSession.SessionId.InstanceId}?");
+                }
+
+                return workItem;
             }
-            catch(Exception)
+            catch (Exception)
             {
                 this.orchestrationProvider.TryUnlockSession(currentSession.SessionId, abandon: true);
                 throw;
             }
-
-            var currentRuntimeState = new OrchestrationRuntimeState(currentSession.SessionState);
-            var workItem = new TaskOrchestrationWorkItem()
-            {
-                NewMessages = newMessages.Select(m => m.Value.TaskMessage).ToList(),
-                InstanceId = currentSession.SessionId.InstanceId,
-                OrchestrationRuntimeState = currentRuntimeState
-            };
-
-            if (newMessages.Count == 0)
-            {
-                if (currentRuntimeState.ExecutionStartedEvent == null)
-                {
-                    ProviderEventSource.Log.UnexpectedCodeCondition($"Orchestration with no execution started event found: {currentSession.SessionId}");
-                    return null;
-                }
-
-                bool isComplete = currentRuntimeState.OrchestrationStatus.IsTerminalState();
-                if (isComplete)
-                {
-                    await this.ReleaseTaskOrchestrationWorkItemAsync(workItem);
-                }
-
-                this.orchestrationProvider.TryUnlockSession(currentSession.SessionId, isComplete: isComplete);
-                return null;
-            }
-
-            var sessionInfo = new SessionInformation()
-            {
-                Instance = currentSession.SessionId,
-                LockTokens = newMessages.Select(m => m.Key).ToList()
-            };
-
-            if (!this.sessionInfos.TryAdd(workItem.InstanceId, sessionInfo))
-            {
-                ProviderEventSource.Log.UnexpectedCodeCondition($"{nameof(FabricOrchestrationService)}.{nameof(LockNextTaskOrchestrationWorkItemAsync)} : Multiple receivers processing the same session : {currentSession.SessionId.InstanceId}?");
-            }
-
-            return workItem;
         }
 
         public Task RenewTaskOrchestrationWorkItemLockAsync(TaskOrchestrationWorkItem workItem)
@@ -324,35 +324,41 @@ namespace DurableTask.ServiceFabric
 
             if (isComplete)
             {
-                await RetryHelper.ExecuteWithRetryOnTransient(async () =>
+                await HandleCompletedOrchestration(workItem);
+            }
+        }
+
+        // Caller should ensure the workItem has reached terminal state.
+        private async Task HandleCompletedOrchestration(TaskOrchestrationWorkItem workItem)
+        {
+            await RetryHelper.ExecuteWithRetryOnTransient(async () =>
+            {
+                using (var txn = this.stateManager.CreateTransaction())
                 {
-                    using (var txn = this.stateManager.CreateTransaction())
+                    await this.instanceStore.WriteEntitesAsync(txn, new InstanceEntityBase[]
                     {
-                        await this.instanceStore.WriteEntitesAsync(txn, new InstanceEntityBase[]
-                        {
                         new OrchestrationStateInstanceEntity()
                         {
                             State = Utils.BuildOrchestrationState(workItem.OrchestrationRuntimeState)
                         }
-                        });
-                        // DropSession does 2 things (like mentioned in the comments above) - remove the row from sessions dictionary
-                        // and delete the session messages dictionary. The second step is in a background thread and not part of transaction.
-                        // However even if this transaction failed but we ended up deleting session messages dictionary, that's ok - at
-                        // that time, it should be an empty dictionary and we would have updated the runtime session state to full completed
-                        // state in the transaction from Complete method. So the subsequent attempt would be able to complete the session.
-                        await this.orchestrationProvider.DropSession(txn, workItem.OrchestrationRuntimeState.OrchestrationInstance);
-                        await txn.CommitAsync();
-                    }
-                }, uniqueActionIdentifier: $"OrchestrationId = '{workItem.InstanceId}', Action = '{nameof(ReleaseTaskOrchestrationWorkItemAsync)}'");
+                    });
+                    // DropSession does 2 things (like mentioned in the comments above) - remove the row from sessions dictionary
+                    // and delete the session messages dictionary. The second step is in a background thread and not part of transaction.
+                    // However even if this transaction failed but we ended up deleting session messages dictionary, that's ok - at
+                    // that time, it should be an empty dictionary and we would have updated the runtime session state to full completed
+                    // state in the transaction from Complete method. So the subsequent attempt would be able to complete the session.
+                    await this.orchestrationProvider.DropSession(txn, workItem.OrchestrationRuntimeState.OrchestrationInstance);
+                    await txn.CommitAsync();
+                }
+            }, uniqueActionIdentifier: $"OrchestrationId = '{workItem.InstanceId}', Action = '{nameof(HandleCompletedOrchestration)}'");
 
-                this.instanceStore.OnOrchestrationCompleted(workItem.OrchestrationRuntimeState.OrchestrationInstance);
+            this.instanceStore.OnOrchestrationCompleted(workItem.OrchestrationRuntimeState.OrchestrationInstance);
 
-                ProviderEventSource.Log.OrchestrationFinished(workItem.InstanceId,
-                    workItem.OrchestrationRuntimeState.OrchestrationStatus.ToString(),
-                    (workItem.OrchestrationRuntimeState.CompletedTime - workItem.OrchestrationRuntimeState.CreatedTime).TotalSeconds,
-                    workItem.OrchestrationRuntimeState.Output,
-                    workItem.OrchestrationRuntimeState.OrchestrationInstance.ExecutionId);
-            }
+            ProviderEventSource.Log.OrchestrationFinished(workItem.InstanceId,
+                workItem.OrchestrationRuntimeState.OrchestrationStatus.ToString(),
+                (workItem.OrchestrationRuntimeState.CompletedTime - workItem.OrchestrationRuntimeState.CreatedTime).TotalSeconds,
+                workItem.OrchestrationRuntimeState.Output,
+                workItem.OrchestrationRuntimeState.OrchestrationInstance.ExecutionId);
         }
 
         public Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
