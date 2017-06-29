@@ -555,7 +555,7 @@ namespace DurableTask
         ///     Complete an orchestation, this atomically sends any outbound messages and completes the session for all current messages
         /// </summary>
         /// <param name="workItem">The task orchestration to renew the lock on</param>
-        /// <param name="newOrchestrationRuntimeState">New state of the orchestration to be persisted</param>
+        /// <param name="newOrchestrationRuntimeState">New state of the orchestration to be persisted. Could be null if the orchestration is in completion.</param>
         /// <param name="outboundMessages">New work item messages to be processed</param>
         /// <param name="orchestratorMessages">New orchestration messages to be scheduled</param>
         /// <param name="timerMessages">Delayed exection messages to be scheduled for the orchestration</param>
@@ -636,7 +636,7 @@ namespace DurableTask
                                 m,
                                 Settings.MessageCompressionSettings,
                                 Settings.MessageSettings,
-                                newOrchestrationRuntimeState.OrchestrationInstance,
+                                newOrchestrationRuntimeState?.OrchestrationInstance,
                                 "Timer Message",
                                 this.BlobStore,
                                 messageFireTime);
@@ -674,7 +674,7 @@ namespace DurableTask
                                 continuedAsNewMessage,
                                 Settings.MessageCompressionSettings,
                                 Settings.MessageSettings,
-                                newOrchestrationRuntimeState.OrchestrationInstance,
+                                newOrchestrationRuntimeState?.OrchestrationInstance,
                                 "Continue as new",
                                 this.BlobStore,
                                 DateTime.MinValue)
