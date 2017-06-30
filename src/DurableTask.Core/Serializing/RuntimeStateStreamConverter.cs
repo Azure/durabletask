@@ -71,7 +71,9 @@ namespace DurableTask.Core.Serializing
 
             if (runtimeState.CompressedSize > serviceBusSessionSettings.SessionOverflowThresholdInBytes)
             {
-                TraceHelper.TraceSession(TraceEventType.Information,
+                TraceHelper.TraceSession(
+                    TraceEventType.Information,
+                    "RuntimeStateStreamConverter-SessionStateThresholdExceeded",
                     sessionId,
                     $"Session state size of {runtimeState.CompressedSize} exceeded the termination threshold of {serviceBusSessionSettings.SessionOverflowThresholdInBytes} bytes." +
                     $"Creating an OrchestrationSessionState instance with key for exteranl storage.");
@@ -99,6 +101,7 @@ namespace DurableTask.Core.Serializing
             string key = orchestrationServiceBlobStore.BuildSessionBlobKey(sessionId);
             TraceHelper.TraceSession(
                 TraceEventType.Information,
+                "RuntimeStateStreamConverter-SaveSessionToStorage",
                 sessionId,
                 $"Saving the serialized stream in external storage with key {key}.");
 
@@ -143,6 +146,7 @@ namespace DurableTask.Core.Serializing
             {         
                 TraceHelper.TraceSession(
                     TraceEventType.Information,
+                    "RuntimeStateStreamConverter-StreamToRuntimeStateSize",
                     sessionId,
                     $"Size of session state is {newSessionStateSize}, compressed {rawSessionStateSize}");
                 return runtimeState;
@@ -156,6 +160,7 @@ namespace DurableTask.Core.Serializing
 
             TraceHelper.TraceSession(
                 TraceEventType.Information,
+                "RuntimeStateStreamConverter-StreamToRuntimeStateLoadFromStorage",
                 sessionId,
                 $"Loading the serialzied stream from external storage with blob key {blobKey}.");
 
@@ -171,6 +176,7 @@ namespace DurableTask.Core.Serializing
             {
                 TraceHelper.TraceSession(
                     TraceEventType.Information,
+                    "RuntimeStateStreamConverter-GetOrCreateInstanceStateNewSession",
                     sessionId,
                     "No session state exists, creating new session state.");
                 runtimeState = new OrchestrationRuntimeState();
@@ -181,6 +187,7 @@ namespace DurableTask.Core.Serializing
                 {
                     throw TraceHelper.TraceExceptionSession(
                         TraceEventType.Error,
+                        "RuntimeStateStreamConverter-GetOrCreateInstanceStatePartiallyConsumed",
                         sessionId,
                         new ArgumentException("Stream is partially consumed"));
                 }
@@ -228,6 +235,7 @@ namespace DurableTask.Core.Serializing
             {
                 TraceHelper.TraceSession(
                     TraceEventType.Warning,
+                    "RuntimeStateStreamConverter-DeserializeToRuntimeStateFailed",
                     sessionId,
                     $"Failed to deserialize session state to OrchestrationSessionState object: {serializedState}. More info: {exception.StackTrace}");
                 try
@@ -241,6 +249,7 @@ namespace DurableTask.Core.Serializing
                 {
                     TraceHelper.TraceSession(
                         TraceEventType.Warning,
+                        "RuntimeStateStreamConverter-DeserializeToRuntimeStateException",
                         sessionId,
                         $"Failed to deserialize session state to OrchestrationRuntimeState object: {serializedState}. More info: {e.StackTrace}");
 

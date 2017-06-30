@@ -484,7 +484,7 @@ namespace DurableTask.ServiceBus.Tracking
             });
         }
 
-        public async Task<object> DeleteJumpStartEntitesAsync(IEnumerable<AzureTableCompositeTableEntity> entities)
+        public async Task<object> DeleteJumpStartEntitiesAsync(IEnumerable<AzureTableCompositeTableEntity> entities)
         {
             try
             {
@@ -497,7 +497,7 @@ namespace DurableTask.ServiceBus.Tracking
             // This call could come in from multiple nodes at the same time so a not found exception is harmless
             catch (StorageException e) when (e.RequestInformation.HttpStatusCode == (int)HttpStatusCode.NotFound)
             {
-                TraceHelper.Trace(TraceEventType.Information, "DeleteJumpStartEntitesAsync not found excepction: {0}", e.Message);
+                TraceHelper.Trace(TraceEventType.Information, "AzureTableClient-DeleteJumpStartEntities-NotFound", "DeleteJumpStartEntitesAsync not found exception: {0}", e.Message);
                 return Task.FromResult(false);
             }
         }

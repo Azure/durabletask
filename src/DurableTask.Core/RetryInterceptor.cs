@@ -94,7 +94,7 @@ namespace DurableTask.Core
             catch (Exception e) when (!Utils.IsFatal(e))
             {
                 // Catch any exceptions during ComputeNextDelay so we don't override original error with new error
-                TraceHelper.TraceExceptionInstance(TraceEventType.Error, context.OrchestrationInstance, e);
+                TraceHelper.TraceExceptionInstance(TraceEventType.Error, "RetryInterceptor-ComputeNextDelayException", context.OrchestrationInstance, e);
             }
 
             return nextDelay;

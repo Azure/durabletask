@@ -102,7 +102,7 @@ namespace DurableTask.Core
         /// Deletes a list of jump start events from instance store
         /// </summary>
         /// <param name="entities">List of jump start events to delete</param>
-        Task<object> DeleteJumpStartEntitesAsync(IEnumerable<OrchestrationJumpStartInstanceEntity> entities);
+        Task<object> DeleteJumpStartEntitiesAsync(IEnumerable<OrchestrationJumpStartInstanceEntity> entities);
 
         /// <summary>
         /// Get a list of jump start events from instance store

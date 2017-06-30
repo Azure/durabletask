@@ -94,12 +94,16 @@ namespace DurableTask.Core
                 OrchestrationInstance orchestrationInstance = taskMessage.OrchestrationInstance;
                 if (string.IsNullOrWhiteSpace(orchestrationInstance?.InstanceId))
                 {
-                    throw TraceHelper.TraceException(TraceEventType.Error,
+                    throw TraceHelper.TraceException(
+                        TraceEventType.Error, 
+                        "TaskActivityDispatcher-MissingOrchestrationInstance",
                         new InvalidOperationException("Message does not contain any OrchestrationInstance information"));
                 }
                 if (taskMessage.Event.EventType != EventType.TaskScheduled)
                 {
-                    throw TraceHelper.TraceException(TraceEventType.Critical,
+                    throw TraceHelper.TraceException(
+                        TraceEventType.Critical, 
+                        "TaskActivityDispatcher-UnsupportedEventType",
                         new NotSupportedException("Activity worker does not support event of type: " +
                                                   taskMessage.Event.EventType));
                 }
@@ -132,13 +136,13 @@ namespace DurableTask.Core
                     }
                     catch (TaskFailureException e)
                     {
-                        TraceHelper.TraceExceptionInstance(TraceEventType.Error, taskMessage.OrchestrationInstance, e);
+                        TraceHelper.TraceExceptionInstance(TraceEventType.Error, "TaskActivityDispatcher-ProcessTaskFailure", taskMessage.OrchestrationInstance, e);
                         string details = IncludeDetails ? e.Details : null;
                         eventToRespond = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details);
                     }
                     catch (Exception e) when (!Utils.IsFatal(e))
                     {
-                        TraceHelper.TraceExceptionInstance(TraceEventType.Error, taskMessage.OrchestrationInstance, e);
+                        TraceHelper.TraceExceptionInstance(TraceEventType.Error, "TaskActivityDispatcher-ProcessException", taskMessage.OrchestrationInstance, e);
                         string details = IncludeDetails
                             ? $"Unhandled exception while executing task: {e}\n\t{e.StackTrace}"
                             : null;
@@ -192,16 +196,16 @@ namespace DurableTask.Core
 
                     try
                     {
-                        TraceHelper.Trace(TraceEventType.Information, "Renewing lock for workitem id {0}", workItem.Id);
+                        TraceHelper.Trace(TraceEventType.Information, "TaskActivityDispatcher-RenewLock", "Renewing lock for workitem id {0}", workItem.Id);
                         workItem = await this.orchestrationService.RenewTaskActivityWorkItemLockAsync(workItem);
                         renewAt = workItem.LockedUntilUtc.Subtract(TimeSpan.FromSeconds(30));
                         renewAt = AdjustRenewAt(renewAt);
-                        TraceHelper.Trace(TraceEventType.Information, "Next renew for workitem id '{0}' at '{1}'", workItem.Id, renewAt);
+                        TraceHelper.Trace(TraceEventType.Information, "TaskActivityDispatcher-RenewLockAt", "Next renew for workitem id '{0}' at '{1}'", workItem.Id, renewAt);
                     }
                     catch (Exception exception) when (!Utils.IsFatal(exception))
                     {
                         // might have been completed
-                        TraceHelper.TraceException(TraceEventType.Warning, exception, "Failed to renew lock for workitem {0}", workItem.Id);
+                        TraceHelper.TraceException(TraceEventType.Warning, "TaskActivityDispatcher-RenewLockFailure", exception, "Failed to renew lock for workitem {0}", workItem.Id);
                         break;
                     }
                 }

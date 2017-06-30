@@ -221,7 +221,10 @@ namespace DurableTask.Core.Common
                 }
                 catch (Exception exception) when (!Utils.IsFatal(exception))
                 {
-                    TraceHelper.TraceSession(TraceEventType.Warning, sessionId,
+                    TraceHelper.TraceSession(
+                        TraceEventType.Warning, 
+                        "ExecuteWithRetry-Failure", 
+                        sessionId,
                         $"Error attempting operation {operation}. Attempt count: {numberOfAttempts - retryCount}. Exception: {exception.Message}\n\t{exception.StackTrace}");
                     lastException = exception;
                 }
@@ -231,8 +234,8 @@ namespace DurableTask.Core.Common
 
             if (retryCount <= 0 && lastException != null)
             {
-                TraceHelper.Trace(TraceEventType.Error, "Exhausted all retries for operation " + operation);
-                throw TraceHelper.TraceExceptionSession(TraceEventType.Error, sessionId, lastException);
+                TraceHelper.Trace(TraceEventType.Error, "ExecuteWithRetry-RetriesExhausted", "Exhausted all retries for operation " + operation);
+                throw TraceHelper.TraceExceptionSession(TraceEventType.Error, "ExecuteWithRetryRetriesExhausted", sessionId, lastException);
             }
         }
 
@@ -254,7 +257,10 @@ namespace DurableTask.Core.Common
                 }
                 catch (Exception exception) when (!Utils.IsFatal(exception))
                 {
-                    TraceHelper.TraceSession(TraceEventType.Warning, sessionId,
+                    TraceHelper.TraceSession(
+                        TraceEventType.Warning, 
+                        $"ExecuteWithRetry<{typeof(T)}>-Failure", 
+                        sessionId,
                         $"Error attempting operation {operation}. Attempt count: {numberOfAttempts - retryCount}. Exception: {exception.Message}\n\t{exception.StackTrace}");
                     lastException = exception;
                 }
@@ -264,8 +270,9 @@ namespace DurableTask.Core.Common
 
             if (retryCount <= 0 && lastException != null)
             {
-                TraceHelper.Trace(TraceEventType.Error, "Exhausted all retries for operation " + operation);
-                throw TraceHelper.TraceExceptionSession(TraceEventType.Error, sessionId, lastException);
+                var eventType = $"ExecuteWithRetry<{typeof(T)}>-Failure";
+                TraceHelper.Trace(TraceEventType.Error, eventType, "Exhausted all retries for operation " + operation);
+                throw TraceHelper.TraceExceptionSession(TraceEventType.Error, eventType, sessionId, lastException);
             }
 
             return retVal;

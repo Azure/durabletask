@@ -340,10 +340,10 @@ namespace DurableTask.ServiceBus.Tracking
         /// Deletes a list of jump start events from instance store
         /// </summary>
         /// <param name="entities">List of jump start events to delete</param>
-        public Task<object> DeleteJumpStartEntitesAsync(IEnumerable<OrchestrationJumpStartInstanceEntity> entities)
+        public Task<object> DeleteJumpStartEntitiesAsync(IEnumerable<OrchestrationJumpStartInstanceEntity> entities)
         {
             var jumpStartEntities = entities.Select(e => new AzureTableOrchestrationJumpStartEntity(e));
-            return this.tableClient.DeleteJumpStartEntitesAsync(jumpStartEntities);
+            return this.tableClient.DeleteJumpStartEntitiesAsync(jumpStartEntities);
         }
 
         /// <summary>

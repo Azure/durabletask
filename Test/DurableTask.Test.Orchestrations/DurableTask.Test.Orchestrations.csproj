@@ -4,6 +4,11 @@
   <PropertyGroup>
     <TargetFramework>net451</TargetFramework>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" version="7.0.1" />
+  </ItemGroup>
+  
   <ItemGroup>
     <ProjectReference Include="..\..\src\DurableTask.Core\DurableTask.Core.csproj" />
   </ItemGroup>

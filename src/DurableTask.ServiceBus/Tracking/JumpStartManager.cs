@@ -48,11 +48,13 @@ namespace DurableTask.ServiceBus.Tracking
         {
             if (Interlocked.CompareExchange(ref isStarted, 1, 0) != 0)
             {
-                throw TraceHelper.TraceException(TraceEventType.Error,
+                throw TraceHelper.TraceException(
+                    TraceEventType.Error,
+                    "JumpStartManager-AlreadyStarted",
                     new InvalidOperationException("JumpStart has already started"));
             }
 
-            TraceHelper.Trace(TraceEventType.Information, "Jump start manager starting.");
+            TraceHelper.Trace(TraceEventType.Information, "JumpStartManager-Starting", "Jump start manager starting.");
             return Task.Factory.StartNew(() => JumpStartAsync());
         }
 
@@ -64,7 +66,7 @@ namespace DurableTask.ServiceBus.Tracking
                 return Task.FromResult(0);
             }
 
-            TraceHelper.Trace(TraceEventType.Information, "Jump start manager stopped.");
+            TraceHelper.Trace(TraceEventType.Information, "JumpStartManager-Stopped",  "Jump start manager stopped.");
 
             return Task.FromResult(0);
         }
@@ -76,11 +78,13 @@ namespace DurableTask.ServiceBus.Tracking
                 TimeSpan delay = this.interval;
                 try
                 {
-                    TraceHelper.Trace(TraceEventType.Information, "Jump start starting fetch");
+                    TraceHelper.Trace(TraceEventType.Information, "JumpStartManager-Fetch-Begin",  "Jump start starting fetch");
 
                     // TODO: Query in batchces and change timeframe only after curent range is finished
                     IEnumerable<OrchestrationJumpStartInstanceEntity> entities = await this.service.InstanceStore.GetJumpStartEntitesAsync(1000);
-                    TraceHelper.Trace(TraceEventType.Information,
+                    TraceHelper.Trace(
+                        TraceEventType.Information,
+                        "JumpStartManager-Fetch-End",
                         $"JumpStartManager: Fetched state entities count: {entities.Count()}");
                     var taskList = new List<Task>();
                     entities.ToList().ForEach(e => taskList.Add(this.JumpStartOrchestrationAsync(e)));
@@ -92,7 +96,9 @@ namespace DurableTask.ServiceBus.Tracking
                 }
                 catch (TaskCanceledException exception)
                 {
-                    TraceHelper.Trace(TraceEventType.Information,
+                    TraceHelper.Trace(
+                        TraceEventType.Information,
+                        "JumpStartManager-Fetch-TaskCanceled",
                         $"JumpStartManager: TaskCanceledException while fetching state entities, should be harmless: {exception.Message}");
                     delay = this.interval;
                 }
@@ -100,12 +106,17 @@ namespace DurableTask.ServiceBus.Tracking
                 {
                     if (isStarted == 0)
                     {
-                        TraceHelper.Trace(TraceEventType.Information,
+                        TraceHelper.Trace(
+                            TraceEventType.Information,
+                            "JumpStartManager-Fetch-HarmlessException",
                             $"JumpStartManager: Harmless exception while fetching state entities after Stop(): {exception.Message}");
                     }
                     else
                     {
-                        TraceHelper.TraceException(TraceEventType.Warning, exception,
+                        TraceHelper.TraceException(
+                            TraceEventType.Warning,
+                            "JumpStartManager-Fetch-Exception",
+                            exception,
                             "JumpStartManager: Exception while fetching/processing state entities");
                         delay = this.interval;
                     }
@@ -122,7 +133,7 @@ namespace DurableTask.ServiceBus.Tracking
             if (stateEntity != null)
             {
                 // It seems orchestration started, delete entity from JumpStart table
-                await this.service.InstanceStore.DeleteJumpStartEntitesAsync(new[] { jumpStartEntity });
+                await this.service.InstanceStore.DeleteJumpStartEntitiesAsync(new[] { jumpStartEntity });
             }
             else if (!jumpStartEntity.JumpStartTime.IsSet() &&
                 jumpStartEntity.State.CreatedTime + this.ignoreWindow < DateTime.UtcNow)
@@ -143,14 +154,18 @@ namespace DurableTask.ServiceBus.Tracking
                 };
 
                 await this.service.SendTaskOrchestrationMessageAsync(taskMessage);
-                TraceHelper.Trace(TraceEventType.Information,
+                TraceHelper.Trace(
+                    TraceEventType.Information,
+                    "JumpStartManager-SendTaskOrchestrationMessage",
                     $"JumpStartManager: SendTaskOrchestrationMessageAsync({instance.InstanceId}, {instance.ExecutionId}) success!");
 
                 // Now update the JumpStart table
                 jumpStartEntity.JumpStartTime = DateTime.UtcNow;
                 await this.service.InstanceStore.WriteJumpStartEntitesAsync(new[] { jumpStartEntity });
 
-                TraceHelper.Trace(TraceEventType.Information,
+                TraceHelper.Trace(
+                    TraceEventType.Information,
+                    "JumpStartManager-WriteJumpStartEntites",
                     $"JumpStartManager: WriteJumpStartEntitesAsync({instance.InstanceId}, {instance.ExecutionId}) success!");
             }
         }
