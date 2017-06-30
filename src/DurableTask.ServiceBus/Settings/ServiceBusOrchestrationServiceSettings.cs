@@ -27,9 +27,9 @@ namespace DurableTask.ServiceBus.Settings
         /// </summary>
         public ServiceBusOrchestrationServiceSettings()
         {
-            MaxTaskOrchestrationDeliveryCount = FrameworkConstants.MaxDeliveryCount;
-            MaxTaskActivityDeliveryCount = FrameworkConstants.MaxDeliveryCount;
-            MaxTrackingDeliveryCount = FrameworkConstants.MaxDeliveryCount;
+            MaxTaskOrchestrationDeliveryCount = ServiceBusConstants.MaxDeliveryCount;
+            MaxTaskActivityDeliveryCount = ServiceBusConstants.MaxDeliveryCount;
+            MaxTrackingDeliveryCount = ServiceBusConstants.MaxDeliveryCount;
             TaskOrchestrationDispatcherSettings = new TaskOrchestrationDispatcherSettings();
             TaskActivityDispatcherSettings = new TaskActivityDispatcherSettings();
             TrackingDispatcherSettings = new TrackingDispatcherSettings();

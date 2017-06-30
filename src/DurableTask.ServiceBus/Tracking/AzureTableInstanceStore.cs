@@ -47,11 +47,8 @@ namespace DurableTask.ServiceBus.Tracking
         {
             this.tableClient = new AzureTableClient(hubName, tableConnectionString);
 
-            // Workaround a bug in the Storage Emulator that throws exceptions for any date < 1600 so DateTime.Min cannot be used
-            if (tableConnectionString.Contains("UseDevelopmentStorage=true"))
-            {
-                DateTimeUtils.SetMinDateTimeForStorageEmulator();
-            }
+            // Workaround an issue with Storage that throws exceptions for any date < 1600 so DateTime.Min cannot be used
+            DateTimeUtils.SetMinDateTimeForStorageEmulator();
         }
 
         /// <summary>

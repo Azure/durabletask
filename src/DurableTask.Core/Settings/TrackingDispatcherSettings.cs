@@ -20,6 +20,9 @@ namespace DurableTask.Core.Settings
     /// </summary>
     public class TrackingDispatcherSettings
     {
+        /// <summary>
+        ///     Creates a new instance of the TrackingDispatcherSettings with default settings
+        /// </summary>
         public TrackingDispatcherSettings()
         {
             TransientErrorBackOffSecs = FrameworkConstants.TrackingTransientErrorBackOffSecs;

@@ -18,6 +18,9 @@ namespace DurableTask.Core.Settings
     /// </summary>
     public class TaskOrchestrationDispatcherSettings
     {
+        /// <summary>
+        ///     Creates a new instance of the TaskOrchestrationDispatcherSettings with default settings
+        /// </summary>
         public TaskOrchestrationDispatcherSettings()
         {
             TransientErrorBackOffSecs = FrameworkConstants.OrchestrationTransientErrorBackOffSecs;

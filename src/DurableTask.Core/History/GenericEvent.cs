@@ -15,17 +15,31 @@ namespace DurableTask.Core.History
 {
     using System.Runtime.Serialization;
 
+    /// <summary>
+    /// Generic History event
+    /// </summary>
     [DataContract]
     public class GenericEvent : HistoryEvent
     {
+        /// <summary>
+        /// String data for this event
+        /// </summary>
         [DataMember] public string Data;
 
+        /// <summary>
+        /// Creates a new GenericEvent with the supplied eventid and data
+        /// </summary>
+        /// <param name="eventId">The integer event id</param>
+        /// <param name="data">The data for the event</param>
         public GenericEvent(int eventId, string data)
             : base(eventId)
         {
             Data = data;
         }
 
+        /// <summary>
+        /// Gets the event type
+        /// </summary>
         public override EventType EventType
         {
             get { return EventType.GenericEvent; }

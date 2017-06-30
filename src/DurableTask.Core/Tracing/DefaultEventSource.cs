@@ -17,6 +17,9 @@ namespace DurableTask.Core.Tracing
     using System.Diagnostics;
     using System.Diagnostics.Tracing;
 
+    /// <summary>
+    ///     Default event source for all DurableTask tracing
+    /// </summary>
     [EventSource(
         Name = "DurableTask-Core",
         Guid = "7DA4779A-152E-44A2-A6F2-F80D991A5BEE")]
@@ -30,15 +33,21 @@ namespace DurableTask.Core.Tracing
         const int ErrorEventId = 5;
         const int CriticalEventId = 6;
 
-        public static class Keywords
+        internal static class Keywords
         {
             public const EventKeywords Diagnostics = (EventKeywords)1L;
         }
 
+        /// <summary>
+        /// Gets the static instance of the DefaultEventSource
+        /// </summary>
         public static readonly DefaultEventSource Log = new DefaultEventSource();
 
         readonly string processName;
 
+        /// <summary>
+        ///     Creates a new instance of the DefaultEventSource
+        /// </summary>
         DefaultEventSource()
         {
             using (Process process = Process.GetCurrentProcess())
@@ -47,18 +56,39 @@ namespace DurableTask.Core.Tracing
             }
         }
 
+        /// <summary>
+        /// Gets whether trace logs are enabled
+        /// </summary>
         public bool IsTraceEnabled => this.IsEnabled(EventLevel.Verbose, Keywords.Diagnostics);
 
+        /// <summary>
+        /// Gets whether debug logs are enabled
+        /// </summary>
         public bool IsDebugEnabled => this.IsEnabled(EventLevel.Verbose, Keywords.Diagnostics);
 
+        /// <summary>
+        /// Gets whether informational logs are enabled
+        /// </summary>
         public bool IsInfoEnabled => this.IsEnabled(EventLevel.Informational, EventKeywords.None);
 
+        /// <summary>
+        /// Gets whether warning logs are enabled
+        /// </summary>
         public bool IsWarningEnabled => this.IsEnabled(EventLevel.Warning, EventKeywords.None);
 
+        /// <summary>
+        /// Gets whether error logs are enabled
+        /// </summary>
         public bool IsErrorEnabled => this.IsEnabled(EventLevel.Error, EventKeywords.None);
 
+        /// <summary>
+        /// Gets whether critical logs are enabled
+        /// </summary>
         public bool IsCriticalEnabled => this.IsEnabled(EventLevel.Critical, EventKeywords.None);
 
+        /// <summary>
+        /// Trace an event for the supplied eventtype and parameters
+        /// </summary>
         [NonEvent]
         public void TraceEvent(TraceEventType eventType, string source, string instanceId, string executionId, string sessionId, string message)
         {
@@ -82,18 +112,30 @@ namespace DurableTask.Core.Tracing
             }
         }
 
+        /// <summary>
+        /// Trace an event for the supplied eventtype, exception and parameters
+        /// </summary>
         [NonEvent]
         public void TraceEvent(TraceEventType eventType, string source, string instanceId, string executionId, string sessionId, Exception exception) =>
             this.TraceEvent(eventType, source, instanceId, executionId, sessionId, exception?.ToString() ?? string.Empty);
 
+        /// <summary>
+        /// Trace an event for the supplied parameters
+        /// </summary>
         [NonEvent]
         public void Trace(string source, string instanceId, string executionId, string sessionId, string message) => 
             this.Trace(source, instanceId, executionId, sessionId, message, string.Empty);
 
+        /// <summary>
+        /// Trace an event for the supplied exception and parameters
+        /// </summary>
         [NonEvent]
         public void Trace(string source, string instanceId, string executionId, string sessionId, string message, Exception exception) =>
              this.Trace(source, instanceId, executionId, sessionId, message, exception?.ToString() ?? string.Empty);
 
+        /// <summary>
+        /// Trace an event for the supplied parameters
+        /// </summary>
         [Event(TraceEventId, Level = EventLevel.Verbose, Keywords = Keywords.Diagnostics, Version = 2)]
         public void Trace(string source, string instanceId, string executionId, string sessionId, string message, string info)
         {
@@ -103,14 +145,23 @@ namespace DurableTask.Core.Tracing
             }
         }
 
+        /// <summary>
+        /// Log debug event for the supplied parameters
+        /// </summary>
         [NonEvent]
         public void Debug(string source, string instanceId, string executionId, string sessionId, string message) => 
             this.Debug(source, instanceId, executionId, sessionId, message, string.Empty);
 
+        /// <summary>
+        /// Log debug event for the supplied exception and parameters
+        /// </summary>
         [NonEvent]
         public void Debug(string source, string instanceId, string executionId, string sessionId, string message, Exception exception) =>
             this.Debug(source, instanceId, executionId, sessionId, message, exception?.ToString() ?? string.Empty);
 
+        /// <summary>
+        /// Log debug event for the supplied parameters
+        /// </summary>
         [Event(DebugEventId, Level = EventLevel.Verbose, Keywords = Keywords.Diagnostics, Version = 2)]
         public void Debug(string source, string instanceId, string executionId, string sessionId, string message, string info)
         {
@@ -120,14 +171,23 @@ namespace DurableTask.Core.Tracing
             }
         }
 
+        /// <summary>
+        /// Log informational event for the supplied parameters
+        /// </summary>
         [NonEvent]
         public void Info(string source, string instanceId, string executionId, string sessionId, string message) => 
             this.Info(source, instanceId, executionId, sessionId, message, string.Empty);
 
+        /// <summary>
+        /// Log informational event for the supplied exception and parameters
+        /// </summary>
         [NonEvent]
         public void Info(string source, string instanceId, string executionId, string sessionId, string message, Exception exception) =>
             this.Info(source, instanceId, executionId, sessionId, message, exception?.ToString() ?? string.Empty);
 
+        /// <summary>
+        /// Log informational event for the supplied parameters
+        /// </summary>
         [Event(InfoEventId, Level = EventLevel.Informational, Keywords = EventKeywords.None, Version = 2)]
         public void Info(string source, string instanceId, string executionId, string sessionId, string message, string info)
         {
@@ -137,14 +197,23 @@ namespace DurableTask.Core.Tracing
             }
         }
 
+        /// <summary>
+        /// Log warning event for the supplied parameters
+        /// </summary>
         [NonEvent]
         public void Warning(string source, string instanceId, string executionId, string sessionId, string message) => 
             this.Warning(source, instanceId, executionId, sessionId, message, string.Empty);
 
+        /// <summary>
+        /// Log warning event for the supplied exception and parameters
+        /// </summary>
         [NonEvent]
         public void Warning(string source, string instanceId, string executionId, string sessionId, string message, Exception exception) =>
             this.Warning(source, instanceId, executionId, sessionId, message, exception?.ToString() ?? string.Empty);
 
+        /// <summary>
+        /// Log warning event for the supplied parameters
+        /// </summary>
         [Event(WarningEventId, Level = EventLevel.Warning, Keywords = EventKeywords.None, Version = 2)]
         public void Warning(string source, string instanceId, string executionId, string sessionId, string message, string exception)
         {
@@ -154,14 +223,23 @@ namespace DurableTask.Core.Tracing
             }
         }
 
+        /// <summary>
+        /// Log error event for the supplied parameters
+        /// </summary>
         [NonEvent]
         public void Error(string source, string instanceId, string executionId, string sessionId, string message) =>
             this.Error(source, instanceId, executionId, sessionId, message, string.Empty);
 
+        /// <summary>
+        /// Log error event for the supplied exception and parameters
+        /// </summary>
         [NonEvent]
         public void Error(string source, string instanceId, string executionId, string sessionId, string message, Exception exception) =>
             this.Error(source, instanceId, executionId, sessionId, message, exception?.ToString() ?? string.Empty);
 
+        /// <summary>
+        /// Log error event for the supplied parameters
+        /// </summary>
         [Event(ErrorEventId, Level = EventLevel.Error, Keywords = EventKeywords.None, Version = 2)]
         public void Error(string source, string instanceId, string executionId, string sessionId, string message, string exception)
         {
@@ -171,14 +249,23 @@ namespace DurableTask.Core.Tracing
             }
         }
 
+        /// <summary>
+        /// Log critical event for the supplied parameters
+        /// </summary>
         [NonEvent]
         public void Critical(string source, string instanceId, string executionId, string sessionId, string message) =>
             this.Critical(source, instanceId, executionId, sessionId, message, string.Empty);
 
+        /// <summary>
+        /// Log critical event for the supplied exception and parameters
+        /// </summary>
         [NonEvent]
         public void Critical(string source, string instanceId, string executionId, string sessionId, string message, Exception exception) =>
             this.Critical(source, instanceId, executionId, sessionId, message, exception?.ToString() ?? string.Empty);
 
+        /// <summary>
+        /// Log critical event for the supplied parameters
+        /// </summary>
         [Event(CriticalEventId, Level = EventLevel.Critical, Keywords = EventKeywords.None, Version = 2)]
         public void Critical(string source, string instanceId, string executionId, string sessionId, string message, string exception)
         {
