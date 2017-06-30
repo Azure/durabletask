@@ -53,7 +53,6 @@ namespace DurableTask.Emulator
         /// <summary>
         ///     Creates a new instance of the LocalOrchestrationService with default settings
         /// </summary>
-
         public LocalOrchestrationService()
         {
             this.orchestratorQueue = new PeekLockSessionQueue();

@@ -16,7 +16,7 @@ namespace DurableTask.Core
     using System;
 
     /// <summary>
-    /// Filter for Orchestration time range on a timerange type
+    /// Filter for Orchestration State time range on a time range type
     /// </summary>
     public class OrchestrationStateTimeRangeFilter : OrchestrationStateQueryFilter
     {

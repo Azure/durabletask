@@ -38,7 +38,7 @@ namespace DurableTask.Core
         public string ExecutionId { get; set; }
 
         /// <summary>
-        /// Gets or sets the match type of either statrts with or exact match for the filter
+        /// Gets or sets the match type of either starts with or exact match for the filter
         /// </summary>
         public bool StartsWith { get; set; }
     }
