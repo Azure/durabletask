@@ -14,7 +14,7 @@
 namespace DurableTask.Core
 {
     /// <summary>
-    /// Filter for Orchestrationname and version
+    /// Filter for Orchestration Name and Version
     /// </summary>
     public class OrchestrationStateNameVersionFilter : OrchestrationStateQueryFilter
     {

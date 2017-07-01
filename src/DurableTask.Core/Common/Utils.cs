@@ -33,7 +33,7 @@ namespace DurableTask.Core.Common
         const int FullGzipHeaderLength = 10;
 
         /// <summary>
-        /// Gets a safe maximim datetime value that accounts for timezone
+        /// Gets a safe maximum datetime value that accounts for timezone
         /// </summary>
         public static readonly DateTime DateTimeSafeMaxValue =
             DateTime.MaxValue.Subtract(TimeSpan.FromDays(1)).ToUniversalTime();
@@ -70,7 +70,7 @@ namespace DurableTask.Core.Common
         }
 
         /// <summary>
-        /// Writes the supplied string input to a MemoryStream, optionaly compressing the string
+        /// Writes the supplied string input to a MemoryStream, optionaly compressing the string, returns the stream
         /// </summary>
         public static Stream WriteStringToStream(string input, bool compress, out long originalStreamSize)
         {
