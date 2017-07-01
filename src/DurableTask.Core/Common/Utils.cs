@@ -70,7 +70,7 @@ namespace DurableTask.Core.Common
         }
 
         /// <summary>
-        /// Writes the supplied string input to a MemoryStream, optionaly compressing the string
+        /// Writes the supplied string input to a MemoryStream, optionaly compressing the string, returns the stream
         /// </summary>
         public static Stream WriteStringToStream(string input, bool compress, out long originalStreamSize)
         {
