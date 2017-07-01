@@ -25,15 +25,24 @@ namespace DurableTask.Core.Common
     using DurableTask.Core.Serializing;
     using Tracing;
 
+    /// <summary>
+    /// Utility Methods
+    /// </summary>
     public static class Utils
     {
         const int FullGzipHeaderLength = 10;
 
+        /// <summary>
+        /// Gets a safe maximum datetime value that accounts for timezone
+        /// </summary>
         public static readonly DateTime DateTimeSafeMaxValue =
             DateTime.MaxValue.Subtract(TimeSpan.FromDays(1)).ToUniversalTime();
 
         static readonly byte[] GzipHeader = {0x1f, 0x8b};
 
+        /// <summary>
+        /// Extension method to truncate a string to the supplied length
+        /// </summary>
         public static string Truncate(this string input, int maxLength)
         {
             if (!string.IsNullOrEmpty(input) && input.Length > maxLength)
@@ -43,6 +52,9 @@ namespace DurableTask.Core.Common
             return input;
         }
 
+        /// <summary>
+        /// Serializes and appends the supplied object to the supplied stream
+        /// </summary>
         public static void WriteObjectToStream(Stream objectStream, object obj)
         {
             if (objectStream == null || !objectStream.CanWrite || !objectStream.CanSeek)
@@ -57,6 +69,9 @@ namespace DurableTask.Core.Common
             objectStream.Position = 0;
         }
 
+        /// <summary>
+        /// Writes the supplied string input to a MemoryStream, optionaly compressing the string, returns the stream
+        /// </summary>
         public static Stream WriteStringToStream(string input, bool compress, out long originalStreamSize)
         {
             Stream resultStream = new MemoryStream();
@@ -77,6 +92,9 @@ namespace DurableTask.Core.Common
             return resultStream;
         }
 
+        /// <summary>
+        /// Reads and deserializes an Object from the supplied stream
+        /// </summary>
         public static T ReadObjectFromStream<T>(Stream objectStream)
         {
             if (objectStream == null || !objectStream.CanRead || !objectStream.CanSeek)
@@ -95,6 +113,9 @@ namespace DurableTask.Core.Common
                 new JsonSerializerSettings {TypeNameHandling = TypeNameHandling.All});
         }
 
+        /// <summary>
+        /// Returns true or false whether the supplied stream is a compressed stream
+        /// </summary>
         public static bool IsGzipStream(Stream stream)
         {
             if (stream == null || !stream.CanRead || !stream.CanSeek || stream.Length < FullGzipHeaderLength)
@@ -171,6 +192,9 @@ namespace DurableTask.Core.Common
             return outputStream;
         }
 
+        /// <summary>
+        /// Returns true or false whether an exception is considered fatal
+        /// </summary>
         public static Boolean IsFatal(Exception exception)
         {
             if (exception is OutOfMemoryException || exception is StackOverflowException)
@@ -180,6 +204,9 @@ namespace DurableTask.Core.Common
             return false;
         }
 
+        /// <summary>
+        /// Executes the supplied action until successful or the supplied number of attempts is reached
+        /// </summary>
         public static async Task ExecuteWithRetries(Func<Task> retryAction, string sessionId, string operation,
             int numberOfAttempts, int delayInAttemptsSecs)
         {
@@ -209,6 +236,9 @@ namespace DurableTask.Core.Common
             }
         }
 
+        /// <summary>
+        /// Executes the supplied action until successful or the supplied number of attempts is reached
+        /// </summary>
         public static async Task<T> ExecuteWithRetries<T>(Func<Task<T>> retryAction, string sessionId, string operation,
             int numberOfAttempts, int delayInAttemptsSecs)
         {
@@ -242,6 +272,9 @@ namespace DurableTask.Core.Common
         }
 
 
+        /// <summary>
+        /// Serializes the supplied exception to a string
+        /// </summary>
         public static string SerializeCause(Exception originalException, DataConverter converter)
         {
             if (originalException == null)
@@ -268,6 +301,9 @@ namespace DurableTask.Core.Common
             return details;
         }
 
+        /// <summary>
+        /// Retrieves the exception from a previously serialized exception
+        /// </summary>
         public static Exception RetrieveCause(string details, DataConverter converter)
         {
             if (converter == null)
@@ -291,6 +327,9 @@ namespace DurableTask.Core.Common
             return cause;
         }
 
+        /// <summary>
+        /// Escapes the supplied input
+        /// </summary>
         public static string EscapeJson(string inputJson)
         {
             inputJson = inputJson.Replace("{", "{{");
@@ -301,6 +340,9 @@ namespace DurableTask.Core.Common
             return inputJson;
         }
 
+        /// <summary>
+        /// Builds a new OrchestrationState from the supplied OrchestrationRuntimeState
+        /// </summary>
         public static OrchestrationState BuildOrchestrationState(OrchestrationRuntimeState runtimeState)
         {
             return new OrchestrationState

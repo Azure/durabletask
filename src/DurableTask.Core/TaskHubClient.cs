@@ -373,7 +373,9 @@ namespace DurableTask.Core
                 });
             }
 
-            await Task.WhenAll(taskMessages.Select(this.serviceClient.CreateTaskOrchestrationAsync));
+            // Raised events and create orchestration calls use different methods so get handled separately
+            await Task.WhenAll(taskMessages.Where(t => !(t.Event is EventRaisedEvent)).Select(this.serviceClient.CreateTaskOrchestrationAsync));
+            await this.serviceClient.SendTaskOrchestrationMessageBatchAsync(taskMessages.Where(t => (t.Event is EventRaisedEvent)).ToArray());
             return orchestrationInstance;
         }
 

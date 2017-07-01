@@ -13,6 +13,9 @@
 
 namespace DurableTask.Core
 {
+    /// <summary>
+    /// Abstract class for an orchestration state query filter
+    /// </summary>
     public abstract class OrchestrationStateQueryFilter
     {
     }

@@ -13,8 +13,14 @@
 
 namespace DurableTask.Core
 {
+    /// <summary>
+    /// Filter for Orchestration Status
+    /// </summary>
     public class OrchestrationStateStatusFilter : OrchestrationStateQueryFilter
     {
+        /// <summary>
+        /// Gets or sets the Status for the filter
+        /// </summary>
         public OrchestrationStatus Status { get; set; }
     }
 }

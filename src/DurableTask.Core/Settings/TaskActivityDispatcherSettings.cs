@@ -18,6 +18,9 @@ namespace DurableTask.Core.Settings
     /// </summary>
     public class TaskActivityDispatcherSettings
     {
+        /// <summary>
+        ///     Creates a new instance of the TaskActivityDispatcherSettings with the default settings
+        /// </summary>
         public TaskActivityDispatcherSettings()
         {
             TransientErrorBackOffSecs = FrameworkConstants.ActivityTransientErrorBackOffSecs;

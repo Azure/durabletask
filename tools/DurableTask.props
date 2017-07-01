@@ -1,18 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-    <PropertyGroup>
-      <!-- Build Settings -->
-      <DebugType Condition="'$(Configuration)'=='Release'">pdbonly</DebugType>
-      <DebugSymbols>True</DebugSymbols>
-      <TargetFrameworkVersion>v4.5.1</TargetFrameworkVersion>
+  <PropertyGroup>
+    <!-- Build Settings -->
+    <DebugType Condition="'$(Configuration)'=='Release'">pdbonly</DebugType>
+    <DebugSymbols>True</DebugSymbols>
+    <TargetFrameworkVersion>v4.5.1</TargetFrameworkVersion>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
 
-      <!-- Code Analysis Settings -->
-      <RunCodeAnalysis>True</RunCodeAnalysis>
-      <RunCodeAnalysis Condition=" '$(Configuration)' == 'Debug' ">False</RunCodeAnalysis>
-      <RunCodeAnalysis Condition=" $(MSBuildProjectName.EndsWith('.Tests')) ">False</RunCodeAnalysis>
-      <CodeAnalysisTreatWarningsAsErrors>True</CodeAnalysisTreatWarningsAsErrors>
-      <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
-    </PropertyGroup>
+    <!-- Code Analysis Settings -->
+    <RunCodeAnalysis>True</RunCodeAnalysis>
+    <RunCodeAnalysis Condition=" '$(Configuration)' == 'Debug' ">False</RunCodeAnalysis>
+    <CodeAnalysisTreatWarningsAsErrors>True</CodeAnalysisTreatWarningsAsErrors>
+    <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <!-- Test Specific Settings -->
+  <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests')) Or $(MSBuildProjectName.Contains('.Test.')) Or $(MSBuildProjectName.EndsWith('.Samples'))">
+    <RunCodeAnalysis>False</RunCodeAnalysis>
+    <GenerateDocumentationFile>False</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <!-- Nuget Package Settings -->
+  <PropertyGroup>
+    <PackageOutputPath>..\..\build_output\packages</PackageOutputPath>
+    <AssemblyVersion>2.0.0.1</AssemblyVersion>
+    <FileVersion>2.0.0.1</FileVersion>
+    <Version>2.0.0.1</Version>
+    <Company>Microsoft</Company>
+    <Product>Durable Task Framework</Product>
+    <Description>This package provides a C# based durable task framework for writing long running applications.</Description>
+    <PackageLicenseUrl>http://www.apache.org/licenses/LICENSE-2.0</PackageLicenseUrl>
+    <Copyright>Copyright Microsoft Corporation 2017</Copyright>
+    <PackageProjectUrl>https://github.com/Azure/durabletask/</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Azure/durabletask/</RepositoryUrl>
+    <PackageTags>ServiceBus;Service Bus;Azure;Task;Durable;Orchestration;Workflow;Activity;Reliable</PackageTags>
+  </PropertyGroup>
+  
   <Target Name="Build">
   </Target>
 </Project>

@@ -15,10 +15,24 @@ namespace DurableTask.Core
 {
     using System;
 
+    /// <summary>
+    /// Filter for Orchestration State time range on a time range type
+    /// </summary>
     public class OrchestrationStateTimeRangeFilter : OrchestrationStateQueryFilter
     {
+        /// <summary>
+        /// Gets or sets the StartTime for the filter
+        /// </summary>
         public DateTime StartTime { get; set; }
+
+        /// <summary>
+        /// Gets or sets the EndTime for the filter
+        /// </summary>
         public DateTime EndTime { get; set; }
+
+        /// <summary>
+        /// Gets or sets the time range filter type for the filter
+        /// </summary>
         public OrchestrationStateTimeRangeFilterType FilterType { get; set; }
     }
 }

@@ -15,17 +15,31 @@ namespace DurableTask.Core.History
 {
     using System.Runtime.Serialization;
 
+    /// <summary>
+    /// History state event
+    /// </summary>
     [DataContract]
     public class HistoryStateEvent : HistoryEvent
     {
+        /// <summary>
+        /// Creates a new HistoryStateEvent with the supplied eventid and state
+        /// </summary>
+        /// <param name="eventId">The integer event id</param>
+        /// <param name="state">The event state</param>
         public HistoryStateEvent(int eventId, OrchestrationState state)
             : base(eventId)
         {
             State = state;
         }
 
+        /// <summary>
+        /// Gets the event type
+        /// </summary>
         public override EventType EventType => EventType.HistoryState;
 
+        /// <summary>
+        /// Gets the orchestration state
+        /// </summary>
         [DataMember]
         public OrchestrationState State { get; set; }
     }

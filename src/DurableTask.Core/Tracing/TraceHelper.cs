@@ -18,37 +18,52 @@ namespace DurableTask.Core.Tracing
     using System.Globalization;
     using DurableTask.Core.Common;
 
+    /// <summary>
+    ///     Helper class for logging/tracing
+    /// </summary>
     public class TraceHelper
     {
         const string Source = "DurableTask";
 
-        // simple tracing, no iid and eid
+        /// <summary>
+        ///     Simple trace with no iid or eid
+        /// </summary>
         public static void Trace(TraceEventType eventType, Func<string> generateMessage)
         {
             ExceptionHandlingWrapper(
                 () => DefaultEventSource.Log.TraceEvent(eventType, Source, string.Empty, string.Empty, string.Empty, generateMessage()));
         }
 
+        /// <summary>
+        ///     Simple trace with no iid or eid
+        /// </summary>
         public static void Trace(TraceEventType eventType, string format, params object[] args)
         {
             ExceptionHandlingWrapper(
                 () => DefaultEventSource.Log.TraceEvent(eventType, Source, string.Empty, string.Empty, string.Empty, FormatString(format, args)));
         }
 
-        // have iid but no eid
+        /// <summary>
+        ///     Trace with iid but no eid
+        /// </summary>
         public static void TraceSession(TraceEventType eventType, string sessionId, Func<string> generateMessage)
         {
             ExceptionHandlingWrapper(
                 () => DefaultEventSource.Log.TraceEvent(eventType, Source, string.Empty, string.Empty, sessionId, generateMessage()));
         }
 
+        /// <summary>
+        ///     Trace with iid but no eid
+        /// </summary>
         public static void TraceSession(TraceEventType eventType, string sessionId, string format, params object[] args)
         {
             ExceptionHandlingWrapper(
                 () => DefaultEventSource.Log.TraceEvent(eventType, Source, string.Empty, string.Empty, sessionId, FormatString(format, args)));
         }
 
-        // have both iid and eid
+        /// <summary>
+        ///     Trace with iid and eid
+        /// </summary>
         public static void TraceInstance(TraceEventType eventType, OrchestrationInstance orchestrationInstance,
             string format, params object[] args)
         {
@@ -62,6 +77,9 @@ namespace DurableTask.Core.Tracing
                     FormatString(format, args)));
         }
 
+        /// <summary>
+        ///     Trace with iid and eid
+        /// </summary>
         public static void TraceInstance(TraceEventType eventType, OrchestrationInstance orchestrationInstance,
             Func<string> generateMessage)
         {
@@ -75,25 +93,35 @@ namespace DurableTask.Core.Tracing
                     generateMessage()));
         }
 
-        // simple exception tracing methods
+        /// <summary>
+        ///     Trace an exception
+        /// </summary>
         public static Exception TraceException(TraceEventType eventType, Exception exception)
         {
             return TraceException(eventType, exception, string.Empty);
         }
 
+        /// <summary>
+        ///     Trace an exception and message
+        /// </summary>
         public static Exception TraceException(TraceEventType eventType, Exception exception,
             Func<String> generateMessage)
         {
             return TraceExceptionCore(eventType, string.Empty, string.Empty, exception, generateMessage);
         }
 
+        /// <summary>
+        ///     Trace an exception and message
+        /// </summary>
         public static Exception TraceException(TraceEventType eventType, Exception exception, string format,
             params object[] args)
         {
             return TraceExceptionCore(eventType, string.Empty, string.Empty, exception, format, args);
         }
 
-        // instance tracing methods
+        /// <summary>
+        ///     Trace an instance exception
+        /// </summary>
         public static Exception TraceExceptionInstance(TraceEventType eventType,
             OrchestrationInstance orchestrationInstance, Exception exception)
         {
@@ -101,6 +129,9 @@ namespace DurableTask.Core.Tracing
                 exception, string.Empty);
         }
 
+        /// <summary>
+        ///     Trace an instance exception and message
+        /// </summary>
         public static Exception TraceExceptionInstance(TraceEventType eventType,
             OrchestrationInstance orchestrationInstance, Exception exception, Func<string> generateMessage)
         {
@@ -108,6 +139,9 @@ namespace DurableTask.Core.Tracing
                 exception, generateMessage);
         }
 
+        /// <summary>
+        ///     Trace an instance exception and message
+        /// </summary>
         public static Exception TraceExceptionInstance(TraceEventType eventType,
             OrchestrationInstance orchestrationInstance, Exception exception, string format, params object[] args)
         {
@@ -115,18 +149,26 @@ namespace DurableTask.Core.Tracing
                 exception, format, args);
         }
 
-        // session tracing methods -- execution id not available
+        /// <summary>
+        ///     Trace a session exception without execution id
+        /// </summary>
         public static Exception TraceExceptionSession(TraceEventType eventType, string sessionId, Exception exception)
         {
             return TraceExceptionCore(eventType, sessionId, string.Empty, exception, string.Empty);
         }
 
+        /// <summary>
+        ///     Trace a session exception and message without execution id
+        /// </summary>
         public static Exception TraceExceptionSession(TraceEventType eventType, string sessionId, Exception exception,
             Func<string> generateMessage)
         {
             return TraceExceptionCore(eventType, sessionId, string.Empty, exception, generateMessage);
         }
 
+        /// <summary>
+        ///     Trace a session exception and message without execution id
+        /// </summary>
         public static Exception TraceExceptionSession(TraceEventType eventType, string sessionId, Exception exception,
             string format, params object[] args)
         {

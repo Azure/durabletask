@@ -44,9 +44,14 @@ namespace DurableTask.Core
             FilterMap = new Dictionary<Type, OrchestrationStateQueryFilter>();
         }
 
+        /// <summary>
+        /// Gets the FilterMap for the query
+        /// </summary>
         public IDictionary<Type, OrchestrationStateQueryFilter> FilterMap { get; private set; }
 
-        // returns <primary_filter, collection_of(secondary_filters)>
+        /// <summary>
+        /// Gets the primary_filter, collection_of(secondary_filters) for the query
+        /// </summary>
         public Tuple<OrchestrationStateQueryFilter, IEnumerable<OrchestrationStateQueryFilter>> GetFilters()
         {
             ICollection<OrchestrationStateQueryFilter> filters = FilterMap.Values;

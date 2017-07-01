@@ -27,6 +27,8 @@ namespace DurableTask.ServiceBus
         public const string StateMessageContentType = "StateMessage";
         public const string HistoryEventIndexPropertyName = "HistoryEventIndex";
 
+        public const int MaxDeliveryCount = 10;
+
         // message blob key in message property
         // this property is a key to the message blob when it exceeds the message limit
         public const string MessageBlobKey = "MessageBlobKey";
