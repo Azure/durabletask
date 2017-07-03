@@ -465,17 +465,17 @@ namespace DurableTask.ServiceBus.Tracking
             }
         }
 
-        public async Task<object> WriteEntitesAsync(IEnumerable<AzureTableCompositeTableEntity> entities)
+        public async Task<object> WriteEntitiesAsync(IEnumerable<AzureTableCompositeTableEntity> entities)
         {
             return await PerformBatchTableOperationAsync("Write Entities", this.historyTable, entities, (bo, te) => bo.InsertOrReplace(te));
         }
 
-        public async Task<object> WriteJumpStartEntitesAsync(IEnumerable<AzureTableCompositeTableEntity> entities)
+        public async Task<object> WriteJumpStartEntitiesAsync(IEnumerable<AzureTableCompositeTableEntity> entities)
         {
             return await PerformBatchTableOperationAsync("Write Entities", this.jumpStartTable, entities, (bo, te) => bo.InsertOrReplace(te));
         }
 
-        public async Task<object> DeleteEntitesAsync(IEnumerable<AzureTableCompositeTableEntity> entities)
+        public async Task<object> DeleteEntitiesAsync(IEnumerable<AzureTableCompositeTableEntity> entities)
         {
             return await PerformBatchTableOperationAsync("Delete Entities", this.historyTable, entities, (bo, te) =>
             {
@@ -497,7 +497,7 @@ namespace DurableTask.ServiceBus.Tracking
             // This call could come in from multiple nodes at the same time so a not found exception is harmless
             catch (StorageException e) when (e.RequestInformation.HttpStatusCode == (int)HttpStatusCode.NotFound)
             {
-                TraceHelper.Trace(TraceEventType.Information, "AzureTableClient-DeleteJumpStartEntities-NotFound", "DeleteJumpStartEntitesAsync not found exception: {0}", e.Message);
+                TraceHelper.Trace(TraceEventType.Information, "AzureTableClient-DeleteJumpStartEntities-NotFound", "DeleteJumpStartEntitiesAsync not found exception: {0}", e.Message);
                 return Task.FromResult(false);
             }
         }

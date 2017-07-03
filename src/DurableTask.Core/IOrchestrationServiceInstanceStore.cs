@@ -44,7 +44,7 @@ namespace DurableTask.Core
         /// Writes a list of history events to instance store
         /// </summary>
         /// <param name="entities">List of history events to write</param>
-        Task<object> WriteEntitesAsync(IEnumerable<InstanceEntityBase> entities);
+        Task<object> WriteEntitiesAsync(IEnumerable<InstanceEntityBase> entities);
 
         /// <summary>
         /// Get a list of state events from instance store
@@ -52,13 +52,13 @@ namespace DurableTask.Core
         /// <param name="instanceId">The instance id to return state for</param>
         /// <param name="executionId">The execution id to return state for</param>
         /// <returns>The matching orchestation state or null if not found</returns>
-        Task<IEnumerable<OrchestrationStateInstanceEntity>> GetEntitesAsync(string instanceId, string executionId);
+        Task<IEnumerable<OrchestrationStateInstanceEntity>> GetEntitiesAsync(string instanceId, string executionId);
 
         /// <summary>
         /// Deletes a list of history events from instance store
         /// </summary>
         /// <param name="entities">List of history events to delete</param>
-        Task<object> DeleteEntitesAsync(IEnumerable<InstanceEntityBase> entities);
+        Task<object> DeleteEntitiesAsync(IEnumerable<InstanceEntityBase> entities);
 
         /// <summary>
         /// Gets a list of orchestration states for a given instance
@@ -96,7 +96,7 @@ namespace DurableTask.Core
         /// Writes a list of jump start events to instance store
         /// </summary>
         /// <param name="entities">List of jump start events to write</param>
-        Task<object> WriteJumpStartEntitesAsync(IEnumerable<OrchestrationJumpStartInstanceEntity> entities);
+        Task<object> WriteJumpStartEntitiesAsync(IEnumerable<OrchestrationJumpStartInstanceEntity> entities);
 
         /// <summary>
         /// Deletes a list of jump start events from instance store
@@ -108,6 +108,6 @@ namespace DurableTask.Core
         /// Get a list of jump start events from instance store
         /// </summary>
         /// <returns>List of jump start events</returns>
-        Task<IEnumerable<OrchestrationJumpStartInstanceEntity>> GetJumpStartEntitesAsync(int top);
+        Task<IEnumerable<OrchestrationJumpStartInstanceEntity>> GetJumpStartEntitiesAsync(int top);
     }
 }

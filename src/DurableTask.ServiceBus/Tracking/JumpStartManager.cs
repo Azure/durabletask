@@ -81,7 +81,7 @@ namespace DurableTask.ServiceBus.Tracking
                     TraceHelper.Trace(TraceEventType.Information, "JumpStartManager-Fetch-Begin",  "Jump start starting fetch");
 
                     // TODO: Query in batchces and change timeframe only after curent range is finished
-                    IEnumerable<OrchestrationJumpStartInstanceEntity> entities = await this.service.InstanceStore.GetJumpStartEntitesAsync(1000);
+                    IEnumerable<OrchestrationJumpStartInstanceEntity> entities = await this.service.InstanceStore.GetJumpStartEntitiesAsync(1000);
                     TraceHelper.Trace(
                         TraceEventType.Information,
                         "JumpStartManager-Fetch-End",
@@ -129,7 +129,7 @@ namespace DurableTask.ServiceBus.Tracking
         protected async Task JumpStartOrchestrationAsync(OrchestrationJumpStartInstanceEntity jumpStartEntity)
         {
             var instance = jumpStartEntity.State.OrchestrationInstance;
-            OrchestrationStateInstanceEntity stateEntity = (await this.service.InstanceStore.GetEntitesAsync(instance.InstanceId, instance.ExecutionId))?.FirstOrDefault();
+            OrchestrationStateInstanceEntity stateEntity = (await this.service.InstanceStore.GetEntitiesAsync(instance.InstanceId, instance.ExecutionId))?.FirstOrDefault();
             if (stateEntity != null)
             {
                 // It seems orchestration started, delete entity from JumpStart table
@@ -161,12 +161,12 @@ namespace DurableTask.ServiceBus.Tracking
 
                 // Now update the JumpStart table
                 jumpStartEntity.JumpStartTime = DateTime.UtcNow;
-                await this.service.InstanceStore.WriteJumpStartEntitesAsync(new[] { jumpStartEntity });
+                await this.service.InstanceStore.WriteJumpStartEntitiesAsync(new[] { jumpStartEntity });
 
                 TraceHelper.Trace(
                     TraceEventType.Information,
-                    "JumpStartManager-WriteJumpStartEntites",
-                    $"JumpStartManager: WriteJumpStartEntitesAsync({instance.InstanceId}, {instance.ExecutionId}) success!");
+                    "JumpStartManager-WriteJumpStartEntities",
+                    $"JumpStartManager: WriteJumpStartEntitiesAsync({instance.InstanceId}, {instance.ExecutionId}) success!");
             }
         }
     }

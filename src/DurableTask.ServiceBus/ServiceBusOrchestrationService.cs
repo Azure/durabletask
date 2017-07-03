@@ -514,7 +514,7 @@ namespace DurableTask.ServiceBus
                 SequenceNumber = sequenceNumber
             };
 
-            return this.InstanceStore.WriteEntitesAsync(new[] { orchestrationStateEntity });
+            return this.InstanceStore.WriteEntitiesAsync(new[] { orchestrationStateEntity });
         }
 
         ServiceBusOrchestrationSession GetSessionInstanceForWorkItem(TaskOrchestrationWorkItem workItem)
@@ -990,7 +990,7 @@ namespace DurableTask.ServiceBus
                 JumpStartTime = DateTimeUtils.MinDateTime
             };
 
-            await this.InstanceStore.WriteJumpStartEntitesAsync(new[] { jumpStartEntity });
+            await this.InstanceStore.WriteJumpStartEntitiesAsync(new[] { jumpStartEntity });
         }
 
         /// <summary>
@@ -1331,7 +1331,7 @@ namespace DurableTask.ServiceBus
 
             try
             {
-                await InstanceStore.WriteEntitesAsync(historyEntities);
+                await InstanceStore.WriteEntitiesAsync(historyEntities);
             }
             catch (Exception e) when (!Utils.IsFatal(e))
             {
@@ -1344,7 +1344,7 @@ namespace DurableTask.ServiceBus
                 // TODO : send batch to instance store, it can write it as individual if it chooses
                 foreach (OrchestrationStateInstanceEntity stateEntity in stateEntities)
                 {
-                    await InstanceStore.WriteEntitesAsync(new List<OrchestrationStateInstanceEntity> { stateEntity });
+                    await InstanceStore.WriteEntitiesAsync(new List<OrchestrationStateInstanceEntity> { stateEntity });
                 }
             }
             catch (Exception e) when (!Utils.IsFatal(e))
