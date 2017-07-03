@@ -14,10 +14,8 @@
 namespace DurableTask.AzureStorage.Tests
 {
     using System;
-    using System.Collections;
     using System.Collections.Generic;
     using System.Diagnostics;
-    using System.Linq;
     using System.Runtime.Serialization;
     using System.Threading.Tasks;
     using DurableTask.Core;
@@ -49,7 +47,7 @@ namespace DurableTask.AzureStorage.Tests
 
         public Task StopAsync()
         {
-            return this.worker.StopAsync();
+            return this.worker.StopAsync(isForced: true);
         }
 
         public async Task<TestOrchestrationClient> StartOrchestrationAsync(Type orchestrationType, object input)

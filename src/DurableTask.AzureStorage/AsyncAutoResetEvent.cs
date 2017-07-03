@@ -20,7 +20,7 @@ namespace DurableTask.AzureStorage
     using System.Threading.Tasks;
 
     // Inspired by https://blogs.msdn.microsoft.com/pfxteam/2012/02/11/building-async-coordination-primitives-part-2-asyncautoresetevent/
-    public class AsyncAutoResetEvent
+    class AsyncAutoResetEvent
     {
         readonly LinkedList<TaskCompletionSource<bool>> waiters = 
             new LinkedList<TaskCompletionSource<bool>>();

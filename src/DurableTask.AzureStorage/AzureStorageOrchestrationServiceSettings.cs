@@ -78,5 +78,32 @@ namespace DurableTask.AzureStorage
         /// The default value is 100.
         /// </summary>
         public int MaxConcurrentTaskOrchestrationWorkItems { get; set; } = 100;
+
+        /// <summary>
+        /// Gets or sets the identifier for the current worker.
+        /// </summary>
+        public string WorkerId { get; set; } = Environment.MachineName;
+
+        /// <summary>
+        /// Gets or sets the maximum number of orchestration partitions.
+        /// </summary>
+        public int PartitionCount { get; set; } = 4;
+
+        /// <summary>
+        /// Renew interval for all leases for partitions currently held.
+        /// </summary>
+        public TimeSpan LeaseRenewInterval { get; set; } = TimeSpan.FromSeconds(10);
+
+        /// <summary>
+        /// Interval when the current worker instance kicks off a task to compute if partitions are distributed evenly.
+        /// among known host instances. 
+        /// </summary>
+        public TimeSpan LeaseAcquireInterval { get; set; } = TimeSpan.FromSeconds(10);
+
+        /// <summary>
+        /// Interval for which the lease is taken on Azure Blob representing a task hub partition.  If the lease is not renewed within this 
+        /// interval, it will cause it to expire and ownership of the partition will move to another worker instance.
+        /// </summary>
+        public TimeSpan LeaseInterval { get; set; } = TimeSpan.FromSeconds(30);
     }
 }

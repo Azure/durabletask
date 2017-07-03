@@ -14,7 +14,6 @@
 namespace DurableTask.AzureStorage.Tests
 {
     using System;
-    using System.Configuration;
     using System.IO;
     using System.Linq;
     using System.Runtime.Serialization;
@@ -33,7 +32,7 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task HelloWorldOrchestration_Inline()
         {
-            using (TestOrchestrationHost host = GetTestOrchestrationHost())
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
             {
                 await host.StartAsync();
 
@@ -54,7 +53,7 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task HelloWorldOrchestration_Activity()
         {
-            using (TestOrchestrationHost host = GetTestOrchestrationHost())
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
             {
                 await host.StartAsync();
 
@@ -75,7 +74,7 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task SequentialOrchestration()
         {
-            using (TestOrchestrationHost host = GetTestOrchestrationHost())
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
             {
                 await host.StartAsync();
 
@@ -97,7 +96,7 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task ParallelOrchestration()
         {
-            using (TestOrchestrationHost host = GetTestOrchestrationHost())
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
             {
                 await host.StartAsync();
 
@@ -118,7 +117,7 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task ActorOrchestration()
         {
-            using (TestOrchestrationHost host = GetTestOrchestrationHost())
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
             {
                 await host.StartAsync();
 
@@ -170,7 +169,7 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task TerminateOrchestration()
         {
-            using (TestOrchestrationHost host = GetTestOrchestrationHost())
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
             {
                 await host.StartAsync();
 
@@ -198,7 +197,7 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task TimerCancellation()
         {
-            using (TestOrchestrationHost host = GetTestOrchestrationHost())
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
             {
                 await host.StartAsync();
 
@@ -224,7 +223,7 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task TimerExpiration()
         {
-            using (TestOrchestrationHost host = GetTestOrchestrationHost())
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
             {
                 await host.StartAsync();
 
@@ -251,7 +250,7 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task OrchestrationConcurrency()
         {
-            using (TestOrchestrationHost host = GetTestOrchestrationHost())
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
             {
                 await host.StartAsync();
 
@@ -288,7 +287,7 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task HandledActivityException()
         {
-            using (TestOrchestrationHost host = GetTestOrchestrationHost())
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
             {
                 await host.StartAsync();
 
@@ -309,7 +308,7 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task UnhandledOrchestrationException()
         {
-            using (TestOrchestrationHost host = GetTestOrchestrationHost())
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
             {
                 await host.StartAsync();
 
@@ -330,7 +329,7 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task UnhandledActivityException()
         {
-            using (TestOrchestrationHost host = GetTestOrchestrationHost())
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
             {
                 await host.StartAsync();
 
@@ -343,37 +342,6 @@ namespace DurableTask.AzureStorage.Tests
 
                 await host.StopAsync();
             }
-        }
-
-        static TestOrchestrationHost GetTestOrchestrationHost()
-        {
-            string storageConnectionString = GetTestSetting("StorageConnectionString");
-            if (string.IsNullOrEmpty(storageConnectionString))
-            {
-                throw new ArgumentNullException("A Storage connection string must be defined in either an environment variable or in configuration.");
-            }
-
-            var service = new AzureStorageOrchestrationService(
-                new AzureStorageOrchestrationServiceSettings
-                {
-                    StorageConnectionString = storageConnectionString,
-                    TaskHubName = ConfigurationManager.AppSettings.Get("TaskHubName"),
-                });
-
-            service.CreateAsync().GetAwaiter().GetResult();
-
-            return new TestOrchestrationHost(service);
-        }
-
-        static string GetTestSetting(string name)
-        {
-            string value = Environment.GetEnvironmentVariable("DurableTaskTest" + name);
-            if (string.IsNullOrEmpty(value))
-            {
-                value = ConfigurationManager.AppSettings.Get(name);
-            }
-
-            return value;
         }
 
         static class Orchestrations
