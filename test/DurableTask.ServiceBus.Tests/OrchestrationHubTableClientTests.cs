@@ -303,7 +303,7 @@ namespace DurableTask.ServiceBus.Tests
                 historyEntities.Add(new AzureTableOrchestrationHistoryEventEntity(instanceId, genId, i, DateTime.Now,
                     eeStartedEvent));
             }
-            client.WriteEntitesAsync(historyEntities).Wait();
+            client.WriteEntitiesAsync(historyEntities).Wait();
             return historyEntities;
         }
 
@@ -328,7 +328,7 @@ namespace DurableTask.ServiceBus.Tests
             };
 
             entities.Add(new AzureTableOrchestrationStateEntity(runtimeState));
-            client.WriteEntitesAsync(entities).Wait();
+            client.WriteEntitiesAsync(entities).Wait();
             return entities;
         }
 

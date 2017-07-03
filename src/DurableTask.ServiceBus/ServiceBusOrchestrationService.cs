@@ -183,7 +183,7 @@ namespace DurableTask.ServiceBus
         {
             this.cancellationTokenSource?.Cancel();
 
-            TraceHelper.Trace(TraceEventType.Information, "Final Service Stats: {0}", this.ServiceStats.ToString());
+            TraceHelper.Trace(TraceEventType.Information, "ServiceBusOrchestrationService-StatsFinal", "Final Service Stats: {0}", this.ServiceStats.ToString());
             // TODO : call shutdown of any remaining orchestrationSessions and orchestrationMessages
 
             await Task.WhenAll(
@@ -334,7 +334,9 @@ namespace DurableTask.ServiceBus
             QueueDescription queueDescription = namespaceManager.GetQueue(entityName);
             if (queueDescription == null)
             {
-                throw TraceHelper.TraceException(TraceEventType.Error,
+                throw TraceHelper.TraceException(
+                    TraceEventType.Error,
+                    "ServiceBusOrchestrationService-QueueNotFound",
                     new ArgumentException($"Queue {entityName} does not exist"));
             }
             return queueDescription.MessageCount;
@@ -438,7 +440,10 @@ namespace DurableTask.ServiceBus
                     session.SessionId, "Receive Session Message Batch", this.Settings.MaxRetries, Settings.IntervalBetweenRetriesSecs)).ToList();
             
             this.ServiceStats.OrchestrationDispatcherStats.MessagesReceived.Increment(newMessages.Count);
-            TraceHelper.TraceSession(TraceEventType.Information, session.SessionId,
+            TraceHelper.TraceSession(
+                TraceEventType.Information,
+                "ServiceBusOrchestrationService-LockNextTaskOrchestrationWorkItem-MessageToProcess",
+                session.SessionId,
                 this.GetFormattedLog($@"{newMessages.Count()} new messages to process: {
                     string.Join(",", newMessages.Select(m => m.MessageId))}, max latency: {
                     newMessages.Max(message => message.DeliveryLatency())}ms"));
@@ -463,7 +468,7 @@ namespace DurableTask.ServiceBus
             if (!this.orchestrationSessions.TryAdd(session.SessionId, sessionState))
             {
                 var error = $"Duplicate orchestration session id '{session.SessionId}', id already exists in session list.";
-                TraceHelper.Trace(TraceEventType.Error, error);
+                TraceHelper.Trace(TraceEventType.Error, "ServiceBusOrchestrationService-LockNextTaskOrchestrationWorkItem-DuplicateSessionId", error);
                 throw new OrchestrationFrameworkException(error);
             }
 
@@ -509,7 +514,7 @@ namespace DurableTask.ServiceBus
                 SequenceNumber = sequenceNumber
             };
 
-            return this.InstanceStore.WriteEntitesAsync(new[] { orchestrationStateEntity });
+            return this.InstanceStore.WriteEntitiesAsync(new[] { orchestrationStateEntity });
         }
 
         ServiceBusOrchestrationSession GetSessionInstanceForWorkItem(TaskOrchestrationWorkItem workItem)
@@ -546,7 +551,7 @@ namespace DurableTask.ServiceBus
                 return;
             }
 
-            TraceHelper.TraceSession(TraceEventType.Error, workItem.InstanceId, "Renew lock on orchestration session");
+            TraceHelper.TraceSession(TraceEventType.Information, "ServiceBusOrchestrationService-RenewTaskOrchestrationWorkItem", workItem.InstanceId, "Renew lock on orchestration session");
             await sessionState.Session.RenewLockAsync();
             this.ServiceStats.OrchestrationDispatcherStats.SessionsRenewed.Increment();
             workItem.LockedUntilUtc = sessionState.Session.LockedUntilUtc;
@@ -556,7 +561,7 @@ namespace DurableTask.ServiceBus
         ///     Complete an orchestation, this atomically sends any outbound messages and completes the session for all current messages
         /// </summary>
         /// <param name="workItem">The task orchestration to renew the lock on</param>
-        /// <param name="newOrchestrationRuntimeState">New state of the orchestration to be persisted</param>
+        /// <param name="newOrchestrationRuntimeState">New state of the orchestration to be persisted. Could be null if the orchestration is in completion.</param>
         /// <param name="outboundMessages">New work item messages to be processed</param>
         /// <param name="orchestratorMessages">New orchestration messages to be scheduled</param>
         /// <param name="timerMessages">Delayed exection messages to be scheduled for the orchestration</param>
@@ -585,6 +590,7 @@ namespace DurableTask.ServiceBus
                 Transaction.Current.TransactionCompleted += (o, e) =>
                     TraceHelper.TraceInstance(
                     e.Transaction.TransactionInformation.Status == TransactionStatus.Committed ? TraceEventType.Information : TraceEventType.Error,
+                    "ServiceBusOrchestrationService-CompleteTaskOrchestrationWorkItem-TransactionComplete",
                     runtimeState.OrchestrationInstance,
                     () => $@"Orchestration Transaction Completed {
                         e.Transaction.TransactionInformation.LocalIdentifier
@@ -593,6 +599,7 @@ namespace DurableTask.ServiceBus
 
                 TraceHelper.TraceInstance(
                     TraceEventType.Information,
+                    "ServiceBusOrchestrationService-CompleteTaskOrchestrationWorkItem-CreateTransaction",
                     runtimeState.OrchestrationInstance,
                     () => $@"Created new Orchestration Transaction - txnid: {
                         Transaction.Current.TransactionInformation.LocalIdentifier
@@ -629,7 +636,7 @@ namespace DurableTask.ServiceBus
                                 m,
                                 Settings.MessageCompressionSettings,
                                 Settings.MessageSettings,
-                                newOrchestrationRuntimeState.OrchestrationInstance,
+                                newOrchestrationRuntimeState?.OrchestrationInstance,
                                 "Timer Message",
                                 this.BlobStore,
                                 messageFireTime);
@@ -670,7 +677,7 @@ namespace DurableTask.ServiceBus
                             continuedAsNewMessage,
                             Settings.MessageCompressionSettings,
                             Settings.MessageSettings,
-                            newOrchestrationRuntimeState.OrchestrationInstance,
+                            newOrchestrationRuntimeState?.OrchestrationInstance,
                             "Continue as new",
                             this.BlobStore,
                             DateTimeUtils.MinDateTime);
@@ -684,7 +691,10 @@ namespace DurableTask.ServiceBus
                     {
                         List<MessageContainer> trackingMessages = await CreateTrackingMessagesAsync(runtimeState, sessionState.SequenceNumber);
 
-                        TraceHelper.TraceInstance(TraceEventType.Information, runtimeState.OrchestrationInstance,
+                        TraceHelper.TraceInstance(
+                            TraceEventType.Information,
+                            "ServiceBusOrchestrationService-CompleteTaskOrchestrationWorkItem-TrackingMessages",
+                            runtimeState.OrchestrationInstance,
                             "Created {0} tracking messages", trackingMessages.Count);
 
                         if (trackingMessages.Count > 0)
@@ -699,6 +709,7 @@ namespace DurableTask.ServiceBus
 
                 TraceHelper.TraceInstance(
                     TraceEventType.Information,
+                    "ServiceBusOrchestrationService-CompleteTaskOrchestrationWorkItemMessages",
                     runtimeState.OrchestrationInstance,
                     () =>
                     {
@@ -722,7 +733,10 @@ namespace DurableTask.ServiceBus
             // This is Ok, if we abandoned the message it will already be gone
             if (sessionState == null)
             {
-                TraceHelper.TraceSession(TraceEventType.Warning, workItem?.InstanceId,
+                TraceHelper.TraceSession(
+                    TraceEventType.Warning,
+                    "ServiceBusOrchestrationService-ReleaseTaskOrchestrationWorkItemFailed", 
+                    workItem?.InstanceId,
                     $"DeleteSessionInstance failed, could already be aborted");
                 return;
             }
@@ -742,7 +756,7 @@ namespace DurableTask.ServiceBus
                 return;
             }
 
-            TraceHelper.TraceSession(TraceEventType.Error, workItem.InstanceId, "Abandoning {0} messages due to workitem abort", sessionState.LockTokens.Keys.Count());
+            TraceHelper.TraceSession(TraceEventType.Error, "ServiceBusOrchestrationService-AbandonTaskOrchestrationWorkItem", workItem.InstanceId, "Abandoning {0} messages due to workitem abort", sessionState.LockTokens.Keys.Count());
             foreach (var lockToken in sessionState.LockTokens.Keys)
             {
                 await sessionState.Session.AbandonAsync(lockToken);
@@ -754,7 +768,7 @@ namespace DurableTask.ServiceBus
             }
             catch (Exception ex) when (!Utils.IsFatal(ex))
             {
-                TraceHelper.TraceExceptionSession(TraceEventType.Warning, workItem.InstanceId, ex, "Error while aborting session");
+                TraceHelper.TraceExceptionSession(TraceEventType.Warning, "ServiceBusOrchestrationService-AbandonTaskOrchestrationWorkItemError", workItem.InstanceId, ex, "Error while aborting session");
             }
         }
 
@@ -783,7 +797,9 @@ namespace DurableTask.ServiceBus
 
             this.ServiceStats.ActivityDispatcherStats.MessagesReceived.Increment();
 
-            TraceHelper.TraceSession(TraceEventType.Information,
+            TraceHelper.TraceSession(
+                TraceEventType.Information,
+                "ServiceBusOrchestrationService-LockNextTaskActivityWorkItem-Messages",
                 receivedMessage.SessionId,
                 GetFormattedLog($"New message to process: {receivedMessage.MessageId} [{receivedMessage.SequenceNumber}], latency: {receivedMessage.DeliveryLatency()}ms"));
 
@@ -794,7 +810,7 @@ namespace DurableTask.ServiceBus
             if (!orchestrationMessages.TryAdd(receivedMessage.MessageId, receivedMessage))
             {
                 var error = $"Duplicate orchestration message id '{receivedMessage.MessageId}', id already exists in message list.";
-                TraceHelper.Trace(TraceEventType.Error, error);
+                TraceHelper.Trace(TraceEventType.Error, "ServiceBusOrchestrationService-DuplicateOrchestration",error);
                 throw new OrchestrationFrameworkException(error);
             }
 
@@ -874,6 +890,7 @@ namespace DurableTask.ServiceBus
                 Transaction.Current.TransactionCompleted += (o, e) =>
                     TraceHelper.TraceInstance(
                     e.Transaction.TransactionInformation.Status == TransactionStatus.Committed ? TraceEventType.Information : TraceEventType.Error,
+                    "ServiceBusOrchestrationService-CompleteTaskActivityWorkItem-TransactionComplete",
                     workItem.TaskMessage.OrchestrationInstance,
                     () => $@"TaskActivity Transaction Completed {
                         e.Transaction.TransactionInformation.LocalIdentifier
@@ -882,6 +899,7 @@ namespace DurableTask.ServiceBus
 
                 TraceHelper.TraceInstance(
                     TraceEventType.Information,
+                    "ServiceBusOrchestrationService-CompleteTaskActivityWorkItem-CreateTransaction",
                     workItem.TaskMessage.OrchestrationInstance,
                     () => $@"Created new TaskActivity Transaction - txnid: {
                         Transaction.Current.TransactionInformation.LocalIdentifier
@@ -904,7 +922,7 @@ namespace DurableTask.ServiceBus
         public Task AbandonTaskActivityWorkItemAsync(TaskActivityWorkItem workItem)
         {
             var message = GetAndDeleteBrokeredMessageForWorkItem(workItem);
-            TraceHelper.Trace(TraceEventType.Information, $"Abandoning message {workItem?.Id}");
+            TraceHelper.Trace(TraceEventType.Information, "ServiceBusOrchestrationService-AbandonTaskActivityWorkItem",  $"Abandoning message {workItem?.Id}");
 
             return message == null 
                 ? Task.FromResult<object>(null) 
@@ -941,7 +959,7 @@ namespace DurableTask.ServiceBus
             catch (Exception ex) when (!Utils.IsFatal(ex) && jumpStartEnabled)
             {
                 // Ingore exception
-                TraceHelper.Trace(TraceEventType.Warning, $"Error while adding message to ServiceBus: {ex.ToString()}");
+                TraceHelper.Trace(TraceEventType.Warning, "ServiceBusOrchestrationService-CreateTaskOrchestration-ServiceBusError", $"Error while adding message to ServiceBus: {ex.ToString()}");
             }
         }
 
@@ -972,7 +990,7 @@ namespace DurableTask.ServiceBus
                 JumpStartTime = DateTimeUtils.MinDateTime
             };
 
-            await this.InstanceStore.WriteJumpStartEntitesAsync(new[] { jumpStartEntity });
+            await this.InstanceStore.WriteJumpStartEntitiesAsync(new[] { jumpStartEntity });
         }
 
         /// <summary>
@@ -1137,18 +1155,18 @@ namespace DurableTask.ServiceBus
             DateTime thresholdDateTimeUtc,
             OrchestrationStateTimeRangeFilterType timeRangeFilterType)
         {
-            TraceHelper.Trace(TraceEventType.Information, $"Purging orchestration instances before: {thresholdDateTimeUtc}, Type: {timeRangeFilterType}");
+            TraceHelper.Trace(TraceEventType.Information, "ServiceBusOrchestrationService-PurgeOrchestrationHistory-Start", $"Purging orchestration instances before: {thresholdDateTimeUtc}, Type: {timeRangeFilterType}");
 
             if (this.BlobStore != null)
             {
                 await this.BlobStore.PurgeExpiredBlobsAsync(thresholdDateTimeUtc);
-                TraceHelper.Trace(TraceEventType.Information, $"Blob storage is purged.");
+                TraceHelper.Trace(TraceEventType.Information, "ServiceBusOrchestrationService-BlobsPurged", $"Blob storage is purged.");
             }
 
             if (InstanceStore != null)
             {
                 int purgedEvents = await InstanceStore.PurgeOrchestrationHistoryEventsAsync(thresholdDateTimeUtc, timeRangeFilterType);
-                TraceHelper.Trace(TraceEventType.Information, $"Purged {purgedEvents} orchestration histories");
+                TraceHelper.Trace(TraceEventType.Information, "ServiceBusOrchestrationService-HistoryPurged", $"Purged {purgedEvents} orchestration histories");
             }
         }
 
@@ -1181,7 +1199,10 @@ namespace DurableTask.ServiceBus
                     session.SessionId, "Receive Tracking Session Message Batch", Settings.MaxRetries, Settings.IntervalBetweenRetriesSecs)).ToList();
             this.ServiceStats.TrackingDispatcherStats.MessagesReceived.Increment(newMessages.Count);
 
-            TraceHelper.TraceSession(TraceEventType.Information, session.SessionId,
+            TraceHelper.TraceSession(
+                TraceEventType.Information,
+                "ServiceBusOrchestrationService-FetchTrackingWorkItem-Messages", 
+                session.SessionId,
                 GetFormattedLog($"{newMessages.Count()} new tracking messages to process: {string.Join(",", newMessages.Select(m => m.MessageId))}"));
 
             ServiceBusUtils.CheckAndLogDeliveryCount(newMessages, Settings.MaxTrackingDeliveryCount);
@@ -1310,7 +1331,7 @@ namespace DurableTask.ServiceBus
 
             try
             {
-                await InstanceStore.WriteEntitesAsync(historyEntities);
+                await InstanceStore.WriteEntitiesAsync(historyEntities);
             }
             catch (Exception e) when (!Utils.IsFatal(e))
             {
@@ -1323,7 +1344,7 @@ namespace DurableTask.ServiceBus
                 // TODO : send batch to instance store, it can write it as individual if it chooses
                 foreach (OrchestrationStateInstanceEntity stateEntity in stateEntities)
                 {
-                    await InstanceStore.WriteEntitesAsync(new List<OrchestrationStateInstanceEntity> { stateEntity });
+                    await InstanceStore.WriteEntitiesAsync(new List<OrchestrationStateInstanceEntity> { stateEntity });
                 }
             }
             catch (Exception e) when (!Utils.IsFatal(e))
@@ -1347,7 +1368,7 @@ namespace DurableTask.ServiceBus
             foreach (T entry in entities)
             {
                 var idx = index;
-                TraceHelper.Trace(eventType, () => traceGenerator(idx, message, entry));
+                TraceHelper.Trace(eventType, "ServiceBusOrchestrationService-Entities", () => traceGenerator(idx, message, entry));
                 index++;
             }
         }
@@ -1394,7 +1415,8 @@ namespace DurableTask.ServiceBus
         void LogSentMessages(MessageSession session, string messageType, IList<MessageContainer> messages)
         {
             TraceHelper.TraceSession(
-                TraceEventType.Information, 
+                TraceEventType.Information,
+                "ServiceBusOrchestrationService-SentMessageLog",
                 session.SessionId,
                 this.GetFormattedLog($@"{messages.Count().ToString()} messages queued for {messageType}: {
                     string.Join(",", messages.Select(m => $"{m.Message.MessageId} <{m.Action?.Event.EventId.ToString()}>"))}"));
@@ -1419,6 +1441,7 @@ namespace DurableTask.ServiceBus
             {
                 TraceHelper.TraceSession(
                     TraceEventType.Error,
+                    "ServiceBusOrchestrationService-SessionStateThresholdApproaching",
                     workItem.InstanceId,
                     $"Size of session state ({runtimeState.CompressedSize}B) is nearing session size limit of {Settings.SessionSettings.SessionOverflowThresholdInBytes}B");
             }
@@ -1461,7 +1484,7 @@ namespace DurableTask.ServiceBus
                 isSessionSizeThresholdExceeded = true;
 
                 string reason = $"Session state size of {runtimeState.CompressedSize} exceeded the termination threshold of {Settings.SessionSettings.SessionMaxSizeInBytes} bytes. More info: {exception.StackTrace}";
-                TraceHelper.TraceSession(TraceEventType.Critical, workItem.InstanceId, reason);
+                TraceHelper.TraceSession(TraceEventType.Critical, "ServiceBusOrchestrationService-SessionSizeExceeded", workItem.InstanceId, reason);
 
                 BrokeredMessage forcedTerminateMessage = await CreateForcedTerminateMessageAsync(runtimeState.OrchestrationInstance.InstanceId, reason);
                 await orchestratorQueueClient.SendAsync(forcedTerminateMessage);
@@ -1479,8 +1502,8 @@ namespace DurableTask.ServiceBus
             {
                 await Task.Delay(TimeSpan.FromMinutes(1), cancellationToken);
 
-                TraceHelper.Trace(TraceEventType.Information, "Service Stats: {0}", this.ServiceStats.ToString());
-                TraceHelper.Trace(TraceEventType.Information, "Active Session and Message Stats: Messages: {0}, Sessions: {1}", orchestrationMessages.Count, orchestrationSessions.Count);
+                TraceHelper.Trace(TraceEventType.Information, "ServiceBusOrchestrationService-ServiceStats", "Service Stats: {0}", this.ServiceStats.ToString());
+                TraceHelper.Trace(TraceEventType.Information, "ServiceBusOrchestrationService-ServiceStats-Active", "Active Session and Message Stats: Messages: {0}, Sessions: {1}", orchestrationMessages.Count, orchestrationSessions.Count);
             }
         }
 

@@ -365,6 +365,7 @@ namespace DurableTask.Core
         {
             TraceHelper.TraceSession(
                 TraceEventType.Warning,
+                "TaskOrchestrationContext-DuplicateEvent",
                 this.OrchestrationInstance.InstanceId,
                 "Duplicate {0} Event: {1}, type: {2}, ts: {3}",
                 source,

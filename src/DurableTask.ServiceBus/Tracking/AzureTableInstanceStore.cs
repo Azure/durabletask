@@ -87,11 +87,11 @@ namespace DurableTask.ServiceBus.Tracking
         /// Writes a list of history events to storage with retries for transient errors
         /// </summary>
         /// <param name="entities">List of history events to write</param>
-        public async Task<object> WriteEntitesAsync(IEnumerable<InstanceEntityBase> entities)
+        public async Task<object> WriteEntitiesAsync(IEnumerable<InstanceEntityBase> entities)
         {
-            return await Utils.ExecuteWithRetries(() => this.tableClient.WriteEntitesAsync(entities.Select(HistoryEventToTableEntity)),
+            return await Utils.ExecuteWithRetries(() => this.tableClient.WriteEntitiesAsync(entities.Select(HistoryEventToTableEntity)),
                                 string.Empty,
-                                "WriteEntitesAsync",
+                                "WriteEntitiesAsync",
                                 MaxRetriesTableStore,
                                 IntervalBetweenRetriesSecs);
         }
@@ -102,7 +102,7 @@ namespace DurableTask.ServiceBus.Tracking
         /// <param name="instanceId">The instance id to return state for</param>
         /// <param name="executionId">The execution id to return state for</param>
         /// <returns>The matching orchestation state or null if not found</returns>
-        public async Task<IEnumerable<OrchestrationStateInstanceEntity>> GetEntitesAsync(string instanceId, string executionId)
+        public async Task<IEnumerable<OrchestrationStateInstanceEntity>> GetEntitiesAsync(string instanceId, string executionId)
         {
             IEnumerable<AzureTableOrchestrationStateEntity> results =
                 await this.tableClient.QueryOrchestrationStatesAsync(
@@ -115,11 +115,11 @@ namespace DurableTask.ServiceBus.Tracking
         /// Deletes a list of history events from storage with retries for transient errors
         /// </summary>
         /// <param name="entities">List of history events to delete</param>
-        public async Task<object> DeleteEntitesAsync(IEnumerable<InstanceEntityBase> entities)
+        public async Task<object> DeleteEntitiesAsync(IEnumerable<InstanceEntityBase> entities)
         {
-            return await Utils.ExecuteWithRetries(() => this.tableClient.DeleteEntitesAsync(entities.Select(HistoryEventToTableEntity)),
+            return await Utils.ExecuteWithRetries(() => this.tableClient.DeleteEntitiesAsync(entities.Select(HistoryEventToTableEntity)),
                                 string.Empty,
-                                "DeleteEntitesAsync",
+                                "DeleteEntitiesAsync",
                                 MaxRetriesTableStore,
                                 IntervalBetweenRetriesSecs);
         }
@@ -319,38 +319,38 @@ namespace DurableTask.ServiceBus.Tracking
                 })));
 
             List<Task> historyDeleteTasks = historyEntitiesToDelete.Select(
-                historyEventList => tableClient.DeleteEntitesAsync(historyEventList)).Cast<Task>().ToList();
+                historyEventList => tableClient.DeleteEntitiesAsync(historyEventList)).Cast<Task>().ToList();
 
             // need to serialize history deletes before the state deletes so we dont leave orphaned history events
             await Task.WhenAll(historyDeleteTasks).ConfigureAwait(false);
-            await Task.WhenAll(tableClient.DeleteEntitesAsync(stateEntitiesToDelete)).ConfigureAwait(false);
+            await Task.WhenAll(tableClient.DeleteEntitiesAsync(stateEntitiesToDelete)).ConfigureAwait(false);
         }
 
         /// <summary>
         /// Writes a list of jump start events to instance store
         /// </summary>
         /// <param name="entities">List of jump start events to write</param>
-        public Task<object> WriteJumpStartEntitesAsync(IEnumerable<OrchestrationJumpStartInstanceEntity> entities)
+        public Task<object> WriteJumpStartEntitiesAsync(IEnumerable<OrchestrationJumpStartInstanceEntity> entities)
         {
             var jumpStartEntities = entities.Select(e => new AzureTableOrchestrationJumpStartEntity(e));
-            return this.tableClient.WriteJumpStartEntitesAsync(jumpStartEntities);
+            return this.tableClient.WriteJumpStartEntitiesAsync(jumpStartEntities);
         }
 
         /// <summary>
         /// Deletes a list of jump start events from instance store
         /// </summary>
         /// <param name="entities">List of jump start events to delete</param>
-        public Task<object> DeleteJumpStartEntitesAsync(IEnumerable<OrchestrationJumpStartInstanceEntity> entities)
+        public Task<object> DeleteJumpStartEntitiesAsync(IEnumerable<OrchestrationJumpStartInstanceEntity> entities)
         {
             var jumpStartEntities = entities.Select(e => new AzureTableOrchestrationJumpStartEntity(e));
-            return this.tableClient.DeleteJumpStartEntitesAsync(jumpStartEntities);
+            return this.tableClient.DeleteJumpStartEntitiesAsync(jumpStartEntities);
         }
 
         /// <summary>
         /// Get a list of jump start events from instance store
         /// </summary>
         /// <returns>List of jump start events</returns>
-        public async Task<IEnumerable<OrchestrationJumpStartInstanceEntity>> GetJumpStartEntitesAsync(int top)
+        public async Task<IEnumerable<OrchestrationJumpStartInstanceEntity>> GetJumpStartEntitiesAsync(int top)
         {
             return (await this.tableClient.QueryJumpStartOrchestrationsAsync(
                         DateTime.UtcNow.AddDays(-AzureTableClient.JumpStartTableScanIntervalInDays),

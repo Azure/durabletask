@@ -14,8 +14,10 @@
 namespace DurableTask.Core.Tests
 {
     using System;
-    using DurableTask.Core.Common;
+    using Microsoft.Practices.EnterpriseLibrary.SemanticLogging.Utility;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
+    using DurableTask.Core.Common;
+    using DurableTask.Core.Tracing;
 
     [TestClass]
     public class CommonTests
@@ -32,6 +34,12 @@ namespace DurableTask.Core.Tests
             {
                 Assert.IsFalse(DateTime.FromFileTimeUtc(0).IsSet());
             }
+        }
+
+        [TestMethod]
+        public void ShouldValidateEventSource()
+        {
+            EventSourceAnalyzer.InspectAll(DefaultEventSource.Log);
         }
     }
 }

@@ -73,7 +73,10 @@ namespace DurableTask.ServiceBus.Common
                 {
                     Stream compressedStream = Utils.GetCompressedStream(rawStream);
                     var rawLen = rawStream.Length;
-                    TraceHelper.TraceInstance(TraceEventType.Information, instance,
+                    TraceHelper.TraceInstance(
+                        TraceEventType.Information, 
+                        "GetBrokeredMessageFromObject-CompressionStats", 
+                        instance,
                         () =>
                             "Compression stats for " + (messageType ?? string.Empty) + " : " +
                             brokeredMessage?.MessageId +
@@ -153,6 +156,7 @@ namespace DurableTask.ServiceBus.Common
 
             TraceHelper.TraceInstance(
                 TraceEventType.Information,
+                "GenerateBrokeredMessageWithBlobKeyProperty-SaveToBlob",
                 instance,
                 () => $"Saving the message stream in blob storage using key {blobKey}.");
             await orchestrationServiceBlobStore.SaveStreamAsync(blobKey, stream);
@@ -276,15 +280,22 @@ namespace DurableTask.ServiceBus.Common
             {
                 if (!string.IsNullOrEmpty(sessionId))
                 {
-                    TraceHelper.TraceSession(TraceEventType.Critical, sessionId,
+                    TraceHelper.TraceSession(
+                        TraceEventType.Critical, 
+                        "MaxDeliveryCountApproaching-Session", 
+                        sessionId,
                         "Delivery count for message with id {0} is {1}. Message will be deadlettered if processing continues to fail.",
-                        message.MessageId, message.DeliveryCount);
+                        message.MessageId,
+                        message.DeliveryCount);
                 }
                 else
                 {
-                    TraceHelper.Trace(TraceEventType.Critical,
+                    TraceHelper.Trace(
+                        TraceEventType.Critical,
+                        "MaxDeliveryCountApproaching",
                         "Delivery count for message with id {0} is {1}. Message will be deadlettered if processing continues to fail.",
-                        message.MessageId, message.DeliveryCount);
+                        message.MessageId, 
+                        message.DeliveryCount);
                 }
             }
         }

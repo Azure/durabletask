@@ -152,6 +152,7 @@ namespace DurableTask.ServiceBus.Tracking
             {
                 TraceHelper.Trace(
                     TraceEventType.Warning,
+                    "BlobStorageClientHelper-IsContainerExpired-ContainerIgnored",
                     $"Container name {containerName} does not contain required 4 segments. Container {containerName} is ignored.");
 
                 return false;
@@ -170,6 +171,7 @@ namespace DurableTask.ServiceBus.Tracking
             {
                 TraceHelper.Trace(
                     TraceEventType.Warning,
+                    "BlobStorageClientHelper-IsContainerExpired-InvalidDate",
                     $"Cannot parse the the date string {dateString} in the format of yyyyMMdd. Container {containerName} is ignored.");
 
                 return false;
