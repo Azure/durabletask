@@ -118,5 +118,32 @@ namespace DurableTask.AzureStorage
             EnsureLogicalTraceActivityId();
             this.WriteEvent(111, InstanceId, ExecutionId, NewEventCount, TotalEventCount, NewEvents, LatencyMs);
         }
+
+        [Event(120, Level = EventLevel.Informational)]
+        public void LogPartitionInfo(string Details)
+        {
+            EnsureLogicalTraceActivityId();
+            this.WriteEvent(120, Details);
+        }
+
+        [Event(121, Level = EventLevel.Error)]
+        public void LogPartitionWarning(string Details)
+        {
+            EnsureLogicalTraceActivityId();
+            this.WriteEvent(121, Details);
+        }
+
+        [NonEvent]
+        public void LogPartitionException(Exception e)
+        {
+            this.LogPartitionError(e.ToString());
+        }
+
+        [Event(122, Level = EventLevel.Error)]
+        public void LogPartitionError(string Details)
+        {
+            EnsureLogicalTraceActivityId();
+            this.WriteEvent(122, Details);
+        }
     }
 }
