@@ -65,7 +65,7 @@ namespace DurableTask.ServiceFabric
                     await WriteExecutionStartedEventToInstanceStore(tx, startEvent);
                     await tx.CommitAsync();
                 }
-            }, uniqueActionIdentifier: $"OrchestrationId = '{instance.InstanceId}', Action = '{nameof(CreateTaskOrchestrationAsync)}'");
+            }, uniqueActionIdentifier: $"Orchestration = '{instance}', Action = '{nameof(CreateTaskOrchestrationAsync)}'");
 
             ProviderEventSource.Log.OrchestrationCreated(instance.InstanceId, instance.ExecutionId);
             this.orchestrationProvider.TryEnqueueSession(creationMessage.OrchestrationInstance);

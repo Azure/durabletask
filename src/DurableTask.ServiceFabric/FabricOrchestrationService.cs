@@ -439,7 +439,7 @@ namespace DurableTask.ServiceFabric
                         responseMessage.Event = new TaskFailedEvent(originalEvent.EventId, taskScheduledId, ex.Message, details);
                     }
                 } while (retryOnException);
-            }, uniqueActionIdentifier: $"OrchestrationId = '{responseMessage.OrchestrationInstance.InstanceId}', ActivityId = '{workItem.Id}', Action = '{nameof(CompleteTaskActivityWorkItemAsync)}'");
+            }, uniqueActionIdentifier: $"Orchestration = '{responseMessage.OrchestrationInstance}', ActivityId = '{workItem.Id}', Action = '{nameof(CompleteTaskActivityWorkItemAsync)}'");
 
             if (added)
             {

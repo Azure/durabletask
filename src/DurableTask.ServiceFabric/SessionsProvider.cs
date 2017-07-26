@@ -132,7 +132,7 @@ namespace DurableTask.ServiceFabric
                     await this.AppendMessageAsync(txn, newMessage);
                     await txn.CommitAsync();
                 }
-            }, uniqueActionIdentifier: $"OrchestrationId = '{newMessage.TaskMessage.OrchestrationInstance.InstanceId}', Action = '{nameof(SessionsProvider)}.{nameof(AppendMessageAsync)}'");
+            }, uniqueActionIdentifier: $"Orchestration = '{newMessage.TaskMessage.OrchestrationInstance}', Action = '{nameof(SessionsProvider)}.{nameof(AppendMessageAsync)}'");
 
             this.TryEnqueueSession(newMessage.TaskMessage.OrchestrationInstance);
         }
