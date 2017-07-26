@@ -116,18 +116,7 @@ namespace DurableTask.ServiceFabric
 
             await EnsureStoreInitialized();
 
-            string latestExecutionId = null;
-            await RetryHelper.ExecuteWithRetryOnTransient(async () =>
-            {
-                using (var tx = this.stateManager.CreateTransaction())
-                {
-                    var executionIdValue = await this.executionIdStore.TryGetValueAsync(tx, instanceId);
-                    if (executionIdValue.HasValue)
-                    {
-                        latestExecutionId = executionIdValue.Value;
-                    }
-                }
-            }, uniqueActionIdentifier: $"Orchestration Instance Id = {instanceId}, Action = {nameof(FabricOrchestrationInstanceStore)}.{nameof(GetOrchestrationStateAsync)}:GetLatestExecutionId");
+            string latestExecutionId = await GetLatestExecutionId(instanceId);
 
             if (latestExecutionId != null)
             {
@@ -139,6 +128,25 @@ namespace DurableTask.ServiceFabric
             }
 
             return ImmutableList<OrchestrationStateInstanceEntity>.Empty;
+        }
+
+        public async Task<string> GetLatestExecutionId(string instanceId)
+        {
+            string latestExecutionId = null;
+
+            await RetryHelper.ExecuteWithRetryOnTransient(async () =>
+            {
+                using (var tx = this.stateManager.CreateTransaction())
+                {
+                    var executionIdValue = await this.executionIdStore.TryGetValueAsync(tx, instanceId);
+                    if (executionIdValue.HasValue)
+                    {
+                        latestExecutionId = executionIdValue.Value;
+                    }
+                }
+            }, uniqueActionIdentifier: $"Orchestration Instance Id = {instanceId}, Action = {nameof(FabricOrchestrationInstanceStore)}.{nameof(GetLatestExecutionId)}");
+
+            return latestExecutionId;
         }
 
         public async Task<OrchestrationStateInstanceEntity> GetOrchestrationStateAsync(string instanceId, string executionId)

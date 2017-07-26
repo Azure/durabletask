@@ -229,10 +229,10 @@ namespace TestStatefulService
             return this.fabricProvider.FabricProviderClient.GetOrchestrationRuntimeState(instanceId);
         }
 
-        public Task TerminateOrchestration(string instanceId, string executionId)
+        public Task TerminateOrchestration(string instanceId, string reason)
         {
-            var instance = new OrchestrationInstance() { InstanceId = instanceId, ExecutionId = executionId };
-            return client.TerminateInstanceAsync(instance);
+            var instance = new OrchestrationInstance() { InstanceId = instanceId};
+            return client.TerminateInstanceAsync(instance, reason);
         }
 
         static Dictionary<string, TaskOrchestration> KnownOrchestrationInstances = new Dictionary<string, TaskOrchestration>

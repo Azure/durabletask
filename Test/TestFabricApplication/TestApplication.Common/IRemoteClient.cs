@@ -42,6 +42,6 @@ namespace TestApplication.Common
 
         Task PurgeOrchestrationHistoryEventsAsync();
 
-        Task TerminateOrchestration(string instanceId, string executionId);
+        Task TerminateOrchestration(string instanceId, string reason);
     }
 }

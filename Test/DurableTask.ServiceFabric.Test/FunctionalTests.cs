@@ -262,6 +262,29 @@ namespace DurableTask.ServiceFabric.Test
         }
 
         [TestMethod]
+        public async Task ForceTerminate_Terminates_LatestExecution()
+        {
+            var testData = new TestOrchestrationData()
+            {
+                NumberOfParallelTasks = 0,
+                NumberOfSerialTasks = 2,
+                MaxDelay = 5,
+                MinDelay = 5,
+                DelayUnit = TimeSpan.FromSeconds(1),
+            };
+
+            var instance = await this.serviceClient.StartTestOrchestrationAsync(testData);
+            await Task.Delay(TimeSpan.FromSeconds(1));
+
+            var reason = "Testing Terminate Functionality";
+            await this.serviceClient.TerminateOrchestration(instance.InstanceId, reason);
+            var result = await this.serviceClient.WaitForOrchestration(instance, TimeSpan.FromMinutes(1));
+
+            Assert.AreEqual(OrchestrationStatus.Terminated, result.OrchestrationStatus);
+            Assert.AreEqual(reason, result.Output);
+        }
+
+        [TestMethod]
         public async Task Purge_Removes_State()
         {
             var result = await this.serviceClient.RunOrchestrationAsync(typeof(SimpleOrchestrationWithTasks).Name, null, TimeSpan.FromMinutes(2));

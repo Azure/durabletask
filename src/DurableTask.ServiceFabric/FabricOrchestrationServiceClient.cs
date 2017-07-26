@@ -81,15 +81,22 @@ namespace DurableTask.ServiceFabric
             throw new NotImplementedException();
         }
 
-        public Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason)
+        public async Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason)
         {
+            var latestExecutionId = await this.instanceStore.GetLatestExecutionId(instanceId);
+
+            if (latestExecutionId == null)
+            {
+                throw new ArgumentException($"No execution id found for given instanceId {instanceId}, can only terminate the latest execution of a given orchestration");
+            }
+
             var taskMessage = new TaskMessage
             {
-                OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId },
+                OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId, ExecutionId = latestExecutionId },
                 Event = new ExecutionTerminatedEvent(-1, reason)
             };
 
-            return SendTaskOrchestrationMessageAsync(taskMessage);
+            await SendTaskOrchestrationMessageAsync(taskMessage);
         }
 
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
