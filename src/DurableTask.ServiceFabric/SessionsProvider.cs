@@ -223,17 +223,20 @@ namespace DurableTask.ServiceFabric
             ProviderEventSource.Log.TraceMessage(instance.InstanceId, $"Session Unlock End, Abandon = {abandon}, removed lock state = {lockState}");
         }
 
-        public async Task<bool> SessionExists(OrchestrationInstance instance)
+        public async Task<bool> TryAddSession(ITransaction transaction, TaskMessageItem newMessage)
         {
+            ThrowIfStopped();
             await EnsureStoreInitialized();
 
-            return await RetryHelper.ExecuteWithRetryOnTransient(async () =>
+            bool added = await this.Store.TryAddAsync(transaction, newMessage.TaskMessage.OrchestrationInstance.InstanceId, PersistentSession.Create(newMessage.TaskMessage.OrchestrationInstance));
+
+            if (added)
             {
-                using (var txn = this.StateManager.CreateTransaction())
-                {
-                    return await this.Store.ContainsKeyAsync(txn, instance.InstanceId);
-                }
-            }, uniqueActionIdentifier: $"Orchestration = {instance}, Action = {nameof(SessionsProvider)}.{nameof(SessionExists)}");
+                var sessionMessageProvider = await GetOrAddSessionMessagesInstance(newMessage.TaskMessage.OrchestrationInstance);
+                await sessionMessageProvider.SendBeginAsync(transaction, new Message<Guid, TaskMessageItem>(Guid.NewGuid(), newMessage));
+            }
+
+            return added;
         }
 
         public async Task<PersistentSession> GetSession(string instanceId)

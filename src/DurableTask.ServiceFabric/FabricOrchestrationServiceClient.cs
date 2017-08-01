@@ -51,24 +51,30 @@ namespace DurableTask.ServiceFabric
 
             var instance = creationMessage.OrchestrationInstance;
 
-            //Todo: Does this need to throw only if the orchestration is not running Or an orchestration was ever created before with the same id?
-            if (await this.orchestrationProvider.SessionExists(instance))
-            {
-                throw new InvalidOperationException($"An orchestration with id '{creationMessage.OrchestrationInstance.InstanceId}' is already running.");
-            }
-
-            await RetryHelper.ExecuteWithRetryOnTransient(async () =>
+            var added = await RetryHelper.ExecuteWithRetryOnTransient<bool>(async () =>
             {
                 using (var tx = this.stateManager.CreateTransaction())
                 {
-                    await this.orchestrationProvider.AppendMessageAsync(tx, new TaskMessageItem(creationMessage));
-                    await WriteExecutionStartedEventToInstanceStore(tx, startEvent);
-                    await tx.CommitAsync();
+                    if (await this.orchestrationProvider.TryAddSession(tx, new TaskMessageItem(creationMessage)))
+                    {
+                        await WriteExecutionStartedEventToInstanceStore(tx, startEvent);
+                        await tx.CommitAsync();
+                        return true;
+                    }
+
+                    return false;
                 }
             }, uniqueActionIdentifier: $"Orchestration = '{instance}', Action = '{nameof(CreateTaskOrchestrationAsync)}'");
 
-            ProviderEventSource.Log.OrchestrationCreated(instance.InstanceId, instance.ExecutionId);
-            this.orchestrationProvider.TryEnqueueSession(creationMessage.OrchestrationInstance);
+            if (added)
+            {
+                ProviderEventSource.Log.OrchestrationCreated(instance.InstanceId, instance.ExecutionId);
+                this.orchestrationProvider.TryEnqueueSession(creationMessage.OrchestrationInstance);
+            }
+            else
+            {
+                throw new InvalidOperationException($"An orchestration with id '{creationMessage.OrchestrationInstance.InstanceId}' is already running.");
+            }
         }
 
         public Task SendTaskOrchestrationMessageAsync(TaskMessage message)

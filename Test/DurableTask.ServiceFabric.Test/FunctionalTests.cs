@@ -130,13 +130,58 @@ namespace DurableTask.ServiceFabric.Test
                 DelayUnit = TimeSpan.FromSeconds(1),
             };
 
-            var instance = await this.serviceClient.StartTestOrchestrationWithInstanceIdAsync(instanceId, testData);
+            Func<Task<Tuple<OrchestrationInstance, Exception>>> startFunc = async () =>
+            {
+                OrchestrationInstance instance = null;
+                Exception exception = null;
 
-            await Utilities.ThrowsException<InvalidOperationException>(() => this.serviceClient.StartTestOrchestrationWithInstanceIdAsync(instanceId, testData),
-                $"An orchestration with id '{instanceId}' is already running.");
+                try
+                {
+                    instance = await this.serviceClient.StartTestOrchestrationWithInstanceIdAsync(instanceId, testData);
+                }
+                catch (Exception e)
+                {
+                    while (e is AggregateException)
+                    {
+                        e = e.InnerException;
+                    }
 
-            var result = await this.serviceClient.WaitForOrchestration(instance, TimeSpan.FromMinutes(2));
-            Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
+                    exception = e;
+                }
+
+                return Tuple.Create(instance, exception);
+            };
+
+            var allResults = await Task.WhenAll(startFunc(), startFunc(), startFunc(), startFunc());
+
+            OrchestrationInstance createdInstance = null;
+
+            for(int i = 0; i < allResults.Length; i++)
+            {
+                var result = allResults[i];
+                if (result.Item1 != null)
+                {
+                    if (createdInstance != null)
+                    {
+                        Assert.Fail($"Multiple orchestrations were started with the instance id {instanceId} at the same time");
+                    }
+                    else
+                    {
+                        createdInstance = result.Item1;
+                    }
+                }
+                else
+                {
+                    Assert.IsInstanceOfType(result.Item2, typeof(InvalidOperationException),
+                        $"Exception Type Check Failed : Task {i} returned an unexpected exception {result.Item2}");
+                    Assert.AreEqual($"An orchestration with id '{instanceId}' is already running.", result.Item2.Message,
+                        $"Exception Message Check Failed : Task {i} returned an unexpected exception {result.Item2}");
+                }
+            }
+
+            Assert.IsNotNull(createdInstance, $"No task was able to create an orchestration with the given instance id {instanceId}");
+            var orchestrationResult = await this.serviceClient.WaitForOrchestration(createdInstance, TimeSpan.FromMinutes(2));
+            Assert.AreEqual(OrchestrationStatus.Completed, orchestrationResult.OrchestrationStatus);
         }
 
         [TestMethod]
