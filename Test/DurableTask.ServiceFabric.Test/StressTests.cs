@@ -55,6 +55,7 @@ namespace DurableTask.ServiceFabric.Test
         // The sleep time is chosen carefully to be close to polling interval to simulate WaitForOrchestration succeeding while
         // the session could still be there in the store (with a previous implementation which was fixed when the test was introduced).
         // The test should be modified if the polling interval changes or should be re thought if the polling logic itself changes.
+        // Todo : The above logic did change since the test was initially developed. Need to re-think this test.
         [TestMethod]
         public async Task ExecuteSameOrchestrationBackToBack()
         {
