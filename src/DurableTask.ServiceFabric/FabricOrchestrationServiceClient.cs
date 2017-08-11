@@ -14,23 +14,18 @@
 namespace DurableTask.ServiceFabric
 {
     using System;
-    using System.Collections.Concurrent;
     using System.Collections.Generic;
-    using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.History;
-    using DurableTask.Serializing;
     using DurableTask.Tracking;
     using Microsoft.ServiceFabric.Data;
-    using Newtonsoft.Json;
 
-    class FabricOrchestrationServiceClient : IOrchestrationServiceClient, IFabricProviderClient
+    class FabricOrchestrationServiceClient : IOrchestrationServiceClient
     {
         readonly IReliableStateManager stateManager;
         readonly IFabricOrchestrationServiceInstanceStore instanceStore;
         readonly SessionsProvider orchestrationProvider;
-        readonly JsonDataConverter FormattingConverter = new JsonDataConverter(new JsonSerializerSettings() { Formatting = Formatting.Indented });
 
         public FabricOrchestrationServiceClient(IReliableStateManager stateManager, SessionsProvider orchestrationProvider, IFabricOrchestrationServiceInstanceStore instanceStore)
         {
@@ -146,24 +141,6 @@ namespace DurableTask.ServiceFabric
             var instance = new OrchestrationInstance() { InstanceId = instanceId, ExecutionId = executionId };
             var state = await this.instanceStore.WaitForOrchestrationAsync(instance, timeout);
             return state?.State;
-        }
-        #endregion
-
-        #region IFabricProviderClient
-        public async Task<IEnumerable<OrchestrationInstance>> GetRunningOrchestrations()
-        {
-            var sessions = await this.orchestrationProvider.GetSessions();
-            return sessions.Select(s => s.SessionId);
-        }
-
-        public async Task<string> GetOrchestrationRuntimeState(string instanceId)
-        {
-            var session = await this.orchestrationProvider.GetSession(instanceId);
-            if (session == null)
-            {
-                throw new ArgumentException($"There is no running or pending Orchestration with the instanceId {instanceId}");
-            }
-            return FormattingConverter.Serialize(session.SessionState);
         }
         #endregion
 

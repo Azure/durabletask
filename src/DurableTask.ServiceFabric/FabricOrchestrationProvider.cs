@@ -31,6 +31,7 @@ namespace DurableTask.ServiceFabric
     {
         readonly FabricOrchestrationService orchestrationService;
         readonly FabricOrchestrationServiceClient orchestrationClient;
+        readonly FabricProviderClient fabricProviderClient;
         readonly CancellationTokenSource cancellationTokenSource;
 
         internal FabricOrchestrationProvider(IReliableStateManager stateManager, FabricOrchestrationProviderSettings settings)
@@ -40,6 +41,7 @@ namespace DurableTask.ServiceFabric
             var instanceStore = new FabricOrchestrationInstanceStore(stateManager, cancellationTokenSource.Token);
             this.orchestrationService = new FabricOrchestrationService(stateManager, sessionsProvider, instanceStore, settings, cancellationTokenSource);
             this.orchestrationClient = new FabricOrchestrationServiceClient(stateManager, sessionsProvider, instanceStore);
+            this.fabricProviderClient = new FabricProviderClient(stateManager, sessionsProvider);
         }
 
         /// <summary>
@@ -74,7 +76,7 @@ namespace DurableTask.ServiceFabric
             get
             {
                 EnsureValidInstance();
-                return this.orchestrationClient;
+                return this.fabricProviderClient;
             }
         }
 
