@@ -21,11 +21,53 @@ namespace DurableTask.ServiceFabric
     using System.Threading;
     using System.Threading.Tasks;
     using Microsoft.ServiceFabric.Data;
-    using Microsoft.ServiceFabric.Data.Collections;
 
+    /// <summary>
+    /// There are three interesting methods in this class that require some explanation.
+    /// 'AcceptSession' : Intent is to fetch the next available session and hand it out to consumer.
+    /// 'TryUnlockSession' : Intent is to indicate that the above consumer is done processing the session.
+    /// 'TryEnqueueSession' : Intent is to make the session available for a consumer if needed.
+    /// 
+    /// 'AcceptSession'  should give a session to only one consumer at a time (strict requirement).
+    /// We should also give out a session with messages in it but this is somewhat loose requirement because consumer
+    /// can handle the scenario where there are no messages. But we don't want to keep making the session available
+    /// to pick up when there are no incoming messages. (So giving a session with no messages once or even twice is ok 
+    /// but that should not happening recurringly)
+    /// 
+    /// Incoming messages can come at anytime, before the session picked up,
+    /// after 'AcceptSession' gave out a session but the consumer read messages in it, after consumer read messages in it, or
+    /// after the session finished processing by consumer.
+    /// 
+    /// 'AcceptSession; will fetch from 'fetchQueue' and returns it (so 'fetchQueueu' should never have a given session twice in
+    /// the queue otherwise 'one consumer at a time' is violated. Also, we should not keep adding to 'fetchQueue' unless the session
+    /// is interesting i.e., it needs processing).
+    /// 
+    /// lockedSessions with 'LockState' is used to achieve the above.
+    /// 
+    /// 'AcceptSession' fetches from 'fetchQueue' and transitions the session from 'InFetchQueue' to 'Locked'.
+    /// (The implementation contract is such that if an item is in 'fetchQueue', it should be in 'InFetchQueue' state in lockedSessions)
+    /// 
+    /// 'TryEnqueuSession' will try to add to lockedSessions with 'InFetchQueue' and only first such call after the session is unlocked will be
+    /// able to add and that call will add the session back to 'fetchQueue'.
+    /// If there is an entry in lockedSessions, 'TryEnqueuSession' does only one thing -
+    /// if the session is already 'Locked' (that means a consumer has the session),
+    /// it will just transition the state to 'NewMessagesWhileLocked' (so that session could be enqueued back again as it gets unlocked).
+    /// Note that once the session is in this state, subsequent calls to 'TryEnqueueSession' before unlock will keep it in this state.
+    /// Also Note that if session is in 'InFetchQueue' state, TryEnqueuSession does not need to (and should not) change the state.
+    /// 
+    /// 'TryUnlockSession' first removes the session from lockedSessions [unlock complete at this point]
+    /// but if the removed state is 'NewMessagesWhileLocked', it attempts to put it back on fetchQueue by calling 'TryEnqueueSession'.
+    /// Note that at this point if another new incoming message calls 'TryEnqueueSession' only one of these should be able to add to 'fetchQueue'.
+    /// 
+    /// Note that if new messages were sent after 'AcceptSession' but before consumer reads messages from session, we
+    /// will hand out those messages but still add the session to fetchQueue (as part of unlock) and so the next fetch sees the session but
+    /// with no messages. Though this can be made perfect by introducing one more state to 'LockedState', since consumer
+    /// can handle no messages scenario, it's simpler to ignore the difference between the above and new messages being sent
+    /// after consumer reads messages but before the session is unlocked.
+    /// </summary>
     class SessionsProvider : MessageProviderBase<string, PersistentSession>
     {
-        ConcurrentQueue<string> inMemorySessionsQueue = new ConcurrentQueue<string>();
+        ConcurrentQueue<string> fetchQueue = new ConcurrentQueue<string>();
         ConcurrentDictionary<string, LockState> lockedSessions = new ConcurrentDictionary<string, LockState>();
 
         ConcurrentDictionary<OrchestrationInstance, SessionMessagesProvider<Guid, TaskMessageItem>> sessionMessageProviders = new ConcurrentDictionary<OrchestrationInstance, SessionMessagesProvider<Guid, TaskMessageItem>>(OrchestrationInstanceComparer.Default);
@@ -42,7 +84,7 @@ namespace DurableTask.ServiceFabric
                 bool newItemsBeforeTimeout = true;
                 while (newItemsBeforeTimeout)
                 {
-                    if (this.inMemorySessionsQueue.TryDequeue(out returnInstanceId))
+                    if (this.fetchQueue.TryDequeue(out returnInstanceId))
                     {
                         try
                         {
@@ -54,15 +96,17 @@ namespace DurableTask.ServiceFabric
 
                                     if (existingValue.HasValue)
                                     {
-                                        if (!this.lockedSessions.TryUpdate(returnInstanceId, newValue: LockState.Locked, comparisonValue: LockState.InFetchQueue))
+                                        if (this.lockedSessions.TryUpdate(returnInstanceId, newValue: LockState.Locked, comparisonValue: LockState.InFetchQueue))
+                                        {
+                                            ProviderEventSource.Log.TraceMessage(returnInstanceId, "Session Locked Accepted");
+                                            return existingValue.Value;
+                                        }
+                                        else
                                         {
                                             var errorMessage = $"Internal Server Error : Unexpected to dequeue the session {returnInstanceId} which was already locked before";
                                             ProviderEventSource.Log.UnexpectedCodeCondition(errorMessage);
                                             throw new Exception(errorMessage);
                                         }
-
-                                        ProviderEventSource.Log.TraceMessage(returnInstanceId, "Session Locked Accepted");
-                                        return existingValue.Value;
                                     }
                                     else
                                     {
@@ -75,7 +119,7 @@ namespace DurableTask.ServiceFabric
                         }
                         catch (Exception)
                         {
-                            this.inMemorySessionsQueue.Enqueue(returnInstanceId);
+                            this.fetchQueue.Enqueue(returnInstanceId);
                             throw;
                         }
                     }
@@ -264,18 +308,15 @@ namespace DurableTask.ServiceFabric
 
         void TryEnqueueSession(string instanceId)
         {
-            bool enqueue = true;
-            this.lockedSessions.AddOrUpdate(instanceId, LockState.InFetchQueue, (ses, old) =>
-            {
-                enqueue = false;
-                return old == LockState.Locked ? LockState.NewMessagesWhileLocked : old;
-            });
-
-            if (enqueue)
+            if (this.lockedSessions.TryAdd(instanceId, LockState.InFetchQueue))
             {
                 ProviderEventSource.Log.TraceMessage(instanceId, "Session Getting Enqueued");
-                this.inMemorySessionsQueue.Enqueue(instanceId);
+                this.fetchQueue.Enqueue(instanceId);
                 SetWaiterForNewItems();
+            }
+            else
+            {
+                this.lockedSessions.TryUpdate(instanceId, LockState.NewMessagesWhileLocked, LockState.Locked);
             }
         }
 
