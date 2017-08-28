@@ -4,7 +4,7 @@
     <!-- Build Settings -->
     <DebugType Condition="'$(Configuration)'=='Release'">pdbonly</DebugType>
     <DebugSymbols>True</DebugSymbols>
-    <TargetFrameworkVersion>v4.5.1</TargetFrameworkVersion>
+    <!--<TargetFrameworkVersion>v4.5.1</TargetFrameworkVersion>-->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
 
     <!-- Code Analysis Settings -->

@@ -24,17 +24,17 @@ namespace DurableTask.ServiceBus.Common
     using DurableTask.Core.Tracing;
     using DurableTask.Core.Tracking;
     using DurableTask.ServiceBus.Settings;
-    using Microsoft.ServiceBus;
-    using Microsoft.ServiceBus.Messaging;
+    using Microsoft.Azure.ServiceBus;
+    using Microsoft.Azure.ServiceBus.InteropExtensions;
 
     internal static class ServiceBusUtils
     {
-        public static Task<BrokeredMessage> GetBrokeredMessageFromObjectAsync(object serializableObject, CompressionSettings compressionSettings)
+        public static Task<Message> GetBrokeredMessageFromObjectAsync(object serializableObject, CompressionSettings compressionSettings)
         {
             return GetBrokeredMessageFromObjectAsync(serializableObject, compressionSettings, new ServiceBusMessageSettings(), null, null, null, DateTimeUtils.MinDateTime);
         }
 
-        public static async Task<BrokeredMessage> GetBrokeredMessageFromObjectAsync(
+        public static async Task<Message> GetBrokeredMessageFromObjectAsync(
             object serializableObject,
             CompressionSettings compressionSettings,
             ServiceBusMessageSettings messageSettings,
@@ -50,7 +50,7 @@ namespace DurableTask.ServiceBus.Common
 
             if (compressionSettings.Style == CompressionStyle.Legacy)
             {
-                return new BrokeredMessage(serializableObject) { SessionId = instance?.InstanceId };
+                return new Message(serializableObject) { SessionId = instance?.InstanceId };
             }
 
             if (messageSettings == null)
@@ -65,7 +65,7 @@ namespace DurableTask.ServiceBus.Common
 
             try
             {
-                BrokeredMessage brokeredMessage = null;
+                Message brokeredMessage = null;
 
                 if (compressionSettings.Style == CompressionStyle.Always ||
                     (compressionSettings.Style == CompressionStyle.Threshold &&
@@ -84,7 +84,7 @@ namespace DurableTask.ServiceBus.Common
 
                     if (compressedStream.Length < messageSettings.MessageOverflowThresholdInBytes)
                     {
-                        brokeredMessage = GenerateBrokeredMessageWithCompressionTypeProperty(compressedStream, FrameworkConstants.CompressionTypeGzipPropertyValue);
+                        brokeredMessage = await GenerateBrokeredMessageWithCompressionTypePropertyAsync(compressedStream, FrameworkConstants.CompressionTypeGzipPropertyValue);
                     }
                     else
                     {
@@ -95,7 +95,7 @@ namespace DurableTask.ServiceBus.Common
                 {
                     if (rawStream.Length < messageSettings.MessageOverflowThresholdInBytes)
                     {
-                        brokeredMessage = GenerateBrokeredMessageWithCompressionTypeProperty(rawStream, FrameworkConstants.CompressionTypeNonePropertyValue);
+                        brokeredMessage = await  GenerateBrokeredMessageWithCompressionTypePropertyAsync(rawStream, FrameworkConstants.CompressionTypeNonePropertyValue);
                         disposeStream = false;
                     }
                     else
@@ -118,16 +118,21 @@ namespace DurableTask.ServiceBus.Common
                 }
             }
         }
-
-        static BrokeredMessage GenerateBrokeredMessageWithCompressionTypeProperty(Stream stream, string compressionType)
+        static async Task<Message> GenerateBrokeredMessageWithCompressionTypePropertyAsync(Stream stream, string compressionType)
         {
-            BrokeredMessage brokeredMessage = new BrokeredMessage(stream, true);
-            brokeredMessage.Properties[FrameworkConstants.CompressionTypePropertyName] = compressionType;
+            var byteArray = new byte[stream.Length];
+            int count = await stream.ReadAsync(byteArray, 0, byteArray.Length);
+            return GenerateBrokeredMessageWithCompressionTypeProperty(byteArray, compressionType);
+        }
+        static Message GenerateBrokeredMessageWithCompressionTypeProperty(byte[] body, string compressionType)
+        {
+            Message brokeredMessage = new Message(body);
+            brokeredMessage.UserProperties[FrameworkConstants.CompressionTypePropertyName] = compressionType;
 
             return brokeredMessage;
         }
 
-        static async Task<BrokeredMessage> GenerateBrokeredMessageWithBlobKeyPropertyAsync(
+        static async Task<Message> GenerateBrokeredMessageWithBlobKeyPropertyAsync(
             Stream stream,
             IOrchestrationServiceBlobStore orchestrationServiceBlobStore,
             OrchestrationInstance instance,
@@ -161,14 +166,14 @@ namespace DurableTask.ServiceBus.Common
                 () => $"Saving the message stream in blob storage using key {blobKey}.");
             await orchestrationServiceBlobStore.SaveStreamAsync(blobKey, stream);
 
-            BrokeredMessage brokeredMessage = new BrokeredMessage();
-            brokeredMessage.Properties[ServiceBusConstants.MessageBlobKey] = blobKey;
-            brokeredMessage.Properties[FrameworkConstants.CompressionTypePropertyName] = compressionType;
+            Message brokeredMessage = new Message();
+            brokeredMessage.UserProperties[ServiceBusConstants.MessageBlobKey] = blobKey;
+            brokeredMessage.UserProperties[FrameworkConstants.CompressionTypePropertyName] = compressionType;
 
             return brokeredMessage;
         }
 
-        public static async Task<T> GetObjectFromBrokeredMessageAsync<T>(BrokeredMessage message, IOrchestrationServiceBlobStore orchestrationServiceBlobStore)
+        public static async Task<T> GetObjectFromBrokeredMessageAsync<T>(Message message, IOrchestrationServiceBlobStore orchestrationServiceBlobStore)
         {
             if (message == null)
             {
@@ -180,7 +185,7 @@ namespace DurableTask.ServiceBus.Common
             object compressionTypeObj = null;
             string compressionType = string.Empty;
 
-            if (message.Properties.TryGetValue(FrameworkConstants.CompressionTypePropertyName, out compressionTypeObj))
+            if (message.UserProperties.TryGetValue(FrameworkConstants.CompressionTypePropertyName, out compressionTypeObj))
             {
                 compressionType = (string)compressionTypeObj;
             }
@@ -226,12 +231,12 @@ namespace DurableTask.ServiceBus.Common
             return deserializedObject;
         }
 
-        static Task<Stream> LoadMessageStreamAsync(BrokeredMessage message, IOrchestrationServiceBlobStore orchestrationServiceBlobStore)
+        static Task<Stream> LoadMessageStreamAsync(Message message, IOrchestrationServiceBlobStore orchestrationServiceBlobStore)
         {
             object blobKeyObj = null;
             string blobKey = string.Empty;
 
-            if (message.Properties.TryGetValue(ServiceBusConstants.MessageBlobKey, out blobKeyObj))
+            if (message.UserProperties.TryGetValue(ServiceBusConstants.MessageBlobKey, out blobKeyObj))
             {
                 blobKey = (string)blobKeyObj;
             }
@@ -253,28 +258,28 @@ namespace DurableTask.ServiceBus.Common
             return orchestrationServiceBlobStore.LoadStreamAsync(blobKey);
         }
 
-        public static void CheckAndLogDeliveryCount(string sessionId, IEnumerable<BrokeredMessage> messages, int maxDeliverycount)
+        public static void CheckAndLogDeliveryCount(string sessionId, IEnumerable<Message> messages, int maxDeliverycount)
         {
-            foreach (BrokeredMessage message in messages)
+            foreach (Message message in messages)
             {
                 CheckAndLogDeliveryCount(sessionId, message, maxDeliverycount);
             }
         }
 
-        public static void CheckAndLogDeliveryCount(IEnumerable<BrokeredMessage> messages, int maxDeliverycount)
+        public static void CheckAndLogDeliveryCount(IEnumerable<Message> messages, int maxDeliverycount)
         {
-            foreach (BrokeredMessage message in messages)
+            foreach (Message message in messages)
             {
                 CheckAndLogDeliveryCount(message, maxDeliverycount);
             }
         }
 
-        public static void CheckAndLogDeliveryCount(BrokeredMessage message, int maxDeliverycount)
+        public static void CheckAndLogDeliveryCount(Message message, int maxDeliverycount)
         {
             CheckAndLogDeliveryCount(null, message, maxDeliverycount);
         }
 
-        public static void CheckAndLogDeliveryCount(string sessionId, BrokeredMessage message, int maxDeliveryCount)
+        public static void CheckAndLogDeliveryCount(string sessionId, Message message, int maxDeliveryCount)
         {
             if (message.DeliveryCount >= maxDeliveryCount - 2)
             {
@@ -302,7 +307,8 @@ namespace DurableTask.ServiceBus.Common
 
         public static MessagingFactory CreateMessagingFactory(string connectionString)
         {
-            MessagingFactory factory = MessagingFactory.CreateFromConnectionString(connectionString);
+            
+            MessagingFactory factory = new  MessagingFactory.CreateFromConnectionString(connectionString);
             factory.RetryPolicy = RetryPolicy.Default;
             return factory;
         }

@@ -14,7 +14,7 @@
 namespace DurableTask.ServiceBus.Common
 {
     using System;
-    using Microsoft.ServiceBus.Messaging;
+    using Microsoft.Azure.ServiceBus;
     using DurableTask.Core.Common;
 
     /// <summary>
@@ -25,7 +25,7 @@ namespace DurableTask.ServiceBus.Common
         /// <summary>
         /// Returns delivery latency of the message
         /// </summary>        
-        public static double DeliveryLatency(this BrokeredMessage message)
+        public static double DeliveryLatency(this Message message)
         {
             if (message == null)
             {

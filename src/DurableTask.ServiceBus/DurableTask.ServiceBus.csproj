@@ -2,20 +2,25 @@
 
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
   <PropertyGroup>
-    <TargetFramework>net451</TargetFramework>
+    <TargetFramework>netcoreapp2.0</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="ImpromptuInterface" version="6.2.2" />
-    <PackageReference Include="Microsoft.Azure.KeyVault.Core" version="1.0.0" />
-    <PackageReference Include="Microsoft.Data.Edm" version="5.6.4" />
-    <PackageReference Include="Microsoft.Data.OData" version="5.6.4" />
-    <PackageReference Include="Microsoft.Data.Services.Client" version="5.6.4" />
-    <PackageReference Include="Microsoft.WindowsAzure.ConfigurationManager" version="3.2.1" />
-    <PackageReference Include="Newtonsoft.Json" version="7.0.1" />
-    <PackageReference Include="System.Spatial" version="5.6.4" />
-    <PackageReference Include="WindowsAzure.ServiceBus" version="3.1.7" />
-    <PackageReference Include="WindowsAzure.Storage" version="7.0.0" />
+     <PackageReference Include="Microsoft.Azure.KeyVault.Core" version="2.0.4" />
+    <PackageReference Include="Microsoft.Data.Edm" version="5.8.2" />
+    <PackageReference Include="Microsoft.Data.OData" version="5.8.2" />
+    <PackageReference Include="Microsoft.Data.Services.Client" version="5.8.2" />
+    <PackageReference Include="System.Configuration.ConfigurationManager" version="4.4.0" />
+    <PackageReference Include="ImpromptuInterface" Version="7.0.1-beta40" />
+    <PackageReference Include="Newtonsoft.Json" version="10.0.3" />
+    <PackageReference Include="System.Spatial" version="5.8.2" />
+    <PackageReference Include="Microsoft.Azure.ServiceBus" version="1.0.0" />
+    <PackageReference Include="System.Dynamic.Runtime" version="4.3.0" />
+    <PackageReference Include="System.Linq.Queryable" version="4.3.0" />
+    <PackageReference Include="System.Transactions" version="4.3.0" />
+    <PackageReference Include="Microsoft.Azure.Management.ServiceBus" version="1.0.1" />
+
+    <PackageReference Include="WindowsAzure.Storage" version="8.4.0" />
   </ItemGroup>
 
   <ItemGroup>
