@@ -36,7 +36,12 @@ namespace DurableTask.ServiceBus
     using DurableTask.ServiceBus.Stats;
     using DurableTask.ServiceBus.Tracking;
     using Microsoft.Azure.ServiceBus;
-    using Microsoft.Azure.ServiceBus.Core;
+    using Microsoft.ServiceBus;
+    using Microsoft.ServiceBus.Messaging;
+    using MessageReceiver = Microsoft.Azure.ServiceBus.Core.MessageReceiver;
+    using MessageSender = Microsoft.Azure.ServiceBus.Core.MessageSender;
+    using QueueClient = Microsoft.Azure.ServiceBus.QueueClient;
+    using RetryPolicy = Microsoft.Azure.ServiceBus.RetryPolicy;
 
     /// <summary>
     /// Orchestration Service and Client implementation using Azure Service Bus
