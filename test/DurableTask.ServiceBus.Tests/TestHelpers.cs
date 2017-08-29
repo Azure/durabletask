@@ -52,7 +52,7 @@ namespace DurableTask.ServiceBus.Tests
                 throw new ArgumentNullException("A Storage connection string must be defined in either an environment variable or in configuration.");
             }
 
-            TaskHubName = ConfigurationManager.AppSettings.Get("TaskHubName");
+            TaskHubName = "TaskHubnameElan";//ConfigurationManager.AppSettings.Get("TaskHubName");
 
             eventListener = new ObservableEventListener();
             eventListener.LogToConsole();
@@ -235,6 +235,15 @@ namespace DurableTask.ServiceBus.Tests
 
         public static string GetTestSetting(string name)
         {
+            if (name == "StorageConnectionString")
+            {
+                return "DefaultEndpointsProtocol=https;AccountName=elantest;AccountKey=xv2U6McNsaC3uPmxNXb2Z+bIkCWAKzmWBj8iZzoDR/HwjQYk0h9xG+8FVdIUr3j/jJ/yLijoAfqU0RIXwmdEfA==;EndpointSuffix=core.windows.net";
+            }
+            else
+            {
+                return "Endpoint=sb://elantest.servicebus.windows.net/;SharedAccessKeyName=sd;SharedAccessKey=h5K1zEkx5sJZ/iDHq/ZGmA9YpLIFHM8OgN18eLfB6eI=";
+            }
+            
             string value = Environment.GetEnvironmentVariable("DurableTaskTest" + name);
             if (string.IsNullOrEmpty(value))
             {
