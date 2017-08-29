@@ -21,7 +21,7 @@ namespace DurableTask.ServiceBus
     class ServiceBusOrchestrationSession
     {
         public IMessageSession Session;
-        public Dictionary<Guid, Message> LockTokens;
+        public Dictionary<string, Message> LockTokens;
         public long SequenceNumber;
     }
 }

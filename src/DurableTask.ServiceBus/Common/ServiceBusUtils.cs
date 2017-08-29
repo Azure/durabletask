@@ -25,6 +25,7 @@ namespace DurableTask.ServiceBus.Common
     using DurableTask.Core.Tracking;
     using DurableTask.ServiceBus.Settings;
     using Microsoft.Azure.ServiceBus;
+    using Microsoft.Azure.ServiceBus.Core;
     using Microsoft.Azure.ServiceBus.InteropExtensions;
 
     internal static class ServiceBusUtils
@@ -50,7 +51,12 @@ namespace DurableTask.ServiceBus.Common
 
             if (compressionSettings.Style == CompressionStyle.Legacy)
             {
-                return new Message(serializableObject) { SessionId = instance?.InstanceId };
+#if net451
+                    return new Message(serializableObject) { SessionId = instance?.InstanceId };
+#else
+                // Not supported any more via constructor.. perhaps there  is another way?
+                throw new ArgumentOutOfRangeException($"{nameof(CompressionStyle.Legacy)} is not supported on .Net Core");
+#endif
             }
 
             if (messageSettings == null)
@@ -281,7 +287,7 @@ namespace DurableTask.ServiceBus.Common
 
         public static void CheckAndLogDeliveryCount(string sessionId, Message message, int maxDeliveryCount)
         {
-            if (message.DeliveryCount >= maxDeliveryCount - 2)
+            if (message.SystemProperties.DeliveryCount >= maxDeliveryCount - 2)
             {
                 if (!string.IsNullOrEmpty(sessionId))
                 {
@@ -291,7 +297,7 @@ namespace DurableTask.ServiceBus.Common
                         sessionId,
                         "Delivery count for message with id {0} is {1}. Message will be deadlettered if processing continues to fail.",
                         message.MessageId,
-                        message.DeliveryCount);
+                        message.SystemProperties.DeliveryCount);
                 }
                 else
                 {
@@ -300,17 +306,38 @@ namespace DurableTask.ServiceBus.Common
                         "MaxDeliveryCountApproaching",
                         "Delivery count for message with id {0} is {1}. Message will be deadlettered if processing continues to fail.",
                         message.MessageId, 
-                        message.DeliveryCount);
+                        message.SystemProperties.DeliveryCount);
                 }
             }
         }
 
-        public static MessagingFactory CreateMessagingFactory(string connectionString)
+        public static MessageSender CreateMessageSender(string connectionString, string entityPath, RetryPolicy retryPolicy)
         {
             
-            MessagingFactory factory = new  MessagingFactory.CreateFromConnectionString(connectionString);
-            factory.RetryPolicy = RetryPolicy.Default;
-            return factory;
+            var messageSender = new MessageSender(connectionString, entityPath, retryPolicy);
+           
+            return messageSender;
+        }
+
+
+
+        public static SessionClient CreateSessionClient(string connectionString, string entityPath, ReceiveMode recieveMode = ReceiveMode.PeekLock)
+        {
+
+            var sessionClient = new SessionClient(connectionString, entityPath, recieveMode);
+            
+            return sessionClient;
+        }
+
+        public static MessageReceiver CreateMessageReciever(string connectionString, string entityPath, ReceiveMode recieveMode = ReceiveMode.PeekLock)
+        {
+            var messageReceiver = new MessageReceiver(connectionString, entityPath, recieveMode);
+            return messageReceiver;
+        }
+
+        public static QueueClient CreateQueueClient(string connectionString, string entityPath, ReceiveMode recieveMode = ReceiveMode.PeekLock)
+        {
+            return new QueueClient(connectionString,entityPath, recieveMode );        
         }
     }
 }

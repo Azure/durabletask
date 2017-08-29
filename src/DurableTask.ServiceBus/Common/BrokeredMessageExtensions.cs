@@ -32,7 +32,7 @@ namespace DurableTask.ServiceBus.Common
                 return 0;
             }
 
-            DateTime actualEnqueueTimeUtc = (!message.ScheduledEnqueueTimeUtc.IsSet()) ? message.EnqueuedTimeUtc : message.ScheduledEnqueueTimeUtc;
+            DateTime actualEnqueueTimeUtc = (!message.ScheduledEnqueueTimeUtc.IsSet()) ? message.SystemProperties.EnqueuedTimeUtc : message.ScheduledEnqueueTimeUtc;
             return (DateTime.UtcNow - actualEnqueueTimeUtc).TotalMilliseconds;
         }
     }
