@@ -330,7 +330,6 @@ namespace DurableTask.ServiceFabric.Test
         }
 
         [TestMethod]
-        [Ignore] // Calling TermiateOrchestration twice while orchestration is running does not work. This test should be enabled after that is fixed.
         public async Task ForceTerminate_Twice_Terminates_LatestExecution()
         {
             var testData = new TestOrchestrationData()
