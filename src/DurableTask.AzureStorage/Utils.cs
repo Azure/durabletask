@@ -35,7 +35,7 @@ namespace DurableTask.AzureStorage
             return rawContent;
         }
 
-        public static MessageData DeserializeQueueMessage(CloudQueueMessage queueMessage)
+        public static MessageData DeserializeQueueMessage(CloudQueueMessage queueMessage, string queueName)
         {
             MessageData envelope = JsonConvert.DeserializeObject<MessageData>(
                 queueMessage.AsString,
@@ -43,6 +43,7 @@ namespace DurableTask.AzureStorage
 
             envelope.OriginalQueueMessage = queueMessage;
             envelope.TotalMessageSizeBytes = Encoding.UTF8.GetByteCount(queueMessage.AsString);
+            envelope.QueueName = queueName;
 
             return envelope;
         }

@@ -19,6 +19,7 @@ namespace DurableTask.AzureStorage.Tests
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
+    using DurableTask.AzureStorage.Monitoring;
     using DurableTask.Core;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Microsoft.WindowsAzure.Storage;
@@ -332,11 +333,306 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        [TestMethod]
+        public async Task MonitorIdleTaskHubDisconnected()
+        {
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                StorageConnectionString = TestHelpers.GetTestStorageAccountConnectionString(),
+                TaskHubName = nameof(MonitorIdleTaskHubDisconnected),
+                PartitionCount = 4,
+            };
+
+            var service = new AzureStorageOrchestrationService(settings);
+            await service.CreateAsync();
+
+            var monitor = new DisconnectedPerformanceMonitor(settings.StorageConnectionString, settings.TaskHubName);
+
+            PerformanceHeartbeat heartbeat;
+            ScaleRecommendation recommendation;
+
+            for (int i = 0; i < 10; i++)
+            {
+                heartbeat = await monitor.PulseAsync(currentWorkerCount: 0);
+                Assert.IsNotNull(heartbeat);
+                Assert.AreEqual(settings.PartitionCount, heartbeat.PartitionCount);
+                Assert.AreEqual(0, heartbeat.AggregateControlQueueLength);
+                Assert.AreEqual(0.0, heartbeat.AggregateControlQueueLengthTrend);
+                Assert.AreEqual(0, heartbeat.WorkItemQueueLength);
+                Assert.AreEqual(0.0, heartbeat.WorkItemQueueLengthTrend);
+
+                recommendation = heartbeat.ScaleRecommendation;
+                Assert.IsNotNull(recommendation);
+                Assert.AreEqual(ScaleAction.None, recommendation.Action);
+                Assert.AreEqual(false, recommendation.KeepWorkersAlive);
+                Assert.IsNotNull(recommendation.Reason);
+            }
+
+            // If any workers are assigned, the recommendation should be to have them removed.
+            heartbeat = await monitor.PulseAsync(currentWorkerCount: 1);
+            recommendation = heartbeat.ScaleRecommendation;
+            Assert.IsNotNull(recommendation);
+            Assert.AreEqual(ScaleAction.RemoveWorker, recommendation.Action);
+            Assert.AreEqual(false, recommendation.KeepWorkersAlive);
+            Assert.IsNotNull(recommendation.Reason);
+        }
+
+        [TestMethod]
+        public async Task MonitorIncreasingControlQueueLoadDisconnected()
+        {
+            var settings = new AzureStorageOrchestrationServiceSettings()
+            {
+                StorageConnectionString = TestHelpers.GetTestStorageAccountConnectionString(),
+                TaskHubName = nameof(MonitorIncreasingControlQueueLoadDisconnected),
+                PartitionCount = 4,
+            };
+
+            var service = new AzureStorageOrchestrationService(settings);
+            await service.CreateAsync();
+
+            var client = new TaskHubClient(service);
+            var monitor = new DisconnectedPerformanceMonitor(settings.StorageConnectionString, settings.TaskHubName);
+            int simulatedWorkerCount = 0;
+
+            for (int i = 1; i < settings.PartitionCount + 10; i++)
+            {
+                await client.CreateOrchestrationInstanceAsync(typeof(NoOpOrchestration), input: null);
+                PerformanceHeartbeat heartbeat = await monitor.PulseAsync(simulatedWorkerCount);
+                Assert.IsNotNull(heartbeat);
+
+                ScaleRecommendation recommendation = heartbeat.ScaleRecommendation;
+                Assert.IsNotNull(recommendation);
+                Assert.IsTrue(recommendation.KeepWorkersAlive);
+
+                Assert.AreEqual(settings.PartitionCount, heartbeat.PartitionCount);
+                Assert.AreEqual(i, heartbeat.AggregateControlQueueLength);
+
+                if (i < DisconnectedPerformanceMonitor.QueueLengthSampleSize)
+                {
+                    Assert.AreEqual(0.0, heartbeat.AggregateControlQueueLengthTrend);
+
+                    ScaleAction expectedScaleAction = simulatedWorkerCount == 0 ? ScaleAction.AddWorker : ScaleAction.None;
+                    Assert.AreEqual(expectedScaleAction, recommendation.Action);
+                }
+                else
+                {
+                    Assert.IsTrue(heartbeat.AggregateControlQueueLengthTrend > 0);
+
+                    if (simulatedWorkerCount < settings.PartitionCount)
+                    {
+                        Assert.AreEqual(ScaleAction.AddWorker, recommendation.Action);
+                    }
+                    else
+                    {
+                        // We should not add more workers than the number of partitions
+                        Assert.AreEqual(ScaleAction.None, recommendation.Action);
+                    }
+                }
+
+                Assert.AreEqual(0, heartbeat.WorkItemQueueLength);
+                Assert.AreEqual(0.0, heartbeat.WorkItemQueueLengthTrend);
+
+                if (recommendation.Action == ScaleAction.AddWorker)
+                {
+                    simulatedWorkerCount++;
+                }
+            }
+
+            Assert.AreEqual(settings.PartitionCount, simulatedWorkerCount);
+        }
+
+        [TestMethod]
+        public async Task ScaleDecisionForIncreasingWorkItemCount()
+        {
+            var fakePerformanceMonitor = GetFakePerformanceMonitor();
+            fakePerformanceMonitor.AddWorkItemQueueLengths(1, 2, 3, 3, 5, 6);
+            fakePerformanceMonitor.AddControlQueueLengths(0, 0, 0, 0, 0, 0);
+
+            PerformanceHeartbeat heartbeat = await fakePerformanceMonitor.PulseAsync(simulatedWorkerCount: 1);
+            ScaleRecommendation recommendation = heartbeat.ScaleRecommendation;
+            Assert.AreEqual(ScaleAction.AddWorker, recommendation.Action);
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+        }
+
+        [TestMethod]
+        public async Task ScaleDecisionForIncreasingControlItemCount()
+        {
+            var fakePerformanceMonitor = GetFakePerformanceMonitor();
+            fakePerformanceMonitor.AddWorkItemQueueLengths(0, 0, 0, 0, 0, 0);
+            fakePerformanceMonitor.AddControlQueueLengths(1, 2, 3, 4, 5, 6);
+
+            PerformanceHeartbeat heartbeat = await fakePerformanceMonitor.PulseAsync(simulatedWorkerCount: 1);
+            ScaleRecommendation recommendation = heartbeat.ScaleRecommendation;
+            Assert.AreEqual(ScaleAction.AddWorker, recommendation.Action);
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+        }
+
+        [TestMethod]
+        public async Task ScaleDecisionForDecreasingWorkItemCount()
+        {
+            var fakePerformanceMonitor = GetFakePerformanceMonitor();
+            fakePerformanceMonitor.AddWorkItemQueueLengths(6, 5, 4, 3, 2, 1);
+            fakePerformanceMonitor.AddControlQueueLengths(0, 0, 0, 0, 0, 0);
+
+            // Case with multiple workers: should scale in
+            PerformanceHeartbeat heartbeat = await fakePerformanceMonitor.PulseAsync(simulatedWorkerCount: 2);
+            ScaleRecommendation recommendation = heartbeat.ScaleRecommendation;
+            Assert.AreEqual(ScaleAction.RemoveWorker, recommendation.Action);
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+
+            // Case with no workers: should add one
+            heartbeat = await fakePerformanceMonitor.PulseAsync(simulatedWorkerCount: 0);
+            recommendation = heartbeat.ScaleRecommendation;
+            Assert.AreEqual(ScaleAction.AddWorker, recommendation.Action);
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+        }
+
+        [TestMethod]
+        public async Task ScaleDecisionForDecreasingControlItemCount()
+        {
+            var fakePerformanceMonitor = GetFakePerformanceMonitor();
+            fakePerformanceMonitor.AddWorkItemQueueLengths(0, 0, 0, 0, 0, 0);
+            fakePerformanceMonitor.AddControlQueueLengths(6, 5, 4, 3, 2, 1);
+
+            // Case with multiple workers: should scale in
+            PerformanceHeartbeat heartbeat = await fakePerformanceMonitor.PulseAsync(simulatedWorkerCount: 2);
+            ScaleRecommendation recommendation = heartbeat.ScaleRecommendation;
+            Assert.AreEqual(ScaleAction.RemoveWorker, recommendation.Action);
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+
+            // Case with no workers: should add one
+            heartbeat = await fakePerformanceMonitor.PulseAsync(simulatedWorkerCount: 0);
+            recommendation = heartbeat.ScaleRecommendation;
+            Assert.AreEqual(ScaleAction.AddWorker, recommendation.Action);
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+        }
+
+        [TestMethod]
+        public async Task ScaleDecisionForMessageCountThresholds()
+        {
+            var fakePerformanceMonitor = new FakePerformanceMonitor(
+                TestHelpers.GetTestStorageAccountConnectionString(),
+                "taskHub",
+                partitionCount: 10);
+
+            PerformanceHeartbeat heartbeat;
+            ScaleRecommendation recommendation;
+
+            for (int simulatedWorkerCount = 1; simulatedWorkerCount < 20; simulatedWorkerCount++)
+            {
+                int messageCount = 1 + (DisconnectedPerformanceMonitor.MaxMessagesPerWorkerRatio * simulatedWorkerCount);
+                fakePerformanceMonitor.AddWorkItemQueueLengths(0, 0, 0, 0, messageCount);
+                fakePerformanceMonitor.AddControlQueueLengths(0, 0, 0, 0, 0);
+                heartbeat = await fakePerformanceMonitor.PulseAsync(simulatedWorkerCount);
+                recommendation = heartbeat.ScaleRecommendation;
+                Assert.AreEqual(ScaleAction.AddWorker, recommendation.Action);
+                Assert.IsTrue(recommendation.KeepWorkersAlive);
+
+                fakePerformanceMonitor.AddWorkItemQueueLengths(1, 1, 1, 1, 1);
+                fakePerformanceMonitor.AddControlQueueLengths(0, 0, 0, 0, messageCount);
+                heartbeat = await fakePerformanceMonitor.PulseAsync(simulatedWorkerCount);
+                recommendation = heartbeat.ScaleRecommendation;
+
+                if (simulatedWorkerCount < fakePerformanceMonitor.PartitionCount)
+                {
+                    Assert.AreEqual(ScaleAction.AddWorker, recommendation.Action);
+                }
+                else
+                {
+                    // Can't add more workers than partitions when the load is purely control queue-driven.
+                    Assert.AreEqual(ScaleAction.None, recommendation.Action);
+                }
+
+                Assert.IsTrue(recommendation.KeepWorkersAlive);
+            }
+        }
+
+        static FakePerformanceMonitor GetFakePerformanceMonitor()
+        {
+            return new FakePerformanceMonitor(TestHelpers.GetTestStorageAccountConnectionString(), "taskHub");
+        }
+
         class NoOpOrchestration : TaskOrchestration<string, string>
         {
             public override Task<string> RunTask(OrchestrationContext context, string input)
             {
                 return Task.FromResult(string.Empty);
+            }
+        }
+
+        class FakePerformanceMonitor : DisconnectedPerformanceMonitor
+        {
+            int[] testWorkItemCounts;
+            int[] testControlItemCounts;
+
+            public FakePerformanceMonitor(
+                string storageConnectionString,
+                string taskHub,
+                int partitionCount = AzureStorageOrchestrationServiceSettings.DefaultPartitionCount) 
+                : base(storageConnectionString, taskHub)
+            {
+                this.PartitionCount = partitionCount;
+            }
+
+            public int PartitionCount { get; }
+
+            public void AddControlQueueLengths(params int[] lengths)
+            {
+                for (int i = 0; i < lengths.Length; i++)
+                {
+                    base.AddControlQueueLength(lengths[i]);
+                }
+
+                this.testControlItemCounts = lengths;
+            }
+
+            public void AddWorkItemQueueLengths(params int[] lengths)
+            {
+                for (int i = 0; i < lengths.Length; i++)
+                {
+                    base.AddWorkItemQueueLength(lengths[i]);
+                }
+
+                this.testWorkItemCounts = lengths;
+            }
+
+            protected override void AddControlQueueLength(int aggregateQueueLength)
+            {
+                // no-op
+            }
+
+            protected override void AddWorkItemQueueLength(int queueLength)
+            {
+                // no-op
+            }
+
+            protected override Task<ControlQueueData> GetAggregateControlQueueLengthAsync()
+            {
+                // Not used
+                return Task.FromResult(new ControlQueueData
+                {
+                    AggregateQueueLength = 0,
+                    PartitionCount = this.PartitionCount
+                });
+            }
+
+            protected override Task<int> GetWorkItemQueueLengthAsync()
+            {
+                // no-op
+                return Task.FromResult(0);
+            }
+
+            public override async Task<PerformanceHeartbeat> PulseAsync(int simulatedWorkerCount)
+            {
+                Trace.TraceInformation(
+                    "PULSE INPUT: Worker count: {0}; control items: {1}; work items: {2}.",
+                    simulatedWorkerCount,
+                    "[" + string.Join(",", this.testControlItemCounts) + "]",
+                    "[" + string.Join(",", this.testWorkItemCounts) + "]");
+
+                PerformanceHeartbeat heartbeat = await base.PulseAsync(simulatedWorkerCount);
+                Trace.TraceInformation($"PULSE OUTPUT: {heartbeat}");
+                return heartbeat;
             }
         }
     }
