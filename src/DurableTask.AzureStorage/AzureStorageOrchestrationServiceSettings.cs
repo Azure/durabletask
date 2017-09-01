@@ -22,11 +22,19 @@ namespace DurableTask.AzureStorage
     /// </summary>
     public class AzureStorageOrchestrationServiceSettings
     {
+        internal const int DefaultPartitionCount = 4;
+
         /// <summary>
         /// Gets or sets the number of messages to pull from the control queue at a time. The default is 32.
         /// The maximum batch size supported by Azure Storage Queues is 32.
         /// </summary>
         public int ControlQueueBatchSize { get; set; } = 32;
+
+        /// <summary>
+        /// Gets or sets the number of control queue messages that can be buffered in memory at a time, at which
+        /// point the dispatcher will wait before dequeuing any additional messages. The default is 64.
+        /// </summary>
+        public int ControlQueueBufferThreshold { get; set; } = 64;
 
         /// <summary>
         /// Gets or sets the visibility timeout of dequeued control queue messages. The default is 90 seconds.
@@ -48,7 +56,6 @@ namespace DurableTask.AzureStorage
         /// Gets or sets the <see cref="QueueRequestOptions"/> that are provided to all internal 
         /// usage of <see cref="CloudQueue"/> APIs for the work item queue.
         /// </summary>
-
         public QueueRequestOptions WorkItemQueueRequestOptions { get; set; }
 
         /// <summary>
@@ -87,7 +94,7 @@ namespace DurableTask.AzureStorage
         /// <summary>
         /// Gets or sets the maximum number of orchestration partitions.
         /// </summary>
-        public int PartitionCount { get; set; } = 4;
+        public int PartitionCount { get; set; } = DefaultPartitionCount;
 
         /// <summary>
         /// Renew interval for all leases for partitions currently held.

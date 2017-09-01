@@ -45,6 +45,23 @@ namespace DurableTask.Core.Stats
         }
 
         /// <summary>
+        /// Decrements the counter by 1
+        /// </summary>
+        public void Decrement()
+        {
+            Interlocked.Decrement(ref counterValue);
+        }
+
+        /// <summary>
+        /// Resets the counter back to zero
+        /// </summary>
+        /// <returns>The value of the counter before it was reset</returns>
+        public long Reset()
+        {
+            return Interlocked.Exchange(ref counterValue, 0);
+        }
+
+        /// <summary>
         /// Returns a string that represents the Counter.
         /// </summary>
         public override string ToString()

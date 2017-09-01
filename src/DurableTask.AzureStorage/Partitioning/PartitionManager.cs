@@ -16,13 +16,14 @@ namespace DurableTask.AzureStorage.Partitioning
     using System;
     using System.Collections.Concurrent;
     using System.Collections.Generic;
-    using System.Globalization;
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
 
     sealed class PartitionManager<T> where T : Lease
     {
+        readonly string accountName;
+        readonly string taskHub;
         readonly string workerName;
         readonly ILeaseManager<T> leaseManager;
         readonly PartitionManagerOptions options;
@@ -37,8 +38,10 @@ namespace DurableTask.AzureStorage.Partitioning
         CancellationTokenSource leaseTakerCancellationTokenSource;
         CancellationTokenSource leaseRenewerCancellationTokenSource;
 
-        public PartitionManager(string workerName, ILeaseManager<T> leaseManager, PartitionManagerOptions options)
+        public PartitionManager(string accountName, string taskHub, string workerName, ILeaseManager<T> leaseManager, PartitionManagerOptions options)
         {
+            this.accountName = accountName;
+            this.taskHub = taskHub;
             this.workerName = workerName;
             this.leaseManager = leaseManager;
             this.options = options;
@@ -61,19 +64,13 @@ namespace DurableTask.AzureStorage.Partitioning
                     {
                         leases.Add(lease);
                     }
-                    else
-                    {
-                        AnalyticsEventSource.Log.LogPartitionInfo(string.Format(CultureInfo.InvariantCulture, "Host '{0}' unable to renew lease '{1}' on startup.",
-                            this.workerName, lease.PartitionId));
-                    }
                 }
             }
 
             var addLeaseTasks = new List<Task>();
             foreach (T lease in leases)
             {
-                AnalyticsEventSource.Log.LogPartitionInfo(string.Format(CultureInfo.InvariantCulture, "Host '{0}' acquired lease for PartitionId '{1}' on startup.",
-                    this.workerName, lease.PartitionId));
+                AnalyticsEventSource.Log.PartitionManagerInfo(this.accountName, this.taskHub, this.workerName, $"Acquired lease for PartitionId '{lease.PartitionId}' on startup.");
                 addLeaseTasks.Add(this.AddLeaseAsync(lease));
             }
 
@@ -139,12 +136,12 @@ namespace DurableTask.AzureStorage.Partitioning
 
         async Task LeaseRenewer()
         {
+            AnalyticsEventSource.Log.PartitionManagerInfo(this.accountName, this.taskHub, this.workerName, $"Starting background renewal of leases with interval: {this.options.RenewInterval}.");
+
             while (this.isStarted == 1 || !shutdownComplete)
             {
                 try
                 {
-                    AnalyticsEventSource.Log.LogPartitionInfo(string.Format(CultureInfo.InvariantCulture, "Host '{0}' starting renewal of Leases.", this.workerName));
-
                     var failedToRenewLeases = new ConcurrentBag<T>();
                     var renewTasks = new List<Task>();
 
@@ -192,26 +189,27 @@ namespace DurableTask.AzureStorage.Partitioning
                 }
                 catch (OperationCanceledException)
                 {
-                    AnalyticsEventSource.Log.LogPartitionInfo(string.Format(CultureInfo.InvariantCulture, "Host '{0}' Renewer task canceled.", this.workerName));
+                    AnalyticsEventSource.Log.PartitionManagerInfo(this.accountName, this.taskHub, this.workerName, $"Background renewal task was canceled.");
                 }
                 catch (Exception ex)
                 {
-                    AnalyticsEventSource.Log.LogPartitionException(ex);
+                    AnalyticsEventSource.Log.PartitionManagerError(this.accountName, this.taskHub, this.workerName, ex);
                 }
             }
 
             this.currentlyOwnedShards.Clear();
             this.keepRenewingDuringClose.Clear();
-            AnalyticsEventSource.Log.LogPartitionInfo(string.Format(CultureInfo.InvariantCulture, "Host '{0}' Renewer task completed.", this.workerName));
+            AnalyticsEventSource.Log.PartitionManagerInfo(this.accountName, this.taskHub, this.workerName, "Background renewer task completed.");
         }
 
         async Task LeaseTakerAsync()
         {
+            AnalyticsEventSource.Log.PartitionManagerInfo(this.accountName, this.taskHub, this.workerName, $"Starting to check for available leases with interval: {this.options.AcquireInterval}.");
+
             while (this.isStarted == 1)
             {
                 try
                 {
-                    AnalyticsEventSource.Log.LogPartitionInfo(string.Format(CultureInfo.InvariantCulture, "Host '{0}' starting to check for available leases.", this.workerName));
                     var availableLeases = await this.TakeLeasesAsync();
 
                     var addLeaseTasks = new List<Task>();
@@ -224,7 +222,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 }
                 catch (Exception ex)
                 {
-                    AnalyticsEventSource.Log.LogPartitionException(ex);
+                    AnalyticsEventSource.Log.PartitionManagerError(this.accountName, this.taskHub, this.workerName, ex);
                 }
 
                 try
@@ -233,11 +231,11 @@ namespace DurableTask.AzureStorage.Partitioning
                 }
                 catch (OperationCanceledException)
                 {
-                    AnalyticsEventSource.Log.LogPartitionInfo(string.Format(CultureInfo.InvariantCulture, "Host '{0}' AcquireLease task canceled.", this.workerName));
+                    AnalyticsEventSource.Log.PartitionManagerInfo(this.accountName, this.taskHub, this.workerName, $"Background AcquireLease task was canceled.");
                 }
             }
 
-            AnalyticsEventSource.Log.LogPartitionInfo(string.Format(CultureInfo.InvariantCulture, "Host '{0}' AcquireLease task completed.", this.workerName));
+            AnalyticsEventSource.Log.PartitionManagerInfo(this.accountName, this.taskHub, this.workerName, "Background AcquireLease task completed.");
         }
 
         async Task<IDictionary<string, T>> TakeLeasesAsync()
@@ -298,13 +296,11 @@ namespace DurableTask.AzureStorage.Partitioning
                         {
                             if (moreShardsNeeded == 0) break;
 
-                            AnalyticsEventSource.Log.LogPartitionInfo(string.Format(CultureInfo.InvariantCulture, "Host '{0}' attempting to take lease for PartitionId '{1}'.",
-                                this.workerName, leaseToTake.PartitionId));
+                            AnalyticsEventSource.Log.LeaseAcquisitionStarted(this.accountName, this.taskHub, this.workerName, leaseToTake.PartitionId);
                             bool leaseAcquired = await this.AcquireLeaseAsync(leaseToTake);
                             if (leaseAcquired)
                             {
-                                AnalyticsEventSource.Log.LogPartitionInfo(string.Format(CultureInfo.InvariantCulture, "Host '{0}' successfully acquired lease for PartitionId '{1}'.",
-                                    this.workerName, leaseToTake.PartitionId));
+                                AnalyticsEventSource.Log.LeaseAcquisitionSucceeded(this.accountName, this.taskHub, this.workerName, leaseToTake.PartitionId);
                                 takenLeases.Add(leaseToTake.PartitionId, leaseToTake);
 
                                 moreShardsNeeded--;
@@ -329,13 +325,11 @@ namespace DurableTask.AzureStorage.Partitioning
                                 if (string.Equals(kvp.Value.Owner, workerToStealFrom.Key, StringComparison.OrdinalIgnoreCase))
                                 {
                                     T leaseToTake = kvp.Value;
-                                    AnalyticsEventSource.Log.LogPartitionInfo(string.Format(CultureInfo.InvariantCulture, "Host '{0}' attempting to steal lease from '{1}' for PartitionId '{2}'.",
-                                        this.workerName, workerToStealFrom.Key, leaseToTake.PartitionId));
+                                    AnalyticsEventSource.Log.AttemptingToStealLease(this.accountName, this.taskHub, this.workerName, workerToStealFrom.Key, leaseToTake.PartitionId);
                                     bool leaseStolen = await this.StealLeaseAsync(leaseToTake);
                                     if (leaseStolen)
                                     {
-                                        AnalyticsEventSource.Log.LogPartitionInfo(string.Format(CultureInfo.InvariantCulture, "Host '{0}' stole lease from '{1}' for PartitionId '{2}'.",
-                                            this.workerName, workerToStealFrom.Key, leaseToTake.PartitionId));
+                                        AnalyticsEventSource.Log.LeaseStealingSucceeded(this.accountName, this.taskHub, this.workerName, workerToStealFrom.Key, leaseToTake.PartitionId);
                                         takenLeases.Add(leaseToTake.PartitionId, leaseToTake);
 
                                         moreShardsNeeded--;
@@ -366,13 +360,11 @@ namespace DurableTask.AzureStorage.Partitioning
         async Task<bool> RenewLeaseAsync(T lease)
         {
             bool renewed = false;
-            string errorMessage = null;
+            string errorMessage = string.Empty;
 
             try
             {
-                AnalyticsEventSource.Log.LogPartitionInfo(string.Format(CultureInfo.InvariantCulture, "Host '{0}' renewing lease for PartitionId '{1}' with lease token '{2}'",
-                        this.workerName, lease.PartitionId, lease.Token));
-
+                AnalyticsEventSource.Log.StartingLeaseRenewal(this.accountName, this.taskHub, this.workerName, lease.PartitionId, lease.Token);
                 renewed = await this.leaseManager.RenewAsync(lease);
             }
             catch (Exception ex)
@@ -392,9 +384,11 @@ namespace DurableTask.AzureStorage.Partitioning
                 }
             }
 
-            AnalyticsEventSource.Log.LogPartitionInfo(
-                string.Format(CultureInfo.InvariantCulture, "Host '{0}' attempted to renew lease for PartitionId '{1}' and lease token '{2}' with result: '{3}'. error = {4}",
-                this.workerName, lease.PartitionId, lease.Token ?? string.Empty, renewed, errorMessage ?? string.Empty));
+            AnalyticsEventSource.Log.LeaseRenewalResult(this.accountName, this.taskHub, this.workerName, lease.PartitionId, renewed, lease.Token, errorMessage);
+            if (!renewed)
+            {
+                AnalyticsEventSource.Log.LeaseRenewalFailed(this.accountName, this.taskHub, this.workerName, lease.PartitionId, lease.Token, errorMessage);
+            }
 
             return renewed;
         }
@@ -408,13 +402,12 @@ namespace DurableTask.AzureStorage.Partitioning
             }
             catch (LeaseLostException)
             {
-                AnalyticsEventSource.Log.LogPartitionInfo(string.Format(CultureInfo.InvariantCulture, "Host '{0}' failed to acquire lease for PartitionId '{1}' due to conflict.",
-                    this.workerName, lease.PartitionId));
+                AnalyticsEventSource.Log.LeaseAcquisitionFailed(this.accountName, this.taskHub, this.workerName, lease.PartitionId);
             }
             catch (Exception ex)
             {
                 // Eat any exceptions during acquiring lease.
-                AnalyticsEventSource.Log.LogPartitionException(ex);
+                AnalyticsEventSource.Log.PartitionManagerError(this.accountName, this.taskHub, this.workerName, ex);
             }
 
             return acquired;
@@ -430,13 +423,12 @@ namespace DurableTask.AzureStorage.Partitioning
             catch (LeaseLostException)
             {
                 // Concurrency issue in stealing the lease, someone else got it before us
-                AnalyticsEventSource.Log.LogPartitionInfo(string.Format(CultureInfo.InvariantCulture, "Host '{0}' failed to steal lease for PartitionId '{1}' due to conflict.",
-                    this.workerName, lease.PartitionId));
+                AnalyticsEventSource.Log.LeaseStealingFailed(this.accountName, this.taskHub, this.workerName, lease.PartitionId);
             }
             catch (Exception ex)
             {
                 // Eat any exceptions during stealing
-                AnalyticsEventSource.Log.LogPartitionException(ex);
+                AnalyticsEventSource.Log.PartitionManagerError(this.accountName, this.taskHub, this.workerName, ex);
             }
 
             return stolen;
@@ -449,22 +441,14 @@ namespace DurableTask.AzureStorage.Partitioning
                 bool failedToInitialize = false;
                 try
                 {
-                    AnalyticsEventSource.Log.LogPartitionInfo(string.Format(CultureInfo.InvariantCulture, "Host '{0}' opening event processor for PartitionId '{1}' and lease token '{2}'",
-                        this.workerName, lease.PartitionId, lease.Token));
-
                     await this.partitionObserverManager.NotifyShardAcquiredAsync(lease);
-
-                    AnalyticsEventSource.Log.LogPartitionInfo(string.Format(CultureInfo.InvariantCulture, "Host '{0}' opened event processor for PartitionId '{1}' and lease token '{2}'",
-                       this.workerName, lease.PartitionId, lease.Token));
                 }
                 catch (Exception ex)
                 {
-                    AnalyticsEventSource.Log.LogPartitionInfo(string.Format(CultureInfo.InvariantCulture, "Host '{0}' failed to initialize processor for PartitionId '{1}' and lease token '{2}'",
-                       this.workerName, lease.PartitionId, lease.Token));
-
                     failedToInitialize = true;
+
                     // Eat any exceptions during notification of observers
-                    AnalyticsEventSource.Log.LogPartitionException(ex);
+                    AnalyticsEventSource.Log.PartitionManagerError(this.accountName, this.taskHub, this.workerName, ex);
                 }
 
                 // We need to release the lease if we fail to initialize the processor, so some other node can pick up the parition
@@ -480,23 +464,19 @@ namespace DurableTask.AzureStorage.Partitioning
                 // pick it up.
                 try
                 {
-                    AnalyticsEventSource.Log.LogPartitionWarning(string.Format(CultureInfo.InvariantCulture, "Host '{0}' unable to add PartitionId '{1}' with lease token '{2}' to currently owned partitions.",
-                        this.workerName, lease.PartitionId, lease.Token));
+                    AnalyticsEventSource.Log.PartitionManagerWarning(this.accountName, this.taskHub, this.workerName, $"Unable to add PartitionId '{lease.PartitionId}' with lease token '{lease.Token}' to currently owned partitions.");
 
                     await this.leaseManager.ReleaseAsync(lease);
-
-                    AnalyticsEventSource.Log.LogPartitionInfo(string.Format(CultureInfo.InvariantCulture, "Host '{0}' successfully released lease on PartitionId '{1}' with lease token '{2}'",
-                        this.workerName, lease.PartitionId, lease.Token));
+                    AnalyticsEventSource.Log.LeaseRemoved(this.accountName, this.taskHub, this.workerName, lease.PartitionId, lease.Token);
                 }
                 catch (LeaseLostException)
                 {
                     // We have already shutdown the processor so we can ignore any LeaseLost at this point
-                    AnalyticsEventSource.Log.LogPartitionInfo(string.Format(CultureInfo.InvariantCulture, "Host '{0}' failed to release lease for PartitionId '{1}' with lease token '{2}' due to conflict.",
-                        this.workerName, lease.PartitionId, lease.Token));
+                    AnalyticsEventSource.Log.LeaseRemovalFailed(this.accountName, this.taskHub, this.workerName, lease.PartitionId, lease.Token);
                 }
                 catch (Exception ex)
                 {
-                    AnalyticsEventSource.Log.LogPartitionException(ex);
+                    AnalyticsEventSource.Log.PartitionManagerError(this.accountName, this.taskHub, this.workerName, ex);
                 }
             }
         }
@@ -507,8 +487,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
             if (lease != null && this.currentlyOwnedShards != null && this.currentlyOwnedShards.TryRemove(lease.PartitionId, out lease))
             {
-                AnalyticsEventSource.Log.LogPartitionInfo(string.Format(CultureInfo.InvariantCulture, "Host '{0}' successfully removed PartitionId '{1}' with lease token '{2}' from currently owned partitions.",
-                    this.workerName, lease.PartitionId, lease.Token));
+                AnalyticsEventSource.Log.PartitionRemoved(this.accountName, this.taskHub, this.workerName, lease.PartitionId, lease.Token);
 
                 try
                 {
@@ -517,19 +496,13 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.keepRenewingDuringClose.TryAdd(lease.PartitionId, lease);
                     }
 
-                    AnalyticsEventSource.Log.LogPartitionInfo(string.Format(CultureInfo.InvariantCulture, "Host '{0}' closing event processor for PartitionId '{1}' and lease token '{2}' with reason '{3}'",
-                        this.workerName, lease.PartitionId, lease.Token, reason));
-
                     // Notify the host that we lost shard so shutdown can be triggered on the host
                     await this.partitionObserverManager.NotifyShardReleasedAsync(lease, reason);
-
-                    AnalyticsEventSource.Log.LogPartitionInfo(string.Format(CultureInfo.InvariantCulture, "Host '{0}' closed event processor for PartitionId '{1}' and lease token '{2}' with reason '{3}'",
-                        this.workerName, lease.PartitionId, lease.Token, reason));
                 }
                 catch (Exception ex)
                 {
                     // Eat any exceptions during notification of observers
-                    AnalyticsEventSource.Log.LogPartitionException(ex);
+                    AnalyticsEventSource.Log.PartitionManagerError(this.accountName, this.taskHub, this.workerName, ex);
                 }
                 finally
                 {
@@ -544,21 +517,18 @@ namespace DurableTask.AzureStorage.Partitioning
                     try
                     {
                         await this.leaseManager.ReleaseAsync(lease);
-                        AnalyticsEventSource.Log.LogPartitionInfo(string.Format(CultureInfo.InvariantCulture, "Host '{0}' successfully released lease on PartitionId '{1}' with lease token '{2}'",
-                            this.workerName, lease.PartitionId, lease.Token));
+                        AnalyticsEventSource.Log.LeaseRemoved(this.accountName, this.taskHub, this.workerName, lease.PartitionId, lease.Token);
                     }
                     catch (LeaseLostException)
                     {
                         // We have already shutdown the processor so we can ignore any LeaseLost at this point
-                        AnalyticsEventSource.Log.LogPartitionInfo(string.Format(CultureInfo.InvariantCulture, "Host '{0}' failed to release lease for PartitionId '{1}' with lease token '{2}' due to conflict.",
-                            this.workerName, lease.PartitionId, lease.Token));
+                        AnalyticsEventSource.Log.LeaseRemovalFailed(this.accountName, this.taskHub, this.workerName, lease.PartitionId, lease.Token);
                     }
                     catch (Exception ex)
                     {
-                        AnalyticsEventSource.Log.LogPartitionException(ex);
+                        AnalyticsEventSource.Log.PartitionManagerError(this.accountName, this.taskHub, this.workerName, ex);
                     }
                 }
-
             }
         }
 
@@ -588,7 +558,7 @@ namespace DurableTask.AzureStorage.Partitioning
                         catch (Exception ex)
                         {
                             // Eat any exceptions during notification of observers
-                            AnalyticsEventSource.Log.LogPartitionException(ex);
+                            AnalyticsEventSource.Log.PartitionManagerError(partitionManager.accountName, partitionManager.taskHub, partitionManager.workerName, ex);
                         }
                     }
                 }

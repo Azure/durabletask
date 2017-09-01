@@ -24,10 +24,11 @@ namespace DurableTask.AzureStorage
     [DataContract]
     class MessageData
     {
-        public MessageData(TaskMessage message, Guid activityId)
+        public MessageData(TaskMessage message, Guid activityId, string queueName)
         {
             this.TaskMessage = message;
             this.ActivityId = activityId;
+            this.QueueName = queueName;
         }
 
         public MessageData()
@@ -38,6 +39,8 @@ namespace DurableTask.AzureStorage
 
         [DataMember]
         public TaskMessage TaskMessage { get; private set; }
+
+        internal string QueueName { get; set; }
 
         internal CloudQueueMessage OriginalQueueMessage { get; set; }
 
