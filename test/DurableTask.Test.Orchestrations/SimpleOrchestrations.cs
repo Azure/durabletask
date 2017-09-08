@@ -73,6 +73,32 @@ namespace DurableTask.Test.Orchestrations
         }
     }
 
+    public class GreetingsRepeatWaitOrchestration : TaskOrchestration<string, string>
+    {
+        // HACK: This is just a hack to communicate result of orchestration back to test
+        public static string Result;
+
+        public override async Task<string> RunTask(OrchestrationContext context, string input)
+        {
+            string user = await context.ScheduleTask<string>(typeof(SimplestGetUserTask));
+            int delayInSeconds = string.IsNullOrWhiteSpace(input) ? 0 : Int32.Parse(input);
+
+            if (delayInSeconds > 0)
+            {
+                for (int i = 0; i < 3; i++)
+                {
+                    await context.CreateTimer<object>(context.CurrentUtcDateTime.Add(TimeSpan.FromSeconds(delayInSeconds)), null);
+                }
+            }
+
+            string greeting = await context.ScheduleTask<string>(typeof(SimplestSendGreetingTask), user);
+            // This is a HACK to get unit test up and running.  Should never be done in actual code.
+            Result = greeting;
+
+            return greeting;
+        }
+    }
+
     public sealed class SimplestSendGreetingTask : TaskActivity<string, string>
     {
         protected override string Execute(TaskContext context, string user)

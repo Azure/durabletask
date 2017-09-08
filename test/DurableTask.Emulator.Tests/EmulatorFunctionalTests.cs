@@ -82,6 +82,33 @@ namespace DurableTask.Emulator.Tests
         }
 
         [TestMethod]
+        public async Task MockRepeatTimerTest()
+        {
+            LocalOrchestrationService orchService = new LocalOrchestrationService();
+
+            TaskHubWorker worker = new TaskHubWorker(orchService);
+
+            await worker.AddTaskOrchestrations(typeof(GreetingsRepeatWaitOrchestration))
+                .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
+                .StartAsync();
+
+            TaskHubClient client = new TaskHubClient(orchService);
+
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof(GreetingsRepeatWaitOrchestration), "1");
+
+            Stopwatch sw = Stopwatch.StartNew();
+            OrchestrationState result = await client.WaitForOrchestrationAsync(id, TimeSpan.FromSeconds(40), new CancellationToken());
+            Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
+
+            Assert.IsTrue(sw.Elapsed.Seconds > 3);
+
+            Assert.AreEqual("Greeting send to Gabbar", GreetingsRepeatWaitOrchestration.Result,
+                "Orchestration Result is wrong!!!");
+
+            await worker.StopAsync(true);
+        }
+
+        [TestMethod]
         public async Task MockGenerationTest()
         {
             GenerationBasicOrchestration.Result = 0;

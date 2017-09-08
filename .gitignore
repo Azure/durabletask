@@ -29,6 +29,7 @@ sign.snk
 
 # Logs and databases #
 ######################
+.vs/
 *.log
 *.sql
 *.sqlite
