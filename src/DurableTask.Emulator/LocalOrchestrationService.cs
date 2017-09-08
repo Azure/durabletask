@@ -373,7 +373,7 @@ namespace DurableTask.Emulator
 
             TaskOrchestrationWorkItem wi = new TaskOrchestrationWorkItem()
             {
-                NewMessages = taskSession.Messages,
+                NewMessages = taskSession.Messages.ToList(),
                 InstanceId = taskSession.Id,
                 LockedUntilUtc = DateTime.UtcNow.AddMinutes(5),
                 OrchestrationRuntimeState =

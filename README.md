@@ -1,4 +1,17 @@
-[NOTE: The location for this repo has changed from https://github.com/<b>affandar</b>/durabletask to https://github.com/<b>Azure</b>/durabletask. Please update your bookmarks.]
+Breaking changes: VNext branch now merged to master!!
+======================
+
+
+The vnext branch has now been merged into master with the follwing PR:
+https://github.com/Azure/durabletask/pull/104
+
+This merge contains some major refactoring primarily around building a provider model that decouples the core framework from Service Bus. As a result there are breaking changes both in terms of APIs as well as wire format. 
+
+To ugprade you will have to drop and recreate durable task artifacts. More details in an upcoming wiki entry soon. 
+
+Old master code will always be available in the rel/v1 branch. 
+
+Note that we will be creating and publishing a new nuget package with the current master and will be bumping up the major version number to 2.x.x.x. 
 
 Durable Task Framework
 ======================
