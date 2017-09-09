@@ -2,15 +2,27 @@
 
 	<Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
 	<PropertyGroup>
-		<TargetFramework>net451</TargetFramework>
+		<TargetFramework>netcoreapp2.0</TargetFramework>
 	</PropertyGroup>
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+	  <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+	  <WarningsAsErrors />
+	</PropertyGroup>
+	<ItemGroup>
+	  <None Remove="app.config" />
+	</ItemGroup>
+	<ItemGroup>
+	  <Content Include="app.config">
+	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+	  </Content>
+	</ItemGroup>
 
 	<ItemGroup>
     <PackageReference Include="EnterpriseLibrary.SemanticLogging.EventSourceAnalyzer" Version="2.0.1406.1" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.0.0" />
-		<PackageReference Include="MSTest.TestAdapter" Version="1.1.11" />
-		<PackageReference Include="MSTest.TestFramework" Version="1.1.11" />
-		<PackageReference Include="Newtonsoft.Json" version="7.0.1" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.3.0" />
+		<PackageReference Include="MSTest.TestAdapter" Version="1.1.18" />
+		<PackageReference Include="MSTest.TestFramework" Version="1.1.18" />
+		<PackageReference Include="Newtonsoft.Json" version="10.0.3" />
 	</ItemGroup>
 
 	<ItemGroup>

@@ -159,6 +159,26 @@ namespace DurableTask.Core.Common
 
             return outputStream;
         }
+        /// <summary>
+        ///     StreamToByte[]
+        /// Caller closes stream
+        /// </summary>
+        /// <param name="input"></param>
+        /// <returns></returns>
+        public static async Task<byte[]> GetByteArrayFromStream(this Stream input)
+        {
+            if (input == null)
+            {
+                return null;
+            }
+            var byteArray = new byte[input.Length];
+
+            input.Position = 0;
+
+            int count = await input.ReadAsync(byteArray, 0, byteArray.Length);
+
+            return byteArray;
+        }
 
         /// <summary>
         ///     Caller disposes the returned stream
