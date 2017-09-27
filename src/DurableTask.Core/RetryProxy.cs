@@ -19,7 +19,6 @@ namespace DurableTask.Core
     using System.Linq;
     using System.Reflection;
     using System.Threading.Tasks;
-    using ImpromptuInterface;
 
     internal class RetryProxy<T> : DynamicObject
     {
@@ -84,7 +83,15 @@ namespace DurableTask.Core
 
         public async Task<ReturnType> InvokeWithRetry<ReturnType>(string methodName, object[] args)
         {
-            Func<Task<ReturnType>> retryCall = () => { return Impromptu.InvokeMember(wrappedObject, methodName, args); };
+            Func<Task<ReturnType>> retryCall = () => 
+            {
+#if NETSTANDARD2_0
+                return Dynamitey.Dynamic.InvokeMember(wrappedObject, methodName, args);
+#else
+                return ImpromptuInterface.Impromptu.InvokeMember(wrappedObject, methodName, args);
+#endif
+            };
+
             var retryInterceptor = new RetryInterceptor<ReturnType>(context, retryOptions, retryCall);
 
             return await retryInterceptor.Invoke();
