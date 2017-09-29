@@ -17,6 +17,7 @@
     using DurableTaskSamples.Replat;
     using DurableTaskSamples.Signal;
     using DurableTaskSamples.SumOfSquares;
+    using DurableTask.Settings;
 
     class Program
     {
@@ -33,7 +34,7 @@
                 IOrchestrationServiceInstanceStore instanceStore = new AzureTableInstanceStore(taskHubName, storageConnectionString);
 
                 ServiceBusOrchestrationService orchestrationServiceAndClient =
-                    new ServiceBusOrchestrationService(servicebusConnectionString, taskHubName, instanceStore, null, TimeSpan.FromMinutes(10));
+                    new ServiceBusOrchestrationService(servicebusConnectionString, taskHubName, instanceStore, null, new ServiceBusOrchestrationServiceSettings());
 
                 TaskHubClient taskHubClient = new TaskHubClient(orchestrationServiceAndClient);
                 TaskHubWorker taskHub = new TaskHubWorker(orchestrationServiceAndClient);
