@@ -1,6 +1,4 @@
-﻿using DurableTask.Settings;
-
-namespace DurableTaskSamples
+﻿namespace DurableTaskSamples
 {
     using System;
     using System.Collections.Generic;
@@ -19,6 +17,7 @@ namespace DurableTaskSamples
     using DurableTaskSamples.Replat;
     using DurableTaskSamples.Signal;
     using DurableTaskSamples.SumOfSquares;
+    using DurableTask.Settings;
 
     class Program
     {
