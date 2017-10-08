@@ -185,7 +185,7 @@ namespace DurableTask.AzureStorage.Tests
                 while (sw.Elapsed < timeout)
                 {
                     Trace.TraceInformation($"Checking current lease distribution across {currentWorkerCount} workers...");
-                    var leases = (await Task.WhenAll(services[0].ListBlobLeases()))
+                    var leases = (await services[0].ListBlobLeasesAsync())
                         .Select(
                             lease => new
                             {

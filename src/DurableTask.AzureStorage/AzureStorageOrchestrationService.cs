@@ -484,9 +484,9 @@ namespace DurableTask.AzureStorage
         }
 
         // Used for testing
-        internal IEnumerable<Task<BlobLease>> ListBlobLeases()
+        internal Task<IEnumerable<BlobLease>> ListBlobLeasesAsync()
         {
-            return this.leaseManager.ListLeases();
+            return this.leaseManager.ListLeasesAsync();
         }
 
         internal static async Task<CloudQueue[]> GetControlQueuesAsync(
@@ -740,7 +740,7 @@ namespace DurableTask.AzureStorage
             {
                 requestCount++;
                 stopwatch.Start();
-                TableQuerySegment<DynamicTableEntity> segment = await this.historyTable.ExecuteQuerySegmentedAsync(
+                /*TableQuerySegment<DynamicTableEntity>*/ var segment = await this.historyTable.ExecuteQuerySegmentedAsync(
                     query,
                     continuationToken,
                     this.settings.HistoryTableRequestOptions,
@@ -1486,9 +1486,6 @@ namespace DurableTask.AzureStorage
             // Client operations will auto-create the task hub if it doesn't already exist.
             await this.EnsuredCreatedIfNotExistsAsync();
 
-            var operationContext = new OperationContext();
-            operationContext.SendingRequest += ReceivedMessageContext.OnSendingRequest;
-
             CloudQueue controlQueue = await this.GetControlQueueAsync(message.OrchestrationInstance.InstanceId);
 
             await this.SendTaskOrchestrationMessageInternalAsync(controlQueue, message);
@@ -1496,9 +1493,6 @@ namespace DurableTask.AzureStorage
 
         async Task SendTaskOrchestrationMessageInternalAsync(CloudQueue controlQueue, TaskMessage message)
         {
-            var operationContext = new OperationContext();
-            operationContext.SendingRequest += ReceivedMessageContext.OnSendingRequest;
-
             await controlQueue.AddMessageAsync(
                 ReceivedMessageContext.CreateOutboundQueueMessageInternal(
                     this.storageAccountName,
@@ -1508,7 +1502,7 @@ namespace DurableTask.AzureStorage
                 null /* timeToLive */,
                 null /* initialVisibilityDelay */,
                 this.settings.ControlQueueRequestOptions,
-                operationContext);
+                null /* operationContext */);
             this.stats.StorageRequests.Increment();
             this.stats.MessagesSent.Increment();
 

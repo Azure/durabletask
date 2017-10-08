@@ -54,9 +54,8 @@ namespace DurableTask.AzureStorage.Partitioning
         public async Task InitializeAsync()
         {
             var leases = new List<T>();
-            foreach (Task<T> leaseTask in this.leaseManager.ListLeases())
+            foreach (T lease in await this.leaseManager.ListLeasesAsync())
             {
-                T lease = await leaseTask;
                 if (string.Compare(lease.Owner, this.workerName, StringComparison.OrdinalIgnoreCase) == 0)
                 {
                     bool renewed = await this.RenewLeaseAsync(lease);
@@ -245,9 +244,8 @@ namespace DurableTask.AzureStorage.Partitioning
             var workerToShardCount = new Dictionary<string, int>();
             var expiredLeases = new List<T>();
 
-            foreach (var leaseTask in this.leaseManager.ListLeases())
+            foreach (T lease in await this.leaseManager.ListLeasesAsync())
             {
-                T lease = await leaseTask;
                 allShards.Add(lease.PartitionId, lease);
                 if (lease.IsExpired() || string.IsNullOrWhiteSpace(lease.Owner))
                 {

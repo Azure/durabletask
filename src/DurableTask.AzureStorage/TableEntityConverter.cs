@@ -57,7 +57,7 @@ namespace DurableTask.AzureStorage
             var tableEntity = new DynamicTableEntity();
             foreach (PropertyConverter propertyConverter in propertyConverters)
             {
-                tableEntity[propertyConverter.PropertyName] = propertyConverter.GetEntityProperty(obj);
+                tableEntity.Properties[propertyConverter.PropertyName] = propertyConverter.GetEntityProperty(obj);
             }
 
             return tableEntity;

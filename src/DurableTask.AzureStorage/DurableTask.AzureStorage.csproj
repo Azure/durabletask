@@ -2,20 +2,26 @@
 
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
   <PropertyGroup>
-    <TargetFramework>net451</TargetFramework>
-    <Version>0.2.0</Version>
+    <TargetFrameworks>netstandard2.0;net451</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Version>1.0.0-beta</Version>
+    <IncludeSymbols>true</IncludeSymbols>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Newtonsoft.Json" version="7.0.1" />
-    <PackageReference Include="WindowsAzure.Storage" Version="7.0.0" />
+    <PackageReference Include="WindowsAzure.Storage" version="8.3.0" />
+  </ItemGroup>
+  
+  <ItemGroup Condition="'$(TargetFramework)' == 'net451'">
+    <PackageReference Include="Newtonsoft.Json" Version="7.0.1" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <PackageReference Include="Newtonsoft.Json" Version="10.0.3" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\DurableTask.Core\DurableTask.Core.csproj" />
   </ItemGroup>
-  
-
 
 </Project>

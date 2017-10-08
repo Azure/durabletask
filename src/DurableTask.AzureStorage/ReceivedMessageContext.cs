@@ -64,7 +64,6 @@ namespace DurableTask.AzureStorage
 
             this.storageOperationContext = new OperationContext();
             this.storageOperationContext.ClientRequestID = traceActivityId.ToString();
-            this.storageOperationContext.SendingRequest += OnSendingRequest;
         }
 
         ReceivedMessageContext(string storageAccountName, string taskHub, Guid traceActivityId, List<MessageData> messageBatch)
@@ -76,7 +75,6 @@ namespace DurableTask.AzureStorage
 
             this.storageOperationContext = new OperationContext();
             this.storageOperationContext.ClientRequestID = traceActivityId.ToString();
-            this.storageOperationContext.SendingRequest += OnSendingRequest;
         }
 
         public MessageData MessageData
@@ -240,11 +238,6 @@ namespace DurableTask.AzureStorage
         {
             ReceivedMessageContext ignoredContext;
             return ObjectAssociations.TryRemove(relatedObject, out ignoredContext);
-        }
-
-        internal static void OnSendingRequest(object sender, RequestEventArgs e)
-        {
-            e.Request.UserAgent = UserAgent;
         }
 
         static void RestoreContext(ReceivedMessageContext context)

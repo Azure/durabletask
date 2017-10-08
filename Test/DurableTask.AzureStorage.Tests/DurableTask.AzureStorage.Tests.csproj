@@ -10,7 +10,7 @@
     <PackageReference Include="MSTest.TestAdapter" Version="1.1.11" />
     <PackageReference Include="MSTest.TestFramework" Version="1.1.11" />
     <PackageReference Include="Newtonsoft.Json" version="7.0.1" />
-    <PackageReference Include="WindowsAzure.Storage" version="7.0.0" />
+    <PackageReference Include="WindowsAzure.Storage" version="8.3.0" />
   </ItemGroup>
 
   <ItemGroup>

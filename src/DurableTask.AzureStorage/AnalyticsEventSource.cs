@@ -15,7 +15,7 @@ namespace DurableTask.AzureStorage
 {
     using System;
     using System.Diagnostics.Tracing;
-    using System.Runtime.Remoting.Messaging;
+    using System.Threading;
 
     /// <summary>
     /// ETW Event Provider for the DurableTask.AzureStorage provider extension.
@@ -26,7 +26,11 @@ namespace DurableTask.AzureStorage
     [EventSource(Name = "DurableTask-AzureStorage")]
     class AnalyticsEventSource : EventSource
     {
+#if NETSTANDARD2_0
+        static readonly AsyncLocal<Guid> ActivityIdState = new AsyncLocal<Guid>();
+#else
         const string TraceActivityIdSlot = "TraceActivityId";
+#endif
 
         /// <summary>
         /// Singleton instance used for writing events.
@@ -36,15 +40,27 @@ namespace DurableTask.AzureStorage
         [NonEvent]
         public static void SetLogicalTraceActivityId(Guid activityId)
         {
+#if NETSTANDARD2_0
+            // We use AsyncLocal to preserve activity IDs across async/await boundaries.
+            ActivityIdState.Value = activityId;
+#else
             // We use LogicalSetData to preserve activity IDs across async/await boundaries.
-            CallContext.LogicalSetData(TraceActivityIdSlot, activityId);
+            System.Runtime.Remoting.Messaging.CallContext.LogicalSetData(TraceActivityIdSlot, activityId);
+#endif
             SetCurrentThreadActivityId(activityId);
         }
 
         [NonEvent]
         private static void EnsureLogicalTraceActivityId()
         {
-            object data = CallContext.LogicalGetData(TraceActivityIdSlot);
+#if NETSTANDARD2_0
+            Guid currentActivityId = ActivityIdState.Value;
+            if (currentActivityId != CurrentThreadActivityId)
+            {
+                SetCurrentThreadActivityId(currentActivityId);
+            }
+#else
+            object data = System.Runtime.Remoting.Messaging.CallContext.LogicalGetData(TraceActivityIdSlot);
             if (data != null)
             {
                 Guid currentActivityId = (Guid)data;
@@ -53,6 +69,7 @@ namespace DurableTask.AzureStorage
                     SetCurrentThreadActivityId(currentActivityId);
                 }
             }
+#endif
         }
 
         [Event(101, Level = EventLevel.Informational, Opcode = EventOpcode.Send)]
