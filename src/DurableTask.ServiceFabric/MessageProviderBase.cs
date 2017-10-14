@@ -55,15 +55,11 @@ namespace DurableTask.ServiceFabric
 
         public Task CompleteAsync(ITransaction tx, TKey key)
         {
-            ThrowIfStopped();
-
             return this.Store.TryRemoveAsync(tx, key);
         }
 
         public async Task CompleteBatchAsync(ITransaction tx, IEnumerable<TKey> keys)
         {
-            ThrowIfStopped();
-
             foreach (var key in keys)
             {
                 await this.Store.TryRemoveAsync(tx, key);
@@ -76,15 +72,11 @@ namespace DurableTask.ServiceFabric
         /// </summary>
         public Task SendBeginAsync(ITransaction tx, Message<TKey, TValue> item)
         {
-            ThrowIfStopped();
-
             return this.Store.TryAddAsync(tx, item.Key, item.Value);
         }
 
         public void SendComplete(Message<TKey, TValue> item)
         {
-            ThrowIfStopped();
-
             AddItemInMemory(item.Key, item.Value);
             this.waitEvent.Set();
         }
@@ -95,8 +87,6 @@ namespace DurableTask.ServiceFabric
         /// </summary>
         public async Task SendBatchBeginAsync(ITransaction tx, IEnumerable<Message<TKey, TValue>> items)
         {
-            ThrowIfStopped();
-
             foreach (var item in items)
             {
                 await this.Store.TryAddAsync(tx, item.Key, item.Value);
@@ -105,8 +95,6 @@ namespace DurableTask.ServiceFabric
 
         public void SendBatchComplete(IEnumerable<Message<TKey, TValue>> items)
         {
-            ThrowIfStopped();
-
             foreach (var item in items)
             {
                 AddItemInMemory(item.Key, item.Value);
@@ -177,11 +165,6 @@ namespace DurableTask.ServiceFabric
         }
 
         protected abstract void AddItemInMemory(TKey key, TValue value);
-
-        protected void ThrowIfStopped()
-        {
-            this.CancellationToken.ThrowIfCancellationRequested();
-        }
 
         protected bool IsStopped()
         {

@@ -61,8 +61,6 @@ namespace DurableTask.ServiceFabric
 
         public void Abandon(TKey key)
         {
-            ThrowIfStopped();
-
             this.inMemoryQueue.Enqueue(key);
             SetWaiterForNewItems();
         }

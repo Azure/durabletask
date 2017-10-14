@@ -183,9 +183,7 @@ namespace DurableTask.ServiceFabric
 
         public async Task AppendMessageAsync(ITransaction transaction, TaskMessageItem newMessage)
         {
-            ThrowIfStopped();
             await EnsureStoreInitialized();
-
             var sessionMessageProvider = await GetOrAddSessionMessagesInstance(newMessage.TaskMessage.OrchestrationInstance);
             await sessionMessageProvider.SendBeginAsync(transaction, new Message<Guid, TaskMessageItem>(Guid.NewGuid(), newMessage));
             await this.Store.TryAddAsync(transaction, newMessage.TaskMessage.OrchestrationInstance.InstanceId, PersistentSession.Create(newMessage.TaskMessage.OrchestrationInstance));
@@ -193,8 +191,6 @@ namespace DurableTask.ServiceFabric
 
         public async Task<bool> TryAppendMessageAsync(ITransaction transaction, TaskMessageItem newMessage)
         {
-            ThrowIfStopped();
-
             if (await this.Store.ContainsKeyAsync(transaction, newMessage.TaskMessage.OrchestrationInstance.InstanceId))
             {
                 var sessionMessageProvider = await GetOrAddSessionMessagesInstance(newMessage.TaskMessage.OrchestrationInstance);
@@ -207,7 +203,6 @@ namespace DurableTask.ServiceFabric
 
         public async Task<IList<OrchestrationInstance>> TryAppendMessageBatchAsync(ITransaction transaction, IEnumerable<TaskMessageItem> newMessages)
         {
-            ThrowIfStopped();
             List<OrchestrationInstance> modifiedSessions = new List<OrchestrationInstance>();
 
             var groups = newMessages.GroupBy(m => m.TaskMessage.OrchestrationInstance, OrchestrationInstanceComparer.Default);
@@ -227,7 +222,6 @@ namespace DurableTask.ServiceFabric
 
         public async Task AppendMessageBatchAsync(ITransaction transaction, IEnumerable<TaskMessageItem> newMessages)
         {
-            ThrowIfStopped();
             var groups = newMessages.GroupBy(m => m.TaskMessage.OrchestrationInstance, OrchestrationInstanceComparer.Default);
 
             foreach (var group in groups)
@@ -269,7 +263,6 @@ namespace DurableTask.ServiceFabric
 
         public async Task<bool> TryAddSession(ITransaction transaction, TaskMessageItem newMessage)
         {
-            ThrowIfStopped();
             await EnsureStoreInitialized();
 
             bool added = await this.Store.TryAddAsync(transaction, newMessage.TaskMessage.OrchestrationInstance.InstanceId, PersistentSession.Create(newMessage.TaskMessage.OrchestrationInstance));
