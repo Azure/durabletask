@@ -32,9 +32,9 @@
   <!-- Nuget Package Settings -->
   <PropertyGroup>
     <PackageOutputPath>..\..\build_output\packages</PackageOutputPath>
-    <AssemblyVersion>2.0.0.3</AssemblyVersion>
-    <FileVersion>2.0.0.3</FileVersion>
-    <Version>2.0.0.3-preview</Version>
+    <AssemblyVersion>2.0.0.4</AssemblyVersion>
+    <FileVersion>2.0.0.4</FileVersion>
+    <Version>2.0.0.4-preview</Version>
     <Company>Microsoft</Company>
     <Product>Durable Task Framework</Product>
     <Description>This package provides a C# based durable task framework for writing long running applications.</Description>
