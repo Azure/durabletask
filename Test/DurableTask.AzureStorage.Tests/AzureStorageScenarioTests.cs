@@ -263,16 +263,16 @@ namespace DurableTask.AzureStorage.Tests
                     // Don't send any notification - let the internal timeout expire
                 };
 
-                int iterations = 100;
+                int iterations = 50;
                 var tasks = new Task[iterations];
                 for (int i = 0; i < iterations; i++)
                 {
                     tasks[i] = orchestrationStarter();
                 }
 
-                // The 100 orchestrations above (which each delay for 10 seconds) should all complete in less than 30 seconds.
+                // The 50 orchestrations above (which each delay for 10 seconds) should all complete in less than 60 seconds.
                 Task parallelOrchestrations = Task.WhenAll(tasks);
-                Task timeoutTask = Task.Delay(TimeSpan.FromSeconds(30));
+                Task timeoutTask = Task.Delay(TimeSpan.FromSeconds(60));
 
                 Task winner = await Task.WhenAny(parallelOrchestrations, timeoutTask);
                 Assert.AreEqual(parallelOrchestrations, winner);
@@ -314,7 +314,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 // Empty string input should result in ArgumentNullException in the orchestration code.
                 var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Throw), "");
-                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
                 Assert.AreEqual(OrchestrationStatus.Failed, status?.OrchestrationStatus);
                 Assert.IsTrue(status?.Output.Contains("null") == true);
@@ -335,7 +335,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 string message = "Kah-BOOOOM!!!";
                 var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Throw), message);
-                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
                 Assert.AreEqual(OrchestrationStatus.Failed, status?.OrchestrationStatus);
                 Assert.IsTrue(status?.Output.Contains(message) == true);

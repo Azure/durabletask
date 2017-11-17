@@ -4,8 +4,10 @@
   <PropertyGroup>
     <TargetFrameworks>netstandard2.0;net451</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>1.0.0-beta</Version>
+    <Version>1.0.1-beta</Version>
     <IncludeSymbols>true</IncludeSymbols>
+    <Description>Azure Storage provider extension for the Durable Task Framework.</Description>
+    <Authors>cgillum</Authors>
   </PropertyGroup>
 
   <ItemGroup>
