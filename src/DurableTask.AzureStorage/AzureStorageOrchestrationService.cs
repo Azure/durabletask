@@ -916,7 +916,7 @@ namespace DurableTask.AzureStorage
             bool addedControlMessages = false;
             bool addedWorkItemMessages = false;
 
-            CloudQueue controlQueue = null;
+            CloudQueue controlQueue = await this.GetControlQueueAsync(instanceId);
             int totalMessageCount = 0;
 
             // Second persistence step is to commit outgoing messages to their respective queues. If there is
@@ -946,10 +946,6 @@ namespace DurableTask.AzureStorage
             {
                 totalMessageCount += timerMessages.Count; 
                 addedControlMessages = true;
-                if (controlQueue == null)
-                {
-                    controlQueue = await this.GetControlQueueAsync(instanceId);
-                }
 
                 foreach (TaskMessage taskMessage in timerMessages)
                 {
@@ -989,10 +985,6 @@ namespace DurableTask.AzureStorage
             {
                 totalMessageCount++;
                 addedControlMessages = true;
-                if (controlQueue == null)
-                {
-                    controlQueue = await this.GetControlQueueAsync(instanceId);
-                }
 
                 enqueueTasks.Add(controlQueue.AddMessageAsync(
                     context.CreateOutboundQueueMessage(continuedAsNewMessage, controlQueue.Name),
@@ -1017,8 +1009,39 @@ namespace DurableTask.AzureStorage
             {
                 this.workItemQueueBackoff.Reset();
             }
+
+            Task[] deletes = new Task[context.MessageDataBatch.Count];
+            for (int i = 0; i < context.MessageDataBatch.Count; i++)
+            {
+                CloudQueueMessage queueMessage = context.MessageDataBatch[i].OriginalQueueMessage;
+                TaskMessage taskMessage = context.MessageDataBatch[i].TaskMessage;
+                AnalyticsEventSource.Log.DeletingMessage(
+                    this.storageAccountName,
+                    this.settings.TaskHubName,
+                    taskMessage.Event.EventType.ToString(),
+                    queueMessage.Id,
+                    instanceId);
+                Task deletetask = controlQueue.DeleteMessageAsync(
+                    queueMessage,
+                    this.settings.ControlQueueRequestOptions,
+                    context.StorageOperationContext);
+
+                // Handle the case where this message was already deleted.
+                deletes[i] = this.HandleNotFoundException(deletetask, queueMessage.Id, instanceId);
+            }
+
+            try
+            {
+                await Task.WhenAll(deletes);
+            }
+            finally
+            {
+                this.stats.StorageRequests.Increment(context.MessageDataBatch.Count);
+            }
         }
 
+        // REVIEW: There doesn't seem to be any code which calls this method.
+        //         https://github.com/Azure/durabletask/issues/112
         /// <inheritdoc />
         public async Task RenewTaskOrchestrationWorkItemLockAsync(TaskOrchestrationWorkItem workItem)
         {
@@ -1030,38 +1053,26 @@ namespace DurableTask.AzureStorage
                 return;
             }
 
-
             string instanceId = workItem.InstanceId;
             CloudQueue controlQueue = await this.GetControlQueueAsync(instanceId);
 
             // Reset the visibility of the message to ensure it doesn't get picked up by anyone else.
-            // REVIEW: The error handling and reporting is not entirely correct. However, there doesn't
-            //         seem to be any code which calls this method, so there is little reason to fix it.
-            //         https://github.com/Azure/durabletask/issues/112
             try
             {
                 await Task.WhenAll(context.MessageDataBatch.Select(e =>
-                    controlQueue.UpdateMessageAsync(
+                {
+                    Task updateTask = controlQueue.UpdateMessageAsync(
                         e.OriginalQueueMessage,
                         this.settings.ControlQueueVisibilityTimeout,
                         MessageUpdateFields.Visibility,
                         this.settings.ControlQueueRequestOptions,
-                        context.StorageOperationContext)));
+                        context.StorageOperationContext);
+
+                    return this.HandleNotFoundException(updateTask, e.OriginalQueueMessage.Id, workItem.InstanceId);
+                }));
+
                 workItem.LockedUntilUtc = DateTime.UtcNow.Add(this.settings.ControlQueueVisibilityTimeout);
                 this.stats.MessagesUpdated.Increment(context.MessageDataBatch.Count);
-            }
-            catch (StorageException e) when (e.RequestInformation?.HttpStatusCode == 404)
-            {
-                // Message(s) may have been processed and deleted already.
-                foreach (MessageData message in context.MessageDataBatch)
-                {
-                    AnalyticsEventSource.Log.MessageGone(
-                        this.storageAccountName,
-                        this.settings.TaskHubName,
-                        message.OriginalQueueMessage.Id,
-                        workItem.InstanceId,
-                        nameof(RenewTaskOrchestrationWorkItemLockAsync));
-                }
             }
             finally
             {
@@ -1085,6 +1096,7 @@ namespace DurableTask.AzureStorage
             Task[] updates = new Task[context.MessageDataBatch.Count];
 
             // We "abandon" the message by settings its visibility timeout to zero.
+            // This allows it to be reprocessed on this node or another node.
             for (int i = 0; i < context.MessageDataBatch.Count; i++)
             {
                 CloudQueueMessage queueMessage = context.MessageDataBatch[i].OriginalQueueMessage;
@@ -1098,30 +1110,20 @@ namespace DurableTask.AzureStorage
                     taskMessage.OrchestrationInstance.InstanceId,
                     taskMessage.OrchestrationInstance.ExecutionId);
 
-                updates[i] = controlQueue.UpdateMessageAsync(
+                Task abandonTask = controlQueue.UpdateMessageAsync(
                     queueMessage,
                     TimeSpan.Zero,
                     MessageUpdateFields.Visibility,
                     this.settings.ControlQueueRequestOptions,
                     context.StorageOperationContext);
+
+                // Message may have been processed and deleted already.
+                updates[i] = HandleNotFoundException(abandonTask, queueMessage.Id, instanceId);
             }
 
             try
             {
                 await Task.WhenAll(updates);
-            }
-            catch (StorageException e) when (e.RequestInformation?.HttpStatusCode == 404)
-            {
-                // Message may have been processed and deleted already.
-                foreach (MessageData message in context.MessageDataBatch)
-                {
-                    AnalyticsEventSource.Log.MessageGone(
-                        this.storageAccountName,
-                        this.settings.TaskHubName,
-                        message.OriginalQueueMessage.Id,
-                        workItem.InstanceId,
-                        nameof(AbandonTaskOrchestrationWorkItemAsync));
-                }
             }
             finally
             {
@@ -1132,65 +1134,13 @@ namespace DurableTask.AzureStorage
         // Called after an orchestration completes an execution episode and after all messages have been enqueued.
         // Also called after an orchestration work item is abandoned.
         /// <inheritdoc />
-        public async Task ReleaseTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
+        public Task ReleaseTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
-            string instanceId = workItem.InstanceId;
-
-            ReceivedMessageContext context;
-            if (!ReceivedMessageContext.TryRestoreContext(workItem, out context))
-            {
-                // The context doesn't exist - possibly because this is a duplicate message.
-                AnalyticsEventSource.Log.AssertFailure(
-                    this.storageAccountName,
-                    this.settings.TaskHubName,
-                    $"Could not find context for orchestration work item with InstanceId = {instanceId}.");
-                return;
-            }
-
-            CloudQueue controlQueue = await this.GetControlQueueAsync(instanceId);
-
-            Task[] deletes = new Task[context.MessageDataBatch.Count];
-            for (int i = 0; i < context.MessageDataBatch.Count; i++)
-            {
-                CloudQueueMessage queueMessage = context.MessageDataBatch[i].OriginalQueueMessage;
-                TaskMessage taskMessage = context.MessageDataBatch[i].TaskMessage;
-                AnalyticsEventSource.Log.DeletingMessage(
-                    this.storageAccountName,
-                    this.settings.TaskHubName, 
-                    taskMessage.Event.EventType.ToString(),
-                    queueMessage.Id,
-                    instanceId);
-                deletes[i] = controlQueue.DeleteMessageAsync(
-                    queueMessage,
-                    this.settings.ControlQueueRequestOptions,
-                    context.StorageOperationContext);
-            }
-
-            try
-            {
-                await Task.WhenAll(deletes);
-            }
-            catch (StorageException e) when (e.RequestInformation?.HttpStatusCode == 404)
-            {
-                // Message may have been processed and deleted already.
-                foreach (MessageData message in context.MessageDataBatch)
-                {
-                    AnalyticsEventSource.Log.MessageGone(
-                        this.storageAccountName,
-                        this.settings.TaskHubName,
-                        message.OriginalQueueMessage.Id,
-                        workItem.InstanceId,
-                        nameof(ReleaseTaskOrchestrationWorkItemAsync));
-                }
-            }
-            finally
-            {
-                this.stats.StorageRequests.Increment(context.MessageDataBatch.Count);
-            }
-
+            // Release is local/in-memory only because instances are affinitized to queues and this
+            // node already holds the lease for the target control queue.
             ReceivedMessageContext.RemoveContext(workItem);
-
             this.activeOrchestrationInstances.TryRemove(workItem.InstanceId, out _);
+            return Utils.CompletedTask;
         }
         #endregion
 
@@ -1293,30 +1243,25 @@ namespace DurableTask.AzureStorage
             // to avoid unnecessary delay between sending and receiving.
             this.controlQueueBackoff.Reset();
 
+            string messageId = context.MessageData.OriginalQueueMessage.Id;
+
             // Next, delete the work item queue message. This must come after enqueuing the response message.
             AnalyticsEventSource.Log.DeletingMessage(
                 this.storageAccountName,
                 this.settings.TaskHubName,
                 workItem.TaskMessage.Event.EventType.ToString(),
-                context.MessageData.OriginalQueueMessage.Id,
+                messageId,
                 instanceId);
+
+            Task deleteTask = this.workItemQueue.DeleteMessageAsync(
+                context.MessageData.OriginalQueueMessage,
+                this.settings.WorkItemQueueRequestOptions,
+                context.StorageOperationContext);
 
             try
             {
-                await this.workItemQueue.DeleteMessageAsync(
-                    context.MessageData.OriginalQueueMessage,
-                    this.settings.WorkItemQueueRequestOptions,
-                    context.StorageOperationContext);
-            }
-            catch (StorageException e) when (e.RequestInformation?.HttpStatusCode == 404)
-            {
-                // Message was already deleted
-                AnalyticsEventSource.Log.MessageGone(
-                    this.storageAccountName,
-                    this.settings.TaskHubName,
-                    context.MessageData.OriginalQueueMessage.Id,
-                    workItem.TaskMessage.OrchestrationInstance.InstanceId,
-                    nameof(CompleteTaskActivityWorkItemAsync));
+                // Handle the case where the message was already deleted
+                await this.HandleNotFoundException(deleteTask, messageId, instanceId);
             }
             finally
             {
@@ -1340,33 +1285,28 @@ namespace DurableTask.AzureStorage
                 return ExpireWorkItem(workItem);
             }
 
+            string messageId = context.MessageData.OriginalQueueMessage.Id;
+            string instanceId = workItem.TaskMessage.OrchestrationInstance.InstanceId;
+
             // Reset the visibility of the message to ensure it doesn't get picked up by anyone else.
+            Task renewTask = this.workItemQueue.UpdateMessageAsync(
+                context.MessageData.OriginalQueueMessage,
+                this.settings.WorkItemQueueVisibilityTimeout,
+                MessageUpdateFields.Visibility,
+                this.settings.WorkItemQueueRequestOptions,
+                context.StorageOperationContext);
+
             try
             {
-                await this.workItemQueue.UpdateMessageAsync(
-                    context.MessageData.OriginalQueueMessage,
-                    this.settings.WorkItemQueueVisibilityTimeout,
-                    MessageUpdateFields.Visibility,
-                    this.settings.WorkItemQueueRequestOptions,
-                    context.StorageOperationContext);
-                workItem.LockedUntilUtc = DateTime.UtcNow.Add(this.settings.WorkItemQueueVisibilityTimeout);
-                this.stats.MessagesUpdated.Increment();
-            }
-            catch (StorageException e) when (e.RequestInformation?.HttpStatusCode == 404)
-            {
-                // Message was deleted
-                AnalyticsEventSource.Log.MessageGone(
-                    this.storageAccountName,
-                    this.settings.TaskHubName,
-                    context.MessageData.OriginalQueueMessage.Id,
-                    workItem.TaskMessage.OrchestrationInstance.InstanceId,
-                    nameof(RenewTaskActivityWorkItemLockAsync));
-                return ExpireWorkItem(workItem);
+                await this.HandleNotFoundException(renewTask, messageId, instanceId);
             }
             finally
             {
                 this.stats.StorageRequests.Increment();
             }
+
+            workItem.LockedUntilUtc = DateTime.UtcNow.Add(this.settings.WorkItemQueueVisibilityTimeout);
+            this.stats.MessagesUpdated.Increment();
 
             return workItem;
         }
@@ -1391,33 +1331,28 @@ namespace DurableTask.AzureStorage
                 return;
             }
 
+            string messageId = context.MessageData.OriginalQueueMessage.Id;
+            string instanceId = workItem.TaskMessage.OrchestrationInstance.InstanceId;
+
             AnalyticsEventSource.Log.AbandoningMessage(
                 this.storageAccountName,
                 this.settings.TaskHubName,
                 workItem.TaskMessage.Event.EventType.ToString(),
-                context.MessageData.OriginalQueueMessage.Id,
-                workItem.TaskMessage.OrchestrationInstance.InstanceId,
+                messageId,
+                instanceId,
                 workItem.TaskMessage.OrchestrationInstance.ExecutionId);
 
             // We "abandon" the message by settings its visibility timeout to zero.
+            Task abandonTask = this.workItemQueue.UpdateMessageAsync(
+                context.MessageData.OriginalQueueMessage,
+                TimeSpan.Zero,
+                MessageUpdateFields.Visibility,
+                this.settings.WorkItemQueueRequestOptions,
+                context.StorageOperationContext);
+
             try
             {
-                await this.workItemQueue.UpdateMessageAsync(
-                    context.MessageData.OriginalQueueMessage,
-                    TimeSpan.Zero,
-                    MessageUpdateFields.Visibility,
-                    this.settings.WorkItemQueueRequestOptions,
-                    context.StorageOperationContext);
-            }
-            catch (StorageException e) when (e.RequestInformation?.HttpStatusCode == 404)
-            {
-                // Message was deleted
-                AnalyticsEventSource.Log.MessageGone(
-                    this.storageAccountName,
-                    this.settings.TaskHubName,
-                    context.MessageData.OriginalQueueMessage.Id,
-                    workItem.TaskMessage.OrchestrationInstance.InstanceId,
-                    nameof(AbandonTaskActivityWorkItemAsync));
+                await this.HandleNotFoundException(abandonTask, messageId, instanceId);
             }
             finally
             {
@@ -1428,6 +1363,29 @@ namespace DurableTask.AzureStorage
             {
                 this.stats.ActiveActivityExecutions.Decrement();
             }
+        }
+
+        Task HandleNotFoundException(Task storagetask, string messageId, string instanceId)
+        {
+            return storagetask.ContinueWith(t =>
+            {
+                StorageException e = t.Exception?.InnerException as StorageException;
+                if (e?.RequestInformation?.HttpStatusCode == 404)
+                {
+                    // Message may have been processed and deleted already.
+                    AnalyticsEventSource.Log.MessageGone(
+                        this.storageAccountName,
+                        this.settings.TaskHubName,
+                        messageId,
+                        instanceId,
+                        nameof(AbandonTaskOrchestrationWorkItemAsync));
+                }
+                else if (t.Exception?.InnerException != null)
+                {
+                    // Rethrow the original exception, preserving the callstack.
+                    ExceptionDispatchInfo.Capture(t.Exception.InnerException).Throw();
+                }
+            });
         }
         #endregion
 
