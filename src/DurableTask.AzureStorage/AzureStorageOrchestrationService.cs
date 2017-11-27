@@ -62,7 +62,7 @@ namespace DurableTask.AzureStorage
         readonly BackoffPollingHelper workItemQueueBackoff;
 
         readonly ResettableLazy<Task> taskHubCreator;
-        readonly BlobLeaseManager leaseManager;
+        readonly BlobLeaseManager leaseManager; 
         readonly PartitionManager<BlobLease> partitionManager;
 
         readonly object hubCreationLock;
@@ -611,6 +611,8 @@ namespace DurableTask.AzureStorage
                 runtimeState.OrchestrationStatus != OrchestrationStatus.Pending)
             {
                 // The instance has already completed. Delete this message batch.
+                CloudQueue controlQueue = await this.GetControlQueueAsync(instance.InstanceId);
+                await this.DeleteMessageBatchAsync(messageContext, controlQueue);
                 await this.ReleaseTaskOrchestrationWorkItemAsync(orchestrationWorkItem);
                 return null;
             }
@@ -721,13 +723,12 @@ namespace DurableTask.AzureStorage
             if (expectedExecutionId != null)
             {
                 // Filter down to a specific generation.
-                // e.g. "PartitionKey eq 'c138dd969a1e4a699b0644c7d8279f81' and RowKey gt '85f05ce1494c4a29989f64d3fe0f9089' and ExecutionId eq '85f05ce1494c4a29989f64d3fe0f9089'"
-                filterCondition.Append(" and RowKey gt ").Append(Quote).Append(expectedExecutionId).Append(Quote);
+                // e.g. "PartitionKey eq 'c138dd969a1e4a699b0644c7d8279f81' and ExecutionId eq '85f05ce1494c4a29989f64d3fe0f9089'"
                 filterCondition.Append(" and ExecutionId eq ").Append(Quote).Append(expectedExecutionId).Append(Quote);
             }
 
             TableQuery query = new TableQuery().Where(filterCondition.ToString());
-                    
+
             // TODO: Write-through caching should ensure that we rarely need to make this call?
             var historyEventEntities = new List<DynamicTableEntity>(100);
 
@@ -740,7 +741,7 @@ namespace DurableTask.AzureStorage
             {
                 requestCount++;
                 stopwatch.Start();
-                /*TableQuerySegment<DynamicTableEntity>*/ var segment = await this.historyTable.ExecuteQuerySegmentedAsync(
+                var segment = await this.historyTable.ExecuteQuerySegmentedAsync(
                     query,
                     continuationToken,
                     this.settings.HistoryTableRequestOptions,
@@ -764,21 +765,22 @@ namespace DurableTask.AzureStorage
             string executionId;
             if (historyEventEntities.Count > 0)
             {
-                // Check to see whether the list of history events might contain multiple generations. If so,
-                // consider only the latest generation. The timestamp on the first entry of each generation
-                // is used to deterine the "age" of that generation. This assumes that rows within a generation
-                // are sorted in chronological order.
-                IGrouping<string, DynamicTableEntity> mostRecentGeneration = historyEventEntities
-                    .GroupBy(e => e.Properties["ExecutionId"].StringValue)
-                    .OrderByDescending(g => g.First().Timestamp)
-                    .First();
-                executionId = mostRecentGeneration.Key;
+                // The most recent generation will always be in the first history event.
+                executionId = historyEventEntities[0].Properties["ExecutionId"].StringValue;
 
                 // Convert the table entities into history events.
-                var events = new List<HistoryEvent>(100);
-                events.AddRange(
-                    mostRecentGeneration.Select(
-                        entity => (HistoryEvent)this.tableEntityConverter.ConvertFromTableEntity(entity, GetTypeForTableEntity)));
+                var events = new List<HistoryEvent>(historyEventEntities.Count);
+                foreach (DynamicTableEntity entity in historyEventEntities)
+                {
+                    if (entity.Properties["ExecutionId"].StringValue != executionId)
+                    {
+                        // The remaining entities are from a previous generation and can be discarded.
+                        break;
+                    }
+
+                    events.Add((HistoryEvent)this.tableEntityConverter.ConvertFromTableEntity(entity, GetTypeForTableEntity));
+                }
+
                 historyEvents = events;
             }
             else
@@ -863,10 +865,9 @@ namespace DurableTask.AzureStorage
 
                 newEventList.Append(historyEvent.EventType.ToString()).Append(',');
 
-                // The row key is in the form "{ExecutionId}.{SequenceNumber}" where {ExecutionId} represents the generation
-                // of a particular instance and {SequenceNumber} represents the chronological ordinal of the event.
+                // The row key is the sequence number, which represents the chronological ordinal of the event.
                 long sequenceNumber = i + (allEvents.Count - newEvents.Count);
-                entity.RowKey = $"{executionId}.{sequenceNumber:X16}";
+                entity.RowKey = sequenceNumber.ToString("X16");
                 entity.PartitionKey = instanceId;
                 entity.Properties["ExecutionId"] = new EntityProperty(executionId);
 
@@ -1010,6 +1011,11 @@ namespace DurableTask.AzureStorage
                 this.workItemQueueBackoff.Reset();
             }
 
+            await this.DeleteMessageBatchAsync(context, controlQueue);
+        }
+
+        async Task DeleteMessageBatchAsync(ReceivedMessageContext context, CloudQueue controlQueue)
+        {
             Task[] deletes = new Task[context.MessageDataBatch.Count];
             for (int i = 0; i < context.MessageDataBatch.Count; i++)
             {
@@ -1020,14 +1026,17 @@ namespace DurableTask.AzureStorage
                     this.settings.TaskHubName,
                     taskMessage.Event.EventType.ToString(),
                     queueMessage.Id,
-                    instanceId);
+                    context.Instance.InstanceId);
                 Task deletetask = controlQueue.DeleteMessageAsync(
                     queueMessage,
                     this.settings.ControlQueueRequestOptions,
                     context.StorageOperationContext);
 
                 // Handle the case where this message was already deleted.
-                deletes[i] = this.HandleNotFoundException(deletetask, queueMessage.Id, instanceId);
+                deletes[i] = this.HandleNotFoundException(
+                    deletetask,
+                    queueMessage.Id,
+                    context.Instance.InstanceId);
             }
 
             try
