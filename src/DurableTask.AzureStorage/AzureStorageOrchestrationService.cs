@@ -611,6 +611,8 @@ namespace DurableTask.AzureStorage
                 runtimeState.OrchestrationStatus != OrchestrationStatus.Pending)
             {
                 // The instance has already completed. Delete this message batch.
+                CloudQueue controlQueue = await this.GetControlQueueAsync(instance.InstanceId);
+                await this.DeleteMessageBatchAsync(messageContext, controlQueue);
                 await this.ReleaseTaskOrchestrationWorkItemAsync(orchestrationWorkItem);
                 return null;
             }
@@ -1009,6 +1011,11 @@ namespace DurableTask.AzureStorage
                 this.workItemQueueBackoff.Reset();
             }
 
+            await this.DeleteMessageBatchAsync(context, controlQueue);
+        }
+
+        async Task DeleteMessageBatchAsync(ReceivedMessageContext context, CloudQueue controlQueue)
+        {
             Task[] deletes = new Task[context.MessageDataBatch.Count];
             for (int i = 0; i < context.MessageDataBatch.Count; i++)
             {
@@ -1019,14 +1026,17 @@ namespace DurableTask.AzureStorage
                     this.settings.TaskHubName,
                     taskMessage.Event.EventType.ToString(),
                     queueMessage.Id,
-                    instanceId);
+                    context.Instance.InstanceId);
                 Task deletetask = controlQueue.DeleteMessageAsync(
                     queueMessage,
                     this.settings.ControlQueueRequestOptions,
                     context.StorageOperationContext);
 
                 // Handle the case where this message was already deleted.
-                deletes[i] = this.HandleNotFoundException(deletetask, queueMessage.Id, instanceId);
+                deletes[i] = this.HandleNotFoundException(
+                    deletetask,
+                    queueMessage.Id,
+                    context.Instance.InstanceId);
             }
 
             try
