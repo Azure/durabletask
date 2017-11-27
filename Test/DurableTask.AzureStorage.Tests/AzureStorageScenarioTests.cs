@@ -20,6 +20,7 @@ namespace DurableTask.AzureStorage.Tests
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Core;
+    using Microsoft.Practices.EnterpriseLibrary.SemanticLogging.Utility;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Newtonsoft.Json.Linq;
 
@@ -342,6 +343,15 @@ namespace DurableTask.AzureStorage.Tests
 
                 await host.StopAsync();
             }
+        }
+
+        /// <summary>
+        /// Test which validates the ETW event source.
+        /// </summary>
+        [TestMethod]
+        public void ValidateEventSource()
+        {
+            EventSourceAnalyzer.InspectAll(AnalyticsEventSource.Log);
         }
 
         static class Orchestrations
