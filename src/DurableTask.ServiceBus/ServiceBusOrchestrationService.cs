@@ -944,7 +944,7 @@ namespace DurableTask.ServiceBus
                 if ((await this.GetOrchestrationStateAsync(creationMessage.OrchestrationInstance.InstanceId, true)).Count != 0)
                 {
                     // An orchestratoion with same instance id is already running
-                    throw new InvalidOperationException($"An orchestration with id '{creationMessage.OrchestrationInstance.InstanceId}' already exists");
+                    throw new OrchestrationAlreadyExistsException($"An orchestration with id '{creationMessage.OrchestrationInstance.InstanceId}' already exists");
                 }
 
                 await this.UpdateJumpStartStoreAsync(creationMessage);
