@@ -917,7 +917,7 @@ namespace DurableTask.AzureStorage
             bool addedControlMessages = false;
             bool addedWorkItemMessages = false;
 
-            CloudQueue controlQueue = await this.GetControlQueueAsync(instanceId);
+            CloudQueue currentControlQueue = await this.GetControlQueueAsync(instanceId);
             int totalMessageCount = 0;
 
             // Second persistence step is to commit outgoing messages to their respective queues. If there is
@@ -927,15 +927,14 @@ namespace DurableTask.AzureStorage
             {
                 totalMessageCount += orchestratorMessages.Count;
                 addedControlMessages = true;
-                if (controlQueue == null)
-                {
-                    controlQueue = await this.GetControlQueueAsync(instanceId);
-                }
 
                 foreach (TaskMessage taskMessage in orchestratorMessages)
                 {
-                    enqueueTasks.Add(controlQueue.AddMessageAsync(
-                        context.CreateOutboundQueueMessage(taskMessage, controlQueue.Name),
+                    string targetInstanceId = taskMessage.OrchestrationInstance.InstanceId;
+                    CloudQueue targetControlQueue = await this.GetControlQueueAsync(targetInstanceId);
+
+                    enqueueTasks.Add(targetControlQueue.AddMessageAsync(
+                        context.CreateOutboundQueueMessage(taskMessage, targetControlQueue.Name),
                         null /* timeToLive */,
                         null /* initialVisibilityDelay */,
                         this.settings.ControlQueueRequestOptions,
@@ -958,8 +957,8 @@ namespace DurableTask.AzureStorage
                         initialVisibilityDelay = TimeSpan.Zero;
                     }
 
-                    enqueueTasks.Add(controlQueue.AddMessageAsync(
-                        context.CreateOutboundQueueMessage(taskMessage, controlQueue.Name),
+                    enqueueTasks.Add(currentControlQueue.AddMessageAsync(
+                        context.CreateOutboundQueueMessage(taskMessage, currentControlQueue.Name),
                         null /* timeToLive */,
                         initialVisibilityDelay,
                         this.settings.ControlQueueRequestOptions,
@@ -987,8 +986,8 @@ namespace DurableTask.AzureStorage
                 totalMessageCount++;
                 addedControlMessages = true;
 
-                enqueueTasks.Add(controlQueue.AddMessageAsync(
-                    context.CreateOutboundQueueMessage(continuedAsNewMessage, controlQueue.Name),
+                enqueueTasks.Add(currentControlQueue.AddMessageAsync(
+                    context.CreateOutboundQueueMessage(continuedAsNewMessage, currentControlQueue.Name),
                     null /* timeToLive */,
                     null /* initialVisibilityDelay */,
                     this.settings.ControlQueueRequestOptions,
@@ -1011,7 +1010,7 @@ namespace DurableTask.AzureStorage
                 this.workItemQueueBackoff.Reset();
             }
 
-            await this.DeleteMessageBatchAsync(context, controlQueue);
+            await this.DeleteMessageBatchAsync(context, currentControlQueue);
         }
 
         async Task DeleteMessageBatchAsync(ReceivedMessageContext context, CloudQueue controlQueue)
