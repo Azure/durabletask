@@ -11,7 +11,13 @@ To ugprade you will have to drop and recreate durable task artifacts. More detai
 
 Old master code will always be available in the rel/v1 branch. 
 
-Note that we will be creating and publishing a new nuget package with the current master and will be bumping up the major version number to 2.x.x.x. 
+Note that the framework is now published as multiple nuget packages bumping up the major version number to 2.x.x.x. 
+Available at:
+https://www.nuget.org/packages/DurableTask.Core
+https://www.nuget.org/packages/DurableTask.ServiceBus
+https://www.nuget.org/packages/DurableTask.Emulator
+https://www.nuget.org/packages/DurableTask.AzureStorage
+
 
 Durable Task Framework
 ======================
