@@ -13,9 +13,13 @@ Old master code will always be available in the rel/v1 branch.
 
 Note that the framework is now published as multiple nuget packages bumping up the major version number to 2.x.x.x. 
 Available at:
+
 https://www.nuget.org/packages/DurableTask.Core
+
 https://www.nuget.org/packages/DurableTask.ServiceBus
+
 https://www.nuget.org/packages/DurableTask.Emulator
+
 https://www.nuget.org/packages/DurableTask.AzureStorage
 
 
