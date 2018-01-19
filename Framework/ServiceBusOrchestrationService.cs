@@ -468,11 +468,24 @@ namespace DurableTask
 
             if (this.InstanceStore != null)
             {
-                TaskMessage executionStartedMessage = newTaskMessages.FirstOrDefault(m => m.Event is ExecutionStartedEvent);
-
-                if (executionStartedMessage != null)
+                try
                 {
-                    await this.UpdateInstanceStoreAsync(executionStartedMessage.Event as ExecutionStartedEvent, maxSequenceNumber);
+                    TaskMessage executionStartedMessage = newTaskMessages.FirstOrDefault(m => m.Event is ExecutionStartedEvent);
+
+                    if (executionStartedMessage != null)
+                    {
+                        await this.UpdateInstanceStoreAsync(executionStartedMessage.Event as ExecutionStartedEvent, maxSequenceNumber);
+                    }
+                }
+                catch (Exception exception)
+                {
+                    ServiceBusOrchestrationSession sessionInstance;
+                    orchestrationSessions.TryRemove(session.SessionId, out sessionInstance);
+
+                    var error = $"Exception while updating instance store. Session id: {session.SessionId}";
+                    TraceHelper.TraceException(TraceEventType.Error, exception, error);
+
+                    throw;
                 }
             }
 
