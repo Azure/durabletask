@@ -304,6 +304,13 @@ namespace DurableTask.ServiceBus.Common
         {
             MessagingFactory factory = MessagingFactory.CreateFromConnectionString(connectionString);
             factory.RetryPolicy = RetryPolicy.Default;
+
+            TraceHelper.Trace(
+                TraceEventType.Information,
+                "CreateMessagingFactory",
+                "Initialized messaging factory with address {0}",
+                factory.Address);
+
             return factory;
         }
     }

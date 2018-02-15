@@ -15,6 +15,7 @@ namespace DurableTask.Core
 {
     using System;
     using System.Diagnostics;
+    using System.Runtime.ExceptionServices;
     using System.Threading.Tasks;
     using DurableTask.Core.Common;
     using DurableTask.Core.Tracing;
@@ -68,7 +69,8 @@ namespace DurableTask.Core
                 await context.CreateTimer(retryAt, "Retry Attempt " + retryCount + 1);
             }
 
-            throw lastException;
+            ExceptionDispatchInfo.Capture(lastException).Throw();
+            throw lastException; // no op
         }
 
         TimeSpan ComputeNextDelay(int attempt, DateTime firstAttempt, Exception failure)
