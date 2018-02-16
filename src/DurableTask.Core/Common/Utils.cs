@@ -302,7 +302,8 @@ namespace DurableTask.Core.Common
             catch
             {
                 // Cannot serialize exception, throw original exception
-                throw originalException;
+                ExceptionDispatchInfo.Capture(originalException).Throw();
+                throw originalException; // no op
             }
 
             return details;
