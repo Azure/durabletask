@@ -489,7 +489,7 @@ namespace DurableTask.ServiceBus
                     orchestrationSessions.TryRemove(session.SessionId, out sessionInstance);
 
                     var error = $"Exception while updating instance store. Session id: {session.SessionId}";
-                    TraceHelper.TraceException(TraceEventType.Error, exception, error);
+                    TraceHelper.TraceException(TraceEventType.Error, "ServiceBusOrchestrationService-LockNextTaskOrchestrationWorkItem-ErrorUpdatingInstanceStore", exception, error);
 
                     throw;
                 }
