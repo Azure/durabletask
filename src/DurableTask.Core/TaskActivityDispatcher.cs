@@ -138,7 +138,7 @@ namespace DurableTask.Core
                     {
                         TraceHelper.TraceExceptionInstance(TraceEventType.Error, "TaskActivityDispatcher-ProcessTaskFailure", taskMessage.OrchestrationInstance, e);
                         string details = IncludeDetails ? e.Details : null;
-                        eventToRespond = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details);
+                        eventToRespond = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details, IncludeDetails ? e : null);
                     }
                     catch (Exception e) when (!Utils.IsFatal(e))
                     {
@@ -146,7 +146,7 @@ namespace DurableTask.Core
                         string details = IncludeDetails
                             ? $"Unhandled exception while executing task: {e}\n\t{e.StackTrace}"
                             : null;
-                        eventToRespond = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details);
+                        eventToRespond = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details, IncludeDetails ? e : null);
                     }
                 });
 

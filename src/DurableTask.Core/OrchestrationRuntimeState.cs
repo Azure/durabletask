@@ -314,8 +314,10 @@ namespace DurableTask.Core
             else if (evt is SubOrchestrationInstanceCompletedEvent)
             {
                 var sourceEvent = (SubOrchestrationInstanceCompletedEvent) evt;
-                returnedEvent = new SubOrchestrationInstanceCompletedEvent(sourceEvent.EventId,
-                    sourceEvent.TaskScheduledId, "[..snipped..]")
+                returnedEvent = new SubOrchestrationInstanceCompletedEvent(
+                    sourceEvent.EventId,
+                    sourceEvent.TaskScheduledId, 
+                    "[..snipped..]")
                 {
                     Timestamp = sourceEvent.Timestamp,
                     IsPlayed = sourceEvent.IsPlayed,
@@ -324,8 +326,12 @@ namespace DurableTask.Core
             else if (evt is TaskFailedEvent)
             {
                 var sourceEvent = (TaskFailedEvent) evt;
-                returnedEvent = new TaskFailedEvent(sourceEvent.EventId,
-                    sourceEvent.TaskScheduledId, sourceEvent.Reason, "[..snipped..]")
+                returnedEvent = new TaskFailedEvent(
+                    sourceEvent.EventId,
+                    sourceEvent.TaskScheduledId, 
+                    sourceEvent.Reason, 
+                    "[..snipped..]",
+                    sourceEvent.FailureException)
                 {
                     Timestamp = sourceEvent.Timestamp,
                     IsPlayed = sourceEvent.IsPlayed,
@@ -334,8 +340,12 @@ namespace DurableTask.Core
             else if (evt is SubOrchestrationInstanceFailedEvent)
             {
                 var sourceEvent = (SubOrchestrationInstanceFailedEvent) evt;
-                returnedEvent = new SubOrchestrationInstanceFailedEvent(sourceEvent.EventId,
-                    sourceEvent.TaskScheduledId, sourceEvent.Reason, "[..snipped..]")
+                returnedEvent = new SubOrchestrationInstanceFailedEvent(
+                    sourceEvent.EventId,
+                    sourceEvent.TaskScheduledId, 
+                    sourceEvent.Reason, 
+                    "[..snipped..]",
+                    sourceEvent.FailureException)
                 {
                     Timestamp = sourceEvent.Timestamp,
                     IsPlayed = sourceEvent.IsPlayed,

@@ -13,6 +13,7 @@
 
 namespace DurableTask.Core.History
 {
+    using System;
     using System.Runtime.Serialization;
 
     /// <summary>
@@ -29,11 +30,25 @@ namespace DurableTask.Core.History
         /// <param name="reason">The task failure reason</param>
         /// <param name="details">Details of the task failure</param>
         public TaskFailedEvent(int eventId, int taskScheduledId, string reason, string details)
+            : this(eventId, taskScheduledId, reason, details, null)
+        {
+        }
+
+        /// <summary>
+        /// Creates a new TaskFailedEvent with the supplied parameters
+        /// </summary>
+        /// <param name="eventId">The event id of the history event</param>
+        /// <param name="taskScheduledId">The scheduled parent instance event id</param>
+        /// <param name="reason">The task failure reason</param>
+        /// <param name="details">Details of the task failure</param>
+        /// <param name="failureException">Exception for this task failure</param>
+        public TaskFailedEvent(int eventId, int taskScheduledId, string reason, string details, Exception failureException)
             : base(eventId)
         {
             TaskScheduledId = taskScheduledId;
             Reason = reason;
             Details = details;
+            FailureException = failureException;
         }
 
         /// <summary>
@@ -61,5 +76,11 @@ namespace DurableTask.Core.History
         /// </summary>
         [DataMember]
         public string Details { get; private set; }
+
+        /// <summary>
+        /// Gets details of the task failure
+        /// </summary>
+        [DataMember]
+        public Exception FailureException { get; private set; }
     }
 }
