@@ -350,7 +350,10 @@ namespace DurableTask
 
         public void CompleteOrchestration(string result)
         {
-            CompleteOrchestration(result, null, OrchestrationStatus.Completed);
+            if (!executionTerminated)
+            {
+                CompleteOrchestration(result, null, OrchestrationStatus.Completed);
+            }
         }
 
         public void FailOrchestration(Exception failure)
