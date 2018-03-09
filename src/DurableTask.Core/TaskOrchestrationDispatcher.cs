@@ -25,6 +25,7 @@ namespace DurableTask.Core
     using DurableTask.Core.History;
     using DurableTask.Core.Middleware;
     using DurableTask.Core.Serializing;
+    using DurableTask.Core.Settings;
     using DurableTask.Core.Tracing;
 
     /// <summary>
@@ -36,7 +37,9 @@ namespace DurableTask.Core
         readonly IOrchestrationService orchestrationService;
         readonly WorkItemDispatcher<TaskOrchestrationWorkItem> dispatcher;
         readonly DispatchMiddlewarePipeline dispatchPipeline;
+        readonly MruCache<string, CachedOrchestrationInstance> instanceCache;
         static readonly DataConverter DataConverter = new JsonDataConverter();
+        static readonly Task CompletedTask = Task.FromResult(0);
 
         internal TaskOrchestrationDispatcher(
             IOrchestrationService orchestrationService,
@@ -46,6 +49,8 @@ namespace DurableTask.Core
             this.objectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
             this.orchestrationService = orchestrationService ?? throw new ArgumentNullException(nameof(orchestrationService));
             this.dispatchPipeline = dispatchPipeline ?? throw new ArgumentNullException(nameof(dispatchPipeline));
+
+            this.instanceCache = this.GetInstanceCacheOrNull();
 
             this.dispatcher = new WorkItemDispatcher<TaskOrchestrationWorkItem>(
                 "TaskOrchestrationDispatcher",
@@ -115,11 +120,23 @@ namespace DurableTask.Core
             ExecutionStartedEvent continueAsNewExecutionStarted = null;
             TaskMessage continuedAsNewMessage = null;
 
-            OrchestrationRuntimeState runtimeState = workItem.OrchestrationRuntimeState;
+            OrchestrationRuntimeState runtimeState;
+            CachedOrchestrationInstance cachedInstance = null;
+            if (this.instanceCache != null && this.instanceCache.TryGetValue(workItem.InstanceId, out cachedInstance))
+            {
+                runtimeState = cachedInstance.RuntimeState;
+                runtimeState.NewEvents.Clear();
+            }
+            else
+            {
+                runtimeState = workItem.OrchestrationRuntimeState;
+            }
+
+            // TODO, cgillum: Check to see if the runtime state is null and load it on-demand if it is.
 
             runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
 
-            if (!ReconcileMessagesWithState(workItem))
+            if (!ReconcileMessagesWithState(runtimeState, workItem.NewMessages))
             {
                 // TODO : mark an orchestration as faulted if there is data corruption
                 TraceHelper.TraceSession(
@@ -138,7 +155,15 @@ namespace DurableTask.Core
                     "Executing user orchestration: {0}",
                     DataConverter.Serialize(runtimeState.GetOrchestrationRuntimeStateDump(), true));
 
-                IList<OrchestratorAction> decisions = (await ExecuteOrchestrationAsync(runtimeState)).ToList();
+                IList<OrchestratorAction> decisions;
+                if (cachedInstance != null)
+                {
+                    decisions = (await ResumeOrchestrationAsync(cachedInstance)).ToList();
+                }
+                else
+                {
+                    decisions = (await ExecuteOrchestrationAsync(runtimeState)).ToList();
+                }
 
                 TraceHelper.TraceInstance(
                     TraceEventType.Information,
@@ -284,14 +309,31 @@ namespace DurableTask.Core
                 instanceState);
         }
 
+        MruCache<string, CachedOrchestrationInstance> GetInstanceCacheOrNull()
+        {
+            IOrchestrationCaching cacheSupport = this.orchestrationService as IOrchestrationCaching;
+            if (cacheSupport == null)
+            {
+                return null;
+            }
+
+            OrchestrationInstanceCacheSettings cacheSettings = cacheSupport.OrchestrationCacheSettings;
+            if (cacheSettings == null || cacheSettings.MaxCachedInstances <= 0)
+            {
+                return null;
+            }
+
+            return new MruCache<string, CachedOrchestrationInstance>(cacheSettings.MaxCachedInstances);
+        }
+
         async Task<IEnumerable<OrchestratorAction>> ExecuteOrchestrationAsync(OrchestrationRuntimeState runtimeState)
         {
             TaskOrchestration taskOrchestration = objectManager.GetObject(runtimeState.Name, runtimeState.Version);
             if (taskOrchestration == null)
             {
                 throw TraceHelper.TraceExceptionInstance(
-                    TraceEventType.Error, 
-                    "TaskOrchestrationDispatcher-TypeMissing", 
+                    TraceEventType.Error,
+                    "TaskOrchestrationDispatcher-TypeMissing",
                     runtimeState.OrchestrationInstance,
                     new TypeMissingException($"Orchestration not found: ({runtimeState.Name}, {runtimeState.Version})"));
             }
@@ -301,21 +343,52 @@ namespace DurableTask.Core
             dispatchContext.SetProperty(taskOrchestration);
             dispatchContext.SetProperty(runtimeState);
 
+            var taskOrchestrationExecutor = new TaskOrchestrationExecutor(runtimeState, taskOrchestration);
+
             IEnumerable<OrchestratorAction> decisions = null;
             await this.dispatchPipeline.RunAsync(dispatchContext, _ =>
             {
-                var taskOrchestrationExecutor = new TaskOrchestrationExecutor(runtimeState, taskOrchestration);
                 decisions = taskOrchestrationExecutor.Execute();
-
-                return Task.FromResult(0);
+                return CompletedTask;
             });
+
+            if (!taskOrchestrationExecutor.IsCompleted && this.instanceCache != null)
+            {
+                CachedOrchestrationInstance cachedInstance = new CachedOrchestrationInstance(
+                    runtimeState,
+                    taskOrchestration,
+                    taskOrchestrationExecutor);
+                instanceCache.Add(runtimeState.OrchestrationInstance.InstanceId, cachedInstance);
+            }
 
             return decisions;
         }
 
-        bool ReconcileMessagesWithState(TaskOrchestrationWorkItem workItem)
+        async Task<IEnumerable<OrchestratorAction>> ResumeOrchestrationAsync(CachedOrchestrationInstance cachedInstance)
         {
-            foreach (TaskMessage message in workItem.NewMessages)
+            var dispatchContext = new DispatchMiddlewareContext();
+            dispatchContext.SetProperty(cachedInstance.RuntimeState.OrchestrationInstance);
+            dispatchContext.SetProperty(cachedInstance.TaskOrchestration);
+            dispatchContext.SetProperty(cachedInstance.RuntimeState);
+
+            IEnumerable<OrchestratorAction> decisions = null;
+            await this.dispatchPipeline.RunAsync(dispatchContext, _ =>
+            {
+                decisions = cachedInstance.OrchestrationExecutor.ExecuteNewEvents();
+                return CompletedTask;
+            });
+
+            if (cachedInstance.OrchestrationExecutor.IsCompleted)
+            {
+                instanceCache.Remove(cachedInstance.RuntimeState.OrchestrationInstance.InstanceId);
+            }
+
+            return decisions;
+        }
+
+        static bool ReconcileMessagesWithState(OrchestrationRuntimeState runtimeState, IList<TaskMessage> newWorkItemMessages)
+        {
+            foreach (TaskMessage message in newWorkItemMessages)
             {
                 OrchestrationInstance orchestrationInstance = message.OrchestrationInstance;
                 if (string.IsNullOrWhiteSpace(orchestrationInstance?.InstanceId))
@@ -326,7 +399,7 @@ namespace DurableTask.Core
                         new InvalidOperationException("Message does not contain any OrchestrationInstance information"));
                 }
 
-                if (workItem.OrchestrationRuntimeState.Events.Count == 1 && message.Event.EventType != EventType.ExecutionStarted)
+                if (runtimeState.Events.Count == 1 && message.Event.EventType != EventType.ExecutionStarted)
                 {
                     // we get here because of:
                     //      i) responses for scheduled tasks after the orchestrations have been completed
@@ -344,7 +417,7 @@ namespace DurableTask.Core
 
                 if (message.Event.EventType == EventType.ExecutionStarted)
                 {
-                    if (workItem.OrchestrationRuntimeState.Events.Count > 1)
+                    if (runtimeState.Events.Count > 1)
                     {
                         // this was caused due to a dupe execution started event, swallow this one
                         TraceHelper.TraceInstance(
@@ -357,10 +430,9 @@ namespace DurableTask.Core
                         continue;
                     }
                 }
-                else if (!string.IsNullOrWhiteSpace(orchestrationInstance.ExecutionId)
-                         &&
-                         !string.Equals(orchestrationInstance.ExecutionId,
-                             workItem.OrchestrationRuntimeState.OrchestrationInstance.ExecutionId))
+                else if (
+                    !string.IsNullOrWhiteSpace(orchestrationInstance.ExecutionId) && 
+                    !string.Equals(orchestrationInstance.ExecutionId, runtimeState.OrchestrationInstance.ExecutionId))
                 {
                     // eat up any events for previous executions
                     TraceHelper.TraceInstance(
@@ -373,7 +445,7 @@ namespace DurableTask.Core
                     continue;
                 }
 
-                workItem.OrchestrationRuntimeState.AddEvent(message.Event);
+                runtimeState.AddEvent(message.Event);
             }
 
             return true;
@@ -587,6 +659,23 @@ namespace DurableTask.Core
             }
 
             return result;
+        }
+
+        class CachedOrchestrationInstance
+        {
+            public CachedOrchestrationInstance(
+                OrchestrationRuntimeState state,
+                TaskOrchestration orchestration, 
+                TaskOrchestrationExecutor executor)
+            {
+                this.RuntimeState = state;
+                this.TaskOrchestration = orchestration;
+                this.OrchestrationExecutor = executor;
+            }
+
+            public OrchestrationRuntimeState RuntimeState { get; }
+            public TaskOrchestration TaskOrchestration { get; }
+            public TaskOrchestrationExecutor OrchestrationExecutor { get; }
         }
     }
 }

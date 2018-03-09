@@ -14,6 +14,7 @@
 namespace DurableTask.AzureStorage
 {
     using System;
+    using DurableTask.Core.Settings;
     using Microsoft.WindowsAzure.Storage.Queue;
     using Microsoft.WindowsAzure.Storage.Table;
 
@@ -112,5 +113,10 @@ namespace DurableTask.AzureStorage
         /// interval, it will cause it to expire and ownership of the partition will move to another worker instance.
         /// </summary>
         public TimeSpan LeaseInterval { get; set; } = TimeSpan.FromSeconds(30);
+
+        /// <summary>
+        /// Settings to configure orchestration instance caching.
+        /// </summary>
+        public OrchestrationInstanceCacheSettings OrchestrationCacheSettings { get; set; } = new OrchestrationInstanceCacheSettings { MaxCachedInstances = 10 };
     }
 }

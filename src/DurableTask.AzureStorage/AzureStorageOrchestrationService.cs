@@ -29,6 +29,7 @@ namespace DurableTask.AzureStorage
     using DurableTask.AzureStorage.Partitioning;
     using DurableTask.Core;
     using DurableTask.Core.History;
+    using DurableTask.Core.Settings;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Queue;
     using Microsoft.WindowsAzure.Storage.Table;
@@ -40,6 +41,7 @@ namespace DurableTask.AzureStorage
     public class AzureStorageOrchestrationService :
         IOrchestrationService,
         IOrchestrationServiceClient,
+        IOrchestrationCaching,
         IPartitionObserver<BlobLease>
     {
         static readonly HistoryEvent[] EmptyHistoryEventList = new HistoryEvent[0];
@@ -256,6 +258,12 @@ namespace DurableTask.AzureStorage
         public int MaxConcurrentTaskActivityWorkItems
         {
             get { return this.settings.MaxConcurrentTaskActivityWorkItems; }
+        }
+
+        /// <inheritdoc />
+        public OrchestrationInstanceCacheSettings OrchestrationCacheSettings
+        {
+            get { return this.settings.OrchestrationCacheSettings; }
         }
 
         // We always leave the dispatcher counts at one unless we can find a customer workload that requires more.
@@ -698,6 +706,15 @@ namespace DurableTask.AzureStorage
 
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Fetches the runtime state for a particular orchestration instance.
+        /// </summary>
+        public Task<OrchestrationRuntimeState> FetchOrchestrationRuntimeStateAsync(TaskOrchestrationWorkItem workItem)
+        {
+            // TODO, cgillum: Implement this in such a way that we can get the information we need from the work item.
+            throw new NotImplementedException("TODO");
         }
 
         Task<OrchestrationRuntimeState> GetOrchestrationRuntimeStateAsync(
