@@ -117,6 +117,6 @@ namespace DurableTask.AzureStorage
         /// <summary>
         /// Settings to configure orchestration instance caching.
         /// </summary>
-        public OrchestrationInstanceCacheSettings OrchestrationCacheSettings { get; set; } = new OrchestrationInstanceCacheSettings { MaxCachedInstances = 10 };
+        public OrchestrationInstanceCacheSettings OrchestrationCacheSettings { get; set; }
     }
 }

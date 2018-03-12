@@ -596,34 +596,16 @@ namespace DurableTask.AzureStorage
                     this.settings.TaskHubName,
                     nextBatch.Messages);
 
-            OrchestrationInstance instance = messageContext.Instance;
-            OrchestrationRuntimeState runtimeState = await this.GetOrchestrationRuntimeStateAsync(
-                instance.InstanceId,
-                instance.ExecutionId,
-                messageContext.StorageOperationContext,
-                cancellationToken);
-
+            // Skip fetching the runtime state. This will be done in FetchOrchestrationRuntimeStateAsync.
             var orchestrationWorkItem = new TaskOrchestrationWorkItem
             {
-                InstanceId = instance.InstanceId,
+                InstanceId = messageContext.Instance.InstanceId,
                 NewMessages = nextBatch.Messages.Select(msg => msg.TaskMessage).ToList(),
-                OrchestrationRuntimeState = runtimeState,
                 LockedUntilUtc = messageContext.GetNextMessageExpirationTimeUtc()
             };
 
             // Associate this message context with the work item. We'll restore it back later.
             messageContext.TrySave(orchestrationWorkItem);
-
-            if (runtimeState.ExecutionStartedEvent != null &&
-                runtimeState.OrchestrationStatus != OrchestrationStatus.Running &&
-                runtimeState.OrchestrationStatus != OrchestrationStatus.Pending)
-            {
-                // The instance has already completed. Delete this message batch.
-                CloudQueue controlQueue = await this.GetControlQueueAsync(instance.InstanceId);
-                await this.DeleteMessageBatchAsync(messageContext, controlQueue);
-                await this.ReleaseTaskOrchestrationWorkItemAsync(orchestrationWorkItem);
-                return null;
-            }
 
             return orchestrationWorkItem;
         }
@@ -711,18 +693,35 @@ namespace DurableTask.AzureStorage
         /// <summary>
         /// Fetches the runtime state for a particular orchestration instance.
         /// </summary>
-        public Task<OrchestrationRuntimeState> FetchOrchestrationRuntimeStateAsync(TaskOrchestrationWorkItem workItem)
+        public async Task<OrchestrationRuntimeState> FetchOrchestrationRuntimeStateAsync(TaskOrchestrationWorkItem workItem)
         {
-            // TODO, cgillum: Implement this in such a way that we can get the information we need from the work item.
-            throw new NotImplementedException("TODO");
-        }
+            ReceivedMessageContext context;
+            if (!ReceivedMessageContext.TryRestoreContext(workItem, out context))
+            {
+                // The context doesn't exist - possibly because this is a duplicate message.
+                AnalyticsEventSource.Log.AssertFailure(
+                    this.storageAccountName,
+                    this.settings.TaskHubName,
+                    $"Could not find context for orchestration work item with InstanceId = {workItem.InstanceId}.");
+                return null;
+            }
 
-        Task<OrchestrationRuntimeState> GetOrchestrationRuntimeStateAsync(
-            string instanceId,
-            OperationContext storageOperationContext,
-            CancellationToken cancellationToken = default(CancellationToken))
-        {
-            return this.GetOrchestrationRuntimeStateAsync(instanceId, null, storageOperationContext, cancellationToken);
+            OrchestrationRuntimeState runtimeState = await this.GetOrchestrationRuntimeStateAsync(
+                context.Instance.InstanceId,
+                context.Instance.ExecutionId,
+                context.StorageOperationContext,
+                CancellationToken.None);
+
+            if (runtimeState == null ||
+                (runtimeState.ExecutionStartedEvent != null &&
+                runtimeState.OrchestrationStatus != OrchestrationStatus.Running &&
+                runtimeState.OrchestrationStatus != OrchestrationStatus.Pending))
+            {
+                // The instance has already completed.
+                return null;
+            }
+
+            return runtimeState;
         }
 
         async Task<OrchestrationRuntimeState> GetOrchestrationRuntimeStateAsync(
@@ -864,82 +863,20 @@ namespace DurableTask.AzureStorage
             }
 
             OrchestrationRuntimeState runtimeState = workItem.OrchestrationRuntimeState;
-            IList<HistoryEvent> newEvents = runtimeState.NewEvents;
-            IList<HistoryEvent> allEvents = runtimeState.Events;
-
-            string instanceId = workItem.InstanceId;
-            string executionId = runtimeState.OrchestrationInstance.ExecutionId;
-
-            var newEventList = new StringBuilder(newEvents.Count * 40);
-            var batchOperation = new TableBatchOperation();
-            var tableBatchBatches = new List<TableBatchOperation>();
-            tableBatchBatches.Add(batchOperation);
-
-            for (int i = 0; i < newEvents.Count; i++)
+            if (runtimeState != null)
             {
-                HistoryEvent historyEvent = newEvents[i];
-                DynamicTableEntity entity = this.tableEntityConverter.ConvertToTableEntity(historyEvent);
-
-                newEventList.Append(historyEvent.EventType.ToString()).Append(',');
-
-                // The row key is the sequence number, which represents the chronological ordinal of the event.
-                long sequenceNumber = i + (allEvents.Count - newEvents.Count);
-                entity.RowKey = sequenceNumber.ToString("X16");
-                entity.PartitionKey = instanceId;
-                entity.Properties["ExecutionId"] = new EntityProperty(executionId);
-
-                // Table storage only supports inserts of up to 100 entities at a time.
-                if (batchOperation.Count == 100)
-                {
-                    tableBatchBatches.Add(batchOperation);
-                    batchOperation = new TableBatchOperation();
-                }
-
-                // Replacement can happen if the orchestration episode gets replayed due to a commit failure in one of the steps below.
-                batchOperation.InsertOrReplace(entity);
-            }
-
-            // TODO: Check to see if the orchestration has completed (newOrchestrationRuntimeState == null)
-            //       and schedule a time to clean up that state from the history table.
-
-            // First persistence step is to commit history to the history table. Messages must come after.
-            // CONSIDER: If there are a large number of history items and messages, we could potentially
-            //           improve overall system throughput by incrementally enqueuing batches of messages
-            //           as we write to the table rather than waiting for all table batches to complete
-            //           before we enqueue messages.
-            foreach (TableBatchOperation operation in tableBatchBatches)
-            {
-                if (operation.Count > 0)
-                {
-                    Stopwatch stopwatch = Stopwatch.StartNew();
-                    await this.historyTable.ExecuteBatchAsync(
-                        operation,
-                        this.settings.HistoryTableRequestOptions,
-                        context.StorageOperationContext);
-                    this.stats.StorageRequests.Increment();
-                    this.stats.TableEntitiesWritten.Increment(operation.Count);
-
-                    AnalyticsEventSource.Log.AppendedInstanceState(
-                        this.storageAccountName,
-                        this.settings.TaskHubName,
-                        instanceId,
-                        executionId,
-                        newEvents.Count,
-                        allEvents.Count,
-                        newEventList.ToString(0, newEventList.Length - 1),
-                        stopwatch.ElapsedMilliseconds);
-                }
+                await AppendHistoryTable(runtimeState, context);
             }
 
             bool addedControlMessages = false;
             bool addedWorkItemMessages = false;
 
-            CloudQueue currentControlQueue = await this.GetControlQueueAsync(instanceId);
+            CloudQueue currentControlQueue = await this.GetControlQueueAsync(workItem.InstanceId);
             int totalMessageCount = 0;
 
             // Second persistence step is to commit outgoing messages to their respective queues. If there is
             // any failures here, then the messages may get written again later.
-            var enqueueTasks = new List<Task>(newEvents.Count);
+            var enqueueTasks = new List<Task>(runtimeState?.NewEvents.Count ?? 16);
             if (orchestratorMessages?.Count > 0)
             {
                 totalMessageCount += orchestratorMessages.Count;
@@ -1028,6 +965,76 @@ namespace DurableTask.AzureStorage
             }
 
             await this.DeleteMessageBatchAsync(context, currentControlQueue);
+        }
+
+        async Task AppendHistoryTable(OrchestrationRuntimeState runtimeState, ReceivedMessageContext context)
+        {
+            IList<HistoryEvent> newEvents = runtimeState.NewEvents;
+            IList<HistoryEvent> allEvents = runtimeState.Events;
+
+            string instanceId = runtimeState.OrchestrationInstance.InstanceId;
+            string executionId = runtimeState.OrchestrationInstance.ExecutionId;
+
+            var newEventList = new StringBuilder(newEvents.Count * 40);
+            var batchOperation = new TableBatchOperation();
+            var tableBatchBatches = new List<TableBatchOperation>();
+            tableBatchBatches.Add(batchOperation);
+
+            for (int i = 0; i < newEvents.Count; i++)
+            {
+                HistoryEvent historyEvent = newEvents[i];
+                DynamicTableEntity entity = this.tableEntityConverter.ConvertToTableEntity(historyEvent);
+
+                newEventList.Append(historyEvent.EventType.ToString()).Append(',');
+
+                // The row key is the sequence number, which represents the chronological ordinal of the event.
+                long sequenceNumber = i + (allEvents.Count - newEvents.Count);
+                entity.RowKey = sequenceNumber.ToString("X16");
+                entity.PartitionKey = instanceId;
+                entity.Properties["ExecutionId"] = new EntityProperty(executionId);
+
+                // Table storage only supports inserts of up to 100 entities at a time.
+                if (batchOperation.Count == 100)
+                {
+                    tableBatchBatches.Add(batchOperation);
+                    batchOperation = new TableBatchOperation();
+                }
+
+                // Replacement can happen if the orchestration episode gets replayed due to a commit failure in one of the steps below.
+                batchOperation.InsertOrReplace(entity);
+            }
+
+            // TODO: Check to see if the orchestration has completed (newOrchestrationRuntimeState == null)
+            //       and schedule a time to clean up that state from the history table.
+
+            // First persistence step is to commit history to the history table. Messages must come after.
+            // CONSIDER: If there are a large number of history items and messages, we could potentially
+            //           improve overall system throughput by incrementally enqueuing batches of messages
+            //           as we write to the table rather than waiting for all table batches to complete
+            //           before we enqueue messages.
+            foreach (TableBatchOperation operation in tableBatchBatches)
+            {
+                if (operation.Count > 0)
+                {
+                    Stopwatch stopwatch = Stopwatch.StartNew();
+                    await this.historyTable.ExecuteBatchAsync(
+                        operation,
+                        this.settings.HistoryTableRequestOptions,
+                        context.StorageOperationContext);
+                    this.stats.StorageRequests.Increment();
+                    this.stats.TableEntitiesWritten.Increment(operation.Count);
+
+                    AnalyticsEventSource.Log.AppendedInstanceState(
+                        this.storageAccountName,
+                        this.settings.TaskHubName,
+                        instanceId,
+                        executionId,
+                        newEvents.Count,
+                        allEvents.Count,
+                        newEventList.ToString(0, newEventList.Length - 1),
+                        stopwatch.ElapsedMilliseconds);
+                }
+            }
         }
 
         async Task DeleteMessageBatchAsync(ReceivedMessageContext context, CloudQueue controlQueue)

@@ -126,13 +126,35 @@ namespace DurableTask.Core
             {
                 runtimeState = cachedInstance.RuntimeState;
                 runtimeState.NewEvents.Clear();
+                workItem.OrchestrationRuntimeState = runtimeState;
             }
             else
             {
                 runtimeState = workItem.OrchestrationRuntimeState;
             }
 
-            // TODO, cgillum: Check to see if the runtime state is null and load it on-demand if it is.
+            if (runtimeState == null)
+            {
+                var cacheProvider = orchestrationService as IOrchestrationCaching;
+                if (cacheProvider != null)
+                {
+                    runtimeState = await cacheProvider.FetchOrchestrationRuntimeStateAsync(workItem);
+                    workItem.OrchestrationRuntimeState = runtimeState;
+                }
+            }
+
+            if (runtimeState == null)
+            {
+                TraceHelper.TraceSession(
+                    TraceEventType.Error,
+                    "TaskOrchestrationDispatcher-DeletedOrchestration",
+                    runtimeState.OrchestrationInstance?.InstanceId,
+                    "Received result for a deleted orchestration");
+
+                await this.orchestrationService.CompleteTaskOrchestrationWorkItemAsync(
+                    workItem, null, null, null, null, null, null);
+                return;
+            }
 
             runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
 
@@ -391,7 +413,7 @@ namespace DurableTask.Core
             foreach (TaskMessage message in newWorkItemMessages)
             {
                 OrchestrationInstance orchestrationInstance = message.OrchestrationInstance;
-                if (string.IsNullOrWhiteSpace(orchestrationInstance?.InstanceId))
+                if (runtimeState == null || string.IsNullOrWhiteSpace(orchestrationInstance?.InstanceId))
                 {
                     throw TraceHelper.TraceException(
                         TraceEventType.Error, 
