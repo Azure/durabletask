@@ -148,7 +148,7 @@ namespace DurableTask.Core
                 TraceHelper.TraceSession(
                     TraceEventType.Error,
                     "TaskOrchestrationDispatcher-DeletedOrchestration",
-                    runtimeState.OrchestrationInstance?.InstanceId,
+                    workItem.InstanceId,
                     "Received result for a deleted orchestration");
 
                 await this.orchestrationService.CompleteTaskOrchestrationWorkItemAsync(
