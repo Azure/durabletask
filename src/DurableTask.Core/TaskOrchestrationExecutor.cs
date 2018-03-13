@@ -38,7 +38,20 @@ namespace DurableTask.Core
             this.taskOrchestration = taskOrchestration;
         }
 
+        public bool IsCompleted => this.result != null && (this.result.IsCompleted || this.result.IsFaulted);
+
         public IEnumerable<OrchestratorAction> Execute()
+        {
+            return this.ExecuteCore(orchestrationRuntimeState.Events);
+        }
+
+        public IEnumerable<OrchestratorAction> ExecuteNewEvents()
+        {
+            context.ClearPendingActions();
+            return this.ExecuteCore(orchestrationRuntimeState.NewEvents);
+        }
+
+        IEnumerable<OrchestratorAction> ExecuteCore(IEnumerable<HistoryEvent> eventHistory)
         {
             SynchronizationContext prevCtx = SynchronizationContext.Current;
 
@@ -49,7 +62,7 @@ namespace DurableTask.Core
 
                 try
                 {
-                    foreach (HistoryEvent historyEvent in orchestrationRuntimeState.Events)
+                    foreach (HistoryEvent historyEvent in eventHistory)
                     {
                         if (historyEvent.EventType == EventType.OrchestratorStarted)
                         {
