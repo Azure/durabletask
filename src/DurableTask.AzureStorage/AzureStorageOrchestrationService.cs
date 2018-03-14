@@ -52,6 +52,7 @@ namespace DurableTask.AzureStorage
         readonly ConcurrentDictionary<string, CloudQueue> allControlQueues;
         readonly CloudQueue workItemQueue;
         readonly CloudTable historyTable;
+        readonly CloudTable instancesTable;
         readonly LinkedList<PendingMessageBatch> pendingOrchestrationMessageBatches;
         readonly ConcurrentDictionary<string, object> activeOrchestrationInstances;
 
@@ -107,7 +108,12 @@ namespace DurableTask.AzureStorage
             string historyTableName = $"{settings.TaskHubName}History";
             NameValidator.ValidateTableName(historyTableName);
 
+            string instancesTableName = $"{settings.TaskHubName}Instances";
+            NameValidator.ValidateTableName(instancesTableName);
+
             this.historyTable = tableClient.GetTableReference(historyTableName);
+
+            this.instancesTable = tableClient.GetTableReference(instancesTableName);
 
             this.pendingOrchestrationMessageBatches = new LinkedList<PendingMessageBatch>();
             this.activeOrchestrationInstances = new ConcurrentDictionary<string, object>(StringComparer.OrdinalIgnoreCase);
@@ -161,6 +167,8 @@ namespace DurableTask.AzureStorage
         internal CloudQueue WorkItemQueue => this.workItemQueue;
 
         internal CloudTable HistoryTable => this.historyTable;
+
+        internal CloudTable InstancesTable => this.instancesTable;
 
         internal static CloudQueue GetControlQueue(CloudStorageAccount account, string taskHub, int partitionIndex)
         {
@@ -293,6 +301,7 @@ namespace DurableTask.AzureStorage
             var tasks = new List<Task>();
             tasks.Add(this.workItemQueue.CreateIfNotExistsAsync());
             tasks.Add(this.historyTable.CreateIfNotExistsAsync());
+            tasks.Add(this.instancesTable.CreateIfNotExistsAsync());
 
             foreach (CloudQueue controlQueue in this.allControlQueues.Values)
             {
@@ -321,6 +330,7 @@ namespace DurableTask.AzureStorage
 
             tasks.Add(this.workItemQueue.DeleteIfExistsAsync());
             tasks.Add(this.historyTable.DeleteIfExistsAsync());
+            tasks.Add(this.instancesTable.DeleteIfExistsAsync());
 
             // This code will throw if the container doesn't exist.
             tasks.Add(this.leaseManager.DeleteAllAsync().ContinueWith(t =>
@@ -372,6 +382,7 @@ namespace DurableTask.AzureStorage
             // https://blogs.msdn.microsoft.com/windowsazurestorage/2010/06/25/nagles-algorithm-is-not-friendly-towards-small-requests/
             // Ad-hoc testing has shown very nice improvements (20%-50% drop in queue message age for simple scenarios).
             ServicePointManager.FindServicePoint(this.historyTable.Uri).UseNagleAlgorithm = false;
+            ServicePointManager.FindServicePoint(this.instancesTable.Uri).UseNagleAlgorithm = false;
             ServicePointManager.FindServicePoint(this.workItemQueue.Uri).UseNagleAlgorithm = false;
 
             this.shutdownSource = new CancellationTokenSource();
