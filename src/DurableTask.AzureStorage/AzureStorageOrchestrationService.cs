@@ -1466,6 +1466,40 @@ namespace DurableTask.AzureStorage
             CloudQueue controlQueue = await this.GetControlQueueAsync(message.OrchestrationInstance.InstanceId);
 
             await this.SendTaskOrchestrationMessageInternalAsync(controlQueue, message);
+
+            ExecutionStartedEvent executionStartedEvent = message.Event as ExecutionStartedEvent;
+            if (executionStartedEvent == null)
+            {
+                return;
+            }
+
+            DynamicTableEntity entity = new DynamicTableEntity(message.OrchestrationInstance.InstanceId, "")
+            {
+                Properties =
+                {
+                    ["Input"] = new EntityProperty(executionStartedEvent.Input),
+                    ["Output"] = new EntityProperty(string.Empty),
+                    ["CreatedTime"] = new EntityProperty(executionStartedEvent.Timestamp),
+                    ["LastUpdatedTime"] = new EntityProperty(string.Empty),
+                    ["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Pending.ToString())
+                }
+            };
+
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            await this.instancesTable.ExecuteAsync(
+                TableOperation.Insert(entity));
+            this.stats.StorageRequests.Increment();
+            this.stats.TableEntitiesWritten.Increment(1);
+
+            AnalyticsEventSource.Log.AppendedInstanceState(
+                this.storageAccountName,
+                this.settings.TaskHubName,
+                message.OrchestrationInstance.InstanceId,
+                message.OrchestrationInstance.ExecutionId,
+                1,
+                1,
+                message.Event.EventType.ToString(),
+                stopwatch.ElapsedMilliseconds);
         }
 
         async Task SendTaskOrchestrationMessageInternalAsync(CloudQueue controlQueue, TaskMessage message)
