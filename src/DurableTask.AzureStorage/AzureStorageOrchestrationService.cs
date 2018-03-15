@@ -869,6 +869,11 @@ namespace DurableTask.AzureStorage
             var tableBatchBatches = new List<TableBatchOperation>();
             tableBatchBatches.Add(batchOperation);
 
+            bool orchestratorEventExisits = false;
+            EventType orchestratorEventType = EventType.ExecutionStarted;
+            DateTime orchestratorLastUpdatedTime = DateTime.MinValue;
+            OrchestrationStatus orchestratorStatus = OrchestrationStatus.Pending;
+
             for (int i = 0; i < newEvents.Count; i++)
             {
                 HistoryEvent historyEvent = newEvents[i];
@@ -891,6 +896,35 @@ namespace DurableTask.AzureStorage
 
                 // Replacement can happen if the orchestration episode gets replayed due to a commit failure in one of the steps below.
                 batchOperation.InsertOrReplace(entity);
+
+                // Monitor for orchestration instance events 
+                switch (historyEvent.EventType)
+                {
+                    case EventType.ExecutionStarted:
+                        orchestratorEventType = historyEvent.EventType;
+                        orchestratorLastUpdatedTime = historyEvent.Timestamp;
+                        orchestratorStatus = OrchestrationStatus.Running;
+                        orchestratorEventExisits = true;
+                        break;
+                    case EventType.ExecutionCompleted:
+                        orchestratorEventType = historyEvent.EventType;
+                        orchestratorLastUpdatedTime = historyEvent.Timestamp;
+                        orchestratorStatus = OrchestrationStatus.Completed;
+                        orchestratorEventExisits = true;
+                        break;
+                    case EventType.ExecutionFailed:
+                        orchestratorEventType = historyEvent.EventType;
+                        orchestratorLastUpdatedTime = historyEvent.Timestamp;
+                        orchestratorStatus = OrchestrationStatus.Failed;
+                        orchestratorEventExisits = true;
+                        break;
+                    case EventType.ExecutionTerminated:
+                        orchestratorEventType = historyEvent.EventType;
+                        orchestratorLastUpdatedTime = historyEvent.Timestamp;
+                        orchestratorStatus = OrchestrationStatus.Terminated;
+                        orchestratorEventExisits = true;
+                        break;
+                }
             }
 
             // TODO: Check to see if the orchestration has completed (newOrchestrationRuntimeState == null)
@@ -923,6 +957,48 @@ namespace DurableTask.AzureStorage
                         newEventList.ToString(0, newEventList.Length - 1),
                         stopwatch.ElapsedMilliseconds);
                 }
+            }
+
+            int requestsForUpdatingInstancesTable = 0;
+
+            // If orchestration instance event was detected, update Instances table
+            if (orchestratorEventExisits)
+            {
+                DynamicTableEntity orchestrationInstanceUpdate = new DynamicTableEntity(instanceId, "")
+                {
+                    Properties =
+                    {
+                        ["CreatedTime"] = new EntityProperty(runtimeState.CreatedTime),
+                    }
+                };
+
+                if (!string.IsNullOrEmpty(runtimeState.Input) && runtimeState.Input != "\"\"")
+                {
+                    orchestrationInstanceUpdate.Properties.Add("Input", new EntityProperty(runtimeState.Input));
+                }
+
+                if (!string.IsNullOrEmpty(runtimeState.Output) && runtimeState.Output != "\"\"")
+                {
+                    orchestrationInstanceUpdate.Properties.Add("Output", new EntityProperty(runtimeState.Output));
+                }
+
+                orchestrationInstanceUpdate.Properties.Add("LastUpdatedTime", new EntityProperty(orchestratorLastUpdatedTime));
+                orchestrationInstanceUpdate.Properties.Add("RuntimeStatus", new EntityProperty(orchestratorStatus.ToString()));
+
+                Stopwatch orchestrationInstanceUpdateStopwatch = Stopwatch.StartNew();
+                await this.instancesTable.ExecuteAsync(TableOperation.InsertOrReplace(orchestrationInstanceUpdate));
+
+                AnalyticsEventSource.Log.AppendedInstanceState(
+                        this.storageAccountName,
+                        this.settings.TaskHubName,
+                        instanceId,
+                        executionId,
+                        1,
+                        1,
+                        orchestratorEventType.ToString(),
+                        orchestrationInstanceUpdateStopwatch.ElapsedMilliseconds);
+
+                requestsForUpdatingInstancesTable = 1;
             }
 
             bool addedControlMessages = false;
@@ -1006,7 +1082,7 @@ namespace DurableTask.AzureStorage
             }
 
             await Task.WhenAll(enqueueTasks);
-            this.stats.StorageRequests.Increment(totalMessageCount);
+            this.stats.StorageRequests.Increment(totalMessageCount + requestsForUpdatingInstancesTable);
             this.stats.MessagesSent.Increment(totalMessageCount);
 
             // Signal queue listeners to start polling immediately to reduce
