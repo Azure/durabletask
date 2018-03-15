@@ -1478,9 +1478,7 @@ namespace DurableTask.AzureStorage
                 Properties =
                 {
                     ["Input"] = new EntityProperty(executionStartedEvent.Input),
-                    ["Output"] = new EntityProperty(string.Empty),
                     ["CreatedTime"] = new EntityProperty(executionStartedEvent.Timestamp),
-                    ["LastUpdatedTime"] = new EntityProperty(string.Empty),
                     ["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Pending.ToString())
                 }
             };
