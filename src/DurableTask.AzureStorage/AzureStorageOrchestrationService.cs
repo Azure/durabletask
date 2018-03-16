@@ -869,10 +869,16 @@ namespace DurableTask.AzureStorage
             var tableBatchBatches = new List<TableBatchOperation>();
             tableBatchBatches.Add(batchOperation);
 
-            bool orchestratorEventExisits = false;
-            EventType orchestratorEventType = EventType.ExecutionStarted;
-            DateTime orchestratorLastUpdatedTime = DateTime.MinValue;
-            OrchestrationStatus orchestratorStatus = OrchestrationStatus.Pending;
+            EventType? orchestratorEventType = null;
+
+            DynamicTableEntity orchestrationInstanceUpdate = new DynamicTableEntity(instanceId, "")
+            {
+                Properties =
+                {
+                    ["CustomStatus"] = new EntityProperty(runtimeState.Status),
+                    ["LastUpdatedTime"] = new EntityProperty(DateTime.UtcNow),
+                }
+            };
 
             for (int i = 0; i < newEvents.Count; i++)
             {
@@ -897,32 +903,43 @@ namespace DurableTask.AzureStorage
                 // Replacement can happen if the orchestration episode gets replayed due to a commit failure in one of the steps below.
                 batchOperation.InsertOrReplace(entity);
 
+
+
                 // Monitor for orchestration instance events 
                 switch (historyEvent.EventType)
                 {
                     case EventType.ExecutionStarted:
                         orchestratorEventType = historyEvent.EventType;
-                        orchestratorLastUpdatedTime = historyEvent.Timestamp;
-                        orchestratorStatus = OrchestrationStatus.Running;
-                        orchestratorEventExisits = true;
+                        orchestrationInstanceUpdate.Properties["LastUpdatedTime"] = new EntityProperty(historyEvent.Timestamp);
+                        orchestrationInstanceUpdate.Properties.Add("RuntimeStatus", new EntityProperty(EventType.ExecutionStarted.ToString()));
                         break;
                     case EventType.ExecutionCompleted:
                         orchestratorEventType = historyEvent.EventType;
-                        orchestratorLastUpdatedTime = historyEvent.Timestamp;
-                        orchestratorStatus = OrchestrationStatus.Completed;
-                        orchestratorEventExisits = true;
+                        orchestrationInstanceUpdate.Properties["LastUpdatedTime"] = new EntityProperty(historyEvent.Timestamp);
+                        this.InsertOrUpdateDynamicTableEntityProperty(orchestrationInstanceUpdate, "Output", new EntityProperty(runtimeState.Output));
+                        this.InsertOrUpdateDynamicTableEntityProperty(orchestrationInstanceUpdate, "RuntimeStatus", new EntityProperty(EventType.ExecutionCompleted.ToString()));
                         break;
                     case EventType.ExecutionFailed:
                         orchestratorEventType = historyEvent.EventType;
-                        orchestratorLastUpdatedTime = historyEvent.Timestamp;
-                        orchestratorStatus = OrchestrationStatus.Failed;
-                        orchestratorEventExisits = true;
+                        orchestrationInstanceUpdate.Properties["LastUpdatedTime"] = new EntityProperty(historyEvent.Timestamp);
+                        this.InsertOrUpdateDynamicTableEntityProperty(orchestrationInstanceUpdate, "Output", new EntityProperty(runtimeState.Output));
+                        this.InsertOrUpdateDynamicTableEntityProperty(orchestrationInstanceUpdate, "RuntimeStatus", new EntityProperty(EventType.ExecutionFailed.ToString()));
                         break;
                     case EventType.ExecutionTerminated:
                         orchestratorEventType = historyEvent.EventType;
-                        orchestratorLastUpdatedTime = historyEvent.Timestamp;
-                        orchestratorStatus = OrchestrationStatus.Terminated;
-                        orchestratorEventExisits = true;
+                        orchestrationInstanceUpdate.Properties["LastUpdatedTime"] = new EntityProperty(historyEvent.Timestamp);
+                        this.InsertOrUpdateDynamicTableEntityProperty(orchestrationInstanceUpdate, "Output", new EntityProperty(runtimeState.Output));
+                        this.InsertOrUpdateDynamicTableEntityProperty(orchestrationInstanceUpdate, "RuntimeStatus", new EntityProperty(EventType.ExecutionTerminated.ToString()));
+                        break;
+                    case EventType.ContinueAsNew:
+                        orchestratorEventType = historyEvent.EventType;
+                        if (!string.IsNullOrEmpty(runtimeState.Input))
+                        {
+                            orchestrationInstanceUpdate.Properties.Add("Input", new EntityProperty(runtimeState.Input));
+                        }
+                        orchestrationInstanceUpdate.Properties["LastUpdatedTime"] = new EntityProperty(historyEvent.Timestamp);
+                        orchestrationInstanceUpdate.Properties.Add("CreatedTime", new EntityProperty(runtimeState.CreatedTime));
+                        this.InsertOrUpdateDynamicTableEntityProperty(orchestrationInstanceUpdate, "RuntimeStatus", new EntityProperty(EventType.ContinueAsNew.ToString()));
                         break;
                 }
             }
@@ -959,47 +976,21 @@ namespace DurableTask.AzureStorage
                 }
             }
 
-            int requestsForUpdatingInstancesTable = 0;
+            Stopwatch orchestrationInstanceUpdateStopwatch = Stopwatch.StartNew();
+            await this.instancesTable.ExecuteAsync(TableOperation.InsertOrReplace(orchestrationInstanceUpdate));
 
-            // If orchestration instance event was detected, update Instances table
-            if (orchestratorEventExisits)
-            {
-                DynamicTableEntity orchestrationInstanceUpdate = new DynamicTableEntity(instanceId, "")
-                {
-                    Properties =
-                    {
-                        ["CreatedTime"] = new EntityProperty(runtimeState.CreatedTime),
-                    }
-                };
+            this.stats.StorageRequests.Increment();
+            this.stats.TableEntitiesWritten.Increment();
 
-                if (!string.IsNullOrEmpty(runtimeState.Input) && runtimeState.Input != "\"\"")
-                {
-                    orchestrationInstanceUpdate.Properties.Add("Input", new EntityProperty(runtimeState.Input));
-                }
-
-                if (!string.IsNullOrEmpty(runtimeState.Output) && runtimeState.Output != "\"\"")
-                {
-                    orchestrationInstanceUpdate.Properties.Add("Output", new EntityProperty(runtimeState.Output));
-                }
-
-                orchestrationInstanceUpdate.Properties.Add("LastUpdatedTime", new EntityProperty(orchestratorLastUpdatedTime));
-                orchestrationInstanceUpdate.Properties.Add("RuntimeStatus", new EntityProperty(orchestratorStatus.ToString()));
-
-                Stopwatch orchestrationInstanceUpdateStopwatch = Stopwatch.StartNew();
-                await this.instancesTable.ExecuteAsync(TableOperation.InsertOrReplace(orchestrationInstanceUpdate));
-
-                AnalyticsEventSource.Log.AppendedInstanceState(
-                        this.storageAccountName,
-                        this.settings.TaskHubName,
-                        instanceId,
-                        executionId,
-                        1,
-                        1,
-                        orchestratorEventType.ToString(),
-                        orchestrationInstanceUpdateStopwatch.ElapsedMilliseconds);
-
-                requestsForUpdatingInstancesTable = 1;
-            }
+            AnalyticsEventSource.Log.InstancesUpdate(
+                   this.storageAccountName,
+                   this.settings.TaskHubName,
+                   instanceId,
+                   executionId,
+                   1,
+                   orchestratorEventType?.ToString(),
+                   orchestrationInstanceUpdateStopwatch.ElapsedMilliseconds);
+            
 
             bool addedControlMessages = false;
             bool addedWorkItemMessages = false;
@@ -1082,7 +1073,7 @@ namespace DurableTask.AzureStorage
             }
 
             await Task.WhenAll(enqueueTasks);
-            this.stats.StorageRequests.Increment(totalMessageCount + requestsForUpdatingInstancesTable);
+            this.stats.StorageRequests.Increment(totalMessageCount);
             this.stats.MessagesSent.Increment(totalMessageCount);
 
             // Signal queue listeners to start polling immediately to reduce
@@ -1098,6 +1089,18 @@ namespace DurableTask.AzureStorage
             }
 
             await this.DeleteMessageBatchAsync(context, currentControlQueue);
+        }
+
+        private void InsertOrUpdateDynamicTableEntityProperty(DynamicTableEntity dynamicTableEntity,  string propertyName, EntityProperty entityProperty)
+        {
+            if (dynamicTableEntity.Properties.ContainsKey(propertyName))
+            {
+                dynamicTableEntity.Properties[propertyName] = entityProperty;
+            }
+            else
+            {
+                dynamicTableEntity.Properties.Add(propertyName, entityProperty);
+            };
         }
 
         async Task DeleteMessageBatchAsync(ReceivedMessageContext context, CloudQueue controlQueue)
