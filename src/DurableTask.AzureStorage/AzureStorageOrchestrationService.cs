@@ -1620,33 +1620,40 @@ namespace DurableTask.AzureStorage
         {
             // Client operations will auto-create the task hub if it doesn't already exist.
             await this.EnsuredCreatedIfNotExistsAsync();
+            OrchestrationState orchestrationState = new OrchestrationState();
+           
+            var stopwatch = new Stopwatch();
+            TableResult orchestration = await this.InstancesTable.ExecuteAsync(TableOperation.Retrieve<OrchestrationInstanceStatus>(instanceId, ""));
+            stopwatch.Stop();
+            this.stats.StorageRequests.Increment();
+            this.stats.TableEntitiesRead.Increment(1);
 
-            OrchestrationRuntimeState runtimeState = await this.GetOrchestrationRuntimeStateAsync(
+            AnalyticsEventSource.Log.FetchedInstanceStatus(
+                this.storageAccountName,
+                this.settings.TaskHubName,
                 instanceId,
                 executionId,
-                storageOperationContext: null);
-            if (runtimeState.Events.Count == 0)
+                1,
+                1,
+                stopwatch.ElapsedMilliseconds);
+
+            OrchestrationInstanceStatus orchestrationInstanceStatus = (OrchestrationInstanceStatus)orchestration.Result;
+            if (orchestrationInstanceStatus != null)
             {
-                return null;
+                orchestrationState.OrchestrationInstance = new OrchestrationInstance
+                {
+                    InstanceId = instanceId,
+                    ExecutionId = executionId
+                };
+                orchestrationState.Status = orchestrationInstanceStatus.CustomStatus;
+                orchestrationState.OrchestrationStatus = orchestrationInstanceStatus.RuntimeStatus;
+                orchestrationState.CreatedTime = orchestrationInstanceStatus.CreatedTime;
+                orchestrationState.LastUpdatedTime = orchestrationInstanceStatus.LastUpdatedTime;
+                orchestrationState.Input = orchestrationInstanceStatus.Input;
+                orchestrationState.Output = orchestrationInstanceStatus.Output;
             }
 
-            return new OrchestrationState
-            {
-                OrchestrationInstance = runtimeState.OrchestrationInstance,
-                ParentInstance = runtimeState.ParentInstance,
-                Name = runtimeState.Name,
-                Version = runtimeState.Version,
-                Status = runtimeState.Status,
-                Tags = runtimeState.Tags,
-                OrchestrationStatus = runtimeState.OrchestrationStatus,
-                CreatedTime = runtimeState.CreatedTime,
-                CompletedTime = runtimeState.CompletedTime,
-                LastUpdatedTime = runtimeState.Events.Last().Timestamp,
-                Size = runtimeState.Size,
-                CompressedSize = runtimeState.CompressedSize,
-                Input = runtimeState.Input,
-                Output = runtimeState.Output
-            };
+            return orchestrationState;
         }
 
         /// <summary>
@@ -1784,6 +1791,17 @@ namespace DurableTask.AzureStorage
             {
                 this.lazy = new Lazy<T>(this.valueFactory, this.threadSafetyMode);
             }
+        }
+
+        class OrchestrationInstanceStatus : TableEntity
+        {
+            public string Input { get; set; }
+            public string Output { get; set; }
+            public string CustomStatus { get; set; }
+            public DateTime CreatedTime { get; set; }
+            public DateTime LastUpdatedTime { get; set; }
+            public OrchestrationStatus RuntimeStatus { get; set; }
+
         }
     }
 }
