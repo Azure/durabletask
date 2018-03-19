@@ -1786,15 +1786,15 @@ namespace DurableTask.AzureStorage
 
         class OrchestrationInstanceStatus : TableEntity
         {
-            public string ExecutionId { get;}
-            public string  Name { get; }
-            public string Version { get; }
-            public string Input { get;}
-            public string Output { get; }
-            public string CustomStatus { get; }
-            public DateTime CreatedTime { get; }
-            public DateTime LastUpdatedTime { get; }
-            public string RuntimeStatus { get; }
+            public string ExecutionId { get; set; }
+            public string  Name { get; set; }
+            public string Version { get; set; }
+            public string Input { get; set; }
+            public string Output { get; set; }
+            public string CustomStatus { get; set; }
+            public DateTime CreatedTime { get; set; }
+            public DateTime LastUpdatedTime { get; set; }
+            public string RuntimeStatus { get; set; }
         }
     }
 }
