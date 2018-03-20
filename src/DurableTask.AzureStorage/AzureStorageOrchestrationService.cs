@@ -913,30 +913,30 @@ namespace DurableTask.AzureStorage
                         orchestrationInstanceUpdate.Properties["Name"] = new EntityProperty(executionStartedEvent.Name);
                         orchestrationInstanceUpdate.Properties["Version"] = new EntityProperty(executionStartedEvent.Version);
                         orchestrationInstanceUpdate.Properties["Input"] = new EntityProperty(executionStartedEvent.Input);
-                        orchestrationInstanceUpdate.Properties["LastUpdatedTime"] = new EntityProperty(executionStartedEvent.Timestamp);
+                        orchestrationInstanceUpdate.Properties["CreatedTime"] = new EntityProperty(executionStartedEvent.Timestamp);
                         orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Running.ToString());
                         break;
                     case EventType.ExecutionCompleted:
                         orchestratorEventType = historyEvent.EventType;
                         ExecutionCompletedEvent executionCompleted = (ExecutionCompletedEvent)historyEvent;
-                        orchestrationInstanceUpdate.Properties["LastUpdatedTime"] = new EntityProperty(executionCompleted.Timestamp);
                         orchestrationInstanceUpdate.Properties["Output"] = new EntityProperty(executionCompleted.Result);
                         orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(executionCompleted.OrchestrationStatus.ToString());
                         break;
                     case EventType.ExecutionFailed:
                         orchestratorEventType = historyEvent.EventType;
-                        orchestrationInstanceUpdate.Properties["LastUpdatedTime"] = new EntityProperty(historyEvent.Timestamp);
                         orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Failed.ToString());
                         break;
                     case EventType.ExecutionTerminated:
                         orchestratorEventType = historyEvent.EventType;
-                        orchestrationInstanceUpdate.Properties["LastUpdatedTime"] = new EntityProperty(historyEvent.Timestamp);
+                        ExecutionTerminatedEvent executionTerminatedEvent = (ExecutionTerminatedEvent)historyEvent;
+                        orchestrationInstanceUpdate.Properties["Output"] = new EntityProperty(executionTerminatedEvent.Input);
                         orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Terminated.ToString());
                         break;
                     case EventType.ContinueAsNew:
                         orchestratorEventType = historyEvent.EventType;
-                        orchestrationInstanceUpdate.Properties["LastUpdatedTime"] = new EntityProperty(historyEvent.Timestamp);
-                        orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Running.ToString());
+                        ExecutionCompletedEvent executionCompletedEvent = (ExecutionCompletedEvent)historyEvent;
+                        orchestrationInstanceUpdate.Properties["Output"] = new EntityProperty(executionCompletedEvent.Result);
+                        orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.ContinuedAsNew.ToString());
                         break;
                 }
             }
