@@ -922,10 +922,6 @@ namespace DurableTask.AzureStorage
                         orchestrationInstanceUpdate.Properties["Output"] = new EntityProperty(executionCompleted.Result);
                         orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(executionCompleted.OrchestrationStatus.ToString());
                         break;
-                    case EventType.ExecutionFailed:
-                        orchestratorEventType = historyEvent.EventType;
-                        orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Failed.ToString());
-                        break;
                     case EventType.ExecutionTerminated:
                         orchestratorEventType = historyEvent.EventType;
                         ExecutionTerminatedEvent executionTerminatedEvent = (ExecutionTerminatedEvent)historyEvent;
