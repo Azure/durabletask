@@ -975,12 +975,12 @@ namespace DurableTask.AzureStorage
             this.stats.StorageRequests.Increment();
             this.stats.TableEntitiesWritten.Increment();
 
-            AnalyticsEventSource.Log.InstancesUpdate(
+            AnalyticsEventSource.Log.InstanceStatusUpdate(
                    this.storageAccountName,
                    this.settings.TaskHubName,
                    instanceId,
                    executionId,
-                   orchestratorEventType?.ToString(),
+                   orchestratorEventType?.ToString() ?? string.Empty,
                    orchestrationInstanceUpdateStopwatch.ElapsedMilliseconds);
             
 
@@ -1551,13 +1551,11 @@ namespace DurableTask.AzureStorage
             this.stats.StorageRequests.Increment();
             this.stats.TableEntitiesWritten.Increment(1);
 
-            AnalyticsEventSource.Log.AppendedInstanceState(
+            AnalyticsEventSource.Log.InstanceStatusUpdate(
                 this.storageAccountName,
                 this.settings.TaskHubName,
                 message.OrchestrationInstance.InstanceId,
                 message.OrchestrationInstance.ExecutionId,
-                1,
-                1,
                 message.Event.EventType.ToString(),
                 stopwatch.ElapsedMilliseconds);
         }

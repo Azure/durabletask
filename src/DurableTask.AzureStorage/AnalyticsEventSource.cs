@@ -304,7 +304,7 @@ namespace DurableTask.AzureStorage
         }
 
         [Event(135, Level = EventLevel.Informational, Message = "Host '{2}' successfully updated Instances table with '{5}' event")]
-        public void InstancesUpdate(string Account, string TaskHub, string InstanceId, string ExecutionId, string EventType ,long LatencyMs)
+        public void InstanceStatusUpdate(string Account, string TaskHub, string InstanceId, string ExecutionId, string EventType ,long LatencyMs)
         {
             EnsureLogicalTraceActivityId();
             this.WriteEvent(135, Account, TaskHub, InstanceId, ExecutionId, EventType, LatencyMs);
