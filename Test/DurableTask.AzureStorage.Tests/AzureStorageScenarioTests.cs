@@ -147,7 +147,9 @@ namespace DurableTask.AzureStorage.Tests
 
                 // Make sure it's still running and didn't complete early (or fail).
                 var status = await client.GetStatusAsync();
-                Assert.AreEqual(OrchestrationStatus.Running, status?.OrchestrationStatus);
+                Assert.IsTrue(
+                    status?.OrchestrationStatus == OrchestrationStatus.Running ||
+                    status?.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew);
 
                 // The end message will cause the actor to complete itself.
                 await client.RaiseEventAsync("operation", "end");

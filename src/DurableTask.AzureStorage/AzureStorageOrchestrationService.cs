@@ -52,6 +52,7 @@ namespace DurableTask.AzureStorage
         readonly ConcurrentDictionary<string, CloudQueue> allControlQueues;
         readonly CloudQueue workItemQueue;
         readonly CloudTable historyTable;
+        readonly CloudTable instancesTable;
         readonly LinkedList<PendingMessageBatch> pendingOrchestrationMessageBatches;
         readonly ConcurrentDictionary<string, object> activeOrchestrationInstances;
 
@@ -107,7 +108,12 @@ namespace DurableTask.AzureStorage
             string historyTableName = $"{settings.TaskHubName}History";
             NameValidator.ValidateTableName(historyTableName);
 
+            string instancesTableName = $"{settings.TaskHubName}Instances";
+            NameValidator.ValidateTableName(instancesTableName);
+
             this.historyTable = tableClient.GetTableReference(historyTableName);
+
+            this.instancesTable = tableClient.GetTableReference(instancesTableName);
 
             this.pendingOrchestrationMessageBatches = new LinkedList<PendingMessageBatch>();
             this.activeOrchestrationInstances = new ConcurrentDictionary<string, object>(StringComparer.OrdinalIgnoreCase);
@@ -161,6 +167,8 @@ namespace DurableTask.AzureStorage
         internal CloudQueue WorkItemQueue => this.workItemQueue;
 
         internal CloudTable HistoryTable => this.historyTable;
+
+        internal CloudTable InstancesTable => this.instancesTable;
 
         internal static CloudQueue GetControlQueue(CloudStorageAccount account, string taskHub, int partitionIndex)
         {
@@ -293,6 +301,7 @@ namespace DurableTask.AzureStorage
             var tasks = new List<Task>();
             tasks.Add(this.workItemQueue.CreateIfNotExistsAsync());
             tasks.Add(this.historyTable.CreateIfNotExistsAsync());
+            tasks.Add(this.instancesTable.CreateIfNotExistsAsync());
 
             foreach (CloudQueue controlQueue in this.allControlQueues.Values)
             {
@@ -321,6 +330,7 @@ namespace DurableTask.AzureStorage
 
             tasks.Add(this.workItemQueue.DeleteIfExistsAsync());
             tasks.Add(this.historyTable.DeleteIfExistsAsync());
+            tasks.Add(this.instancesTable.DeleteIfExistsAsync());
 
             // This code will throw if the container doesn't exist.
             tasks.Add(this.leaseManager.DeleteAllAsync().ContinueWith(t =>
@@ -372,6 +382,7 @@ namespace DurableTask.AzureStorage
             // https://blogs.msdn.microsoft.com/windowsazurestorage/2010/06/25/nagles-algorithm-is-not-friendly-towards-small-requests/
             // Ad-hoc testing has shown very nice improvements (20%-50% drop in queue message age for simple scenarios).
             ServicePointManager.FindServicePoint(this.historyTable.Uri).UseNagleAlgorithm = false;
+            ServicePointManager.FindServicePoint(this.instancesTable.Uri).UseNagleAlgorithm = false;
             ServicePointManager.FindServicePoint(this.workItemQueue.Uri).UseNagleAlgorithm = false;
 
             this.shutdownSource = new CancellationTokenSource();
@@ -858,6 +869,18 @@ namespace DurableTask.AzureStorage
             var tableBatchBatches = new List<TableBatchOperation>();
             tableBatchBatches.Add(batchOperation);
 
+            EventType? orchestratorEventType = null;
+
+            DynamicTableEntity orchestrationInstanceUpdate = new DynamicTableEntity(instanceId, "")
+            {
+                Properties =
+                {
+                    ["CustomStatus"] = new EntityProperty(runtimeState.Status),
+                    ["ExecutionId"] = new EntityProperty(executionId),
+                    ["LastUpdatedTime"] = new EntityProperty(newEvents.Last().Timestamp),
+                }
+            };
+
             for (int i = 0; i < newEvents.Count; i++)
             {
                 HistoryEvent historyEvent = newEvents[i];
@@ -880,6 +903,38 @@ namespace DurableTask.AzureStorage
 
                 // Replacement can happen if the orchestration episode gets replayed due to a commit failure in one of the steps below.
                 batchOperation.InsertOrReplace(entity);
+
+                // Monitor for orchestration instance events 
+                switch (historyEvent.EventType)
+                {
+                    case EventType.ExecutionStarted:
+                        orchestratorEventType = historyEvent.EventType;
+                        ExecutionStartedEvent executionStartedEvent = (ExecutionStartedEvent)historyEvent;
+                        orchestrationInstanceUpdate.Properties["Name"] = new EntityProperty(executionStartedEvent.Name);
+                        orchestrationInstanceUpdate.Properties["Version"] = new EntityProperty(executionStartedEvent.Version);
+                        orchestrationInstanceUpdate.Properties["Input"] = new EntityProperty(executionStartedEvent.Input);
+                        orchestrationInstanceUpdate.Properties["CreatedTime"] = new EntityProperty(executionStartedEvent.Timestamp);
+                        orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Running.ToString());
+                        break;
+                    case EventType.ExecutionCompleted:
+                        orchestratorEventType = historyEvent.EventType;
+                        ExecutionCompletedEvent executionCompleted = (ExecutionCompletedEvent)historyEvent;
+                        orchestrationInstanceUpdate.Properties["Output"] = new EntityProperty(executionCompleted.Result);
+                        orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(executionCompleted.OrchestrationStatus.ToString());
+                        break;
+                    case EventType.ExecutionTerminated:
+                        orchestratorEventType = historyEvent.EventType;
+                        ExecutionTerminatedEvent executionTerminatedEvent = (ExecutionTerminatedEvent)historyEvent;
+                        orchestrationInstanceUpdate.Properties["Output"] = new EntityProperty(executionTerminatedEvent.Input);
+                        orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Terminated.ToString());
+                        break;
+                    case EventType.ContinueAsNew:
+                        orchestratorEventType = historyEvent.EventType;
+                        ExecutionCompletedEvent executionCompletedEvent = (ExecutionCompletedEvent)historyEvent;
+                        orchestrationInstanceUpdate.Properties["Output"] = new EntityProperty(executionCompletedEvent.Result);
+                        orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.ContinuedAsNew.ToString());
+                        break;
+                }
             }
 
             // TODO: Check to see if the orchestration has completed (newOrchestrationRuntimeState == null)
@@ -913,6 +968,21 @@ namespace DurableTask.AzureStorage
                         stopwatch.ElapsedMilliseconds);
                 }
             }
+
+            Stopwatch orchestrationInstanceUpdateStopwatch = Stopwatch.StartNew();
+            await this.instancesTable.ExecuteAsync(TableOperation.InsertOrMerge(orchestrationInstanceUpdate));
+
+            this.stats.StorageRequests.Increment();
+            this.stats.TableEntitiesWritten.Increment();
+
+            AnalyticsEventSource.Log.InstanceStatusUpdate(
+                   this.storageAccountName,
+                   this.settings.TaskHubName,
+                   instanceId,
+                   executionId,
+                   orchestratorEventType?.ToString() ?? string.Empty,
+                   orchestrationInstanceUpdateStopwatch.ElapsedMilliseconds);
+            
 
             bool addedControlMessages = false;
             bool addedWorkItemMessages = false;
@@ -1455,6 +1525,39 @@ namespace DurableTask.AzureStorage
             CloudQueue controlQueue = await this.GetControlQueueAsync(message.OrchestrationInstance.InstanceId);
 
             await this.SendTaskOrchestrationMessageInternalAsync(controlQueue, message);
+
+            ExecutionStartedEvent executionStartedEvent = message.Event as ExecutionStartedEvent;
+            if (executionStartedEvent == null)
+            {
+                return;
+            }
+
+            DynamicTableEntity entity = new DynamicTableEntity(message.OrchestrationInstance.InstanceId, "")
+            {
+                Properties =
+                {
+                    ["Input"] = new EntityProperty(executionStartedEvent.Input),
+                    ["CreatedTime"] = new EntityProperty(executionStartedEvent.Timestamp),
+                    ["Name"] = new EntityProperty(executionStartedEvent.Name),
+                    ["Version"] = new EntityProperty(executionStartedEvent.Version),
+                    ["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Pending.ToString()),
+                    ["LastUpdatedTime"] = new EntityProperty(executionStartedEvent.Timestamp),
+                }
+            };
+
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            await this.instancesTable.ExecuteAsync(
+                TableOperation.Insert(entity));
+            this.stats.StorageRequests.Increment();
+            this.stats.TableEntitiesWritten.Increment(1);
+
+            AnalyticsEventSource.Log.InstanceStatusUpdate(
+                this.storageAccountName,
+                this.settings.TaskHubName,
+                message.OrchestrationInstance.InstanceId,
+                message.OrchestrationInstance.ExecutionId,
+                message.Event.EventType.ToString(),
+                stopwatch.ElapsedMilliseconds);
         }
 
         async Task SendTaskOrchestrationMessageInternalAsync(CloudQueue controlQueue, TaskMessage message)
@@ -1498,33 +1601,44 @@ namespace DurableTask.AzureStorage
         {
             // Client operations will auto-create the task hub if it doesn't already exist.
             await this.EnsuredCreatedIfNotExistsAsync();
+            OrchestrationState orchestrationState = new OrchestrationState();
+           
+            var stopwatch = new Stopwatch();
+            TableResult orchestration = await this.InstancesTable.ExecuteAsync(TableOperation.Retrieve<OrchestrationInstanceStatus>(instanceId, ""));
+            stopwatch.Stop();
+            this.stats.StorageRequests.Increment();
+            this.stats.TableEntitiesRead.Increment(1);
 
-            OrchestrationRuntimeState runtimeState = await this.GetOrchestrationRuntimeStateAsync(
+            AnalyticsEventSource.Log.FetchedInstanceStatus(
+                this.storageAccountName,
+                this.settings.TaskHubName,
                 instanceId,
                 executionId,
-                storageOperationContext: null);
-            if (runtimeState.Events.Count == 0)
+                stopwatch.ElapsedMilliseconds);
+
+            OrchestrationInstanceStatus orchestrationInstanceStatus = (OrchestrationInstanceStatus)orchestration.Result;
+            if (orchestrationInstanceStatus != null)
             {
-                return null;
+                if (!Enum.TryParse(orchestrationInstanceStatus.RuntimeStatus, out orchestrationState.OrchestrationStatus))
+                {
+                    throw new ArgumentException($"{orchestrationInstanceStatus.RuntimeStatus} is not a valid OrchestrationStatus value.");
+                }
+
+                orchestrationState.OrchestrationInstance = new OrchestrationInstance
+                {
+                    InstanceId = instanceId,
+                    ExecutionId = orchestrationInstanceStatus.ExecutionId,
+                };
+                orchestrationState.Name = orchestrationInstanceStatus.Name;
+                orchestrationState.Version = orchestrationInstanceStatus.Version;
+                orchestrationState.Status = orchestrationInstanceStatus.CustomStatus;
+                orchestrationState.CreatedTime = orchestrationInstanceStatus.CreatedTime;
+                orchestrationState.LastUpdatedTime = orchestrationInstanceStatus.LastUpdatedTime;
+                orchestrationState.Input = orchestrationInstanceStatus.Input;
+                orchestrationState.Output = orchestrationInstanceStatus.Output;
             }
 
-            return new OrchestrationState
-            {
-                OrchestrationInstance = runtimeState.OrchestrationInstance,
-                ParentInstance = runtimeState.ParentInstance,
-                Name = runtimeState.Name,
-                Version = runtimeState.Version,
-                Status = runtimeState.Status,
-                Tags = runtimeState.Tags,
-                OrchestrationStatus = runtimeState.OrchestrationStatus,
-                CreatedTime = runtimeState.CreatedTime,
-                CompletedTime = runtimeState.CompletedTime,
-                LastUpdatedTime = runtimeState.Events.Last().Timestamp,
-                Size = runtimeState.Size,
-                CompressedSize = runtimeState.CompressedSize,
-                Input = runtimeState.Input,
-                Output = runtimeState.Output
-            };
+            return orchestrationState;
         }
 
         /// <summary>
@@ -1662,6 +1776,19 @@ namespace DurableTask.AzureStorage
             {
                 this.lazy = new Lazy<T>(this.valueFactory, this.threadSafetyMode);
             }
+        }
+
+        class OrchestrationInstanceStatus : TableEntity
+        {
+            public string ExecutionId { get; set; }
+            public string  Name { get; set; }
+            public string Version { get; set; }
+            public string Input { get; set; }
+            public string Output { get; set; }
+            public string CustomStatus { get; set; }
+            public DateTime CreatedTime { get; set; }
+            public DateTime LastUpdatedTime { get; set; }
+            public string RuntimeStatus { get; set; }
         }
     }
 }

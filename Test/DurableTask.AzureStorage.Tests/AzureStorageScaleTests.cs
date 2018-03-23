@@ -101,6 +101,11 @@ namespace DurableTask.AzureStorage.Tests
             Assert.IsNotNull(historyTable, "History table was not initialized.");
             Assert.IsTrue(historyTable.Exists(), $"History table {historyTable.Name} was not created.");
 
+            // Instances table
+            CloudTable instancesTable = service.InstancesTable;
+            Assert.IsNotNull(instancesTable, "Instances table was not initialized.");
+            Assert.IsTrue(instancesTable.Exists(), $"Instances table {instancesTable.Name} was not created.");
+
             string expectedContainerName = taskHubName.ToLowerInvariant() + "-leases";
             CloudBlobContainer taskHubContainer = storageAccount.CreateCloudBlobClient().GetContainerReference(expectedContainerName);
             Assert.IsTrue(taskHubContainer.Exists(), $"Task hub blob container {expectedContainerName} was not created.");
@@ -133,6 +138,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 Assert.IsFalse(workItemQueue.Exists(), $"Queue {workItemQueue.Name} was not deleted.");
                 Assert.IsFalse(historyTable.Exists(), $"History table {historyTable.Name} was not deleted.");
+                Assert.IsFalse(instancesTable.Exists(), $"Instances table {instancesTable.Name} was not deleted.");
                 Assert.IsFalse(taskHubContainer.Exists(), $"Task hub blob container {taskHubContainer.Name} was not deleted.");
             }
 
