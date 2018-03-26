@@ -639,7 +639,7 @@ namespace DurableTask
                         this.ServiceStats.ActivityDispatcherStats.MessagesSent.Increment(outboundMessages.Count);
                     }
 
-                    if (timerMessages?.Count > 0)
+                    if (timerMessages?.Count > 0 && newOrchestrationRuntimeState != null)
                     {
                         await orchestratorQueueClient.SendBatchAsync(
                             await Task.WhenAll(timerMessages.Select(async m =>
@@ -649,7 +649,7 @@ namespace DurableTask
                                 m,
                                 Settings.MessageCompressionSettings,
                                 Settings.MessageSettings,
-                                newOrchestrationRuntimeState?.OrchestrationInstance,
+                                newOrchestrationRuntimeState.OrchestrationInstance,
                                 "Timer Message",
                                 this.BlobStore,
                                 messageFireTime);
