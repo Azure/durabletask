@@ -640,7 +640,7 @@ namespace DurableTask.ServiceBus
                         this.ServiceStats.ActivityDispatcherStats.MessagesSent.Increment(outboundMessages.Count);
                     }
 
-                    if (timerMessages?.Count > 0)
+                    if (timerMessages?.Count > 0 && newOrchestrationRuntimeState != null)
                     {
                         var timerBrokeredMessages = await Task.WhenAll(timerMessages.Select(async m =>
                         {
@@ -649,7 +649,7 @@ namespace DurableTask.ServiceBus
                                 m,
                                 Settings.MessageCompressionSettings,
                                 Settings.MessageSettings,
-                                newOrchestrationRuntimeState?.OrchestrationInstance,
+                                newOrchestrationRuntimeState.OrchestrationInstance,
                                 "Timer Message",
                                 this.BlobStore,
                                 messageFireTime);
