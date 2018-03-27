@@ -1,0 +1,44 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net451</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommandLineParser" version="1.9.71" />
+    <PackageReference Include="EnterpriseLibrary.SemanticLogging" Version="2.0.1406.1" />
+    <PackageReference Include="ImpromptuInterface" version="6.2.2" />
+    <PackageReference Include="Microsoft.Azure.KeyVault.Core" version="1.0.0" />
+    <PackageReference Include="Microsoft.Data.Edm" version="5.6.4" />
+    <PackageReference Include="Microsoft.Data.OData" version="5.6.4" />
+    <PackageReference Include="Microsoft.Data.Services.Client" version="5.6.4" />
+    <PackageReference Include="Microsoft.WindowsAzure.ConfigurationManager" version="3.2.1" />
+    <PackageReference Include="ncrontab" version="1.0.0" />
+    <PackageReference Include="Newtonsoft.Json" version="7.0.1" />
+    <PackageReference Include="System.Spatial" version="5.6.4" />
+    <PackageReference Include="WindowsAzure.ServiceBus" version="3.1.7" />
+    <PackageReference Include="WindowsAzure.Storage" version="7.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\DurableTask.Core\DurableTask.Core.csproj" />
+    <ProjectReference Include="..\..\src\DurableTask.ServiceBus\DurableTask.ServiceBus.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Configuration" />
+    <Reference Include="System.Windows.Forms" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="Greetings\GetUserName.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="Greetings\GetUserName.Designer.cs">
+      <SubType>Form</SubType>
+    </Compile>
+  </ItemGroup>
+  
+</Project>

@@ -1,0 +1,106 @@
+﻿{
+  "$type": "DurableTask.Core.OrchestrationRuntimeState, DurableTask.Core",
+  "Events": [
+    {
+      "$type": "DurableTask.Core.History.OrchestratorStartedEvent, DurableTask.Core",
+      "EventType": 12,
+      "EventId": -1,
+      "IsPlayed": false,
+      "Timestamp": "2016-04-05T17:18:44.5851025Z"
+    },
+    {
+      "$type": "DurableTask.Core.History.ExecutionStartedEvent, DurableTask.Core",
+      "OrchestrationInstance": {
+        "$type": "DurableTask.Core.OrchestrationInstance, DurableTask.Core",
+        "InstanceId": "b26d0baea1934549b087add7a9dd2b83",
+        "ExecutionId": "06722b8ac29e49e9962230d474483720"
+      },
+      "EventType": 0,
+      "ParentInstance": null,
+      "Name": "FrameworkUnitTests.FunctionalTests+GenerationBasicOrchestration",
+      "Version": "",
+      "Input": "4",
+      "Tags": null,
+      "EventId": -1,
+      "IsPlayed": true,
+      "Timestamp": "2016-04-05T17:18:40.9632Z"
+    },
+    {
+      "$type": "DurableTask.Core.History.TaskScheduledEvent, DurableTask.Core",
+      "EventType": 4,
+      "Name": "FrameworkUnitTests.FunctionalTests+GenerationBasicTask",
+      "Version": "",
+      "Input": null,
+      "EventId": 0,
+      "IsPlayed": false,
+      "Timestamp": "2016-04-05T17:18:44.6098492Z"
+    },
+    {
+      "$type": "DurableTask.Core.History.OrchestratorCompletedEvent, DurableTask.Core",
+      "EventType": 13,
+      "EventId": -1,
+      "IsPlayed": false,
+      "Timestamp": "2016-04-05T17:18:44.6098492Z"
+    }
+  ],
+  "NewEvents": [
+    {
+      "$type": "DurableTask.Core.History.OrchestratorStartedEvent, DurableTask.Core",
+      "EventType": 12,
+      "EventId": -1,
+      "IsPlayed": false,
+      "Timestamp": "2016-04-05T17:18:44.5851025Z"
+    },
+    {
+      "$type": "DurableTask.Core.History.ExecutionStartedEvent, DurableTask.Core",
+      "OrchestrationInstance": {
+        "$type": "DurableTask.Core.OrchestrationInstance, DurableTask.Core",
+        "InstanceId": "b26d0baea1934549b087add7a9dd2b83",
+        "ExecutionId": "06722b8ac29e49e9962230d474483720"
+      },
+      "EventType": 0,
+      "ParentInstance": null,
+      "Name": "FrameworkUnitTests.FunctionalTests+GenerationBasicOrchestration",
+      "Version": "",
+      "Input": "4",
+      "Tags": null,
+      "EventId": -1,
+      "IsPlayed": true,
+      "Timestamp": "2016-04-05T17:18:40.9632Z"
+    },
+    {
+      "$type": "DurableTask.Core.History.TaskScheduledEvent, DurableTask.Core",
+      "EventType": 4,
+      "Name": "FrameworkUnitTests.FunctionalTests+GenerationBasicTask",
+      "Version": "",
+      "Input": null,
+      "EventId": 0,
+      "IsPlayed": false,
+      "Timestamp": "2016-04-05T17:18:44.6098492Z"
+    },
+    {
+      "$type": "DurableTask.Core.History.OrchestratorCompletedEvent, DurableTask.Core",
+      "EventType": 13,
+      "EventId": -1,
+      "IsPlayed": false,
+      "Timestamp": "2016-04-05T17:18:44.6098492Z"
+    }
+  ],
+  "CompressedSize": 0,
+  "Size": 0,
+  "Status": "null",
+  "CreatedTime": "2016-04-05T17:18:40.9632Z",
+  "CompletedTime": "9999-12-31T07:59:59.9999999Z",
+  "Input": "4",
+  "Output": null,
+  "Name": "FrameworkUnitTests.FunctionalTests+GenerationBasicOrchestration",
+  "Version": "",
+  "Tags": null,
+  "OrchestrationStatus": 0,
+  "OrchestrationInstance": {
+    "$type": "DurableTask.Core.OrchestrationInstance, DurableTask.Core",
+    "InstanceId": "b26d0baea1934549b087add7a9dd2b83",
+    "ExecutionId": "06722b8ac29e49e9962230d474483720"
+  },
+  "ParentInstance": null
+}
