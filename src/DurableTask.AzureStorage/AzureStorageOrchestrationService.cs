@@ -27,8 +27,11 @@ namespace DurableTask.AzureStorage
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Partitioning;
+    using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
+    using DurableTask.Core.Common;
     using DurableTask.Core.History;
+    using DurableTask.Core.Tracking;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Blob;
     using Microsoft.WindowsAzure.Storage.Queue;
@@ -53,14 +56,13 @@ namespace DurableTask.AzureStorage
         readonly ConcurrentDictionary<string, CloudQueue> ownedControlQueues;
         readonly ConcurrentDictionary<string, CloudQueue> allControlQueues;
         readonly CloudQueue workItemQueue;
-        readonly CloudTable historyTable;
-        readonly CloudTable instancesTable;
         readonly LinkedList<PendingMessageBatch> pendingOrchestrationMessageBatches;
         readonly ConcurrentDictionary<string, object> activeOrchestrationInstances;
         readonly MessageManager messageManager;
 
+        readonly ITrackingStore trackingStore;
+
         readonly TableEntityConverter tableEntityConverter;
-        readonly IReadOnlyDictionary<EventType, Type> eventTypeMap;
 
         readonly BackoffPollingHelper controlQueueBackoff;
         readonly BackoffPollingHelper workItemQueueBackoff;
@@ -74,18 +76,21 @@ namespace DurableTask.AzureStorage
         bool isStarted;
         Task statsLoop;
         CancellationTokenSource shutdownSource;
-
-        const int MaxStorageQueuePayloadSizeInBytes = 60 * 1024; // 60KB
-        const string InputProperty = "Input";
-        const string ResultProperty = "Result";
-        const string OutputProperty = "Output";
-        const string BlobNamePropertySuffix = "BlobName";
+        
 
         /// <summary>
         /// Initializes a new instance of the <see cref="AzureStorageOrchestrationService"/> class.
         /// </summary>
         /// <param name="settings">The settings used to configure the orchestration service.</param>
-        public AzureStorageOrchestrationService(AzureStorageOrchestrationServiceSettings settings)
+        public AzureStorageOrchestrationService(AzureStorageOrchestrationServiceSettings settings):this(settings,null)
+        {}
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="AzureStorageOrchestrationService"/> class with a custom instance store.
+        /// </summary>
+        /// <param name="settings">The settings used to configure the orchestration service.</param>
+        /// <param name="customInstanceStore">Custom UserDefined Instance store to be used with the AzureStorageOrchestrationService</param>
+        public AzureStorageOrchestrationService(AzureStorageOrchestrationServiceSettings settings, IOrchestrationServiceInstanceStore customInstanceStore)
         {
             if (settings == null)
             {
@@ -114,33 +119,21 @@ namespace DurableTask.AzureStorage
                 this.allControlQueues.TryAdd(queue.Name, queue);
             }
 
-            string historyTableName = $"{settings.TaskHubName}History";
-            NameValidator.ValidateTableName(historyTableName);
-
-            string instancesTableName = $"{settings.TaskHubName}Instances";
-            NameValidator.ValidateTableName(instancesTableName);
-
             string compressedMessageBlobContainerName = $"{settings.TaskHubName.ToLowerInvariant()}-largemessages";
             NameValidator.ValidateContainerName(compressedMessageBlobContainerName);
-
-
-            this.historyTable = tableClient.GetTableReference(historyTableName);
-
-            this.instancesTable = tableClient.GetTableReference(instancesTableName);
-
             this.messageManager = new MessageManager(this.blobClient, compressedMessageBlobContainerName);
+
+            if (customInstanceStore == null)
+            {
+                this.trackingStore = new AzureTableTrackingStore(settings.TaskHubName, settings.StorageConnectionString, this.messageManager, settings.HistoryTableRequestOptions, this.stats);
+            }
+            else
+            {
+                this.trackingStore = new InstanceStoreBackedTrackingStore(customInstanceStore);
+            }
 
             this.pendingOrchestrationMessageBatches = new LinkedList<PendingMessageBatch>();
             this.activeOrchestrationInstances = new ConcurrentDictionary<string, object>(StringComparer.OrdinalIgnoreCase);
-
-            // Use reflection to learn all the different event types supported by DTFx.
-            // This could have been hardcoded, but I generally try to avoid hardcoding of point-in-time DTFx knowledge.
-            Type historyEventType = typeof(HistoryEvent);
-            IEnumerable<Type> historyEventTypes = historyEventType.Assembly.GetTypes().Where(
-                t => !t.IsAbstract && t.IsSubclassOf(historyEventType));
-            PropertyInfo eventTypeProperty = historyEventType.GetProperty(nameof(HistoryEvent.EventType));
-            this.eventTypeMap = historyEventTypes.ToDictionary(
-                type => ((HistoryEvent)FormatterServices.GetUninitializedObject(type)).EventType);
 
             // Queue polling backoff policies
             var maxPollingDelay = TimeSpan.FromSeconds(10);
@@ -181,9 +174,7 @@ namespace DurableTask.AzureStorage
 
         internal CloudQueue WorkItemQueue => this.workItemQueue;
 
-        internal CloudTable HistoryTable => this.historyTable;
-
-        internal CloudTable InstancesTable => this.instancesTable;
+        internal ITrackingStore TrackingStore => this.trackingStore;
 
         internal static CloudQueue GetControlQueue(CloudStorageAccount account, string taskHub, int partitionIndex)
         {
@@ -294,7 +285,7 @@ namespace DurableTask.AzureStorage
         /// </summary>
         public async Task CreateAsync()
         {
-            await this.DeleteAsync();
+            await DeleteAsync();
             await this.taskHubCreator.Value;
         }
 
@@ -314,9 +305,10 @@ namespace DurableTask.AzureStorage
             this.stats.StorageRequests.Increment();
 
             var tasks = new List<Task>();
+
+            tasks.Add(this.trackingStore.CreateAsync());
+
             tasks.Add(this.workItemQueue.CreateIfNotExistsAsync());
-            tasks.Add(this.historyTable.CreateIfNotExistsAsync());
-            tasks.Add(this.instancesTable.CreateIfNotExistsAsync());
 
             foreach (CloudQueue controlQueue in this.allControlQueues.Values)
             {
@@ -331,7 +323,31 @@ namespace DurableTask.AzureStorage
         /// <summary>
         /// Deletes the Azure Storage resources used by the orchestration service.
         /// </summary>
-        public async Task DeleteAsync()
+        public  Task DeleteAsync()
+        {
+            return DeleteAsync(true);
+        }
+
+        Task EnsuredCreatedIfNotExistsAsync()
+        {
+            return this.CreateIfNotExistsAsync();
+        }
+
+        /// <inheritdoc />
+        public async Task CreateAsync(bool recreateInstanceStore)
+        {
+            if (recreateInstanceStore)
+            {
+               await DeleteTrackingStore();
+
+               this.taskHubCreator.Reset();
+            }
+
+            await this.taskHubCreator.Value;
+        }
+
+        /// <inheritdoc />
+        public async Task DeleteAsync(bool deleteInstanceStore)
         {
             var tasks = new List<Task>();
 
@@ -344,8 +360,11 @@ namespace DurableTask.AzureStorage
             }
 
             tasks.Add(this.workItemQueue.DeleteIfExistsAsync());
-            tasks.Add(this.historyTable.DeleteIfExistsAsync());
-            tasks.Add(this.instancesTable.DeleteIfExistsAsync());
+
+            if (deleteInstanceStore)
+            {
+                tasks.Add(DeleteTrackingStore());
+            }
 
             // This code will throw if the container doesn't exist.
             tasks.Add(this.leaseManager.DeleteAllAsync().ContinueWith(t =>
@@ -368,21 +387,9 @@ namespace DurableTask.AzureStorage
             this.taskHubCreator.Reset();
         }
 
-        Task EnsuredCreatedIfNotExistsAsync()
+        private Task DeleteTrackingStore()
         {
-            return this.CreateIfNotExistsAsync();
-        }
-
-        /// <inheritdoc />
-        public Task CreateAsync(bool recreateInstanceStore)
-        {
-            throw new NotSupportedException("The instance store is not supported by the Azure Storage provider.");
-        }
-
-        /// <inheritdoc />
-        public Task DeleteAsync(bool deleteInstanceStore)
-        {
-            throw new NotSupportedException("The instance store is not supported by the Azure Storage provider.");
+            return this.trackingStore.DeleteAsync();
         }
 
         /// <inheritdoc />
@@ -396,8 +403,9 @@ namespace DurableTask.AzureStorage
             // Disable nagling to improve storage access latency:
             // https://blogs.msdn.microsoft.com/windowsazurestorage/2010/06/25/nagles-algorithm-is-not-friendly-towards-small-requests/
             // Ad-hoc testing has shown very nice improvements (20%-50% drop in queue message age for simple scenarios).
-            ServicePointManager.FindServicePoint(this.historyTable.Uri).UseNagleAlgorithm = false;
-            ServicePointManager.FindServicePoint(this.instancesTable.Uri).UseNagleAlgorithm = false;
+
+            await this.trackingStore.StartAsync();
+
             ServicePointManager.FindServicePoint(this.workItemQueue.Uri).UseNagleAlgorithm = false;
 
             this.shutdownSource = new CancellationTokenSource();
@@ -618,7 +626,6 @@ namespace DurableTask.AzureStorage
             OrchestrationRuntimeState runtimeState = await this.GetOrchestrationRuntimeStateAsync(
                 instance.InstanceId,
                 instance.ExecutionId,
-                messageContext.StorageOperationContext,
                 cancellationToken);
 
             var orchestrationWorkItem = new TaskOrchestrationWorkItem
@@ -728,165 +735,12 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        Task<OrchestrationRuntimeState> GetOrchestrationRuntimeStateAsync(
-            string instanceId,
-            OperationContext storageOperationContext,
-            CancellationToken cancellationToken = default(CancellationToken))
-        {
-            return this.GetOrchestrationRuntimeStateAsync(instanceId, null, storageOperationContext, cancellationToken);
-        }
-
         async Task<OrchestrationRuntimeState> GetOrchestrationRuntimeStateAsync(
             string instanceId,
             string expectedExecutionId,
-            OperationContext storageOperationContext,
             CancellationToken cancellationToken = default(CancellationToken))
         {
-            var filterCondition = new StringBuilder(200);
-
-            const char Quote = '\'';
-
-            // e.g. "PartitionKey eq 'c138dd969a1e4a699b0644c7d8279f81'"
-            filterCondition.Append("PartitionKey eq ").Append(Quote).Append(instanceId).Append(Quote); // = TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, instanceId);
-            if (expectedExecutionId != null)
-            {
-                // Filter down to a specific generation.
-                // e.g. "PartitionKey eq 'c138dd969a1e4a699b0644c7d8279f81' and ExecutionId eq '85f05ce1494c4a29989f64d3fe0f9089'"
-                filterCondition.Append(" and ExecutionId eq ").Append(Quote).Append(expectedExecutionId).Append(Quote);
-            }
-
-            TableQuery query = new TableQuery().Where(filterCondition.ToString());
-
-            // TODO: Write-through caching should ensure that we rarely need to make this call?
-            var historyEventEntities = new List<DynamicTableEntity>(100);
-
-            var stopwatch = new Stopwatch();
-            int requestCount = 0;
-
-            bool finishedEarly = false;
-            TableContinuationToken continuationToken = null;
-            while (true)
-            {
-                requestCount++;
-                stopwatch.Start();
-                var segment = await this.historyTable.ExecuteQuerySegmentedAsync(
-                    query,
-                    continuationToken,
-                    this.settings.HistoryTableRequestOptions,
-                    storageOperationContext,
-                    cancellationToken);
-                stopwatch.Stop();
-
-                int previousCount = historyEventEntities.Count;
-                historyEventEntities.AddRange(segment);
-                this.stats.StorageRequests.Increment();
-                this.stats.TableEntitiesRead.Increment(historyEventEntities.Count - previousCount);
-
-                continuationToken = segment.ContinuationToken;
-                if (finishedEarly || continuationToken == null || cancellationToken.IsCancellationRequested)
-                {
-                    break;
-                }
-            }
-
-            IList<HistoryEvent> historyEvents;
-            string executionId;
-            if (historyEventEntities.Count > 0)
-            {
-                // The most recent generation will always be in the first history event.
-                executionId = historyEventEntities[0].Properties["ExecutionId"].StringValue;
-
-                // Convert the table entities into history events.
-                var events = new List<HistoryEvent>(historyEventEntities.Count);
-
-                foreach (DynamicTableEntity entity in historyEventEntities)
-                {
-                    if (entity.Properties["ExecutionId"].StringValue != executionId)
-                    {
-                        // The remaining entities are from a previous generation and can be discarded.
-                        break;
-                    }
-
-                    string blobNameKey;
-
-                    if (this.HasCompressedTableEntityByPropertyKey(entity, InputProperty, out blobNameKey))
-                    {
-                        await this.SetDecompressedTableEntityAsync(entity, InputProperty, blobNameKey);
-                    }
-
-                    if (this.HasCompressedTableEntityByPropertyKey(entity, ResultProperty, out blobNameKey))
-                    {
-                        await this.SetDecompressedTableEntityAsync(entity, ResultProperty, blobNameKey);
-                    }
-
-                    if (this.HasCompressedTableEntityByPropertyKey(entity, OutputProperty, out blobNameKey))
-                    {
-                        await this.SetDecompressedTableEntityAsync(entity, OutputProperty, blobNameKey);
-                    }
-
-                    events.Add((HistoryEvent)this.tableEntityConverter.ConvertFromTableEntity(entity, GetTypeForTableEntity));
-                }
-
-                historyEvents = events;
-            }
-            else
-            {
-                historyEvents = EmptyHistoryEventList;
-                executionId = expectedExecutionId ?? string.Empty;
-            }
-
-            AnalyticsEventSource.Log.FetchedInstanceState(
-                this.storageAccountName,
-                this.settings.TaskHubName,
-                instanceId,
-                executionId,
-                historyEvents.Count,
-                requestCount,
-                stopwatch.ElapsedMilliseconds);
-
-            return new OrchestrationRuntimeState(historyEvents);
-        }
-
-        // Decompresses the blob message and reassigns it backt to the original table entity 'Input', 'Output', or 'Result'
-        async Task SetDecompressedTableEntityAsync(DynamicTableEntity dynamicTableEntity, string propertyKey, string blobNameKey)
-        {
-            string blobName = dynamicTableEntity.Properties[blobNameKey].StringValue;
-            string decompressedMessage = await this.messageManager.DownloadAndDecompressAsBytesAsync(blobName);
-            dynamicTableEntity.Properties[propertyKey] = new EntityProperty(decompressedMessage);
-        }
-
-        // Checks if the table entity has a compressed 'Input', 'Output', or 'Result' blob
-        bool HasCompressedTableEntityByPropertyKey(DynamicTableEntity dynamicTableEntity, string propertyKey, out string blobNameKey)
-        {
-            // e.g. InputBlobName, OutputBlobName, ResultBlobName
-            blobNameKey = $"{propertyKey}{BlobNamePropertySuffix}";
-            return dynamicTableEntity.Properties.ContainsKey(propertyKey)
-                && dynamicTableEntity.Properties.ContainsKey(blobNameKey)
-                && dynamicTableEntity.Properties[propertyKey].StringValue == string.Empty;
-        }
-
-        Type GetTypeForTableEntity(DynamicTableEntity tableEntity)
-        {
-            string propertyName = nameof(HistoryEvent.EventType);
-
-            EntityProperty eventTypeProperty;
-            if (!tableEntity.Properties.TryGetValue(propertyName, out eventTypeProperty))
-            {
-                throw new ArgumentException($"The DynamicTableEntity did not contain a '{propertyName}' property.");
-            }
-
-            if (eventTypeProperty.PropertyType != EdmType.String)
-            {
-                throw new ArgumentException($"The DynamicTableEntity's {propertyName} property type must a String.");
-            }
-
-            EventType eventType;
-            if (!Enum.TryParse(eventTypeProperty.StringValue, out eventType))
-            {
-                throw new ArgumentException($"{eventTypeProperty.StringValue} is not a valid EventType value.");
-            }
-            
-            return this.eventTypeMap[eventType];
+            return new OrchestrationRuntimeState(await this.trackingStore.GetHistoryEventsAsync(instanceId, expectedExecutionId, cancellationToken));
         }
 
         /// <inheritdoc />
@@ -905,113 +759,17 @@ namespace DurableTask.AzureStorage
                 // The context doesn't exist - possibly because this is a duplicate message.
                 AnalyticsEventSource.Log.AssertFailure(
                     this.storageAccountName,
-                    this.settings.TaskHubName, 
+                    this.settings.TaskHubName,
                     $"Could not find context for orchestration work item with InstanceId = {workItem.InstanceId}.");
                 return;
             }
 
             OrchestrationRuntimeState runtimeState = workItem.OrchestrationRuntimeState;
-            IList<HistoryEvent> newEvents = runtimeState.NewEvents;
-            IList<HistoryEvent> allEvents = runtimeState.Events;
 
             string instanceId = workItem.InstanceId;
             string executionId = runtimeState.OrchestrationInstance.ExecutionId;
 
-            var newEventListBuffer = new StringBuilder(4000);
-            var historyEventBatch = new TableBatchOperation();
-
-            EventType? orchestratorEventType = null;
-
-            DynamicTableEntity orchestrationInstanceUpdate = new DynamicTableEntity(instanceId, "")
-            {
-                Properties =
-                {
-                    ["CustomStatus"] = new EntityProperty(runtimeState.Status),
-                    ["ExecutionId"] = new EntityProperty(executionId),
-                    ["LastUpdatedTime"] = new EntityProperty(newEvents.Last().Timestamp),
-                }
-            };
-
-            for (int i = 0; i < newEvents.Count; i++)
-            {
-                HistoryEvent historyEvent = newEvents[i];
-                DynamicTableEntity entity = this.tableEntityConverter.ConvertToTableEntity(historyEvent);
-
-                await this.CompressLargeMessageAsync(entity);
-
-                newEventListBuffer.Append(historyEvent.EventType.ToString()).Append(',');
-
-                // The row key is the sequence number, which represents the chronological ordinal of the event.
-                long sequenceNumber = i + (allEvents.Count - newEvents.Count);
-                entity.RowKey = sequenceNumber.ToString("X16");
-                entity.PartitionKey = instanceId;
-                entity.Properties["ExecutionId"] = new EntityProperty(executionId);
-
-                // Replacement can happen if the orchestration episode gets replayed due to a commit failure in one of the steps below.
-                historyEventBatch.InsertOrReplace(entity);
-
-                // Table storage only supports inserts of up to 100 entities at a time.
-                if (historyEventBatch.Count == 100)
-                {
-                    await this.UploadHistoryBatch(context, historyEventBatch, newEventListBuffer, newEvents.Count);
-
-                    // Reset local state for the next batch
-                    newEventListBuffer.Clear();
-                    historyEventBatch.Clear();
-                }
-
-                // Monitor for orchestration instance events 
-                switch (historyEvent.EventType)
-                {
-                    case EventType.ExecutionStarted:
-                        orchestratorEventType = historyEvent.EventType;
-                        ExecutionStartedEvent executionStartedEvent = (ExecutionStartedEvent)historyEvent;
-                        orchestrationInstanceUpdate.Properties["Name"] = new EntityProperty(executionStartedEvent.Name);
-                        orchestrationInstanceUpdate.Properties["Version"] = new EntityProperty(executionStartedEvent.Version);
-                        orchestrationInstanceUpdate.Properties["CreatedTime"] = new EntityProperty(executionStartedEvent.Timestamp);
-                        orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Running.ToString());
-                        this.SetTablePropertyForMessage(entity, orchestrationInstanceUpdate, InputProperty, InputProperty, executionStartedEvent.Input);
-                        break;
-                    case EventType.ExecutionCompleted:
-                        orchestratorEventType = historyEvent.EventType;
-                        ExecutionCompletedEvent executionCompleted = (ExecutionCompletedEvent)historyEvent;
-                        this.SetTablePropertyForMessage(entity, orchestrationInstanceUpdate, ResultProperty, OutputProperty, executionCompleted.Result);
-                        orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(executionCompleted.OrchestrationStatus.ToString());
-                        break;
-                    case EventType.ExecutionTerminated:
-                        orchestratorEventType = historyEvent.EventType;
-                        ExecutionTerminatedEvent executionTerminatedEvent = (ExecutionTerminatedEvent)historyEvent;
-                        this.SetTablePropertyForMessage(entity, orchestrationInstanceUpdate, InputProperty, OutputProperty, executionTerminatedEvent.Input);
-                        orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Terminated.ToString());
-                        break;
-                    case EventType.ContinueAsNew:
-                        orchestratorEventType = historyEvent.EventType;
-                        ExecutionCompletedEvent executionCompletedEvent = (ExecutionCompletedEvent)historyEvent;
-                        this.SetTablePropertyForMessage(entity, orchestrationInstanceUpdate, ResultProperty, OutputProperty, executionCompletedEvent.Result);
-                        orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.ContinuedAsNew.ToString());
-                        break;
-                }
-            }
-
-            // First persistence step is to commit history to the history table. Messages must come after.
-            if (historyEventBatch.Count > 0)
-            {
-                await this.UploadHistoryBatch(context, historyEventBatch, newEventListBuffer, newEvents.Count);
-            }
-
-            Stopwatch orchestrationInstanceUpdateStopwatch = Stopwatch.StartNew();
-            await this.instancesTable.ExecuteAsync(TableOperation.InsertOrMerge(orchestrationInstanceUpdate));
-
-            this.stats.StorageRequests.Increment();
-            this.stats.TableEntitiesWritten.Increment();
-
-            AnalyticsEventSource.Log.InstanceStatusUpdate(
-                this.storageAccountName,
-                this.settings.TaskHubName,
-                instanceId,
-                executionId,
-                orchestratorEventType?.ToString() ?? string.Empty,
-                orchestrationInstanceUpdateStopwatch.ElapsedMilliseconds);
+            await this.trackingStore.UpdateStateAsync(runtimeState, instanceId, executionId);
 
             bool addedControlMessages = false;
             bool addedWorkItemMessages = false;
@@ -1021,7 +779,7 @@ namespace DurableTask.AzureStorage
 
             // Second persistence step is to commit outgoing messages to their respective queues. If there is
             // any failures here, then the messages may get written again later.
-            var enqueueTasks = new List<Task>(newEvents.Count);
+            var enqueueTasks = new List<Task>(runtimeState.NewEvents.Count);
             if (orchestratorMessages?.Count > 0)
             {
                 totalMessageCount += orchestratorMessages.Count;
@@ -1038,7 +796,7 @@ namespace DurableTask.AzureStorage
 
             if (timerMessages?.Count > 0)
             {
-                totalMessageCount += timerMessages.Count; 
+                totalMessageCount += timerMessages.Count;
                 addedControlMessages = true;
 
                 foreach (TaskMessage taskMessage in timerMessages)
@@ -1104,68 +862,6 @@ namespace DurableTask.AzureStorage
                 context.StorageOperationContext);
         }
 
-        // Assigns the target table entity property. Any large message for type 'Input, or 'Output' would have been compressed earlier as part of the 'entity' object,
-        // so, we only need to assign the 'entity' object's blobName to the target table entity blob name property.
-        void SetTablePropertyForMessage(DynamicTableEntity entity, DynamicTableEntity orchestrationInstanceUpdate, string sourcePropertyKey, string targetPropertyKey, string message)
-        {
-            string blobNameKey;
-
-            // Check if the source property has a compressed blob and swap the source with the target property
-            if (this.HasCompressedTableEntityByPropertyKey(entity, sourcePropertyKey, out blobNameKey))
-            {
-                string blobName = entity.Properties[blobNameKey].StringValue;
-                orchestrationInstanceUpdate.Properties[sourcePropertyKey] = new EntityProperty(string.Empty);
-                string targetBlobNameKey = $"{targetPropertyKey}{BlobNamePropertySuffix}";
-
-                orchestrationInstanceUpdate.Properties[targetBlobNameKey] = new EntityProperty(blobName);
-            }
-            else
-            {
-                orchestrationInstanceUpdate.Properties[targetPropertyKey] = new EntityProperty(message);
-            }
-        }
-
-        async Task CompressLargeMessageAsync(DynamicTableEntity entity)
-        {
-            string propertyKey = this.GetLargeTableEntity(entity);
-            if (propertyKey != null)
-            {
-                string blobName = Guid.NewGuid().ToString();
-                
-                // e.g.InputBlobName, OutputBlobName, ResultBlobName
-                string blobNameKey = $"{propertyKey}{BlobNamePropertySuffix}";
-                byte[] messageBytes = this.GetPropertyMessageAsBytes(entity);
-                await this.messageManager.CompressAndUploadAsBytesAsync(messageBytes, blobName);
-                entity.Properties.Add(blobNameKey, new EntityProperty(blobName));
-                this.SetPropertyMessageToEmptyString(entity);
-            }
-        }
-
-        async Task UploadHistoryBatch(
-            ReceivedMessageContext context,
-            TableBatchOperation historyEventBatch,
-            StringBuilder historyEventNamesBuffer,
-            int numberOfTotalEvents)
-        {
-            Stopwatch stopwatch = Stopwatch.StartNew();
-            await this.historyTable.ExecuteBatchAsync(
-                historyEventBatch,
-                this.settings.HistoryTableRequestOptions,
-                context.StorageOperationContext);
-            this.stats.StorageRequests.Increment();
-            this.stats.TableEntitiesWritten.Increment(historyEventBatch.Count);
-
-            AnalyticsEventSource.Log.AppendedInstanceState(
-                this.storageAccountName,
-                this.settings.TaskHubName,
-                context.Instance.InstanceId,
-                context.Instance.ExecutionId,
-                historyEventBatch.Count,
-                numberOfTotalEvents,
-                historyEventNamesBuffer.ToString(0, historyEventNamesBuffer.Length - 1), // remove trailing comma
-                stopwatch.ElapsedMilliseconds);
-        }
-
         async Task DeleteMessageBatchAsync(ReceivedMessageContext context, CloudQueue controlQueue)
         {
             Task[] deletes = new Task[context.MessageDataBatch.Count];
@@ -1202,72 +898,7 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        void SetPropertyMessageToEmptyString(DynamicTableEntity entity)
-        {
-            if (entity.Properties.ContainsKey(InputProperty) && entity.Properties[InputProperty] != null)
-            {
-                entity.Properties[InputProperty].StringValue = string.Empty;
-            }
-            else if (entity.Properties.ContainsKey(ResultProperty) && entity.Properties[ResultProperty] != null)
-            {
-                entity.Properties[ResultProperty].StringValue = string.Empty;
-            }
-            else if (entity.Properties.ContainsKey(OutputProperty) && entity.Properties[OutputProperty] != null)
-            {
-                entity.Properties[OutputProperty].StringValue = string.Empty;
-            }
-        }
-
-        byte[] GetPropertyMessageAsBytes(DynamicTableEntity entity)
-        {
-            byte[] messageBytes = new byte[0];
-
-            if (entity.Properties.ContainsKey(InputProperty) && entity.Properties[InputProperty] != null)
-            {
-                messageBytes = Encoding.UTF8.GetBytes(entity.Properties[InputProperty].StringValue);
-            }
-            else if (entity.Properties.ContainsKey(ResultProperty) && entity.Properties[ResultProperty] != null)
-            {
-                messageBytes = Encoding.UTF8.GetBytes(entity.Properties[ResultProperty].StringValue);
-            }
-            else if (entity.Properties.ContainsKey(OutputProperty) && entity.Properties[OutputProperty] != null)
-            {
-                messageBytes = Encoding.UTF8.GetBytes(entity.Properties[OutputProperty].StringValue);
-            }
-
-            return messageBytes;
-        }
-
-        string GetLargeTableEntity(DynamicTableEntity entity)
-        {
-            if (this.GetLargeTableEntityInternal(entity, InputProperty) != null)
-            {
-                return InputProperty;
-            }
-
-            if (this.GetLargeTableEntityInternal(entity, ResultProperty) != null)
-            {
-                return ResultProperty;
-            }
-
-            if (this.GetLargeTableEntityInternal(entity, OutputProperty) != null)
-            {
-                return OutputProperty;
-            }
-
-            return null;
-        }
-
-        string GetLargeTableEntityInternal(DynamicTableEntity entity, string propertyKey)
-        {
-            if (entity.Properties.TryGetValue(propertyKey, out EntityProperty value)
-                && this.ExceedsMaxTableEntitySize(value?.StringValue))
-            {
-                return propertyKey;
-            }
-
-            return null;
-        }
+        
 
         // REVIEW: There doesn't seem to be any code which calls this method.
         //         https://github.com/Azure/durabletask/issues/112
@@ -1685,34 +1316,8 @@ namespace DurableTask.AzureStorage
                 return;
             }
 
-            DynamicTableEntity entity = new DynamicTableEntity(message.OrchestrationInstance.InstanceId, "")
-            {
-                Properties =
-                {
-                    ["Input"] = new EntityProperty(executionStartedEvent.Input),
-                    ["CreatedTime"] = new EntityProperty(executionStartedEvent.Timestamp),
-                    ["Name"] = new EntityProperty(executionStartedEvent.Name),
-                    ["Version"] = new EntityProperty(executionStartedEvent.Version),
-                    ["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Pending.ToString()),
-                    ["LastUpdatedTime"] = new EntityProperty(executionStartedEvent.Timestamp),
-                }
-            };
+            await this.trackingStore.SetNewExecutionAsync(executionStartedEvent);
 
-            await this.CompressLargeMessageAsync(entity);
-
-            Stopwatch stopwatch = Stopwatch.StartNew();
-            await this.instancesTable.ExecuteAsync(
-                TableOperation.Insert(entity));
-            this.stats.StorageRequests.Increment();
-            this.stats.TableEntitiesWritten.Increment(1);
-
-            AnalyticsEventSource.Log.InstanceStatusUpdate(
-                this.storageAccountName,
-                this.settings.TaskHubName,
-                message.OrchestrationInstance.InstanceId,
-                message.OrchestrationInstance.ExecutionId,
-                message.Event.EventType.ToString(),
-                stopwatch.ElapsedMilliseconds);
         }
 
         async Task SendTaskOrchestrationMessageInternalAsync(CloudQueue controlQueue, TaskMessage message)
@@ -1744,7 +1349,9 @@ namespace DurableTask.AzureStorage
         /// <returns>List of <see cref="OrchestrationState"/> objects that represent the list of orchestrations.</returns>
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
         {
-            return new[] { await this.GetOrchestrationStateAsync(instanceId, executionId: null) };
+            // Client operations will auto-create the task hub if it doesn't already exist.
+            await this.EnsuredCreatedIfNotExistsAsync();
+            return await this.trackingStore.GetStateAsync(instanceId, allExecutions);
         }
 
         /// <summary>
@@ -1757,71 +1364,11 @@ namespace DurableTask.AzureStorage
         {
             // Client operations will auto-create the task hub if it doesn't already exist.
             await this.EnsuredCreatedIfNotExistsAsync();
-            OrchestrationState orchestrationState = new OrchestrationState();
-           
-            var stopwatch = new Stopwatch();
-            TableResult orchestration = await this.InstancesTable.ExecuteAsync(TableOperation.Retrieve<OrchestrationInstanceStatus>(instanceId, ""));
-            stopwatch.Stop();
-            this.stats.StorageRequests.Increment();
-            this.stats.TableEntitiesRead.Increment(1);
-
-            AnalyticsEventSource.Log.FetchedInstanceStatus(
-                this.storageAccountName,
-                this.settings.TaskHubName,
-                instanceId,
-                executionId,
-                stopwatch.ElapsedMilliseconds);
-
-            OrchestrationInstanceStatus orchestrationInstanceStatus = (OrchestrationInstanceStatus)orchestration.Result;
-            if (orchestrationInstanceStatus != null)
-            {
-                if (!Enum.TryParse(orchestrationInstanceStatus.RuntimeStatus, out orchestrationState.OrchestrationStatus))
-                {
-                    throw new ArgumentException($"{orchestrationInstanceStatus.RuntimeStatus} is not a valid OrchestrationStatus value.");
-                }
-
-                orchestrationState.OrchestrationInstance = new OrchestrationInstance
-                {
-                    InstanceId = instanceId,
-                    ExecutionId = orchestrationInstanceStatus.ExecutionId,
-                };
-                orchestrationState.Name = orchestrationInstanceStatus.Name;
-                orchestrationState.Version = orchestrationInstanceStatus.Version;
-                orchestrationState.Status = orchestrationInstanceStatus.CustomStatus;
-                orchestrationState.CreatedTime = orchestrationInstanceStatus.CreatedTime;
-                orchestrationState.LastUpdatedTime = orchestrationInstanceStatus.LastUpdatedTime;
-                List<Task<string>> getInputOutput = new List<Task<string>>
-                {
-                    this.GetOrchestrationInputAsync(orchestrationInstanceStatus),
-                    this.GetOrchestrationOutputAsync(orchestrationInstanceStatus)
-                };
-                string[] results = await Task.WhenAll(getInputOutput);
-                orchestrationState.Input = results[0];
-                orchestrationState.Output = results[1];
-            }
-
-            return orchestrationState;
+            return await this.trackingStore.GetStateAsync(instanceId, executionId);
         }
 
-        async Task<string> GetOrchestrationOutputAsync(OrchestrationInstanceStatus orchestrationInstanceStatus)
-        {
-            if (string.IsNullOrEmpty(orchestrationInstanceStatus.OutputBlobName))
-            {
-                return orchestrationInstanceStatus.Output;
-            }
 
-            return await this.messageManager.DownloadAndDecompressAsBytesAsync(orchestrationInstanceStatus.OutputBlobName);
-        }
-
-        async Task<string> GetOrchestrationInputAsync(OrchestrationInstanceStatus orchestrationInstanceStatus)
-        {
-            if (string.IsNullOrEmpty(orchestrationInstanceStatus.InputBlobName))
-            {
-                return orchestrationInstanceStatus.Input;
-            }
-
-            return await this.messageManager.DownloadAndDecompressAsBytesAsync(orchestrationInstanceStatus.InputBlobName);
-        }
+        
 
         /// <summary>
         /// Force terminates an orchestration by sending a execution terminated event
@@ -1849,8 +1396,7 @@ namespace DurableTask.AzureStorage
         {
             OrchestrationRuntimeState runtimeState = await this.GetOrchestrationRuntimeStateAsync(
                 instanceId,
-                executionId,
-                storageOperationContext: null);
+                executionId);
             return JsonConvert.SerializeObject(runtimeState.Events);
         }
 
@@ -1893,12 +1439,16 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
-        /// This method is not supported.
+        /// Purges orchestration instance state and history for orchestrations older than the specified threshold time.
+        /// Also purges the blob storage. Currently only supported if a custom Instance store is provided.
         /// </summary>
+        /// <param name="thresholdDateTimeUtc">Threshold date time in UTC</param>
+        /// <param name="timeRangeFilterType">What to compare the threshold date time against</param>
         public Task PurgeOrchestrationHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType)
         {
-            throw new NotSupportedException();
+            return this.trackingStore.PurgeHistoryAsync(thresholdDateTimeUtc, timeRangeFilterType);
         }
+
         #endregion
 
         // TODO: Change this to a sticky assignment so that partition count changes can
@@ -1959,31 +1509,6 @@ namespace DurableTask.AzureStorage
             {
                 this.lazy = new Lazy<T>(this.valueFactory, this.threadSafetyMode);
             }
-        }
-
-        class OrchestrationInstanceStatus : TableEntity
-        {
-            public string ExecutionId { get; set; }
-            public string  Name { get; set; }
-            public string Version { get; set; }
-            public string Input { get; set; }
-            public string InputBlobName { get; set; }
-            public string Output { get; set; }
-            public string OutputBlobName { get; set; }
-            public string CustomStatus { get; set; }
-            public DateTime CreatedTime { get; set; }
-            public DateTime LastUpdatedTime { get; set; }
-            public string RuntimeStatus { get; set; }
-        }
-
-        internal bool ExceedsMaxTableEntitySize(string data)
-        {
-            if (!string.IsNullOrEmpty(data) && Encoding.Unicode.GetByteCount(data) > MaxStorageQueuePayloadSizeInBytes)
-            {
-                return true;
-            }
-
-            return false;
         }
     }
 }
