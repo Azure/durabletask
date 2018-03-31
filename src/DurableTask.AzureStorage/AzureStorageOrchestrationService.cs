@@ -648,7 +648,8 @@ namespace DurableTask.AzureStorage
                     while (node != null)
                     {
                         PendingMessageBatch batch = node.Value;
-                        if (batch.OrchestrationInstanceId == data.TaskMessage.OrchestrationInstance.InstanceId)
+                        if (batch.OrchestrationInstanceId == data.TaskMessage.OrchestrationInstance.InstanceId &&
+                            batch.OrchestrationExecutionId == data.TaskMessage.OrchestrationInstance.ExecutionId)
                         {
                             targetBatch = batch;
                             break;
@@ -664,6 +665,7 @@ namespace DurableTask.AzureStorage
                     }
 
                     targetBatch.OrchestrationInstanceId = data.TaskMessage.OrchestrationInstance.InstanceId;
+                    targetBatch.OrchestrationExecutionId = data.TaskMessage.OrchestrationInstance.ExecutionId;
 
                     // If a message has been sitting in the buffer for too long, the invisibility timeout may expire and 
                     // it may get dequeued a second time. In such cases, we should replace the existing copy of the message
@@ -1095,7 +1097,8 @@ namespace DurableTask.AzureStorage
                     this.settings.TaskHubName,
                     taskMessage.Event.EventType.ToString(),
                     queueMessage.Id,
-                    context.Instance.InstanceId);
+                    context.Instance.InstanceId,
+                    context.Instance.ExecutionId);
                 Task deletetask = controlQueue.DeleteMessageAsync(
                     queueMessage,
                     this.settings.ControlQueueRequestOptions,
@@ -1329,7 +1332,8 @@ namespace DurableTask.AzureStorage
                 this.settings.TaskHubName,
                 workItem.TaskMessage.Event.EventType.ToString(),
                 messageId,
-                instanceId);
+                instanceId,
+                context.Instance.ExecutionId);
 
             Task deleteTask = this.workItemQueue.DeleteMessageAsync(
                 context.MessageData.OriginalQueueMessage,
@@ -1751,6 +1755,7 @@ namespace DurableTask.AzureStorage
         class PendingMessageBatch
         {
             public string OrchestrationInstanceId { get; set; }
+            public string OrchestrationExecutionId { get; set; }
 
             public List<MessageData> Messages { get; set; } = new List<MessageData>();
         }

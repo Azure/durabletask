@@ -106,10 +106,10 @@ namespace DurableTask.AzureStorage
         }
 
         [Event(103, Level = EventLevel.Informational)]
-        public void DeletingMessage(string Account, string TaskHub, string EventType, string MessageId, string InstanceId)
+        public void DeletingMessage(string Account, string TaskHub, string EventType, string MessageId, string InstanceId, string ExecutionId)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(103, Account, TaskHub, EventType, MessageId, InstanceId);
+            this.WriteEvent(103, Account, TaskHub, EventType, MessageId, InstanceId, ExecutionId);
         }
 
         [Event(104, Level = EventLevel.Warning, Message = "Abandoning message of type {0} with ID = {1}. Orchestration ID = {2}.")]

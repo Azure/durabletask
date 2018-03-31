@@ -151,9 +151,6 @@ namespace DurableTask.AzureStorage
 
         static void TraceMessageReceived(string storageAccountName, string taskHub, MessageData data)
         {
-            Guid newTraceActivityId = Guid.NewGuid();
-            AnalyticsEventSource.SetLogicalTraceActivityId(newTraceActivityId);
-
             TaskMessage taskMessage = data.TaskMessage;
             CloudQueueMessage queueMessage = data.OriginalQueueMessage;
 
