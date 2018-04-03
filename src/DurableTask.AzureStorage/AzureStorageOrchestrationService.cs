@@ -45,6 +45,7 @@ namespace DurableTask.AzureStorage
         static readonly HistoryEvent[] EmptyHistoryEventList = new HistoryEvent[0];
 
         readonly AzureStorageOrchestrationServiceSettings settings;
+        readonly string storageConnectionString;
         readonly AzureStorageOrchestrationServiceStats stats;
         readonly string storageAccountName;
         readonly CloudQueueClient queueClient;
@@ -67,6 +68,10 @@ namespace DurableTask.AzureStorage
 
         readonly object hubCreationLock;
 
+        readonly string InputProperty = "Input";
+        readonly string ResultProperty = "Result";
+        readonly string BlobNameProperty = "BlobName";
+
         bool isStarted;
         Task statsLoop;
         CancellationTokenSource shutdownSource;
@@ -86,7 +91,8 @@ namespace DurableTask.AzureStorage
 
             this.settings = settings;
             this.tableEntityConverter = new TableEntityConverter();
-            CloudStorageAccount account = CloudStorageAccount.Parse(settings.StorageConnectionString);
+            this.storageConnectionString = this.settings.StorageConnectionString;
+            CloudStorageAccount account = CloudStorageAccount.Parse(this.storageConnectionString);
             this.storageAccountName = account.Credentials.AccountName;
             this.stats = new AzureStorageOrchestrationServiceStats();
             this.queueClient = account.CreateCloudQueueClient();
@@ -555,7 +561,7 @@ namespace DurableTask.AzureStorage
                             this.stats.StorageRequests.Increment();
 
                             IEnumerable<MessageData> deserializedBatch = 
-                                batch.Select(m => Utils.DeserializeQueueMessage(m, controlQueue.Name));
+                                batch.Select(m => Utils.DeserializeQueueMessage(this.storageConnectionString, m, controlQueue.Name));
                             lock (messages)
                             {
                                 messages.AddRange(deserializedBatch);
@@ -584,6 +590,7 @@ namespace DurableTask.AzureStorage
 
             ReceivedMessageContext messageContext =
                 ReceivedMessageContext.CreateFromReceivedMessageBatch(
+                    this.storageConnectionString,
                     this.storageAccountName,
                     this.settings.TaskHubName,
                     nextBatch.Messages);
@@ -774,6 +781,15 @@ namespace DurableTask.AzureStorage
                     .First();
                 executionId = mostRecentGeneration.Key;
 
+                // Find any table entitiy properties that have been compressed
+                if (mostRecentGeneration
+                    .Where(tableEntity => this.HasCompressedTableEntityProperty(tableEntity))
+                    .Select(e => e).ToList().Any())
+                {
+                    // Decompress the compressed table entity properties
+                    this.DecompressTableEntitiesProperties(mostRecentGeneration);
+                }
+
                 // Convert the table entities into history events.
                 var events = new List<HistoryEvent>(100);
                 events.AddRange(
@@ -797,6 +813,47 @@ namespace DurableTask.AzureStorage
                 stopwatch.ElapsedMilliseconds);
 
             return new OrchestrationRuntimeState(historyEvents);
+        }
+
+        
+        void DecompressTableEntitiesProperties(IGrouping<string, DynamicTableEntity> tableEntities)
+        {
+            // 1. Finds all DynamicTableEntity that has either its 'Input' or 'Result' property compressed.
+            // 2. Locate the BlobName Property and downloads the decompressed blob
+            // 3. Assigns the decompressed blob to the 'Input' or 'Result' property
+
+            foreach (DynamicTableEntity dynamicTableEntity in tableEntities)
+            {
+                if (this.HasCompressedTableEntityByPropertyKey(dynamicTableEntity, this.InputProperty))
+                {
+                    this.SetDecompressedTableEntity(dynamicTableEntity, this.InputProperty);
+                }
+
+                if (this.HasCompressedTableEntityByPropertyKey(dynamicTableEntity, this.ResultProperty))
+                {
+                    this.SetDecompressedTableEntity(dynamicTableEntity, this.ResultProperty);
+                }
+            }
+        }
+
+        void SetDecompressedTableEntity(DynamicTableEntity dynamicTableEntity, string propertyKey)
+        {
+            string blobName = dynamicTableEntity.Properties[this.BlobNameProperty].StringValue;
+            string decompressedMessage = Utils.DownloadAndDecompressAsBytes(this.storageConnectionString, blobName);
+            dynamicTableEntity.Properties[propertyKey] = new EntityProperty(decompressedMessage);
+        }
+
+        bool HasCompressedTableEntityProperty(DynamicTableEntity dynamicTableEntity)
+        {
+            return this.HasCompressedTableEntityByPropertyKey(dynamicTableEntity, this.InputProperty)
+                || this.HasCompressedTableEntityByPropertyKey(dynamicTableEntity, this.ResultProperty);
+        }
+
+        bool HasCompressedTableEntityByPropertyKey(DynamicTableEntity dynamicTableEntity, string propertyKey)
+        {
+            return dynamicTableEntity.Properties.ContainsKey(propertyKey)
+                && dynamicTableEntity.Properties.ContainsKey(this.BlobNameProperty)
+                && dynamicTableEntity.Properties[propertyKey].StringValue == string.Empty;
         }
 
         Type GetTypeForTableEntity(DynamicTableEntity tableEntity)
@@ -860,6 +917,14 @@ namespace DurableTask.AzureStorage
             {
                 HistoryEvent historyEvent = newEvents[i];
                 DynamicTableEntity entity = this.tableEntityConverter.ConvertToTableEntity(historyEvent);
+
+                if (HasLargeTableEntity(entity, this.InputProperty) || HasLargeTableEntity(entity, this.ResultProperty))
+                {
+                    byte[] messageBytes = this.GetPropertyMessageAsBytes(entity);
+                    Utils.CompressAndUploadAsBytes(this.storageConnectionString, messageBytes, executionId);
+                    entity.Properties.Add(this.BlobNameProperty, new EntityProperty(executionId));
+                    this.SetProperyMessageToEmptyString(entity);                    
+                }
 
                 newEventList.Append(historyEvent.EventType.ToString()).Append(',');
 
@@ -934,7 +999,7 @@ namespace DurableTask.AzureStorage
                 foreach (TaskMessage taskMessage in orchestratorMessages)
                 {
                     enqueueTasks.Add(controlQueue.AddMessageAsync(
-                        context.CreateOutboundQueueMessage(taskMessage, controlQueue.Name),
+                        context.CreateOutboundQueueMessage(this.storageConnectionString, taskMessage, controlQueue.Name),
                         null /* timeToLive */,
                         null /* initialVisibilityDelay */,
                         this.settings.ControlQueueRequestOptions,
@@ -962,7 +1027,7 @@ namespace DurableTask.AzureStorage
                     }
 
                     enqueueTasks.Add(controlQueue.AddMessageAsync(
-                        context.CreateOutboundQueueMessage(taskMessage, controlQueue.Name),
+                        context.CreateOutboundQueueMessage(this.storageConnectionString, taskMessage, controlQueue.Name),
                         null /* timeToLive */,
                         initialVisibilityDelay,
                         this.settings.ControlQueueRequestOptions,
@@ -977,7 +1042,7 @@ namespace DurableTask.AzureStorage
                 foreach (TaskMessage taskMessage in outboundMessages)
                 {
                     enqueueTasks.Add(this.workItemQueue.AddMessageAsync(
-                        context.CreateOutboundQueueMessage(taskMessage, this.workItemQueue.Name),
+                        context.CreateOutboundQueueMessage(this.storageConnectionString, taskMessage, this.workItemQueue.Name),
                         null /* timeToLive */,
                         null /* initialVisibilityDelay */,
                         this.settings.WorkItemQueueRequestOptions,
@@ -995,7 +1060,7 @@ namespace DurableTask.AzureStorage
                 }
 
                 enqueueTasks.Add(controlQueue.AddMessageAsync(
-                    context.CreateOutboundQueueMessage(continuedAsNewMessage, controlQueue.Name),
+                    context.CreateOutboundQueueMessage(this.storageConnectionString, continuedAsNewMessage, controlQueue.Name),
                     null /* timeToLive */,
                     null /* initialVisibilityDelay */,
                     this.settings.ControlQueueRequestOptions,
@@ -1017,6 +1082,40 @@ namespace DurableTask.AzureStorage
             {
                 this.workItemQueueBackoff.Reset();
             }
+        }
+
+        void SetProperyMessageToEmptyString(DynamicTableEntity entity)
+        {
+            if (entity.Properties.ContainsKey(this.InputProperty) && entity.Properties[this.InputProperty] != null)
+            {
+                entity.Properties[this.InputProperty].StringValue = string.Empty;
+            }
+            else if (entity.Properties.ContainsKey(this.ResultProperty) && entity.Properties[this.ResultProperty] != null)
+            {
+                entity.Properties[this.ResultProperty].StringValue = string.Empty;
+            }
+        }
+
+        byte[] GetPropertyMessageAsBytes(DynamicTableEntity entity)
+        {
+            byte[] messageBytes = new byte[0];
+
+            if (entity.Properties.ContainsKey(this.InputProperty) && entity.Properties[this.InputProperty] != null)
+            {
+                messageBytes = Encoding.UTF8.GetBytes(entity.Properties[this.InputProperty].StringValue);
+            }
+            else if (entity.Properties.ContainsKey(this.ResultProperty) && entity.Properties[this.ResultProperty] != null)
+            {
+                messageBytes = Encoding.UTF8.GetBytes(entity.Properties[this.ResultProperty].StringValue);
+            }
+            return messageBytes;
+        }
+
+        static bool HasLargeTableEntity(DynamicTableEntity entity, string propertyKey)
+        {
+            return (entity.Properties.ContainsKey(propertyKey) 
+                && entity.Properties[propertyKey] != null
+                && Utils.ExceedsMaxTableEntitySize(entity.Properties[propertyKey].StringValue));
         }
 
         /// <inheritdoc />
@@ -1230,6 +1329,7 @@ namespace DurableTask.AzureStorage
             this.workItemQueueBackoff.Reset();
 
             ReceivedMessageContext context = ReceivedMessageContext.CreateFromReceivedMessage(
+                this.storageConnectionString,
                 this.storageAccountName,
                 this.settings.TaskHubName,
                 queueMessage,
@@ -1277,7 +1377,7 @@ namespace DurableTask.AzureStorage
             try
             {
                 await controlQueue.AddMessageAsync(
-                    context.CreateOutboundQueueMessage(responseTaskMessage, controlQueue.Name),
+                    context.CreateOutboundQueueMessage(this.storageConnectionString, responseTaskMessage, controlQueue.Name),
                     null /* timeToLive */,
                     null /* initialVisibilityDelay */,
                     this.settings.WorkItemQueueRequestOptions,
@@ -1499,12 +1599,16 @@ namespace DurableTask.AzureStorage
             var operationContext = new OperationContext();
             operationContext.SendingRequest += ReceivedMessageContext.OnSendingRequest;
 
-            await controlQueue.AddMessageAsync(
+            CloudQueueMessage cloudMessage =
                 ReceivedMessageContext.CreateOutboundQueueMessageInternal(
+                    this.storageConnectionString,
                     this.storageAccountName,
                     this.settings.TaskHubName,
                     controlQueue.Name,
-                    message),
+                    message);
+            byte[] test = cloudMessage.AsBytes;
+            int size = test.Length;
+            await controlQueue.AddMessageAsync(cloudMessage,
                 null /* timeToLive */,
                 null /* initialVisibilityDelay */,
                 this.settings.ControlQueueRequestOptions,
