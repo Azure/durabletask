@@ -32,6 +32,7 @@ namespace DurableTask.AzureStorage
         static readonly ConcurrentDictionary<object, ReceivedMessageContext> ObjectAssociations;
         static readonly string UserAgent;
 
+        readonly string storageConnectionString;
         readonly string storageAccountName;
         readonly string taskHub;
         readonly Guid traceActivityId;
@@ -55,8 +56,9 @@ namespace DurableTask.AzureStorage
             ObjectAssociations = new ConcurrentDictionary<object, ReceivedMessageContext>();
         }
 
-        ReceivedMessageContext(string storageAccountName, string taskHub, Guid traceActivityId, MessageData message)
+        ReceivedMessageContext(string storageConnectionString, string storageAccountName, string taskHub, Guid traceActivityId, MessageData message)
         {
+            this.storageConnectionString = storageConnectionString ?? throw new ArgumentNullException(nameof(storageConnectionString));
             this.storageAccountName = storageAccountName ?? throw new ArgumentNullException(nameof(storageAccountName));
             this.taskHub = taskHub ?? throw new ArgumentNullException(nameof(taskHub));
             this.traceActivityId = traceActivityId;
@@ -67,8 +69,9 @@ namespace DurableTask.AzureStorage
             this.storageOperationContext.SendingRequest += OnSendingRequest;
         }
 
-        ReceivedMessageContext(string storageAccountName, string taskHub, Guid traceActivityId, List<MessageData> messageBatch)
+        ReceivedMessageContext(string storageConnectionString, string storageAccountName, string taskHub, Guid traceActivityId, List<MessageData> messageBatch)
         {
+            this.storageConnectionString = storageConnectionString ?? throw new ArgumentNullException(nameof(storageConnectionString));
             this.storageAccountName = storageAccountName ?? throw new ArgumentNullException(nameof(storageAccountName));
             this.taskHub = taskHub ?? throw new ArgumentNullException(nameof(taskHub));
             this.traceActivityId = traceActivityId;
@@ -109,7 +112,7 @@ namespace DurableTask.AzureStorage
             get { return this.storageOperationContext; }
         }
 
-        public static ReceivedMessageContext CreateFromReceivedMessageBatch(string storageAccountName, string taskHub, List<MessageData> batch)
+        public static ReceivedMessageContext CreateFromReceivedMessageBatch(string storageConnectionString, string storageAccountName, string taskHub, List<MessageData> batch)
         {
             if (batch == null)
             {
@@ -124,21 +127,22 @@ namespace DurableTask.AzureStorage
             Guid newTraceActivityId = StartNewLogicalTraceScope();
             batch.ForEach(m => TraceMessageReceived(storageAccountName, taskHub, m));
 
-            return new ReceivedMessageContext(storageAccountName, taskHub, newTraceActivityId, batch);
+            return new ReceivedMessageContext(storageConnectionString, storageAccountName, taskHub, newTraceActivityId, batch);
         }
 
         public static ReceivedMessageContext CreateFromReceivedMessage(
+            string storageConnectionString,
             string storageAccountName,
             string taskHub,
             CloudQueueMessage queueMessage,
             string queueName)
         {
-            MessageData data = Utils.DeserializeQueueMessage(queueMessage, queueName);
+            MessageData data = Utils.DeserializeQueueMessage(storageConnectionString, queueMessage, queueName);
 
             Guid newTraceActivityId = StartNewLogicalTraceScope();
             TraceMessageReceived(storageAccountName, taskHub, data);
 
-            return new ReceivedMessageContext(storageAccountName, taskHub, newTraceActivityId, data);
+            return new ReceivedMessageContext(storageConnectionString, storageAccountName, taskHub, newTraceActivityId, data);
         }
 
         static Guid StartNewLogicalTraceScope()
@@ -185,12 +189,13 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        public CloudQueueMessage CreateOutboundQueueMessage(TaskMessage taskMessage, string queueName)
+        public CloudQueueMessage CreateOutboundQueueMessage(string storageConnString, TaskMessage taskMessage, string queueName)
         {
-            return CreateOutboundQueueMessageInternal(this.storageAccountName, this.taskHub, queueName, taskMessage);
+            return CreateOutboundQueueMessageInternal(storageConnString, this.storageAccountName, this.taskHub, queueName, taskMessage);
         }
 
         internal static CloudQueueMessage CreateOutboundQueueMessageInternal(
+            string connectionString,
             string storageAccountName,
             string taskHub,
             string queueName,
@@ -200,8 +205,7 @@ namespace DurableTask.AzureStorage
             Guid outboundTraceActivityId = Guid.NewGuid();
 
             var data = new MessageData(taskMessage, outboundTraceActivityId, queueName);
-            string rawContent = Utils.SerializeMessageData(data);
-
+            string rawContent = Utils.SerializeMessageData(connectionString, data);
             AnalyticsEventSource.Log.SendingMessage(
                 outboundTraceActivityId,
                 storageAccountName,

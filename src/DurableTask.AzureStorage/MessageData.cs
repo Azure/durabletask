@@ -34,16 +34,38 @@ namespace DurableTask.AzureStorage
         public MessageData()
         { }
 
-        [DataMember]
+        [DataMember]                                                                                                                                                                                                                                                                                                                                                                  
         public Guid ActivityId { get; private set; }
 
         [DataMember]
         public TaskMessage TaskMessage { get; private set; }
+
+        [DataMember]
+        public string CompressedBlobName { get; set; }
 
         internal string QueueName { get; set; }
 
         internal CloudQueueMessage OriginalQueueMessage { get; set; }
 
         internal long TotalMessageSizeBytes { get; set; }
+
+        internal MessageFormatFlags MessageFormat { get; set; }
+    }
+
+    /// <summary>
+    /// The message type.
+    /// </summary>
+    [Flags]
+    public enum MessageFormatFlags
+    {
+        /// <summary>
+        /// Inline JSON message type.
+        /// </summary>
+        InlineJson = 0b0000,
+
+        /// <summary>
+        /// Blob message type.
+        /// </summary>
+        StorageBlob = 0b0001
     }
 }

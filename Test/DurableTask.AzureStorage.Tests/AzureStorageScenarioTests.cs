@@ -17,6 +17,7 @@ namespace DurableTask.AzureStorage.Tests
     using System.IO;
     using System.Linq;
     using System.Runtime.Serialization;
+    using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Core;
@@ -324,6 +325,130 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         /// <summary>
+        /// End-to-end test which validates that orchestrations with <=60KB text message sizes can run successfully.
+        /// </summary>
+        [TestMethod]
+        public async Task SmallTextMessagePayloads()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
+            {
+                await host.StartAsync();
+
+                // Generate a small random string payload
+                const int TargetPayloadSize = 1 * 1024; // 1 KB
+                const string Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 {}/<>.-";
+                var sb = new StringBuilder();
+                var random = new Random();
+                while (Encoding.UTF8.GetByteCount(sb.ToString()) < TargetPayloadSize)
+                {
+                    for (int i = 0; i < 1000; i++)
+                    {
+                        sb.Append(Chars[random.Next(Chars.Length)]);
+                    }
+                }
+
+                string message = sb.ToString();
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), message);
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                Assert.AreEqual(message, JToken.Parse(status?.Output));
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// End-to-end test which validates that orchestrations with > 60KB text message sizes can run successfully.
+        /// </summary>
+        [TestMethod]
+        public async Task LargeTextMessagePayloads()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
+            {
+                await host.StartAsync();
+
+                // Generate a medium random string payload
+                const int TargetPayloadSize = 128 * 1024; // 128 KB
+                const string Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 {}/<>.-";
+                var sb = new StringBuilder();
+                var random = new Random();
+                while (Encoding.UTF8.GetByteCount(sb.ToString()) < TargetPayloadSize)
+                {
+                    for (int i = 0; i < 1000; i++)
+                    {
+                        sb.Append(Chars[random.Next(Chars.Length)]);
+                    }
+                }
+
+                string message = sb.ToString();
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), message);
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(1));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                Assert.AreEqual(message, JToken.Parse(status?.Output));
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// End-to-end test which validates that orchestrations with > 60KB binary bytes message sizes can run successfully.
+        /// </summary>
+        [TestMethod]
+        public async Task LargeBinaryByteMessagePayloads()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
+            {
+                await host.StartAsync();
+
+                // Construct byte array from large binary file 
+                string originalFileName = "jpn.pdf";
+                string currentDirectory = Directory.GetCurrentDirectory();
+                string originalFilePath = Path.Combine(currentDirectory, originalFileName);
+                byte[] readBytes = File.ReadAllBytes(originalFilePath);
+                //string message = Convert.ToBase64String(readBytes);
+
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.EchoBytes), readBytes);
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(1));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+
+                byte[] outputBytes = JToken.Parse(status?.Output).ToObject<byte[]>();
+                Assert.IsTrue(readBytes.SequenceEqual(outputBytes), "Original message byte array and returned messages byte array are not equal");
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// End-to-end test which validates that orchestrations with > 60KB binary string message sizes can run successfully.
+        /// </summary>
+        [TestMethod]
+        public async Task LargeBinaryStringMessagePayloads()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
+            {
+                await host.StartAsync();
+
+                // Construct string message from large binary file 
+                string originalFileName = "jpn.pdf";
+                string currentDirectory = Directory.GetCurrentDirectory();
+                string originalFilePath = Path.Combine(currentDirectory, originalFileName);
+                byte[] readBytes = File.ReadAllBytes(originalFilePath);
+                string message = Convert.ToBase64String(readBytes);
+
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), message);
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(1));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                Assert.AreEqual(message, JToken.Parse(status?.Output));
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
         /// End-to-end test which validates the handling of unhandled exceptions generated from activity code.
         /// </summary>
         [TestMethod]
@@ -532,6 +657,24 @@ namespace DurableTask.AzureStorage.Tests
                     return catchCount;
                 }
             }
+
+            [KnownType(typeof(Activities.Echo))]
+            internal class Echo : TaskOrchestration<string, string>
+            {
+                public override Task<string> RunTask(OrchestrationContext context, string input)
+                {
+                    return context.ScheduleTask<string>(typeof(Activities.Echo), input);
+                }
+            }
+
+            [KnownType(typeof(Activities.EchoBytes))]
+            internal class EchoBytes : TaskOrchestration<byte[], byte[]>
+            {
+                public override Task<byte[]> RunTask(OrchestrationContext context, byte[] input)
+                {
+                    return context.ScheduleTask<byte[]>(typeof(Activities.EchoBytes), input);
+                }
+            }
         }
 
         static class Activities
@@ -574,6 +717,22 @@ namespace DurableTask.AzureStorage.Tests
                 protected override string Execute(TaskContext context, string message)
                 {
                     throw new Exception(message);
+                }
+            }
+
+            internal class Echo : TaskActivity<string, string>
+            {
+                protected override string Execute(TaskContext context, string input)
+                {
+                    return input;
+                }
+            }
+
+            internal class EchoBytes : TaskActivity<byte[], byte[]>
+            {
+                protected override byte[] Execute(TaskContext context, byte[] input)
+                {
+                    return input;
                 }
             }
         }
