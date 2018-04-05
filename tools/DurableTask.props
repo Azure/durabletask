@@ -15,8 +15,16 @@
     <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
   </PropertyGroup>
 
+  <!-- Sign assemblies if the snk file is present -->
+  <PropertyGroup Condition="Exists('$(SolutionDir)\tools\sign.snk')">
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>$(SolutionDir)\tools\sign.snk</AssemblyOriginatorKeyFile>
+    <DefineConstants>$(DefineConstants);SIGN_ASSEMBLY</DefineConstants>
+  </PropertyGroup>
+
   <!-- Test Specific Settings -->
   <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests')) Or $(MSBuildProjectName.Contains('.Test.')) Or $(MSBuildProjectName.EndsWith('.Samples'))">
+    <SignAssembly>false</SignAssembly>
     <RunCodeAnalysis>False</RunCodeAnalysis>
     <GenerateDocumentationFile>False</GenerateDocumentationFile>
   </PropertyGroup>
@@ -24,9 +32,9 @@
   <!-- Nuget Package Settings -->
   <PropertyGroup>
     <PackageOutputPath>..\..\build_output\packages</PackageOutputPath>
-    <AssemblyVersion>2.1.0.0</AssemblyVersion>
-    <FileVersion>2.1.0.0</FileVersion>
-    <Version>2.1.0.0-prerelease</Version>
+    <AssemblyVersion>2.0.0.3</AssemblyVersion>
+    <FileVersion>2.0.0.3</FileVersion>
+    <Version>2.0.0.3-preview</Version>
     <Company>Microsoft</Company>
     <Product>Durable Task Framework</Product>
     <Description>This package provides a C# based durable task framework for writing long running applications.</Description>
@@ -36,7 +44,7 @@
     <RepositoryUrl>https://github.com/Azure/durabletask/</RepositoryUrl>
     <PackageTags>ServiceBus;Service Bus;Azure;Task;Durable;Orchestration;Workflow;Activity;Reliable</PackageTags>
   </PropertyGroup>
-  
+
   <Target Name="Build">
   </Target>
 </Project>

@@ -15,7 +15,7 @@ namespace DurableTask.AzureStorage
 {
     using System;
     using System.Diagnostics.Tracing;
-    using System.Runtime.Remoting.Messaging;
+    using System.Threading;
 
     /// <summary>
     /// ETW Event Provider for the DurableTask.AzureStorage provider extension.
@@ -26,7 +26,11 @@ namespace DurableTask.AzureStorage
     [EventSource(Name = "DurableTask-AzureStorage")]
     class AnalyticsEventSource : EventSource
     {
+#if NETSTANDARD2_0
+        static readonly AsyncLocal<Guid> ActivityIdState = new AsyncLocal<Guid>();
+#else
         const string TraceActivityIdSlot = "TraceActivityId";
+#endif
 
         /// <summary>
         /// Singleton instance used for writing events.
@@ -36,15 +40,27 @@ namespace DurableTask.AzureStorage
         [NonEvent]
         public static void SetLogicalTraceActivityId(Guid activityId)
         {
+#if NETSTANDARD2_0
+            // We use AsyncLocal to preserve activity IDs across async/await boundaries.
+            ActivityIdState.Value = activityId;
+#else
             // We use LogicalSetData to preserve activity IDs across async/await boundaries.
-            CallContext.LogicalSetData(TraceActivityIdSlot, activityId);
+            System.Runtime.Remoting.Messaging.CallContext.LogicalSetData(TraceActivityIdSlot, activityId);
+#endif
             SetCurrentThreadActivityId(activityId);
         }
 
         [NonEvent]
         private static void EnsureLogicalTraceActivityId()
         {
-            object data = CallContext.LogicalGetData(TraceActivityIdSlot);
+#if NETSTANDARD2_0
+            Guid currentActivityId = ActivityIdState.Value;
+            if (currentActivityId != CurrentThreadActivityId)
+            {
+                SetCurrentThreadActivityId(currentActivityId);
+            }
+#else
+            object data = System.Runtime.Remoting.Messaging.CallContext.LogicalGetData(TraceActivityIdSlot);
             if (data != null)
             {
                 Guid currentActivityId = (Guid)data;
@@ -53,6 +69,7 @@ namespace DurableTask.AzureStorage
                     SetCurrentThreadActivityId(currentActivityId);
                 }
             }
+#endif
         }
 
         [Event(101, Level = EventLevel.Informational, Opcode = EventOpcode.Send)]
@@ -89,10 +106,10 @@ namespace DurableTask.AzureStorage
         }
 
         [Event(103, Level = EventLevel.Informational)]
-        public void DeletingMessage(string Account, string TaskHub, string EventType, string MessageId, string InstanceId)
+        public void DeletingMessage(string Account, string TaskHub, string EventType, string MessageId, string InstanceId, string ExecutionId)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(103, Account, TaskHub, EventType, MessageId, InstanceId);
+            this.WriteEvent(103, Account, TaskHub, EventType, MessageId, InstanceId, ExecutionId);
         }
 
         [Event(104, Level = EventLevel.Warning, Message = "Abandoning message of type {0} with ID = {1}. Orchestration ID = {2}.")]
@@ -284,6 +301,20 @@ namespace DurableTask.AzureStorage
         {
             EnsureLogicalTraceActivityId();
             this.WriteEvent(134, Account, TaskHub, WorkerName, PartitionId, Token);
+        }
+
+        [Event(135, Level = EventLevel.Informational, Message = "Host '{2}' successfully updated Instances table with '{5}' event")]
+        public void InstanceStatusUpdate(string Account, string TaskHub, string InstanceId, string ExecutionId, string EventType ,long LatencyMs)
+        {
+            EnsureLogicalTraceActivityId();
+            this.WriteEvent(135, Account, TaskHub, InstanceId, ExecutionId, EventType, LatencyMs);
+        }
+
+        [Event(136, Level = EventLevel.Informational)]
+        public void FetchedInstanceStatus(string Account, string TaskHub, string InstanceId, string ExecutionId, long LatencyMs)
+        {
+            EnsureLogicalTraceActivityId();
+            this.WriteEvent(136, Account, TaskHub, InstanceId, ExecutionId, LatencyMs);
         }
     }
 }

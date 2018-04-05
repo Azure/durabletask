@@ -47,6 +47,7 @@ namespace DurableTask.Emulator
         //Dictionary<string, Tuple<List<TaskMessage>, byte[]>> sessionLock;
 
         object thisLock = new object();
+        object timerLock = new object();
 
         ConcurrentDictionary<string, TaskCompletionSource<OrchestrationState>> orchestrationWaiters;
 
@@ -70,9 +71,9 @@ namespace DurableTask.Emulator
         {
             while (!this.cancellationTokenSource.Token.IsCancellationRequested)
             {
-                lock (this.thisLock)
+                lock (this.timerLock)
                 {
-                    foreach (TaskMessage tm in this.timerMessages)
+                    foreach (TaskMessage tm in this.timerMessages.ToList())
                     {
                         TimerFiredEvent te = tm.Event as TimerFiredEvent;
 
@@ -88,7 +89,7 @@ namespace DurableTask.Emulator
                             this.timerMessages.Remove(tm);
                         }
                     }
-                }
+                 }
 
                 await Task.Delay(TimeSpan.FromSeconds(1));
             }
@@ -372,7 +373,7 @@ namespace DurableTask.Emulator
 
             TaskOrchestrationWorkItem wi = new TaskOrchestrationWorkItem()
             {
-                NewMessages = taskSession.Messages,
+                NewMessages = taskSession.Messages.ToList(),
                 InstanceId = taskSession.Id,
                 LockedUntilUtc = DateTime.UtcNow.AddMinutes(5),
                 OrchestrationRuntimeState =
@@ -414,9 +415,12 @@ namespace DurableTask.Emulator
 
                 if (workItemTimerMessages != null)
                 {
-                    foreach (TaskMessage m in workItemTimerMessages)
+                    lock (this.timerLock)
                     {
-                        this.timerMessages.Add(m);
+                        foreach (TaskMessage m in workItemTimerMessages)
+                        {
+                            this.timerMessages.Add(m);
+                        }
                     }
                 }
 

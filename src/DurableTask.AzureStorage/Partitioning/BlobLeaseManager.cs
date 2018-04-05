@@ -16,6 +16,7 @@ namespace DurableTask.AzureStorage.Partitioning
     using System;
     using System.Collections.Generic;
     using System.Globalization;
+    using System.Linq;
     using System.Net;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Monitoring;
@@ -100,16 +101,33 @@ namespace DurableTask.AzureStorage.Partitioning
             return result;
         }
 
-        public IEnumerable<Task<BlobLease>> ListLeases()
+        public async Task<IEnumerable<BlobLease>> ListLeasesAsync()
         {
-            foreach (IListBlobItem blob in this.consumerGroupDirectory.ListBlobs())
+            var blobLeases = new List<BlobLease>();
+
+            BlobContinuationToken continuationToken = null;
+            do
             {
-                CloudBlockBlob lease = blob as CloudBlockBlob;
-                if (lease != null)
+                BlobResultSegment segment = await this.consumerGroupDirectory.ListBlobsSegmentedAsync(continuationToken);
+                continuationToken = segment.ContinuationToken;
+
+                var downloadTasks = new List<Task<BlobLease>>();
+                foreach (IListBlobItem blob in segment.Results)
                 {
-                    yield return this.DownloadLeaseBlob(lease);
+                    CloudBlockBlob lease = blob as CloudBlockBlob;
+                    if (lease != null)
+                    {
+                        downloadTasks.Add(this.DownloadLeaseBlob(lease));
+                    }
                 }
+
+                await Task.WhenAll(downloadTasks);
+
+                blobLeases.AddRange(downloadTasks.Select(t => t.Result));
             }
+            while (continuationToken != null);
+
+            return blobLeases;
         }
 
         public async Task CreateLeaseIfNotExistAsync(string paritionId)
@@ -156,15 +174,15 @@ namespace DurableTask.AzureStorage.Partitioning
             }
         }
 
-        public Task<BlobLease> GetLeaseAsync(string paritionId)
+        public async Task<BlobLease> GetLeaseAsync(string paritionId)
         {
             CloudBlockBlob leaseBlob = this.consumerGroupDirectory.GetBlockBlobReference(paritionId);
-            if (leaseBlob.Exists())
+            if (await leaseBlob.ExistsAsync())
             {
-                return this.DownloadLeaseBlob(leaseBlob);
+                return await this.DownloadLeaseBlob(leaseBlob);
             }
 
-            return Task.FromResult<BlobLease>(null);
+            return null;
         }
 
         public async Task<bool> RenewAsync(BlobLease lease)
