@@ -22,8 +22,11 @@ namespace DurableTask.AzureStorage
     /// Protocol class for all Azure Queue messages.
     /// </summary>
     [DataContract]
-    class MessageData
+    public class MessageData
     {
+        /// <summary>
+        /// The MessageData object.
+        /// </summary>
         public MessageData(TaskMessage message, Guid activityId, string queueName)
         {
             this.TaskMessage = message;
@@ -31,19 +34,53 @@ namespace DurableTask.AzureStorage
             this.QueueName = queueName;
         }
 
+        /// <summary>
+        /// The MessageData object.
+        /// </summary>
         public MessageData()
         { }
 
+        /// <summary>
+        /// The Activity ID.
+        /// </summary>
         [DataMember]
         public Guid ActivityId { get; private set; }
 
+        /// <summary>
+        /// The TaskMessage.
+        /// </summary>
         [DataMember]
         public TaskMessage TaskMessage { get; private set; }
+
+        /// <summary>
+        /// The blob name for the compressed message. This value is set if there is a compressed blob.
+        /// </summary>
+        [DataMember]
+        public string CompressedBlobName { get; set; }
 
         internal string QueueName { get; set; }
 
         internal CloudQueueMessage OriginalQueueMessage { get; set; }
 
         internal long TotalMessageSizeBytes { get; set; }
+
+        internal MessageFormatFlags MessageFormat { get; set; }
+    }
+
+    /// <summary>
+    /// The message type.
+    /// </summary>
+    [Flags]
+    public enum MessageFormatFlags
+    {
+        /// <summary>
+        /// Inline JSON message type.
+        /// </summary>
+        InlineJson = 0b0000,
+
+        /// <summary>
+        /// Blob message type.
+        /// </summary>
+        StorageBlob = 0b0001
     }
 }

@@ -30,6 +30,7 @@ namespace DurableTask.AzureStorage
     using DurableTask.Core;
     using DurableTask.Core.History;
     using Microsoft.WindowsAzure.Storage;
+    using Microsoft.WindowsAzure.Storage.Blob;
     using Microsoft.WindowsAzure.Storage.Queue;
     using Microsoft.WindowsAzure.Storage.Table;
     using Newtonsoft.Json;
@@ -48,6 +49,7 @@ namespace DurableTask.AzureStorage
         readonly AzureStorageOrchestrationServiceStats stats;
         readonly string storageAccountName;
         readonly CloudQueueClient queueClient;
+        readonly CloudBlobClient blobClient;
         readonly ConcurrentDictionary<string, CloudQueue> ownedControlQueues;
         readonly ConcurrentDictionary<string, CloudQueue> allControlQueues;
         readonly CloudQueue workItemQueue;
@@ -55,6 +57,7 @@ namespace DurableTask.AzureStorage
         readonly CloudTable instancesTable;
         readonly LinkedList<PendingMessageBatch> pendingOrchestrationMessageBatches;
         readonly ConcurrentDictionary<string, object> activeOrchestrationInstances;
+        readonly MessageManager messageManager;
 
         readonly TableEntityConverter tableEntityConverter;
         readonly IReadOnlyDictionary<EventType, Type> eventTypeMap;
@@ -71,6 +74,12 @@ namespace DurableTask.AzureStorage
         bool isStarted;
         Task statsLoop;
         CancellationTokenSource shutdownSource;
+
+        const int MaxStorageQueuePayloadSizeInBytes = 60 * 1024; // 60KB
+        const string InputProperty = "Input";
+        const string ResultProperty = "Result";
+        const string OutputProperty = "Output";
+        const string BlobNamePropertySuffix = "BlobName";
 
         /// <summary>
         /// Initializes a new instance of the <see cref="AzureStorageOrchestrationService"/> class.
@@ -91,8 +100,9 @@ namespace DurableTask.AzureStorage
             this.storageAccountName = account.Credentials.AccountName;
             this.stats = new AzureStorageOrchestrationServiceStats();
             this.queueClient = account.CreateCloudQueueClient();
+            this.blobClient = account.CreateCloudBlobClient();
             CloudTableClient tableClient = account.CreateCloudTableClient();
-
+            this.messageManager = new MessageManager(this.blobClient);
             // TODO: Need to do input validation on the TaskHubName.
 
             this.ownedControlQueues = new ConcurrentDictionary<string, CloudQueue>();
@@ -565,8 +575,8 @@ namespace DurableTask.AzureStorage
                                 cancellationToken);
                             this.stats.StorageRequests.Increment();
 
-                            IEnumerable<MessageData> deserializedBatch = 
-                                batch.Select(m => Utils.DeserializeQueueMessage(m, controlQueue.Name));
+                            IEnumerable<MessageData> deserializedBatch = await Task.WhenAll(
+                                batch.Select(async m => await this.messageManager.DeserializeQueueMessageAsync(m, controlQueue.Name)));
                             lock (messages)
                             {
                                 messages.AddRange(deserializedBatch);
@@ -783,12 +793,28 @@ namespace DurableTask.AzureStorage
 
                 // Convert the table entities into history events.
                 var events = new List<HistoryEvent>(historyEventEntities.Count);
+
                 foreach (DynamicTableEntity entity in historyEventEntities)
                 {
                     if (entity.Properties["ExecutionId"].StringValue != executionId)
                     {
                         // The remaining entities are from a previous generation and can be discarded.
                         break;
+                    }
+
+                    if (this.HasCompressedTableEntityByPropertyKey(entity, InputProperty))
+                    {
+                        await this.SetDecompressedTableEntityAsync(entity, InputProperty);
+                    }
+
+                    if (this.HasCompressedTableEntityByPropertyKey(entity, ResultProperty))
+                    {
+                        await this.SetDecompressedTableEntityAsync(entity, ResultProperty);
+                    }
+
+                    if (this.HasCompressedTableEntityByPropertyKey(entity, OutputProperty))
+                    {
+                        await this.SetDecompressedTableEntityAsync(entity, OutputProperty);
                     }
 
                     events.Add((HistoryEvent)this.tableEntityConverter.ConvertFromTableEntity(entity, GetTypeForTableEntity));
@@ -812,6 +838,24 @@ namespace DurableTask.AzureStorage
                 stopwatch.ElapsedMilliseconds);
 
             return new OrchestrationRuntimeState(historyEvents);
+        }
+
+        async Task SetDecompressedTableEntityAsync(DynamicTableEntity dynamicTableEntity, string propertyKey)
+        {
+            // e.g. InputBlobName, OutputBlobName, ResultBlobName
+            string blobNameKey = $"{propertyKey}{BlobNamePropertySuffix}";
+            string blobName = dynamicTableEntity.Properties[blobNameKey].StringValue;
+            string decompressedMessage = await this.messageManager.DownloadAndDecompressAsBytesAsync(blobName);
+            dynamicTableEntity.Properties[propertyKey] = new EntityProperty(decompressedMessage);
+        }
+
+        bool HasCompressedTableEntityByPropertyKey(DynamicTableEntity dynamicTableEntity, string propertyKey)
+        {
+            // e.g. InputBlobName, OutputBlobName, ResultBlobName
+            string blobNameKey = $"{propertyKey}{BlobNamePropertySuffix}";
+            return dynamicTableEntity.Properties.ContainsKey(propertyKey)
+                && dynamicTableEntity.Properties.ContainsKey(blobNameKey)
+                && dynamicTableEntity.Properties[propertyKey].StringValue == string.Empty;
         }
 
         Type GetTypeForTableEntity(DynamicTableEntity tableEntity)
@@ -886,6 +930,9 @@ namespace DurableTask.AzureStorage
                 HistoryEvent historyEvent = newEvents[i];
                 DynamicTableEntity entity = this.tableEntityConverter.ConvertToTableEntity(historyEvent);
 
+                await this.CompressLargeMessageAsync(entity);
+
+                newEventList.Append(historyEvent.EventType.ToString()).Append(',');
                 newEventListBuffer.Append(historyEvent.EventType.ToString()).Append(',');
 
                 // The row key is the sequence number, which represents the chronological ordinal of the event.
@@ -946,6 +993,8 @@ namespace DurableTask.AzureStorage
                 await this.UploadHistoryBatch(context, historyEventBatch, newEventListBuffer, newEvents.Count);
             }
 
+            await this.CompressLargeMessageAsync(orchestrationInstanceUpdate);
+
             Stopwatch orchestrationInstanceUpdateStopwatch = Stopwatch.StartNew();
             await this.instancesTable.ExecuteAsync(TableOperation.InsertOrMerge(orchestrationInstanceUpdate));
 
@@ -980,7 +1029,7 @@ namespace DurableTask.AzureStorage
                     CloudQueue targetControlQueue = await this.GetControlQueueAsync(targetInstanceId);
 
                     enqueueTasks.Add(targetControlQueue.AddMessageAsync(
-                        context.CreateOutboundQueueMessage(taskMessage, targetControlQueue.Name),
+                        context.CreateOutboundQueueMessageAsync(this.messageManager, taskMessage, targetControlQueue.Name).Result,
                         null /* timeToLive */,
                         null /* initialVisibilityDelay */,
                         this.settings.ControlQueueRequestOptions,
@@ -1004,7 +1053,7 @@ namespace DurableTask.AzureStorage
                     }
 
                     enqueueTasks.Add(currentControlQueue.AddMessageAsync(
-                        context.CreateOutboundQueueMessage(taskMessage, currentControlQueue.Name),
+                        context.CreateOutboundQueueMessageAsync(this.messageManager, taskMessage, currentControlQueue.Name).Result,
                         null /* timeToLive */,
                         initialVisibilityDelay,
                         this.settings.ControlQueueRequestOptions,
@@ -1019,7 +1068,7 @@ namespace DurableTask.AzureStorage
                 foreach (TaskMessage taskMessage in outboundMessages)
                 {
                     enqueueTasks.Add(this.workItemQueue.AddMessageAsync(
-                        context.CreateOutboundQueueMessage(taskMessage, this.workItemQueue.Name),
+                        context.CreateOutboundQueueMessageAsync(this.messageManager, taskMessage, this.workItemQueue.Name).Result,
                         null /* timeToLive */,
                         null /* initialVisibilityDelay */,
                         this.settings.WorkItemQueueRequestOptions,
@@ -1033,7 +1082,7 @@ namespace DurableTask.AzureStorage
                 addedControlMessages = true;
 
                 enqueueTasks.Add(currentControlQueue.AddMessageAsync(
-                    context.CreateOutboundQueueMessage(continuedAsNewMessage, currentControlQueue.Name),
+                    context.CreateOutboundQueueMessageAsync(this.messageManager, continuedAsNewMessage, currentControlQueue.Name).Result,
                     null /* timeToLive */,
                     null /* initialVisibilityDelay */,
                     this.settings.ControlQueueRequestOptions,
@@ -1057,6 +1106,22 @@ namespace DurableTask.AzureStorage
             }
 
             await this.DeleteMessageBatchAsync(context, currentControlQueue);
+        }
+
+        async Task CompressLargeMessageAsync(DynamicTableEntity entity)
+        {
+            string propertyKey = this.GetLargeTableEntity(entity);
+            if (propertyKey != null)
+            {
+                string blobName = Guid.NewGuid().ToString();
+                
+                // e.g.InputBlobName, OutputBlobName, ResultBlobName
+                string blobNameKey = $"{propertyKey}{BlobNamePropertySuffix}";
+                byte[] messageBytes = this.GetPropertyMessageAsBytes(entity);
+                await this.messageManager.CompressAndUploadAsBytesAsync(messageBytes, blobName);
+                entity.Properties.Add(blobNameKey, new EntityProperty(blobName));
+                this.SetProperyMessageToEmptyString(entity);
+            }
         }
 
         async Task UploadHistoryBatch(
@@ -1118,6 +1183,74 @@ namespace DurableTask.AzureStorage
             {
                 this.stats.StorageRequests.Increment(context.MessageDataBatch.Count);
             }
+        }
+
+        void SetProperyMessageToEmptyString(DynamicTableEntity entity)
+        {
+            if (entity.Properties.ContainsKey(InputProperty) && entity.Properties[InputProperty] != null)
+            {
+                entity.Properties[InputProperty].StringValue = string.Empty;
+            }
+            else if (entity.Properties.ContainsKey(ResultProperty) && entity.Properties[ResultProperty] != null)
+            {
+                entity.Properties[ResultProperty].StringValue = string.Empty;
+            }
+            else if (entity.Properties.ContainsKey(OutputProperty) && entity.Properties[OutputProperty] != null)
+            {
+                entity.Properties[OutputProperty].StringValue = string.Empty;
+            }
+        }
+
+        byte[] GetPropertyMessageAsBytes(DynamicTableEntity entity)
+        {
+            byte[] messageBytes = new byte[0];
+
+            if (entity.Properties.ContainsKey(InputProperty) && entity.Properties[InputProperty] != null)
+            {
+                messageBytes = Encoding.Unicode.GetBytes(entity.Properties[InputProperty].StringValue);
+            }
+            else if (entity.Properties.ContainsKey(ResultProperty) && entity.Properties[ResultProperty] != null)
+            {
+                messageBytes = Encoding.Unicode.GetBytes(entity.Properties[ResultProperty].StringValue);
+            }
+            else if (entity.Properties.ContainsKey(OutputProperty) && entity.Properties[OutputProperty] != null)
+            {
+                messageBytes = Encoding.Unicode.GetBytes(entity.Properties[OutputProperty].StringValue);
+            }
+
+            return messageBytes;
+        }
+
+        string GetLargeTableEntity(DynamicTableEntity entity)
+        {
+            if (this.GetLargeTableEntityInternal(entity, InputProperty) != null)
+            {
+                return InputProperty;
+            }
+
+            if (this.GetLargeTableEntityInternal(entity, ResultProperty) != null)
+            {
+                return ResultProperty;
+            }
+
+            if (this.GetLargeTableEntityInternal(entity, OutputProperty) != null)
+            {
+                return OutputProperty;
+            }
+
+            return null;
+        }
+
+        string GetLargeTableEntityInternal(DynamicTableEntity entity, string propertyKey)
+        {
+            if (entity.Properties.ContainsKey(propertyKey)
+                && entity.Properties[propertyKey] != null
+                && this.ExceedsMaxTableEntitySize(entity.Properties[propertyKey].StringValue))
+            {
+                return propertyKey;
+            }
+
+            return null;
         }
 
         // REVIEW: There doesn't seem to be any code which calls this method.
@@ -1259,7 +1392,8 @@ namespace DurableTask.AzureStorage
             this.stats.MessagesRead.Increment();
             this.workItemQueueBackoff.Reset();
 
-            ReceivedMessageContext context = ReceivedMessageContext.CreateFromReceivedMessage(
+            ReceivedMessageContext context = await ReceivedMessageContext.CreateFromReceivedMessageAsync(
+                this.messageManager,
                 this.storageAccountName,
                 this.settings.TaskHubName,
                 queueMessage,
@@ -1307,7 +1441,7 @@ namespace DurableTask.AzureStorage
             try
             {
                 await controlQueue.AddMessageAsync(
-                    context.CreateOutboundQueueMessage(responseTaskMessage, controlQueue.Name),
+                    context.CreateOutboundQueueMessageAsync(this.messageManager, responseTaskMessage, controlQueue.Name).Result,
                     null /* timeToLive */,
                     null /* initialVisibilityDelay */,
                     this.settings.WorkItemQueueRequestOptions,
@@ -1548,6 +1682,8 @@ namespace DurableTask.AzureStorage
                 }
             };
 
+            await this.CompressLargeMessageAsync(entity);
+
             Stopwatch stopwatch = Stopwatch.StartNew();
             await this.instancesTable.ExecuteAsync(
                 TableOperation.Insert(entity));
@@ -1566,7 +1702,8 @@ namespace DurableTask.AzureStorage
         async Task SendTaskOrchestrationMessageInternalAsync(CloudQueue controlQueue, TaskMessage message)
         {
             await controlQueue.AddMessageAsync(
-                ReceivedMessageContext.CreateOutboundQueueMessageInternal(
+                await ReceivedMessageContext.CreateOutboundQueueMessageInternalAsync(
+                    this.messageManager,
                     this.storageAccountName,
                     this.settings.TaskHubName,
                     controlQueue.Name,
@@ -1637,11 +1774,31 @@ namespace DurableTask.AzureStorage
                 orchestrationState.Status = orchestrationInstanceStatus.CustomStatus;
                 orchestrationState.CreatedTime = orchestrationInstanceStatus.CreatedTime;
                 orchestrationState.LastUpdatedTime = orchestrationInstanceStatus.LastUpdatedTime;
-                orchestrationState.Input = orchestrationInstanceStatus.Input;
-                orchestrationState.Output = orchestrationInstanceStatus.Output;
+                orchestrationState.Input = await this.GetOrchestrationInputAsync(orchestrationInstanceStatus);
+                orchestrationState.Output = await this.GetOrchestrationOutputAsync(orchestrationInstanceStatus);
             }
 
             return orchestrationState;
+        }
+
+        async Task<string> GetOrchestrationOutputAsync(OrchestrationInstanceStatus orchestrationInstanceStatus)
+        {
+            if (string.IsNullOrEmpty(orchestrationInstanceStatus.OutputBlobName))
+            {
+                return orchestrationInstanceStatus.Output;
+            }
+
+            return await this.messageManager.DownloadAndDecompressAsBytesAsync(orchestrationInstanceStatus.OutputBlobName);
+        }
+
+        async Task<string> GetOrchestrationInputAsync(OrchestrationInstanceStatus orchestrationInstanceStatus)
+        {
+            if (string.IsNullOrEmpty(orchestrationInstanceStatus.InputBlobName))
+            {
+                return orchestrationInstanceStatus.Input;
+            }
+
+            return await this.messageManager.DownloadAndDecompressAsBytesAsync(orchestrationInstanceStatus.InputBlobName);
         }
 
         /// <summary>
@@ -1696,7 +1853,7 @@ namespace DurableTask.AzureStorage
             TimeSpan statusPollingInterval = TimeSpan.FromSeconds(2);
             while (!cancellationToken.IsCancellationRequested && timeout > TimeSpan.Zero)
             {
-                OrchestrationState state = await GetOrchestrationStateAsync(instanceId, executionId);
+                OrchestrationState state = await this.GetOrchestrationStateAsync(instanceId, executionId);
                 if (state == null || 
                     state.OrchestrationStatus == OrchestrationStatus.Running ||
                     state.OrchestrationStatus == OrchestrationStatus.Pending)
@@ -1788,11 +1945,23 @@ namespace DurableTask.AzureStorage
             public string  Name { get; set; }
             public string Version { get; set; }
             public string Input { get; set; }
+            public string InputBlobName { get; set; }
             public string Output { get; set; }
+            public string OutputBlobName { get; set; }
             public string CustomStatus { get; set; }
             public DateTime CreatedTime { get; set; }
             public DateTime LastUpdatedTime { get; set; }
             public string RuntimeStatus { get; set; }
+        }
+
+        internal bool ExceedsMaxTableEntitySize(string data)
+        {
+            if (!string.IsNullOrEmpty(data) && Encoding.Unicode.GetByteCount(data) > MaxStorageQueuePayloadSizeInBytes)
+            {
+                return true;
+            }
+
+            return false;
         }
     }
 }
