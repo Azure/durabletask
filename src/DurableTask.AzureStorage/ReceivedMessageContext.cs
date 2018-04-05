@@ -20,6 +20,7 @@ namespace DurableTask.AzureStorage
     using System.Linq;
     using System.Reflection;
     using System.Text;
+    using System.Threading.Tasks;
     using DurableTask.Core;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Queue;
@@ -125,13 +126,14 @@ namespace DurableTask.AzureStorage
             return new ReceivedMessageContext(storageAccountName, taskHub, newTraceActivityId, batch);
         }
 
-        public static ReceivedMessageContext CreateFromReceivedMessage(
+        public static async Task<ReceivedMessageContext> CreateFromReceivedMessageAsync(
+            MessageManager messageManager,
             string storageAccountName,
             string taskHub,
             CloudQueueMessage queueMessage,
             string queueName)
         {
-            MessageData data = Utils.DeserializeQueueMessage(queueMessage, queueName);
+            MessageData data = await messageManager.DeserializeQueueMessageAsync(queueMessage, queueName);
 
             Guid newTraceActivityId = StartNewLogicalTraceScope();
             TraceMessageReceived(storageAccountName, taskHub, data);
@@ -180,12 +182,13 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        public CloudQueueMessage CreateOutboundQueueMessage(TaskMessage taskMessage, string queueName)
+        public async Task<CloudQueueMessage> CreateOutboundQueueMessageAsync(MessageManager messageManager, TaskMessage taskMessage, string queueName)
         {
-            return CreateOutboundQueueMessageInternal(this.storageAccountName, this.taskHub, queueName, taskMessage);
+            return await CreateOutboundQueueMessageInternalAsync(messageManager, this.storageAccountName, this.taskHub, queueName, taskMessage);
         }
 
-        internal static CloudQueueMessage CreateOutboundQueueMessageInternal(
+        internal static async Task<CloudQueueMessage> CreateOutboundQueueMessageInternalAsync(
+            MessageManager messageManager,
             string storageAccountName,
             string taskHub,
             string queueName,
@@ -195,7 +198,7 @@ namespace DurableTask.AzureStorage
             Guid outboundTraceActivityId = Guid.NewGuid();
 
             var data = new MessageData(taskMessage, outboundTraceActivityId, queueName);
-            string rawContent = Utils.SerializeMessageData(data);
+            string rawContent = await messageManager.SerializeMessageDataAsync(data);
 
             AnalyticsEventSource.Log.SendingMessage(
                 outboundTraceActivityId,
@@ -204,7 +207,7 @@ namespace DurableTask.AzureStorage
                 taskMessage.Event.EventType.ToString(),
                 taskMessage.OrchestrationInstance.InstanceId,
                 taskMessage.OrchestrationInstance.ExecutionId,
-                Encoding.UTF8.GetByteCount(rawContent),
+                Encoding.Unicode.GetByteCount(rawContent),
                 PartitionId: data.QueueName);
 
             return new CloudQueueMessage(rawContent);
