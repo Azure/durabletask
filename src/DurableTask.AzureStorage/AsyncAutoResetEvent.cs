@@ -15,7 +15,6 @@ namespace DurableTask.AzureStorage
 {
     using System;
     using System.Collections.Generic;
-    using System.Diagnostics;
     using System.Threading;
     using System.Threading.Tasks;
 
@@ -68,11 +67,16 @@ namespace DurableTask.AzureStorage
             else
             {
                 // We timed-out; remove our reference to the task.
-                // This is an O(n) operation since waiters is a LinkedList<T>.
                 lock (this.waiters)
                 {
-                    bool removed = this.waiters.Remove(tcs);
-                    Debug.Assert(removed);
+                    if (tcs.Task.IsCompleted)
+                    {
+                        // We were signaled and timed out at about the same time.
+                        return true;
+                    }
+
+                    // This is an O(n) operation since waiters is a LinkedList<T>.
+                    this.waiters.Remove(tcs);
                     return false;
                 }
             }
@@ -80,14 +84,12 @@ namespace DurableTask.AzureStorage
 
         public void Set()
         {
-            TaskCompletionSource<bool> toRelease = null;
-
             lock (this.waiters)
             {
                 if (this.waiters.Count > 0)
                 {
                     // Signal the first task in the waiters list.
-                    toRelease = this.waiters.First.Value;
+                    this.waiters.First.Value.SetResult(true);
                     this.waiters.RemoveFirst();
                 }
                 else if (!this.isSignaled)
@@ -95,11 +97,6 @@ namespace DurableTask.AzureStorage
                     // No tasks are pending
                     this.isSignaled = true;
                 }
-            }
-
-            if (toRelease != null)
-            {
-                toRelease.SetResult(true);
             }
         }
     }

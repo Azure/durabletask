@@ -14,6 +14,7 @@
 namespace DurableTask.AzureStorage.Tests
 {
     using System;
+    using System.Collections.Generic;
     using System.IO;
     using System.Linq;
     using System.Runtime.Serialization;
@@ -22,6 +23,8 @@ namespace DurableTask.AzureStorage.Tests
     using DurableTask.Core;
     using Microsoft.Practices.EnterpriseLibrary.SemanticLogging.Utility;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
+    using Microsoft.WindowsAzure.Storage;
+    using Microsoft.WindowsAzure.Storage.Table;
     using Newtonsoft.Json.Linq;
 
     [TestClass]
@@ -348,6 +351,28 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         /// <summary>
+        /// Fan-out/fan-in test which ensures each operation is run only once.
+        /// </summary>
+        [TestMethod]
+        public async Task FanOutToTableStorage()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
+            {
+                await host.StartAsync();
+
+                int iterations = 100;
+
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.MapReduceTableStorage), iterations);
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(300));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                Assert.AreEqual(iterations, int.Parse(status?.Output));
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
         /// Test which validates the ETW event source.
         /// </summary>
         [TestMethod]
@@ -544,6 +569,28 @@ namespace DurableTask.AzureStorage.Tests
                     return catchCount;
                 }
             }
+
+            [KnownType(typeof(Activities.WriteTableRow))]
+            [KnownType(typeof(Activities.CountTableRows))]
+            internal class MapReduceTableStorage : TaskOrchestration<int, int>
+            {
+                public override async Task<int> RunTask(OrchestrationContext context, int iterations)
+                {
+                    string instanceId = context.OrchestrationInstance.InstanceId;
+
+                    var tasks = new List<Task>(iterations);
+                    for (int i = 1; i <= iterations; i++)
+                    {
+                        tasks.Add(context.ScheduleTask<string>(
+                            typeof(Activities.WriteTableRow),
+                            new Tuple<string, string>(instanceId, i.ToString("000"))));
+                    }
+
+                    await Task.WhenAll(tasks);
+
+                    return await context.ScheduleTask<int>(typeof(Activities.CountTableRows), instanceId);
+                }
+            }
         }
 
         static class Activities
@@ -586,6 +633,50 @@ namespace DurableTask.AzureStorage.Tests
                 protected override string Execute(TaskContext context, string message)
                 {
                     throw new Exception(message);
+                }
+            }
+
+            internal class WriteTableRow : TaskActivity<Tuple<string, string>, string>
+            {
+                static CloudTable cachedTable;
+
+                internal static CloudTable TestCloudTable
+                {
+                    get
+                    {
+                        if (cachedTable == null)
+                        {
+                            string connectionString = TestHelpers.GetTestStorageAccountConnectionString();
+                            CloudTable table = CloudStorageAccount.Parse(connectionString).CreateCloudTableClient().GetTableReference("TestTable");
+                            table.CreateIfNotExists();
+                            cachedTable = table;
+                        }
+
+                        return cachedTable;
+                    }
+                }
+
+                protected override string Execute(TaskContext context, Tuple<string, string> rowData)
+                {
+                    var entity = new DynamicTableEntity(
+                        partitionKey: rowData.Item1,
+                        rowKey: $"{rowData.Item2}.{Guid.NewGuid():N}");
+                    TestCloudTable.Execute(TableOperation.Insert(entity));
+                    return null;
+                }
+            }
+
+            internal class CountTableRows : TaskActivity<string, int>
+            {
+                protected override int Execute(TaskContext context, string partitionKey)
+                {
+                    var query = new TableQuery<DynamicTableEntity>().Where(
+                        TableQuery.GenerateFilterCondition(
+                            "PartitionKey",
+                            QueryComparisons.Equal,
+                            partitionKey));
+
+                    return WriteTableRow.TestCloudTable.ExecuteQuery(query).Count();
                 }
             }
         }

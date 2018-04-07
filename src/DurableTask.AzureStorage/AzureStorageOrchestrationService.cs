@@ -866,10 +866,8 @@ namespace DurableTask.AzureStorage
             string instanceId = workItem.InstanceId;
             string executionId = runtimeState.OrchestrationInstance.ExecutionId;
 
-            var newEventList = new StringBuilder(newEvents.Count * 40);
-            var batchOperation = new TableBatchOperation();
-            var tableBatchBatches = new List<TableBatchOperation>();
-            tableBatchBatches.Add(batchOperation);
+            var newEventListBuffer = new StringBuilder(4000);
+            var historyEventBatch = new TableBatchOperation();
 
             EventType? orchestratorEventType = null;
 
@@ -888,7 +886,7 @@ namespace DurableTask.AzureStorage
                 HistoryEvent historyEvent = newEvents[i];
                 DynamicTableEntity entity = this.tableEntityConverter.ConvertToTableEntity(historyEvent);
 
-                newEventList.Append(historyEvent.EventType.ToString()).Append(',');
+                newEventListBuffer.Append(historyEvent.EventType.ToString()).Append(',');
 
                 // The row key is the sequence number, which represents the chronological ordinal of the event.
                 long sequenceNumber = i + (allEvents.Count - newEvents.Count);
@@ -896,15 +894,18 @@ namespace DurableTask.AzureStorage
                 entity.PartitionKey = instanceId;
                 entity.Properties["ExecutionId"] = new EntityProperty(executionId);
 
-                // Table storage only supports inserts of up to 100 entities at a time.
-                if (batchOperation.Count == 100)
-                {
-                    tableBatchBatches.Add(batchOperation);
-                    batchOperation = new TableBatchOperation();
-                }
-
                 // Replacement can happen if the orchestration episode gets replayed due to a commit failure in one of the steps below.
-                batchOperation.InsertOrReplace(entity);
+                historyEventBatch.InsertOrReplace(entity);
+
+                // Table storage only supports inserts of up to 100 entities at a time.
+                if (historyEventBatch.Count == 100)
+                {
+                    await this.UploadHistoryBatch(context, historyEventBatch, newEventListBuffer, newEvents.Count);
+
+                    // Reset local state for the next batch
+                    newEventListBuffer.Clear();
+                    historyEventBatch.Clear();
+                }
 
                 // Monitor for orchestration instance events 
                 switch (historyEvent.EventType)
@@ -939,36 +940,10 @@ namespace DurableTask.AzureStorage
                 }
             }
 
-            // TODO: Check to see if the orchestration has completed (newOrchestrationRuntimeState == null)
-            //       and schedule a time to clean up that state from the history table.
-
             // First persistence step is to commit history to the history table. Messages must come after.
-            // CONSIDER: If there are a large number of history items and messages, we could potentially
-            //           improve overall system throughput by incrementally enqueuing batches of messages
-            //           as we write to the table rather than waiting for all table batches to complete
-            //           before we enqueue messages.
-            foreach (TableBatchOperation operation in tableBatchBatches)
+            if (historyEventBatch.Count > 0)
             {
-                if (operation.Count > 0)
-                {
-                    Stopwatch stopwatch = Stopwatch.StartNew();
-                    await this.historyTable.ExecuteBatchAsync(
-                        operation,
-                        this.settings.HistoryTableRequestOptions,
-                        context.StorageOperationContext);
-                    this.stats.StorageRequests.Increment();
-                    this.stats.TableEntitiesWritten.Increment(operation.Count);
-
-                    AnalyticsEventSource.Log.AppendedInstanceState(
-                        this.storageAccountName,
-                        this.settings.TaskHubName,
-                        instanceId,
-                        executionId,
-                        newEvents.Count,
-                        allEvents.Count,
-                        newEventList.ToString(0, newEventList.Length - 1),
-                        stopwatch.ElapsedMilliseconds);
-                }
+                await this.UploadHistoryBatch(context, historyEventBatch, newEventListBuffer, newEvents.Count);
             }
 
             Stopwatch orchestrationInstanceUpdateStopwatch = Stopwatch.StartNew();
@@ -978,13 +953,12 @@ namespace DurableTask.AzureStorage
             this.stats.TableEntitiesWritten.Increment();
 
             AnalyticsEventSource.Log.InstanceStatusUpdate(
-                   this.storageAccountName,
-                   this.settings.TaskHubName,
-                   instanceId,
-                   executionId,
-                   orchestratorEventType?.ToString() ?? string.Empty,
-                   orchestrationInstanceUpdateStopwatch.ElapsedMilliseconds);
-            
+                this.storageAccountName,
+                this.settings.TaskHubName,
+                instanceId,
+                executionId,
+                orchestratorEventType?.ToString() ?? string.Empty,
+                orchestrationInstanceUpdateStopwatch.ElapsedMilliseconds);
 
             bool addedControlMessages = false;
             bool addedWorkItemMessages = false;
@@ -1083,6 +1057,31 @@ namespace DurableTask.AzureStorage
             }
 
             await this.DeleteMessageBatchAsync(context, currentControlQueue);
+        }
+
+        async Task UploadHistoryBatch(
+            ReceivedMessageContext context,
+            TableBatchOperation historyEventBatch,
+            StringBuilder historyEventNamesBuffer,
+            int numberOfTotalEvents)
+        {
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            await this.historyTable.ExecuteBatchAsync(
+                historyEventBatch,
+                this.settings.HistoryTableRequestOptions,
+                context.StorageOperationContext);
+            this.stats.StorageRequests.Increment();
+            this.stats.TableEntitiesWritten.Increment(historyEventBatch.Count);
+
+            AnalyticsEventSource.Log.AppendedInstanceState(
+                this.storageAccountName,
+                this.settings.TaskHubName,
+                context.Instance.InstanceId,
+                context.Instance.ExecutionId,
+                historyEventBatch.Count,
+                numberOfTotalEvents,
+                historyEventNamesBuffer.ToString(0, historyEventNamesBuffer.Length - 1), // remove trailing comma
+                stopwatch.ElapsedMilliseconds);
         }
 
         async Task DeleteMessageBatchAsync(ReceivedMessageContext context, CloudQueue controlQueue)
