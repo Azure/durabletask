@@ -32,13 +32,20 @@ namespace DurableTask.Core
         readonly IDictionary<int, OpenTaskInfo> openTasks;
         readonly IDictionary<int, OrchestratorAction> orchestratorActionsMap;
         readonly TaskScheduler taskScheduler;
+        readonly bool serializeUnhandledExceptions;
         OrchestrationCompleteOrchestratorAction continueAsNew;
         bool executionTerminated;
         int idCounter;
 
         public TaskOrchestrationContext(OrchestrationInstance orchestrationInstance, TaskScheduler taskScheduler)
+            : this(orchestrationInstance, taskScheduler, false)
+        {
+        }
+
+        public TaskOrchestrationContext(OrchestrationInstance orchestrationInstance, TaskScheduler taskScheduler, bool serializeUnhandledExceptions)
         {
             this.taskScheduler = taskScheduler;
+            this.serializeUnhandledExceptions = serializeUnhandledExceptions;
             openTasks = new Dictionary<int, OpenTaskInfo>();
             orchestratorActionsMap = new Dictionary<int, OrchestratorAction>();
             idCounter = 0;
@@ -405,6 +412,10 @@ namespace DurableTask.Core
             if (orchestrationFailureException != null)
             {
                 details = orchestrationFailureException.Details;
+            }
+            else if (serializeUnhandledExceptions)
+            {
+                details = Utils.SerializeCause(failure, dataConverter);
             }
             else
             {
