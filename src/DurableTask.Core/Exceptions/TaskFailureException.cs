@@ -16,41 +16,63 @@ namespace DurableTask.Core.Exceptions
     using System;
     using System.Runtime.Serialization;
 
+    /// <summary>
+    /// Exception type thrown by implementors of <see cref="TaskActivity"/> when exception
+    /// details need to flow to parent orchestrations.
+    /// </summary>
     [Serializable]
-    internal class TaskFailureException : Exception
+    public class TaskFailureException : Exception
     {
+        /// <summary>
+        /// Initializes a new instance of the <see cref="TaskFailureException"/> class.
+        /// </summary>
         public TaskFailureException()
         {
         }
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="TaskFailureException"/> class.
+        /// </summary>
         public TaskFailureException(string reason)
             : base(reason)
         {
         }
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="TaskFailureException"/> class.
+        /// </summary>
         public TaskFailureException(string reason, Exception innerException)
             : base(reason, innerException)
         {
         }
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="TaskFailureException"/> class.
+        /// </summary>
         public TaskFailureException(string reason, Exception innerException, string details)
             : base(reason, innerException)
         {
             this.Details = details;
         }
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="TaskFailureException"/> class.
+        /// </summary>
         public TaskFailureException(string reason, string details)
             : base(reason)
         {
             this.Details = details;
         }
 
-        public TaskFailureException WithFailureSource(string failureSource)
+        internal TaskFailureException WithFailureSource(string failureSource)
         {
             this.FailureSource = failureSource;
             return this;
         }
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="TaskFailureException"/> class.
+        /// </summary>
         protected TaskFailureException(SerializationInfo info, StreamingContext context)
             : base(info, context)
         {
@@ -58,6 +80,9 @@ namespace DurableTask.Core.Exceptions
             this.FailureSource = info.GetString(FailureSource);
         }
 
+        /// <summary>
+        /// Gets object data for use by serialization.
+        /// </summary>
         public override void GetObjectData(SerializationInfo info, StreamingContext context)
         {
             base.GetObjectData(info, context);
@@ -65,6 +90,9 @@ namespace DurableTask.Core.Exceptions
             info.AddValue(FailureSource, this.FailureSource);
         }
 
+        /// <summary>
+        /// Returns a debug string representing the current exception object.
+        /// </summary>
         public override string ToString()
         {
             return string.Format("FailureSource: {1}{0}Details: {2}{0}Message: {3}{0}Exception: {4}", 
@@ -75,8 +103,11 @@ namespace DurableTask.Core.Exceptions
                 base.ToString());
         }
 
+        /// <summary>
+        /// Details of the exception which will flow to the parent orchestration.
+        /// </summary>
         public string Details { get; set; }
 
-        public string FailureSource { get; set; }
+        internal string FailureSource { get; set; }
     }
 }
