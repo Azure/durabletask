@@ -1,12 +1,10 @@
 ﻿namespace DurableTask.AzureStorage
 {
     using System;
-    using System.Collections.Generic;
     using System.IO;
     using System.IO.Compression;
     using System.Text;
     using System.Threading.Tasks;
-    using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Blob;
     using Microsoft.WindowsAzure.Storage.Queue;
     using Newtonsoft.Json;
@@ -18,21 +16,22 @@
     {
         readonly CloudBlobContainer cloudBlobContainer;
         readonly JsonSerializerSettings taskMessageSerializerSettings;
-        const string DefaultContainerName = "durable-compressedmessage-container";
+        readonly SharedBufferManager sharedBufferManager;
         const int MaxStorageQueuePayloadSizeInBytes = 60 * 1024; // 60KB
         const int DefaultBufferSize = 64 * 2014; // 64KB
 
         /// <summary>
         /// The message manager.
         /// </summary>
-        public MessageManager(CloudBlobClient cloudBlobClient)
+        public MessageManager(CloudBlobClient cloudBlobClient, string blobContainerName)
         {
-            this.cloudBlobContainer = cloudBlobClient.GetContainerReference(DefaultContainerName);
-            this.cloudBlobContainer.CreateIfNotExistsAsync();
+            this.cloudBlobContainer = cloudBlobClient.GetContainerReference(blobContainerName);
             this.taskMessageSerializerSettings = new JsonSerializerSettings
             {
                 TypeNameHandling = TypeNameHandling.Objects
             };
+
+            this.sharedBufferManager = new SharedBufferManager();
         }
 
         /// <summary>
@@ -46,10 +45,10 @@
 
             if (messageFormat != MessageFormatFlags.InlineJson)
             {
-                byte[] messageBytes = Encoding.Unicode.GetBytes(rawContent);
+                byte[] messageBytes = Encoding.UTF8.GetBytes(rawContent);
 
                 // Get Compressed bytes
-                string blobName = messageData.ActivityId.ToString();
+                string blobName = Guid.NewGuid().ToString();
                 await this.CompressAndUploadAsBytesAsync(messageBytes, blobName);
 
                 MessageData wrapperMessageData = new MessageData
@@ -87,11 +86,10 @@
             return envelope;
         }
 
-        internal async Task<string> CompressAndUploadAsBytesAsync(byte[] payloadBuffer, string activationId)
+        internal async Task CompressAndUploadAsBytesAsync(byte[] payloadBuffer, string blobName)
         {
             byte[] compressedBytes = this.Compress(payloadBuffer);
-
-            return await this.UploadToBlobAsync(compressedBytes, compressedBytes.Length, activationId);
+            await this.UploadToBlobAsync(compressedBytes, compressedBytes.Length, blobName);
         }
 
         internal byte[] Compress(byte[] payloadBuffer)
@@ -100,66 +98,60 @@
             {
                 using (MemoryStream memory = new MemoryStream())
                 {
-                    using (GZipStream gzip = new GZipStream(memory, CompressionLevel.Optimal))
+                    using (GZipStream gZipStream = new GZipStream(memory, CompressionLevel.Optimal))
                     {
-                        byte[] buffer = SharedBufferManager.Instance.TakeBuffer(DefaultBufferSize);
+                        byte[] buffer = this.sharedBufferManager.TakeBuffer(DefaultBufferSize);
                         try
                         {
                             int read;
                             while ((read = originStream.Read(buffer, 0, DefaultBufferSize)) != 0)
                             {
-                                gzip.Write(buffer, 0, read);
+                                gZipStream.Write(buffer, 0, read);
                             }
 
-                            gzip.Flush();
+                            gZipStream.Flush();
                         }
                         finally
                         {
-                            SharedBufferManager.Instance.ReturnBuffer(buffer);
+                            this.sharedBufferManager.ReturnBuffer(buffer);
                         }
 
+                        return new ArraySegment<byte>(memory.GetBuffer(), 0, (int)memory.Length).Array;
                     }
-                    return memory.ToArray();
                 }
             }
         }
 
         internal async Task<string> DownloadAndDecompressAsBytesAsync(string blobName)
         {
-            byte[] downloadBlobAsAsBytes = await this.DownloadBlobAsync(blobName);
-            byte[] decompressedBytes = this.Decompress(downloadBlobAsAsBytes);
-            return Encoding.Unicode.GetString(decompressedBytes);
+            CloudBlockBlob cloudBlockBlob = this.cloudBlobContainer.GetBlockBlobReference(blobName);
+            Stream downloadBlobAsStream = await cloudBlockBlob.OpenReadAsync();
+            byte[] decompressedBytes = this.Decompress(downloadBlobAsStream);
+            return Encoding.UTF8.GetString(decompressedBytes);
         }
 
-        internal byte[] Decompress(byte[] gzip)
+        internal byte[] Decompress(Stream blobStream)
         {
-            using (GZipStream stream = new GZipStream(new MemoryStream(gzip), CompressionMode.Decompress))
+            using (GZipStream gZipStream = new GZipStream(blobStream, CompressionMode.Decompress))
             {
-                using (MemoryStream memory = new MemoryStream())
+                using (MemoryStream memory = new MemoryStream(MaxStorageQueuePayloadSizeInBytes * 2))
                 {
-                    byte[] buffer = SharedBufferManager.Instance.TakeBuffer(DefaultBufferSize);
-
+                    byte[] buffer = this.sharedBufferManager.TakeBuffer(DefaultBufferSize);
                     try
                     {
                         int count = 0;
-                        do
+                        while ((count = gZipStream.Read(buffer, 0, DefaultBufferSize)) > 0)
                         {
-                            count = stream.Read(buffer, 0, DefaultBufferSize);
-                            if (count > 0)
-                            {
-                                memory.Write(buffer, 0, count);
-                            }
+                            memory.Write(buffer, 0, count);
                         }
-                        while (count > 0);
-
                     }
                     finally
                     {
-                        SharedBufferManager.Instance.ReturnBuffer(buffer);
+                        this.sharedBufferManager.ReturnBuffer(buffer);
                     }
-                    return memory.ToArray();
-                }
 
+                    return new ArraySegment<byte>(memory.GetBuffer(), 0, (int)memory.Length).Array;
+                }
             }
         }
 
@@ -178,25 +170,11 @@
         /// <summary>
         /// Uploads MessageData as bytes[] to blob container
         /// </summary>
-        internal async Task<string> UploadToBlobAsync(byte[] data, int dataByteCount, string blobName)
+        internal async Task UploadToBlobAsync(byte[] data, int dataByteCount, string blobName)
         {
+            await this.cloudBlobContainer.CreateIfNotExistsAsync();
             CloudBlockBlob cloudBlockBlob = this.cloudBlobContainer.GetBlockBlobReference(blobName);
             await cloudBlockBlob.UploadFromByteArrayAsync(data, 0, dataByteCount);
-            return blobName;
-        }
-
-        /// <summary>
-        /// Downloads MessageData as bytes[] 
-        /// </summary>
-        internal async Task<byte[]> DownloadBlobAsync(string blobName)
-        {
-            CloudBlockBlob cloudBlockBlob = this.cloudBlobContainer.GetBlockBlobReference(blobName);
-
-            using (MemoryStream ms = new MemoryStream())
-            {
-                await cloudBlockBlob.DownloadToStreamAsync(ms);
-                return ms.ToArray();
-            }
         }
     }
 }

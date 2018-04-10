@@ -182,9 +182,9 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        public async Task<CloudQueueMessage> CreateOutboundQueueMessageAsync(MessageManager messageManager, TaskMessage taskMessage, string queueName)
+        public Task<CloudQueueMessage> CreateOutboundQueueMessageAsync(MessageManager messageManager, TaskMessage taskMessage, string queueName)
         {
-            return await CreateOutboundQueueMessageInternalAsync(messageManager, this.storageAccountName, this.taskHub, queueName, taskMessage);
+            return CreateOutboundQueueMessageInternalAsync(messageManager, this.storageAccountName, this.taskHub, queueName, taskMessage);
         }
 
         internal static async Task<CloudQueueMessage> CreateOutboundQueueMessageInternalAsync(
