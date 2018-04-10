@@ -939,7 +939,6 @@ namespace DurableTask.AzureStorage
 
                 await this.CompressLargeMessageAsync(entity);
 
-                newEventList.Append(historyEvent.EventType.ToString()).Append(',');
                 newEventListBuffer.Append(historyEvent.EventType.ToString()).Append(',');
 
                 // The row key is the sequence number, which represents the chronological ordinal of the event.

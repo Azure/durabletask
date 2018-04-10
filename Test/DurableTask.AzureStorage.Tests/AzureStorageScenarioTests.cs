@@ -712,7 +712,6 @@ namespace DurableTask.AzureStorage.Tests
                     return context.ScheduleTask<byte[]>(typeof(Activities.EchoBytes), input);
                 }
             }
-        }
 
             [KnownType(typeof(Activities.WriteTableRow))]
             [KnownType(typeof(Activities.CountTableRows))]
@@ -821,6 +820,21 @@ namespace DurableTask.AzureStorage.Tests
                             partitionKey));
 
                     return WriteTableRow.TestCloudTable.ExecuteQuery(query).Count();
+                }
+            }
+            internal class Echo : TaskActivity<string, string>
+            {
+                protected override string Execute(TaskContext context, string input)
+                {
+                    return input;
+                }
+            }
+
+            internal class EchoBytes : TaskActivity<byte[], byte[]>
+            {
+                protected override byte[] Execute(TaskContext context, byte[] input)
+                {
+                    return input;
                 }
             }
         }
