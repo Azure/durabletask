@@ -86,19 +86,19 @@
             return envelope;
         }
 
-        internal async Task CompressAndUploadAsBytesAsync(byte[] payloadBuffer, string blobName)
+        internal Task CompressAndUploadAsBytesAsync(byte[] payloadBuffer, string blobName)
         {
-            byte[] compressedBytes = this.Compress(payloadBuffer);
-            await this.UploadToBlobAsync(compressedBytes, compressedBytes.Length, blobName);
+            ArraySegment<byte> compressedSegment = this.Compress(payloadBuffer);
+            return this.UploadToBlobAsync(compressedSegment.Array, compressedSegment.Count, blobName);
         }
 
-        internal byte[] Compress(byte[] payloadBuffer)
+        internal ArraySegment<byte> Compress(byte[] payloadBuffer)
         {
             using (var originStream = new MemoryStream(payloadBuffer, 0, payloadBuffer.Length))
             {
                 using (MemoryStream memory = new MemoryStream())
                 {
-                    using (GZipStream gZipStream = new GZipStream(memory, CompressionLevel.Optimal))
+                    using (GZipStream gZipStream = new GZipStream(memory, CompressionLevel.Optimal, true))
                     {
                         byte[] buffer = this.sharedBufferManager.TakeBuffer(DefaultBufferSize);
                         try
@@ -115,9 +115,9 @@
                         {
                             this.sharedBufferManager.ReturnBuffer(buffer);
                         }
-
-                        return new ArraySegment<byte>(memory.GetBuffer(), 0, (int)memory.Length).Array;
                     }
+
+                    return new ArraySegment<byte>(memory.GetBuffer(), 0, (int)memory.Length);
                 }
             }
         }
@@ -126,11 +126,11 @@
         {
             CloudBlockBlob cloudBlockBlob = this.cloudBlobContainer.GetBlockBlobReference(blobName);
             Stream downloadBlobAsStream = await cloudBlockBlob.OpenReadAsync();
-            byte[] decompressedBytes = this.Decompress(downloadBlobAsStream);
-            return Encoding.UTF8.GetString(decompressedBytes);
+            ArraySegment<byte> decompressedSegment = this.Decompress(downloadBlobAsStream);
+            return Encoding.UTF8.GetString(decompressedSegment.Array, 0, decompressedSegment.Count);
         }
 
-        internal byte[] Decompress(Stream blobStream)
+        internal ArraySegment<byte> Decompress(Stream blobStream)
         {
             using (GZipStream gZipStream = new GZipStream(blobStream, CompressionMode.Decompress))
             {
@@ -150,7 +150,7 @@
                         this.sharedBufferManager.ReturnBuffer(buffer);
                     }
 
-                    return new ArraySegment<byte>(memory.GetBuffer(), 0, (int)memory.Length).Array;
+                    return new ArraySegment<byte>(memory.GetBuffer(), 0, (int)memory.Length);
                 }
             }
         }
