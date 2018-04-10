@@ -15,38 +15,11 @@ namespace DurableTask.AzureStorage
 {
     using System;
     using System.Collections.Generic;
-    using System.Text;
     using System.Threading.Tasks;
-    using Microsoft.WindowsAzure.Storage.Queue;
-    using Newtonsoft.Json;
 
     static class Utils
     {
         public static readonly Task CompletedTask = Task.FromResult(0);
-
-        static JsonSerializerSettings TaskMessageSerializerSettings = new JsonSerializerSettings
-        {
-            TypeNameHandling = TypeNameHandling.Objects
-        };
-
-        public static string SerializeMessageData(MessageData messageData)
-        {
-            string rawContent = JsonConvert.SerializeObject(messageData, TaskMessageSerializerSettings);
-            return rawContent;
-        }
-
-        public static MessageData DeserializeQueueMessage(CloudQueueMessage queueMessage, string queueName)
-        {
-            MessageData envelope = JsonConvert.DeserializeObject<MessageData>(
-                queueMessage.AsString,
-                TaskMessageSerializerSettings);
-
-            envelope.OriginalQueueMessage = queueMessage;
-            envelope.TotalMessageSizeBytes = Encoding.UTF8.GetByteCount(queueMessage.AsString);
-            envelope.QueueName = queueName;
-
-            return envelope;
-        }
 
         public static async Task ParallelForEachAsync<TSource>(
             this IEnumerable<TSource> enumerable,
