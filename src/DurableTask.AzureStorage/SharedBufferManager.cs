@@ -13,67 +13,25 @@
 
 namespace DurableTask.AzureStorage
 {
-    using System;
     using System.ServiceModel.Channels;
-    using System.Timers;
-
     using Microsoft.WindowsAzure.Storage;
 
     /// <summary>
     /// Shared BufferManager to limit the temporary memory footprint of compression/decompression of large messages.
     /// </summary>
-    public sealed class SharedBufferManager : IBufferManager
+    public class SharedBufferManager : IBufferManager
     {
-        static SharedBufferManager instance = null;
-        static readonly object padlock = new object();
-
-        static Timer timer;
         static readonly object sharedlock = new object();
         static BufferManager innerBufferManager;
-        static bool isInitialized;
-        static readonly long defaultMaxBufferPoolSize = 0; // Avoid pooling for large messages, reference: http://andriybuday.com/2011/08/wcf-configuration-caused-memory-leaks.html
-        static readonly int defaultBufferSize = 256 * 1024; // 256 KB
-        static readonly int defaultClearBufferIntervalInMinutes = 10;
+        const long DefaultMaxBufferPoolSize = 0; // Avoid pooling for large messages, reference: http://andriybuday.com/2011/08/wcf-configuration-caused-memory-leaks.html
+        const int DefaultBufferSize = 256 * 1024; // 256 KB
 
         /// <summary>
         /// The BufferManager
         /// </summary>
-        SharedBufferManager()
-        { }
-
-        /// <summary>
-        /// The BufferManager instance
-        /// </summary>
-        public static SharedBufferManager Instance
+        public SharedBufferManager()
         {
-            get
-            {
-                if (instance == null)
-                {
-                    lock (padlock)
-                    {
-                        if (instance == null)
-                        {
-                            instance = new SharedBufferManager();
-                        }
-
-                        if (!isInitialized)
-                        {
-                            Initialize(defaultMaxBufferPoolSize, defaultBufferSize);
-                        }
-                    }
-                }
-
-                return instance;
-            }
-        }
-
-        /// <summary>
-        /// Checks if buffer is initialized
-        /// </summary>
-        public bool IsInitialized()
-        {
-            return isInitialized;
+            innerBufferManager = BufferManager.CreateBufferManager(DefaultMaxBufferPoolSize, DefaultBufferSize);
         }
 
         /// <summary>
@@ -81,7 +39,7 @@ namespace DurableTask.AzureStorage
         /// </summary>
         public int GetDefaultBufferSize()
         {
-            return defaultBufferSize;
+            return DefaultBufferSize;
         }
 
         /// <summary>
@@ -89,12 +47,9 @@ namespace DurableTask.AzureStorage
         /// </summary>
         public void ReturnBuffer(byte[] buffer)
         {
-            // Return buffer to pool, and set the memory to null.
-            // Reference: https://www.wintellect.com/pooling-buffers-for-better-memory-management/
             lock (sharedlock)
             {
                 innerBufferManager.ReturnBuffer(buffer);
-                buffer = null;
             }
         }
 
@@ -116,66 +71,8 @@ namespace DurableTask.AzureStorage
         {
             lock (sharedlock)
             {
-                bufferSize = (bufferSize < 0) ? defaultBufferSize : bufferSize;
+                bufferSize = (bufferSize < 0) ? DefaultBufferSize : bufferSize;
                 return innerBufferManager.TakeBuffer(bufferSize);
-            }
-        }
-
-        /// <summary>
-        /// Initialize the Buffer Manager
-        /// </summary>
-        internal static void Initialize(long maxBufferPoolSize, int maxBufferSize)
-        {
-            ValidateParams(maxBufferPoolSize, maxBufferSize);
-            lock (sharedlock)
-            {
-                innerBufferManager = BufferManager.CreateBufferManager(maxBufferPoolSize, maxBufferSize);
-                isInitialized = true;
-            }
-            ScheduleTimer();
-        }
-
-        /// <summary>
-        /// Schedule timer to periodically clear the buffer pool.
-        /// </summary>
-        internal static void ScheduleTimer()
-        {
-            DateTime nowTime = DateTime.UtcNow;
-            DateTime scheduledTime = DateTime.UtcNow;
-            if (nowTime >= scheduledTime)
-            {
-                scheduledTime = scheduledTime.AddMinutes(defaultClearBufferIntervalInMinutes);
-            }
-
-            double tickTime = (double)(scheduledTime - DateTime.Now).TotalMilliseconds;
-            timer = new Timer(tickTime);
-            timer.Elapsed += new ElapsedEventHandler(TimerElapsed);
-            timer.Start();
-        }
-
-        /// <summary>
-        /// Initiate clearing buffer pool when timer fires
-        /// </summary>
-        internal static void TimerElapsed(object sender, ElapsedEventArgs e)
-        {
-            timer.Stop();
-            Clear();
-            ScheduleTimer();
-        }
-
-        /// <summary>
-        /// Validates the maximum buffer pool and maximum buffer size.
-        /// </summary>
-        internal static void ValidateParams(long maxBufferPoolSize, int maxBufferSize)
-        {
-            if (maxBufferPoolSize < 0)
-            {
-                throw new ArgumentException($"Invalid maxBufferPoolSize '{maxBufferPoolSize}'. maxBufferPoolSize should be >= 0.");
-            }
-
-            if (maxBufferSize < 0)
-            {
-                throw new ArgumentException($"Invalid maxBufferSize '{maxBufferSize}'. maxBufferSize should be >= 0.");
             }
         }
     }

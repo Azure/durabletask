@@ -13,19 +13,16 @@
   <ItemGroup Condition="'$(TargetFramework)' == 'net451'">
     <PackageReference Include="Newtonsoft.Json" Version="7.0.1" />
     <PackageReference Include="WindowsAzure.Storage" version="7.2.1" />
+    <Reference Include="System.ServiceModel" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
     <PackageReference Include="Newtonsoft.Json" Version="10.0.3" />
     <PackageReference Include="WindowsAzure.Storage" version="8.5.0" />
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="System.ServiceModel.Primitives" Version="4.4.1" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\DurableTask.Core\DurableTask.Core.csproj" />
   </ItemGroup>
-
 </Project>

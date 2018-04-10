@@ -397,7 +397,7 @@ namespace DurableTask.AzureStorage.Tests
                 const string Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 {}/<>.-";
                 var sb = new StringBuilder();
                 var random = new Random();
-                while (Encoding.Unicode.GetByteCount(sb.ToString()) < TargetPayloadSize)
+                while (Encoding.UTF8.GetByteCount(sb.ToString()) < TargetPayloadSize)
                 {
                     for (int i = 0; i < 1000; i++)
                     {
@@ -431,7 +431,7 @@ namespace DurableTask.AzureStorage.Tests
                 const string Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 {}/<>.-";
                 var sb = new StringBuilder();
                 var random = new Random();
-                while (Encoding.Unicode.GetByteCount(sb.ToString()) < TargetPayloadSize)
+                while (Encoding.UTF8.GetByteCount(sb.ToString()) < TargetPayloadSize)
                 {
                     for (int i = 0; i < 1000; i++)
                     {
