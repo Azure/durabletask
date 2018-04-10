@@ -1000,8 +1000,6 @@ namespace DurableTask.AzureStorage
                 await this.UploadHistoryBatch(context, historyEventBatch, newEventListBuffer, newEvents.Count);
             }
 
-           // await this.CompressLargeMessageAsync(orchestrationInstanceUpdate);
-
             Stopwatch orchestrationInstanceUpdateStopwatch = Stopwatch.StartNew();
             await this.instancesTable.ExecuteAsync(TableOperation.InsertOrMerge(orchestrationInstanceUpdate));
 
@@ -1036,12 +1034,6 @@ namespace DurableTask.AzureStorage
                     CloudQueue targetControlQueue = await this.GetControlQueueAsync(targetInstanceId);
 
                     enqueueTasks.Add(this.EnqueueMessageAsync(context, targetControlQueue, taskMessage, null));
-                    //enqueueTasks.Add(targetControlQueue.AddMessageAsync(
-                    //    await context.CreateOutboundQueueMessageAsync(this.messageManager, taskMessage, targetControlQueue.Name),
-                    //    null /* timeToLive */,
-                    //    null /* initialVisibilityDelay */,
-                    //    this.settings.ControlQueueRequestOptions,
-                    //    context.StorageOperationContext));
                 }
             }
 
@@ -1061,12 +1053,6 @@ namespace DurableTask.AzureStorage
                     }
 
                     enqueueTasks.Add(this.EnqueueMessageAsync(context, currentControlQueue, taskMessage, initialVisibilityDelay));
-                    //enqueueTasks.Add(currentControlQueue.AddMessageAsync(
-                    //    await context.CreateOutboundQueueMessageAsync(this.messageManager, taskMessage, currentControlQueue.Name),
-                    //    null /* timeToLive */,
-                    //    initialVisibilityDelay,
-                    //    this.settings.ControlQueueRequestOptions,
-                    //    context.StorageOperationContext));
                 }
             }
 
@@ -1077,13 +1063,6 @@ namespace DurableTask.AzureStorage
                 foreach (TaskMessage taskMessage in outboundMessages)
                 {
                     enqueueTasks.Add(this.EnqueueMessageAsync(context, this.workItemQueue, taskMessage, null));
-
-                    ////enqueueTasks.Add(this.workItemQueue.AddMessageAsync(
-                    ////    await context.CreateOutboundQueueMessageAsync(this.messageManager, taskMessage, this.workItemQueue.Name),
-                    ////    null /* timeToLive */,
-                    ////    null /* initialVisibilityDelay */,
-                    ////    this.settings.WorkItemQueueRequestOptions,
-                    ////    context.StorageOperationContext));
                 }
             }
 
@@ -1093,13 +1072,6 @@ namespace DurableTask.AzureStorage
                 addedControlMessages = true;
 
                 enqueueTasks.Add(this.EnqueueMessageAsync(context, currentControlQueue, continuedAsNewMessage, null));
-
-                //enqueueTasks.Add(currentControlQueue.AddMessageAsync(
-                //    await context.CreateOutboundQueueMessageAsync(this.messageManager, continuedAsNewMessage, currentControlQueue.Name),
-                //    null /* timeToLive */,
-                //    null /* initialVisibilityDelay */,
-                //    this.settings.ControlQueueRequestOptions,
-                //    context.StorageOperationContext));
             }
 
             await Task.WhenAll(enqueueTasks);
