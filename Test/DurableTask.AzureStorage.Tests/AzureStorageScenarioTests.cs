@@ -22,6 +22,7 @@ namespace DurableTask.AzureStorage.Tests
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Core;
+    using DurableTask.Core.Exceptions;
     using Microsoft.Practices.EnterpriseLibrary.SemanticLogging.Utility;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Microsoft.WindowsAzure.Storage;
@@ -685,7 +686,7 @@ namespace DurableTask.AzureStorage.Tests
                         {
                             await context.ScheduleTask<string>(typeof(Activities.Throw), "Kah-BOOOOOM!!!");
                         }
-                        catch
+                        catch (TaskFailedException)
                         {
                             catchCount++;
                         }
