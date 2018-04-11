@@ -133,7 +133,7 @@ namespace DurableTask.AzureStorage
             CloudQueueMessage queueMessage,
             string queueName)
         {
-            MessageData data = await messageManager.DeserializeQueueMessageAsync(queueMessage, queueName);
+            MessageData data = await messageManager.DeserializeQueueMessageAsync(queueMessage, queueName, null, null, null);
 
             Guid newTraceActivityId = StartNewLogicalTraceScope();
             TraceMessageReceived(storageAccountName, taskHub, data);
@@ -198,7 +198,11 @@ namespace DurableTask.AzureStorage
             Guid outboundTraceActivityId = Guid.NewGuid();
 
             var data = new MessageData(taskMessage, outboundTraceActivityId, queueName);
-            string rawContent = await messageManager.SerializeMessageDataAsync(data);
+            string rawContent = await messageManager.SerializeMessageDataAsync(
+                data,
+                taskMessage.Event.EventType.ToString(),
+                taskMessage.OrchestrationInstance.InstanceId,
+                taskMessage.OrchestrationInstance.ExecutionId);
 
             AnalyticsEventSource.Log.SendingMessage(
                 outboundTraceActivityId,

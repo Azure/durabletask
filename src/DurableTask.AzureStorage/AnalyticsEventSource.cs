@@ -316,5 +316,35 @@ namespace DurableTask.AzureStorage
             EnsureLogicalTraceActivityId();
             this.WriteEvent(136, Account, TaskHub, InstanceId, ExecutionId, LatencyMs);
         }
+
+        [Event(137, Level = EventLevel.Informational)]
+        public void UploadLargeMessage(
+            string Account,
+            string TaskHub,
+            string EventType,
+            string InstanceId,
+            string ExecutionId,
+            string BlobContainer, 
+            string BlobName,
+            long SizeInBytes)
+        {
+            EnsureLogicalTraceActivityId();
+            this.WriteEvent(137, Account, TaskHub, EventType, InstanceId, ExecutionId, BlobContainer, BlobName, SizeInBytes);
+        }
+
+        [Event(138, Level = EventLevel.Informational)]
+        public void DownloadLargeMessage(
+            string Account,
+            string TaskHub,
+            string EventType,
+            string InstanceId,
+            string ExecutionId,
+            string BlobContainer,
+            string BlobName,
+            long SizeInBytes)
+        {
+            EnsureLogicalTraceActivityId();
+            this.WriteEvent(138, Account, TaskHub, EventType, InstanceId, ExecutionId, BlobContainer, BlobName, SizeInBytes);
+        }
     }
 }
