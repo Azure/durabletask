@@ -11,6 +11,8 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+using System;
+using System.Collections.Generic;
 using System.Text;
 
 namespace DurableTask.AzureStorage.Monitoring
@@ -28,12 +30,12 @@ namespace DurableTask.AzureStorage.Monitoring
         /// <summary>
         /// Gets the number of messages across all control queues.
         /// </summary>
-        public int AggregateControlQueueLength { get; internal set; }
+        public IReadOnlyList<int> ControlQueueLengths { get; internal set; }
 
         /// <summary>
-        /// Gets a trend value describing the number of messages in the control queues over a period of time.
+        /// Gets the latency of messages in all control queues.
         /// </summary>
-        public double AggregateControlQueueLengthTrend { get; internal set; }
+        public IReadOnlyList<TimeSpan> ControlQueueLatencies { get; internal set; }
 
         /// <summary>
         /// Gets the number of messages in the work-item queue.
@@ -41,9 +43,14 @@ namespace DurableTask.AzureStorage.Monitoring
         public int WorkItemQueueLength { get; internal set; }
 
         /// <summary>
-        /// Gets a trend value describing the number of messages in the work-item queue over a period of time.
+        /// Gets a trend value describing the latency of messages in the work-item queue over a period of time.
         /// </summary>
-        public double WorkItemQueueLengthTrend { get; internal set; }
+        public double WorkItemQueueLatencyTrend { get; internal set; }
+
+        /// <summary>
+        /// Gets the approximate age of the first work-item queue message.
+        /// </summary>
+        public TimeSpan WorkItemQueueLatency { get; internal set; }
 
         /// <summary>
         /// Gets a scale recommendation for the task hub given the current performance metrics.
@@ -58,10 +65,15 @@ namespace DurableTask.AzureStorage.Monitoring
         {
             var sb = new StringBuilder(1024);
             sb.Append(nameof(this.PartitionCount)).Append(": ").Append(this.PartitionCount).Append(", ");
-            sb.Append(nameof(this.AggregateControlQueueLength)).Append(": ").Append(this.AggregateControlQueueLength).Append(", ");
-            sb.Append(nameof(this.AggregateControlQueueLengthTrend)).Append(": ").Append(this.AggregateControlQueueLengthTrend).Append(", ");
+            if (this.ControlQueueLengths != null)
+            {
+                sb.Append(nameof(this.ControlQueueLengths)).Append(": ").Append(string.Join(",", this.ControlQueueLengths)).Append(", ");
+            }
+
+            sb.Append(nameof(this.ControlQueueLatencies)).Append(": ").Append(string.Join(",", this.ControlQueueLatencies)).Append(", ");
             sb.Append(nameof(this.WorkItemQueueLength)).Append(": ").Append(this.WorkItemQueueLength).Append(", ");
-            sb.Append(nameof(this.WorkItemQueueLengthTrend)).Append(": ").Append(this.WorkItemQueueLengthTrend).Append(", ");
+            sb.Append(nameof(this.WorkItemQueueLatency)).Append(": ").Append(this.WorkItemQueueLatency).Append(", ");
+            sb.Append(nameof(this.WorkItemQueueLatencyTrend)).Append(": ").Append(this.WorkItemQueueLatencyTrend).Append(", ");
             sb.Append(nameof(this.ScaleRecommendation)).Append(": ").Append(this.ScaleRecommendation);
             return sb.ToString();
         }

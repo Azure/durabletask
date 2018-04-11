@@ -41,6 +41,8 @@ namespace DurableTask.AzureStorage
         IOrchestrationServiceClient,
         IPartitionObserver<BlobLease>
     {
+        internal static readonly TimeSpan MaxQueuePollingDelay = TimeSpan.FromSeconds(10);
+
         static readonly HistoryEvent[] EmptyHistoryEventList = new HistoryEvent[0];
 
         readonly AzureStorageOrchestrationServiceSettings settings;
@@ -131,10 +133,9 @@ namespace DurableTask.AzureStorage
             this.activeOrchestrationInstances = new ConcurrentDictionary<string, object>(StringComparer.OrdinalIgnoreCase);
 
             // Queue polling backoff policies
-            var maxPollingDelay = TimeSpan.FromSeconds(10);
             var minPollingDelayThreshold = TimeSpan.FromMilliseconds(500);
-            this.controlQueueBackoff = new BackoffPollingHelper(maxPollingDelay, minPollingDelayThreshold);
-            this.workItemQueueBackoff = new BackoffPollingHelper(maxPollingDelay, minPollingDelayThreshold);
+            this.controlQueueBackoff = new BackoffPollingHelper(MaxQueuePollingDelay, minPollingDelayThreshold);
+            this.workItemQueueBackoff = new BackoffPollingHelper(MaxQueuePollingDelay, minPollingDelayThreshold);
 
             this.hubCreationLock = new object();
             this.taskHubCreator = new ResettableLazy<Task>(
@@ -521,7 +522,7 @@ namespace DurableTask.AzureStorage
         internal static async Task<CloudQueue[]> GetControlQueuesAsync(
             CloudStorageAccount account,
             string taskHub,
-            int partitionCount)
+            int defaultPartitionCount)
         {
             if (account == null)
             {
@@ -535,7 +536,7 @@ namespace DurableTask.AzureStorage
 
             BlobLeaseManager inactiveLeaseManager = GetBlobLeaseManager(taskHub, "n/a", account, TimeSpan.Zero, TimeSpan.Zero, null);
             TaskHubInfo hubInfo = await inactiveLeaseManager.GetOrCreateTaskHubInfoAsync(
-                GetTaskHubInfo(taskHub, partitionCount));
+                GetTaskHubInfo(taskHub, defaultPartitionCount));
 
             CloudQueueClient queueClient = account.CreateCloudQueueClient();
 
