@@ -14,6 +14,8 @@
     /// </summary>
     public class MessageManager
     {
+        readonly string storageAccountName;
+        readonly string taskHubName;
         readonly CloudBlobContainer cloudBlobContainer;
         readonly JsonSerializerSettings taskMessageSerializerSettings;
         readonly SharedBufferManager sharedBufferManager;
@@ -23,8 +25,10 @@
         /// <summary>
         /// The message manager.
         /// </summary>
-        public MessageManager(CloudBlobClient cloudBlobClient, string blobContainerName)
+        public MessageManager(CloudBlobClient cloudBlobClient, string blobContainerName, string storageAccountName, string taskHubName)
         {
+            this.storageAccountName = storageAccountName;
+            this.taskHubName = taskHubName;
             this.cloudBlobContainer = cloudBlobClient.GetContainerReference(blobContainerName);
             this.taskMessageSerializerSettings = new JsonSerializerSettings
             {
@@ -37,7 +41,7 @@
         /// <summary>
         /// Serializes the MessageData object
         /// </summary>
-        public async Task<string> SerializeMessageDataAsync(MessageData messageData)
+        public async Task<string> SerializeMessageDataAsync(MessageData messageData, string eventType, string instanceId, string executionId)
         {
             string rawContent = JsonConvert.SerializeObject(messageData, this.taskMessageSerializerSettings);
             messageData.TotalMessageSizeBytes = Encoding.Unicode.GetByteCount(rawContent);
@@ -49,7 +53,7 @@
 
                 // Get Compressed bytes
                 string blobName = Guid.NewGuid().ToString();
-                await this.CompressAndUploadAsBytesAsync(messageBytes, blobName);
+                await this.CompressAndUploadAsBytesAsync(messageBytes, blobName, eventType, instanceId, executionId);
 
                 MessageData wrapperMessageData = new MessageData
                 {
@@ -65,7 +69,12 @@
         /// <summary>
         /// Deserializes the MessageData object
         /// </summary>
-        public async Task<MessageData> DeserializeQueueMessageAsync(CloudQueueMessage queueMessage, string queueName)
+        public async Task<MessageData> DeserializeQueueMessageAsync(
+            CloudQueueMessage queueMessage, 
+            string queueName,
+            string eventType,
+            string instanceId,
+            string executionId)
         {
             MessageData envelope = JsonConvert.DeserializeObject<MessageData>(
                 queueMessage.AsString,
@@ -73,7 +82,7 @@
 
             if (!string.IsNullOrEmpty(envelope.CompressedBlobName))
             {
-                string decompressedMessage = await this.DownloadAndDecompressAsBytesAsync(envelope.CompressedBlobName);
+                string decompressedMessage = await this.DownloadAndDecompressAsBytesAsync(envelope.CompressedBlobName, eventType, instanceId, executionId);
                 envelope = JsonConvert.DeserializeObject<MessageData>(
                     decompressedMessage,
                     this.taskMessageSerializerSettings);
@@ -86,10 +95,25 @@
             return envelope;
         }
 
-        internal Task CompressAndUploadAsBytesAsync(byte[] payloadBuffer, string blobName)
+        internal async Task CompressAndUploadAsBytesAsync(
+            byte[] payloadBuffer, 
+            string blobName,
+            string eventType,
+            string instanceId,
+            string executionId)
         {
             ArraySegment<byte> compressedSegment = this.Compress(payloadBuffer);
-            return this.UploadToBlobAsync(compressedSegment.Array, compressedSegment.Count, blobName);
+            await this.UploadToBlobAsync(compressedSegment.Array, compressedSegment.Count, blobName);
+
+            AnalyticsEventSource.Log.UploadLargeMessage(
+                this.storageAccountName,
+                this.taskHubName,
+                eventType,
+                instanceId,
+                executionId,
+                this.cloudBlobContainer.Name,
+                blobName,
+                compressedSegment.Count);
         }
 
         internal ArraySegment<byte> Compress(byte[] payloadBuffer)
@@ -122,11 +146,22 @@
             }
         }
 
-        internal async Task<string> DownloadAndDecompressAsBytesAsync(string blobName)
+        internal async Task<string> DownloadAndDecompressAsBytesAsync(string blobName, string eventType, string instanceId, string executionId)
         {
             CloudBlockBlob cloudBlockBlob = this.cloudBlobContainer.GetBlockBlobReference(blobName);
             Stream downloadBlobAsStream = await cloudBlockBlob.OpenReadAsync();
             ArraySegment<byte> decompressedSegment = this.Decompress(downloadBlobAsStream);
+
+            AnalyticsEventSource.Log.DownloadLargeMessage(
+                this.storageAccountName,
+                this.taskHubName,
+                eventType,
+                instanceId,
+                executionId,
+                this.cloudBlobContainer.Name,
+                blobName,
+                decompressedSegment.Count);
+
             return Encoding.UTF8.GetString(decompressedSegment.Array, 0, decompressedSegment.Count);
         }
 
