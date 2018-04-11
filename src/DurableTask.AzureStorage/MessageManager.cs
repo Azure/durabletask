@@ -92,13 +92,14 @@
             return this.UploadToBlobAsync(compressedSegment.Array, compressedSegment.Count, blobName);
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:DoNotDisposeObjectsMultipleTimes", Justification = "This GZipStream will not dispose the MemoryStream.")]
         internal ArraySegment<byte> Compress(byte[] payloadBuffer)
         {
             using (var originStream = new MemoryStream(payloadBuffer, 0, payloadBuffer.Length))
             {
                 using (MemoryStream memory = new MemoryStream())
                 {
-                    using (GZipStream gZipStream = new GZipStream(memory, CompressionLevel.Optimal, true))
+                    using (GZipStream gZipStream = new GZipStream(memory, CompressionLevel.Optimal, leaveOpen: true))
                     {
                         byte[] buffer = this.sharedBufferManager.TakeBuffer(DefaultBufferSize);
                         try
