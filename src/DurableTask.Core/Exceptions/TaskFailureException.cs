@@ -76,8 +76,8 @@ namespace DurableTask.Core.Exceptions
         protected TaskFailureException(SerializationInfo info, StreamingContext context)
             : base(info, context)
         {
-            this.Details = info.GetString(Details);
-            this.FailureSource = info.GetString(FailureSource);
+            this.Details = info.GetString(nameof(Details));
+            this.FailureSource = info.GetString(nameof(FailureSource));
         }
 
         /// <summary>
@@ -86,8 +86,8 @@ namespace DurableTask.Core.Exceptions
         public override void GetObjectData(SerializationInfo info, StreamingContext context)
         {
             base.GetObjectData(info, context);
-            info.AddValue(Details, this.Details);
-            info.AddValue(FailureSource, this.FailureSource);
+            info.AddValue(nameof(Details), this.Details);
+            info.AddValue(nameof(FailureSource), this.FailureSource);
         }
 
         /// <summary>
