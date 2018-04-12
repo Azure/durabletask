@@ -20,6 +20,7 @@ namespace DurableTask.AzureStorage.Tests
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Monitoring;
+    using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Microsoft.WindowsAzure.Storage;
@@ -96,15 +97,16 @@ namespace DurableTask.AzureStorage.Tests
             Assert.IsNotNull(workItemQueue, "Work-item queue client was not initialized.");
             Assert.IsTrue(workItemQueue.Exists(), $"Queue {workItemQueue.Name} was not created.");
 
-            // History table
-            CloudTable historyTable = service.HistoryTable;
-            Assert.IsNotNull(historyTable, "History table was not initialized.");
-            Assert.IsTrue(historyTable.Exists(), $"History table {historyTable.Name} was not created.");
+            // TrackingStore
+            ITrackingStore trackingStore = service.TrackingStore;
+            Assert.IsNotNull(trackingStore, "Tracking Store was not initialized.");
 
-            // Instances table
-            CloudTable instancesTable = service.InstancesTable;
-            Assert.IsNotNull(instancesTable, "Instances table was not initialized.");
-            Assert.IsTrue(instancesTable.Exists(), $"Instances table {instancesTable.Name} was not created.");
+            try
+            {
+                Assert.IsTrue(trackingStore.ExistsAsync().Result, $"Tracking Store was not created.");
+            }
+            catch (NotSupportedException)
+            { }
 
             string expectedContainerName = taskHubName.ToLowerInvariant() + "-leases";
             CloudBlobContainer taskHubContainer = storageAccount.CreateCloudBlobClient().GetContainerReference(expectedContainerName);
@@ -137,8 +139,14 @@ namespace DurableTask.AzureStorage.Tests
                 }
 
                 Assert.IsFalse(workItemQueue.Exists(), $"Queue {workItemQueue.Name} was not deleted.");
-                Assert.IsFalse(historyTable.Exists(), $"History table {historyTable.Name} was not deleted.");
-                Assert.IsFalse(instancesTable.Exists(), $"Instances table {instancesTable.Name} was not deleted.");
+
+                try
+                {
+                    Assert.IsFalse(trackingStore.ExistsAsync().Result, $"Tracking Store was not deleted.");
+                }
+                catch (NotSupportedException)
+                { }
+
                 Assert.IsFalse(taskHubContainer.Exists(), $"Task hub blob container {taskHubContainer.Name} was not deleted.");
             }
 
@@ -328,10 +336,15 @@ namespace DurableTask.AzureStorage.Tests
                     Array.TrueForAll(states, s => s?.OrchestrationStatus == OrchestrationStatus.Completed),
                     "Not all orchestrations completed successfully!");
 
-                DynamicTableEntity[] entities = service.HistoryTable.ExecuteQuery(new TableQuery()).ToArray();
-                int uniquePartitions = entities.GroupBy(e => e.PartitionKey).Count();
-                Trace.TraceInformation($"Found {uniquePartitions} unique partition(s) in table storage.");
-                Assert.AreEqual(InstanceCount, uniquePartitions, "Unexpected number of table partitions.");
+                var tableTrackingStore = service.TrackingStore as AzureTableTrackingStore;
+
+                if (tableTrackingStore != null)
+                {
+                    DynamicTableEntity[] entities = tableTrackingStore.HistoryTable.ExecuteQuery(new TableQuery()).ToArray();
+                    int uniquePartitions = entities.GroupBy(e => e.PartitionKey).Count();
+                    Trace.TraceInformation($"Found {uniquePartitions} unique partition(s) in table storage.");
+                    Assert.AreEqual(InstanceCount, uniquePartitions, "Unexpected number of table partitions.");
+                }
             }
             finally
             {
