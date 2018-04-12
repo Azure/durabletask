@@ -65,7 +65,7 @@ namespace DurableTask.AzureStorage.Tracking
         /// Get The Orchestration State for a particular orchestration instance execution
         /// </summary>
         /// <param name="instanceId">Instance Id</param>
-        /// <param name="executionId">xecution Id</param>
+        /// <param name="executionId">Execution Id</param>
         /// <returns></returns>
         Task<OrchestrationState> GetStateAsync(string instanceId, string executionId);
 
