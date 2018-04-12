@@ -17,7 +17,7 @@ namespace DurableTask.AzureStorage
     using Microsoft.WindowsAzure.Storage.Table;
 
     /// <summary>
-    /// Table Entity Representation of an organization Instance Status
+    /// Table Entity Representation of an Orchestration Instance's Status
     /// </summary>
     class OrchestrationInstanceStatus : TableEntity
     {
