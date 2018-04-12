@@ -363,11 +363,16 @@ namespace DurableTask.AzureStorage.Tests
             };
 
             var service = new AzureStorageOrchestrationService(settings);
-            await service.CreateAsync();
-
             var monitor = new DisconnectedPerformanceMonitor(settings.StorageConnectionString, settings.TaskHubName);
 
-            PerformanceHeartbeat heartbeat;
+            await service.DeleteAsync();
+
+            // A null heartbeat is expected when the task hub does not exist.
+            PerformanceHeartbeat heartbeat = await monitor.PulseAsync(currentWorkerCount: 0);
+            Assert.IsNull(heartbeat);
+
+            await service.CreateAsync();
+
             ScaleRecommendation recommendation;
 
             for (int i = 0; i < 10; i++)
@@ -375,10 +380,13 @@ namespace DurableTask.AzureStorage.Tests
                 heartbeat = await monitor.PulseAsync(currentWorkerCount: 0);
                 Assert.IsNotNull(heartbeat);
                 Assert.AreEqual(settings.PartitionCount, heartbeat.PartitionCount);
-                Assert.AreEqual(0, heartbeat.AggregateControlQueueLength);
-                Assert.AreEqual(0.0, heartbeat.AggregateControlQueueLengthTrend);
+                Assert.AreEqual(settings.PartitionCount, heartbeat.ControlQueueLengths.Count);
+                Assert.AreEqual(settings.PartitionCount, heartbeat.ControlQueueLatencies.Count);
+                Assert.AreEqual(0, heartbeat.ControlQueueLengths.Count(l => l != 0));
+                Assert.AreEqual(0, heartbeat.ControlQueueLatencies.Count(l => l != TimeSpan.Zero));
                 Assert.AreEqual(0, heartbeat.WorkItemQueueLength);
-                Assert.AreEqual(0.0, heartbeat.WorkItemQueueLengthTrend);
+                Assert.AreEqual(0.0, heartbeat.WorkItemQueueLatencyTrend);
+                Assert.AreEqual(TimeSpan.Zero, heartbeat.WorkItemQueueLatency);
 
                 recommendation = heartbeat.ScaleRecommendation;
                 Assert.IsNotNull(recommendation);
@@ -407,16 +415,24 @@ namespace DurableTask.AzureStorage.Tests
             };
 
             var service = new AzureStorageOrchestrationService(settings);
-            await service.CreateAsync();
 
-            var client = new TaskHubClient(service);
             var monitor = new DisconnectedPerformanceMonitor(settings.StorageConnectionString, settings.TaskHubName);
             int simulatedWorkerCount = 0;
+            await service.CreateAsync();
 
+            // A heartbeat should come back with no recommendation since there is no data.
+            PerformanceHeartbeat heartbeat = await monitor.PulseAsync(simulatedWorkerCount);
+            Assert.IsNotNull(heartbeat);
+            Assert.IsNotNull(heartbeat.ScaleRecommendation);
+            Assert.AreEqual(ScaleAction.None, heartbeat.ScaleRecommendation.Action);
+            Assert.IsFalse(heartbeat.ScaleRecommendation.KeepWorkersAlive);
+
+            var client = new TaskHubClient(service);
+            var previousTotalLatency = TimeSpan.Zero;
             for (int i = 1; i < settings.PartitionCount + 10; i++)
             {
                 await client.CreateOrchestrationInstanceAsync(typeof(NoOpOrchestration), input: null);
-                PerformanceHeartbeat heartbeat = await monitor.PulseAsync(simulatedWorkerCount);
+                heartbeat = await monitor.PulseAsync(simulatedWorkerCount);
                 Assert.IsNotNull(heartbeat);
 
                 ScaleRecommendation recommendation = heartbeat.ScaleRecommendation;
@@ -424,147 +440,510 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.IsTrue(recommendation.KeepWorkersAlive);
 
                 Assert.AreEqual(settings.PartitionCount, heartbeat.PartitionCount);
-                Assert.AreEqual(i, heartbeat.AggregateControlQueueLength);
+                Assert.AreEqual(settings.PartitionCount, heartbeat.ControlQueueLengths.Count);
+                Assert.AreEqual(i, heartbeat.ControlQueueLengths.Sum());
+                Assert.AreEqual(0, heartbeat.WorkItemQueueLength);
+                Assert.AreEqual(TimeSpan.Zero, heartbeat.WorkItemQueueLatency);
 
-                if (i < DisconnectedPerformanceMonitor.QueueLengthSampleSize)
+                TimeSpan currentTotalLatency = TimeSpan.FromTicks(heartbeat.ControlQueueLatencies.Sum(ts => ts.Ticks));
+                Assert.IsTrue(currentTotalLatency > previousTotalLatency);
+
+                if (i + 1 < DisconnectedPerformanceMonitor.QueueLengthSampleSize)
                 {
-                    Assert.AreEqual(0.0, heartbeat.AggregateControlQueueLengthTrend);
+                    int queuesWithNonZeroLatencies = heartbeat.ControlQueueLatencies.Count(t => t > TimeSpan.Zero);
+                    Assert.IsTrue(queuesWithNonZeroLatencies > 0 && queuesWithNonZeroLatencies <= i);
+
+                    int queuesWithAtLeastOneMessage = heartbeat.ControlQueueLengths.Count(l => l > 0);
+                    Assert.IsTrue(queuesWithAtLeastOneMessage > 0 && queuesWithAtLeastOneMessage <= i);
 
                     ScaleAction expectedScaleAction = simulatedWorkerCount == 0 ? ScaleAction.AddWorker : ScaleAction.None;
                     Assert.AreEqual(expectedScaleAction, recommendation.Action);
                 }
                 else
                 {
-                    Assert.IsTrue(heartbeat.AggregateControlQueueLengthTrend > 0);
-
-                    if (simulatedWorkerCount < settings.PartitionCount)
-                    {
-                        Assert.AreEqual(ScaleAction.AddWorker, recommendation.Action);
-                    }
-                    else
-                    {
-                        // We should not add more workers than the number of partitions
-                        Assert.AreEqual(ScaleAction.None, recommendation.Action);
-                    }
+                    // Validate that control queue latencies are going up with each iteration.
+                    Assert.IsTrue(currentTotalLatency.Ticks > previousTotalLatency.Ticks);
+                    previousTotalLatency = currentTotalLatency;
                 }
 
                 Assert.AreEqual(0, heartbeat.WorkItemQueueLength);
-                Assert.AreEqual(0.0, heartbeat.WorkItemQueueLengthTrend);
+                Assert.AreEqual(0.0, heartbeat.WorkItemQueueLatencyTrend);
 
                 if (recommendation.Action == ScaleAction.AddWorker)
                 {
                     simulatedWorkerCount++;
                 }
+
+                // The high-latency threshold is 1 second
+                Thread.Sleep(TimeSpan.FromSeconds(1.1));
+            }
+        }
+
+        #region Work Item Queue Scaling
+        [TestMethod]
+        public async Task ScaleDecision_WorkItemLatency_High()
+        {
+            var mock = GetFakePerformanceMonitor();
+            mock.AddLatencies(500, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(600, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(700, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(800, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(900, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(1000, new[] { 0, 0, 0, 0 });
+
+            PerformanceHeartbeat heartbeat = await mock.PulseAsync(simulatedWorkerCount: 1);
+            ScaleRecommendation recommendation = heartbeat.ScaleRecommendation;
+            Assert.AreEqual(ScaleAction.AddWorker, recommendation.Action);
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+        }
+
+        [TestMethod]
+        public async Task ScaleDecision_WorkItemLatency_Moderate()
+        {
+            var mock = GetFakePerformanceMonitor();
+            mock.AddLatencies(500, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(600, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(700, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(800, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(900, new[] { 0, 0, 0, 0 });
+
+            PerformanceHeartbeat heartbeat = await mock.PulseAsync(simulatedWorkerCount: 1);
+            ScaleRecommendation recommendation = heartbeat.ScaleRecommendation;
+            Assert.AreEqual(ScaleAction.None, recommendation.Action);
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+        }
+
+        [TestMethod]
+        public async Task ScaleDecision_WorkItemLatency_Low()
+        {
+            var mock = GetFakePerformanceMonitor();
+            mock.AddLatencies(10, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(10, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(10, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(10, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(10, new[] { 0, 0, 0, 0 });
+
+            PerformanceHeartbeat heartbeat = await mock.PulseAsync(simulatedWorkerCount: 1);
+            ScaleRecommendation recommendation = heartbeat.ScaleRecommendation;
+            Assert.AreEqual(ScaleAction.None, recommendation.Action);
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+
+            var random = new Random();
+
+            // Scale down for low latency is semi-random, so need to take a lot of samples
+            var recommendations = new ScaleRecommendation[500];
+            for (int i = 0; i < recommendations.Length; i++)
+            {
+                mock.AddLatencies(random.Next(50), new[] { 0, 0, 0, 0 });
+
+                heartbeat = await mock.PulseAsync(simulatedWorkerCount: 2);
+                recommendations[i] = heartbeat.ScaleRecommendation;
             }
 
-            Assert.AreEqual(settings.PartitionCount, simulatedWorkerCount);
+            int scaleOutCount = recommendations.Count(r => r.Action == ScaleAction.AddWorker);
+            int scaleInCount = recommendations.Count(r => r.Action == ScaleAction.RemoveWorker);
+            int noScaleCount = recommendations.Count(r => r.Action == ScaleAction.None);
+            int keepAliveCount = recommendations.Count(r => r.KeepWorkersAlive);
+
+            Trace.TraceInformation($"Scale-out count  : {scaleOutCount}.");
+            Trace.TraceInformation($"Scale-in count   : {scaleInCount}.");
+            Trace.TraceInformation($"No-scale count   : {noScaleCount}.");
+            Trace.TraceInformation($"Keep-alive count : {keepAliveCount}.");
+
+            // It is expected that we scale-in only a small percentage of the time and never scale-out.
+            Assert.AreEqual(0, scaleOutCount);
+            Assert.AreNotEqual(0, scaleInCount);
+            Assert.IsTrue(noScaleCount > scaleInCount, "Should have more no-scale decisions");
+            Assert.IsTrue(keepAliveCount > recommendations.Length * 0.9, "Almost all should be keep-alive");
         }
 
         [TestMethod]
-        public async Task ScaleDecisionForIncreasingWorkItemCount()
+        public async Task ScaleDecision_WorkItemLatency_Idle()
         {
-            var fakePerformanceMonitor = GetFakePerformanceMonitor();
-            fakePerformanceMonitor.AddWorkItemQueueLengths(1, 2, 3, 3, 5, 6);
-            fakePerformanceMonitor.AddControlQueueLengths(0, 0, 0, 0, 0, 0);
+            var mock = GetFakePerformanceMonitor();
+            mock.AddLatencies(30000, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
 
-            PerformanceHeartbeat heartbeat = await fakePerformanceMonitor.PulseAsync(simulatedWorkerCount: 1);
-            ScaleRecommendation recommendation = heartbeat.ScaleRecommendation;
-            Assert.AreEqual(ScaleAction.AddWorker, recommendation.Action);
-            Assert.IsTrue(recommendation.KeepWorkersAlive);
-        }
-
-        [TestMethod]
-        public async Task ScaleDecisionForIncreasingControlItemCount()
-        {
-            var fakePerformanceMonitor = GetFakePerformanceMonitor();
-            fakePerformanceMonitor.AddWorkItemQueueLengths(0, 0, 0, 0, 0, 0);
-            fakePerformanceMonitor.AddControlQueueLengths(1, 2, 3, 4, 5, 6);
-
-            PerformanceHeartbeat heartbeat = await fakePerformanceMonitor.PulseAsync(simulatedWorkerCount: 1);
-            ScaleRecommendation recommendation = heartbeat.ScaleRecommendation;
-            Assert.AreEqual(ScaleAction.AddWorker, recommendation.Action);
-            Assert.IsTrue(recommendation.KeepWorkersAlive);
-        }
-
-        [TestMethod]
-        public async Task ScaleDecisionForDecreasingWorkItemCount()
-        {
-            var fakePerformanceMonitor = GetFakePerformanceMonitor();
-            fakePerformanceMonitor.AddWorkItemQueueLengths(6, 5, 4, 3, 2, 1);
-            fakePerformanceMonitor.AddControlQueueLengths(0, 0, 0, 0, 0, 0);
-
-            // Case with multiple workers: should scale in
-            PerformanceHeartbeat heartbeat = await fakePerformanceMonitor.PulseAsync(simulatedWorkerCount: 2);
+            PerformanceHeartbeat heartbeat = await mock.PulseAsync(simulatedWorkerCount: 1);
             ScaleRecommendation recommendation = heartbeat.ScaleRecommendation;
             Assert.AreEqual(ScaleAction.RemoveWorker, recommendation.Action);
-            Assert.IsTrue(recommendation.KeepWorkersAlive);
-
-            // Case with no workers: should add one
-            heartbeat = await fakePerformanceMonitor.PulseAsync(simulatedWorkerCount: 0);
-            recommendation = heartbeat.ScaleRecommendation;
-            Assert.AreEqual(ScaleAction.AddWorker, recommendation.Action);
-            Assert.IsTrue(recommendation.KeepWorkersAlive);
+            Assert.IsFalse(recommendation.KeepWorkersAlive);
         }
 
         [TestMethod]
-        public async Task ScaleDecisionForDecreasingControlItemCount()
+        public async Task ScaleDecision_WorkItemLatency_NotIdle()
         {
-            var fakePerformanceMonitor = GetFakePerformanceMonitor();
-            fakePerformanceMonitor.AddWorkItemQueueLengths(0, 0, 0, 0, 0, 0);
-            fakePerformanceMonitor.AddControlQueueLengths(6, 5, 4, 3, 2, 1);
+            var mock = GetFakePerformanceMonitor();
 
-            // Case with multiple workers: should scale in
-            PerformanceHeartbeat heartbeat = await fakePerformanceMonitor.PulseAsync(simulatedWorkerCount: 2);
-            ScaleRecommendation recommendation = heartbeat.ScaleRecommendation;
-            Assert.AreEqual(ScaleAction.RemoveWorker, recommendation.Action);
-            Assert.IsTrue(recommendation.KeepWorkersAlive);
-
-            // Case with no workers: should add one
-            heartbeat = await fakePerformanceMonitor.PulseAsync(simulatedWorkerCount: 0);
-            recommendation = heartbeat.ScaleRecommendation;
-            Assert.AreEqual(ScaleAction.AddWorker, recommendation.Action);
-            Assert.IsTrue(recommendation.KeepWorkersAlive);
-        }
-
-        [TestMethod]
-        public async Task ScaleDecisionForMessageCountThresholds()
-        {
-            var fakePerformanceMonitor = new FakePerformanceMonitor(
-                TestHelpers.GetTestStorageAccountConnectionString(),
-                "taskHub",
-                partitionCount: 10);
-
-            PerformanceHeartbeat heartbeat;
-            ScaleRecommendation recommendation;
-
-            for (int simulatedWorkerCount = 1; simulatedWorkerCount < 20; simulatedWorkerCount++)
+            for (int i = 0; i < 100; i++)
             {
-                int messageCount = 1 + (DisconnectedPerformanceMonitor.MaxMessagesPerWorkerRatio * simulatedWorkerCount);
-                fakePerformanceMonitor.AddWorkItemQueueLengths(0, 0, 0, 0, messageCount);
-                fakePerformanceMonitor.AddControlQueueLengths(0, 0, 0, 0, 0);
-                heartbeat = await fakePerformanceMonitor.PulseAsync(simulatedWorkerCount);
-                recommendation = heartbeat.ScaleRecommendation;
-                Assert.AreEqual(ScaleAction.AddWorker, recommendation.Action);
+                mock.AddLatencies(1, new[] { 0, 0, 0, 0 });
+                mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+                mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+                mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+                mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+
+                PerformanceHeartbeat heartbeat = await mock.PulseAsync(simulatedWorkerCount: 1);
+                ScaleRecommendation recommendation = heartbeat.ScaleRecommendation;
+
+                // Should never scale to zero when there was a message in a queue
+                // within the last 5 samples.
+                Assert.AreEqual(ScaleAction.None, recommendation.Action);
+                Assert.IsTrue(recommendation.KeepWorkersAlive);
+            }
+        }
+
+        [TestMethod]
+        public async Task ScaleDecision_WorkItemLatency_MaxPollingDelay1()
+        {
+            var mock = GetFakePerformanceMonitor();
+            mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(9999, new[] { 0, 0, 0, 0 });
+
+            // When queue is idle, first non-zero latency must be > max polling interval
+            PerformanceHeartbeat heartbeat = await mock.PulseAsync(simulatedWorkerCount: 1);
+            ScaleRecommendation recommendation = heartbeat.ScaleRecommendation;
+            Assert.AreEqual(ScaleAction.None, recommendation.Action);
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+        }
+
+
+        [TestMethod]
+        public async Task ScaleDecision_WorkItemLatency_MaxPollingDelay2()
+        {
+            var mock = GetFakePerformanceMonitor();
+            mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(10000, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(100, new[] { 0, 0, 0, 0 });
+
+            PerformanceHeartbeat heartbeat = await mock.PulseAsync(simulatedWorkerCount: 1);
+            ScaleRecommendation recommendation = heartbeat.ScaleRecommendation;
+            Assert.AreEqual(ScaleAction.None, recommendation.Action);
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+        }
+
+        [TestMethod]
+        public async Task ScaleDecision_WorkItemLatency_QuickDrain()
+        {
+            var mock = GetFakePerformanceMonitor();
+            mock.AddLatencies(30000, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(30000, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(30000, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(30000, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(3, new[] { 0, 0, 0, 0 });
+
+            // Something happened and we immediately drained the work-item queue
+            PerformanceHeartbeat heartbeat = await mock.PulseAsync(simulatedWorkerCount: 1);
+            ScaleRecommendation recommendation = heartbeat.ScaleRecommendation;
+            Assert.AreEqual(ScaleAction.None, recommendation.Action);
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+        }
+
+        [TestMethod]
+        public async Task ScaleDecision_WorkItemLatency_NotMaxPollingDelay()
+        {
+            var mock = GetFakePerformanceMonitor();
+            mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(10, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(9999, new[] { 0, 0, 0, 0 });
+
+            // Queue was not idle, so we consider high threshold but not max polling latency
+            PerformanceHeartbeat heartbeat = await mock.PulseAsync(simulatedWorkerCount: 1);
+            ScaleRecommendation recommendation = heartbeat.ScaleRecommendation;
+            Assert.AreEqual(ScaleAction.AddWorker, recommendation.Action);
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+        }
+        #endregion
+
+        #region Control Queue Scaling
+        [TestMethod]
+        public async Task ScaleDecision_ControlQueueLatency_High1()
+        {
+            var mock = GetFakePerformanceMonitor();
+            mock.AddLatencies(0, new[] { 0, 0, 0, 600 });
+            mock.AddLatencies(0, new[] { 0, 0, 0, 700 });
+            mock.AddLatencies(0, new[] { 0, 0, 0, 800 });
+            mock.AddLatencies(0, new[] { 0, 0, 0, 900 });
+            mock.AddLatencies(0, new[] { 0, 0, 0, 1000 });
+
+            PerformanceHeartbeat heartbeat = await mock.PulseAsync(simulatedWorkerCount: 1);
+            ScaleRecommendation recommendation = heartbeat.ScaleRecommendation;
+            Assert.AreEqual(ScaleAction.None, recommendation.Action, "Only one hot partition");
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+        }
+
+        [TestMethod]
+        public async Task ScaleDecision_ControlQueueLatency_High2()
+        {
+            var mock = GetFakePerformanceMonitor();
+            mock.AddLatencies(0, new[] { 0, 0, 600, 600 });
+            mock.AddLatencies(0, new[] { 0, 0, 700, 700 });
+            mock.AddLatencies(0, new[] { 0, 0, 800, 800 });
+            mock.AddLatencies(0, new[] { 0, 0, 900, 900 });
+            mock.AddLatencies(0, new[] { 0, 0, 1000, 1000 });
+
+            PerformanceHeartbeat heartbeat = await mock.PulseAsync(simulatedWorkerCount: 1);
+            ScaleRecommendation recommendation = heartbeat.ScaleRecommendation;
+            Assert.AreEqual(ScaleAction.AddWorker, recommendation.Action, "Two hot partitions");
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+
+            heartbeat = await mock.PulseAsync(simulatedWorkerCount: 2);
+            recommendation = heartbeat.ScaleRecommendation;
+            Assert.AreEqual(ScaleAction.None, recommendation.Action, "Only two hot partitions");
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+        }
+
+        [TestMethod]
+        public async Task ScaleDecision_ControlQueueLatency_High4()
+        {
+            var mock = GetFakePerformanceMonitor();
+            mock.AddLatencies(0, new[] { 600, 600, 600, 600 });
+            mock.AddLatencies(0, new[] { 700, 700, 700, 700 });
+            mock.AddLatencies(0, new[] { 800, 800, 800, 800 });
+            mock.AddLatencies(0, new[] { 900, 900, 900, 900 });
+            mock.AddLatencies(0, new[] { 1000, 1000, 1000, 1000 });
+
+            PerformanceHeartbeat heartbeat = await mock.PulseAsync(simulatedWorkerCount: 3);
+            ScaleRecommendation recommendation = heartbeat.ScaleRecommendation;
+            Assert.AreEqual(ScaleAction.AddWorker, recommendation.Action, "Four hot partitions");
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+
+            heartbeat = await mock.PulseAsync(simulatedWorkerCount: 4);
+            recommendation = heartbeat.ScaleRecommendation;
+            Assert.AreEqual(ScaleAction.None, recommendation.Action, "Only four hot partitions");
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+
+            heartbeat = await mock.PulseAsync(simulatedWorkerCount: 5);
+            recommendation = heartbeat.ScaleRecommendation;
+            Assert.AreEqual(ScaleAction.RemoveWorker, recommendation.Action, "No work items and only four hot partitions");
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+        }
+
+        [TestMethod]
+        public async Task ScaleDecision_ControlQueueLatency_Moderate()
+        {
+            var mock = GetFakePerformanceMonitor();
+            mock.AddLatencies(0, new[] { 500, 500, 500, 500 });
+            mock.AddLatencies(0, new[] { 500, 500, 500, 500 });
+            mock.AddLatencies(0, new[] { 500, 500, 500, 500 });
+            mock.AddLatencies(0, new[] { 500, 500, 500, 500 });
+            mock.AddLatencies(0, new[] { 500, 500, 500, 500 });
+
+            for (int simulatedWorkerCount = 1; simulatedWorkerCount < 10; simulatedWorkerCount++)
+            {
+                PerformanceHeartbeat heartbeat = await mock.PulseAsync(simulatedWorkerCount);
+                ScaleRecommendation recommendation = heartbeat.ScaleRecommendation;
                 Assert.IsTrue(recommendation.KeepWorkersAlive);
 
-                fakePerformanceMonitor.AddWorkItemQueueLengths(1, 1, 1, 1, 1);
-                fakePerformanceMonitor.AddControlQueueLengths(0, 0, 0, 0, messageCount);
-                heartbeat = await fakePerformanceMonitor.PulseAsync(simulatedWorkerCount);
-                recommendation = heartbeat.ScaleRecommendation;
-
-                if (simulatedWorkerCount < fakePerformanceMonitor.PartitionCount)
+                if (simulatedWorkerCount > 4)
                 {
-                    Assert.AreEqual(ScaleAction.AddWorker, recommendation.Action);
+                    Assert.AreEqual(ScaleAction.RemoveWorker, recommendation.Action);
                 }
                 else
                 {
-                    // Can't add more workers than partitions when the load is purely control queue-driven.
                     Assert.AreEqual(ScaleAction.None, recommendation.Action);
                 }
+            }
+        }
 
+        [TestMethod]
+        public async Task ScaleDecision_ControlQueueLatency_Idle1()
+        {
+            var mock = GetFakePerformanceMonitor();
+            mock.AddLatencies(0, new[] { 1, 1, 1, 1 });
+            mock.AddLatencies(0, new[] { 0, 1, 1, 1 });
+            mock.AddLatencies(0, new[] { 0, 1, 1, 1 });
+            mock.AddLatencies(0, new[] { 0, 1, 1, 1 });
+            mock.AddLatencies(0, new[] { 0, 1, 1, 1 });
+            mock.AddLatencies(0, new[] { 0, 1, 1, 1 });
+
+            for (int simulatedWorkerCount = 1; simulatedWorkerCount < 10; simulatedWorkerCount++)
+            {
+                PerformanceHeartbeat heartbeat = await mock.PulseAsync(simulatedWorkerCount);
+                ScaleRecommendation recommendation = heartbeat.ScaleRecommendation;
+                Assert.IsTrue(recommendation.KeepWorkersAlive);
+
+                if (simulatedWorkerCount > 3)
+                {
+                    Assert.AreEqual(ScaleAction.RemoveWorker, recommendation.Action);
+                }
+                else
+                {
+                    Assert.AreEqual(ScaleAction.None, recommendation.Action);
+                }
+            }
+        }
+
+        [TestMethod]
+        public async Task ScaleDecision_ControlQueueLatency_Idle2()
+        {
+            var mock = GetFakePerformanceMonitor();
+            mock.AddLatencies(0, new[] { 1, 1, 1, 1 });
+            mock.AddLatencies(0, new[] { 0, 0, 1, 1 });
+            mock.AddLatencies(0, new[] { 0, 0, 1, 1 });
+            mock.AddLatencies(0, new[] { 0, 0, 1, 1 });
+            mock.AddLatencies(0, new[] { 0, 0, 1, 1 });
+            mock.AddLatencies(0, new[] { 0, 0, 1, 1 });
+
+            for (int simulatedWorkerCount = 1; simulatedWorkerCount < 10; simulatedWorkerCount++)
+            {
+                PerformanceHeartbeat heartbeat = await mock.PulseAsync(simulatedWorkerCount);
+                ScaleRecommendation recommendation = heartbeat.ScaleRecommendation;
+                Assert.IsTrue(recommendation.KeepWorkersAlive);
+
+                if (simulatedWorkerCount > 2)
+                {
+                    Assert.AreEqual(ScaleAction.RemoveWorker, recommendation.Action);
+                }
+                else
+                {
+                    Assert.AreEqual(ScaleAction.None, recommendation.Action);
+                }
+            }
+        }
+
+        [TestMethod]
+        public async Task ScaleDecision_ControlQueueLatency_Idle4()
+        {
+            var mock = GetFakePerformanceMonitor();
+            mock.AddLatencies(0, new[] { 0, 0, 0, 1 });
+            mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+
+            PerformanceHeartbeat heartbeat = await mock.PulseAsync(simulatedWorkerCount: 1);
+            ScaleRecommendation recommendation = heartbeat.ScaleRecommendation;
+            Assert.AreEqual(ScaleAction.RemoveWorker, recommendation.Action);
+            Assert.IsFalse(recommendation.KeepWorkersAlive);
+        }
+
+        [TestMethod]
+        public async Task ScaleDecision_ControlQueueLatency_NotIdle()
+        {
+            var mock = GetFakePerformanceMonitor();
+            mock.AddLatencies(0, new[] { 0, 0, 0, 1 });
+            mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+
+            for (int i = 0; i < 100; i++)
+            {
+                PerformanceHeartbeat heartbeat = await mock.PulseAsync(simulatedWorkerCount: 1);
+                ScaleRecommendation recommendation = heartbeat.ScaleRecommendation;
+
+                // We should never scale to zero unless all control queues are idle.
+                Assert.AreEqual(ScaleAction.None, recommendation.Action);
                 Assert.IsTrue(recommendation.KeepWorkersAlive);
             }
         }
+
+        [TestMethod]
+        public async Task ScaleDecision_ControlQueueLatency_MaxPollingDelay1()
+        {
+            var mock = GetFakePerformanceMonitor();
+            mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(0, new[] { 9999, 9999, 9999, 9999 });
+
+            // When queue is idle, first non-zero latency must be > max polling interval
+            PerformanceHeartbeat heartbeat = await mock.PulseAsync(simulatedWorkerCount: 1);
+            ScaleRecommendation recommendation = heartbeat.ScaleRecommendation;
+            Assert.AreEqual(ScaleAction.None, recommendation.Action);
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+        }
+
+        [TestMethod]
+        public async Task ScaleDecision_ControlQueueLatency_MaxPollingDelay2()
+        {
+            var mock = GetFakePerformanceMonitor();
+            mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(0, new[] { 10000, 10000, 10000, 10000 });
+            mock.AddLatencies(0, new[] { 100, 100, 100, 100 });
+
+            PerformanceHeartbeat heartbeat = await mock.PulseAsync(simulatedWorkerCount: 1);
+            ScaleRecommendation recommendation = heartbeat.ScaleRecommendation;
+            Assert.AreEqual(ScaleAction.None, recommendation.Action);
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+        }
+
+        [TestMethod]
+        public async Task ScaleDecision_ControlQueueLatency_QuickDrain()
+        {
+            var mock = GetFakePerformanceMonitor();
+            mock.AddLatencies(0, new[] { 30000, 30000, 30000, 30000 });
+            mock.AddLatencies(0, new[] { 30000, 30000, 30000, 30000 });
+            mock.AddLatencies(0, new[] { 30000, 30000, 30000, 30000 });
+            mock.AddLatencies(0, new[] { 30000, 30000, 30000, 30000 });
+            mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+
+            // Something happened and we immediately drained the work-item queue
+            for (int simulatedWorkerCount = 1; simulatedWorkerCount < 10; simulatedWorkerCount++)
+            {
+                PerformanceHeartbeat heartbeat = await mock.PulseAsync(simulatedWorkerCount);
+                ScaleRecommendation recommendation = heartbeat.ScaleRecommendation;
+                Assert.IsTrue(recommendation.KeepWorkersAlive);
+
+                if (simulatedWorkerCount > 4)
+                {
+                    Assert.AreEqual(ScaleAction.RemoveWorker, recommendation.Action);
+                }
+                else
+                {
+                    Assert.AreEqual(ScaleAction.None, recommendation.Action);
+                }
+            }
+        }
+
+        [TestMethod]
+        public async Task ScaleDecision_ControlQueueLatency_NotMaxPollingDelay()
+        {
+            var mock = GetFakePerformanceMonitor();
+            mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(0, new[] { 0, 0, 0, 0 });
+            mock.AddLatencies(0, new[] { 0, 10, 10, 10 });
+            mock.AddLatencies(0, new[] { 9999, 9999, 9999, 9999 });
+
+            // Queue was not idle, so we consider high threshold but not max polling latency
+            for (int simulatedWorkerCount = 1; simulatedWorkerCount < 10; simulatedWorkerCount++)
+            {
+                PerformanceHeartbeat heartbeat = await mock.PulseAsync(simulatedWorkerCount);
+                ScaleRecommendation recommendation = heartbeat.ScaleRecommendation;
+                Assert.IsTrue(recommendation.KeepWorkersAlive);
+
+                if (simulatedWorkerCount < 3)
+                {
+                    Assert.AreEqual(ScaleAction.AddWorker, recommendation.Action);
+                }
+                else if (simulatedWorkerCount <= 4)
+                {
+                    Assert.AreEqual(ScaleAction.None, recommendation.Action);
+                }
+                else
+                {
+                    Assert.AreEqual(ScaleAction.RemoveWorker, recommendation.Action);
+                }
+            }
+        }
+        #endregion
 
         static FakePerformanceMonitor GetFakePerformanceMonitor()
         {
@@ -581,9 +960,6 @@ namespace DurableTask.AzureStorage.Tests
 
         class FakePerformanceMonitor : DisconnectedPerformanceMonitor
         {
-            int[] testWorkItemCounts;
-            int[] testControlItemCounts;
-
             public FakePerformanceMonitor(
                 string storageConnectionString,
                 string taskHub,
@@ -591,63 +967,74 @@ namespace DurableTask.AzureStorage.Tests
                 : base(storageConnectionString, taskHub)
             {
                 this.PartitionCount = partitionCount;
+                for (int i = 0; i < partitionCount; i++)
+                {
+                    this.ControlQueueLatencies.Add(new QueueMetricHistory(5));
+                }
             }
 
-            public int PartitionCount { get; }
+            internal override int PartitionCount { get; }
 
-            public void AddControlQueueLengths(params int[] lengths)
+            internal override Task<bool> UpdateQueueMetrics()
             {
-                for (int i = 0; i < lengths.Length; i++)
+                return Task.FromResult(true);
+            }
+
+            public void AddLatencies(int workItemQueueLatency, params int[] controlQueueLatencies)
+            {
+                if (controlQueueLatencies.Length != this.PartitionCount)
                 {
-                    base.AddControlQueueLength(lengths[i]);
+                    throw new ArgumentException(string.Format(
+                        "Wrong number of control queue latencies. Expected {0}. Actual: {1}.",
+                        this.PartitionCount,
+                        controlQueueLatencies.Length));
                 }
 
-                this.testControlItemCounts = lengths;
-            }
-
-            public void AddWorkItemQueueLengths(params int[] lengths)
-            {
-                for (int i = 0; i < lengths.Length; i++)
+                this.WorkItemQueueLatencies.Add(workItemQueueLatency);
+                for (int i = 0; i < this.ControlQueueLatencies.Count; i++)
                 {
-                    base.AddWorkItemQueueLength(lengths[i]);
+                    this.ControlQueueLatencies[i].Add(controlQueueLatencies[i]);
                 }
-
-                this.testWorkItemCounts = lengths;
             }
 
-            protected override void AddControlQueueLength(int aggregateQueueLength)
+            public void AddControlQueueLatencies(params int[][] latencies)
             {
-                // no-op
-            }
-
-            protected override void AddWorkItemQueueLength(int queueLength)
-            {
-                // no-op
-            }
-
-            protected override Task<ControlQueueData> GetAggregateControlQueueLengthAsync()
-            {
-                // Not used
-                return Task.FromResult(new ControlQueueData
+                for (int i = 0; i < latencies.Length; i++)
                 {
-                    AggregateQueueLength = 0,
-                    PartitionCount = this.PartitionCount
-                });
+                    for (int j = 0; j < latencies[i].Length; j++)
+                    {
+                        this.ControlQueueLatencies[i].Add(j);
+                    }
+                }
             }
 
-            protected override Task<int> GetWorkItemQueueLengthAsync()
+            public void AddControlQueueLatencies2(params Tuple<int, int, int, int>[] latencies)
             {
-                // no-op
-                return Task.FromResult(0);
+                for (int i = 0; i < latencies.Length; i++)
+                {
+                    this.ControlQueueLatencies[0].Add(latencies[i].Item1);
+                    this.ControlQueueLatencies[1].Add(latencies[i].Item2);
+                    this.ControlQueueLatencies[2].Add(latencies[i].Item3);
+                    this.ControlQueueLatencies[3].Add(latencies[i].Item4);
+                }
+            }
+
+            public void AddWorkItemQueueLatencies(params int[] latencies)
+            {
+                for (int i = 0; i < latencies.Length; i++)
+                {
+                    this.WorkItemQueueLatencies.Add(latencies[i]);
+                }
             }
 
             public override async Task<PerformanceHeartbeat> PulseAsync(int simulatedWorkerCount)
             {
                 Trace.TraceInformation(
-                    "PULSE INPUT: Worker count: {0}; control items: {1}; work items: {2}.",
+                    "PULSE INPUT: Worker count: {0}; work items: {1}; control items: {2}  {3}.",
                     simulatedWorkerCount,
-                    "[" + string.Join(",", this.testControlItemCounts) + "]",
-                    "[" + string.Join(",", this.testWorkItemCounts) + "]");
+                    this.WorkItemQueueLatencies,
+                    Environment.NewLine,
+                    string.Join(Environment.NewLine + "  ", this.ControlQueueLatencies));
 
                 PerformanceHeartbeat heartbeat = await base.PulseAsync(simulatedWorkerCount);
                 Trace.TraceInformation($"PULSE OUTPUT: {heartbeat}");

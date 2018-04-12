@@ -316,5 +316,12 @@ namespace DurableTask.AzureStorage
             EnsureLogicalTraceActivityId();
             this.WriteEvent(136, Account, TaskHub, InstanceId, ExecutionId, LatencyMs);
         }
+
+        [Event(137, Level = EventLevel.Warning)]
+        public void MonitorWarning(string Account, string TaskHub, string Details)
+        {
+            EnsureLogicalTraceActivityId();
+            this.WriteEvent(137, Account, TaskHub, Details);
+        }
     }
 }
