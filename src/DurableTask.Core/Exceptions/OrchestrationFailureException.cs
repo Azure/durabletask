@@ -14,6 +14,7 @@
 namespace DurableTask.Core.Exceptions
 {
     using System;
+    using System.Runtime.Serialization;
 
     /// <summary>
     /// Exception type thrown by implementors of <see cref="TaskOrchestration"/> when exception
@@ -55,8 +56,26 @@ namespace DurableTask.Core.Exceptions
         }
 
         /// <summary>
+        /// Initializes a new instance of the <see cref="OrchestrationFailureException"/> class.
+        /// </summary>
+        protected OrchestrationFailureException(SerializationInfo info, StreamingContext context)
+            : base(info, context)
+        {
+            this.Details = info.GetString(nameof(Details));
+        }
+
+        /// <summary>
         /// Details of the exception which will flow to the parent orchestration.
         /// </summary>
         public string Details { get; set; }
+
+        /// <summary>
+        /// Gets object data for use by serialization.
+        /// </summary>
+        public override void GetObjectData(SerializationInfo info, StreamingContext context)
+        {
+            base.GetObjectData(info, context);
+            info.AddValue(nameof(Details), this.Details);
+        }
     }
 }
