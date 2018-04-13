@@ -17,6 +17,7 @@ namespace DurableTask.ServiceBus.Tests
     using System.Collections.Generic;
     using System.Threading.Tasks;
     using DurableTask.Core;
+    using DurableTask.Core.Exceptions;
     using DurableTask.Test.Orchestrations;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -102,7 +103,7 @@ namespace DurableTask.ServiceBus.Tests
             OrchestrationInstance id = await TestHelpers.CreateOrchestrationInstanceAsync(sbService, name, version, null, null, true, false);
 
             // Try to create orchestraton with same instanceId
-            var exception = await TestHelpers.ThrowsAsync<InvalidOperationException>(() => TestHelpers.CreateOrchestrationInstanceAsync(sbService, name, version, id.InstanceId, null, false, false));
+            var exception = await TestHelpers.ThrowsAsync<OrchestrationAlreadyExistsException>(() => TestHelpers.CreateOrchestrationInstanceAsync(sbService, name, version, id.InstanceId, null, false, false));
             Assert.IsTrue(exception.Message.Contains("already exists"));
         }
 

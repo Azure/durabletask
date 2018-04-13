@@ -29,7 +29,7 @@ namespace DurableTask.ServiceBus.Tracking
     {
         readonly ServiceBusOrchestrationService service;
         readonly TimeSpan interval;
-        readonly TimeSpan intervalOnTimeout = TimeSpan.MinValue;
+        readonly TimeSpan intervalOnTimeout = TimeSpan.Zero;
         readonly TimeSpan ignoreWindow;
         volatile int isStarted;
 

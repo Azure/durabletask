@@ -134,12 +134,17 @@ namespace DurableTask.ServiceBus.Tracking
         {
             // Fetch unscheduled orchestrations from JumpStart table
             // We need to get this first to avoid a race condition.
-            IEnumerable<AzureTableOrchestrationStateEntity> jumpStartEntities = await this.tableClient.QueryJumpStartOrchestrationsAsync(new OrchestrationStateQuery()
-                    .AddInstanceFilter(instanceId)).ConfigureAwait(false);
+            IEnumerable<AzureTableOrchestrationStateEntity> jumpStartEntities = await Utils.ExecuteWithRetries(() => this.tableClient.QueryJumpStartOrchestrationsAsync(new OrchestrationStateQuery().AddInstanceFilter(instanceId)),
+                string.Empty,
+                "GetOrchestrationStateAsync-jumpStartEntities",
+                MaxRetriesTableStore,
+                IntervalBetweenRetriesSecs).ConfigureAwait(false);
 
-            IEnumerable<AzureTableOrchestrationStateEntity> stateEntities =
-                            await tableClient.QueryOrchestrationStatesAsync(new OrchestrationStateQuery()
-                                .AddInstanceFilter(instanceId)).ConfigureAwait(false);
+            IEnumerable<AzureTableOrchestrationStateEntity> stateEntities = await Utils.ExecuteWithRetries(() =>  tableClient.QueryOrchestrationStatesAsync(new OrchestrationStateQuery().AddInstanceFilter(instanceId)),
+                string.Empty,
+                "GetOrchestrationStateAsync-stateEntities",
+                MaxRetriesTableStore,
+                IntervalBetweenRetriesSecs).ConfigureAwait(false);
 
             IEnumerable <OrchestrationState> states = stateEntities.Select(stateEntity => stateEntity.State);
             IEnumerable<OrchestrationState> jumpStartStates = jumpStartEntities.Select(j => j.State)
