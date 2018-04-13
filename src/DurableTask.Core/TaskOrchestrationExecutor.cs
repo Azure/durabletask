@@ -31,12 +31,23 @@ namespace DurableTask.Core
 
         public TaskOrchestrationExecutor(OrchestrationRuntimeState orchestrationRuntimeState,
             TaskOrchestration taskOrchestration)
+            : this(orchestrationRuntimeState, taskOrchestration, false)
+        {
+        }
+
+        public TaskOrchestrationExecutor(OrchestrationRuntimeState orchestrationRuntimeState,
+            TaskOrchestration taskOrchestration, bool serializeUnhandledExceptions)
         {
             decisionScheduler = new SynchronousTaskScheduler();
-            context = new TaskOrchestrationContext(orchestrationRuntimeState.OrchestrationInstance, decisionScheduler);
+            context = new TaskOrchestrationContext(
+                orchestrationRuntimeState.OrchestrationInstance,
+                decisionScheduler,
+                serializeUnhandledExceptions);
             this.orchestrationRuntimeState = orchestrationRuntimeState;
             this.taskOrchestration = taskOrchestration;
         }
+
+        public bool SerializeUnhandledExceptions { get; set; }
 
         public IEnumerable<OrchestratorAction> Execute()
         {

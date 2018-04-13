@@ -21,6 +21,7 @@ namespace DurableTask.Core
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
     using DurableTask.Core.Middleware;
+    using DurableTask.Core.Serializing;
     using DurableTask.Core.Tracing;
 
     /// <summary>
@@ -28,6 +29,8 @@ namespace DurableTask.Core
     /// </summary>
     public sealed class TaskActivityDispatcher
     {
+        static readonly DataConverter DataConverter = new JsonDataConverter();
+
         readonly INameVersionObjectManager<TaskActivity> objectManager;
         readonly WorkItemDispatcher<TaskActivityWorkItem> dispatcher; 
         readonly IOrchestrationService orchestrationService;
@@ -77,6 +80,12 @@ namespace DurableTask.Core
         /// Gets or sets flag whether to include additional details in error messages
         /// </summary>
         public bool IncludeDetails { get; set;} 
+
+        /// <summary>
+        /// Gets or sets a value indicating whether to serialize unhandled exception information in fault details.
+        /// This is an advanced setting mainly intended for direct inheritors of <see cref="TaskActivity"/>.
+        /// </summary>
+        public bool SerializeUnhandledExceptions { get; set; }
 
         Task<TaskActivityWorkItem> OnFetchWorkItemAsync(TimeSpan receiveTimeout)
         {
@@ -143,9 +152,17 @@ namespace DurableTask.Core
                     catch (Exception e) when (!Utils.IsFatal(e))
                     {
                         TraceHelper.TraceExceptionInstance(TraceEventType.Error, "TaskActivityDispatcher-ProcessException", taskMessage.OrchestrationInstance, e);
-                        string details = IncludeDetails
-                            ? $"Unhandled exception while executing task: {e}\n\t{e.StackTrace}"
-                            : null;
+
+                        string details = null;
+                        if (SerializeUnhandledExceptions)
+                        {
+                            details = Utils.SerializeCause(e, DataConverter);
+                        }
+                        else if (IncludeDetails)
+                        {
+                            details = $"Unhandled exception while executing task: {e}\n\t{e.StackTrace}";
+                        }
+
                         eventToRespond = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details);
                     }
                 });

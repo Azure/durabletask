@@ -90,6 +90,12 @@ namespace DurableTask.Core
         public bool IncludeParameters { get; set; }
 
         /// <summary>
+        /// Gets or sets a value indicating whether to serialize unhandled exception information in fault details.
+        /// This is an advanced setting mainly intended for direct inheritors of <see cref="TaskOrchestration"/>.
+        /// </summary>
+        public bool SerializeUnhandledExceptions { get; set; }
+
+        /// <summary>
         /// Method to get the next work item to process within supplied timeout
         /// </summary>
         /// <param name="receiveTimeout">The max timeout to wait</param>
@@ -304,7 +310,7 @@ namespace DurableTask.Core
             IEnumerable<OrchestratorAction> decisions = null;
             await this.dispatchPipeline.RunAsync(dispatchContext, _ =>
             {
-                var taskOrchestrationExecutor = new TaskOrchestrationExecutor(runtimeState, taskOrchestration);
+                var taskOrchestrationExecutor = new TaskOrchestrationExecutor(runtimeState, taskOrchestration, SerializeUnhandledExceptions);
                 decisions = taskOrchestrationExecutor.Execute();
 
                 return Task.FromResult(0);
