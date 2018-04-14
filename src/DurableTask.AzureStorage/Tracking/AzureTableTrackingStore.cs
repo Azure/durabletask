@@ -67,6 +67,7 @@ namespace DurableTask.AzureStorage.Tracking
             this.storageAccountName = account.Credentials.AccountName;
 
             CloudTableClient tableClient = account.CreateCloudTableClient();
+            tableClient.BufferManager = SimpleBufferManager.Shared;
 
             string historyTableName = $"{taskHubName}History";
             NameValidator.ValidateTableName(historyTableName);

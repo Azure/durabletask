@@ -14,11 +14,11 @@
     /// </summary>
     public class MessageManager
     {
-        readonly CloudBlobContainer cloudBlobContainer;
-        readonly JsonSerializerSettings taskMessageSerializerSettings;
-        readonly SharedBufferManager sharedBufferManager;
         const int MaxStorageQueuePayloadSizeInBytes = 60 * 1024; // 60KB
         const int DefaultBufferSize = 64 * 2014; // 64KB
+
+        readonly CloudBlobContainer cloudBlobContainer;
+        readonly JsonSerializerSettings taskMessageSerializerSettings;
 
         /// <summary>
         /// The message manager.
@@ -30,8 +30,6 @@
             {
                 TypeNameHandling = TypeNameHandling.Objects
             };
-
-            this.sharedBufferManager = new SharedBufferManager();
         }
 
         /// <summary>
@@ -101,7 +99,7 @@
                 {
                     using (GZipStream gZipStream = new GZipStream(memory, CompressionLevel.Optimal, leaveOpen: true))
                     {
-                        byte[] buffer = this.sharedBufferManager.TakeBuffer(DefaultBufferSize);
+                        byte[] buffer = SimpleBufferManager.Shared.TakeBuffer(DefaultBufferSize);
                         try
                         {
                             int read;
@@ -114,7 +112,7 @@
                         }
                         finally
                         {
-                            this.sharedBufferManager.ReturnBuffer(buffer);
+                            SimpleBufferManager.Shared.ReturnBuffer(buffer);
                         }
                     }
 
@@ -137,7 +135,7 @@
             {
                 using (MemoryStream memory = new MemoryStream(MaxStorageQueuePayloadSizeInBytes * 2))
                 {
-                    byte[] buffer = this.sharedBufferManager.TakeBuffer(DefaultBufferSize);
+                    byte[] buffer = SimpleBufferManager.Shared.TakeBuffer(DefaultBufferSize);
                     try
                     {
                         int count = 0;
@@ -148,7 +146,7 @@
                     }
                     finally
                     {
-                        this.sharedBufferManager.ReturnBuffer(buffer);
+                        SimpleBufferManager.Shared.ReturnBuffer(buffer);
                     }
 
                     return new ArraySegment<byte>(memory.GetBuffer(), 0, (int)memory.Length);

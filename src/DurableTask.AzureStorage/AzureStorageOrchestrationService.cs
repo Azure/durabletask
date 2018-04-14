@@ -74,7 +74,6 @@ namespace DurableTask.AzureStorage
         Task statsLoop;
         CancellationTokenSource shutdownSource;
         
-
         /// <summary>
         /// Initializes a new instance of the <see cref="AzureStorageOrchestrationService"/> class.
         /// </summary>
@@ -102,8 +101,10 @@ namespace DurableTask.AzureStorage
             this.storageAccountName = account.Credentials.AccountName;
             this.stats = new AzureStorageOrchestrationServiceStats();
             this.queueClient = account.CreateCloudQueueClient();
+            this.queueClient.BufferManager = SimpleBufferManager.Shared;
             this.blobClient = account.CreateCloudBlobClient();
-            CloudTableClient tableClient = account.CreateCloudTableClient();
+            this.blobClient.BufferManager = SimpleBufferManager.Shared;
+
             // TODO: Need to do input validation on the TaskHubName.
 
             this.ownedControlQueues = new ConcurrentDictionary<string, CloudQueue>();
