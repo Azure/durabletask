@@ -70,6 +70,32 @@ namespace DurableTask.ServiceBus.Tests
         }
 
         [TestMethod]
+        public void PackageUpgradeCompatibilityDeserializationTest()
+        {
+            var dataConverter = new JsonDataConverter();
+
+            string serialized= File.ReadAllText(@"TestData\v1.0\SerializedTaskMessage.json");
+            var message = dataConverter.Deserialize<TaskMessage>(serialized);
+            Assert.IsNotNull(message);
+
+            serialized = File.ReadAllText(@"TestData\v1.0\SerializedOrchestrationStateNoTags.json");
+            var state = dataConverter.Deserialize<OrchestrationState>(serialized);
+            Assert.IsNotNull(state);
+
+            serialized = File.ReadAllText(@"TestData\v1.0\SerializedRuntimeState.json");
+            var runtimeState = dataConverter.Deserialize<OrchestrationRuntimeState>(serialized);
+            Assert.IsNotNull(runtimeState);
+
+            serialized = File.ReadAllText(@"TestData\vnext\SerializedExecutionStartedEvent.json");
+            var executionStarted = dataConverter.Deserialize<ExecutionStartedEvent>(serialized);
+            Assert.IsNotNull(executionStarted);
+
+            serialized = File.ReadAllText(@"TestData\vnext\SerializedStateWithTags.json");
+            state = dataConverter.Deserialize<OrchestrationState>(serialized);
+            Assert.IsNotNull(state);
+        }
+
+        [TestMethod]
         public async Task PrimitiveTypeActivitiesSerializationTest()
         {
             await taskHub.AddTaskOrchestrations(typeof (PrimitiveTypeActivitiesOrchestration))

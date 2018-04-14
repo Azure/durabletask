@@ -30,9 +30,14 @@ namespace DurableTask.Core.Serializing
         /// Creates a new instance of the JsonDataConverter with default settings
         /// </summary>
         public JsonDataConverter()
-            : this(new JsonSerializerSettings {TypeNameHandling = TypeNameHandling.Objects})
-        {
-        }
+            : this(new JsonSerializerSettings {TypeNameHandling = TypeNameHandling.Objects,
+#if NETSTANDARD2_0
+                SerializationBinder = new PackageUpgradeSerializationBinder()
+#else
+                Binder = new PackageUpgradeSerializationBinder()
+#endif
+            })
+                {}
 
         /// <summary>
         /// Creates a new instance of the JsonDataConverter with supplied settings
