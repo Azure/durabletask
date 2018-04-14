@@ -365,7 +365,7 @@ namespace DurableTask.AzureStorage.Tests
                 int iterations = 100;
 
                 var client = await host.StartOrchestrationAsync(typeof(Orchestrations.MapReduceTableStorage), iterations);
-                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(300));
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(120));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
                 Assert.AreEqual(iterations, int.Parse(status?.Output));

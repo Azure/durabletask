@@ -474,11 +474,24 @@ namespace DurableTask.ServiceBus
 
             if (this.InstanceStore != null)
             {
-                TaskMessage executionStartedMessage = newTaskMessages.FirstOrDefault(m => m.Event is ExecutionStartedEvent);
-
-                if (executionStartedMessage != null)
+                try
                 {
-                    await this.UpdateInstanceStoreAsync(executionStartedMessage.Event as ExecutionStartedEvent, maxSequenceNumber);
+                    TaskMessage executionStartedMessage = newTaskMessages.FirstOrDefault(m => m.Event is ExecutionStartedEvent);
+
+                    if (executionStartedMessage != null)
+                    {
+                        await this.UpdateInstanceStoreAsync(executionStartedMessage.Event as ExecutionStartedEvent, maxSequenceNumber);
+                    }
+                }
+                catch (Exception exception)
+                {
+                    ServiceBusOrchestrationSession sessionInstance;
+                    orchestrationSessions.TryRemove(session.SessionId, out sessionInstance);
+
+                    var error = $"Exception while updating instance store. Session id: {session.SessionId}";
+                    TraceHelper.TraceException(TraceEventType.Error, "ServiceBusOrchestrationService-LockNextTaskOrchestrationWorkItem-ErrorUpdatingInstanceStore", exception, error);
+
+                    throw;
                 }
             }
 
@@ -627,7 +640,7 @@ namespace DurableTask.ServiceBus
                         this.ServiceStats.ActivityDispatcherStats.MessagesSent.Increment(outboundMessages.Count);
                     }
 
-                    if (timerMessages?.Count > 0)
+                    if (timerMessages?.Count > 0 && newOrchestrationRuntimeState != null)
                     {
                         var timerBrokeredMessages = await Task.WhenAll(timerMessages.Select(async m =>
                         {
@@ -636,7 +649,7 @@ namespace DurableTask.ServiceBus
                                 m,
                                 Settings.MessageCompressionSettings,
                                 Settings.MessageSettings,
-                                newOrchestrationRuntimeState?.OrchestrationInstance,
+                                newOrchestrationRuntimeState.OrchestrationInstance,
                                 "Timer Message",
                                 this.BlobStore,
                                 messageFireTime);
@@ -944,7 +957,7 @@ namespace DurableTask.ServiceBus
                 if ((await this.GetOrchestrationStateAsync(creationMessage.OrchestrationInstance.InstanceId, true)).Count != 0)
                 {
                     // An orchestratoion with same instance id is already running
-                    throw new InvalidOperationException($"An orchestration with id '{creationMessage.OrchestrationInstance.InstanceId}' already exists");
+                    throw new OrchestrationAlreadyExistsException($"An orchestration with id '{creationMessage.OrchestrationInstance.InstanceId}' already exists");
                 }
 
                 await this.UpdateJumpStartStoreAsync(creationMessage);
