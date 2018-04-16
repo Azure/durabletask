@@ -112,7 +112,6 @@ namespace DurableTask.Core.Common
                 TypeNameHandling = TypeNameHandling.All,
 
 #if NETSTANDARD2_0
-
                 SerializationBinder = new PackageUpgradeSerializationBinder()
 #else
                 Binder = new PackageUpgradeSerializationBinder()

@@ -153,7 +153,7 @@ namespace DurableTask.ServiceBus.Tracking
                 new JsonSerializerSettings {
                     TypeNameHandling = TypeNameHandling.Objects,
 #if NETSTANDARD2_0
-                SerializationBinder = new PackageUpgradeSerializationBinder()
+                    SerializationBinder = new PackageUpgradeSerializationBinder()
 #else
                     Binder = new PackageUpgradeSerializationBinder()
 #endif

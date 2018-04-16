@@ -10,6 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
+
 namespace DurableTask.Core.Serializing
 {
     using System;
@@ -27,18 +28,21 @@ namespace DurableTask.Core.Serializing
             return typeof(PackageUpgradeSerializationBinder).Assembly.GetTypes().Where(t => t?.Namespace?.StartsWith("DurableTask.Core") ?? false).ToDictionary<Type, string>(x=>x.FullName);
         });
 
-        //Keeping both to avoid Using ctring concatenation to create a new string with a , everytime that the GC needs to clean
-        private static readonly string[] _upgradeableAssemblyNames = new string[] { "DurableTask", "DurableTaskFx" };
-        private static readonly string[] _upgradeableAssemblyNamePrefixes = new string[] { "DurableTask,", "DurableTaskFx," };
+        static readonly string CurrentAssemblyName = typeof(PackageUpgradeSerializationBinder).Assembly.GetName().Name;
+        static readonly ISet<string> _upgradeableAssemblyNames = new HashSet<string>{ "DurableTask", "DurableTaskFx" };
+
         /// <inheritdoc />
         public override Type BindToType(string assemblyName, string typeName)
         {
             Type resolvedType = null;
 
-            if (!string.IsNullOrWhiteSpace(typeName))
+            if (assemblyName != CurrentAssemblyName && !string.IsNullOrWhiteSpace(typeName))
             {
+                //Separator Index if TypeNameAssemblyFormat Full
+                int separatorIndex = assemblyName.IndexOf(',');
+
                 //If no assembly name is specified or this is a type from the v1.0 or vnext assemblies
-                if (string.IsNullOrWhiteSpace(assemblyName) || _upgradeableAssemblyNames.Any(x=> x== assemblyName) || _upgradeableAssemblyNamePrefixes.Any(x => x.StartsWith(assemblyName)))
+                if (string.IsNullOrWhiteSpace(assemblyName) || _upgradeableAssemblyNames.Contains(separatorIndex < 0 ? assemblyName : assemblyName.Substring(0, assemblyName.IndexOf(','))))
                 {
                     KnownTypes.Value.TryGetValue(typeName.Replace("DurableTask.", "DurableTask.Core."), out resolvedType);
                 }
