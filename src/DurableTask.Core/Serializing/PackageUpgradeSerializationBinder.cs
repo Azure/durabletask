@@ -25,7 +25,10 @@ namespace DurableTask.Core.Serializing
     {
         static Lazy<IDictionary<string, Type>> KnownTypes = new Lazy<IDictionary<string, Type>>(() =>
         {
-            return typeof(PackageUpgradeSerializationBinder).Assembly.GetTypes().Where(t => t?.Namespace?.StartsWith("DurableTask.Core") ?? false).ToDictionary<Type, string>(x=>x.FullName);
+            //Get all types in the DurableTask.Core Namespace
+            return typeof(PackageUpgradeSerializationBinder).Assembly.GetTypes()
+                .Where(t => t?.Namespace?.StartsWith("DurableTask.Core") ?? false)
+                .ToDictionary(x => x.FullName);
         });
 
         static readonly string CurrentAssemblyName = typeof(PackageUpgradeSerializationBinder).Assembly.GetName().Name;
