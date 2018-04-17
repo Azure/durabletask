@@ -766,7 +766,18 @@ namespace DurableTask.AzureStorage
             string instanceId = workItem.InstanceId;
             string executionId = runtimeState.OrchestrationInstance.ExecutionId;
 
-            await this.trackingStore.UpdateStateAsync(runtimeState, instanceId, executionId);
+            try
+            {
+                await this.trackingStore.UpdateStateAsync(runtimeState, instanceId, executionId);
+            }
+            catch (StorageException ex)
+            {
+                if (ex.RequestInformation.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
+                {
+                    await this.AbandonTaskOrchestrationWorkItemAsync(workItem);
+                    return;
+                }
+            }
 
             bool addedControlMessages = false;
             bool addedWorkItemMessages = false;

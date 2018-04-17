@@ -30,7 +30,7 @@ namespace DurableTask.AzureStorage.Tracking
     using Microsoft.WindowsAzure.Storage.Table;
 
     /// <summary>
-    /// Tracking strore for use with the AzureStorageOrxhestration Service. Uses azure table and blob storage to store runtime state.
+    /// Tracking store for use with the AzureStorageOrxhestration Service. Uses azure table and blob storage to store runtime state.
     /// </summary>
     class AzureTableTrackingStore : TrackingStoreBase
     {
@@ -52,9 +52,12 @@ namespace DurableTask.AzureStorage.Tracking
         const string ResultProperty = "Result";
         const string OutputProperty = "Output";
         const string BlobNamePropertySuffix = "BlobName";
+        const string SentinelRowKey = "sentinel";
         const int MaxStorageQueuePayloadSizeInBytes = 60 * 1024; // 60KB
 
         readonly MessageManager messageManager;
+
+        string eTagValue;
 
         public AzureTableTrackingStore(string taskHubName, string storageConnectionString, MessageManager messageManager, TableRequestOptions storageTableRequestOptions, AzureStorageOrchestrationServiceStats stats)
         {
@@ -123,13 +126,13 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public async override Task<bool> ExistsAsync()
+        public override async Task<bool> ExistsAsync()
         {
             return this.historyTable != null && this.instancesTable != null && await this.historyTable.ExistsAsync() && await this.instancesTable.ExistsAsync();
         }
 
         /// <inheritdoc />
-        public async override Task<IList<HistoryEvent>> GetHistoryEventsAsync(string instanceId, string expectedExecutionId, CancellationToken cancellationToken = default(CancellationToken))
+        public override async Task<IList<HistoryEvent>> GetHistoryEventsAsync(string instanceId, string expectedExecutionId, CancellationToken cancellationToken = default(CancellationToken))
         {
             var filterCondition = new StringBuilder(200);
 
@@ -141,7 +144,8 @@ namespace DurableTask.AzureStorage.Tracking
             {
                 // Filter down to a specific generation.
                 // e.g. "PartitionKey eq 'c138dd969a1e4a699b0644c7d8279f81' and ExecutionId eq '85f05ce1494c4a29989f64d3fe0f9089'"
-                filterCondition.Append(" and ExecutionId eq ").Append(Quote).Append(expectedExecutionId).Append(Quote);
+                filterCondition.Append(" or ExecutionId eq ").Append(Quote).Append(expectedExecutionId).Append(Quote);
+                filterCondition.Append(" or RowKey eq ").Append(Quote).Append(SentinelRowKey).Append(Quote);
             }
 
             TableQuery query = new TableQuery().Where(filterCondition.ToString());
@@ -190,6 +194,12 @@ namespace DurableTask.AzureStorage.Tracking
 
                 foreach (DynamicTableEntity entity in historyEventEntities)
                 {
+                    if (entity.RowKey == SentinelRowKey)
+                    {
+                        this.eTagValue = entity.ETag;
+                        continue;
+                    }
+
                     if (entity.Properties["ExecutionId"].StringValue != executionId)
                     {
                         // The remaining entities are from a previous generation and can be discarded.
@@ -231,7 +241,8 @@ namespace DurableTask.AzureStorage.Tracking
                 executionId,
                 historyEvents.Count,
                 requestCount,
-                stopwatch.ElapsedMilliseconds);
+                stopwatch.ElapsedMilliseconds,
+                this.eTagValue);
 
             return historyEvents;
         }
@@ -344,7 +355,7 @@ namespace DurableTask.AzureStorage.Tracking
             IList<HistoryEvent> newEvents = runtimeState.NewEvents;
             IList<HistoryEvent> allEvents = runtimeState.Events;
 
-                       var newEventListBuffer = new StringBuilder(4000);
+            var newEventListBuffer = new StringBuilder(4000);
             var historyEventBatch = new TableBatchOperation();
 
             EventType? orchestratorEventType = null;
@@ -378,8 +389,20 @@ namespace DurableTask.AzureStorage.Tracking
                 historyEventBatch.InsertOrReplace(entity);
 
                 // Table storage only supports inserts of up to 100 entities at a time.
-                if (historyEventBatch.Count == 100)
+                if (historyEventBatch.Count == 99)
                 {
+                    // Adding / updating sentinel entity
+                    DynamicTableEntity sentinelEntity = new DynamicTableEntity(instanceId, SentinelRowKey);
+                    if (!string.IsNullOrEmpty(this.eTagValue))
+                    {
+                        sentinelEntity.ETag = this.eTagValue;
+                        historyEventBatch.Replace(sentinelEntity);
+                    }
+                    else
+                    {
+                        historyEventBatch.Insert(sentinelEntity);
+                    }
+
                     await this.UploadHistoryBatch(instanceId, executionId, historyEventBatch, newEventListBuffer, newEvents.Count);
 
                     // Reset local state for the next batch
@@ -423,6 +446,17 @@ namespace DurableTask.AzureStorage.Tracking
             // First persistence step is to commit history to the history table. Messages must come after.
             if (historyEventBatch.Count > 0)
             {
+                // Adding / updating sentinel entity
+                DynamicTableEntity sentinelEntity = new DynamicTableEntity(instanceId, SentinelRowKey);
+                if (!string.IsNullOrEmpty(this.eTagValue))
+                {
+                    sentinelEntity.ETag = this.eTagValue;
+                    historyEventBatch.Replace(sentinelEntity);
+                }
+                else
+                {
+                    historyEventBatch.Insert(sentinelEntity);
+                }
                 await this.UploadHistoryBatch(instanceId, executionId, historyEventBatch, newEventListBuffer, newEvents.Count);
             }
 
@@ -578,12 +612,37 @@ namespace DurableTask.AzureStorage.Tracking
             int numberOfTotalEvents)
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
-            await this.historyTable.ExecuteBatchAsync(
-                historyEventBatch,
-                this.StorageTableRequestOptions,
-                null);
+            IList<TableResult> tableResultList = null;
+            try
+            {
+                tableResultList = await this.historyTable.ExecuteBatchAsync(
+                    historyEventBatch,
+                    this.StorageTableRequestOptions,
+                    null);
+            }
+            catch (StorageException ex)
+            {
+                if (ex.RequestInformation.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
+                {
+                    AnalyticsEventSource.Log.SplitBrainDetected(
+                        this.storageAccountName,
+                        this.taskHubName,
+                        instanceId,
+                        executionId,
+                        historyEventBatch.Count,
+                        numberOfTotalEvents,
+                        historyEventNamesBuffer.ToString(0, historyEventNamesBuffer.Length - 1), // remove trailing comma
+                        stopwatch.ElapsedMilliseconds,
+                        this.eTagValue);
+                    throw;
+                }
+            }
+
             this.stats.StorageRequests.Increment();
             this.stats.TableEntitiesWritten.Increment(historyEventBatch.Count);
+
+            TableResult sentinelItem = tableResultList?.FirstOrDefault(x => ((DynamicTableEntity)x.Result).RowKey == SentinelRowKey);
+            this.eTagValue = sentinelItem?.Etag;
 
             AnalyticsEventSource.Log.AppendedInstanceState(
                 this.storageAccountName,
@@ -593,7 +652,8 @@ namespace DurableTask.AzureStorage.Tracking
                 historyEventBatch.Count,
                 numberOfTotalEvents,
                 historyEventNamesBuffer.ToString(0, historyEventNamesBuffer.Length - 1), // remove trailing comma
-                stopwatch.ElapsedMilliseconds);
+                stopwatch.ElapsedMilliseconds,
+                this.eTagValue);
         }
 
         async Task<string> GetOrchestrationOutputAsync(OrchestrationInstanceStatus orchestrationInstanceStatus)
