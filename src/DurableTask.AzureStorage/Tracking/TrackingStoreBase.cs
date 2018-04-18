@@ -52,6 +52,6 @@ namespace DurableTask.AzureStorage.Tracking
         public abstract Task StartAsync();
 
         /// <inheritdoc />
-        public abstract Task UpdateStateAsync(OrchestrationRuntimeState runtimeState, string instanceId, string executionId);
+        public abstract Task<bool> UpdateStateAsync(OrchestrationRuntimeState runtimeState, string instanceId, string executionId);
     }
 }

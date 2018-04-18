@@ -324,7 +324,7 @@ namespace DurableTask.AzureStorage
             this.WriteEvent(137, Account, TaskHub, Details);
         }
 
-        [Event(138, Level = EventLevel.Error)]
+        [Event(138, Level = EventLevel.Warning)]
         public void SplitBrainDetected(string Account, string TaskHub, string InstanceId, string ExecutionId, int NewEventCount, int TotalEventCount, string NewEvents, long LatencyMs, string ETag)
         {
             EnsureLogicalTraceActivityId();
