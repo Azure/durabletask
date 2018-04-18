@@ -317,7 +317,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             Stopwatch stopwatch = Stopwatch.StartNew();
             await this.instancesTable.ExecuteAsync(
-                TableOperation.Insert(entity));
+                TableOperation.InsertOrReplace(entity));
             this.stats.StorageRequests.Increment();
             this.stats.TableEntitiesWritten.Increment(1);
 
