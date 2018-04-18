@@ -197,16 +197,16 @@ namespace DurableTask.AzureStorage.Tracking
 
                 foreach (DynamicTableEntity entity in historyEventEntities)
                 {
-                    if (entity.RowKey == SentinelRowKey)
-                    {
-                        this.eTagValues[instanceId] = entity.ETag;
-                        continue;
-                    }
-
                     if (entity.Properties["ExecutionId"].StringValue != executionId)
                     {
                         // The remaining entities are from a previous generation and can be discarded.
                         break;
+                    }
+
+                    if (entity.RowKey == SentinelRowKey)
+                    {
+                        this.eTagValues[instanceId] = entity.ETag;
+                        continue;
                     }
 
                     string blobNameKey;
@@ -397,7 +397,13 @@ namespace DurableTask.AzureStorage.Tracking
                     if (historyEventBatch.Count == 99)
                     {
                         // Adding / updating sentinel entity
-                        DynamicTableEntity sentinelEntity = new DynamicTableEntity(instanceId, SentinelRowKey);
+                        DynamicTableEntity sentinelEntity = new DynamicTableEntity(instanceId, SentinelRowKey)
+                        {
+                            Properties =
+                            {
+                                ["ExecutionId"] = new EntityProperty(executionId),
+                            }
+                        };
                         if (!string.IsNullOrEmpty(this.GetETagValue(instanceId)))
                         {
                             sentinelEntity.ETag = this.eTagValues[instanceId];
@@ -452,7 +458,13 @@ namespace DurableTask.AzureStorage.Tracking
                 if (historyEventBatch.Count > 0)
                 {
                     // Adding / updating sentinel entity
-                    DynamicTableEntity sentinelEntity = new DynamicTableEntity(instanceId, SentinelRowKey);
+                    DynamicTableEntity sentinelEntity = new DynamicTableEntity(instanceId, SentinelRowKey)
+                    {
+                        Properties =
+                        {
+                            ["ExecutionId"] = new EntityProperty(executionId),
+                        }
+                    };
                     if (!string.IsNullOrEmpty(this.GetETagValue(instanceId)))
                     {
                         sentinelEntity.ETag = this.eTagValues[instanceId];
