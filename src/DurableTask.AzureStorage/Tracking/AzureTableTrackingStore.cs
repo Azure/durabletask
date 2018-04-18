@@ -375,7 +375,6 @@ namespace DurableTask.AzureStorage.Tracking
 
             try
             {
-
                 for (int i = 0; i < newEvents.Count; i++)
                 {
                     HistoryEvent historyEvent = newEvents[i];
