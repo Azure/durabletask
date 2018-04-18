@@ -40,15 +40,9 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <None Update="TestData\SerializedExecutionStartedEvent.json">
-	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-	  </None>
-	  <None Update="TestData\SerializedOrchestrationState.json">
-	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-	  </None>
-	  <None Update="TestData\SerializedOrchestrationStateWithTags.json">
-	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-	  </None>
+		<None Include="TestData\**\*.json">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
 	</ItemGroup>
 	
 </Project>

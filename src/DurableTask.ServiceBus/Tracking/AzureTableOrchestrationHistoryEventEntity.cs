@@ -16,6 +16,7 @@ namespace DurableTask.ServiceBus.Tracking
     using System;
     using System.Collections.Generic;
     using DurableTask.Core.History;
+    using DurableTask.Core.Serializing;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Table;
     using Newtonsoft.Json;
@@ -149,7 +150,14 @@ namespace DurableTask.ServiceBus.Tracking
 
             string serializedHistoryEvent = GetValue("HistoryEvent", properties, property => property.StringValue);
             HistoryEvent = JsonConvert.DeserializeObject<HistoryEvent>(serializedHistoryEvent,
-                new JsonSerializerSettings {TypeNameHandling = TypeNameHandling.Objects});
+                new JsonSerializerSettings {
+                    TypeNameHandling = TypeNameHandling.Objects,
+#if NETSTANDARD2_0
+                    SerializationBinder = new PackageUpgradeSerializationBinder()
+#else
+                    Binder = new PackageUpgradeSerializationBinder()
+#endif
+                });
         }
 
         /// <summary>
