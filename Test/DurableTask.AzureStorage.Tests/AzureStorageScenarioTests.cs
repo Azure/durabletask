@@ -159,7 +159,7 @@ namespace DurableTask.AzureStorage.Tests
                 // The end message will cause the actor to complete itself.
                 await client.RaiseEventAsync("operation", "end");
 
-                status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(100));
+                status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
                 Assert.AreEqual(3, JToken.Parse(status?.Output));
