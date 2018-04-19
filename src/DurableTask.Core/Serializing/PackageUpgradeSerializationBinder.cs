@@ -16,11 +16,14 @@ namespace DurableTask.Core.Serializing
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using System.Runtime.InteropServices;
     using Newtonsoft.Json.Serialization;
 
     /// <summary>
-    /// SerializationBinder to be used for deserializing DurableTask types that are pre v-2.0, this allows upgrade compaibility. This is not sufficient to deserialize objects from 1.0 which had the Tags Property set.
+    /// SerializationBinder to be used for deserializing DurableTask types that are pre v-2.0, this allows upgrade compaibility.
+    /// This is not sufficient to deserialize objects from 1.0 which had the Tags Property set.
     /// </summary>
+    [ComVisible(false)]
     public class PackageUpgradeSerializationBinder : DefaultSerializationBinder
     {
         static Lazy<IDictionary<string, Type>> KnownTypes = new Lazy<IDictionary<string, Type>>(() =>
