@@ -245,8 +245,6 @@ namespace DurableTask.AzureStorage.Tracking
         /// <inheritdoc />
         public override async Task<OrchestrationState> GetStateAsync(string instanceId, string executionId)
         {
-            OrchestrationState orchestrationState = new OrchestrationState();
-
             var stopwatch = new Stopwatch();
             TableResult orchestration = await this.InstancesTable.ExecuteAsync(TableOperation.Retrieve<OrchestrationInstanceStatus>(instanceId, ""));
             stopwatch.Stop();
@@ -261,32 +259,34 @@ namespace DurableTask.AzureStorage.Tracking
                 stopwatch.ElapsedMilliseconds);
 
             OrchestrationInstanceStatus orchestrationInstanceStatus = (OrchestrationInstanceStatus)orchestration.Result;
-            if (orchestrationInstanceStatus != null)
+            if (orchestrationInstanceStatus == null)
             {
-                if (!Enum.TryParse(orchestrationInstanceStatus.RuntimeStatus, out orchestrationState.OrchestrationStatus))
-                {
-                    throw new ArgumentException($"{orchestrationInstanceStatus.RuntimeStatus} is not a valid OrchestrationStatus value.");
-                }
-
-                orchestrationState.OrchestrationInstance = new OrchestrationInstance
-                {
-                    InstanceId = instanceId,
-                    ExecutionId = orchestrationInstanceStatus.ExecutionId,
-                };
-                orchestrationState.Name = orchestrationInstanceStatus.Name;
-                orchestrationState.Version = orchestrationInstanceStatus.Version;
-                orchestrationState.Status = orchestrationInstanceStatus.CustomStatus;
-                orchestrationState.CreatedTime = orchestrationInstanceStatus.CreatedTime;
-                orchestrationState.LastUpdatedTime = orchestrationInstanceStatus.LastUpdatedTime;
-                List<Task<string>> getInputOutput = new List<Task<string>>
-                {
-                    this.GetOrchestrationInputAsync(orchestrationInstanceStatus),
-                    this.GetOrchestrationOutputAsync(orchestrationInstanceStatus)
-                };
-                string[] results = await Task.WhenAll(getInputOutput);
-                orchestrationState.Input = results[0];
-                orchestrationState.Output = results[1];
+                return null;
             }
+
+            var orchestrationState = new OrchestrationState();
+            if (!Enum.TryParse(orchestrationInstanceStatus.RuntimeStatus, out orchestrationState.OrchestrationStatus))
+            {
+                throw new ArgumentException($"{orchestrationInstanceStatus.RuntimeStatus} is not a valid OrchestrationStatus value.");
+            }
+
+            orchestrationState.OrchestrationInstance = new OrchestrationInstance
+            {
+                InstanceId = instanceId,
+                ExecutionId = orchestrationInstanceStatus.ExecutionId,
+            };
+
+            orchestrationState.Name = orchestrationInstanceStatus.Name;
+            orchestrationState.Version = orchestrationInstanceStatus.Version;
+            orchestrationState.Status = orchestrationInstanceStatus.CustomStatus;
+            orchestrationState.CreatedTime = orchestrationInstanceStatus.CreatedTime;
+            orchestrationState.LastUpdatedTime = orchestrationInstanceStatus.LastUpdatedTime;
+
+            string[] results = await Task.WhenAll(
+                this.GetOrchestrationInputAsync(orchestrationInstanceStatus),
+                this.GetOrchestrationOutputAsync(orchestrationInstanceStatus));
+            orchestrationState.Input = results[0];
+            orchestrationState.Output = results[1];
 
             return orchestrationState;
         }

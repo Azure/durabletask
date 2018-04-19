@@ -50,7 +50,10 @@ namespace DurableTask.AzureStorage.Tests
             return this.worker.StopAsync(isForced: true);
         }
 
-        public async Task<TestOrchestrationClient> StartOrchestrationAsync(Type orchestrationType, object input)
+        public async Task<TestOrchestrationClient> StartOrchestrationAsync(
+            Type orchestrationType,
+            object input,
+            string instanceId = null)
         {
             if (!this.addedOrchestrationTypes.Contains(orchestrationType))
             {
@@ -75,6 +78,7 @@ namespace DurableTask.AzureStorage.Tests
             DateTime creationTime = DateTime.UtcNow;
             OrchestrationInstance instance = await this.client.CreateOrchestrationInstanceAsync(
                 orchestrationType,
+                instanceId,
                 input);
 
             Trace.TraceInformation($"Started {orchestrationType.Name}, Instance ID = {instance.InstanceId}");
