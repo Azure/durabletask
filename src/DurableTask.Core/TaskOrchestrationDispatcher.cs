@@ -30,13 +30,16 @@ namespace DurableTask.Core
     /// <summary>
     /// Dispatcher for orchestrations to handle processing and renewing, completetion of orchestration events
     /// </summary>
-    public class TaskOrchestrationDispatcher 
+    public class TaskOrchestrationDispatcher
     {
+        static readonly DataConverter DataConverter = new JsonDataConverter();
+        static readonly Task CompletedTask = Task.FromResult(0);
+
         readonly INameVersionObjectManager<TaskOrchestration> objectManager;
         readonly IOrchestrationService orchestrationService;
         readonly WorkItemDispatcher<TaskOrchestrationWorkItem> dispatcher;
         readonly DispatchMiddlewarePipeline dispatchPipeline;
-        static readonly DataConverter DataConverter = new JsonDataConverter();
+        readonly NonBlockingCountdownLock concurrentSessionLock;
 
         internal TaskOrchestrationDispatcher(
             IOrchestrationService orchestrationService,
@@ -60,6 +63,11 @@ namespace DurableTask.Core
                 DispatcherCount = orchestrationService.TaskOrchestrationDispatcherCount,
                 MaxConcurrentWorkItems = orchestrationService.MaxConcurrentTaskOrchestrationWorkItems
             };
+
+            // To avoid starvation, we only allow half of all concurrently execution orchestrations to
+            // leverage extended sessions.
+            int maxConcurrentSessions = (int)Math.Ceiling(this.dispatcher.MaxConcurrentWorkItems / 2.0);
+            this.concurrentSessionLock = new NonBlockingCountdownLock(maxConcurrentSessions);
         }
 
         /// <summary>
@@ -90,14 +98,19 @@ namespace DurableTask.Core
         public bool IncludeParameters { get; set; }
 
         /// <summary>
+        /// Gets or sets a flag indicating whether to enable extended sessions.
+        /// </summary>
+        public bool ExtendedSessionsEnabled { get; set; } = true;
+
+        /// <summary>
         /// Method to get the next work item to process within supplied timeout
         /// </summary>
         /// <param name="receiveTimeout">The max timeout to wait</param>
         /// <returns>A new TaskOrchestrationWorkItem</returns>
-        protected async Task<TaskOrchestrationWorkItem> OnFetchWorkItemAsync(TimeSpan receiveTimeout)
+        protected Task<TaskOrchestrationWorkItem> OnFetchWorkItemAsync(TimeSpan receiveTimeout)
         {
             // AFFANDAR : TODO : wire-up cancellation tokens
-            return await this.orchestrationService.LockNextTaskOrchestrationWorkItemAsync(receiveTimeout, CancellationToken.None);
+            return this.orchestrationService.LockNextTaskOrchestrationWorkItemAsync(receiveTimeout, CancellationToken.None);
         }
 
         /// <summary>
@@ -106,192 +119,234 @@ namespace DurableTask.Core
         /// <param name="workItem">The work item to process</param>
         protected async Task OnProcessWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
-            var messagesToSend = new List<TaskMessage>();
-            var timerMessages = new List<TaskMessage>();
-            var subOrchestrationMessages = new List<TaskMessage>();
-            bool isCompleted = false;
-            bool continuedAsNew = false;
-
-            ExecutionStartedEvent continueAsNewExecutionStarted = null;
-            TaskMessage continuedAsNewMessage = null;
-
             OrchestrationRuntimeState runtimeState = workItem.OrchestrationRuntimeState;
+            IList<TaskMessage> newMessages = workItem.NewMessages;
 
-            runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
+            OrchestrationExecutionCursor cursor = null;
+            bool isExtendedSession = false;
+            bool isCompleted = false;
+            int fetchCount = workItem.NewMessages != null ? 1 : 0;
 
-            if (!ReconcileMessagesWithState(workItem))
+            while (!isCompleted)
             {
-                // TODO : mark an orchestration as faulted if there is data corruption
-                TraceHelper.TraceSession(
-                    TraceEventType.Error, 
-                    "TaskOrchestrationDispatcher-DeletedOrchestration", 
-                    runtimeState.OrchestrationInstance?.InstanceId,
-                    "Received result for a deleted orchestration");
-                isCompleted = true;
-            }
-            else
-            {
-                TraceHelper.TraceInstance(
-                    TraceEventType.Verbose,
-                    "TaskOrchestrationDispatcher-ExecuteUserOrchestration-Begin",
-                    runtimeState.OrchestrationInstance,
-                    "Executing user orchestration: {0}",
-                    DataConverter.Serialize(runtimeState.GetOrchestrationRuntimeStateDump(), true));
+                if (this.ExtendedSessionsEnabled && newMessages == null && workItem.Session != null)
+                {
+                    bool keepFetching = true;
+                    if (!isExtendedSession && fetchCount >= 1)
+                    {
+                        keepFetching = this.concurrentSessionLock.Acquire();
+                        isExtendedSession |= keepFetching;
+                    }
 
-                IList<OrchestratorAction> decisions = (await ExecuteOrchestrationAsync(runtimeState)).ToList();
+                    if (keepFetching)
+                    {
+                        newMessages = await workItem.Session.FetchNewOrchestrationMessagesAsync(workItem);
+                        workItem.NewMessages = null;
+                        runtimeState.NewEvents.Clear();
+                        fetchCount++;
+                    }
+                }
 
-                TraceHelper.TraceInstance(
-                    TraceEventType.Information,
-                    "TaskOrchestrationDispatcher-ExecuteUserOrchestration-End",
-                    runtimeState.OrchestrationInstance,
-                    "Executed user orchestration. Received {0} orchestrator actions: {1}",
-                    decisions.Count(),
-                    string.Join(", ", decisions.Select(d => d.Id + ":" + d.OrchestratorActionType)));
+                var messagesToSend = new List<TaskMessage>();
+                var timerMessages = new List<TaskMessage>();
+                var subOrchestrationMessages = new List<TaskMessage>();
+                bool continuedAsNew = false;
 
-                foreach (OrchestratorAction decision in decisions)
+                ExecutionStartedEvent continueAsNewExecutionStarted = null;
+                TaskMessage continuedAsNewMessage = null;
+
+                runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
+
+                if (!ReconcileMessagesWithState(runtimeState, newMessages))
+                {
+                    // TODO : mark an orchestration as faulted if there is data corruption
+                    TraceHelper.TraceSession(
+                        TraceEventType.Error,
+                        "TaskOrchestrationDispatcher-DeletedOrchestration",
+                        runtimeState.OrchestrationInstance?.InstanceId,
+                        "Received result for a deleted orchestration");
+                    isCompleted = true;
+                }
+                else
                 {
                     TraceHelper.TraceInstance(
-                        TraceEventType.Information, 
-                        "TaskOrchestrationDispatcher-ProcessOrchestratorAction", 
+                        TraceEventType.Verbose,
+                        "TaskOrchestrationDispatcher-ExecuteUserOrchestration-Begin",
                         runtimeState.OrchestrationInstance,
-                        "Processing orchestrator action of type {0}", 
-                        decision.OrchestratorActionType);
-                    switch (decision.OrchestratorActionType)
-                    {
-                        case OrchestratorActionType.ScheduleOrchestrator:
-                            messagesToSend.Add(
-                                ProcessScheduleTaskDecision((ScheduleTaskOrchestratorAction)decision, runtimeState,
-                                    IncludeParameters));
-                            break;
-                        case OrchestratorActionType.CreateTimer:
-                            var timerOrchestratorAction = (CreateTimerOrchestratorAction) decision;
-                            timerMessages.Add(ProcessCreateTimerDecision(timerOrchestratorAction, runtimeState));
-                            break;
-                        case OrchestratorActionType.CreateSubOrchestration:
-                            var createSubOrchestrationAction = (CreateSubOrchestrationAction) decision;
-                            subOrchestrationMessages.Add(
-                                ProcessCreateSubOrchestrationInstanceDecision(createSubOrchestrationAction,
-                                    runtimeState, IncludeParameters));
-                            break;
-                        case OrchestratorActionType.OrchestrationComplete:
-                            TaskMessage workflowInstanceCompletedMessage =
-                                ProcessWorkflowCompletedTaskDecision((OrchestrationCompleteOrchestratorAction) decision, runtimeState, IncludeDetails, out continuedAsNew);
-                            if (workflowInstanceCompletedMessage != null)
-                            {
-                                // Send complete message to parent workflow or to itself to start a new execution
-                                // Store the event so we can rebuild the state
-                                if (continuedAsNew)
-                                {
-                                    continuedAsNewMessage = workflowInstanceCompletedMessage;
-                                    continueAsNewExecutionStarted = workflowInstanceCompletedMessage.Event as ExecutionStartedEvent;
-                                }
-                                else
-                                {
-                                    subOrchestrationMessages.Add(workflowInstanceCompletedMessage);
-                                }
-                            }
+                        "Executing user orchestration: {0}",
+                        DataConverter.Serialize(runtimeState.GetOrchestrationRuntimeStateDump(), true));
 
-                            isCompleted = !continuedAsNew;
-                            break;
-                        default:
-                            throw TraceHelper.TraceExceptionInstance(
-                                TraceEventType.Error,
-                                "TaskOrchestrationDispatcher-UnsupportedDecisionType",
-                                runtimeState.OrchestrationInstance,
-                                new NotSupportedException("decision type not supported"));
+                    if (cursor == null)
+                    {
+                        cursor = await ExecuteOrchestrationAsync(runtimeState);
+                    }
+                    else
+                    {
+                        await ResumeOrchestrationAsync(cursor);
                     }
 
-                    // Underlying orchestration service provider may have a limit of messages per call, to avoid the situation
-                    // we keep on asking the provider if message count is ok and stop processing new decisions if not.
-                    //
-                    // We also put in a fake timer to force next orchestration task for remaining messages
-                    int totalMessages = messagesToSend.Count + subOrchestrationMessages.Count + timerMessages.Count;
-                    if (this.orchestrationService.IsMaxMessageCountExceeded(totalMessages, runtimeState))
+                    IReadOnlyList<OrchestratorAction> decisions = cursor.LatestDecisions.ToList();
+
+                    TraceHelper.TraceInstance(
+                        TraceEventType.Information,
+                        "TaskOrchestrationDispatcher-ExecuteUserOrchestration-End",
+                        runtimeState.OrchestrationInstance,
+                        "Executed user orchestration. Received {0} orchestrator actions: {1}",
+                        decisions.Count(),
+                        string.Join(", ", decisions.Select(d => d.Id + ":" + d.OrchestratorActionType)));
+
+                    foreach (OrchestratorAction decision in decisions)
                     {
                         TraceHelper.TraceInstance(
-                            TraceEventType.Information, 
-                            "TaskOrchestrationDispatcher-MaxMessageCountReached", 
+                            TraceEventType.Information,
+                            "TaskOrchestrationDispatcher-ProcessOrchestratorAction",
                             runtimeState.OrchestrationInstance,
-                            "MaxMessageCount reached.  Adding timer to process remaining events in next attempt.");
-
-                        if (isCompleted || continuedAsNew)
+                            "Processing orchestrator action of type {0}",
+                            decision.OrchestratorActionType);
+                        switch (decision.OrchestratorActionType)
                         {
-                            TraceHelper.TraceInstance(
-                                TraceEventType.Information, 
-                                "TaskOrchestrationDispatcher-OrchestrationAlreadyCompleted", 
-                                runtimeState.OrchestrationInstance,
-                                "Orchestration already completed.  Skip adding timer for splitting messages.");
-                            break;
+                            case OrchestratorActionType.ScheduleOrchestrator:
+                                messagesToSend.Add(
+                                    ProcessScheduleTaskDecision((ScheduleTaskOrchestratorAction)decision, runtimeState,
+                                        IncludeParameters));
+                                break;
+                            case OrchestratorActionType.CreateTimer:
+                                var timerOrchestratorAction = (CreateTimerOrchestratorAction)decision;
+                                timerMessages.Add(ProcessCreateTimerDecision(timerOrchestratorAction, runtimeState));
+                                break;
+                            case OrchestratorActionType.CreateSubOrchestration:
+                                var createSubOrchestrationAction = (CreateSubOrchestrationAction)decision;
+                                subOrchestrationMessages.Add(
+                                    ProcessCreateSubOrchestrationInstanceDecision(createSubOrchestrationAction,
+                                        runtimeState, IncludeParameters));
+                                break;
+                            case OrchestratorActionType.OrchestrationComplete:
+                                TaskMessage workflowInstanceCompletedMessage =
+                                    ProcessWorkflowCompletedTaskDecision((OrchestrationCompleteOrchestratorAction)decision, runtimeState, IncludeDetails, out continuedAsNew);
+                                if (workflowInstanceCompletedMessage != null)
+                                {
+                                    // Send complete message to parent workflow or to itself to start a new execution
+                                    // Store the event so we can rebuild the state
+                                    if (continuedAsNew)
+                                    {
+                                        continuedAsNewMessage = workflowInstanceCompletedMessage;
+                                        continueAsNewExecutionStarted = workflowInstanceCompletedMessage.Event as ExecutionStartedEvent;
+                                    }
+                                    else
+                                    {
+                                        subOrchestrationMessages.Add(workflowInstanceCompletedMessage);
+                                    }
+                                }
+
+                                isCompleted = !continuedAsNew;
+                                break;
+                            default:
+                                throw TraceHelper.TraceExceptionInstance(
+                                    TraceEventType.Error,
+                                    "TaskOrchestrationDispatcher-UnsupportedDecisionType",
+                                    runtimeState.OrchestrationInstance,
+                                    new NotSupportedException("decision type not supported"));
                         }
 
-                        var dummyTimer = new CreateTimerOrchestratorAction
+                        // Underlying orchestration service provider may have a limit of messages per call, to avoid the situation
+                        // we keep on asking the provider if message count is ok and stop processing new decisions if not.
+                        //
+                        // We also put in a fake timer to force next orchestration task for remaining messages
+                        int totalMessages = messagesToSend.Count + subOrchestrationMessages.Count + timerMessages.Count;
+                        if (this.orchestrationService.IsMaxMessageCountExceeded(totalMessages, runtimeState))
                         {
-                            Id = FrameworkConstants.FakeTimerIdToSplitDecision,
-                            FireAt = DateTime.UtcNow
-                        };
+                            TraceHelper.TraceInstance(
+                                TraceEventType.Information,
+                                "TaskOrchestrationDispatcher-MaxMessageCountReached",
+                                runtimeState.OrchestrationInstance,
+                                "MaxMessageCount reached.  Adding timer to process remaining events in next attempt.");
 
-                        timerMessages.Add(ProcessCreateTimerDecision(dummyTimer, runtimeState));
-                        break;
+                            if (isCompleted || continuedAsNew)
+                            {
+                                TraceHelper.TraceInstance(
+                                    TraceEventType.Information,
+                                    "TaskOrchestrationDispatcher-OrchestrationAlreadyCompleted",
+                                    runtimeState.OrchestrationInstance,
+                                    "Orchestration already completed.  Skip adding timer for splitting messages.");
+                                break;
+                            }
+
+                            var dummyTimer = new CreateTimerOrchestratorAction
+                            {
+                                Id = FrameworkConstants.FakeTimerIdToSplitDecision,
+                                FireAt = DateTime.UtcNow
+                            };
+
+                            timerMessages.Add(ProcessCreateTimerDecision(dummyTimer, runtimeState));
+                            break;
+                        }
                     }
                 }
-            }
 
-            // finish up processing of the work item
-            if (!continuedAsNew)
-            {
-                runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
-            }
+                // finish up processing of the work item
+                if (!continuedAsNew)
+                {
+                    runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
+                }
 
-            OrchestrationRuntimeState newOrchestrationRuntimeState = workItem.OrchestrationRuntimeState;
+                OrchestrationRuntimeState newOrchestrationRuntimeState = workItem.OrchestrationRuntimeState;
 
-            OrchestrationState instanceState = null;
+                OrchestrationState instanceState = null;
 
-            if (isCompleted)
-            {
-                TraceHelper.TraceSession(TraceEventType.Information, "TaskOrchestrationDispatcher-DeletingSessionState", workItem.InstanceId, "Deleting session state");
-                if (newOrchestrationRuntimeState.ExecutionStartedEvent != null)
+                if (isCompleted)
+                {
+                    TraceHelper.TraceSession(TraceEventType.Information, "TaskOrchestrationDispatcher-DeletingSessionState", workItem.InstanceId, "Deleting session state");
+                    if (newOrchestrationRuntimeState.ExecutionStartedEvent != null)
+                    {
+                        instanceState = Utils.BuildOrchestrationState(newOrchestrationRuntimeState);
+                    }
+
+                    newOrchestrationRuntimeState = null;
+                }
+                else
                 {
                     instanceState = Utils.BuildOrchestrationState(newOrchestrationRuntimeState);
+
+                    if (continuedAsNew)
+                    {
+                        TraceHelper.TraceSession(
+                            TraceEventType.Information,
+                            "TaskOrchestrationDispatcher-UpdatingStateForContinuation",
+                            workItem.InstanceId,
+                            "Updating state for continuation");
+                        newOrchestrationRuntimeState = new OrchestrationRuntimeState();
+                        newOrchestrationRuntimeState.AddEvent(new OrchestratorStartedEvent(-1));
+                        newOrchestrationRuntimeState.AddEvent(continueAsNewExecutionStarted);
+                        newOrchestrationRuntimeState.AddEvent(new OrchestratorCompletedEvent(-1));
+                    }
                 }
 
-                newOrchestrationRuntimeState = null;
+                await this.orchestrationService.CompleteTaskOrchestrationWorkItemAsync(
+                    workItem,
+                    newOrchestrationRuntimeState,
+                    continuedAsNew ? null : messagesToSend,
+                    subOrchestrationMessages,
+                    continuedAsNew ? null : timerMessages,
+                    continuedAsNewMessage,
+                    instanceState);
+
+                newMessages = null;
             }
-            else
+
+            if (isExtendedSession)
             {
-                instanceState = Utils.BuildOrchestrationState(newOrchestrationRuntimeState);
-
-                if (continuedAsNew)
-                {
-                    TraceHelper.TraceSession(
-                        TraceEventType.Information, 
-                        "TaskOrchestrationDispatcher-UpdatingStateForContinuation", 
-                        workItem.InstanceId,
-                        "Updating state for continuation");
-                    newOrchestrationRuntimeState = new OrchestrationRuntimeState();
-                    newOrchestrationRuntimeState.AddEvent(new OrchestratorStartedEvent(-1));
-                    newOrchestrationRuntimeState.AddEvent(continueAsNewExecutionStarted);
-                    newOrchestrationRuntimeState.AddEvent(new OrchestratorCompletedEvent(-1));
-                }
+                this.concurrentSessionLock.Release();
             }
-
-            await this.orchestrationService.CompleteTaskOrchestrationWorkItemAsync(
-                workItem,
-                newOrchestrationRuntimeState,
-                continuedAsNew ? null : messagesToSend,
-                subOrchestrationMessages,
-                continuedAsNew ? null : timerMessages,
-                continuedAsNewMessage,
-                instanceState);
         }
 
-        async Task<IEnumerable<OrchestratorAction>> ExecuteOrchestrationAsync(OrchestrationRuntimeState runtimeState)
+        async Task<OrchestrationExecutionCursor> ExecuteOrchestrationAsync(OrchestrationRuntimeState runtimeState)
         {
             TaskOrchestration taskOrchestration = objectManager.GetObject(runtimeState.Name, runtimeState.Version);
             if (taskOrchestration == null)
             {
                 throw TraceHelper.TraceExceptionInstance(
-                    TraceEventType.Error, 
-                    "TaskOrchestrationDispatcher-TypeMissing", 
+                    TraceEventType.Error,
+                    "TaskOrchestrationDispatcher-TypeMissing",
                     runtimeState.OrchestrationInstance,
                     new TypeMissingException($"Orchestration not found: ({runtimeState.Name}, {runtimeState.Version})"));
             }
@@ -301,32 +356,46 @@ namespace DurableTask.Core
             dispatchContext.SetProperty(taskOrchestration);
             dispatchContext.SetProperty(runtimeState);
 
+            var executor = new TaskOrchestrationExecutor(runtimeState, taskOrchestration);
+
             IEnumerable<OrchestratorAction> decisions = null;
             await this.dispatchPipeline.RunAsync(dispatchContext, _ =>
             {
-                var taskOrchestrationExecutor = new TaskOrchestrationExecutor(runtimeState, taskOrchestration);
-                decisions = taskOrchestrationExecutor.Execute();
-
-                return Task.FromResult(0);
+                decisions = executor.Execute();
+                return CompletedTask;
             });
 
-            return decisions;
+            return new OrchestrationExecutionCursor(runtimeState, taskOrchestration, executor, decisions);
         }
 
-        bool ReconcileMessagesWithState(TaskOrchestrationWorkItem workItem)
+        Task ResumeOrchestrationAsync(OrchestrationExecutionCursor cursor)
         {
-            foreach (TaskMessage message in workItem.NewMessages)
+            var dispatchContext = new DispatchMiddlewareContext();
+            dispatchContext.SetProperty(cursor.RuntimeState.OrchestrationInstance);
+            dispatchContext.SetProperty(cursor.TaskOrchestration);
+            dispatchContext.SetProperty(cursor.RuntimeState);
+
+            return this.dispatchPipeline.RunAsync(dispatchContext, _ =>
+            {
+                cursor.LatestDecisions = cursor.OrchestrationExecutor.ExecuteNewEvents();
+                return CompletedTask;
+            });
+        }
+
+        static bool ReconcileMessagesWithState(OrchestrationRuntimeState runtimeState, IList<TaskMessage> newWorkItemMessages)
+        {
+            foreach (TaskMessage message in newWorkItemMessages)
             {
                 OrchestrationInstance orchestrationInstance = message.OrchestrationInstance;
-                if (string.IsNullOrWhiteSpace(orchestrationInstance?.InstanceId))
+                if (runtimeState == null || string.IsNullOrWhiteSpace(orchestrationInstance?.InstanceId))
                 {
                     throw TraceHelper.TraceException(
-                        TraceEventType.Error, 
+                        TraceEventType.Error,
                         "TaskOrchestrationDispatcher-OrchestrationInstanceMissing",
                         new InvalidOperationException("Message does not contain any OrchestrationInstance information"));
                 }
 
-                if (workItem.OrchestrationRuntimeState.Events.Count == 1 && message.Event.EventType != EventType.ExecutionStarted)
+                if (runtimeState.Events.Count == 1 && message.Event.EventType != EventType.ExecutionStarted)
                 {
                     // we get here because of:
                     //      i) responses for scheduled tasks after the orchestrations have been completed
@@ -335,8 +404,8 @@ namespace DurableTask.Core
                 }
 
                 TraceHelper.TraceInstance(
-                    TraceEventType.Information, 
-                    "TaskOrchestrationDispatcher-ProcessEvent", 
+                    TraceEventType.Information,
+                    "TaskOrchestrationDispatcher-ProcessEvent",
                     orchestrationInstance,
                     "Processing new event with Id {0} and type {1}",
                     message.Event.EventId,
@@ -344,45 +413,44 @@ namespace DurableTask.Core
 
                 if (message.Event.EventType == EventType.ExecutionStarted)
                 {
-                    if (workItem.OrchestrationRuntimeState.Events.Count > 1)
+                    if (runtimeState.Events.Count > 1)
                     {
                         // this was caused due to a dupe execution started event, swallow this one
                         TraceHelper.TraceInstance(
-                            TraceEventType.Warning, 
-                            "TaskOrchestrationDispatcher-DuplicateStartEvent", 
+                            TraceEventType.Warning,
+                            "TaskOrchestrationDispatcher-DuplicateStartEvent",
                             orchestrationInstance,
                             "Duplicate start event.  Ignoring event with Id {0} and type {1} ",
-                            message.Event.EventId, 
+                            message.Event.EventId,
                             message.Event.EventType);
                         continue;
                     }
                 }
-                else if (!string.IsNullOrWhiteSpace(orchestrationInstance.ExecutionId)
-                         &&
-                         !string.Equals(orchestrationInstance.ExecutionId,
-                             workItem.OrchestrationRuntimeState.OrchestrationInstance.ExecutionId))
+                else if (
+                    !string.IsNullOrWhiteSpace(orchestrationInstance.ExecutionId) &&
+                    !string.Equals(orchestrationInstance.ExecutionId, runtimeState.OrchestrationInstance.ExecutionId))
                 {
                     // eat up any events for previous executions
                     TraceHelper.TraceInstance(
-                        TraceEventType.Warning, 
-                        "TaskOrchestrationDispatcher-ExecutionIdMismatch", 
+                        TraceEventType.Warning,
+                        "TaskOrchestrationDispatcher-ExecutionIdMismatch",
                         orchestrationInstance,
                         "ExecutionId of event does not match current executionId.  Ignoring event with Id {0} and type {1} ",
-                        message.Event.EventId, 
+                        message.Event.EventId,
                         message.Event.EventType);
                     continue;
                 }
 
-                workItem.OrchestrationRuntimeState.AddEvent(message.Event);
+                runtimeState.AddEvent(message.Event);
             }
 
             return true;
         }
 
         static TaskMessage ProcessWorkflowCompletedTaskDecision(
-            OrchestrationCompleteOrchestratorAction completeOrchestratorAction, 
+            OrchestrationCompleteOrchestratorAction completeOrchestratorAction,
             OrchestrationRuntimeState runtimeState,
-            bool includeDetails, 
+            bool includeDetails,
             out bool continuedAsNew)
         {
             ExecutionCompletedEvent executionCompletedEvent;
@@ -406,12 +474,12 @@ namespace DurableTask.Core
                 "TaskOrchestrationDispatcher-InstanceCompleted",
                 runtimeState.OrchestrationInstance,
                 "Instance Id '{0}' completed in state {1} with result: {2}",
-                runtimeState.OrchestrationInstance, 
-                runtimeState.OrchestrationStatus, 
+                runtimeState.OrchestrationInstance,
+                runtimeState.OrchestrationStatus,
                 completeOrchestratorAction.Result);
             TraceHelper.TraceInstance(
-                TraceEventType.Information, 
-                "TaskOrchestrationDispatcher-InstanceCompletionEvents", 
+                TraceEventType.Information,
+                "TaskOrchestrationDispatcher-InstanceCompletionEvents",
                 runtimeState.OrchestrationInstance,
                 () => Utils.EscapeJson(DataConverter.Serialize(runtimeState.Events, true)));
 
@@ -473,7 +541,7 @@ namespace DurableTask.Core
 
         static TaskMessage ProcessScheduleTaskDecision(
             ScheduleTaskOrchestratorAction scheduleTaskOrchestratorAction,
-            OrchestrationRuntimeState runtimeState, 
+            OrchestrationRuntimeState runtimeState,
             bool includeParameters)
         {
             var taskMessage = new TaskMessage();
@@ -502,7 +570,7 @@ namespace DurableTask.Core
         }
 
         static TaskMessage ProcessCreateTimerDecision(
-            CreateTimerOrchestratorAction createTimerOrchestratorAction, 
+            CreateTimerOrchestratorAction createTimerOrchestratorAction,
             OrchestrationRuntimeState runtimeState)
         {
             var taskMessage = new TaskMessage();
@@ -516,7 +584,7 @@ namespace DurableTask.Core
             {
                 TimerId = createTimerOrchestratorAction.Id,
                 FireAt = createTimerOrchestratorAction.FireAt
-            }; 
+            };
 
             taskMessage.OrchestrationInstance = runtimeState.OrchestrationInstance;
 
@@ -525,7 +593,7 @@ namespace DurableTask.Core
 
         static TaskMessage ProcessCreateSubOrchestrationInstanceDecision(
             CreateSubOrchestrationAction createSubOrchestrationAction,
-            OrchestrationRuntimeState runtimeState, 
+            OrchestrationRuntimeState runtimeState,
             bool includeParameters)
         {
             var historyEvent = new SubOrchestrationInstanceCreatedEvent(createSubOrchestrationAction.Id)
@@ -587,6 +655,43 @@ namespace DurableTask.Core
             }
 
             return result;
+        }
+
+        class NonBlockingCountdownLock
+        {
+            int available;
+
+            public NonBlockingCountdownLock(int available)
+            {
+                if (available <= 0)
+                {
+                    throw new ArgumentOutOfRangeException(nameof(available));
+                }
+
+                this.available = available;
+            }
+
+            public bool Acquire()
+            {
+                if (this.available <= 0)
+                {
+                    return false;
+                }
+
+                if (Interlocked.Decrement(ref this.available) >= 0)
+                {
+                    return true;
+                }
+
+                // the counter went negative - fix it
+                Interlocked.Increment(ref this.available);
+                return false;
+            }
+
+            public void Release()
+            {
+                Interlocked.Increment(ref this.available);
+            }
         }
     }
 }
