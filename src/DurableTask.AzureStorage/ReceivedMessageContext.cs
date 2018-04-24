@@ -162,7 +162,7 @@ namespace DurableTask.AzureStorage
                 taskHub,
                 taskMessage.Event.EventType.ToString(),
                 taskMessage.OrchestrationInstance.InstanceId,
-                taskMessage.OrchestrationInstance.ExecutionId,
+                taskMessage.OrchestrationInstance.ExecutionId ?? string.Empty,
                 queueMessage.Id,
                 Math.Max(0, (int)DateTimeOffset.UtcNow.Subtract(queueMessage.InsertionTime.Value).TotalMilliseconds),
                 queueMessage.DequeueCount,
@@ -206,7 +206,7 @@ namespace DurableTask.AzureStorage
                 taskHub,
                 taskMessage.Event.EventType.ToString(),
                 taskMessage.OrchestrationInstance.InstanceId,
-                taskMessage.OrchestrationInstance.ExecutionId,
+                taskMessage.OrchestrationInstance.ExecutionId ?? string.Empty,
                 Encoding.Unicode.GetByteCount(rawContent),
                 PartitionId: data.QueueName);
 

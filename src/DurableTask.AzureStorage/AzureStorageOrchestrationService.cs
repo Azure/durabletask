@@ -872,7 +872,7 @@ namespace DurableTask.AzureStorage
                     taskMessage.Event.EventType.ToString(),
                     queueMessage.Id,
                     context.Instance.InstanceId,
-                    context.Instance.ExecutionId);
+                    context.Instance.ExecutionId ?? string.Empty);
                 Task deletetask = controlQueue.DeleteMessageAsync(
                     queueMessage,
                     this.settings.ControlQueueRequestOptions,
@@ -1110,7 +1110,7 @@ namespace DurableTask.AzureStorage
                 workItem.TaskMessage.Event.EventType.ToString(),
                 messageId,
                 instanceId,
-                context.Instance.ExecutionId);
+                context.Instance.ExecutionId ?? string.Empty);
 
             Task deleteTask = this.workItemQueue.DeleteMessageAsync(
                 context.MessageData.OriginalQueueMessage,
