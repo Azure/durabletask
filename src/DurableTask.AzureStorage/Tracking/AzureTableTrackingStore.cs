@@ -245,6 +245,11 @@ namespace DurableTask.AzureStorage.Tracking
         /// <inheritdoc />
         public override async Task<OrchestrationState> GetStateAsync(string instanceId, string executionId)
         {
+            if (instanceId == null)
+            {
+                throw new ArgumentNullException(nameof(instanceId));
+            }
+
             var stopwatch = new Stopwatch();
             TableResult orchestration = await this.InstancesTable.ExecuteAsync(TableOperation.Retrieve<OrchestrationInstanceStatus>(instanceId, ""));
             stopwatch.Stop();
@@ -255,7 +260,7 @@ namespace DurableTask.AzureStorage.Tracking
                 this.storageAccountName,
                 this.taskHubName,
                 instanceId,
-                executionId,
+                executionId ?? string.Empty,
                 stopwatch.ElapsedMilliseconds);
 
             OrchestrationInstanceStatus orchestrationInstanceStatus = (OrchestrationInstanceStatus)orchestration.Result;
