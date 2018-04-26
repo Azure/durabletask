@@ -158,7 +158,6 @@ namespace DurableTask.AzureStorage.Tracking
                         SequenceNumber = runtimeState.Events.Count
                     }
             });
-
         }
     }
 }
