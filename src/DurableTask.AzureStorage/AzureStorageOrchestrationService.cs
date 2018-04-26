@@ -766,10 +766,7 @@ namespace DurableTask.AzureStorage
             string instanceId = workItem.InstanceId;
             string executionId = runtimeState.OrchestrationInstance.ExecutionId;
 
-            if (!await this.trackingStore.UpdateStateAsync(runtimeState, instanceId, executionId))
-            {
-                await this.AbandonTaskOrchestrationWorkItemAsync(workItem);
-            }
+            await this.trackingStore.UpdateStateAsync(runtimeState, instanceId, executionId);
 
             bool addedControlMessages = false;
             bool addedWorkItemMessages = false;

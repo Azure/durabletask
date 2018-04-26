@@ -353,7 +353,7 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public override async Task<bool> UpdateStateAsync(OrchestrationRuntimeState runtimeState, string instanceId, string executionId)
+        public override async Task UpdateStateAsync(OrchestrationRuntimeState runtimeState, string instanceId, string executionId)
         {
             IList<HistoryEvent> newEvents = runtimeState.NewEvents;
             IList<HistoryEvent> allEvents = runtimeState.Events;
@@ -373,89 +373,26 @@ namespace DurableTask.AzureStorage.Tracking
                 }
             };
 
-            try
+            for (int i = 0; i < newEvents.Count; i++)
             {
-                for (int i = 0; i < newEvents.Count; i++)
-                {
-                    HistoryEvent historyEvent = newEvents[i];
-                    DynamicTableEntity entity = this.tableEntityConverter.ConvertToTableEntity(historyEvent);
+                HistoryEvent historyEvent = newEvents[i];
+                DynamicTableEntity entity = this.tableEntityConverter.ConvertToTableEntity(historyEvent);
 
-                    await this.CompressLargeMessageAsync(entity);
+                await this.CompressLargeMessageAsync(entity);
 
-                    newEventListBuffer.Append(historyEvent.EventType.ToString()).Append(',');
+                newEventListBuffer.Append(historyEvent.EventType.ToString()).Append(',');
 
-                    // The row key is the sequence number, which represents the chronological ordinal of the event.
-                    long sequenceNumber = i + (allEvents.Count - newEvents.Count);
-                    entity.RowKey = sequenceNumber.ToString("X16");
-                    entity.PartitionKey = instanceId;
-                    entity.Properties["ExecutionId"] = new EntityProperty(executionId);
+                // The row key is the sequence number, which represents the chronological ordinal of the event.
+                long sequenceNumber = i + (allEvents.Count - newEvents.Count);
+                entity.RowKey = sequenceNumber.ToString("X16");
+                entity.PartitionKey = instanceId;
+                entity.Properties["ExecutionId"] = new EntityProperty(executionId);
 
-                    // Replacement can happen if the orchestration episode gets replayed due to a commit failure in one of the steps below.
-                    historyEventBatch.InsertOrReplace(entity);
+                // Replacement can happen if the orchestration episode gets replayed due to a commit failure in one of the steps below.
+                historyEventBatch.InsertOrReplace(entity);
 
-                    // Table storage only supports inserts of up to 100 entities at a time.
-                    if (historyEventBatch.Count == 99)
-                    {
-                        // Adding / updating sentinel entity
-                        DynamicTableEntity sentinelEntity = new DynamicTableEntity(instanceId, SentinelRowKey)
-                        {
-                            Properties =
-                            {
-                                ["ExecutionId"] = new EntityProperty(executionId),
-                            }
-                        };
-                        if (!string.IsNullOrEmpty(this.GetETagValue(instanceId)))
-                        {
-                            sentinelEntity.ETag = this.eTagValues[instanceId];
-                            historyEventBatch.Replace(sentinelEntity);
-                        }
-                        else
-                        {
-                            historyEventBatch.InsertOrReplace(sentinelEntity);
-                        }
-
-                        await this.UploadHistoryBatch(instanceId, executionId, historyEventBatch, newEventListBuffer, newEvents.Count);
-
-                        // Reset local state for the next batch
-                        newEventListBuffer.Clear();
-                        historyEventBatch.Clear();
-                    }
-
-                    // Monitor for orchestration instance events 
-                    switch (historyEvent.EventType)
-                    {
-                        case EventType.ExecutionStarted:
-                            orchestratorEventType = historyEvent.EventType;
-                            ExecutionStartedEvent executionStartedEvent = (ExecutionStartedEvent)historyEvent;
-                            orchestrationInstanceUpdate.Properties["Name"] = new EntityProperty(executionStartedEvent.Name);
-                            orchestrationInstanceUpdate.Properties["Version"] = new EntityProperty(executionStartedEvent.Version);
-                            orchestrationInstanceUpdate.Properties["CreatedTime"] = new EntityProperty(executionStartedEvent.Timestamp);
-                            orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Running.ToString());
-                            this.SetTablePropertyForMessage(entity, orchestrationInstanceUpdate, InputProperty, InputProperty, executionStartedEvent.Input);
-                            break;
-                        case EventType.ExecutionCompleted:
-                            orchestratorEventType = historyEvent.EventType;
-                            ExecutionCompletedEvent executionCompleted = (ExecutionCompletedEvent)historyEvent;
-                            this.SetTablePropertyForMessage(entity, orchestrationInstanceUpdate, ResultProperty, OutputProperty, executionCompleted.Result);
-                            orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(executionCompleted.OrchestrationStatus.ToString());
-                            break;
-                        case EventType.ExecutionTerminated:
-                            orchestratorEventType = historyEvent.EventType;
-                            ExecutionTerminatedEvent executionTerminatedEvent = (ExecutionTerminatedEvent)historyEvent;
-                            this.SetTablePropertyForMessage(entity, orchestrationInstanceUpdate, InputProperty, OutputProperty, executionTerminatedEvent.Input);
-                            orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Terminated.ToString());
-                            break;
-                        case EventType.ContinueAsNew:
-                            orchestratorEventType = historyEvent.EventType;
-                            ExecutionCompletedEvent executionCompletedEvent = (ExecutionCompletedEvent)historyEvent;
-                            this.SetTablePropertyForMessage(entity, orchestrationInstanceUpdate, ResultProperty, OutputProperty, executionCompletedEvent.Result);
-                            orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.ContinuedAsNew.ToString());
-                            break;
-                    }
-                }
-
-                // First persistence step is to commit history to the history table. Messages must come after.
-                if (historyEventBatch.Count > 0)
+                // Table storage only supports inserts of up to 100 entities at a time.
+                if (historyEventBatch.Count == 99)
                 {
                     // Adding / updating sentinel entity
                     DynamicTableEntity sentinelEntity = new DynamicTableEntity(instanceId, SentinelRowKey)
@@ -477,16 +414,68 @@ namespace DurableTask.AzureStorage.Tracking
 
                     await this.UploadHistoryBatch(instanceId, executionId, historyEventBatch, newEventListBuffer, newEvents.Count);
 
+                    // Reset local state for the next batch
+                    newEventListBuffer.Clear();
+                    historyEventBatch.Clear();
                 }
-            }
-            catch (StorageException ex)
-            {
-                if (ex.RequestInformation.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
+
+                // Monitor for orchestration instance events 
+                switch (historyEvent.EventType)
                 {
-                    return false;
+                    case EventType.ExecutionStarted:
+                        orchestratorEventType = historyEvent.EventType;
+                        ExecutionStartedEvent executionStartedEvent = (ExecutionStartedEvent)historyEvent;
+                        orchestrationInstanceUpdate.Properties["Name"] = new EntityProperty(executionStartedEvent.Name);
+                        orchestrationInstanceUpdate.Properties["Version"] = new EntityProperty(executionStartedEvent.Version);
+                        orchestrationInstanceUpdate.Properties["CreatedTime"] = new EntityProperty(executionStartedEvent.Timestamp);
+                        orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Running.ToString());
+                        this.SetTablePropertyForMessage(entity, orchestrationInstanceUpdate, InputProperty, InputProperty, executionStartedEvent.Input);
+                        break;
+                    case EventType.ExecutionCompleted:
+                        orchestratorEventType = historyEvent.EventType;
+                        ExecutionCompletedEvent executionCompleted = (ExecutionCompletedEvent)historyEvent;
+                        this.SetTablePropertyForMessage(entity, orchestrationInstanceUpdate, ResultProperty, OutputProperty, executionCompleted.Result);
+                        orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(executionCompleted.OrchestrationStatus.ToString());
+                        break;
+                    case EventType.ExecutionTerminated:
+                        orchestratorEventType = historyEvent.EventType;
+                        ExecutionTerminatedEvent executionTerminatedEvent = (ExecutionTerminatedEvent)historyEvent;
+                        this.SetTablePropertyForMessage(entity, orchestrationInstanceUpdate, InputProperty, OutputProperty, executionTerminatedEvent.Input);
+                        orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Terminated.ToString());
+                        break;
+                    case EventType.ContinueAsNew:
+                        orchestratorEventType = historyEvent.EventType;
+                        ExecutionCompletedEvent executionCompletedEvent = (ExecutionCompletedEvent)historyEvent;
+                        this.SetTablePropertyForMessage(entity, orchestrationInstanceUpdate, ResultProperty, OutputProperty, executionCompletedEvent.Result);
+                        orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.ContinuedAsNew.ToString());
+                        break;
                 }
             }
 
+            // First persistence step is to commit history to the history table. Messages must come after.
+            if (historyEventBatch.Count > 0)
+            {
+                // Adding / updating sentinel entity
+                DynamicTableEntity sentinelEntity = new DynamicTableEntity(instanceId, SentinelRowKey)
+                {
+                    Properties =
+                    {
+                        ["ExecutionId"] = new EntityProperty(executionId),
+                    }
+                };
+                if (!string.IsNullOrEmpty(this.GetETagValue(instanceId)))
+                {
+                    sentinelEntity.ETag = this.eTagValues[instanceId];
+                    historyEventBatch.Replace(sentinelEntity);
+                }
+                else
+                {
+                    historyEventBatch.InsertOrReplace(sentinelEntity);
+                }
+
+                await this.UploadHistoryBatch(instanceId, executionId, historyEventBatch, newEventListBuffer, newEvents.Count);
+            }
+            
             Stopwatch orchestrationInstanceUpdateStopwatch = Stopwatch.StartNew();
             await this.instancesTable.ExecuteAsync(TableOperation.InsertOrMerge(orchestrationInstanceUpdate));
 
@@ -500,9 +489,8 @@ namespace DurableTask.AzureStorage.Tracking
                 executionId,
                 orchestratorEventType?.ToString() ?? string.Empty,
                 orchestrationInstanceUpdateStopwatch.ElapsedMilliseconds);
-
-            return true;
         }
+        
 
 
         Type GetTypeForTableEntity(DynamicTableEntity tableEntity)
