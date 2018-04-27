@@ -64,7 +64,6 @@ namespace DurableTask.AzureStorage.Tracking
         /// <param name="runtimeState">The New RuntimeState</param>
         /// <param name="instanceId">InstanceId for the Orchestration Update</param>
         /// <param name="executionId">ExecutionId for the Orchestration Update</param>
-        /// <returns>Boolean marker for the success of the operation</returns>
         Task UpdateStateAsync(OrchestrationRuntimeState runtimeState, string instanceId, string executionId);
 
         /// <summary>
