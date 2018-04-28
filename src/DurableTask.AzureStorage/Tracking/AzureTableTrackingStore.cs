@@ -146,7 +146,7 @@ namespace DurableTask.AzureStorage.Tracking
             if (expectedExecutionId != null)
             {
                 // Filter down to a specific generation.
-                // e.g. "PartitionKey eq 'pid' and ExecutionId eq 'eid'"
+                // e.g. "PartitionKey eq 'c138dd969a1e4a699b0644c7d8279f81' and ExecutionId eq '85f05ce1494c4a29989f64d3fe0f9089'"
                 filterCondition.Append(" and ExecutionId eq ").Append(Quote).Append(expectedExecutionId).Append(Quote);
             }
 
