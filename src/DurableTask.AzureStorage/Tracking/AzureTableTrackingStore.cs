@@ -455,8 +455,6 @@ namespace DurableTask.AzureStorage.Tracking
                 orchestratorEventType?.ToString() ?? string.Empty,
                 orchestrationInstanceUpdateStopwatch.ElapsedMilliseconds);
         }
-        
-
 
         Type GetTypeForTableEntity(DynamicTableEntity tableEntity)
         {
@@ -614,7 +612,7 @@ namespace DurableTask.AzureStorage.Tracking
             }
 
             Stopwatch stopwatch = Stopwatch.StartNew();
-            IList<TableResult> tableResultList = null;
+            IList<TableResult> tableResultList;
             try
             {
                 tableResultList = await this.historyTable.ExecuteBatchAsync(
@@ -636,8 +634,9 @@ namespace DurableTask.AzureStorage.Tracking
                         historyEventNamesBuffer.ToString(0, historyEventNamesBuffer.Length - 1), // remove trailing comma
                         stopwatch.ElapsedMilliseconds,
                         eTagValue);
-                    throw;
                 }
+
+                throw;
             }
 
             this.stats.StorageRequests.Increment();
