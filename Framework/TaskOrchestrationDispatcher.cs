@@ -883,6 +883,11 @@ namespace DurableTask
                 return settings.TaskOrchestrationDispatcherSettings.TransientErrorBackOffSecs;
             }
 
+            if (exception is JsonSerializationException)
+            {
+                return settings.TaskOrchestrationDispatcherSettings.NonTransientErrorBackOffSecs;
+            }
+
             return 0;
         }
 
