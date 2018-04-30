@@ -35,22 +35,6 @@ namespace DurableTask.AzureStorage.Tracking
     /// </summary>
     class AzureTableTrackingStore : TrackingStoreBase
     {
-
-        readonly string storageAccountName;
-        readonly string taskHubName;
-
-        readonly CloudTable historyTable;
-
-        readonly CloudTable instancesTable;
-
-        readonly AzureStorageOrchestrationServiceStats stats;
-
-        readonly TableEntityConverter tableEntityConverter;
-
-        readonly IReadOnlyDictionary<EventType, Type> eventTypeMap;
-
-        readonly ConcurrentDictionary<string, string> eTagValues;
-
         const string InputProperty = "Input";
         const string ResultProperty = "Result";
         const string OutputProperty = "Output";
@@ -58,16 +42,29 @@ namespace DurableTask.AzureStorage.Tracking
         const string SentinelRowKey = "sentinel";
         const int MaxStorageQueuePayloadSizeInBytes = 60 * 1024; // 60KB
 
+        readonly string storageAccountName;
+        readonly string taskHubName;
+        readonly AzureStorageOrchestrationServiceSettings settings;
+        readonly CloudTable historyTable;
+        readonly CloudTable instancesTable;
+        readonly AzureStorageOrchestrationServiceStats stats;
+        readonly TableEntityConverter tableEntityConverter;
+        readonly IReadOnlyDictionary<EventType, Type> eventTypeMap;
+        readonly ConcurrentDictionary<string, string> eTagValues;
         readonly MessageManager messageManager;
 
-        public AzureTableTrackingStore(string taskHubName, string storageConnectionString, MessageManager messageManager, TableRequestOptions storageTableRequestOptions, AzureStorageOrchestrationServiceStats stats)
+        public AzureTableTrackingStore(
+            AzureStorageOrchestrationServiceSettings settings,
+            MessageManager messageManager,
+            AzureStorageOrchestrationServiceStats stats)
         {
+            this.settings = settings;
             this.messageManager = messageManager;
             this.stats = stats;
             this.tableEntityConverter = new TableEntityConverter();
-            this.taskHubName = taskHubName;
+            this.taskHubName = settings.TaskHubName;
 
-            CloudStorageAccount account = CloudStorageAccount.Parse(storageConnectionString);
+            CloudStorageAccount account = CloudStorageAccount.Parse(settings.StorageConnectionString);
             this.storageAccountName = account.Credentials.AccountName;
 
             CloudTableClient tableClient = account.CreateCloudTableClient();
@@ -80,10 +77,9 @@ namespace DurableTask.AzureStorage.Tracking
             NameValidator.ValidateTableName(instancesTableName);
 
             this.historyTable = tableClient.GetTableReference(historyTableName);
-
             this.instancesTable = tableClient.GetTableReference(instancesTableName);
 
-            this.StorageTableRequestOptions = storageTableRequestOptions;
+            this.StorageTableRequestOptions = settings.HistoryTableRequestOptions;
 
             this.eTagValues = new ConcurrentDictionary<string, string>();
 
@@ -233,10 +229,10 @@ namespace DurableTask.AzureStorage.Tracking
             else
             {
                 historyEvents = EmptyHistoryEventList;
-                executionId = expectedExecutionId ?? string.Empty;
+                executionId = expectedExecutionId;
             }
 
-            AnalyticsEventSource.Log.FetchedInstanceState(
+            AnalyticsEventSource.Log.FetchedInstanceHistory(
                 this.storageAccountName,
                 this.taskHubName,
                 instanceId,
@@ -651,7 +647,7 @@ namespace DurableTask.AzureStorage.Tracking
             {
                 for (int i = tableResultList.Count - 1; i >= 0; i--)
                 {
-                    if(((DynamicTableEntity)tableResultList[i].Result).RowKey == SentinelRowKey)
+                    if (((DynamicTableEntity)tableResultList[i].Result).RowKey == SentinelRowKey)
                     {
                         this.eTagValues[instanceId] = tableResultList[i].Etag;
                         break;
@@ -659,7 +655,7 @@ namespace DurableTask.AzureStorage.Tracking
                 }
             }
 
-            AnalyticsEventSource.Log.AppendedInstanceState(
+            AnalyticsEventSource.Log.AppendedInstanceHistory(
                 this.storageAccountName,
                 this.taskHubName,
                 instanceId,

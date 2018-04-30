@@ -99,5 +99,10 @@ namespace DurableTask.AzureStorage
                 }
             }
         }
+
+        public override string ToString()
+        {
+            return $"Signaled: {this.isSignaled.ToString()}, Waiters: {this.waiters.Count.ToString()}";
+        }
     }
 }

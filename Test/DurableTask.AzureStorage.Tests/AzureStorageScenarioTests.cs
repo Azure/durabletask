@@ -35,10 +35,12 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates a simple orchestrator function which doesn't call any activity functions.
         /// </summary>
-        [TestMethod]
-        public async Task HelloWorldOrchestration_Inline()
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task HelloWorldOrchestration_Inline(bool enableExtendedSessions)
         {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
             {
                 await host.StartAsync();
 
@@ -56,10 +58,12 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which runs a simple orchestrator function that calls a single activity function.
         /// </summary>
-        [TestMethod]
-        public async Task HelloWorldOrchestration_Activity()
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task HelloWorldOrchestration_Activity(bool enableExtendedSessions)
         {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
             {
                 await host.StartAsync();
 
@@ -80,7 +84,7 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task SequentialOrchestration()
         {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
             {
                 await host.StartAsync();
 
@@ -96,13 +100,36 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         /// <summary>
+        /// End-to-end test which validates function chaining by implementing a naive factorial function orchestration.
+        /// </summary>
+        [TestMethod]
+        public async Task SequentialOrchestrationNoReplay()
+        {
+            // Enable extended sesisons to ensure that the orchestration never gets replayed
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: true))
+            {
+                await host.StartAsync();
+
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.FactorialNoReplay), 10);
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                Assert.AreEqual(10, JToken.Parse(status?.Input));
+                Assert.AreEqual(3628800, JToken.Parse(status?.Output));
+
+                await host.StopAsync();
+            }
+        }
+        /// <summary>
         /// End-to-end test which validates parallel function execution by enumerating all files in the current directory 
         /// in parallel and getting the sum total of all file sizes.
         /// </summary>
-        [TestMethod]
-        public async Task ParallelOrchestration()
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task ParallelOrchestration(bool enableExtendedSessions)
         {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
             {
                 await host.StartAsync();
 
@@ -120,10 +147,12 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates the ContinueAsNew functionality by implementing a counter actor pattern.
         /// </summary>
-        [TestMethod]
-        public async Task ActorOrchestration()
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task ActorOrchestration(bool enableExtendedSessions)
         {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
             {
                 await host.StartAsync();
 
@@ -174,10 +203,12 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates the Terminate functionality.
         /// </summary>
-        [TestMethod]
-        public async Task TerminateOrchestration()
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task TerminateOrchestration(bool enableExtendedSessions)
         {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
             {
                 await host.StartAsync();
 
@@ -202,10 +233,12 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates the cancellation of durable timers.
         /// </summary>
-        [TestMethod]
-        public async Task TimerCancellation()
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task TimerCancellation(bool enableExtendedSessions)
         {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
             {
                 await host.StartAsync();
 
@@ -228,10 +261,12 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates the handling of durable timer expiration.
         /// </summary>
-        [TestMethod]
-        public async Task TimerExpiration()
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task TimerExpiration(bool enableExtendedSessions)
         {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
             {
                 await host.StartAsync();
 
@@ -255,10 +290,12 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates that orchestrations run concurrently of each other (up to 100 by default).
         /// </summary>
-        [TestMethod]
-        public async Task OrchestrationConcurrency()
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task OrchestrationConcurrency(bool enableExtendedSessions)
         {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
             {
                 await host.StartAsync();
 
@@ -292,10 +329,12 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates the orchestrator's exception handling behavior.
         /// </summary>
-        [TestMethod]
-        public async Task HandledActivityException()
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task HandledActivityException(bool enableExtendedSessions)
         {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
             {
                 await host.StartAsync();
 
@@ -313,10 +352,12 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates the handling of unhandled exceptions generated from orchestrator code.
         /// </summary>
-        [TestMethod]
-        public async Task UnhandledOrchestrationException()
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task UnhandledOrchestrationException(bool enableExtendedSessions)
         {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
             {
                 await host.StartAsync();
 
@@ -334,10 +375,12 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates the handling of unhandled exceptions generated from activity code.
         /// </summary>
-        [TestMethod]
-        public async Task UnhandledActivityException()
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task UnhandledActivityException(bool enableExtendedSessions)
         {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
             {
                 await host.StartAsync();
 
@@ -355,10 +398,12 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// Fan-out/fan-in test which ensures each operation is run only once.
         /// </summary>
-        [TestMethod]
-        public async Task FanOutToTableStorage()
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task FanOutToTableStorage(bool enableExtendedSessions)
         {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
             {
                 await host.StartAsync();
 
@@ -386,10 +431,12 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates that orchestrations with <=60KB text message sizes can run successfully.
         /// </summary>
-        [TestMethod]
-        public async Task SmallTextMessagePayloads()
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task SmallTextMessagePayloads(bool enableExtendedSessions)
         {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
             {
                 await host.StartAsync();
 
@@ -420,10 +467,12 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates that orchestrations with > 60KB text message sizes can run successfully.
         /// </summary>
-        [TestMethod]
-        public async Task LargeTextMessagePayloads()
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task LargeTextMessagePayloads(bool enableExtendedSessions)
         {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
             {
                 await host.StartAsync();
 
@@ -454,10 +503,12 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates that orchestrations with > 60KB binary bytes message sizes can run successfully.
         /// </summary>
-        [TestMethod]
-        public async Task LargeBinaryByteMessagePayloads()
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task LargeBinaryByteMessagePayloads(bool enableExtendedSessions)
         {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
             {
                 await host.StartAsync();
 
@@ -482,10 +533,12 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates that orchestrations with > 60KB binary string message sizes can run successfully.
         /// </summary>
-        [TestMethod]
-        public async Task LargeBinaryStringMessagePayloads()
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task LargeBinaryStringMessagePayloads(bool enableExtendedSessions)
         {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
             {
                 await host.StartAsync();
 
@@ -509,10 +562,12 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates that a completed singleton instance can be recreated.
         /// </summary>
-        [TestMethod]
-        public async Task RecreateCompletedInstance()
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task RecreateCompletedInstance(bool enableExtendedSessions)
         {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
             {
                 await host.StartAsync();
 
@@ -545,10 +600,12 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates that a failed singleton instance can be recreated.
         /// </summary>
-        [TestMethod]
-        public async Task RecreateFailedInstance()
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task RecreateFailedInstance(bool enableExtendedSessions)
         {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
             {
                 await host.StartAsync();
 
@@ -578,10 +635,12 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates that a terminated orchestration can be recreated.
         /// </summary>
-        [TestMethod]
-        public async Task RecreateTerminatedInstance()
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task RecreateTerminatedInstance(bool enableExtendedSessions)
         {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
             {
                 await host.StartAsync();
 
@@ -620,10 +679,14 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates that a running orchestration can be recreated.
         /// </summary>
-        [TestMethod]
-        public async Task TryRecreateRunningInstance()
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task RecreateRunningInstance(bool enableExtendedSessions)
         {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost())
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(
+                enableExtendedSessions,
+                extendedSessionTimeoutInSeconds: 15))
             {
                 await host.StartAsync();
 
@@ -645,10 +708,65 @@ namespace DurableTask.AzureStorage.Tests
                     typeof(Orchestrations.Counter),
                     input: 99,
                     instanceId: singletonInstanceId);
-                status = await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
+
+                // Note that with extended sessions, the startup time may take longer because the dispatcher
+                // will wait for the current extended session to expire before the new create message is accepted.
+                status = await client.WaitForStartupAsync(TimeSpan.FromSeconds(20));
 
                 Assert.AreEqual(OrchestrationStatus.Running, status?.OrchestrationStatus);
                 Assert.AreEqual("99", status?.Input);
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// End-to-end test which validates that an orchestration can continue processing
+        /// even after its extended session has expired.
+        /// </summary>
+        [TestMethod]
+        public async Task ExtendedSessions_SessionTimeout()
+        {
+            const int SessionTimeoutInseconds = 5;
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(
+                enableExtendedSessions: true,
+                extendedSessionTimeoutInSeconds: SessionTimeoutInseconds))
+            {
+                await host.StartAsync();
+
+                string singletonInstanceId = $"SingletonCounter_{DateTime.Now:o}";
+
+                // Using the counter orchestration because it will wait indefinitely for input.
+                var client = await host.StartOrchestrationAsync(
+                    typeof(Orchestrations.Counter),
+                    input: 0,
+                    instanceId: singletonInstanceId);
+
+                var status = await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
+
+                Assert.AreEqual(OrchestrationStatus.Running, status?.OrchestrationStatus);
+                Assert.AreEqual("0", status?.Input);
+                Assert.AreEqual(null, status?.Output);
+
+                // Delay long enough for the session to expire
+                await Task.Delay(TimeSpan.FromSeconds(SessionTimeoutInseconds + 1));
+
+                await client.RaiseEventAsync("operation", "incr");
+                await Task.Delay(TimeSpan.FromSeconds(2));
+
+                // Make sure it's still running and didn't complete early (or fail).
+                status = await client.GetStatusAsync();
+                Assert.IsTrue(
+                    status?.OrchestrationStatus == OrchestrationStatus.Running ||
+                    status?.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew);
+
+                // The end message will cause the actor to complete itself.
+                await client.RaiseEventAsync("operation", "end");
+
+                status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                Assert.AreEqual(1, JToken.Parse(status?.Output));
 
                 await host.StopAsync();
             }
@@ -685,6 +803,20 @@ namespace DurableTask.AzureStorage.Tests
                     }
 
                     return result;
+                }
+            }
+
+            [KnownType(typeof(Activities.Multiply))]
+            internal class FactorialNoReplay : Factorial
+            {
+                public override Task<long> RunTask(OrchestrationContext context, int n)
+                {
+                    if (context.IsReplaying)
+                    {
+                        throw new Exception("Replaying is forbidden in this test.");
+                    }
+
+                    return base.RunTask(context, n);
                 }
             }
 
