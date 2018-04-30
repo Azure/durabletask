@@ -37,9 +37,9 @@ namespace DurableTask.AzureStorage
         public int ControlQueueBufferThreshold { get; set; } = 64;
 
         /// <summary>
-        /// Gets or sets the visibility timeout of dequeued control queue messages. The default is 90 seconds.
+        /// Gets or sets the visibility timeout of dequeued control queue messages. The default is 5 minutes.
         /// </summary>
-        public TimeSpan ControlQueueVisibilityTimeout { get; set; } = TimeSpan.FromSeconds(90);
+        public TimeSpan ControlQueueVisibilityTimeout { get; set; } = TimeSpan.FromMinutes(5);
 
         /// <summary>
         /// Gets or sets the <see cref="QueueRequestOptions"/> that are provided to all internal 
@@ -48,9 +48,9 @@ namespace DurableTask.AzureStorage
         public QueueRequestOptions ControlQueueRequestOptions { get; set; }
 
         /// <summary>
-        /// /// Gets or sets the visibility timeout of dequeued work item queue messages. The default is 90 seconds.
+        /// Gets or sets the visibility timeout of dequeued work item queue messages. The default is 5 minutes.
         /// </summary>
-        public TimeSpan WorkItemQueueVisibilityTimeout { get; set; } = TimeSpan.FromSeconds(90);
+        public TimeSpan WorkItemQueueVisibilityTimeout { get; set; } = TimeSpan.FromMinutes(5);
 
         /// <summary>
         /// Gets or sets the <see cref="QueueRequestOptions"/> that are provided to all internal 
@@ -95,6 +95,16 @@ namespace DurableTask.AzureStorage
         /// Gets or sets the maximum number of orchestration partitions.
         /// </summary>
         public int PartitionCount { get; set; } = DefaultPartitionCount;
+
+        /// <summary>
+        /// Gets or sets a flag indicating whether to enable extended sessions.
+        /// </summary>
+        public bool ExtendedSessionsEnabled { get; set; }
+
+        /// <summary>
+        /// Gets or sets the number of seconds before an idle session times out.
+        /// </summary>
+        public TimeSpan ExtendedSessionIdleTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
         /// <summary>
         /// Renew interval for all leases for partitions currently held.

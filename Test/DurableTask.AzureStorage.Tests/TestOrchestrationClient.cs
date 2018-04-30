@@ -40,6 +40,8 @@ namespace DurableTask.AzureStorage.Tests
 
         public async Task<OrchestrationState> WaitForCompletionAsync(TimeSpan timeout)
         {
+            timeout = AdjustTimeout(timeout);
+
             var latestGeneration = new OrchestrationInstance { InstanceId = this.instanceId };
             Stopwatch sw = Stopwatch.StartNew();
             OrchestrationState state = await this.client.WaitForOrchestrationAsync(latestGeneration, timeout);
@@ -67,6 +69,8 @@ namespace DurableTask.AzureStorage.Tests
 
         internal async Task<OrchestrationState> WaitForStartupAsync(TimeSpan timeout)
         {
+            timeout = AdjustTimeout(timeout);
+
             Stopwatch sw = Stopwatch.StartNew();
             do
             {
@@ -112,6 +116,21 @@ namespace DurableTask.AzureStorage.Tests
         {
             var instance = new OrchestrationInstance { InstanceId = this.instanceId };
             await this.client.TerminateInstanceAsync(instance, reason);
+        }
+
+        static TimeSpan AdjustTimeout(TimeSpan requestedTimeout)
+        {
+            TimeSpan timeout = requestedTimeout;
+            if (Debugger.IsAttached)
+            {
+                TimeSpan debuggingTimeout = TimeSpan.FromMinutes(5);
+                if (debuggingTimeout > timeout)
+                {
+                    timeout = debuggingTimeout;
+                }
+            }
+
+            return timeout;
         }
     }
 }

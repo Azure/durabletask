@@ -84,7 +84,7 @@ namespace DurableTask.AzureStorage
             string PartitionId)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEventWithRelatedActivityId(101, relatedActivityId, Account, TaskHub, EventType, InstanceId, ExecutionId, SizeInBytes, PartitionId);
+            this.WriteEventWithRelatedActivityId(101, relatedActivityId, Account, TaskHub, EventType, InstanceId, ExecutionId ?? string.Empty, SizeInBytes, PartitionId);
         }
 
         [Event(102, Level = EventLevel.Informational, Opcode = EventOpcode.Receive)]
@@ -99,24 +99,25 @@ namespace DurableTask.AzureStorage
             int Age,
             int DequeueCount,
             long SizeInBytes,
-            string PartitionId)
+            string PartitionId,
+            bool IsExtendedSession)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEventWithRelatedActivityId(102, relatedActivityId, Account, TaskHub, EventType, InstanceId, ExecutionId, MessageId, Age, DequeueCount, SizeInBytes, PartitionId);
+            this.WriteEventWithRelatedActivityId(102, relatedActivityId, Account, TaskHub, EventType, InstanceId, ExecutionId ?? string.Empty, MessageId, Age, DequeueCount, SizeInBytes, PartitionId, IsExtendedSession);
         }
 
         [Event(103, Level = EventLevel.Informational)]
         public void DeletingMessage(string Account, string TaskHub, string EventType, string MessageId, string InstanceId, string ExecutionId)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(103, Account, TaskHub, EventType, MessageId, InstanceId, ExecutionId);
+            this.WriteEvent(103, Account, TaskHub, EventType, MessageId, InstanceId, ExecutionId ?? string.Empty);
         }
 
-        [Event(104, Level = EventLevel.Warning, Message = "Abandoning message of type {0} with ID = {1}. Orchestration ID = {2}.")]
+        [Event(104, Level = EventLevel.Warning, Message = "Abandoning message of type {2} with ID = {3}. Orchestration ID = {4}.")]
         public void AbandoningMessage(string Account, string TaskHub, string EventType, string MessageId, string InstanceId, string ExecutionId)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(104, Account, TaskHub, EventType, MessageId, InstanceId, ExecutionId);
+            this.WriteEvent(104, Account, TaskHub, EventType, MessageId, InstanceId, ExecutionId ?? string.Empty);
         }
 
         [Event(105, Level = EventLevel.Warning, Message = "An unexpected condition was detected: {0}")]
@@ -148,17 +149,17 @@ namespace DurableTask.AzureStorage
         }
 
         [Event(110, Level = EventLevel.Informational)]
-        public void FetchedInstanceState(string Account, string TaskHub, string InstanceId, string ExecutionId, int EventCount, int RequestCount, long LatencyMs, string ETag)
+        public void FetchedInstanceHistory(string Account, string TaskHub, string InstanceId, string ExecutionId, int EventCount, int RequestCount, long LatencyMs, string ETag)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(110, Account, TaskHub, InstanceId, ExecutionId, EventCount, RequestCount, LatencyMs, ETag);
+            this.WriteEvent(110, Account, TaskHub, InstanceId, ExecutionId ?? string.Empty, EventCount, RequestCount, LatencyMs, ETag);
         }
 
         [Event(111, Level = EventLevel.Informational)]
-        public void AppendedInstanceState(string Account, string TaskHub, string InstanceId, string ExecutionId, int NewEventCount, int TotalEventCount, string NewEvents, long LatencyMs, string ETag)
+        public void AppendedInstanceHistory(string Account, string TaskHub, string InstanceId, string ExecutionId, int NewEventCount, int TotalEventCount, string NewEvents, long LatencyMs, string ETag)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(111, Account, TaskHub, InstanceId, ExecutionId, NewEventCount, TotalEventCount, NewEvents, LatencyMs, ETag);
+            this.WriteEvent(111, Account, TaskHub, InstanceId, ExecutionId ?? string.Empty, NewEventCount, TotalEventCount, NewEvents, LatencyMs, ETag);
         }
 
         [Event(112, Level = EventLevel.Informational)]
@@ -307,14 +308,14 @@ namespace DurableTask.AzureStorage
         public void InstanceStatusUpdate(string Account, string TaskHub, string InstanceId, string ExecutionId, string EventType, long LatencyMs)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(135, Account, TaskHub, InstanceId, ExecutionId, EventType, LatencyMs);
+            this.WriteEvent(135, Account, TaskHub, InstanceId, ExecutionId ?? string.Empty, EventType, LatencyMs);
         }
 
         [Event(136, Level = EventLevel.Informational)]
         public void FetchedInstanceStatus(string Account, string TaskHub, string InstanceId, string ExecutionId, long LatencyMs)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(136, Account, TaskHub, InstanceId, ExecutionId, LatencyMs);
+            this.WriteEvent(136, Account, TaskHub, InstanceId, ExecutionId ?? string.Empty, LatencyMs);
         }
 
         [Event(137, Level = EventLevel.Warning)]

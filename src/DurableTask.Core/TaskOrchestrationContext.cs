@@ -57,6 +57,11 @@ namespace DurableTask.Core
             get { return openTasks.Count > 0; }
         }
 
+        internal void ClearPendingActions()
+        {
+            orchestratorActionsMap.Clear();
+        }
+
         public override async Task<TResult> ScheduleTask<TResult>(string name, string version,
             params object[] parameters)
         {
