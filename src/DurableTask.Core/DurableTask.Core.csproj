@@ -12,8 +12,7 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-    <PackageReference Include="Dynamitey" Version="2.0.6-beta111" />
-    <PackageReference Include="ImpromptuInterface" Version="7.0.1-beta40" />
+    <PackageReference Include="ImpromptuInterface" Version="7.0.1" />
     <PackageReference Include="Newtonsoft.Json" Version="10.0.3" />
   </ItemGroup>
   
