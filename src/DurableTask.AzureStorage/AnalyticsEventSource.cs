@@ -148,17 +148,17 @@ namespace DurableTask.AzureStorage
         }
 
         [Event(110, Level = EventLevel.Informational)]
-        public void FetchedInstanceState(string Account, string TaskHub, string InstanceId, string ExecutionId, int EventCount, int RequestCount, long LatencyMs)
+        public void FetchedInstanceState(string Account, string TaskHub, string InstanceId, string ExecutionId, int EventCount, int RequestCount, long LatencyMs, string ETag)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(110, Account, TaskHub, InstanceId, ExecutionId, EventCount, RequestCount, LatencyMs);
+            this.WriteEvent(110, Account, TaskHub, InstanceId, ExecutionId, EventCount, RequestCount, LatencyMs, ETag);
         }
 
         [Event(111, Level = EventLevel.Informational)]
-        public void AppendedInstanceState(string Account, string TaskHub, string InstanceId, string ExecutionId, int NewEventCount, int TotalEventCount, string NewEvents, long LatencyMs)
+        public void AppendedInstanceState(string Account, string TaskHub, string InstanceId, string ExecutionId, int NewEventCount, int TotalEventCount, string NewEvents, long LatencyMs, string ETag)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(111, Account, TaskHub, InstanceId, ExecutionId, NewEventCount, TotalEventCount, NewEvents, LatencyMs);
+            this.WriteEvent(111, Account, TaskHub, InstanceId, ExecutionId, NewEventCount, TotalEventCount, NewEvents, LatencyMs, ETag);
         }
 
         [Event(112, Level = EventLevel.Informational)]
@@ -322,6 +322,13 @@ namespace DurableTask.AzureStorage
         {
             EnsureLogicalTraceActivityId();
             this.WriteEvent(137, Account, TaskHub, Details);
+        }
+
+        [Event(138, Level = EventLevel.Warning)]
+        public void SplitBrainDetected(string Account, string TaskHub, string InstanceId, string ExecutionId, int NewEventCount, int TotalEventCount, string NewEvents, long LatencyMs, string ETag)
+        {
+            EnsureLogicalTraceActivityId();
+            this.WriteEvent(138, Account, TaskHub, InstanceId, ExecutionId, NewEventCount, TotalEventCount, NewEvents, LatencyMs, ETag);
         }
     }
 }
