@@ -20,6 +20,7 @@ namespace DurableTask
     using System.Transactions;
     using History;
     using Microsoft.ServiceBus.Messaging;
+    using Newtonsoft.Json;
     using Tracing;
 
     public sealed class TaskActivityDispatcher : DispatcherBase<BrokeredMessage>
@@ -254,6 +255,11 @@ namespace DurableTask
             if (exception is MessagingException)
             {
                 return settings.TaskActivityDispatcherSettings.TransientErrorBackOffSecs;
+            }
+
+            if (exception is JsonSerializationException)
+            {
+                return settings.TaskActivityDispatcherSettings.NonTransientErrorBackOffSecs;
             }
 
             return 0;
