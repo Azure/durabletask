@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
-VisualStudioVersion = 15.0.26228.9
+VisualStudioVersion = 15.0.26403.7
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.ServiceBus", "src\DurableTask.ServiceBus\DurableTask.ServiceBus.csproj", "{6F5D2EAD-726D-4FE5-A575-AEB96D1CCE37}"
 EndProject
@@ -31,11 +31,15 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.Stress.Tests", 
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.Test.Orchestrations", "test\DurableTask.Test.Orchestrations\DurableTask.Test.Orchestrations.csproj", "{2BC2A5AD-4200-41B9-A034-332BB1D7187B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.Core", "src\DurableTask.Core\DurableTask.Core.csproj", "{C8634F14-BE3B-4685-B0E1-C5726F8F3758}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.Core", "src\DurableTask.Core\DurableTask.Core.csproj", "{C8634F14-BE3B-4685-B0E1-C5726F8F3758}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.Emulator", "src\DurableTask.Emulator\DurableTask.Emulator.csproj", "{ACC997BF-D541-4BAF-A91C-7EC0B65426A9}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.Emulator", "src\DurableTask.Emulator\DurableTask.Emulator.csproj", "{ACC997BF-D541-4BAF-A91C-7EC0B65426A9}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.Emulator.Tests", "test\DurableTask.Emulator.Tests\DurableTask.Emulator.Tests.csproj", "{295A38D6-F8BF-446A-A274-E78BD1C56514}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.Emulator.Tests", "test\DurableTask.Emulator.Tests\DurableTask.Emulator.Tests.csproj", "{295A38D6-F8BF-446A-A274-E78BD1C56514}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.AzureStorage", "src\DurableTask.AzureStorage\DurableTask.AzureStorage.csproj", "{F1B270EA-9DC2-4753-B3DE-B45D3C128FDB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.AzureStorage.Tests", "Test\DurableTask.AzureStorage.Tests\DurableTask.AzureStorage.Tests.csproj", "{7CD147F9-1BB9-41FD-A310-BCA07447A6B9}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -79,6 +83,14 @@ Global
 		{295A38D6-F8BF-446A-A274-E78BD1C56514}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{295A38D6-F8BF-446A-A274-E78BD1C56514}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{295A38D6-F8BF-446A-A274-E78BD1C56514}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F1B270EA-9DC2-4753-B3DE-B45D3C128FDB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F1B270EA-9DC2-4753-B3DE-B45D3C128FDB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F1B270EA-9DC2-4753-B3DE-B45D3C128FDB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F1B270EA-9DC2-4753-B3DE-B45D3C128FDB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7CD147F9-1BB9-41FD-A310-BCA07447A6B9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7CD147F9-1BB9-41FD-A310-BCA07447A6B9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7CD147F9-1BB9-41FD-A310-BCA07447A6B9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7CD147F9-1BB9-41FD-A310-BCA07447A6B9}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -93,6 +105,8 @@ Global
 		{C8634F14-BE3B-4685-B0E1-C5726F8F3758} = {DBCD161C-D409-48E5-924E-9B7FA1C36B84}
 		{ACC997BF-D541-4BAF-A91C-7EC0B65426A9} = {DBCD161C-D409-48E5-924E-9B7FA1C36B84}
 		{295A38D6-F8BF-446A-A274-E78BD1C56514} = {95C69A06-7F62-4652-A480-207B614C2869}
+		{F1B270EA-9DC2-4753-B3DE-B45D3C128FDB} = {DBCD161C-D409-48E5-924E-9B7FA1C36B84}
+		{7CD147F9-1BB9-41FD-A310-BCA07447A6B9} = {95C69A06-7F62-4652-A480-207B614C2869}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		EnterpriseLibraryConfigurationToolBinariesPath = packages\TransientFaultHandling.Core.5.1.1209.1\lib\NET4

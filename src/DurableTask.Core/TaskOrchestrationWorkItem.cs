@@ -26,7 +26,6 @@ namespace DurableTask.Core
         /// </summary>
         public string InstanceId;
 
-
         /// <summary>
         /// The current runtimestate of this work item
         /// </summary>
@@ -41,5 +40,13 @@ namespace DurableTask.Core
         /// The list of new task messages associated with this work item instance
         /// </summary>
         public IList<TaskMessage> NewMessages;
+
+        /// <summary>
+        /// The session provider for this work item. This is only required for
+        /// providers that intend to leverage extended sessions.
+        /// </summary>
+        public IOrchestrationSession Session;
+
+        internal OrchestrationExecutionCursor Cursor;
     }
 }

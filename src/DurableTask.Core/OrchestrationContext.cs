@@ -25,6 +25,13 @@ namespace DurableTask.Core
     public abstract class OrchestrationContext
     {
         /// <summary>
+        /// Thread-static variable used to signal whether the calling thread is the orchestrator thread.
+        /// The primary use case is for detecting illegal async usage in orchestration code.
+        /// </summary>
+        [ThreadStatic]
+        public static bool IsOrchestratorThread;
+
+        /// <summary>
         /// Instance of the currently executing orchestration
         /// </summary>
         public OrchestrationInstance OrchestrationInstance { get; internal set; }
