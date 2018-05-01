@@ -152,14 +152,14 @@ namespace DurableTask.AzureStorage
         public void FetchedInstanceHistory(string Account, string TaskHub, string InstanceId, string ExecutionId, int EventCount, int RequestCount, long LatencyMs, string ETag)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(110, Account, TaskHub, InstanceId, ExecutionId ?? string.Empty, EventCount, RequestCount, LatencyMs, ETag);
+            this.WriteEvent(110, Account, TaskHub, InstanceId, ExecutionId ?? string.Empty, EventCount, RequestCount, LatencyMs, ETag ?? string.Empty);
         }
 
         [Event(111, Level = EventLevel.Informational)]
         public void AppendedInstanceHistory(string Account, string TaskHub, string InstanceId, string ExecutionId, int NewEventCount, int TotalEventCount, string NewEvents, long LatencyMs, string ETag)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(111, Account, TaskHub, InstanceId, ExecutionId ?? string.Empty, NewEventCount, TotalEventCount, NewEvents, LatencyMs, ETag);
+            this.WriteEvent(111, Account, TaskHub, InstanceId, ExecutionId ?? string.Empty, NewEventCount, TotalEventCount, NewEvents, LatencyMs, ETag ?? string.Empty);
         }
 
         [Event(112, Level = EventLevel.Informational)]
@@ -329,7 +329,7 @@ namespace DurableTask.AzureStorage
         public void SplitBrainDetected(string Account, string TaskHub, string InstanceId, string ExecutionId, int NewEventCount, int TotalEventCount, string NewEvents, long LatencyMs, string ETag)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(138, Account, TaskHub, InstanceId, ExecutionId, NewEventCount, TotalEventCount, NewEvents, LatencyMs, ETag);
+            this.WriteEvent(138, Account, TaskHub, InstanceId, ExecutionId ?? string.Empty, NewEventCount, TotalEventCount, NewEvents, LatencyMs, ETag ?? string.Empty);
         }
     }
 }

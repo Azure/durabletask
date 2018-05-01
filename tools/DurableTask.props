@@ -32,9 +32,9 @@
   <!-- Nuget Package Settings -->
   <PropertyGroup>
     <PackageOutputPath>..\..\build_output\packages</PackageOutputPath>
-    <AssemblyVersion>2.0.0.4</AssemblyVersion>
-    <FileVersion>2.0.0.4</FileVersion>
-    <Version>2.0.0.4-preview5</Version>
+    <AssemblyVersion>2.0.0.5</AssemblyVersion>
+    <FileVersion>2.0.0.5</FileVersion>
+    <Version>2.0.0.5</Version>
     <Company>Microsoft</Company>
     <Product>Durable Task Framework</Product>
     <Description>This package provides a C# based durable task framework for writing long running applications.</Description>
@@ -43,6 +43,7 @@
     <PackageProjectUrl>https://github.com/Azure/durabletask/</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Azure/durabletask/</RepositoryUrl>
     <PackageTags>ServiceBus;Service Bus;Azure;Task;Durable;Orchestration;Workflow;Activity;Reliable</PackageTags>
+    <IncludeSymbols>true</IncludeSymbols>
   </PropertyGroup>
 
   <Target Name="Build">
