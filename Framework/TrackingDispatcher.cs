@@ -298,7 +298,10 @@ namespace DurableTask
             {
                 return settings.TransientErrorBackOffSecs;
             }
-
+            if (exception is JsonSerializationException)
+            {
+                return settings.NonTransientErrorBackOffSecs;
+            }
             return 0;
         }
 
