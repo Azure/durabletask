@@ -85,6 +85,13 @@ namespace DurableTask.Core
         Task<IEnumerable<OrchestrationWorkItemInstanceEntity>> GetOrchestrationHistoryEventsAsync(string instanceId, string executionId);
 
         /// <summary>
+        ///  Get a list of orchestration states from the instance storage table which match the specified orchestration state query.
+        /// </summary>
+        /// <param name="stateQuery">Orchestration state query to execute.</param>
+        /// <returns>Orchestration states.</returns> 
+        public Task<IEnumerable<OrchestrationState>> QueryOrchestrationStatesAsync(OrchestrationStateQuery stateQuery);
+        
+        /// <summary>
         /// Purges history from storage for given time range
         /// </summary>
         /// <param name="thresholdDateTimeUtc">The datetime in UTC to use as the threshold for purging history</param>
