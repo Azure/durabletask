@@ -108,20 +108,20 @@ namespace DurableTask.AzureStorage.Tracking
         public override Task CreateAsync()
         {
             return Task.WhenAll(new Task[]
-                {
-                    this.historyTable.CreateIfNotExistsAsync(),
-                    this.instancesTable.CreateIfNotExistsAsync()
-                });
+            {
+                this.historyTable.CreateIfNotExistsAsync(),
+                this.instancesTable.CreateIfNotExistsAsync()
+            });
         }
 
         /// <inheritdoc />
         public override Task DeleteAsync()
         {
             return Task.WhenAll(new Task[]
-                {
-                    this.historyTable.DeleteIfExistsAsync(),
-                    this.instancesTable.DeleteIfExistsAsync()
-                });
+            {
+                this.historyTable.DeleteIfExistsAsync(),
+                this.instancesTable.DeleteIfExistsAsync()
+            });
         }
 
         /// <inheritdoc />

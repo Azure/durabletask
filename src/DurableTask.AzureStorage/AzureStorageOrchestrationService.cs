@@ -286,8 +286,8 @@ namespace DurableTask.AzureStorage
         /// </summary>
         public async Task CreateAsync()
         {
-            await DeleteAsync();
-            await this.taskHubCreator.Value;
+            await this.DeleteAsync();
+            await this.EnsureTaskHubAsync();
         }
 
         /// <summary>
@@ -295,7 +295,26 @@ namespace DurableTask.AzureStorage
         /// </summary>
         public Task CreateIfNotExistsAsync()
         {
-            return this.taskHubCreator.Value;
+            return this.EnsureTaskHubAsync();
+        }
+
+        async Task EnsureTaskHubAsync()
+        {
+            try
+            {
+                await this.taskHubCreator.Value;
+            }
+            catch (Exception e)
+            {
+                AnalyticsEventSource.Log.GeneralError(
+                    this.storageAccountName,
+                    this.settings.TaskHubName,
+                    $"Failed to create the task hub: {e}");
+
+                // Don't want to cache the failed task
+                this.taskHubCreator.Reset();
+                throw;
+            }
         }
 
         // Internal logic used by the lazy taskHubCreator
@@ -327,11 +346,6 @@ namespace DurableTask.AzureStorage
         public Task DeleteAsync()
         {
             return this.DeleteAsync(deleteInstanceStore: true);
-        }
-
-        Task EnsuredCreatedIfNotExistsAsync()
-        {
-            return this.CreateIfNotExistsAsync();
         }
 
         /// <inheritdoc />
@@ -566,7 +580,7 @@ namespace DurableTask.AzureStorage
             TimeSpan receiveTimeout,
             CancellationToken cancellationToken)
         {
-            await this.EnsuredCreatedIfNotExistsAsync();
+            await this.EnsureTaskHubAsync();
 
             Stopwatch receiveTimeoutStopwatch = Stopwatch.StartNew();
             PendingMessageBatch nextBatch;
@@ -1122,7 +1136,7 @@ namespace DurableTask.AzureStorage
             TimeSpan receiveTimeout,
             CancellationToken cancellationToken)
         {
-            await this.EnsuredCreatedIfNotExistsAsync();
+            await this.EnsureTaskHubAsync();
 
             Stopwatch receiveTimeoutStopwatch = Stopwatch.StartNew();
             CloudQueueMessage queueMessage;
@@ -1433,7 +1447,7 @@ namespace DurableTask.AzureStorage
         public async Task SendTaskOrchestrationMessageAsync(TaskMessage message)
         {
             // Client operations will auto-create the task hub if it doesn't already exist.
-            await this.EnsuredCreatedIfNotExistsAsync();
+            await this.EnsureTaskHubAsync();
 
             CloudQueue controlQueue = await this.GetControlQueueAsync(message.OrchestrationInstance.InstanceId);
 
@@ -1478,7 +1492,7 @@ namespace DurableTask.AzureStorage
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
         {
             // Client operations will auto-create the task hub if it doesn't already exist.
-            await this.EnsuredCreatedIfNotExistsAsync();
+            await this.EnsureTaskHubAsync();
             return await this.trackingStore.GetStateAsync(instanceId, allExecutions);
         }
 
@@ -1491,7 +1505,7 @@ namespace DurableTask.AzureStorage
         public async Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)
         {
             // Client operations will auto-create the task hub if it doesn't already exist.
-            await this.EnsuredCreatedIfNotExistsAsync();
+            await this.EnsureTaskHubAsync();
             return await this.trackingStore.GetStateAsync(instanceId, executionId);
         }
 
