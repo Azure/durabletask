@@ -166,7 +166,7 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.consumerGroupName,
                         paritionId,
                         this.blobPrefix ?? string.Empty,
-                        se));
+                        se.Message));
             }
             finally
             {
