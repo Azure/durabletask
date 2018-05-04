@@ -396,7 +396,7 @@ namespace DurableTask.AzureStorage.Tracking
                 // Table storage only supports inserts of up to 100 entities at a time.
                 if (historyEventBatch.Count == 99)
                 {
-                    await this.UploadHistoryBatch(instanceId, executionId, historyEventBatch, newEventListBuffer, newEvents.Count, eTagValue);
+                    eTagValue = await this.UploadHistoryBatch(instanceId, executionId, historyEventBatch, newEventListBuffer, newEvents.Count, eTagValue);
 
                     // Reset local state for the next batch
                     newEventListBuffer.Clear();
@@ -439,9 +439,11 @@ namespace DurableTask.AzureStorage.Tracking
             // First persistence step is to commit history to the history table. Messages must come after.
             if (historyEventBatch.Count > 0)
             {
-                await this.UploadHistoryBatch(instanceId, executionId, historyEventBatch, newEventListBuffer, newEvents.Count, eTagValue);
+                eTagValue = await this.UploadHistoryBatch(instanceId, executionId, historyEventBatch, newEventListBuffer, newEvents.Count, eTagValue);
             }
-            
+
+            this.eTagValues[instanceId] = eTagValue;
+
             Stopwatch orchestrationInstanceUpdateStopwatch = Stopwatch.StartNew();
             await this.instancesTable.ExecuteAsync(TableOperation.InsertOrMerge(orchestrationInstanceUpdate));
 
@@ -585,7 +587,7 @@ namespace DurableTask.AzureStorage.Tracking
             }
         }
 
-        async Task UploadHistoryBatch(
+        async Task<string> UploadHistoryBatch(
             string instanceId,
             string executionId,
             TableBatchOperation historyEventBatch,
@@ -593,7 +595,6 @@ namespace DurableTask.AzureStorage.Tracking
             int numberOfTotalEvents,
             string eTagValue)
         {
-
             // Adding / updating sentinel entity
             DynamicTableEntity sentinelEntity = new DynamicTableEntity(instanceId, SentinelRowKey)
             {
@@ -602,6 +603,7 @@ namespace DurableTask.AzureStorage.Tracking
                     ["ExecutionId"] = new EntityProperty(executionId),
                 }
             };
+
             if (!string.IsNullOrEmpty(eTagValue))
             {
                 sentinelEntity.ETag = eTagValue;
@@ -649,7 +651,7 @@ namespace DurableTask.AzureStorage.Tracking
                 {
                     if (((DynamicTableEntity)tableResultList[i].Result).RowKey == SentinelRowKey)
                     {
-                        this.eTagValues[instanceId] = tableResultList[i].Etag;
+                        eTagValue = tableResultList[i].Etag;
                         break;
                     }
                 }
@@ -665,6 +667,8 @@ namespace DurableTask.AzureStorage.Tracking
                 historyEventNamesBuffer.ToString(0, historyEventNamesBuffer.Length - 1), // remove trailing comma
                 stopwatch.ElapsedMilliseconds,
                 this.GetETagValue(instanceId));
+
+            return eTagValue;
         }
 
         async Task<string> GetOrchestrationOutputAsync(OrchestrationInstanceStatus orchestrationInstanceStatus)
