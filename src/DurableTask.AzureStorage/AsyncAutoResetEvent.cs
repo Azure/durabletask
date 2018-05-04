@@ -53,6 +53,7 @@ namespace DurableTask.AzureStorage
                 }
                 else
                 {
+                    // If we ever upgrade to .NET 4.6, we should use TaskCreationOptions.RunContinuationsAsynchronously
                     tcs = new TaskCompletionSource<bool>();
                     this.waiters.AddLast(tcs);
                 }
@@ -88,8 +89,11 @@ namespace DurableTask.AzureStorage
             {
                 if (this.waiters.Count > 0)
                 {
-                    // Signal the first task in the waiters list.
-                    this.waiters.First.Value.SetResult(true);
+                    // Signal the first task in the waiters list. This must be done on a new
+                    // thread to avoid stack-dives and situations where we try to complete the
+                    // same result multiple times.
+                    TaskCompletionSource<bool> tcs = this.waiters.First.Value;
+                    Task.Run(() => tcs.SetResult(true));
                     this.waiters.RemoveFirst();
                 }
                 else if (!this.isSignaled)

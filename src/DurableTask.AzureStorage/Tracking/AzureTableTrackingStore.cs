@@ -442,7 +442,16 @@ namespace DurableTask.AzureStorage.Tracking
                 eTagValue = await this.UploadHistoryBatch(instanceId, executionId, historyEventBatch, newEventListBuffer, newEvents.Count, eTagValue);
             }
 
-            this.eTagValues[instanceId] = eTagValue;
+            if (orchestratorEventType == EventType.ExecutionCompleted ||
+                orchestratorEventType == EventType.ExecutionFailed ||
+                orchestratorEventType == EventType.ExecutionTerminated)
+            {
+                this.eTagValues.TryRemove(instanceId, out _);
+            }
+            else
+            {
+                this.eTagValues[instanceId] = eTagValue;
+            }
 
             Stopwatch orchestrationInstanceUpdateStopwatch = Stopwatch.StartNew();
             await this.instancesTable.ExecuteAsync(TableOperation.InsertOrMerge(orchestrationInstanceUpdate));
