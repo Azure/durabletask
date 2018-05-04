@@ -144,6 +144,24 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task LargeFanOutOrchestration(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                await host.StartAsync();
+
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.FanOutFanIn), 1000);
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(5));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+
+                await host.StopAsync();
+            }
+        }
+
         /// <summary>
         /// End-to-end test which validates the ContinueAsNew functionality by implementing a counter actor pattern.
         /// </summary>
@@ -838,6 +856,23 @@ namespace DurableTask.AzureStorage.Tests
 
                     long totalBytes = tasks.Sum(t => t.Result);
                     return totalBytes;
+                }
+            }
+
+            [KnownType(typeof(Activities.Hello))]
+            internal class FanOutFanIn : TaskOrchestration<string, int>
+            {
+                public override async Task<string> RunTask(OrchestrationContext context, int parallelTasks)
+                {
+                    var tasks = new Task[parallelTasks];
+                    for (int i = 0; i < tasks.Length; i++)
+                    {
+                        tasks[i] = context.ScheduleTask<string>(typeof(Activities.Hello), i.ToString("000"));
+                    }
+
+                    await Task.WhenAll(tasks);
+
+                    return "Done";
                 }
             }
 
