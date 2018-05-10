@@ -197,14 +197,14 @@ namespace DurableTask.AzureStorage
         public void PartitionManagerInfo(string Account, string TaskHub, string WorkerName, string Details)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(120, Account, TaskHub, WorkerName, Details);
+            this.WriteEvent(120, Account, TaskHub, WorkerName ?? string.Empty, Details);
         }
 
         [Event(121, Level = EventLevel.Warning)]
         public void PartitionManagerWarning(string Account, string TaskHub, string WorkerName, string Details)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(121, Account, TaskHub, WorkerName, Details);
+            this.WriteEvent(121, Account, TaskHub, WorkerName ?? string.Empty, Details);
         }
 
         [NonEvent]
@@ -217,91 +217,91 @@ namespace DurableTask.AzureStorage
         public void PartitionManagerError(string Account, string TaskHub, string WorkerName, string Details)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(122, Account, TaskHub, WorkerName, Details);
+            this.WriteEvent(122, Account, TaskHub, WorkerName ?? string.Empty, Details);
         }
 
         [Event(123, Level = EventLevel.Verbose, Message = "Host '{2}' renewing lease for PartitionId '{3}' with lease token '{4}'.")]
         public void StartingLeaseRenewal(string Account, string TaskHub, string WorkerName, string PartitionId, string Token)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(123, Account, TaskHub, WorkerName, PartitionId, Token);
+            this.WriteEvent(123, Account, TaskHub, WorkerName ?? string.Empty, PartitionId ?? string.Empty, Token ?? string.Empty);
         }
 
         [Event(124, Level = EventLevel.Verbose)]
         public void LeaseRenewalResult(string Account, string TaskHub, string WorkerName, string PartitionId, bool Success, string Token, string Details)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(124, Account, TaskHub, WorkerName, PartitionId, Success, Token, Details);
+            this.WriteEvent(124, Account, TaskHub, WorkerName ?? string.Empty, PartitionId ?? string.Empty, Success, Token ?? string.Empty, Details);
         }
 
         [Event(125, Level = EventLevel.Informational)]
         public void LeaseRenewalFailed(string Account, string TaskHub, string WorkerName, string PartitionId, string Token, string Details)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(125, Account, TaskHub, WorkerName, PartitionId, Token, Details);
+            this.WriteEvent(125, Account, TaskHub, WorkerName ?? string.Empty, PartitionId ?? string.Empty, Token ?? string.Empty, Details);
         }
 
         [Event(126, Level = EventLevel.Informational, Message = "Host '{2}' attempting to take lease for PartitionId '{3}'.")]
         public void LeaseAcquisitionStarted(string Account, string TaskHub, string WorkerName, string PartitionId)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(126, Account, TaskHub, WorkerName, PartitionId);
+            this.WriteEvent(126, Account, TaskHub, WorkerName ?? string.Empty, PartitionId ?? string.Empty);
         }
 
         [Event(127, Level = EventLevel.Informational, Message = "Host '{2}' successfully acquired lease for PartitionId '{3}'.")]
         public void LeaseAcquisitionSucceeded(string Account, string TaskHub, string WorkerName, string PartitionId)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(127, Account, TaskHub, WorkerName, PartitionId);
+            this.WriteEvent(127, Account, TaskHub, WorkerName ?? string.Empty, PartitionId ?? string.Empty);
         }
 
         [Event(128, Level = EventLevel.Informational, Message = "Host '{2}' failed to acquire lease for PartitionId '{3}' due to conflict.")]
         public void LeaseAcquisitionFailed(string Account, string TaskHub, string WorkerName, string PartitionId)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(128, Account, TaskHub, WorkerName, PartitionId);
+            this.WriteEvent(128, Account, TaskHub, WorkerName ?? string.Empty, PartitionId ?? string.Empty);
         }
 
         [Event(129, Level = EventLevel.Informational, Message = "Host '{2} is attempting to steal a lease from '{3}' for PartitionId '{4}'.")]
         public void AttemptingToStealLease(string Account, string TaskHub, string WorkerName, string FromWorkerName, string PartitionId)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(129, Account, TaskHub, WorkerName, FromWorkerName, PartitionId);
+            this.WriteEvent(129, Account, TaskHub, WorkerName ?? string.Empty, FromWorkerName ?? string.Empty, PartitionId ?? string.Empty);
         }
 
         [Event(130, Level = EventLevel.Informational, Message = "Host '{2}' stole lease from '{3}' for PartitionId '{4}'.")]
         public void LeaseStealingSucceeded(string Account, string TaskHub, string WorkerName, string FromWorkerName, string PartitionId)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(130, Account, TaskHub, WorkerName, FromWorkerName, PartitionId);
+            this.WriteEvent(130, Account, TaskHub, WorkerName ?? string.Empty, FromWorkerName ?? string.Empty, PartitionId ?? string.Empty);
         }
 
         [Event(131, Level = EventLevel.Informational, Message = "Host '{2}' failed to steal lease for PartitionId '{3}' due to conflict.")]
         public void LeaseStealingFailed(string Account, string TaskHub, string WorkerName, string PartitionId)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(131, Account, TaskHub, WorkerName, PartitionId);
+            this.WriteEvent(131, Account, TaskHub, WorkerName ?? string.Empty, PartitionId ?? string.Empty);
         }
 
         [Event(132, Level = EventLevel.Informational, Message = "Host '{2}' successfully removed PartitionId '{3}' with lease token '{4}' from currently owned partitions.")]
         public void PartitionRemoved(string Account, string TaskHub, string WorkerName, string PartitionId, string Token)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(132, Account, TaskHub, WorkerName, PartitionId, Token);
+            this.WriteEvent(132, Account, TaskHub, WorkerName ?? string.Empty, PartitionId ?? string.Empty, Token ?? string.Empty);
         }
 
         [Event(133, Level = EventLevel.Informational, Message = "Host '{2}' successfully released lease on PartitionId '{3}' with lease token '{4}'")]
         public void LeaseRemoved(string Account, string TaskHub, string WorkerName, string PartitionId, string Token)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(133, Account, TaskHub, WorkerName, PartitionId, Token);
+            this.WriteEvent(133, Account, TaskHub, WorkerName ?? string.Empty, PartitionId ?? string.Empty, Token ?? string.Empty);
         }
 
         [Event(134, Level = EventLevel.Warning, Message = "Host '{2}' failed to release lease for PartitionId '{3}' with lease token '{4}' due to conflict.")]
         public void LeaseRemovalFailed(string Account, string TaskHub, string WorkerName, string PartitionId, string Token)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(134, Account, TaskHub, WorkerName, PartitionId, Token);
+            this.WriteEvent(134, Account, TaskHub, WorkerName ?? string.Empty, PartitionId ?? string.Empty, Token ?? string.Empty);
         }
 
         [Event(135, Level = EventLevel.Informational)]
@@ -330,6 +330,13 @@ namespace DurableTask.AzureStorage
         {
             EnsureLogicalTraceActivityId();
             this.WriteEvent(138, Account, TaskHub, InstanceId, ExecutionId ?? string.Empty, NewEventCount, TotalEventCount, NewEvents, LatencyMs, ETag ?? string.Empty);
+        }
+
+        [Event(139, Level = EventLevel.Warning)]
+        public void DiscardingWorkItem(string Account, string TaskHub, string InstanceId, string ExecutionId, int NewEventCount, int TotalEventCount, string NewEvents, string Details)
+        {
+            EnsureLogicalTraceActivityId();
+            this.WriteEvent(139, Account, TaskHub, InstanceId, ExecutionId ?? string.Empty, NewEventCount, TotalEventCount, NewEvents, Details);
         }
     }
 }

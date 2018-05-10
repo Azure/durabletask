@@ -672,10 +672,24 @@ namespace DurableTask.AzureStorage
                 orchestrationWorkItem.Session = session;
             }
 
-            if (runtimeState.ExecutionStartedEvent != null &&
-                runtimeState.OrchestrationStatus != OrchestrationStatus.Running &&
-                runtimeState.OrchestrationStatus != OrchestrationStatus.Pending)
+            if (!this.IsExecutableInstance(runtimeState, orchestrationWorkItem.NewMessages, out string warningMessage))
             {
+                var eventListBuilder = new StringBuilder(orchestrationWorkItem.NewMessages.Count * 40);
+                foreach (TaskMessage msg in orchestrationWorkItem.NewMessages)
+                {
+                    eventListBuilder.Append(msg.Event.EventType.ToString()).Append(',');
+                }
+
+                AnalyticsEventSource.Log.DiscardingWorkItem(
+                    this.storageAccountName,
+                    this.settings.TaskHubName,
+                    instance.InstanceId,
+                    instance.ExecutionId,
+                    orchestrationWorkItem.NewMessages.Count,
+                    runtimeState.Events.Count,
+                    eventListBuilder.ToString(0, eventListBuilder.Length - 1) /* remove trailing comma */,
+                    warningMessage);
+
                 // The instance has already completed. Delete this message batch.
                 CloudQueue controlQueue = await this.GetControlQueueAsync(instance.InstanceId);
                 await this.DeleteMessageBatchAsync(session, controlQueue);
@@ -772,6 +786,26 @@ namespace DurableTask.AzureStorage
 
                 return null;
             }
+        }
+
+        bool IsExecutableInstance(OrchestrationRuntimeState runtimeState, IList<TaskMessage> newMessages, out string message)
+        {
+            if (runtimeState.ExecutionStartedEvent == null && !newMessages.Any(msg => msg.Event is ExecutionStartedEvent))
+            {
+                message = runtimeState.Events.Count == 0 ? "No such instance" : "Instance is corrupted";
+                return false;
+            }
+
+            if (runtimeState.ExecutionStartedEvent != null &&
+                runtimeState.OrchestrationStatus != OrchestrationStatus.Running &&
+                runtimeState.OrchestrationStatus != OrchestrationStatus.Pending)
+            {
+                message = $"Instance is {runtimeState.OrchestrationStatus}";
+                return false;
+            }
+
+            message = null;
+            return true;
         }
 
         List<MessageData> FetchMessagesForExtendedSession(OrchestrationInstance instance)
