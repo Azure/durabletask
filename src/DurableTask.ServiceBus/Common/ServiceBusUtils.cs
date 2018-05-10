@@ -26,6 +26,7 @@ namespace DurableTask.ServiceBus.Common
     using DurableTask.ServiceBus.Settings;
     using Microsoft.ServiceBus;
     using Microsoft.ServiceBus.Messaging;
+    using Microsoft.ServiceBus.Messaging.Amqp;
 
     internal static class ServiceBusUtils
     {
@@ -312,6 +313,49 @@ namespace DurableTask.ServiceBus.Common
                 factory.Address);
 
             return factory;
+        }
+
+        public static async Task<MessagingFactory> CreateMessagingFactoryAsync(NamespaceManager namespaceManager, string connectionString, string entityPath)
+        {
+            ServiceBusConnectionStringBuilder sbConnectionStringBuilder = new ServiceBusConnectionStringBuilder(connectionString);
+            string entityUri = new UriBuilder(Uri.UriSchemeHttp, namespaceManager.Address.Host, -1, entityPath).ToString();
+            string sendToken = await TokenProvider.CreateSharedAccessSignatureTokenProvider(sbConnectionStringBuilder.SharedAccessKeyName, sbConnectionStringBuilder.SharedAccessKey, TimeSpan.FromDays(365))
+                .GetWebTokenAsync(entityUri, string.Empty, true, TimeSpan.FromMinutes(1));
+
+            MessagingFactory messagingFactory = MessagingFactory.Create(
+                namespaceManager.Address.ToString(),
+                new MessagingFactorySettings
+                {
+                    TransportType = TransportType.Amqp,
+                    TokenProvider = TokenProvider.CreateSharedAccessSignatureTokenProvider(sendToken),
+                    AmqpTransportSettings = new AmqpTransportSettings()
+                    {
+                        BatchFlushInterval = TimeSpan.FromSeconds(0)   // disable client-side batching
+                    }
+                });
+
+            TraceHelper.Trace(
+                TraceEventType.Information,
+                "CreateMessagingFactoryAsync",
+                "Initialized messaging factory with address {0}",
+                messagingFactory.Address);
+
+            return messagingFactory;
+        }
+
+        public static MessageSender CreateMessageSender(MessagingFactory senderFactory, string transferDestinationEntityPath, string viaEntityPath)
+        {
+            return senderFactory.CreateMessageSender(transferDestinationEntityPath, viaEntityPath);
+        }
+
+        public static MessageSender CreateMessageSender(MessagingFactory senderFactory, string entityPath)
+        {
+            return senderFactory.CreateMessageSender(entityPath);
+        }
+
+        public static QueueClient CreateQueueClient(MessagingFactory queueClientFactory, string entityPath)
+        {
+            return queueClientFactory.CreateQueueClient(entityPath);
         }
     }
 }
