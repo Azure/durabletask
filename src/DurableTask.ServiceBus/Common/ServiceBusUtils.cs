@@ -26,10 +26,11 @@ namespace DurableTask.ServiceBus.Common
     using DurableTask.ServiceBus.Settings;
     using Microsoft.ServiceBus;
     using Microsoft.ServiceBus.Messaging;
-    using Microsoft.ServiceBus.Messaging.Amqp;
 
     internal static class ServiceBusUtils
     {
+        static TimeSpan TokenTimeToLive = TimeSpan.FromDays(30);
+
         public static Task<BrokeredMessage> GetBrokeredMessageFromObjectAsync(object serializableObject, CompressionSettings compressionSettings)
         {
             return GetBrokeredMessageFromObjectAsync(serializableObject, compressionSettings, new ServiceBusMessageSettings(), null, null, null, DateTimeUtils.MinDateTime);
@@ -325,7 +326,7 @@ namespace DurableTask.ServiceBus.Common
                     TokenProvider = TokenProvider.CreateSharedAccessSignatureTokenProvider(
                         sbConnectionStringBuilder.SharedAccessKeyName, 
                         sbConnectionStringBuilder.SharedAccessKey, 
-                        TimeSpan.FromDays(365)),
+                        TokenTimeToLive),
                     NetMessagingTransportSettings = new NetMessagingTransportSettings()
                     {
                         BatchFlushInterval = TimeSpan.FromSeconds(0)   // disable client-side batching
@@ -352,7 +353,7 @@ namespace DurableTask.ServiceBus.Common
                     TokenProvider = TokenProvider.CreateSharedAccessSignatureTokenProvider(
                         sbConnectionStringBuilder.SharedAccessKeyName, 
                         sbConnectionStringBuilder.SharedAccessKey, 
-                        TimeSpan.FromDays(365))
+                        TokenTimeToLive)
                 });
 
             TraceHelper.Trace(

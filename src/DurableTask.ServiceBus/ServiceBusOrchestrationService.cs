@@ -51,6 +51,7 @@ namespace DurableTask.ServiceBus
         const int SessionStreamWarningSizeInBytes = 150 * 1024;
         const int StatusPollingIntervalInSeconds = 2;
         const int DuplicateDetectionWindowInHours = 4;
+        static TimeSpan TokenTimeToLive = TimeSpan.FromDays(30);
 
         /// <summary>
         /// Orchestration service settings 
@@ -173,6 +174,7 @@ namespace DurableTask.ServiceBus
             workerQueueClient = ServiceBusUtils.CreateQueueClient(this.workerQueueClientMessagingFactory, workerEntityName);
             orchestratorQueueClient = ServiceBusUtils.CreateQueueClient(this.orchestratorQueueClientMessagingFactory, orchestratorEntityName);
             trackingQueueClient = ServiceBusUtils.CreateQueueClient(this.trackingQueueClientMessagingFactory, trackingEntityName);
+
             if (trackingDispatcher != null)
             {
                 await trackingDispatcher.StartAsync();
