@@ -321,12 +321,12 @@ namespace DurableTask.ServiceBus.Common
                 namespaceManager.Address.ToString(),
                 new MessagingFactorySettings
                 {
-                    TransportType = TransportType.Amqp,
+                    TransportType = TransportType.NetMessaging,
                     TokenProvider = TokenProvider.CreateSharedAccessSignatureTokenProvider(
                         sbConnectionStringBuilder.SharedAccessKeyName, 
                         sbConnectionStringBuilder.SharedAccessKey, 
                         TimeSpan.FromDays(365)),
-                    AmqpTransportSettings = new AmqpTransportSettings()
+                    NetMessagingTransportSettings = new NetMessagingTransportSettings()
                     {
                         BatchFlushInterval = TimeSpan.FromSeconds(0)   // disable client-side batching
                     }

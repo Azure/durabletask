@@ -94,6 +94,8 @@ namespace DurableTask.ServiceBus
         readonly string trackingEntityName;
         readonly WorkItemDispatcher<TrackingWorkItem> trackingDispatcher;
         readonly JumpStartManager jumpStartManager;
+        readonly NamespaceManager namespaceManager;
+        readonly ServiceBusConnectionStringBuilder sbConnectionStringBuilder;
 
         ConcurrentDictionary<string, ServiceBusOrchestrationSession> orchestrationSessions;
         ConcurrentDictionary<string, BrokeredMessage> orchestrationMessages;
@@ -121,6 +123,11 @@ namespace DurableTask.ServiceBus
             workerEntityName = string.Format(ServiceBusConstants.WorkerEndpointFormat, this.hubName);
             orchestratorEntityName = string.Format(ServiceBusConstants.OrchestratorEndpointFormat, this.hubName);
             trackingEntityName = string.Format(ServiceBusConstants.TrackingEndpointFormat, this.hubName);
+
+            namespaceManager = NamespaceManager.CreateFromConnectionString(connectionString);
+            sbConnectionStringBuilder = new ServiceBusConnectionStringBuilder(connectionString);
+            this.orchestratorSenderMessagingFactory = ServiceBusUtils.CreateSenderMessagingFactory(namespaceManager, sbConnectionStringBuilder, orchestratorEntityName);
+
             this.Settings = settings ?? new ServiceBusOrchestrationServiceSettings();
             this.BlobStore = blobStore;
             if (instanceStore != null)
@@ -153,6 +160,12 @@ namespace DurableTask.ServiceBus
             this.cancellationTokenSource = new CancellationTokenSource();
             orchestrationSessions = new ConcurrentDictionary<string, ServiceBusOrchestrationSession>();
             orchestrationMessages = new ConcurrentDictionary<string, BrokeredMessage>();
+
+            this.workerSenderMessagingFactory = ServiceBusUtils.CreateSenderMessagingFactory(namespaceManager, sbConnectionStringBuilder, workerEntityName);      
+            this.trackingSenderMessagingFactory = ServiceBusUtils.CreateSenderMessagingFactory(namespaceManager, sbConnectionStringBuilder, trackingEntityName);
+            this.workerQueueClientMessagingFactory = ServiceBusUtils.CreateReceiverMessagingFactory(namespaceManager, sbConnectionStringBuilder, workerEntityName);
+            this.orchestratorQueueClientMessagingFactory = ServiceBusUtils.CreateReceiverMessagingFactory(namespaceManager, sbConnectionStringBuilder, orchestratorEntityName);
+            this.trackingQueueClientMessagingFactory = ServiceBusUtils.CreateReceiverMessagingFactory(namespaceManager, sbConnectionStringBuilder, trackingEntityName);
 
             orchestratorSender = ServiceBusUtils.CreateMessageSender(this.orchestratorSenderMessagingFactory, orchestratorEntityName, workerEntityName);
             workerSender = ServiceBusUtils.CreateMessageSender(this.workerSenderMessagingFactory, workerEntityName, orchestratorEntityName);
@@ -246,14 +259,6 @@ namespace DurableTask.ServiceBus
                 await this.SafeDeleteAndCreateQueueAsync(namespaceManager, trackingEntityName, true, false, Settings.MaxTrackingDeliveryCount, Settings.MaxQueueSizeInMegabytes);
                 await InstanceStore.InitializeStoreAsync(recreateInstanceStore);
             }
-
-            ServiceBusConnectionStringBuilder sbConnectionStringBuilder = new ServiceBusConnectionStringBuilder(connectionString);
-            this.workerSenderMessagingFactory = ServiceBusUtils.CreateSenderMessagingFactory(namespaceManager, sbConnectionStringBuilder, workerEntityName);
-            this.orchestratorSenderMessagingFactory = ServiceBusUtils.CreateSenderMessagingFactory(namespaceManager, sbConnectionStringBuilder, orchestratorEntityName);
-            this.trackingSenderMessagingFactory = ServiceBusUtils.CreateSenderMessagingFactory(namespaceManager, sbConnectionStringBuilder, trackingEntityName);
-            this.workerQueueClientMessagingFactory = ServiceBusUtils.CreateReceiverMessagingFactory(namespaceManager, sbConnectionStringBuilder, workerEntityName);
-            this.orchestratorQueueClientMessagingFactory = ServiceBusUtils.CreateReceiverMessagingFactory(namespaceManager, sbConnectionStringBuilder, orchestratorEntityName);
-            this.trackingQueueClientMessagingFactory = ServiceBusUtils.CreateReceiverMessagingFactory(namespaceManager, sbConnectionStringBuilder, trackingEntityName);
         }
 
         /// <summary>
