@@ -315,19 +315,17 @@ namespace DurableTask.ServiceBus.Common
             return factory;
         }
 
-        public static async Task<MessagingFactory> CreateMessagingFactoryAsync(NamespaceManager namespaceManager, string connectionString, string entityPath)
+        public static MessagingFactory CreateSenderMessagingFactory(NamespaceManager namespaceManager, ServiceBusConnectionStringBuilder sbConnectionStringBuilder, string entityPath)
         {
-            ServiceBusConnectionStringBuilder sbConnectionStringBuilder = new ServiceBusConnectionStringBuilder(connectionString);
-            string entityUri = new UriBuilder(Uri.UriSchemeHttp, namespaceManager.Address.Host, -1, entityPath).ToString();
-            string sendToken = await TokenProvider.CreateSharedAccessSignatureTokenProvider(sbConnectionStringBuilder.SharedAccessKeyName, sbConnectionStringBuilder.SharedAccessKey, TimeSpan.FromDays(365))
-                .GetWebTokenAsync(entityUri, string.Empty, true, TimeSpan.FromMinutes(1));
-
             MessagingFactory messagingFactory = MessagingFactory.Create(
                 namespaceManager.Address.ToString(),
                 new MessagingFactorySettings
                 {
                     TransportType = TransportType.Amqp,
-                    TokenProvider = TokenProvider.CreateSharedAccessSignatureTokenProvider(sendToken),
+                    TokenProvider = TokenProvider.CreateSharedAccessSignatureTokenProvider(
+                        sbConnectionStringBuilder.SharedAccessKeyName, 
+                        sbConnectionStringBuilder.SharedAccessKey, 
+                        TimeSpan.FromDays(365)),
                     AmqpTransportSettings = new AmqpTransportSettings()
                     {
                         BatchFlushInterval = TimeSpan.FromSeconds(0)   // disable client-side batching
@@ -336,7 +334,30 @@ namespace DurableTask.ServiceBus.Common
 
             TraceHelper.Trace(
                 TraceEventType.Information,
-                "CreateMessagingFactoryAsync",
+                "CreateSenderMessagingFactory",
+                "Initialized messaging factory with address {0}",
+                messagingFactory.Address);
+
+            return messagingFactory;
+        }
+
+        public static MessagingFactory CreateReceiverMessagingFactory(NamespaceManager namespaceManager, ServiceBusConnectionStringBuilder sbConnectionStringBuilder, string entityPath)
+        {
+
+            MessagingFactory messagingFactory = MessagingFactory.Create(
+                namespaceManager.Address.ToString(),
+                new MessagingFactorySettings
+                {
+                    TransportType = TransportType.NetMessaging,
+                    TokenProvider = TokenProvider.CreateSharedAccessSignatureTokenProvider(
+                        sbConnectionStringBuilder.SharedAccessKeyName, 
+                        sbConnectionStringBuilder.SharedAccessKey, 
+                        TimeSpan.FromDays(365))
+                });
+
+            TraceHelper.Trace(
+                TraceEventType.Information,
+                "CreateReceiverMessagingFactory",
                 "Initialized messaging factory with address {0}",
                 messagingFactory.Address);
 
