@@ -344,7 +344,6 @@ namespace DurableTask.ServiceBus.Common
 
         public static MessagingFactory CreateReceiverMessagingFactory(NamespaceManager namespaceManager, ServiceBusConnectionStringBuilder sbConnectionStringBuilder, string entityPath)
         {
-
             MessagingFactory messagingFactory = MessagingFactory.Create(
                 namespaceManager.Address.ToString(),
                 new MessagingFactorySettings

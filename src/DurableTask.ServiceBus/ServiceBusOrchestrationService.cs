@@ -51,7 +51,6 @@ namespace DurableTask.ServiceBus
         const int SessionStreamWarningSizeInBytes = 150 * 1024;
         const int StatusPollingIntervalInSeconds = 2;
         const int DuplicateDetectionWindowInHours = 4;
-        static TimeSpan TokenTimeToLive = TimeSpan.FromDays(30);
 
         /// <summary>
         /// Orchestration service settings 
@@ -79,12 +78,14 @@ namespace DurableTask.ServiceBus
 
         MessagingFactory workerSenderMessagingFactory;
         MessagingFactory orchestratorSenderMessagingFactory;
+        MessagingFactory orchestratorBatchSenderMessagingFactory;
         MessagingFactory trackingSenderMessagingFactory;
         MessagingFactory workerQueueClientMessagingFactory;
         MessagingFactory orchestratorQueueClientMessagingFactory;
         MessagingFactory trackingQueueClientMessagingFactory;
 
         MessageSender orchestratorSender;
+        MessageSender orchestrationBatchMessageSender;
         QueueClient orchestratorQueueClient;
         MessageSender workerSender;
         QueueClient workerQueueClient;
@@ -127,8 +128,8 @@ namespace DurableTask.ServiceBus
 
             namespaceManager = NamespaceManager.CreateFromConnectionString(connectionString);
             sbConnectionStringBuilder = new ServiceBusConnectionStringBuilder(connectionString);
-            this.orchestratorSenderMessagingFactory = ServiceBusUtils.CreateSenderMessagingFactory(namespaceManager, sbConnectionStringBuilder, orchestratorEntityName);
-
+            this.orchestratorBatchSenderMessagingFactory = ServiceBusUtils.CreateSenderMessagingFactory(namespaceManager, sbConnectionStringBuilder, orchestratorEntityName);
+            this.orchestrationBatchMessageSender = ServiceBusUtils.CreateMessageSender(this.orchestratorBatchSenderMessagingFactory, orchestratorEntityName);
             this.Settings = settings ?? new ServiceBusOrchestrationServiceSettings();
             this.BlobStore = blobStore;
             if (instanceStore != null)
@@ -162,6 +163,7 @@ namespace DurableTask.ServiceBus
             orchestrationSessions = new ConcurrentDictionary<string, ServiceBusOrchestrationSession>();
             orchestrationMessages = new ConcurrentDictionary<string, BrokeredMessage>();
 
+            this.orchestratorSenderMessagingFactory = ServiceBusUtils.CreateSenderMessagingFactory(namespaceManager, sbConnectionStringBuilder, orchestratorEntityName);
             this.workerSenderMessagingFactory = ServiceBusUtils.CreateSenderMessagingFactory(namespaceManager, sbConnectionStringBuilder, workerEntityName);      
             this.trackingSenderMessagingFactory = ServiceBusUtils.CreateSenderMessagingFactory(namespaceManager, sbConnectionStringBuilder, trackingEntityName);
             this.workerQueueClientMessagingFactory = ServiceBusUtils.CreateReceiverMessagingFactory(namespaceManager, sbConnectionStringBuilder, workerEntityName);
@@ -210,6 +212,7 @@ namespace DurableTask.ServiceBus
             await Task.WhenAll(
                 workerSender.CloseAsync(),
                 orchestratorSender.CloseAsync(),
+                orchestrationBatchMessageSender?.CloseAsync(),
                 trackingSender.CloseAsync(),
                 orchestratorQueueClient.CloseAsync(),
                 trackingQueueClient.CloseAsync(),
@@ -229,6 +232,7 @@ namespace DurableTask.ServiceBus
             Task.WaitAll(
                 this.workerSenderMessagingFactory.CloseAsync(),
                 this.orchestratorSenderMessagingFactory.CloseAsync(),
+                this.orchestratorBatchSenderMessagingFactory.CloseAsync(),
                 this.trackingSenderMessagingFactory.CloseAsync(),
                 this.workerQueueClientMessagingFactory.CloseAsync(),
                 this.orchestratorQueueClientMessagingFactory.CloseAsync(),
@@ -1060,10 +1064,7 @@ namespace DurableTask.ServiceBus
             }
 
             var brokeredMessages = await Task.WhenAll(tasks);
-
-            MessageSender sender = ServiceBusUtils.CreateMessageSender(this.orchestratorSenderMessagingFactory, orchestratorEntityName);
-            await sender.SendBatchAsync(brokeredMessages).ConfigureAwait(false);
-            await sender.CloseAsync().ConfigureAwait(false);
+            await this.orchestrationBatchMessageSender.SendBatchAsync(brokeredMessages).ConfigureAwait(false);
         }
 
         async Task<BrokeredMessage> GetBrokeredMessageAsync(TaskMessage message)
