@@ -316,7 +316,8 @@ namespace DurableTask.ServiceBus.Common
             return factory;
         }
 
-        public static MessagingFactory CreateSenderMessagingFactory(NamespaceManager namespaceManager, ServiceBusConnectionStringBuilder sbConnectionStringBuilder, string entityPath)
+        public static MessagingFactory CreateSenderMessagingFactory(
+            NamespaceManager namespaceManager, ServiceBusConnectionStringBuilder sbConnectionStringBuilder, string entityPath, ServiceBusMessageSenderSettings messageSenderSettings)
         {
             MessagingFactory messagingFactory = MessagingFactory.Create(
                 namespaceManager.Address.ToString(),
@@ -329,7 +330,7 @@ namespace DurableTask.ServiceBus.Common
                         TokenTimeToLive),
                     NetMessagingTransportSettings = new NetMessagingTransportSettings()
                     {
-                        BatchFlushInterval = TimeSpan.FromSeconds(0)   // disable client-side batching
+                        BatchFlushInterval = TimeSpan.FromMilliseconds(messageSenderSettings.BatchFlushIntervalInMilliSecs)
                     }
                 });
 

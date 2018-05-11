@@ -36,6 +36,7 @@ namespace DurableTask.ServiceBus.Settings
             JumpStartSettings = new JumpStartSettings();
             SessionSettings = new ServiceBusSessionSettings();
             MessageSettings = new ServiceBusMessageSettings();
+            MessageSenderSettings = new ServiceBusMessageSenderSettings();
 
             MessageCompressionSettings = new CompressionSettings
             {
@@ -119,5 +120,10 @@ namespace DurableTask.ServiceBus.Settings
         ///     Settings to configure the message
         /// </summary>
         public ServiceBusMessageSettings MessageSettings { get; set; }
+
+        /// <summary>
+        ///     Settings to configure the message senders
+        /// </summary>
+        public ServiceBusMessageSenderSettings MessageSenderSettings { get; set; }
     }
 }
