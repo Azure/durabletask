@@ -97,6 +97,14 @@ namespace DurableTask.Core.Common
         /// </summary>
         public static T ReadObjectFromStream<T>(Stream objectStream)
         {
+            return ReadObjectFromByteArray<T>(ReadBytesFromStream(objectStream));
+        }
+
+        /// <summary>
+        /// Reads bytes from the supplied stream
+        /// </summary>
+        public static byte[] ReadBytesFromStream(Stream objectStream)
+        {
             if (objectStream == null || !objectStream.CanRead || !objectStream.CanSeek)
             {
                 throw new ArgumentException("stream is not seekable or readable", nameof(objectStream));
@@ -108,7 +116,16 @@ namespace DurableTask.Core.Common
             objectStream.Read(serializedBytes, 0, serializedBytes.Length);
             objectStream.Position = 0;
 
-            var settings = new JsonSerializerSettings {
+            return serializedBytes;
+        }
+
+        /// <summary>
+        /// Deserializes an Object from the supplied bytes
+        /// </summary>
+        public static T ReadObjectFromByteArray<T>(byte[] serializedBytes)
+        {
+            var settings = new JsonSerializerSettings
+            {
                 TypeNameHandling = TypeNameHandling.All,
 
 #if NETSTANDARD2_0
@@ -121,7 +138,6 @@ namespace DurableTask.Core.Common
             return JsonConvert.DeserializeObject<T>(
                                 Encoding.UTF8.GetString(serializedBytes),
                                 settings);
-
         }
 
         /// <summary>
