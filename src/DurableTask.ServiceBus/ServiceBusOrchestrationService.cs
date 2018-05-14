@@ -125,13 +125,12 @@ namespace DurableTask.ServiceBus
             workerEntityName = string.Format(ServiceBusConstants.WorkerEndpointFormat, this.hubName);
             orchestratorEntityName = string.Format(ServiceBusConstants.OrchestratorEndpointFormat, this.hubName);
             trackingEntityName = string.Format(ServiceBusConstants.TrackingEndpointFormat, this.hubName);
-
             namespaceManager = NamespaceManager.CreateFromConnectionString(connectionString);
             sbConnectionStringBuilder = new ServiceBusConnectionStringBuilder(connectionString);
+            this.Settings = settings ?? new ServiceBusOrchestrationServiceSettings();
             this.orchestratorBatchSenderMessagingFactory = ServiceBusUtils.CreateSenderMessagingFactory(
                 namespaceManager, sbConnectionStringBuilder, orchestratorEntityName, this.Settings.MessageSenderSettings);
             this.orchestrationBatchMessageSender = ServiceBusUtils.CreateMessageSender(this.orchestratorBatchSenderMessagingFactory, orchestratorEntityName);
-            this.Settings = settings ?? new ServiceBusOrchestrationServiceSettings();
             this.BlobStore = blobStore;
             if (instanceStore != null)
             {
