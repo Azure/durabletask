@@ -518,7 +518,8 @@ namespace DurableTask.ServiceBus
                 Tags = executionStartedEvent.Tags,
                 CreatedTime = executionStartedEvent.Timestamp,
                 LastUpdatedTime = DateTime.UtcNow,
-                CompletedTime = DateTimeUtils.MinDateTime
+                CompletedTime = DateTimeUtils.MinDateTime,
+				ParentInstance = executionStartedEvent.ParentInstance
             };
 
             var orchestrationStateEntity = new OrchestrationStateInstanceEntity()
