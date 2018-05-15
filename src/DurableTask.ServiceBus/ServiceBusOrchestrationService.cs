@@ -129,7 +129,10 @@ namespace DurableTask.ServiceBus
             sbConnectionStringBuilder = new ServiceBusConnectionStringBuilder(connectionString);
             this.Settings = settings ?? new ServiceBusOrchestrationServiceSettings();
             this.orchestratorBatchSenderMessagingFactory = ServiceBusUtils.CreateSenderMessagingFactory(
-                namespaceManager, sbConnectionStringBuilder, orchestratorEntityName, this.Settings.MessageSenderSettings);
+                namespaceManager, 
+                sbConnectionStringBuilder, 
+                orchestratorEntityName, 
+                this.Settings.MessageSenderSettings);
             this.orchestrationBatchMessageSender = ServiceBusUtils.CreateMessageSender(this.orchestratorBatchSenderMessagingFactory, orchestratorEntityName);
             this.BlobStore = blobStore;
             if (instanceStore != null)
