@@ -23,10 +23,7 @@ namespace DurableTask.Core.Serializing
     /// SerializationBinder to be used for deserializing DurableTask types that are pre v-2.0, this allows upgrade compaibility.
     /// This is not sufficient to deserialize objects from 1.0 which had the Tags Property set.
     /// </summary>
-    public class PackageUpgradeSerializationBinder : SerializationBinder
-#if NETSTANDARD2_0
-        ,ISerializationBinder
-#endif
+    public class PackageUpgradeSerializationBinder : DefaultSerializationBinder
     {
         static Lazy<IDictionary<string, Type>> KnownTypes = new Lazy<IDictionary<string, Type>>(() =>
         {
@@ -38,7 +35,6 @@ namespace DurableTask.Core.Serializing
 
         static readonly string CurrentAssemblyName = typeof(PackageUpgradeSerializationBinder).Assembly.GetName().Name;
         static readonly ISet<string> _upgradeableAssemblyNames = new HashSet<string>{ "DurableTask", "DurableTaskFx" };
-        readonly DefaultSerializationBinder defaultBinder = new DefaultSerializationBinder();
 
         /// <inheritdoc />
         public override Type BindToType(string assemblyName, string typeName)
@@ -59,7 +55,7 @@ namespace DurableTask.Core.Serializing
 
             if (resolvedType == null)
             {
-                resolvedType = defaultBinder.BindToType(assemblyName, typeName);
+                resolvedType = base.BindToType(assemblyName, typeName);
             }
 
             return resolvedType;
@@ -68,7 +64,7 @@ namespace DurableTask.Core.Serializing
         /// <inheritdoc />
         public override void BindToName(Type serializedType, out string assemblyName, out string typeName)
         {
-            defaultBinder.BindToName(serializedType, out assemblyName, out typeName);
+            base.BindToName(serializedType, out assemblyName, out typeName);
         }
     };
 }
