@@ -108,8 +108,8 @@ namespace DurableTask
             {
                 Utils.CheckAndLogDeliveryCount(message, taskHubDescription.MaxTrackingDeliveryCount, this.trackingEntityName);
 
-                if (message.ContentType.Equals(FrameworkConstants.TaskMessageContentType,
-                    StringComparison.OrdinalIgnoreCase))
+                if (message.ContentType?.Equals(FrameworkConstants.TaskMessageContentType,
+                    StringComparison.OrdinalIgnoreCase) ?? false)
                 {
                     object historyEventIndexObj;
 
@@ -132,8 +132,8 @@ namespace DurableTask
                         DateTime.UtcNow,
                         taskMessage.Event));
                 }
-                else if (message.ContentType.Equals(FrameworkConstants.StateMessageContentType,
-                    StringComparison.OrdinalIgnoreCase))
+                else if (message.ContentType?.Equals(FrameworkConstants.StateMessageContentType,
+                    StringComparison.OrdinalIgnoreCase) ?? false)
                 {
                     StateMessage stateMessage = await Utils.GetObjectFromBrokeredMessageAsync<StateMessage>(message);
                     stateEntities.Add(new OrchestrationStateEntity(stateMessage.State));
@@ -299,6 +299,10 @@ namespace DurableTask
                 return settings.TransientErrorBackOffSecs;
             }
             if (exception is JsonSerializationException)
+            {
+                return settings.NonTransientErrorBackOffSecs;
+            }
+            if (exception is InvalidOperationException)
             {
                 return settings.NonTransientErrorBackOffSecs;
             }
