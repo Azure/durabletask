@@ -157,5 +157,10 @@ namespace DurableTask.Core
         /// The default max allowed session size
         /// </summary>
         public const int SessionMaxSizeInBytesDefault = 10 * 1024 * 1024;
+
+        /// <summary>
+        /// The default batch flush interval in milli secs
+        /// </summary>
+        public const int BatchFlushIntervalInMilliSecs = 100;
     }
 }
