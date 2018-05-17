@@ -512,7 +512,8 @@ namespace DurableTask
                 Tags = executionStartedEvent.Tags,
                 CreatedTime = executionStartedEvent.Timestamp,
                 LastUpdatedTime = DateTime.UtcNow,
-                CompletedTime = DateTime.MinValue
+                CompletedTime = DateTime.MinValue,
+                ParentInstance = executionStartedEvent.ParentInstance
             };
 
             var orchestrationStateEntity = new OrchestrationStateInstanceEntity()
