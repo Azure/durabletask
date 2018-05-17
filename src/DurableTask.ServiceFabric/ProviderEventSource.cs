@@ -17,9 +17,15 @@ namespace DurableTask.ServiceFabric
     using System.Threading.Tasks;
     using System;
 
+    /// <summary>
+    /// The event source which emits ETW events for service fabric based provider functionality.
+    /// </summary>
     [EventSource(Name = "DurableTask-ServiceFabricProvider")]
-    internal sealed class ProviderEventSource : EventSource
+    public sealed class ProviderEventSource : EventSource
     {
+        /// <summary>
+        /// Singleton instance of the event source.
+        /// </summary>
         public static readonly ProviderEventSource Log = new ProviderEventSource();
 
         static ProviderEventSource()
@@ -33,16 +39,18 @@ namespace DurableTask.ServiceFabric
         {
         }
 
-        public static class Keywords
+        private static class Keywords
         {
             public const EventKeywords Orchestration = (EventKeywords) 0x1L;
             public const EventKeywords Activity = (EventKeywords) 0x2L;
             public const EventKeywords Common = (EventKeywords)0x4L;
+            public const EventKeywords Warning = (EventKeywords)0x8L;
+            public const EventKeywords Error = (EventKeywords)0x10L;
         }
 
         #region Informational 1-500
         [Event(1, Level = EventLevel.Informational, Message = "Orchestration with instanceId : '{0}' and executionId : '{1}' is Created.", Channel = EventChannel.Operational)]
-        public void OrchestrationCreated(string instanceId, string executionId)
+        internal void OrchestrationCreated(string instanceId, string executionId)
         {
             if (IsEnabled(EventLevel.Informational, Keywords.Orchestration))
             {
@@ -51,7 +59,7 @@ namespace DurableTask.ServiceFabric
         }
 
         [Event(2, Level = EventLevel.Informational, Message = "Orchestration with instanceId : '{0}' and executionId : '{4}' Finished with the status {1} and result {3} in {2} seconds.", Channel = EventChannel.Operational)]
-        public void OrchestrationFinished(string instanceId, string terminalStatus, double runningTimeInSeconds, string result, string executionId)
+        internal void OrchestrationFinished(string instanceId, string terminalStatus, double runningTimeInSeconds, string result, string executionId)
         {
             if (IsEnabled(EventLevel.Informational, Keywords.Orchestration))
             {
@@ -60,7 +68,7 @@ namespace DurableTask.ServiceFabric
         }
 
         [Event(4, Level = EventLevel.Informational, Message = "Current number of entries in store {0} : {1}", Channel = EventChannel.Operational)]
-        public void LogStoreCount(string storeName, long count)
+        internal void LogStoreCount(string storeName, long count)
         {
             if (IsEnabled(EventLevel.Informational, Keywords.Common))
             {
@@ -69,7 +77,7 @@ namespace DurableTask.ServiceFabric
         }
 
         [Event(8, Level = EventLevel.Informational, Message = "Time taken for {0} : {1} milli seconds.", Channel = EventChannel.Operational)]
-        public void LogTimeTaken(string uniqueActionIdentifier, double elapsedMilliseconds)
+        internal void LogTimeTaken(string uniqueActionIdentifier, double elapsedMilliseconds)
         {
             if (IsEnabled(EventLevel.Informational, Keywords.Common))
             {
@@ -78,7 +86,7 @@ namespace DurableTask.ServiceFabric
         }
 
         [Event(9, Level = EventLevel.Informational, Message = "{0} : {1}", Channel = EventChannel.Operational)]
-        public void ReliableStateManagement(string operationIdentifier, string operationData)
+        internal void ReliableStateManagement(string operationIdentifier, string operationData)
         {
             if (IsEnabled(EventLevel.Informational, Keywords.Common))
             {
@@ -89,18 +97,18 @@ namespace DurableTask.ServiceFabric
 
         #region Warnings 1001-1500
         [Event(1001, Level = EventLevel.Warning, Message = "Exception in the background job {0} : {1}", Channel = EventChannel.Operational)]
-        public void ExceptionWhileRunningBackgroundJob(string operationIdentifier, string exception)
+        internal void ExceptionWhileRunningBackgroundJob(string operationIdentifier, string exception)
         {
-            if (IsEnabled(EventLevel.Warning, Keywords.Common))
+            if (IsEnabled(EventLevel.Warning, Keywords.Common | Keywords.Warning))
             {
                 WriteEvent(1001, operationIdentifier, exception);
             }
         }
 
         [Event(1002, Level = EventLevel.Warning, Message = "Hint : {0}, AttemptNumber : {1}, Exception: {2}", Channel = EventChannel.Operational)]
-        public void RetryableFabricException(string uniqueIdentifier, int attemptNumber, string exception)
+        internal void RetryableFabricException(string uniqueIdentifier, int attemptNumber, string exception)
         {
-            if (IsEnabled(EventLevel.Warning, Keywords.Common))
+            if (IsEnabled(EventLevel.Warning, Keywords.Common | Keywords.Warning))
             {
                 WriteEvent(1002, uniqueIdentifier, attemptNumber, exception);
             }
@@ -109,9 +117,9 @@ namespace DurableTask.ServiceFabric
 
         #region Errors 1501-2000
         [Event(1501, Level = EventLevel.Error, Message = "We are seeing something that we don't expect to see : {0}", Channel = EventChannel.Operational)]
-        public void UnexpectedCodeCondition(string uniqueMessage)
+        internal void UnexpectedCodeCondition(string uniqueMessage)
         {
-            if (IsEnabled(EventLevel.Error, Keywords.Common))
+            if (IsEnabled(EventLevel.Error, Keywords.Common | Keywords.Error))
             {
                 WriteEvent(1501, uniqueMessage);
             }
@@ -123,9 +131,9 @@ namespace DurableTask.ServiceFabric
         }
 
         [Event(1502, Level = EventLevel.Error, Message = "Hint : {0}, Exception: {1}", Channel = EventChannel.Operational)]
-        public void ExceptionInReliableCollectionOperations(string uniqueIdentifier, string exception)
+        internal void ExceptionInReliableCollectionOperations(string uniqueIdentifier, string exception)
         {
-            if (IsEnabled(EventLevel.Error, Keywords.Common))
+            if (IsEnabled(EventLevel.Error, Keywords.Common | Keywords.Error))
             {
                 WriteEvent(1502, uniqueIdentifier, exception);
             }
@@ -134,7 +142,7 @@ namespace DurableTask.ServiceFabric
 
         #region Verbose Events 501-1000
         [Event(501, Level = EventLevel.Verbose, Message = "Trace Message for Session {0} : {1}", Channel = EventChannel.Debug)]
-        public void TraceMessage(string instanceId, string message)
+        internal void TraceMessage(string instanceId, string message)
         {
 #if DEBUG
             if (IsEnabled(EventLevel.Verbose, Keywords.Common))
@@ -145,7 +153,7 @@ namespace DurableTask.ServiceFabric
         }
 
         [Event(502, Level = EventLevel.Verbose, Message = "Time taken for {0} : {1} milli seconds.", Channel = EventChannel.Analytic)]
-        public void LogMeasurement(string uniqueActionIdentifier, long elapsedMilliseconds)
+        internal void LogMeasurement(string uniqueActionIdentifier, long elapsedMilliseconds)
         {
 #if DEBUG
             if (IsEnabled(EventLevel.Verbose, Keywords.Common))
@@ -156,7 +164,7 @@ namespace DurableTask.ServiceFabric
         }
 
         [Event(503, Level = EventLevel.Verbose, Message = "Size of {0} : {1} bytes.", Channel = EventChannel.Analytic)]
-        public void LogSizeMeasure(string uniqueObjectIdentifier, long sizeInBytes)
+        internal void LogSizeMeasure(string uniqueObjectIdentifier, long sizeInBytes)
         {
 #if DEBUG
             if (IsEnabled(EventLevel.Verbose, Keywords.Common))
