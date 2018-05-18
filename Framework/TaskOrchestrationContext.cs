@@ -30,6 +30,7 @@ namespace DurableTask
         readonly IDictionary<int, OrchestratorAction> orchestratorActionsMap;
         readonly TaskScheduler taskScheduler;
         OrchestrationCompleteOrchestratorAction continueAsNew;
+        bool executionTerminated;
         int idCounter;
 
         public TaskOrchestrationContext(OrchestrationInstance orchestrationInstance, TaskScheduler taskScheduler)
@@ -340,12 +341,19 @@ namespace DurableTask
 
         public void HandleExecutionTerminatedEvent(ExecutionTerminatedEvent terminatedEvent)
         {
-            CompleteOrchestration(terminatedEvent.Input, null, OrchestrationStatus.Terminated);
+            if (!executionTerminated)
+            {
+                executionTerminated = true;
+                CompleteOrchestration(terminatedEvent.Input, null, OrchestrationStatus.Terminated);
+            }
         }
 
         public void CompleteOrchestration(string result)
         {
-            CompleteOrchestration(result, null, OrchestrationStatus.Completed);
+            if (!executionTerminated)
+            {
+                CompleteOrchestration(result, null, OrchestrationStatus.Completed);
+            }
         }
 
         public void FailOrchestration(Exception failure)
