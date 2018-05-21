@@ -43,6 +43,9 @@ namespace DurableTask.AzureStorage.Tracking
         public abstract Task<OrchestrationState> GetStateAsync(string instanceId, string executionId);
 
         /// <inheritdoc />
+        public abstract Task<IList<OrchestrationState>> GetStateAsync(CancellationToken cancellationToken = default(CancellationToken));
+
+        /// <inheritdoc />
         public abstract Task PurgeHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType);
 
         /// <inheritdoc />

@@ -306,6 +306,86 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
+        public override async Task<IList<OrchestrationState>> GetStateAsync(CancellationToken cancellationToken = default(CancellationToken))
+        {
+            var query = new TableQuery();
+            TableContinuationToken token = null;
+            var instanceTableEntities = new List<DynamicTableEntity>(100);
+            var stopwatch = new Stopwatch();
+            var requestCount = 0;
+            bool finishedEarly = false;
+
+            while (true)
+            {
+                requestCount++;
+                stopwatch.Start();
+                var segment = await this.instancesTable.ExecuteQuerySegmentedAsync(query, token); // TODO make sure if it has enough parameters
+                stopwatch.Stop();
+
+                int previousCount = instanceTableEntities.Count;
+                instanceTableEntities.AddRange(segment);
+
+                // TODO do we need these?
+                this.stats.StorageRequests.Increment();
+                this.stats.TableEntitiesRead.Increment(instanceTableEntities.Count - previousCount);
+
+                token = segment.ContinuationToken;
+                if (finishedEarly || token == null || cancellationToken.IsCancellationRequested)
+                {
+                    break;
+                }      
+            }
+
+            IList<OrchestrationState> orchestrationStates;
+
+            orchestrationStates = new List<OrchestrationState>(instanceTableEntities.Count);
+
+            if (instanceTableEntities.Count > 0)
+            {
+                foreach(DynamicTableEntity entity in instanceTableEntities)
+                {
+                    var instance = new OrchestrationInstance();
+                    instance.InstanceId = entity.Properties["PartitionKey"].ToString();
+
+                    // TODO we need to discuss the parameter and query structure.
+                    orchestrationStates.Add(
+                        new OrchestrationState
+                        {
+                            CompletedTime = DateTime.Parse(entity.Properties["CompletedTime"]?.ToString()),
+                            Name = entity.Properties["Name"]?.ToString(),
+                            OrchestrationInstance = instance,
+                            OrchestrationStatus = ConvertStatus(entity.Properties["OrchestrationStatus"].ToString())
+                        }
+                    );
+                }
+            }
+            return orchestrationStates;
+        }
+
+        private OrchestrationStatus ConvertStatus(string state)
+        {
+            switch(state)
+            {
+                case "Canceled":
+                    return OrchestrationStatus.Canceled;
+                case "Completed":
+                    return OrchestrationStatus.Completed;
+                case "ContinuedAsNew":
+                    return OrchestrationStatus.ContinuedAsNew;
+                case "Failed":
+                    return OrchestrationStatus.Failed;
+                case "Pending":
+                    return OrchestrationStatus.Pending;
+                case "Running":
+                    return OrchestrationStatus.Running;
+                case "Terminated":
+                    return OrchestrationStatus.Terminated;
+                default:
+                    throw new ArgumentException($"OrchestrationStatus is not what I expected: {state}");
+            }
+        }
+
+        /// <inheritdoc />
         public override Task PurgeHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType)
         {
             throw new NotSupportedException();
