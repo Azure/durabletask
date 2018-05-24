@@ -277,7 +277,11 @@ namespace DurableTask.AzureStorage.Tracking
             {
                 return null;
             }
+            return await ConvertFromAsync(orchestrationInstanceStatus, instanceId);
+        }
 
+        private async Task<OrchestrationState> ConvertFromAsync(OrchestrationInstanceStatus orchestrationInstanceStatus, string instanceId)
+        {
             var orchestrationState = new OrchestrationState();
             if (!Enum.TryParse(orchestrationInstanceStatus.RuntimeStatus, out orchestrationState.OrchestrationStatus))
             {
@@ -308,9 +312,10 @@ namespace DurableTask.AzureStorage.Tracking
         /// <inheritdoc />
         public override async Task<IList<OrchestrationState>> GetStateAsync(CancellationToken cancellationToken = default(CancellationToken))
         {
-            var query = new TableQuery();
+            var query = new TableQuery<OrchestrationInstanceStatus>();
             TableContinuationToken token = null;
-            var instanceTableEntities = new List<DynamicTableEntity>(100);
+
+            var instancestatuses = new List<OrchestrationInstanceStatus>(100);
             var stopwatch = new Stopwatch();
             var requestCount = 0;
             bool finishedEarly = false;
@@ -322,12 +327,12 @@ namespace DurableTask.AzureStorage.Tracking
                 var segment = await this.instancesTable.ExecuteQuerySegmentedAsync(query, token); // TODO make sure if it has enough parameters
                 stopwatch.Stop();
 
-                int previousCount = instanceTableEntities.Count;
-                instanceTableEntities.AddRange(segment);
+                int previousCount = instancestatuses.Count;
+                instancestatuses.AddRange(segment.AsEnumerable<OrchestrationInstanceStatus>());
 
                 // TODO do we need these?
                 this.stats.StorageRequests.Increment();
-                this.stats.TableEntitiesRead.Increment(instanceTableEntities.Count - previousCount);
+                this.stats.TableEntitiesRead.Increment(instancestatuses.Count - previousCount);
 
                 token = segment.ContinuationToken;
                 if (finishedEarly || token == null || cancellationToken.IsCancellationRequested)
@@ -338,51 +343,17 @@ namespace DurableTask.AzureStorage.Tracking
 
             IList<OrchestrationState> orchestrationStates;
 
-            orchestrationStates = new List<OrchestrationState>(instanceTableEntities.Count);
+            orchestrationStates = new List<OrchestrationState>(instancestatuses.Count);
 
-            if (instanceTableEntities.Count > 0)
+            if (instancestatuses.Count > 0)
             {
-                foreach(DynamicTableEntity entity in instanceTableEntities)
+                foreach(OrchestrationInstanceStatus entity in instancestatuses)
                 {
-                    var instance = new OrchestrationInstance();
-                    instance.InstanceId = entity.Properties["PartitionKey"].ToString();
-
-                    // TODO we need to discuss the parameter and query structure.
-                    orchestrationStates.Add(
-                        new OrchestrationState
-                        {
-                            CompletedTime = DateTime.Parse(entity.Properties["CompletedTime"]?.ToString()),
-                            Name = entity.Properties["Name"]?.ToString(),
-                            OrchestrationInstance = instance,
-                            OrchestrationStatus = ConvertStatus(entity.Properties["OrchestrationStatus"].ToString())
-                        }
-                    );
+                    var state = await ConvertFromAsync(entity, entity.PartitionKey);
+                    orchestrationStates.Add(state);
                 }
             }
             return orchestrationStates;
-        }
-
-        private OrchestrationStatus ConvertStatus(string state)
-        {
-            switch(state)
-            {
-                case "Canceled":
-                    return OrchestrationStatus.Canceled;
-                case "Completed":
-                    return OrchestrationStatus.Completed;
-                case "ContinuedAsNew":
-                    return OrchestrationStatus.ContinuedAsNew;
-                case "Failed":
-                    return OrchestrationStatus.Failed;
-                case "Pending":
-                    return OrchestrationStatus.Pending;
-                case "Running":
-                    return OrchestrationStatus.Running;
-                case "Terminated":
-                    return OrchestrationStatus.Terminated;
-                default:
-                    throw new ArgumentException($"OrchestrationStatus is not what I expected: {state}");
-            }
         }
 
         /// <inheritdoc />
