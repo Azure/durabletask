@@ -1544,6 +1544,16 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
+        /// Get states of the all orchestration instances
+        /// </summary>
+        /// <returns>List of <see cref="OrchestrationState"/></returns>
+        public async Task<IList<OrchestrationState>> GetStateAsync()
+        {
+            await this.EnsureTaskHubAsync();
+            return await this.trackingStore.GetStateAsync();
+        }
+
+        /// <summary>
         /// Force terminates an orchestration by sending a execution terminated event
         /// </summary>
         /// <param name="instanceId">Instance ID of the orchestration to terminate.</param>
