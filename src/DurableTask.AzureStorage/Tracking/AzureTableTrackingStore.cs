@@ -315,7 +315,7 @@ namespace DurableTask.AzureStorage.Tracking
             var query = new TableQuery<OrchestrationInstanceStatus>();
             TableContinuationToken token = null;
 
-            var instanceStatuses = new List<OrchestrationInstanceStatus>(100);
+            var orchestrationStates = new List<OrchestrationState>(100);
             var stopwatch = new Stopwatch();
             var requestCount = 0;
             bool finishedEarly = false;
@@ -327,11 +327,13 @@ namespace DurableTask.AzureStorage.Tracking
                 var segment = await this.instancesTable.ExecuteQuerySegmentedAsync(query, token); // TODO make sure if it has enough parameters
                 stopwatch.Stop();
 
-                int previousCount = instanceStatuses.Count;
-                instanceStatuses.AddRange(segment.AsEnumerable<OrchestrationInstanceStatus>());
+                int previousCount = orchestrationStates.Count;
+                var tasks = segment.AsEnumerable<OrchestrationInstanceStatus>().Select(async x => await ConvertFromAsync(x, x.PartitionKey));
+                OrchestrationState[] result = await Task.WhenAll(tasks);
+                orchestrationStates.AddRange(result);
 
                 this.stats.StorageRequests.Increment();
-                this.stats.TableEntitiesRead.Increment(instanceStatuses.Count - previousCount);
+                this.stats.TableEntitiesRead.Increment(orchestrationStates.Count - previousCount);
 
                 token = segment.ContinuationToken;
                 if (finishedEarly || token == null || cancellationToken.IsCancellationRequested)
@@ -340,18 +342,6 @@ namespace DurableTask.AzureStorage.Tracking
                 }      
             }
 
-            IList<OrchestrationState> orchestrationStates;
-
-            orchestrationStates = new List<OrchestrationState>(instanceStatuses.Count);
-
-            if (instanceStatuses.Count > 0)
-            {
-                foreach(OrchestrationInstanceStatus entity in instanceStatuses)
-                {
-                    var state = await ConvertFromAsync(entity, entity.PartitionKey);
-                    orchestrationStates.Add(state);
-                }
-            }
             return orchestrationStates;
         }
 
