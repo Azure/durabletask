@@ -316,16 +316,10 @@ namespace DurableTask.AzureStorage.Tracking
             TableContinuationToken token = null;
 
             var orchestrationStates = new List<OrchestrationState>(100);
-            var stopwatch = new Stopwatch();
-            var requestCount = 0;
-            bool finishedEarly = false;
 
             while (true)
             {
-                requestCount++;
-                stopwatch.Start();
                 var segment = await this.instancesTable.ExecuteQuerySegmentedAsync(query, token); // TODO make sure if it has enough parameters
-                stopwatch.Stop();
 
                 int previousCount = orchestrationStates.Count;
                 var tasks = segment.AsEnumerable<OrchestrationInstanceStatus>().Select(async x => await ConvertFromAsync(x, x.PartitionKey));
@@ -336,7 +330,7 @@ namespace DurableTask.AzureStorage.Tracking
                 this.stats.TableEntitiesRead.Increment(orchestrationStates.Count - previousCount);
 
                 token = segment.ContinuationToken;
-                if (finishedEarly || token == null || cancellationToken.IsCancellationRequested)
+                if (token == null || cancellationToken.IsCancellationRequested)
                 {
                     break;
                 }      
