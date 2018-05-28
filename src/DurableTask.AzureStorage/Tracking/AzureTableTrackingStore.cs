@@ -330,7 +330,6 @@ namespace DurableTask.AzureStorage.Tracking
                 int previousCount = instancestatuses.Count;
                 instancestatuses.AddRange(segment.AsEnumerable<OrchestrationInstanceStatus>());
 
-                // TODO do we need these?
                 this.stats.StorageRequests.Increment();
                 this.stats.TableEntitiesRead.Increment(instancestatuses.Count - previousCount);
 
