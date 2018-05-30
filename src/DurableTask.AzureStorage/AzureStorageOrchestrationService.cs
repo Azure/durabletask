@@ -1547,10 +1547,10 @@ namespace DurableTask.AzureStorage
         /// Get states of the all orchestration instances
         /// </summary>
         /// <returns>List of <see cref="OrchestrationState"/></returns>
-        public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync()
+        public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(CancellationToken cancellationToken = default(CancellationToken))
         {
             await this.EnsureTaskHubAsync();
-            return await this.trackingStore.GetStateAsync();
+            return await this.trackingStore.GetStateAsync(cancellationToken);
         }
 
         /// <summary>
