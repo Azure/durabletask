@@ -120,6 +120,31 @@ namespace DurableTask.AzureStorage.Tests
                 await host.StopAsync();
             }
         }
+
+        [TestMethod]
+        public async Task GetAllOrchestrationStatuses()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            {
+                // Execute the orchestrator twice. Orchestrator will be replied. However instances might be two.
+                await host.StartAsync();
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloInline), "wolrd one");
+                await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloInline), "wolrd two");
+                await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                // Create a client for testing
+                var serviceClient = host.GetServiceClient();
+                // TODO Currently we can't use TaskHub. It requires review of Core team. 
+                // Until then, we test it, not using TaskHub. Call diretly the method with some configuration. 
+                var results = await serviceClient.GetOrchestrationStateAsync();
+                Assert.AreEqual(2, results.Count);
+                Assert.AreEqual("\"Hello, wolrd one!\"", results[0].Output);
+                Assert.AreEqual("\"Hello, wolrd two!\"", results[1].Output);
+
+                await host.StopAsync();
+            }
+        }
+
         /// <summary>
         /// End-to-end test which validates parallel function execution by enumerating all files in the current directory 
         /// in parallel and getting the sum total of all file sizes.

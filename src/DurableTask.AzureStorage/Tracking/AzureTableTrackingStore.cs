@@ -277,7 +277,11 @@ namespace DurableTask.AzureStorage.Tracking
             {
                 return null;
             }
+            return await ConvertFromAsync(orchestrationInstanceStatus, instanceId);
+        }
 
+        private async Task<OrchestrationState> ConvertFromAsync(OrchestrationInstanceStatus orchestrationInstanceStatus, string instanceId)
+        {
             var orchestrationState = new OrchestrationState();
             if (!Enum.TryParse(orchestrationInstanceStatus.RuntimeStatus, out orchestrationState.OrchestrationStatus))
             {
@@ -303,6 +307,36 @@ namespace DurableTask.AzureStorage.Tracking
             orchestrationState.Output = results[1];
 
             return orchestrationState;
+        }
+
+        /// <inheritdoc />
+        public override async Task<IList<OrchestrationState>> GetStateAsync(CancellationToken cancellationToken = default(CancellationToken))
+        {
+            var query = new TableQuery<OrchestrationInstanceStatus>();
+            TableContinuationToken token = null;
+
+            var orchestrationStates = new List<OrchestrationState>(100);
+
+            while (true)
+            {
+                var segment = await this.instancesTable.ExecuteQuerySegmentedAsync(query, token); // TODO make sure if it has enough parameters
+
+                int previousCount = orchestrationStates.Count;
+                var tasks = segment.AsEnumerable<OrchestrationInstanceStatus>().Select(async x => await ConvertFromAsync(x, x.PartitionKey));
+                OrchestrationState[] result = await Task.WhenAll(tasks);
+                orchestrationStates.AddRange(result);
+
+                this.stats.StorageRequests.Increment();
+                this.stats.TableEntitiesRead.Increment(orchestrationStates.Count - previousCount);
+
+                token = segment.ContinuationToken;
+                if (token == null || cancellationToken.IsCancellationRequested)
+                {
+                    break;
+                }      
+            }
+
+            return orchestrationStates;
         }
 
         /// <inheritdoc />

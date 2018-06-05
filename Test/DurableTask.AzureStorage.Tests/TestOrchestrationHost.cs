@@ -50,6 +50,18 @@ namespace DurableTask.AzureStorage.Tests
             return this.worker.StopAsync(isForced: true);
         }
 
+        /// <summary>
+        /// This method is only for testing purpose. 
+        /// When we need to add fix to the DurableTask.Core (e.g. TaskHubClient), we need approval process. 
+        /// during wating for the approval, we can use this method to test the method. 
+        /// This method is not allowed for the production. Before going to the production, please refacotr to use TaskHubClient instead.
+        /// </summary>
+        /// <returns></returns>
+        internal AzureStorageOrchestrationService GetServiceClient()
+        {
+            return (AzureStorageOrchestrationService)this.client.serviceClient;
+        }
+
         public async Task<TestOrchestrationClient> StartOrchestrationAsync(
             Type orchestrationType,
             object input,
