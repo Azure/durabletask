@@ -439,33 +439,45 @@ namespace DurableTask.AzureStorage.Tracking
                         orchestrationInstanceUpdate.Properties["CreatedTime"] = new EntityProperty(executionStartedEvent.Timestamp);
                         orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Running.ToString());
                         this.SetTablePropertyForMessage(entity, orchestrationInstanceUpdate, InputProperty, InputProperty, executionStartedEvent.Input);
-                        estimatedBytes += Encoding.Unicode.GetByteCount(executionStartedEvent.Input);
+                        UpdateEstimatedBytesAndETagValue(
+                             await GetDataByteCountAndETag(executionStartedEvent.Input, estimatedBytes, instanceId, executionId, historyEventBatch, newEventListBuffer, newEvents, eTagValue),
+                             ref estimatedBytes,
+                             ref eTagValue);
                         break;
                     case EventType.ExecutionCompleted:
                         orchestratorEventType = historyEvent.EventType;
                         ExecutionCompletedEvent executionCompleted = (ExecutionCompletedEvent)historyEvent;
                         this.SetTablePropertyForMessage(entity, orchestrationInstanceUpdate, ResultProperty, OutputProperty, executionCompleted.Result);
                         orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(executionCompleted.OrchestrationStatus.ToString());
-                        estimatedBytes += Encoding.Unicode.GetByteCount(executionCompleted.Result);
+                        UpdateEstimatedBytesAndETagValue(
+                             await GetDataByteCountAndETag(executionCompleted.Result, estimatedBytes, instanceId, executionId, historyEventBatch, newEventListBuffer, newEvents, eTagValue),
+                             ref estimatedBytes,
+                             ref eTagValue);
                         break;
                     case EventType.ExecutionTerminated:
                         orchestratorEventType = historyEvent.EventType;
                         ExecutionTerminatedEvent executionTerminatedEvent = (ExecutionTerminatedEvent)historyEvent;
                         this.SetTablePropertyForMessage(entity, orchestrationInstanceUpdate, InputProperty, OutputProperty, executionTerminatedEvent.Input);
                         orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Terminated.ToString());
-                        estimatedBytes += Encoding.Unicode.GetByteCount(executionTerminatedEvent.Input);
+                        UpdateEstimatedBytesAndETagValue(
+                             await GetDataByteCountAndETag(executionTerminatedEvent.Input, estimatedBytes, instanceId, executionId, historyEventBatch, newEventListBuffer, newEvents, eTagValue),
+                             ref estimatedBytes,
+                             ref eTagValue);
                         break;
                     case EventType.ContinueAsNew:
                         orchestratorEventType = historyEvent.EventType;
                         ExecutionCompletedEvent executionCompletedEvent = (ExecutionCompletedEvent)historyEvent;
                         this.SetTablePropertyForMessage(entity, orchestrationInstanceUpdate, ResultProperty, OutputProperty, executionCompletedEvent.Result);
                         orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.ContinuedAsNew.ToString());
-                        estimatedBytes += Encoding.Unicode.GetByteCount(executionCompletedEvent.Result);
+                        UpdateEstimatedBytesAndETagValue(
+                            await GetDataByteCountAndETag(executionCompletedEvent.Result, estimatedBytes, instanceId, executionId, historyEventBatch, newEventListBuffer, newEvents, eTagValue),
+                            ref estimatedBytes,
+                            ref eTagValue);
                         break;
                 }
 
                 // Table storage only supports inserts of up to 100 entities at a time or 4 MB at a time.
-                if (historyEventBatch.Count == 99 || estimatedBytes > 3 * 1024 * 1024 /* 3 MB */)
+                if (historyEventBatch.Count == 99 || (estimatedBytes > 3 * 1024 * 1024) /* 3 MB */)
                 {
                     eTagValue = await this.UploadHistoryBatch(instanceId, executionId, historyEventBatch, newEventListBuffer, newEvents.Count, eTagValue);
 
@@ -506,6 +518,43 @@ namespace DurableTask.AzureStorage.Tracking
                 executionId,
                 orchestratorEventType?.ToString() ?? string.Empty,
                 orchestrationInstanceUpdateStopwatch.ElapsedMilliseconds);
+        }
+
+        private async Task<(int, string)> GetDataByteCountAndETag(string data, int estimatedBytes, string instanceId, string executionId, TableBatchOperation historyEventBatch, StringBuilder newEventListBuffer, IList<HistoryEvent> newEvents, string eTagValue)
+        {
+            string updatedETagValue = null;
+            int byteCount = Encoding.Unicode.GetByteCount(data);
+            if(byteCount > 4 * 1024 * 1024)
+            {
+                throw new StorageException($"Data with payload of {byteCount} bytes can not be added to a storage table.");
+            }
+            else
+            {
+                if(byteCount + estimatedBytes > 4 * 1024 * 1024)
+                {
+                    updatedETagValue = await this.UploadHistoryBatch(instanceId, executionId, historyEventBatch, newEventListBuffer, newEvents.Count, eTagValue);
+
+                    // Reset local state for the next batch
+                    newEventListBuffer.Clear();
+                    historyEventBatch.Clear();
+                    estimatedBytes = 0;
+                }
+                else
+                {
+                    estimatedBytes += byteCount;
+                }
+            }
+
+            return (estimatedBytes, updatedETagValue);
+        }
+
+        void UpdateEstimatedBytesAndETagValue((int byteCount, string eTagValue) updatedValues, ref int estimatedBytes, ref string eTagValue)
+        {
+            estimatedBytes = updatedValues.byteCount;
+            if (updatedValues.eTagValue != null)
+            {
+                eTagValue = updatedValues.eTagValue;
+            }
         }
 
         Type GetTypeForTableEntity(DynamicTableEntity tableEntity)
