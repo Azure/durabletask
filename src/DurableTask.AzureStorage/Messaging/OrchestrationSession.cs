@@ -31,8 +31,9 @@ namespace DurableTask.AzureStorage.Messaging
             OrchestrationInstance orchestrationInstance,
             IReadOnlyList<MessageData> initialMessageBatch,
             Func<OrchestrationInstance, List<MessageData>> fetchMessagesCallback,
-            TimeSpan idleTimeout)
-            : base(storageAccountName, taskHubName, orchestrationInstance)
+            TimeSpan idleTimeout,
+            Guid traceActivityId)
+            : base(storageAccountName, taskHubName, orchestrationInstance, traceActivityId)
         {
             this.idleTimeout = idleTimeout;
             this.CurrentMessageBatch = initialMessageBatch;
@@ -65,7 +66,7 @@ namespace DurableTask.AzureStorage.Messaging
             var messages = new List<TaskMessage>(this.CurrentMessageBatch.Count);
             foreach (MessageData msg in this.CurrentMessageBatch)
             {
-                this.TraceMessageReceived(msg, isExtendedSession: true);
+                this.TraceProcessingMessage(msg, isExtendedSession: true);
                 messages.Add(msg.TaskMessage);
             }
 

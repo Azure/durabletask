@@ -5,6 +5,8 @@
     <TargetFrameworks>netstandard2.0;net451</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <Version>1.2.3</Version>
+    <AssemblyVersion>$(Version)</AssemblyVersion>
+    <FileVersion>$(Version)</FileVersion>
     <IncludeSymbols>true</IncludeSymbols>
     <Description>Azure Storage provider extension for the Durable Task Framework.</Description>
     <Authors>cgillum</Authors>

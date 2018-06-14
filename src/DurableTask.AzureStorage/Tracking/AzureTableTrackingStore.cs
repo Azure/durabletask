@@ -240,7 +240,8 @@ namespace DurableTask.AzureStorage.Tracking
                 historyEvents.Count,
                 requestCount,
                 stopwatch.ElapsedMilliseconds,
-                this.GetETagValue(instanceId));
+                this.GetETagValue(instanceId),
+                Utils.ExtensionVersion);
 
             return historyEvents;
         }
@@ -270,7 +271,8 @@ namespace DurableTask.AzureStorage.Tracking
                 this.taskHubName,
                 instanceId,
                 executionId ?? string.Empty,
-                stopwatch.ElapsedMilliseconds);
+                stopwatch.ElapsedMilliseconds,
+                Utils.ExtensionVersion);
 
             OrchestrationInstanceStatus orchestrationInstanceStatus = (OrchestrationInstanceStatus)orchestration.Result;
             if (orchestrationInstanceStatus == null)
@@ -375,7 +377,8 @@ namespace DurableTask.AzureStorage.Tracking
                 executionStartedEvent.OrchestrationInstance.InstanceId,
                 executionStartedEvent.OrchestrationInstance.ExecutionId,
                 executionStartedEvent.EventType.ToString(),
-                stopwatch.ElapsedMilliseconds);
+                stopwatch.ElapsedMilliseconds,
+                Utils.ExtensionVersion);
         }
 
         /// <inheritdoc />
@@ -499,7 +502,8 @@ namespace DurableTask.AzureStorage.Tracking
                 instanceId,
                 executionId,
                 orchestratorEventType?.ToString() ?? string.Empty,
-                orchestrationInstanceUpdateStopwatch.ElapsedMilliseconds);
+                orchestrationInstanceUpdateStopwatch.ElapsedMilliseconds,
+                Utils.ExtensionVersion);
         }
 
         Type GetTypeForTableEntity(DynamicTableEntity tableEntity)
@@ -679,7 +683,8 @@ namespace DurableTask.AzureStorage.Tracking
                         numberOfTotalEvents,
                         historyEventNamesBuffer.ToString(0, historyEventNamesBuffer.Length - 1), // remove trailing comma
                         stopwatch.ElapsedMilliseconds,
-                        eTagValue);
+                        eTagValue,
+                        Utils.ExtensionVersion);
                 }
 
                 throw;
@@ -709,7 +714,8 @@ namespace DurableTask.AzureStorage.Tracking
                 numberOfTotalEvents,
                 historyEventNamesBuffer.ToString(0, historyEventNamesBuffer.Length - 1), // remove trailing comma
                 stopwatch.ElapsedMilliseconds,
-                this.GetETagValue(instanceId));
+                this.GetETagValue(instanceId),
+                Utils.ExtensionVersion);
 
             return eTagValue;
         }
