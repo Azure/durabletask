@@ -35,6 +35,7 @@ namespace DurableTask.AzureStorage.Tracking
     /// </summary>
     class AzureTableTrackingStore : TrackingStoreBase
     {
+        const string NameProperty = "Name";
         const string InputProperty = "Input";
         const string ResultProperty = "Result";
         const string OutputProperty = "Output";
@@ -42,6 +43,14 @@ namespace DurableTask.AzureStorage.Tracking
         const string SentinelRowKey = "sentinel";
         const int MaxStorageQueuePayloadSizeInBytes = 60 * 1024; // 60KB
         const int GuidByteSize = 72;
+
+        static readonly string[] VariableSizeEntityProperties = new[]
+        {
+            NameProperty,
+            InputProperty,
+            ResultProperty,
+            OutputProperty,
+        };
 
         readonly string storageAccountName;
         readonly string taskHubName;
@@ -432,6 +441,9 @@ namespace DurableTask.AzureStorage.Tracking
                 // Replacement can happen if the orchestration episode gets replayed due to a commit failure in one of the steps below.
                 historyEventBatch.InsertOrReplace(entity);
 
+                // Keep track of the byte count to ensure we don't hit the 4 MB per-batch maximum
+                estimatedBytes += GetEstimatedByteCount(entity);
+
                 // Monitor for orchestration instance events 
                 switch (historyEvent.EventType)
                 {
@@ -443,28 +455,24 @@ namespace DurableTask.AzureStorage.Tracking
                         orchestrationInstanceUpdate.Properties["CreatedTime"] = new EntityProperty(executionStartedEvent.Timestamp);
                         orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Running.ToString());
                         this.SetTablePropertyForMessage(entity, orchestrationInstanceUpdate, InputProperty, InputProperty, executionStartedEvent.Input);
-                        this.UpdateEstimatedBytes(ref estimatedBytes, executionStartedEvent.Input);
                         break;
                     case EventType.ExecutionCompleted:
                         orchestratorEventType = historyEvent.EventType;
                         ExecutionCompletedEvent executionCompleted = (ExecutionCompletedEvent)historyEvent;
                         this.SetTablePropertyForMessage(entity, orchestrationInstanceUpdate, ResultProperty, OutputProperty, executionCompleted.Result);
                         orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(executionCompleted.OrchestrationStatus.ToString());
-                        this.UpdateEstimatedBytes(ref estimatedBytes, executionCompleted.Result);
                         break;
                     case EventType.ExecutionTerminated:
                         orchestratorEventType = historyEvent.EventType;
                         ExecutionTerminatedEvent executionTerminatedEvent = (ExecutionTerminatedEvent)historyEvent;
                         this.SetTablePropertyForMessage(entity, orchestrationInstanceUpdate, InputProperty, OutputProperty, executionTerminatedEvent.Input);
                         orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Terminated.ToString());
-                        this.UpdateEstimatedBytes(ref estimatedBytes, executionTerminatedEvent.Input);
                         break;
                     case EventType.ContinueAsNew:
                         orchestratorEventType = historyEvent.EventType;
                         ExecutionCompletedEvent executionCompletedEvent = (ExecutionCompletedEvent)historyEvent;
                         this.SetTablePropertyForMessage(entity, orchestrationInstanceUpdate, ResultProperty, OutputProperty, executionCompletedEvent.Result);
                         orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.ContinuedAsNew.ToString());
-                        this.UpdateEstimatedBytes(ref estimatedBytes, executionCompletedEvent.Result);
                         break;
                 }
 
@@ -513,10 +521,22 @@ namespace DurableTask.AzureStorage.Tracking
                 Utils.ExtensionVersion);
         }
 
-        void UpdateEstimatedBytes(ref int estimatedBytes, string payload)
+        static int GetEstimatedByteCount(DynamicTableEntity entity)
         {
-            int payloadBytes = Encoding.Unicode.GetByteCount(payload);
-            estimatedBytes += payloadBytes > MaxStorageQueuePayloadSizeInBytes ? GuidByteSize : payloadBytes;
+            // Assume at least 1 KB of data per entity to account for static-length properties
+            int estimatedByteCount = 1024;
+
+            // Count the bytes for variable-length properties, which are assumed to always be strings
+            foreach (string propertyName in VariableSizeEntityProperties)
+            {
+                EntityProperty property;
+                if (entity.Properties.TryGetValue(propertyName, out property) && !string.IsNullOrEmpty(property.StringValue))
+                {
+                    estimatedByteCount += Encoding.Unicode.GetByteCount(property.StringValue);
+                }
+            }
+
+            return estimatedByteCount;
         }
 
 
