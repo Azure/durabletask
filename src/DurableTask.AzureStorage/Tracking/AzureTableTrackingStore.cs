@@ -41,6 +41,7 @@ namespace DurableTask.AzureStorage.Tracking
         const string BlobNamePropertySuffix = "BlobName";
         const string SentinelRowKey = "sentinel";
         const int MaxStorageQueuePayloadSizeInBytes = 60 * 1024; // 60KB
+        const int GuidByteSize = 72;
 
         readonly string storageAccountName;
         readonly string taskHubName;
@@ -439,28 +440,28 @@ namespace DurableTask.AzureStorage.Tracking
                         orchestrationInstanceUpdate.Properties["CreatedTime"] = new EntityProperty(executionStartedEvent.Timestamp);
                         orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Running.ToString());
                         this.SetTablePropertyForMessage(entity, orchestrationInstanceUpdate, InputProperty, InputProperty, executionStartedEvent.Input);
-                        estimatedBytes += Encoding.Unicode.GetByteCount(executionStartedEvent.Input);
+                        this.UpdateEstimatedBytes(ref estimatedBytes, executionStartedEvent.Input);
                         break;
                     case EventType.ExecutionCompleted:
                         orchestratorEventType = historyEvent.EventType;
                         ExecutionCompletedEvent executionCompleted = (ExecutionCompletedEvent)historyEvent;
                         this.SetTablePropertyForMessage(entity, orchestrationInstanceUpdate, ResultProperty, OutputProperty, executionCompleted.Result);
                         orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(executionCompleted.OrchestrationStatus.ToString());
-                        estimatedBytes += Encoding.Unicode.GetByteCount(executionCompleted.Result);
+                        this.UpdateEstimatedBytes(ref estimatedBytes, executionCompleted.Result);
                         break;
                     case EventType.ExecutionTerminated:
                         orchestratorEventType = historyEvent.EventType;
                         ExecutionTerminatedEvent executionTerminatedEvent = (ExecutionTerminatedEvent)historyEvent;
                         this.SetTablePropertyForMessage(entity, orchestrationInstanceUpdate, InputProperty, OutputProperty, executionTerminatedEvent.Input);
                         orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Terminated.ToString());
-                        estimatedBytes += Encoding.Unicode.GetByteCount(executionTerminatedEvent.Input);
+                        this.UpdateEstimatedBytes(ref estimatedBytes, executionTerminatedEvent.Input);
                         break;
                     case EventType.ContinueAsNew:
                         orchestratorEventType = historyEvent.EventType;
                         ExecutionCompletedEvent executionCompletedEvent = (ExecutionCompletedEvent)historyEvent;
                         this.SetTablePropertyForMessage(entity, orchestrationInstanceUpdate, ResultProperty, OutputProperty, executionCompletedEvent.Result);
                         orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.ContinuedAsNew.ToString());
-                        estimatedBytes += Encoding.Unicode.GetByteCount(executionCompletedEvent.Result);
+                        this.UpdateEstimatedBytes(ref estimatedBytes, executionCompletedEvent.Result);
                         break;
                 }
 
@@ -507,6 +508,13 @@ namespace DurableTask.AzureStorage.Tracking
                 orchestratorEventType?.ToString() ?? string.Empty,
                 orchestrationInstanceUpdateStopwatch.ElapsedMilliseconds);
         }
+
+        void UpdateEstimatedBytes(ref int estimatedBytes, string payload)
+        {
+            int payloadBytes = Encoding.Unicode.GetByteCount(payload);
+            estimatedBytes += payloadBytes > MaxStorageQueuePayloadSizeInBytes ? GuidByteSize : payloadBytes;
+        }
+
 
         Type GetTypeForTableEntity(DynamicTableEntity tableEntity)
         {
