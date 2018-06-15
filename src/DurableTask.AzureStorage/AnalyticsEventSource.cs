@@ -255,7 +255,7 @@ namespace DurableTask.AzureStorage
                 ExtensionVersion);
         }
 
-        [Event(111, Level = EventLevel.Informational)]
+        [Event(111, Level = EventLevel.Informational, Version = 2)]
         public void AppendedInstanceHistory(
             string Account,
             string TaskHub,
@@ -265,6 +265,7 @@ namespace DurableTask.AzureStorage
             int TotalEventCount,
             string NewEvents,
             long LatencyMs,
+            int SizeInBytes,
             string ETag,
             string ExtensionVersion)
         {
@@ -279,6 +280,7 @@ namespace DurableTask.AzureStorage
                 TotalEventCount,
                 NewEvents,
                 LatencyMs,
+                SizeInBytes,
                 ETag ?? string.Empty,
                 ExtensionVersion);
         }

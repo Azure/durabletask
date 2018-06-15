@@ -479,7 +479,14 @@ namespace DurableTask.AzureStorage.Tracking
                 // Table storage only supports inserts of up to 100 entities at a time or 4 MB at a time.
                 if (historyEventBatch.Count == 99 || estimatedBytes > 3 * 1024 * 1024 /* 3 MB */)
                 {
-                    eTagValue = await this.UploadHistoryBatch(instanceId, executionId, historyEventBatch, newEventListBuffer, newEvents.Count, eTagValue);
+                    eTagValue = await this.UploadHistoryBatch(
+                        instanceId,
+                        executionId,
+                        historyEventBatch,
+                        newEventListBuffer,
+                        newEvents.Count,
+                        estimatedBytes,
+                        eTagValue);
 
                     // Reset local state for the next batch
                     newEventListBuffer.Clear();
@@ -491,7 +498,14 @@ namespace DurableTask.AzureStorage.Tracking
             // First persistence step is to commit history to the history table. Messages must come after.
             if (historyEventBatch.Count > 0)
             {
-                eTagValue = await this.UploadHistoryBatch(instanceId, executionId, historyEventBatch, newEventListBuffer, newEvents.Count, eTagValue);
+                eTagValue = await this.UploadHistoryBatch(
+                    instanceId,
+                    executionId,
+                    historyEventBatch,
+                    newEventListBuffer,
+                    newEvents.Count,
+                    estimatedBytes,
+                    eTagValue);
             }
 
             if (orchestratorEventType == EventType.ExecutionCompleted ||
@@ -674,6 +688,7 @@ namespace DurableTask.AzureStorage.Tracking
             TableBatchOperation historyEventBatch,
             StringBuilder historyEventNamesBuffer,
             int numberOfTotalEvents,
+            int estimatedBatchSizeInBytes,
             string eTagValue)
         {
             // Adding / updating sentinel entity
@@ -748,6 +763,7 @@ namespace DurableTask.AzureStorage.Tracking
                 numberOfTotalEvents,
                 historyEventNamesBuffer.ToString(0, historyEventNamesBuffer.Length - 1), // remove trailing comma
                 stopwatch.ElapsedMilliseconds,
+                estimatedBatchSizeInBytes,
                 this.GetETagValue(instanceId),
                 Utils.ExtensionVersion);
 
