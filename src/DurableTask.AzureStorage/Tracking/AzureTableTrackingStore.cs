@@ -41,6 +41,7 @@ namespace DurableTask.AzureStorage.Tracking
         const string BlobNamePropertySuffix = "BlobName";
         const string SentinelRowKey = "sentinel";
         const int MaxStorageQueuePayloadSizeInBytes = 60 * 1024; // 60KB
+        const int GuidByteSize = 72;
 
         readonly string storageAccountName;
         readonly string taskHubName;
@@ -392,6 +393,7 @@ namespace DurableTask.AzureStorage.Tracking
         /// <inheritdoc />
         public override async Task UpdateStateAsync(OrchestrationRuntimeState runtimeState, string instanceId, string executionId)
         {
+            int estimatedBytes = 0;
             IList<HistoryEvent> newEvents = runtimeState.NewEvents;
             IList<HistoryEvent> allEvents = runtimeState.Events;
 
@@ -430,16 +432,6 @@ namespace DurableTask.AzureStorage.Tracking
                 // Replacement can happen if the orchestration episode gets replayed due to a commit failure in one of the steps below.
                 historyEventBatch.InsertOrReplace(entity);
 
-                // Table storage only supports inserts of up to 100 entities at a time.
-                if (historyEventBatch.Count == 99)
-                {
-                    eTagValue = await this.UploadHistoryBatch(instanceId, executionId, historyEventBatch, newEventListBuffer, newEvents.Count, eTagValue);
-
-                    // Reset local state for the next batch
-                    newEventListBuffer.Clear();
-                    historyEventBatch.Clear();
-                }
-
                 // Monitor for orchestration instance events 
                 switch (historyEvent.EventType)
                 {
@@ -451,25 +443,40 @@ namespace DurableTask.AzureStorage.Tracking
                         orchestrationInstanceUpdate.Properties["CreatedTime"] = new EntityProperty(executionStartedEvent.Timestamp);
                         orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Running.ToString());
                         this.SetTablePropertyForMessage(entity, orchestrationInstanceUpdate, InputProperty, InputProperty, executionStartedEvent.Input);
+                        this.UpdateEstimatedBytes(ref estimatedBytes, executionStartedEvent.Input);
                         break;
                     case EventType.ExecutionCompleted:
                         orchestratorEventType = historyEvent.EventType;
                         ExecutionCompletedEvent executionCompleted = (ExecutionCompletedEvent)historyEvent;
                         this.SetTablePropertyForMessage(entity, orchestrationInstanceUpdate, ResultProperty, OutputProperty, executionCompleted.Result);
                         orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(executionCompleted.OrchestrationStatus.ToString());
+                        this.UpdateEstimatedBytes(ref estimatedBytes, executionCompleted.Result);
                         break;
                     case EventType.ExecutionTerminated:
                         orchestratorEventType = historyEvent.EventType;
                         ExecutionTerminatedEvent executionTerminatedEvent = (ExecutionTerminatedEvent)historyEvent;
                         this.SetTablePropertyForMessage(entity, orchestrationInstanceUpdate, InputProperty, OutputProperty, executionTerminatedEvent.Input);
                         orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Terminated.ToString());
+                        this.UpdateEstimatedBytes(ref estimatedBytes, executionTerminatedEvent.Input);
                         break;
                     case EventType.ContinueAsNew:
                         orchestratorEventType = historyEvent.EventType;
                         ExecutionCompletedEvent executionCompletedEvent = (ExecutionCompletedEvent)historyEvent;
                         this.SetTablePropertyForMessage(entity, orchestrationInstanceUpdate, ResultProperty, OutputProperty, executionCompletedEvent.Result);
                         orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.ContinuedAsNew.ToString());
+                        this.UpdateEstimatedBytes(ref estimatedBytes, executionCompletedEvent.Result);
                         break;
+                }
+
+                // Table storage only supports inserts of up to 100 entities at a time or 4 MB at a time.
+                if (historyEventBatch.Count == 99 || estimatedBytes > 3 * 1024 * 1024 /* 3 MB */)
+                {
+                    eTagValue = await this.UploadHistoryBatch(instanceId, executionId, historyEventBatch, newEventListBuffer, newEvents.Count, eTagValue);
+
+                    // Reset local state for the next batch
+                    newEventListBuffer.Clear();
+                    historyEventBatch.Clear();
+                    estimatedBytes = 0;
                 }
             }
 
@@ -505,6 +512,13 @@ namespace DurableTask.AzureStorage.Tracking
                 orchestrationInstanceUpdateStopwatch.ElapsedMilliseconds,
                 Utils.ExtensionVersion);
         }
+
+        void UpdateEstimatedBytes(ref int estimatedBytes, string payload)
+        {
+            int payloadBytes = Encoding.Unicode.GetByteCount(payload);
+            estimatedBytes += payloadBytes > MaxStorageQueuePayloadSizeInBytes ? GuidByteSize : payloadBytes;
+        }
+
 
         Type GetTypeForTableEntity(DynamicTableEntity tableEntity)
         {
