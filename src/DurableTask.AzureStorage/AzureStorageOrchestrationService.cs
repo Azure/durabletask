@@ -842,7 +842,7 @@ namespace DurableTask.AzureStorage
                 queueMessage.Id,
                 Math.Max(0, (int)DateTimeOffset.UtcNow.Subtract(queueMessage.InsertionTime.Value).TotalMilliseconds),
                 queueMessage.DequeueCount,
-                queueMessage.NextVisibleTime.GetValueOrDefault().DateTime,
+                queueMessage.NextVisibleTime.GetValueOrDefault().DateTime.ToString("o"),
                 data.TotalMessageSizeBytes,
                 data.QueueName /* PartitionId */,
                 Utils.ExtensionVersion);

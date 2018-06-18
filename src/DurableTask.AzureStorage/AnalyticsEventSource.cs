@@ -113,7 +113,7 @@ namespace DurableTask.AzureStorage
             string MessageId,
             int Age,
             int DequeueCount,
-            DateTime NextVisibleTime,
+            string NextVisibleTime,
             long SizeInBytes,
             string PartitionId,
             string ExtensionVersion)
@@ -214,7 +214,7 @@ namespace DurableTask.AzureStorage
         public void GeneralError(string Account, string TaskHub, string Details, string ExtensionVersion)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(107, Account, TaskHub, Details);
+            this.WriteEvent(107, Account, TaskHub, Details, ExtensionVersion);
         }
 
         [Event(108, Level = EventLevel.Warning, Message = "A duplicate message was detected. This can indicate a potential performance problem. Message ID = '{2}'. DequeueCount = {3}.")]
@@ -364,6 +364,7 @@ namespace DurableTask.AzureStorage
                 ExecutionId ?? string.Empty,
                 PartitionId,
                 EventType,
+                Details,
                 ExtensionVersion);
         }
 
@@ -383,6 +384,7 @@ namespace DurableTask.AzureStorage
                 TaskHub,
                 InstanceId,
                 ExecutionId ?? string.Empty,
+                Details,
                 ExtensionVersion);
         }
 
