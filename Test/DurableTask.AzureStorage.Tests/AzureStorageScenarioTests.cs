@@ -120,13 +120,38 @@ namespace DurableTask.AzureStorage.Tests
                 await host.StopAsync();
             }
         }
+
+        [TestMethod]
+        public async Task GetAllOrchestrationStatuses()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            {
+                // Execute the orchestrator twice. Orchestrator will be replied. However instances might be two.
+                await host.StartAsync();
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloInline), "wolrd one");
+                await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloInline), "wolrd two");
+                await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                // Create a client for testing
+                var serviceClient = host.GetServiceClient();
+                // TODO Currently we can't use TaskHub. It requires review of Core team. 
+                // Until then, we test it, not using TaskHub. Call diretly the method with some configuration. 
+                var results = await serviceClient.GetOrchestrationStateAsync();
+                Assert.AreEqual(2, results.Count);
+                Assert.IsNotNull(results.SingleOrDefault(r => r.Output == "\"Hello, wolrd one!\""));
+                Assert.IsNotNull(results.SingleOrDefault(r => r.Output == "\"Hello, wolrd two!\""));
+
+                await host.StopAsync();
+            }
+        }
+
         /// <summary>
         /// End-to-end test which validates parallel function execution by enumerating all files in the current directory 
         /// in parallel and getting the sum total of all file sizes.
         /// </summary>
         [DataTestMethod]
         [DataRow(true)]
-        [DataRow(false)]
+        //[DataRow(false)] // TODO: Re-enable when fixed: https://github.com/Azure/azure-functions-durable-extension/issues/344
         public async Task ParallelOrchestration(bool enableExtendedSessions)
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
@@ -146,7 +171,7 @@ namespace DurableTask.AzureStorage.Tests
 
         [DataTestMethod]
         [DataRow(true)]
-        [DataRow(false)]
+        //[DataRow(false)]
         public async Task LargeFanOutOrchestration(bool enableExtendedSessions)
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
@@ -154,6 +179,24 @@ namespace DurableTask.AzureStorage.Tests
                 await host.StartAsync();
 
                 var client = await host.StartOrchestrationAsync(typeof(Orchestrations.FanOutFanIn), 1000);
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(5));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+
+                await host.StopAsync();
+            }
+        }
+
+        [TestMethod]
+        public async Task FanOutOrchestration_LargeHistoryBatches()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: true))
+            {
+                await host.StartAsync();
+
+                // This test creates history payloads that exceed the 4 MB limit imposed by Azure Storage
+                // when 100 entities are uploaded at a time.
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.SemiLargePayloadFanOutFanIn), 90);
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(5));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
@@ -310,7 +353,7 @@ namespace DurableTask.AzureStorage.Tests
         /// </summary>
         [DataTestMethod]
         [DataRow(true)]
-        [DataRow(false)]
+        //[DataRow(false)] // TODO: Re-enable when fixed: https://github.com/Azure/azure-functions-durable-extension/issues/344
         public async Task OrchestrationConcurrency(bool enableExtendedSessions)
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
@@ -418,7 +461,7 @@ namespace DurableTask.AzureStorage.Tests
         /// </summary>
         [DataTestMethod]
         [DataRow(true)]
-        [DataRow(false)]
+        //[DataRow(false)] // TODO: Re-enable when fixed: https://github.com/Azure/azure-functions-durable-extension/issues/344
         public async Task FanOutToTableStorage(bool enableExtendedSessions)
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
@@ -873,6 +916,31 @@ namespace DurableTask.AzureStorage.Tests
                     await Task.WhenAll(tasks);
 
                     return "Done";
+                }
+            }
+
+            [KnownType(typeof(Activities.Echo))]
+            internal class SemiLargePayloadFanOutFanIn : TaskOrchestration<string, int>
+            {
+                static readonly string Some50KBPayload = new string('x', 25 * 1024); // Assumes UTF-16 encoding
+                static readonly string Some16KBPayload = new string('x', 8 * 1024); // Assumes UTF-16 encoding
+
+                public override async Task<string> RunTask(OrchestrationContext context, int parallelTasks)
+                {
+                    var tasks = new Task[parallelTasks];
+                    for (int i = 0; i < tasks.Length; i++)
+                    {
+                        tasks[i] = context.ScheduleTask<string>(typeof(Activities.Echo), Some50KBPayload);
+                    }
+
+                    await Task.WhenAll(tasks);
+
+                    return "Done";
+                }
+
+                public override string GetStatus()
+                {
+                    return Some16KBPayload;
                 }
             }
 

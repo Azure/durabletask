@@ -24,13 +24,13 @@ namespace DurableTask.AzureStorage.Messaging
         readonly string taskHubName;
         readonly Guid traceActivityId;
 
-        public SessionBase(string storageAccountName, string taskHubName, OrchestrationInstance orchestrationInstance)
+        public SessionBase(string storageAccountName, string taskHubName, OrchestrationInstance orchestrationInstance, Guid traceActivityId)
         {
             this.storageAccountName = storageAccountName ?? throw new ArgumentNullException(nameof(storageAccountName));
             this.taskHubName = taskHubName ?? throw new ArgumentNullException(nameof(taskHubName));
             this.Instance = orchestrationInstance ?? throw new ArgumentNullException(nameof(orchestrationInstance));
 
-            this.traceActivityId = Guid.NewGuid();
+            this.traceActivityId = traceActivityId;
             this.StorageOperationContext = new OperationContext
             {
                 ClientRequestID = this.traceActivityId.ToString(),
@@ -49,7 +49,7 @@ namespace DurableTask.AzureStorage.Messaging
             AnalyticsEventSource.SetLogicalTraceActivityId(this.traceActivityId);
         }
 
-        public void TraceMessageReceived(MessageData data, bool isExtendedSession)
+        public void TraceProcessingMessage(MessageData data, bool isExtendedSession)
         {
             if (data == null)
             {
@@ -59,7 +59,7 @@ namespace DurableTask.AzureStorage.Messaging
             TaskMessage taskMessage = data.TaskMessage;
             CloudQueueMessage queueMessage = data.OriginalQueueMessage;
 
-            AnalyticsEventSource.Log.ReceivedMessage(
+            AnalyticsEventSource.Log.ProcessingMessage(
                 data.ActivityId,
                 this.storageAccountName,
                 this.taskHubName,
@@ -68,10 +68,8 @@ namespace DurableTask.AzureStorage.Messaging
                 taskMessage.OrchestrationInstance.ExecutionId,
                 queueMessage.Id,
                 Math.Max(0, (int)DateTimeOffset.UtcNow.Subtract(queueMessage.InsertionTime.Value).TotalMilliseconds),
-                queueMessage.DequeueCount,
-                data.TotalMessageSizeBytes,
-                PartitionId: data.QueueName,
-                IsExtendedSession: isExtendedSession);
+                isExtendedSession,
+                Utils.ExtensionVersion);
         }
     }
 }

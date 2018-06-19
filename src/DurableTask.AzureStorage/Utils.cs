@@ -15,11 +15,14 @@ namespace DurableTask.AzureStorage
 {
     using System;
     using System.Collections.Generic;
+    using System.Diagnostics;
     using System.Threading.Tasks;
 
     static class Utils
     {
         public static readonly Task CompletedTask = Task.FromResult(0);
+
+        public static readonly string ExtensionVersion = FileVersionInfo.GetVersionInfo(typeof(AzureStorageOrchestrationService).Assembly.Location).FileVersion;
 
         public static async Task ParallelForEachAsync<TSource>(
             this IEnumerable<TSource> enumerable,

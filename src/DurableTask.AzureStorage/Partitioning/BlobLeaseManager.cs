@@ -147,7 +147,8 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.leaseContainerName,
                         this.consumerGroupName,
                         paritionId,
-                        this.blobPrefix ?? string.Empty));
+                        this.blobPrefix ?? string.Empty),
+                    Utils.ExtensionVersion);
 
                 await leaseBlob.UploadTextAsync(serializedLease, null, AccessCondition.GenerateIfNoneMatchCondition("*"), null, null);
             }
@@ -166,7 +167,8 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.consumerGroupName,
                         paritionId,
                         this.blobPrefix ?? string.Empty,
-                        se.Message));
+                        se.Message),
+                    Utils.ExtensionVersion);
             }
             finally
             {

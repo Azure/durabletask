@@ -122,7 +122,8 @@ namespace DurableTask.AzureStorage.Monitoring
                 AnalyticsEventSource.Log.GeneralWarning(
                     this.storageAccount.Credentials.AccountName,
                     this.taskHub,
-                    $"Task hub has not been provisioned: {e.RequestInformation.ExtendedErrorInformation?.ErrorMessage}");
+                    $"Task hub has not been provisioned: {e.RequestInformation.ExtendedErrorInformation?.ErrorMessage}",
+                    Utils.ExtensionVersion);
                 return false;
             }
 
