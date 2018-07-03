@@ -33,17 +33,17 @@ namespace DurableTask.Core
         const int BackoffIntervalOnInvalidOperationSecs = 10;
         const int CountDownToZeroDelay = 5;
         static TimeSpan DefaultReceiveTimeout = TimeSpan.FromSeconds(30);
-        static TimeSpan WaitIntervalOnMaxSessions = TimeSpan.FromSeconds(5);
         readonly string id;
         readonly string name;
         readonly object thisLock = new object();
-        readonly SemaphoreSlim slimLock = new SemaphoreSlim(1, 1);
+        readonly SemaphoreSlim initializationLock = new SemaphoreSlim(1, 1);
 
         volatile int concurrentWorkItemCount;
         volatile int countDownToZeroDelay;
         volatile int delayOverrideSecs;
         volatile int activeFetchers = 0;
         bool isStarted = false;
+        SemaphoreSlim concurrencyLock;
 
         /// <summary>
         /// Gets or sets the maximum concurrent work items
@@ -109,13 +109,16 @@ namespace DurableTask.Core
         {
             if (!isStarted)
             {
-                await slimLock.WaitAsync();
+                await initializationLock.WaitAsync();
                 try
                 {
                     if (isStarted)
                     {
                         throw TraceHelper.TraceException(TraceEventType.Error, "WorkItemDispatcherStart-AlreadyStarted", new InvalidOperationException($"WorkItemDispatcher '{name}' has already started"));
                     }
+
+                    concurrencyLock?.Dispose();
+                    concurrencyLock = new SemaphoreSlim(MaxConcurrentWorkItems);
 
                     isStarted = true;
 
@@ -131,7 +134,7 @@ namespace DurableTask.Core
                 }
                 finally
                 {
-                    slimLock.Release();
+                    initializationLock.Release();
                 }
             }
         }
@@ -147,7 +150,7 @@ namespace DurableTask.Core
                 return;
             }
 
-            await slimLock.WaitAsync();
+            await initializationLock.WaitAsync();
             try
             {
                 if (!isStarted)
@@ -172,7 +175,7 @@ namespace DurableTask.Core
             }
             finally
             {
-                slimLock.Release();
+                initializationLock.Release();
             }
         }
 
@@ -182,13 +185,12 @@ namespace DurableTask.Core
 
             while (isStarted)
             {
-                if (concurrentWorkItemCount >= MaxConcurrentWorkItems)
+                if (!await concurrencyLock.WaitAsync(TimeSpan.FromSeconds(5)))
                 {
                     TraceHelper.Trace(
-                        TraceEventType.Information, 
+                        TraceEventType.Warning,
                         "WorkItemDispatcherDispatch-MaxOperations",
-                        GetFormattedLog(dispatcherId, $"Max concurrent operations ({concurrentWorkItemCount}) are already in progress. Waiting for {WaitIntervalOnMaxSessions}s for next accept."));
-                    await Task.Delay(WaitIntervalOnMaxSessions);
+                        GetFormattedLog(dispatcherId, $"Max concurrent operations ({concurrentWorkItemCount}) are already in progress. Still waiting for next accept."));
                     continue;
                 }
 
@@ -245,6 +247,7 @@ namespace DurableTask.Core
                     Interlocked.Decrement(ref activeFetchers);
                 }
 
+                bool scheduledWorkItem = false;
                 if (!(Equals(workItem, default(T))))
                 {
                     if (!isStarted)
@@ -261,6 +264,8 @@ namespace DurableTask.Core
                         #pragma warning disable 4014 
                         Task.Run(() => ProcessWorkItemAsync(context, workItem));
                         #pragma warning restore 4014
+
+                        scheduledWorkItem = true;
                     }
                 }
 
@@ -268,6 +273,11 @@ namespace DurableTask.Core
                 if (delaySecs > 0)
                 {
                     await Task.Delay(TimeSpan.FromSeconds(delaySecs));
+                }
+
+                if (!scheduledWorkItem)
+                {
+                    concurrencyLock.Release();
                 }
             }
         }
@@ -342,6 +352,7 @@ namespace DurableTask.Core
             finally
             {
                 Interlocked.Decrement(ref concurrentWorkItemCount);
+                this.concurrencyLock.Release();
             }
 
             if (abortWorkItem && AbortWorkItem != null)
@@ -416,7 +427,8 @@ namespace DurableTask.Core
         {
             if (disposing)
             {
-                ((IDisposable)slimLock).Dispose();
+                initializationLock.Dispose();
+                concurrencyLock.Dispose();
             }
         }
     }
