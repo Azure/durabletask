@@ -44,6 +44,7 @@ namespace DurableTask.Core
         volatile int activeFetchers = 0;
         bool isStarted = false;
         SemaphoreSlim concurrencyLock;
+        CancellationTokenSource shutdownCancellationTokenSource;
 
         /// <summary>
         /// Gets or sets the maximum concurrent work items
@@ -57,7 +58,7 @@ namespace DurableTask.Core
 
         readonly Func<T, string> workItemIdentifier;
 
-        readonly Func<TimeSpan, Task<T>> FetchWorkItem;
+        readonly Func<TimeSpan, CancellationToken, Task<T>> FetchWorkItem;
         readonly Func<T, Task> ProcessWorkItem;
         
         /// <summary>
@@ -90,7 +91,7 @@ namespace DurableTask.Core
         public WorkItemDispatcher(
             string name, 
             Func<T, string> workItemIdentifier,
-            Func<TimeSpan, Task<T>> fetchWorkItem,
+            Func<TimeSpan, CancellationToken, Task<T>> fetchWorkItem,
             Func<T, Task> processWorkItem
             )
         {
@@ -119,6 +120,9 @@ namespace DurableTask.Core
 
                     concurrencyLock?.Dispose();
                     concurrencyLock = new SemaphoreSlim(MaxConcurrentWorkItems);
+
+                    shutdownCancellationTokenSource?.Dispose();
+                    shutdownCancellationTokenSource = new CancellationTokenSource();
 
                     isStarted = true;
 
@@ -159,6 +163,7 @@ namespace DurableTask.Core
                 }
 
                 isStarted = false;
+                shutdownCancellationTokenSource.Cancel();
 
                 TraceHelper.Trace(TraceEventType.Information, "WorkItemDispatcherStop-Begin", $"WorkItemDispatcher('{name}') stopping. Id {id}.");
                 if (!forced)
@@ -204,7 +209,7 @@ namespace DurableTask.Core
                         "WorkItemDispatcherDispatch-StartFetch",
                         GetFormattedLog(dispatcherId, $"Starting fetch with timeout of {DefaultReceiveTimeout} ({concurrentWorkItemCount}/{MaxConcurrentWorkItems} max)"));
                     var timer = Stopwatch.StartNew();
-                    workItem = await FetchWorkItem(DefaultReceiveTimeout);
+                    workItem = await FetchWorkItem(DefaultReceiveTimeout, shutdownCancellationTokenSource.Token);
                     TraceHelper.Trace(
                         TraceEventType.Verbose, 
                         "WorkItemDispatcherDispatch-EndFetch",
@@ -428,7 +433,8 @@ namespace DurableTask.Core
             if (disposing)
             {
                 initializationLock.Dispose();
-                concurrencyLock.Dispose();
+                concurrencyLock?.Dispose();
+                shutdownCancellationTokenSource?.Dispose();
             }
         }
     }

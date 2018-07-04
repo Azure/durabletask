@@ -593,59 +593,74 @@ namespace DurableTask.AzureStorage
 
             await this.EnsureTaskHubAsync();
 
+            cancellationToken = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, this.shutdownSource.Token).Token;
+
             Stopwatch receiveTimeoutStopwatch = Stopwatch.StartNew();
             PendingMessageBatch nextBatch;
             while (true)
             {
-                // Every dequeue operation has a common trace ID so that batches of dequeued messages can be correlated together.
-                // If messages are dequeued and processed in the same loop iteration, then they'll have the same trace activity ID.
-                // If messages are dequeued and saved for later, then the trace activity IDs will be different. In either case,
-                // both the dequeue traces and the processing traces will share the same "related" trace activity ID.
-                traceActivityId = StartNewLogicalTraceScope();
-
-                var messages = new ConcurrentBag<MessageData>();
-
-                // Stop dequeuing messages if the buffer gets too full.
-                if (this.stats.PendingOrchestratorMessages.Value < this.settings.ControlQueueBufferThreshold)
+                try
                 {
-                    await this.ownedControlQueues.Values.ParallelForEachAsync(
-                        async delegate (CloudQueue controlQueue)
-                        {
-                            IEnumerable<CloudQueueMessage> batch = await controlQueue.GetMessagesAsync(
-                                this.settings.ControlQueueBatchSize,
-                                this.settings.ControlQueueVisibilityTimeout,
-                                this.settings.ControlQueueRequestOptions,
-                                null /* operationContext */,
-                                cancellationToken);
-                            this.stats.StorageRequests.Increment();
+                    // Every dequeue operation has a common trace ID so that batches of dequeued messages can be correlated together.
+                    // If messages are dequeued and processed in the same loop iteration, then they'll have the same trace activity ID.
+                    // If messages are dequeued and saved for later, then the trace activity IDs will be different. In either case,
+                    // both the dequeue traces and the processing traces will share the same "related" trace activity ID.
+                    traceActivityId = StartNewLogicalTraceScope();
 
-                            await batch.ParallelForEachAsync(async delegate (CloudQueueMessage queueMessage)
+                    var messages = new ConcurrentBag<MessageData>();
+
+                    // Stop dequeuing messages if the buffer gets too full.
+                    if (this.stats.PendingOrchestratorMessages.Value < this.settings.ControlQueueBufferThreshold)
+                    {
+                        await this.ownedControlQueues.Values.ParallelForEachAsync(
+                            async delegate (CloudQueue controlQueue)
                             {
-                                MessageData messageData = await this.messageManager.DeserializeQueueMessageAsync(
-                                    queueMessage,
-                                    controlQueue.Name);
+                                IEnumerable<CloudQueueMessage> batch = await controlQueue.GetMessagesAsync(
+                                    this.settings.ControlQueueBatchSize,
+                                    this.settings.ControlQueueVisibilityTimeout,
+                                    this.settings.ControlQueueRequestOptions,
+                                    null /* operationContext */,
+                                    cancellationToken);
+                                this.stats.StorageRequests.Increment();
 
-                                TraceMessageReceived(messageData);
-                                messages.Add(messageData);
+                                await batch.ParallelForEachAsync(async delegate (CloudQueueMessage queueMessage)
+                                {
+                                    MessageData messageData = await this.messageManager.DeserializeQueueMessageAsync(
+                                        queueMessage,
+                                        controlQueue.Name);
+
+                                    TraceMessageReceived(messageData);
+                                    messages.Add(messageData);
+                                });
                             });
-                        });
 
-                    this.stats.MessagesRead.Increment(messages.Count);
-                    this.stats.PendingOrchestratorMessages.Increment(messages.Count);
+                        this.stats.MessagesRead.Increment(messages.Count);
+                        this.stats.PendingOrchestratorMessages.Increment(messages.Count);
+                    }
+
+                    nextBatch = this.StashMessagesAndGetNextBatch(messages);
+                    if (nextBatch != null)
+                    {
+                        break;
+                    }
+
+                    if (receiveTimeoutStopwatch.Elapsed > receiveTimeout)
+                    {
+                        return null;
+                    }
+
+                    await this.controlQueueBackoff.WaitAsync(cancellationToken);
+
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        return null;
+                    }
                 }
-
-                nextBatch = this.StashMessagesAndGetNextBatch(messages);
-                if (nextBatch != null)
+                catch (OperationCanceledException)
                 {
-                    break;
-                }
-
-                if (receiveTimeoutStopwatch.Elapsed > receiveTimeout)
-                {
+                    // Most likely the host is shutting down
                     return null;
                 }
-
-                await this.controlQueueBackoff.WaitAsync(cancellationToken);
             }
 
             this.controlQueueBackoff.Reset();
@@ -676,18 +691,30 @@ namespace DurableTask.AzureStorage
                 session.TraceProcessingMessage(message, isExtendedSession: false);
             }
 
-            OrchestrationRuntimeState runtimeState = await this.GetOrchestrationRuntimeStateAsync(
-                instance.InstanceId,
-                instance.ExecutionId,
-                cancellationToken);
-
             var orchestrationWorkItem = new TaskOrchestrationWorkItem
             {
                 InstanceId = instance.InstanceId,
-                OrchestrationRuntimeState = runtimeState,
                 LockedUntilUtc = session.CurrentMessageBatch.Min(msg => msg.OriginalQueueMessage.NextVisibleTime.Value.UtcDateTime),
                 NewMessages = session.CurrentMessageBatch.Select(m => m.TaskMessage).ToList(),
             };
+
+            OrchestrationRuntimeState runtimeState;
+            try
+            {
+                runtimeState = await this.GetOrchestrationRuntimeStateAsync(
+                    instance.InstanceId,
+                    instance.ExecutionId,
+                    cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                // host is shutting down - release any queued messages
+                await this.AbandonTaskOrchestrationWorkItemAsync(orchestrationWorkItem);
+                await this.ReleaseTaskOrchestrationWorkItemAsync(orchestrationWorkItem);
+                return null;
+            }
+
+            orchestrationWorkItem.OrchestrationRuntimeState = runtimeState;
 
             if (this.settings.ExtendedSessionsEnabled)
             {
@@ -1289,16 +1316,29 @@ namespace DurableTask.AzureStorage
         {
             await this.EnsureTaskHubAsync();
 
+            cancellationToken = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, this.shutdownSource.Token).Token;
+
             Stopwatch receiveTimeoutStopwatch = Stopwatch.StartNew();
             CloudQueueMessage queueMessage;
             while (true)
             {
-                queueMessage = await this.workItemQueue.GetMessageAsync(
-                    this.settings.WorkItemQueueVisibilityTimeout,
-                    this.settings.WorkItemQueueRequestOptions,
-                    null /* operationContext */,
-                    cancellationToken);
-                this.stats.StorageRequests.Increment();
+                try
+                {
+                    queueMessage = await this.workItemQueue.GetMessageAsync(
+                        this.settings.WorkItemQueueVisibilityTimeout,
+                        this.settings.WorkItemQueueRequestOptions,
+                        null /* operationContext */,
+                        cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    // host is shutting down
+                    return null;
+                }
+                finally
+                {
+                    this.stats.StorageRequests.Increment();
+                }
 
                 if (queueMessage != null)
                 {
@@ -1310,7 +1350,15 @@ namespace DurableTask.AzureStorage
                     return null;
                 }
 
-                await this.workItemQueueBackoff.WaitAsync(cancellationToken);
+                try
+                {
+                    await this.workItemQueueBackoff.WaitAsync(cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    // host is shutting down
+                    return null;
+                }
             }
 
             this.stats.MessagesRead.Increment();
@@ -1511,7 +1559,7 @@ namespace DurableTask.AzureStorage
             AnalyticsEventSource.Log.AbandoningMessage(
                 this.storageAccountName,
                 this.settings.TaskHubName,
-                workItem.TaskMessage.Event.EventType.ToString(),
+                workItem.TaskMessage?.Event.EventType.ToString() ?? string.Empty,
                 messageId,
                 instance.InstanceId,
                 instance.ExecutionId,
