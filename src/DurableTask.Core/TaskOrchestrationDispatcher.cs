@@ -101,11 +101,11 @@ namespace DurableTask.Core
         /// Method to get the next work item to process within supplied timeout
         /// </summary>
         /// <param name="receiveTimeout">The max timeout to wait</param>
+        /// <param name="cancellationToken">A cancellation token used to cancel a fetch operation.</param>
         /// <returns>A new TaskOrchestrationWorkItem</returns>
-        protected Task<TaskOrchestrationWorkItem> OnFetchWorkItemAsync(TimeSpan receiveTimeout)
+        protected Task<TaskOrchestrationWorkItem> OnFetchWorkItemAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken)
         {
-            // AFFANDAR : TODO : wire-up cancellation tokens
-            return this.orchestrationService.LockNextTaskOrchestrationWorkItemAsync(receiveTimeout, CancellationToken.None);
+            return this.orchestrationService.LockNextTaskOrchestrationWorkItemAsync(receiveTimeout, cancellationToken);
         }
 
         async Task OnProcessWorkItemSessionAsync(TaskOrchestrationWorkItem workItem)
