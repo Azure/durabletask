@@ -78,9 +78,9 @@ namespace DurableTask.Core
         /// </summary>
         public bool IncludeDetails { get; set;} 
 
-        Task<TaskActivityWorkItem> OnFetchWorkItemAsync(TimeSpan receiveTimeout)
+        Task<TaskActivityWorkItem> OnFetchWorkItemAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken)
         {
-            return this.orchestrationService.LockNextTaskActivityWorkItem(receiveTimeout, CancellationToken.None);
+            return this.orchestrationService.LockNextTaskActivityWorkItem(receiveTimeout, cancellationToken);
         }
 
         async Task OnProcessWorkItemAsync(TaskActivityWorkItem workItem)

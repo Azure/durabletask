@@ -1228,7 +1228,8 @@ namespace DurableTask.ServiceBus
         ///     Wait for the next orchestration work item and return the orchestration work item
         /// </summary>
         /// <param name="receiveTimeout">The timespan to wait for new messages before timing out</param>
-        async Task<TrackingWorkItem> FetchTrackingWorkItemAsync(TimeSpan receiveTimeout)
+        /// <param name="cancellationToken">A cancellation token which signals a host shutdown</param>
+        async Task<TrackingWorkItem> FetchTrackingWorkItemAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken)
         {
             MessageSession session = await trackingQueueClient.AcceptMessageSessionAsync(receiveTimeout);
             if (session == null)
