@@ -977,10 +977,24 @@ namespace DurableTask.ServiceBus
         }
 
         /// <summary>
-        ///    Create/start a new Orchestration
+        /// Creates a new orchestration
         /// </summary>
-        /// <param name="creationMessage">The task message for the new Orchestration</param>
-        public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage)
+        /// <param name="creationMessage">Orchestration creation message</param>
+        /// <exception cref="OrchestrationAlreadyExistsException">Will throw exception If any orchestration with the same instance Id exists in the instance store.</exception>
+        /// <returns></returns>
+        public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage)
+        {
+            return CreateTaskOrchestrationAsync(creationMessage, null);
+        }
+
+        /// <summary>
+        /// Creates a new orchestration and specifies a subset of states which should be de duplicated on in the client side
+        /// </summary>
+        /// <param name="creationMessage">Orchestration creation message</param>
+        /// <param name="deDupStatuses">States of previous orchestration executions to be considered while de-duping new orchestrations on the client</param>
+        /// <exception cref="OrchestrationAlreadyExistsException">Will throw an OrchestrationAlreadyExistsException exception If any orchestration with the same instance Id exists in the instance store and it has a status specified in deDupStatuses.</exception>
+        /// <returns></returns>
+        public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, IEnumerable<OrchestrationStatus> deDupStatuses)
         {
             // First, lets push the orchestration state (Pending) into JumpStart table
             bool jumpStartEnabled = false;
@@ -988,10 +1002,12 @@ namespace DurableTask.ServiceBus
             {
                 // TODO: GetOrchestrationState is still flaky as we are fetching from 2 tables while messages are being deleted and added
                 // to JumpStart table by JumpStart manager
-                if ((await this.GetOrchestrationStateAsync(creationMessage.OrchestrationInstance.InstanceId, true)).Count != 0)
+
+                var latestState = (await this.GetOrchestrationStateAsync(creationMessage.OrchestrationInstance.InstanceId, false)).FirstOrDefault();
+                if (latestState != null && (deDupStatuses == null || deDupStatuses.Contains(latestState.OrchestrationStatus)))
                 {
-                    // An orchestratoion with same instance id is already running
-                    throw new OrchestrationAlreadyExistsException($"An orchestration with id '{creationMessage.OrchestrationInstance.InstanceId}' already exists");
+                    // An orchestration with same instance id is already running
+                    throw new OrchestrationAlreadyExistsException($"An orchestration with id '{creationMessage.OrchestrationInstance.InstanceId}' already exists. It is in state {latestState.OrchestrationStatus}");
                 }
 
                 await this.UpdateJumpStartStoreAsync(creationMessage);
@@ -1580,7 +1596,7 @@ namespace DurableTask.ServiceBus
             {
                 try
                 {
-                await CreateQueueAsync(namespaceManager, path, requiresSessions, requiresDuplicateDetection, maxDeliveryCount, maxSizeInMegabytes);
+                    await CreateQueueAsync(namespaceManager, path, requiresSessions, requiresDuplicateDetection, maxDeliveryCount, maxSizeInMegabytes);
                 }
                 catch (MessagingEntityAlreadyExistsException)
                 {

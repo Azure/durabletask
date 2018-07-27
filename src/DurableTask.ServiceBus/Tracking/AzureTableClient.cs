@@ -159,7 +159,6 @@ namespace DurableTask.ServiceBus.Tracking
         {
             OrchestrationStateQueryFilter primaryFilter = null;
             IEnumerable<OrchestrationStateQueryFilter> secondaryFilters = null;
-
             Tuple<OrchestrationStateQueryFilter, IEnumerable<OrchestrationStateQueryFilter>> filters =
                 stateQuery.GetFilters();
             if (filters != null)
@@ -300,8 +299,9 @@ namespace DurableTask.ServiceBus.Tracking
             else if (filter is OrchestrationStateStatusFilter)
             {
                 var typedFilter = filter as OrchestrationStateStatusFilter;
+                var template = typedFilter.Inverted ? AzureTableConstants.StatusQueryInvertedSecondaryFilterTemplate : AzureTableConstants.StatusQuerySecondaryFilterTemplate;
                 filterExpression = string.Format(CultureInfo.InvariantCulture,
-                    AzureTableConstants.StatusQuerySecondaryFilterTemplate, typedFilter.Status);
+                    template, typedFilter.Status);
             }
             else if (filter is OrchestrationStateTimeRangeFilter)
             {

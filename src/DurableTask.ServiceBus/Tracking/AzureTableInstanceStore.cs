@@ -132,21 +132,24 @@ namespace DurableTask.ServiceBus.Tracking
         /// <returns>List of matching orchestration states</returns>
         public async Task<IEnumerable<OrchestrationStateInstanceEntity>> GetOrchestrationStateAsync(string instanceId, bool allInstances)
         {
+            var query = new OrchestrationStateQuery().AddInstanceFilter(instanceId);
+            query = allInstances ? query : query.AddStatusFilter(OrchestrationStatus.ContinuedAsNew, true);
+
             // Fetch unscheduled orchestrations from JumpStart table
             // We need to get this first to avoid a race condition.
-            IEnumerable<AzureTableOrchestrationStateEntity> jumpStartEntities = await Utils.ExecuteWithRetries(() => this.tableClient.QueryJumpStartOrchestrationsAsync(new OrchestrationStateQuery().AddInstanceFilter(instanceId)),
+            IEnumerable<AzureTableOrchestrationStateEntity> jumpStartEntities = await Utils.ExecuteWithRetries(() => this.tableClient.QueryJumpStartOrchestrationsAsync(query),
                 string.Empty,
                 "GetOrchestrationStateAsync-jumpStartEntities",
                 MaxRetriesTableStore,
                 IntervalBetweenRetriesSecs).ConfigureAwait(false);
 
-            IEnumerable<AzureTableOrchestrationStateEntity> stateEntities = await Utils.ExecuteWithRetries(() =>  tableClient.QueryOrchestrationStatesAsync(new OrchestrationStateQuery().AddInstanceFilter(instanceId)),
+            IEnumerable<AzureTableOrchestrationStateEntity> stateEntities = await Utils.ExecuteWithRetries(() => this.tableClient.QueryOrchestrationStatesAsync(query),
                 string.Empty,
                 "GetOrchestrationStateAsync-stateEntities",
                 MaxRetriesTableStore,
                 IntervalBetweenRetriesSecs).ConfigureAwait(false);
 
-            IEnumerable <OrchestrationState> states = stateEntities.Select(stateEntity => stateEntity.State);
+            IEnumerable<OrchestrationState> states = stateEntities.Select(stateEntity => stateEntity.State);
             IEnumerable<OrchestrationState> jumpStartStates = jumpStartEntities.Select(j => j.State)
                 .Where(js => !states.Any(s => s.OrchestrationInstance.InstanceId == js.OrchestrationInstance.InstanceId));
 
@@ -154,19 +157,15 @@ namespace DurableTask.ServiceBus.Tracking
 
             if (allInstances)
             {
-                return newStates.Select(TableStateToStateEvent); ;
+                return newStates.Select(TableStateToStateEvent);
             }
 
-            foreach (OrchestrationState state in newStates)
+            if (!newStates.Any())
             {
-                // TODO: This will just return the first non-ContinuedAsNew orchestration and not the latest one.
-                if (state.OrchestrationStatus != OrchestrationStatus.ContinuedAsNew)
-                {
-                    return new List<OrchestrationStateInstanceEntity>() { TableStateToStateEvent(state) };
-                }
+                return new OrchestrationStateInstanceEntity[0];
             }
 
-            return null;
+            return new List<OrchestrationStateInstanceEntity>() { TableStateToStateEvent(newStates.OrderBy(x=>x.LastUpdatedTime).FirstOrDefault()) };
         }
 
         /// <summary>

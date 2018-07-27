@@ -187,13 +187,24 @@ namespace DurableTask.Core
         /// <returns></returns>
         public OrchestrationStateQuery AddStatusFilter(OrchestrationStatus status)
         {
-            if (FilterMap.ContainsKey(typeof (OrchestrationStateStatusFilter)))
+            return AddStatusFilter(status, false);
+        }
+
+        /// <summary>
+        ///     Adds a status filter on the returned orchestrations
+        /// </summary>
+        /// <param name="status">The status to filter by</param>
+        /// <param name="inverted">true if the status is to be excluded</param>
+        /// <returns></returns>
+        public OrchestrationStateQuery AddStatusFilter(OrchestrationStatus status, bool inverted)
+        {
+            if (FilterMap.ContainsKey(typeof(OrchestrationStateStatusFilter)))
             {
                 throw new ArgumentException("Cannot add more than one status filters");
             }
 
-            FilterMap.Add(typeof (OrchestrationStateStatusFilter),
-                new OrchestrationStateStatusFilter {Status = status});
+            FilterMap.Add(typeof(OrchestrationStateStatusFilter),
+                new OrchestrationStateStatusFilter { Status = status, Inverted = inverted });
 
             return this;
         }

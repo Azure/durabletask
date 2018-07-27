@@ -22,5 +22,10 @@ namespace DurableTask.Core
         /// Gets or sets the Status for the filter
         /// </summary>
         public OrchestrationStatus Status { get; set; }
+
+        /// <summary>
+        /// True if we would like the inverse of this condition
+        /// </summary>
+        public bool Inverted { get; set; }
     }
 }

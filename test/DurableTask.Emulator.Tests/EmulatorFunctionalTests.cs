@@ -18,6 +18,7 @@ namespace DurableTask.Emulator.Tests
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Core;
+    using DurableTask.Core.Exceptions;
     using DurableTask.Emulator;
     using DurableTask.Test.Orchestrations;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -50,6 +51,40 @@ namespace DurableTask.Emulator.Tests
 
             Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,
                 "Orchestration Result is wrong!!!");
+
+            await worker.StopAsync(true);
+        }
+
+        [TestMethod]
+        public async Task MockReCreateOrchestrationTest()
+        {
+            LocalOrchestrationService orchService = new LocalOrchestrationService();
+
+            TaskHubWorker worker = new TaskHubWorker(orchService);
+
+            await worker.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
+                .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
+                .StartAsync();
+
+            TaskHubClient client = new TaskHubClient(orchService);
+
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), null);
+
+            OrchestrationState result = await client.WaitForOrchestrationAsync(id, TimeSpan.FromSeconds(30), new CancellationToken());
+            Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
+
+            await Assert.ThrowsExceptionAsync<OrchestrationAlreadyExistsException>(() => client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null));
+
+            await Assert.ThrowsExceptionAsync<OrchestrationAlreadyExistsException>(() => client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null, new OrchestrationStatus[] { OrchestrationStatus.Completed}));
+
+            SimplestGreetingsOrchestration.Result = String.Empty;
+
+            OrchestrationInstance id2 = await client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null, new OrchestrationStatus[] {});
+            result = await client.WaitForOrchestrationAsync(id2, TimeSpan.FromSeconds(30), new CancellationToken());
+            Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
+
+            Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,
+                "Orchestration Result on Re-Create is wrong!!!");
 
             await worker.StopAsync(true);
         }

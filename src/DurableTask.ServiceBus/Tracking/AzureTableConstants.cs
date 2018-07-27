@@ -80,6 +80,7 @@ namespace DurableTask.ServiceBus.Tracking
         public const string NameVersionQuerySecondaryFilterExactTemplate = "((Name eq '{0}') and (Version eq '{1}'))";
 
         public const string StatusQuerySecondaryFilterTemplate = "(OrchestrationStatus eq '{0}')";
+        public const string StatusQueryInvertedSecondaryFilterTemplate = "(OrchestrationStatus ne '{0}')";
 
         public const string CreatedTimeRangeQuerySecondaryFilterTemplate =
             "((CreatedTime ge datetime'{0}') and (CreatedTime lt datetime'{1}')) ";
