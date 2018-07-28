@@ -41,6 +41,11 @@ namespace DurableTask.ServiceBus.Tracking
         readonly CloudTableClient tableClient;
         readonly object thisLock = new object();
 
+        static readonly IDictionary<FilterComparisonType, string> comparisonOperatorMap 
+            = new Dictionary<FilterComparisonType, string>()
+            {{ FilterComparisonType.Equals, AzureTableConstants.EqualityOperator},
+            { FilterComparisonType.NotEquals, AzureTableConstants.InEqualityOperator}};
+
         volatile CloudTable historyTable;
         volatile CloudTable jumpStartTable;
 
@@ -299,9 +304,9 @@ namespace DurableTask.ServiceBus.Tracking
             else if (filter is OrchestrationStateStatusFilter)
             {
                 var typedFilter = filter as OrchestrationStateStatusFilter;
-                var template = typedFilter.Inverted ? AzureTableConstants.StatusQueryInvertedSecondaryFilterTemplate : AzureTableConstants.StatusQuerySecondaryFilterTemplate;
+                var template = AzureTableConstants.StatusQuerySecondaryFilterTemplate;
                 filterExpression = string.Format(CultureInfo.InvariantCulture,
-                    template, typedFilter.Status);
+                    template, comparisonOperatorMap[typedFilter.ComparisonType], typedFilter.Status);
             }
             else if (filter is OrchestrationStateTimeRangeFilter)
             {

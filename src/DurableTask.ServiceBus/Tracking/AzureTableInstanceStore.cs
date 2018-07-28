@@ -133,7 +133,7 @@ namespace DurableTask.ServiceBus.Tracking
         public async Task<IEnumerable<OrchestrationStateInstanceEntity>> GetOrchestrationStateAsync(string instanceId, bool allInstances)
         {
             var query = new OrchestrationStateQuery().AddInstanceFilter(instanceId);
-            query = allInstances ? query : query.AddStatusFilter(OrchestrationStatus.ContinuedAsNew, true);
+            query = allInstances ? query : query.AddStatusFilter(OrchestrationStatus.ContinuedAsNew, FilterComparisonType.NotEquals);
 
             // Fetch unscheduled orchestrations from JumpStart table
             // We need to get this first to avoid a race condition.

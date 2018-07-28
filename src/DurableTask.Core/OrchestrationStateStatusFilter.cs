@@ -24,8 +24,8 @@ namespace DurableTask.Core
         public OrchestrationStatus Status { get; set; }
 
         /// <summary>
-        /// True if we would like the inverse of this condition
+        /// Type of comparison to be formed with the state
         /// </summary>
-        public bool Inverted { get; set; }
+        public FilterComparisonType ComparisonType { get; set; }
     }
 }
