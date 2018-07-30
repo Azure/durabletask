@@ -1002,6 +1002,7 @@ namespace DurableTask.ServiceBus
             {
                 // TODO: GetOrchestrationState is still flaky as we are fetching from 2 tables while messages are being deleted and added
                 // to JumpStart table by JumpStart manager
+                // not threadsafe in case multiple clients attempt to create an orchestration instance with the same id at the same time
 
                 var latestState = (await this.GetOrchestrationStateAsync(creationMessage.OrchestrationInstance.InstanceId, false)).FirstOrDefault();
                 if (latestState != null && (dedupeStatuses == null || dedupeStatuses.Contains(latestState.OrchestrationStatus)))

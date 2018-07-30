@@ -1670,7 +1670,6 @@ namespace DurableTask.AzureStorage
         /// </summary>
         /// <param name="creationMessage">Orchestration creation message</param>
         /// <param name="dedupeStatuses">States of previous orchestration executions to be considered while de-duping new orchestrations on the client</param>
-        /// <returns></returns>
         public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, IEnumerable<OrchestrationStatus> dedupeStatuses)
         {
             return this.SendTaskOrchestrationMessageAsync(creationMessage);
