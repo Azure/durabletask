@@ -97,13 +97,13 @@ namespace DurableTask.Core
         /// <param name="orchestrationType">Type that derives from TaskOrchestration</param>
         /// <param name="instanceId">Instance id for the orchestration to be created, must be unique across the Task Hub</param>
         /// <param name="input">Input parameter to the specified TaskOrchestration</param>
-        /// <param name="deDupStatuses">States of previous orchestration executions to be considered while de-duping new orchestrations on the client</param>
+        /// <param name="dedupeStatuses">States of previous orchestration executions to be considered while de-duping new orchestrations on the client</param>
         /// <returns>OrchestrationInstance that represents the orchestration that was created</returns>
         public Task<OrchestrationInstance> CreateOrchestrationInstanceAsync(
             Type orchestrationType,
             string instanceId,
             object input, 
-            IEnumerable<OrchestrationStatus> deDupStatuses
+            IEnumerable<OrchestrationStatus> dedupeStatuses
             )
         {
             return InternalCreateOrchestrationInstanceWithRaisedEventAsync(
@@ -112,7 +112,7 @@ namespace DurableTask.Core
                 instanceId,
                 input,
                 null,
-                deDupStatuses,
+                dedupeStatuses,
                 null,
                 null);
         }
@@ -169,7 +169,7 @@ namespace DurableTask.Core
         /// <param name="instanceId">Instance id for the orchestration to be created, must be unique across the Task Hub</param>
         /// <param name="input">Input parameter to the specified TaskOrchestration</param>
         /// <param name="tags">Dictionary of key/value tags associated with this instance</param>
-        /// <param name="deDupStatuses">States of previous orchestration executions to be considered while de-duping new orchestrations on the client</param>
+        /// <param name="dedupeStatuses">States of previous orchestration executions to be considered while de-duping new orchestrations on the client</param>
         /// <returns>OrchestrationInstance that represents the orchestration that was created</returns>
         public Task<OrchestrationInstance> CreateOrchestrationInstanceAsync(
             string name,
@@ -177,9 +177,9 @@ namespace DurableTask.Core
             string instanceId,
             object input,
             IDictionary<string, string> tags,
-            IEnumerable<OrchestrationStatus> deDupStatuses)
+            IEnumerable<OrchestrationStatus> dedupeStatuses)
         {
-            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(name, version, instanceId, input, tags, deDupStatuses, null, null);
+            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(name, version, instanceId, input, tags, dedupeStatuses, null, null);
         }
 
         /// <summary>
@@ -243,7 +243,7 @@ namespace DurableTask.Core
         /// <param name="orchestrationType">Type that derives from TaskOrchestration</param>
         /// <param name="instanceId">Instance id for the orchestration to be created, must be unique across the Task Hub</param>
         /// <param name="orchestrationInput">Input parameter to the specified TaskOrchestration</param>
-        /// <param name="deDupStatuses">States of previous orchestration executions to be considered while de-duping new orchestrations on the client</param>
+        /// <param name="dedupeStatuses">States of previous orchestration executions to be considered while de-duping new orchestrations on the client</param>
         /// <param name="eventName">Name of the event</param>
         /// <param name="eventData">Data for the event</param>
         /// <returns>OrchestrationInstance that represents the orchestration that was created</returns>
@@ -251,7 +251,7 @@ namespace DurableTask.Core
             Type orchestrationType,
             string instanceId,
             object orchestrationInput,
-            IEnumerable<OrchestrationStatus> deDupStatuses,
+            IEnumerable<OrchestrationStatus> dedupeStatuses,
             string eventName,
             object eventData)
         {
@@ -261,7 +261,7 @@ namespace DurableTask.Core
                 instanceId,
                 orchestrationInput,
                 null,
-                deDupStatuses,
+                dedupeStatuses,
                 eventName,
                 eventData);
         }
@@ -385,7 +385,7 @@ namespace DurableTask.Core
         /// <param name="instanceId">Instance id for the orchestration to be created, must be unique across the Task Hub</param>
         /// <param name="orchestrationInput">Input parameter to the specified TaskOrchestration</param>
         /// <param name="orchestrationTags">Dictionary of key/value tags associated with this instance</param>
-        /// <param name="deDupStatuses">States of previous orchestration executions to be considered while de-duping new orchestrations on the client</param>
+        /// <param name="dedupeStatuses">States of previous orchestration executions to be considered while de-duping new orchestrations on the client</param>
         /// <param name="eventName">Name of the event</param>
         /// <param name="eventData">Data for the event</param>
         /// <returns>OrchestrationInstance that represents the orchestration that was created</returns>
@@ -395,7 +395,7 @@ namespace DurableTask.Core
             string instanceId,
             object orchestrationInput,
             IDictionary<string, string> orchestrationTags,
-            IEnumerable<OrchestrationStatus> deDupStatuses,
+            IEnumerable<OrchestrationStatus> dedupeStatuses,
             string eventName,
             object eventData)
         {
@@ -405,7 +405,7 @@ namespace DurableTask.Core
                 instanceId,
                 orchestrationInput,
                 orchestrationTags,
-                deDupStatuses,
+                dedupeStatuses,
                 eventName,
                 eventData);
         }
@@ -441,7 +441,7 @@ namespace DurableTask.Core
             string orchestrationInstanceId, 
             object orchestrationInput, 
             IDictionary<string, string> orchestrationTags,
-            IEnumerable<OrchestrationStatus> deDupStatuses,
+            IEnumerable<OrchestrationStatus> dedupeStatuses,
             string eventName, 
             object eventData)
         {
@@ -494,7 +494,7 @@ namespace DurableTask.Core
             }
 
             // Raised events and create orchestration calls use different methods so get handled separately
-            await Task.WhenAll(taskMessages.Where(t => !(t.Event is EventRaisedEvent)).Select(x=>this.serviceClient.CreateTaskOrchestrationAsync(x, deDupStatuses)));
+            await Task.WhenAll(taskMessages.Where(t => !(t.Event is EventRaisedEvent)).Select(x=>this.serviceClient.CreateTaskOrchestrationAsync(x, dedupeStatuses)));
             await this.serviceClient.SendTaskOrchestrationMessageBatchAsync(taskMessages.Where(t => (t.Event is EventRaisedEvent)).ToArray());
             return orchestrationInstance;
         }

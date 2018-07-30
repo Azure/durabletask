@@ -36,10 +36,10 @@ namespace DurableTask.Core
         /// Creates a new orchestration and specifies a subset of states which should be de duplicated on in the client side
         /// </summary>
         /// <param name="creationMessage">Orchestration creation message</param>
-        /// <param name="deDupStatuses">States of previous orchestration executions to be considered while de-duping new orchestrations on the client</param>
-        /// <exception cref="OrchestrationAlreadyExistsException">Will throw an OrchestrationAlreadyExistsException exception If any orchestration with the same instance Id exists in the instance store and it has a status specified in deDupStatuses.</exception>
+        /// <param name="dedupeStatuses">States of previous orchestration executions to be considered while de-duping new orchestrations on the client</param>
+        /// <exception cref="OrchestrationAlreadyExistsException">Will throw an OrchestrationAlreadyExistsException exception If any orchestration with the same instance Id exists in the instance store and it has a status specified in dedupeStatuses.</exception>
         /// <returns></returns>
-        Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, IEnumerable<OrchestrationStatus> deDupStatuses);
+        Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, IEnumerable<OrchestrationStatus> dedupeStatuses);
 
         /// <summary>
         /// Send a new message for an orchestration

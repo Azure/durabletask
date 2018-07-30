@@ -167,7 +167,7 @@ namespace DurableTask.Emulator
         }
 
         /// <inheritdoc />
-        public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, IEnumerable<OrchestrationStatus> deDupStatuses)
+        public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, IEnumerable<OrchestrationStatus> dedupeStatuses)
         {
             ExecutionStartedEvent ee = creationMessage.Event as ExecutionStartedEvent;
 
@@ -188,7 +188,7 @@ namespace DurableTask.Emulator
 
                 var latestState = ed.Values.OrderBy(x => x.CreatedTime).FirstOrDefault(x => x.OrchestrationStatus != OrchestrationStatus.ContinuedAsNew);
 
-                if (latestState != null && (deDupStatuses == null || deDupStatuses.Contains(latestState.OrchestrationStatus)))
+                if (latestState != null && (dedupeStatuses == null || dedupeStatuses.Contains(latestState.OrchestrationStatus)))
                 {
                     // An orchestration with same instance id is already running
                     throw new OrchestrationAlreadyExistsException($"An orchestration with id '{creationMessage.OrchestrationInstance.InstanceId}' already exists. It is in state {latestState.OrchestrationStatus}");
