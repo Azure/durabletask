@@ -92,7 +92,7 @@ namespace DurableTask.ServiceBus.Tests
         }
 
         [TestMethod]
-        public async Task SimplestGreetingsReCreationTest()
+        public async Task SimplestGreetingsRecreationTest()
         {
             SimplestGreetingsOrchestration.Result = string.Empty;
 

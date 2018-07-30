@@ -56,7 +56,7 @@ namespace DurableTask.Emulator.Tests
         }
 
         [TestMethod]
-        public async Task MockReCreateOrchestrationTest()
+        public async Task MockRecreateOrchestrationTest()
         {
             LocalOrchestrationService orchService = new LocalOrchestrationService();
 
