@@ -292,11 +292,310 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         /// <summary>
-        /// End-to-end test which validates the cancellation of durable timers.
+        /// End-to-end test which validates the Rewind functionality on more than one orchestration.
+        /// </summary>
+        [DataTestMethod]
+        //[DataRow(true)]
+        // TODO: figure out what to do about extended sessions
+        [DataRow(false)]
+        public async Task RewindOrchestrationsFail(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                Orchestrations.FactorialFail.ShouldFail = true;
+                await host.StartAsync();
+
+                string singletonInstanceId1 = $"1_Test_{Guid.NewGuid():N}";
+                string singletonInstanceId2 = $"2_Test_{Guid.NewGuid():N}";
+
+                Activities.MultiplyFail.ShouldFail1 = false;
+                Activities.MultiplyFail.ShouldFail2 = false;
+
+                var client1 = await host.StartOrchestrationAsync(
+                    typeof(Orchestrations.FactorialFail),
+                    input: 3, 
+                    instanceId: singletonInstanceId1);
+
+                var statusFail = await client1.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
+
+                Orchestrations.FactorialFail.ShouldFail = false;
+
+                var client2 = await host.StartOrchestrationAsync(
+                typeof(Orchestrations.SayHelloWithActivity),
+                input: "Catherine",
+                instanceId: singletonInstanceId2);
+
+                await client1.RewindAsync("rewind!"); 
+
+                var statusRewind = await client1.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, statusRewind?.OrchestrationStatus);
+                Assert.AreEqual("6", statusRewind?.Output);
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// End-to-end test which validates the Rewind functionality with fan in fan out pattern.
         /// </summary>
         [DataTestMethod]
         [DataRow(true)]
+        //[DataRow(false)]
+        public async Task RewindActivityFailFanOut(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                Activities.HelloFail.ShouldFail1 = false;
+                await host.StartAsync();
+
+                string singletonInstanceId = $"Test_{Guid.NewGuid():N}";
+
+                var client = await host.StartOrchestrationAsync(
+                    typeof(Orchestrations.FanOutFanInRewind),
+                    input: 3,
+                    instanceId: singletonInstanceId);
+
+                var statusFail = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
+
+                Activities.HelloFail.ShouldFail2 = false;
+
+                await client.RewindAsync("rewind!");
+
+                var statusRewind = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, statusRewind?.OrchestrationStatus);
+                Assert.AreEqual("\"Done\"", statusRewind?.Output);
+
+                await host.StopAsync();
+            }
+        }
+
+
+        /// <summary>
+        /// End-to-end test which validates the Rewind functionality on an activity function failure 
+        /// with modified (to fail initially) SayHelloWithActivity orchestrator.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(true)]
+        //[DataRow(false)]
+        public async Task RewindActivityFail(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                await host.StartAsync();
+
+                string singletonInstanceId = $"{Guid.NewGuid():N}";
+
+                Activities.HelloFail.ShouldFail1 = false;
+
+                var client = await host.StartOrchestrationAsync(
+                    typeof(Orchestrations.SayHelloWithActivityFail),
+                    input: "World",
+                    instanceId: singletonInstanceId);
+
+                var statusFail = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
+
+                Activities.HelloFail.ShouldFail2 = false;
+
+                await client.RewindAsync("REWIND");
+
+                var statusRewind = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, statusRewind?.OrchestrationStatus);
+                Assert.AreEqual("\"Hello, World!\"", statusRewind?.Output);
+
+                await host.StopAsync();
+            }
+        }
+
+        [DataTestMethod]
+        //[DataRow(true)]
         [DataRow(false)]
+        public async Task RewindMultipleActivityFail(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                await host.StartAsync();
+
+                string singletonInstanceId = $"Test_{Guid.NewGuid():N}";
+
+                Orchestrations.FactorialFail.ShouldFail = false;
+
+                var client = await host.StartOrchestrationAsync(
+                    typeof(Orchestrations.FactorialFail),
+                    input: 4,
+                    instanceId: singletonInstanceId);
+
+                var statusFail = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
+
+                Activities.MultiplyFail.ShouldFail1 = false;
+
+                await client.RewindAsync("rewind!");
+
+                statusFail = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
+
+                Activities.MultiplyFail.ShouldFail2 = false;
+
+                await client.RewindAsync("rewind!");
+
+                var statusRewind = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, statusRewind?.OrchestrationStatus);
+                Assert.AreEqual("24", statusRewind?.Output);
+
+                await host.StopAsync();
+            }
+        }
+
+        [DataTestMethod]
+        //[DataRow(true)]
+        [DataRow(false)]
+        [TestMethod]
+        public async Task RewindSubOrchestrationsTest(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                await host.StartAsync();
+
+                string ParentInstanceId = $"Parent_{Guid.NewGuid():N}";
+                string ChildInstanceId = $"Child_{Guid.NewGuid():N}";
+
+                Activities.HelloFail.ShouldFail1 = false;
+                Activities.HelloFail.ShouldFail2 = false;
+
+                var client_parent = await host.StartOrchestrationAsync(
+                    typeof(Orchestrations.ParentWorkflow),
+                    input: true,
+                    instanceId: ParentInstanceId);
+
+
+                var statusFail = await client_parent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
+
+                Orchestrations.ChildWorkflow.ShouldFail1 = false;
+
+                await client_parent.RewindAsync("rewind!");
+
+                statusFail = await client_parent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
+
+                Orchestrations.ChildWorkflow.ShouldFail2 = false;
+
+                await client_parent.RewindAsync("rewind!");
+
+                var statusRewind = await client_parent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, statusRewind?.OrchestrationStatus);
+                //Assert.AreEqual("\"Hello, Catherine!\"", statusRewind?.Output);
+
+                await host.StopAsync();
+            }
+        }
+
+        [DataTestMethod]
+        [DataRow(true)]
+        //[DataRow(false)]
+        [TestMethod]
+        public async Task RewindSubOrchestrationActivityTest(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                await host.StartAsync();
+
+                string ParentInstanceId = $"Parent_{Guid.NewGuid():N}";
+                string ChildInstanceId = $"Child_{Guid.NewGuid():N}";
+
+                Orchestrations.ChildWorkflow.ShouldFail1 = false;
+                Orchestrations.ChildWorkflow.ShouldFail2 = false;
+
+                var client_parent = await host.StartOrchestrationAsync(
+                    typeof(Orchestrations.ParentWorkflow),
+                    input: true,
+                    instanceId: ParentInstanceId);
+
+
+                var statusFail = await client_parent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
+
+                Activities.HelloFail.ShouldFail1 = false;
+
+                await client_parent.RewindAsync("rewind!");
+
+                statusFail = await client_parent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
+
+                Activities.HelloFail.ShouldFail2 = false;
+
+                await client_parent.RewindAsync("rewind!");
+
+                var statusRewind = await client_parent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, statusRewind?.OrchestrationStatus);
+                //Assert.AreEqual("\"Hello, Catherine!\"", statusRewind?.Output);
+
+                await host.StopAsync();
+            }
+        }
+
+        [DataTestMethod]
+        [DataRow(true)]
+        //[DataRow(false)]
+        [TestMethod]
+        public async Task RewindNestedSubOrchestrationTest(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                await host.StartAsync();
+
+                string GrandparentInstanceId = $"Grandparent_{Guid.NewGuid():N}";
+                string ChildInstanceId = $"Child_{Guid.NewGuid():N}";
+                //string NestedInstanceId = $"Nested_{Guid.NewGuid():N}";
+
+                Orchestrations.ChildWorkflow.ShouldFail1 = false;
+                Orchestrations.ChildWorkflow.ShouldFail2 = false;
+                Activities.HelloFail.ShouldFail1 = false;
+
+                var client_grandparent = await host.StartOrchestrationAsync(
+                    typeof(Orchestrations.GrandparentWorkflow),
+                    input: true,
+                    instanceId: GrandparentInstanceId);
+
+                var statusFail = await client_grandparent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
+
+                Activities.HelloFail.ShouldFail2 = false;
+
+                await client_grandparent.RewindAsync("rewind!");
+
+                var statusRewind = await client_grandparent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, statusRewind?.OrchestrationStatus);
+                //Assert.AreEqual("\"Hello, Catherine!\"", statusRewind?.Output);
+
+                await host.StopAsync();
+            }
+        }
+
+        [DataTestMethod]
+        //[DataRow(true)]
+        [DataRow(false)]
+        [TestMethod]
         public async Task TimerCancellation(bool enableExtendedSessions)
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
@@ -312,6 +611,41 @@ namespace DurableTask.AzureStorage.Tests
                 await client.RaiseEventAsync("approval", eventData: true);
 
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                Assert.AreEqual("Approved", JToken.Parse(status?.Output));
+
+                await host.StopAsync();
+            }
+        }
+
+        [DataTestMethod]
+        //[DataRow(true)]
+        [DataRow(false)]
+        [TestMethod]
+        public async Task RewindTimerCancellation(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                Orchestrations.Approval.shouldFail = true;
+                await host.StartAsync();
+
+                var timeout = TimeSpan.FromSeconds(10);
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Approval), timeout);
+
+                // Need to wait for the instance to start before sending events to it.
+                // TODO: This requirement may not be ideal and should be revisited.
+                await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
+                await client.RaiseEventAsync("approval", eventData: true);
+
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                Assert.AreEqual(OrchestrationStatus.Failed, status?.OrchestrationStatus);
+
+                Orchestrations.Approval.shouldFail = false;
+
+                await client.RewindAsync("rewind the timer!");
+
+                status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
                 Assert.AreEqual("Approved", JToken.Parse(status?.Output));
 
@@ -835,6 +1169,7 @@ namespace DurableTask.AzureStorage.Tests
 
         static class Orchestrations
         {
+
             internal class SayHelloInline : TaskOrchestration<string, string>
             {
                 public override Task<string> RunTask(OrchestrationContext context, string input)
@@ -852,17 +1187,51 @@ namespace DurableTask.AzureStorage.Tests
                 }
             }
 
+            [KnownType(typeof(Activities.HelloFail))]
+            internal class SayHelloWithActivityFail : TaskOrchestration<string, string>
+            {
+                public override Task<string> RunTask(OrchestrationContext context, string input)
+                {
+                    return context.ScheduleTask<string>(typeof(Activities.HelloFail), input);
+                }
+            }
+
             [KnownType(typeof(Activities.Multiply))]
             internal class Factorial : TaskOrchestration<long, int>
             {
+                // HACK: selectively fails orchestration so rewind can revive it
+                public static bool ShouldFail = true;
                 public override async Task<long> RunTask(OrchestrationContext context, int n)
                 {
                     long result = 1;
                     for (int i = 1; i <= n; i++)
                     {
-                        result = await context.ScheduleTask<long>(typeof(Activities.Multiply), new[] { result, i });
+                        result = await (context.ScheduleTask<long>(typeof(Activities.Multiply), new[] { result, i }));
                     }
+                    if (ShouldFail)
+                    {
+                        throw new Exception("Simulating a transient, unhandled exception");
+                    }
+                    return result;
+                }
+            }
 
+            [KnownType(typeof(Activities.MultiplyFail))]
+            internal class FactorialFail : TaskOrchestration<long, int>
+            {
+                // HACK: selectively fails orchestration so rewind can revive it
+                public static bool ShouldFail = true;
+                public override async Task<long> RunTask(OrchestrationContext context, int n)
+                {
+                    long result = 1;
+                    for (int i = 1; i <= n; i++)
+                    {
+                        result = await (context.ScheduleTask<long>(typeof(Activities.MultiplyFail), new[] { result, i }));
+                    }
+                    if (ShouldFail)
+                    {
+                        throw new Exception("Simulating a transient, unhandled exception");
+                    }
                     return result;
                 }
             }
@@ -910,7 +1279,24 @@ namespace DurableTask.AzureStorage.Tests
                     var tasks = new Task[parallelTasks];
                     for (int i = 0; i < tasks.Length; i++)
                     {
-                        tasks[i] = context.ScheduleTask<string>(typeof(Activities.Hello), i.ToString("000"));
+                        tasks[i] = context.ScheduleTask<string>(typeof(Activities.HelloFail), i.ToString("000"));
+                    }
+
+                    await Task.WhenAll(tasks);
+
+                    return "Done";
+                }
+            }
+
+            [KnownType(typeof(Activities.HelloFail))]
+            internal class FanOutFanInRewind : TaskOrchestration<string, int>
+            {
+                public override async Task<string> RunTask(OrchestrationContext context, int parallelTasks)
+                {
+                    var tasks = new Task[parallelTasks];
+                    for (int i = 0; i < tasks.Length; i++)
+                    {
+                        tasks[i] = context.ScheduleTask<string>(typeof(Activities.HelloFail), i.ToString("000"));
                     }
 
                     await Task.WhenAll(tasks);
@@ -944,8 +1330,80 @@ namespace DurableTask.AzureStorage.Tests
                 }
             }
 
+            [KnownType(typeof(Orchestrations.GrandparentWorkflow))]
+            [KnownType(typeof(Orchestrations.ParentWorkflow))]
+            [KnownType(typeof(Activities.HelloFail))]
+            public class ChildWorkflow : TaskOrchestration<string, int>
+            {
+                public static bool ShouldFail1 = true;
+                public static bool ShouldFail2 = true;
+                public override async Task<string> RunTask(OrchestrationContext context, int input)
+                {
+                    if (ShouldFail1 || ShouldFail2)
+                    {
+                        throw new Exception("Simulating parent of sub-orchestration failure...");
+                    }
+                    var result = await context.ScheduleTask<string>(typeof(Activities.HelloFail), input);
+                    return result;
+                    //return Task.FromResult($"Child '{input}' completed.");
+                }
+            }
+
+            [KnownType(typeof(Orchestrations.GrandparentWorkflow))]
+            [KnownType(typeof(Orchestrations.ChildWorkflow))]
+            [KnownType(typeof(Activities.HelloFail))]
+            public class ParentWorkflow : TaskOrchestration<string, bool>
+            {
+                // HACK: This is just a hack to communicate result of orchestration back to test
+                public static string Result;
+                public override async Task<string> RunTask(OrchestrationContext context, bool waitForCompletion)
+                {
+                    var results = new Task<string>[2];
+                    for (int i = 0; i < 2; i++)
+                    {
+                        Task<string> r = context.CreateSubOrchestrationInstance<string>(typeof(Orchestrations.ChildWorkflow), i);
+                        if (waitForCompletion)
+                        {
+                            await r;
+                        }
+                        results[i] = r;
+                    }
+
+                    string[] data = await Task.WhenAll(results);
+                    Result = string.Concat(data);
+                    return Result;
+                }
+            }
+
+            [KnownType(typeof(Orchestrations.ParentWorkflow))]
+            [KnownType(typeof(Orchestrations.ChildWorkflow))]
+            [KnownType(typeof(Activities.HelloFail))]
+            public class GrandparentWorkflow : TaskOrchestration<string, bool>
+            {
+                // HACK: This is just a hack to communicate result of orchestration back to test
+                public static string Result;
+                public override async Task<string> RunTask(OrchestrationContext context, bool waitForCompletion)
+                {
+                    var results = new Task<string>[2];
+                    for (int i = 0; i < 2; i++)
+                    {
+                        Task<string> r = context.CreateSubOrchestrationInstance<string>(typeof(Orchestrations.ParentWorkflow), i);
+                        if (waitForCompletion)
+                        {
+                            await r;
+                        }
+                        results[i] = r;
+                    }
+
+                    string[] data = await Task.WhenAll(results);
+                    Result = string.Concat(data);
+                    return Result;
+                }
+            }
+
             internal class Counter : TaskOrchestration<int, int>
             {
+
                 TaskCompletionSource<string> waitForOperationHandle;
 
                 public override async Task<int> RunTask(OrchestrationContext context, int currentValue)
@@ -972,6 +1430,7 @@ namespace DurableTask.AzureStorage.Tests
                     }
 
                     return currentValue;
+                    
                 }
 
                 async Task<string> WaitForOperation()
@@ -995,6 +1454,7 @@ namespace DurableTask.AzureStorage.Tests
             internal class Approval : TaskOrchestration<string, TimeSpan, bool, string>
             {
                 TaskCompletionSource<bool> waitForApprovalHandle;
+                public static bool shouldFail = false;
 
                 public override async Task<string> RunTask(OrchestrationContext context, TimeSpan timeout)
                 {
@@ -1004,6 +1464,11 @@ namespace DurableTask.AzureStorage.Tests
                     {
                         Task<bool> approvalTask = this.GetWaitForApprovalTask();
                         Task timeoutTask = context.CreateTimer(deadline, cts.Token);
+
+                        if (shouldFail)
+                        {
+                            throw new Exception("Simulating unhanded error exception");
+                        }
 
                         if (approvalTask == await Task.WhenAny(approvalTask, timeoutTask))
                         {
@@ -1121,8 +1586,11 @@ namespace DurableTask.AzureStorage.Tests
 
         static class Activities
         {
-            internal class Hello : TaskActivity<string, string>
+            internal class HelloFail : TaskActivity<string, string>
             {
+                // HACK: selectively fails activity function/orchestration so rewind can revive it
+                public static bool ShouldFail1 = true;
+                public static bool ShouldFail2 = true;
                 protected override string Execute(TaskContext context, string input)
                 {
                     if (string.IsNullOrEmpty(input))
@@ -1130,6 +1598,24 @@ namespace DurableTask.AzureStorage.Tests
                         throw new ArgumentNullException(nameof(input));
                     }
 
+                    if (ShouldFail1 || ShouldFail2) //&& (input == "0" || input == "2"))
+                    {
+                        throw new Exception("Simulating unhandled activty function failure...");
+                    }
+
+                    return $"Hello, {input}!";
+                }
+            }
+
+            internal class Hello : TaskActivity<string, string>
+            {
+                // HACK: selectively fails activity function/orchestration so rewind can revive it
+                protected override string Execute(TaskContext context, string input)
+                {
+                    if (string.IsNullOrEmpty(input))
+                    {
+                        throw new ArgumentNullException(nameof(input));
+                    }
                     return $"Hello, {input}!";
                 }
             }
@@ -1138,6 +1624,20 @@ namespace DurableTask.AzureStorage.Tests
             {
                 protected override long Execute(TaskContext context, long[] values)
                 {
+                    return values[0] * values[1];
+                }
+            }
+
+            internal class MultiplyFail : TaskActivity<long[], long>
+            {
+                public static bool ShouldFail1 = true;
+                public static bool ShouldFail2 = true;
+                protected override long Execute(TaskContext context, long[] values)
+                {
+                    if ((ShouldFail1 && (values[1] == 1)) || (ShouldFail2 && values[1] == 2))
+                    {
+                        throw new Exception("Simulating a transient, unhandled exception");
+                    }
                     return values[0] * values[1];
                 }
             }

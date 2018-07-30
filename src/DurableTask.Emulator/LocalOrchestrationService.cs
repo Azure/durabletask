@@ -219,6 +219,18 @@ namespace DurableTask.Emulator
         }
 
         /// <inheritdoc />
+        public Task RewindFindFailureEventsAndClearAsync(string instanceId, CancellationToken cancellationToken)
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <inheritdoc />
+        public Task RewindTaskOrchestrationAsync(string instanceId, string reason)
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <inheritdoc />
         public async Task<OrchestrationState> WaitForOrchestrationAsync(
             string instanceId,
             string executionId,
@@ -507,6 +519,19 @@ namespace DurableTask.Emulator
 
             await SendTaskOrchestrationMessageAsync(taskMessage);
         }
+
+        ///// <inheritdoc />
+        //public async Task RewindTaskOrchestrationAsync(string instanceId, string reason)
+        //{
+        //    var taskMessage = new TaskMessage
+        //    {
+        //        OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId },
+        //        Event = new GenericEvent(-1, reason) //MAKE REWIND EVENT
+        //    };
+        //    CancellationToken cancellationToken = default(CancellationToken);
+        //    await RewindFindFailureEventsAndClearAsync(instanceId, cancellationToken);
+        //    await SendTaskOrchestrationMessageAsync(taskMessage);
+        //}
 
         /// <inheritdoc />
         public Task RenewTaskOrchestrationWorkItemLockAsync(TaskOrchestrationWorkItem workItem)

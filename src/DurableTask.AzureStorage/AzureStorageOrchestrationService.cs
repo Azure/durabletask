@@ -1761,7 +1761,7 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
-        /// Force terminates an orchestration by sending a execution terminated event
+        /// Force terminates an orchestration by sending an execution terminated event
         /// </summary>
         /// <param name="instanceId">Instance ID of the orchestration to terminate.</param>
         /// <param name="reason">The user-friendly reason for terminating.</param>
@@ -1774,6 +1774,35 @@ namespace DurableTask.AzureStorage
             };
 
             return SendTaskOrchestrationMessageAsync(taskMessage);
+        }
+
+        /// <summary>
+        /// Rewinds an orchestration then revives it from rewound state with a generic event message.
+        /// </summary>
+        /// <param name="instanceId">Instance ID of the orchestration to rewind.</param>
+        /// <param name="reason">The reason for rewinding.</param>
+        public async Task RewindTaskOrchestrationAsync(string instanceId, string reason)
+        {
+            var queueIds = await this.trackingStore.RewindHistoryAsync(instanceId, new List<string>(), default(CancellationToken));
+
+            foreach (string id in queueIds){
+                var orchestrationInstance = new OrchestrationInstance
+                {
+                    InstanceId = id,
+                    //ExecutionId = Guid.NewGuid().ToString("N"),
+                };
+
+                var startedEvent = new RewindEvent(-1, reason);
+                var taskMessage = new TaskMessage
+                {
+                    OrchestrationInstance = orchestrationInstance,
+                    Event = startedEvent
+                };
+
+
+                await SendTaskOrchestrationMessageAsync(taskMessage);
+            }
+
         }
 
         /// <summary>

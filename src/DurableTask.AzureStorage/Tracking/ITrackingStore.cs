@@ -54,6 +54,14 @@ namespace DurableTask.AzureStorage.Tracking
         Task<IList<HistoryEvent>> GetHistoryEventsAsync(string instanceId, string expectedExecutionId, CancellationToken cancellationToken = default(CancellationToken));
 
         /// <summary>
+        /// Queries by InstanceId and locates failure - then calls function to wipe ExecutionIds
+        /// </summary>
+        /// <param name="instanceId">InstanceId for orchestration</param>
+        /// <param name="failedLeaves">List of failed orchestrators to send to message queue - no failed sub-orchestrators</param>
+        /// <param name="cancellationToken">CancellationToken if abortion is needed</param>
+        Task<IList<string>> RewindHistoryAsync(string instanceId, IList<string> failedLeaves, CancellationToken cancellationToken);
+
+        /// <summary>
         /// Update State in the Tracking store for a particular orchestration instance and execution base on the new runtime state
         /// </summary>
         /// <param name="runtimeState">The New RuntimeState</param>
@@ -86,6 +94,13 @@ namespace DurableTask.AzureStorage.Tracking
         /// </summary>
         /// <param name="executionStartedEvent">The Execution Started Event being queued</param>
         Task SetNewExecutionAsync(ExecutionStartedEvent executionStartedEvent);
+
+        /// <summary>
+        /// Used to update a state in the tracking store to pending whenever a rewind is initiated from the client
+        /// </summary>
+        /// <param name="newTimestamp">The timesptamp for the revised instance table entity</param>
+        /// <param name="instanceId">The instance being rewound</param>
+        Task UpdateExistingExecutionAsync(string instanceId, DateTime newTimestamp);
 
         /// <summary>
         /// Purge The History and state  which is older than thresholdDateTimeUtc based on the timestamp type specified by timeRangeFilterType
