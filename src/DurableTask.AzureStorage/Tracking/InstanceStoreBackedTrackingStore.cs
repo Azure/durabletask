@@ -100,6 +100,12 @@ namespace DurableTask.AzureStorage.Tracking
         {
             throw new NotImplementedException();
         }
+        /// <inheritdoc />
+        public override Task<IList<OrchestrationState>> QueryStateAsync(OrchestrationInstanceStatusQueryBuilder queryBuilder, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            throw new NotImplementedException();
+        }
+
 
         /// <inheritdoc />
         public override Task PurgeHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType)
