@@ -9,58 +9,34 @@ namespace DurableTask.AzureStorage.Tracking
     /// <summary>
     /// OrchestrationInstanceStatusQueryBuilder is a builder to create a StorageTable Query
     /// </summary>
-    public class OrchestrationInstanceStatusQueryBuilder
+    public class OrchestrationInstanceStatusQueryCondition
     {
-        private string RuntimeStatus { get; set; }
-        private DateTime CreatedTimeFrom { get; set; }
-        private DateTime CreatedTimeTo { get; set; }
-        private DateTime LastUpdatedTimeFrom { get; set; }
-        private DateTime LastUpdatedTimeTo { get; set; }
-
         /// <summary>
-        /// AddRuntimeStatus add runtimeStatus as a query parameter 
+        /// RuntimeStatus
         /// </summary>
-        /// <param name="runtimeStatus">RuntimeStatus of <see cref="OrchestrationInstanceStatus"/></param>
-        /// <returns>builder of object</returns>
-        public OrchestrationInstanceStatusQueryBuilder AddRuntimeStatus(string runtimeStatus)
-        {
-            this.RuntimeStatus = runtimeStatus;
-            return this;
-        }
-
+        public string RuntimeStatus { get; set; }
         /// <summary>
-        /// AddCreatedTime add CreatedTime as a query parameter
-        /// In case you want to skip the createdTime, please specify default(DateTime)
+        /// CreatedTimeFrom. Greater than this time
         /// </summary>
-        /// <param name="createdTimeFrom">CreatedTime from</param>
-        /// <param name="createdTimeTo">CreatedTime to</param>
-        /// <returns></returns>
-        public OrchestrationInstanceStatusQueryBuilder AddCreatedTime(DateTime createdTimeFrom, DateTime createdTimeTo)
-        {
-            this.CreatedTimeFrom = createdTimeFrom;
-            this.CreatedTimeTo = createdTimeTo;
-            return this;
-        }
-
+        public DateTime CreatedTimeFrom { get; set; }
         /// <summary>
-        /// AddLastUpdatedTime add LastUpdatedTime as a query parameter
+        /// CreatedTimeTo. Less than this time
         /// </summary>
-        /// <param name="lastUpdatedTimeFrom"></param>
-        /// <param name="lastUpdatedTimeTo"></param>
-        /// <returns></returns>
-        public OrchestrationInstanceStatusQueryBuilder AddLastUpdatedTime(DateTime lastUpdatedTimeFrom, DateTime lastUpdatedTimeTo)
-        {
-            this.LastUpdatedTimeFrom = lastUpdatedTimeFrom;
-            this.LastUpdatedTimeTo = lastUpdatedTimeTo;
-            return this;
-        }
-
+        public DateTime CreatedTimeTo { get; set; }
+        /// <summary>
+        /// LastUpdatedTime. Greater than this time
+        /// </summary>
+        public DateTime LastUpdatedTimeFrom { get; set; }
+        /// <summary>
+        /// LastUpdatedTime. Less than this time
+        /// </summary>
+        public DateTime LastUpdatedTimeTo { get; set; }
 
         /// <summary>
         /// Build returns query object.
         /// </summary>
         /// <returns></returns>
-        public TableQuery<T> Build<T>() 
+        public TableQuery<T> ToTableQuery<T>() 
             where T : TableEntity, new()
         {
             var query = new TableQuery<T>()

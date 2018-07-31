@@ -101,7 +101,7 @@ namespace DurableTask.AzureStorage.Tracking
             throw new NotImplementedException();
         }
         /// <inheritdoc />
-        public override Task<IList<OrchestrationState>> QueryStateAsync(OrchestrationInstanceStatusQueryBuilder queryBuilder, CancellationToken cancellationToken = default(CancellationToken))
+        public override Task<IList<OrchestrationState>> QueryStateAsync(OrchestrationInstanceStatusQueryCondition condition, CancellationToken cancellationToken = default(CancellationToken))
         {
             throw new NotImplementedException();
         }
