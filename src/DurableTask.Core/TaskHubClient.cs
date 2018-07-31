@@ -494,7 +494,7 @@ namespace DurableTask.Core
             }
 
             // Raised events and create orchestration calls use different methods so get handled separately
-            await Task.WhenAll(taskMessages.Where(t => !(t.Event is EventRaisedEvent)).Select(x=>this.serviceClient.CreateTaskOrchestrationAsync(x, dedupeStatuses)));
+            await Task.WhenAll(taskMessages.Where(t => !(t.Event is EventRaisedEvent)).Select(sEvent=>this.serviceClient.CreateTaskOrchestrationAsync(sEvent, dedupeStatuses)));
             await this.serviceClient.SendTaskOrchestrationMessageBatchAsync(taskMessages.Where(t => (t.Event is EventRaisedEvent)).ToArray());
             return orchestrationInstance;
         }

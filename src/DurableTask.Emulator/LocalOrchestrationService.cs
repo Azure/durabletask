@@ -186,7 +186,7 @@ namespace DurableTask.Emulator
                     this.instanceStore[creationMessage.OrchestrationInstance.InstanceId] = ed;
                 }
 
-                var latestState = ed.Values.OrderBy(x => x.CreatedTime).FirstOrDefault(x => x.OrchestrationStatus != OrchestrationStatus.ContinuedAsNew);
+                var latestState = ed.Values.OrderBy(state => state.CreatedTime).FirstOrDefault(state => state.OrchestrationStatus != OrchestrationStatus.ContinuedAsNew);
 
                 if (latestState != null && (dedupeStatuses == null || dedupeStatuses.Contains(latestState.OrchestrationStatus)))
                 {
