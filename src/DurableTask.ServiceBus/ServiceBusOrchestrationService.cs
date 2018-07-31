@@ -994,7 +994,7 @@ namespace DurableTask.ServiceBus
         /// <param name="dedupeStatuses">States of previous orchestration executions to be considered while de-duping new orchestrations on the client</param>
         /// <exception cref="OrchestrationAlreadyExistsException">Will throw an OrchestrationAlreadyExistsException exception If any orchestration with the same instance Id exists in the instance store and it has a status specified in dedupeStatuses.</exception>
         /// <returns></returns>
-        public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, IEnumerable<OrchestrationStatus> dedupeStatuses)
+        public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses)
         {
             // First, lets push the orchestration state (Pending) into JumpStart table
             bool jumpStartEnabled = false;
@@ -1002,7 +1002,6 @@ namespace DurableTask.ServiceBus
             {
                 // TODO: GetOrchestrationState is still flaky as we are fetching from 2 tables while messages are being deleted and added
                 // to JumpStart table by JumpStart manager
-                // not threadsafe in case multiple clients attempt to create an orchestration instance with the same id at the same time
 
                 var latestState = (await this.GetOrchestrationStateAsync(creationMessage.OrchestrationInstance.InstanceId, false)).FirstOrDefault();
                 if (latestState != null && (dedupeStatuses == null || dedupeStatuses.Contains(latestState.OrchestrationStatus)))

@@ -167,7 +167,7 @@ namespace DurableTask.Emulator
         }
 
         /// <inheritdoc />
-        public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, IEnumerable<OrchestrationStatus> dedupeStatuses)
+        public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses)
         {
             ExecutionStartedEvent ee = creationMessage.Event as ExecutionStartedEvent;
 

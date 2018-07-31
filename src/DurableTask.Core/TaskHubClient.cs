@@ -103,7 +103,7 @@ namespace DurableTask.Core
             Type orchestrationType,
             string instanceId,
             object input, 
-            IEnumerable<OrchestrationStatus> dedupeStatuses
+            OrchestrationStatus[] dedupeStatuses
             )
         {
             return InternalCreateOrchestrationInstanceWithRaisedEventAsync(
@@ -177,7 +177,7 @@ namespace DurableTask.Core
             string instanceId,
             object input,
             IDictionary<string, string> tags,
-            IEnumerable<OrchestrationStatus> dedupeStatuses)
+            OrchestrationStatus[] dedupeStatuses)
         {
             return InternalCreateOrchestrationInstanceWithRaisedEventAsync(name, version, instanceId, input, tags, dedupeStatuses, null, null);
         }
@@ -251,7 +251,7 @@ namespace DurableTask.Core
             Type orchestrationType,
             string instanceId,
             object orchestrationInput,
-            IEnumerable<OrchestrationStatus> dedupeStatuses,
+            OrchestrationStatus[] dedupeStatuses,
             string eventName,
             object eventData)
         {
@@ -395,7 +395,7 @@ namespace DurableTask.Core
             string instanceId,
             object orchestrationInput,
             IDictionary<string, string> orchestrationTags,
-            IEnumerable<OrchestrationStatus> dedupeStatuses,
+            OrchestrationStatus[] dedupeStatuses,
             string eventName,
             object eventData)
         {
@@ -441,7 +441,7 @@ namespace DurableTask.Core
             string orchestrationInstanceId, 
             object orchestrationInput, 
             IDictionary<string, string> orchestrationTags,
-            IEnumerable<OrchestrationStatus> dedupeStatuses,
+            OrchestrationStatus[] dedupeStatuses,
             string eventName, 
             object eventData)
         {
