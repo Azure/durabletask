@@ -14,6 +14,7 @@
 namespace DurableTask.Emulator
 {
     using DurableTask.Core;
+    using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
     using Newtonsoft.Json;
     using System;
@@ -162,6 +163,12 @@ namespace DurableTask.Emulator
         /// <inheritdoc />
         public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage)
         {
+            return CreateTaskOrchestrationAsync(creationMessage, null);
+        }
+
+        /// <inheritdoc />
+        public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses)
+        {
             ExecutionStartedEvent ee = creationMessage.Event as ExecutionStartedEvent;
 
             if (ee == null)
@@ -171,14 +178,20 @@ namespace DurableTask.Emulator
 
             lock (this.thisLock)
             {
-                this.orchestratorQueue.SendMessage(creationMessage);
-
                 Dictionary<string, OrchestrationState> ed;
 
                 if (!this.instanceStore.TryGetValue(creationMessage.OrchestrationInstance.InstanceId, out ed))
                 {
                     ed = new Dictionary<string, OrchestrationState>();
                     this.instanceStore[creationMessage.OrchestrationInstance.InstanceId] = ed;
+                }
+
+                var latestState = ed.Values.OrderBy(state => state.CreatedTime).FirstOrDefault(state => state.OrchestrationStatus != OrchestrationStatus.ContinuedAsNew);
+
+                if (latestState != null && (dedupeStatuses == null || dedupeStatuses.Contains(latestState.OrchestrationStatus)))
+                {
+                    // An orchestration with same instance id is already running
+                    throw new OrchestrationAlreadyExistsException($"An orchestration with id '{creationMessage.OrchestrationInstance.InstanceId}' already exists. It is in state {latestState.OrchestrationStatus}");
                 }
 
                 OrchestrationState newState = new OrchestrationState()
@@ -196,6 +209,8 @@ namespace DurableTask.Emulator
                 };
 
                 ed.Add(creationMessage.OrchestrationInstance.ExecutionId, newState);
+
+                this.orchestratorQueue.SendMessage(creationMessage);
             }
 
             return Task.FromResult<object>(null);

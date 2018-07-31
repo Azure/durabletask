@@ -14,18 +14,18 @@
 namespace DurableTask.Core
 {
     /// <summary>
-    /// Filter for Orchestration Status
+    /// The kind of comparison to be performed in the State Filter.
     /// </summary>
-    public class OrchestrationStateStatusFilter : OrchestrationStateQueryFilter
+    public enum FilterComparisonType
     {
         /// <summary>
-        /// Gets or sets the Status for the filter
+        /// Equality Comparison
         /// </summary>
-        public OrchestrationStatus Status { get; set; }
+        Equals = 0,
 
         /// <summary>
-        /// Type of comparison to be formed with the state
+        /// In-Equality Comparison
         /// </summary>
-        public FilterComparisonType ComparisonType { get; set; }
+        NotEquals = 1
     }
 }

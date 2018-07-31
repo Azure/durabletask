@@ -178,7 +178,8 @@ namespace DurableTask.ServiceBus.Tests
 
         public static async Task<bool> WaitForInstanceAsync(TaskHubClient taskHubClient, OrchestrationInstance instance,
             int timeoutSeconds,
-            bool waitForCompletion = true)
+            bool waitForCompletion = true,
+            bool exactExecution = false)
         {
             if (string.IsNullOrWhiteSpace(instance?.InstanceId))
             {
@@ -189,7 +190,14 @@ namespace DurableTask.ServiceBus.Tests
 
             while (timeoutSeconds > 0)
             {
-                OrchestrationState state = await taskHubClient.GetOrchestrationStateAsync(instance.InstanceId);
+                OrchestrationState state;
+                if (exactExecution)
+                {
+                    state = await taskHubClient.GetOrchestrationStateAsync(instance);
+                }
+                else {
+                    state = await taskHubClient.GetOrchestrationStateAsync(instance.InstanceId);
+                }
                 if (state == null)
                 {
                     throw new ArgumentException("OrchestrationState is expected but NULL value returned");

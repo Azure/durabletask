@@ -92,6 +92,49 @@ namespace DurableTask.ServiceBus.Tests
         }
 
         [TestMethod]
+        public async Task SimplestGreetingsRecreationTest()
+        {
+            SimplestGreetingsOrchestration.Result = string.Empty;
+
+            await taskHub.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
+                .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
+                .StartAsync();
+
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), null);
+
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60, true, true);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,
+                "Orchestration Result is wrong!!!");
+
+            await Assert.ThrowsExceptionAsync<OrchestrationAlreadyExistsException>(() => client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null));
+
+            await Assert.ThrowsExceptionAsync<OrchestrationAlreadyExistsException>(() => client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null, null));
+
+            await Assert.ThrowsExceptionAsync<OrchestrationAlreadyExistsException>(() => client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null, new OrchestrationStatus[] { OrchestrationStatus.Completed, OrchestrationStatus.Terminated }));
+
+            isCompleted = false;
+            SimplestGreetingsOrchestration.Result = string.Empty;
+
+            OrchestrationInstance id2 = await client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null, new OrchestrationStatus[] { OrchestrationStatus.Terminated });
+
+            isCompleted = await TestHelpers.WaitForInstanceAsync(client, id2, 60, true, true);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id2, 60));
+            Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,
+                "Orchestration Result on re create is wrong!!!");
+
+            isCompleted = false;
+            SimplestGreetingsOrchestration.Result = string.Empty;
+
+            OrchestrationInstance id3 = await client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null, new OrchestrationStatus[] { });
+
+            isCompleted = await TestHelpers.WaitForInstanceAsync(client, id3, 60, true, true);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id3, 60));
+            Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,
+                "Orchestration Result on 2nd re create is wrong!!!");
+        }
+
+        [TestMethod]
         public async Task SimplestGreetingsNoCompressionTest()
         {
             await taskHubNoCompression.AddTaskOrchestrations(typeof (SimplestGreetingsOrchestration))

@@ -181,19 +181,30 @@ namespace DurableTask.Core
         }
 
         /// <summary>
-        ///     Adds a status filter on the returned orchestrations
+        ///     Adds a status filter on the returned orchestrations. Defaults to the equality Comparison Type.
         /// </summary>
         /// <param name="status">The status to filter by</param>
         /// <returns></returns>
         public OrchestrationStateQuery AddStatusFilter(OrchestrationStatus status)
         {
-            if (FilterMap.ContainsKey(typeof (OrchestrationStateStatusFilter)))
+            return AddStatusFilter(status, FilterComparisonType.Equals);
+        }
+
+        /// <summary>
+        ///     Adds a status filter on the returned orchestrations
+        /// </summary>
+        /// <param name="status">The status to filter by</param>
+        /// <param name="comparisonType">type of comparison to be performed on the status</param>
+        /// <returns></returns>
+        public OrchestrationStateQuery AddStatusFilter(OrchestrationStatus status, FilterComparisonType comparisonType)
+        {
+            if (FilterMap.ContainsKey(typeof(OrchestrationStateStatusFilter)))
             {
                 throw new ArgumentException("Cannot add more than one status filters");
             }
 
-            FilterMap.Add(typeof (OrchestrationStateStatusFilter),
-                new OrchestrationStateStatusFilter {Status = status});
+            FilterMap.Add(typeof(OrchestrationStateStatusFilter),
+                new OrchestrationStateStatusFilter { Status = status, ComparisonType = comparisonType });
 
             return this;
         }
