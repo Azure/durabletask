@@ -1,6 +1,7 @@
 ﻿using Microsoft.WindowsAzure.Storage.Table;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Xml.Linq;
 
@@ -81,19 +82,7 @@ namespace DurableTask.AzureStorage.Tracking
             }
             else
             {
-                string lastCondition = null;
-                foreach (var condition in conditions)
-                {
-                    if (string.IsNullOrEmpty(lastCondition))
-                    {
-                        lastCondition = condition;
-                        continue;
-                    }
-
-                    lastCondition = TableQuery.CombineFilters(lastCondition, TableOperators.And, condition);
-
-                }
-                return lastCondition;
+                return conditions.Aggregate((a, b) => TableQuery.CombineFilters(a, TableOperators.And, b));
             }
 
         }
