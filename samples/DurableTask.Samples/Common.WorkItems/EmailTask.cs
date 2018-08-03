@@ -28,7 +28,6 @@ namespace DurableTask.Samples.Common.WorkItems
     public sealed class EmailTask : TaskActivity<EmailInput, object>
     {
         private static MailAddress FromAddress = new MailAddress("azuresbtest@outlook.com", "Service Bus Task Mailer");
-        private const string FromPassword = "Broken!12";
 
         public EmailTask()
         {
@@ -45,7 +44,7 @@ namespace DurableTask.Samples.Common.WorkItems
                     EnableSsl = true,
                     DeliveryMethod = SmtpDeliveryMethod.Network,
                     UseDefaultCredentials = false,
-                    Credentials = new NetworkCredential(FromAddress.Address, FromPassword)
+                    Credentials = new NetworkCredential(FromAddress.Address, "Broken!12")
                 };
 
             using (var message = new MailMessage(FromAddress, toAddress)
