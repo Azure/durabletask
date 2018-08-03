@@ -67,18 +67,5 @@ namespace DurableTask.AzureStorage.Tests
 
         }
 
-        [TestMethod]
-        public void OrchestrationInstanceQuery_LastUpdatedTime()
-        {
-            var condition = new OrchestrationInstanceStatusQueryCondition
-            {
-                LastUpdatedTimeFrom = new DateTime(2018, 1, 10, 10, 10, 10),
-                LastUpdatedTimeTo = new DateTime(2018, 1, 10, 10, 10, 50)
-            };
-
-            Assert.AreEqual("(LastUpdatedTime ge datetime'2018-01-10T01:10:10.0000000Z') and (LastUpdatedTime le datetime'2018-01-10T01:10:50.0000000Z')", condition.ToTableQuery<OrchestrationInstanceStatus>().FilterString);
-        }
-
-
     }
 }

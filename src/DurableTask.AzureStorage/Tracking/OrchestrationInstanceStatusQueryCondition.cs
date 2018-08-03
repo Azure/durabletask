@@ -24,14 +24,6 @@ namespace DurableTask.AzureStorage.Tracking
         /// CreatedTimeTo. Less than this time
         /// </summary>
         public DateTime CreatedTimeTo { get; set; }
-        /// <summary>
-        /// LastUpdatedTime. Greater than this time
-        /// </summary>
-        public DateTime LastUpdatedTimeFrom { get; set; }
-        /// <summary>
-        /// LastUpdatedTime. Less than this time
-        /// </summary>
-        public DateTime LastUpdatedTimeTo { get; set; }
 
         /// <summary>
         /// Build returns query object.
@@ -61,16 +53,6 @@ namespace DurableTask.AzureStorage.Tracking
                 conditions.Add(TableQuery.GenerateFilterConditionForDate("CreatedTime", QueryComparisons.LessThanOrEqual, new DateTimeOffset(this.CreatedTimeTo)));
             }
 
-            if (default(DateTime) != this.LastUpdatedTimeFrom)
-            {
-                conditions.Add(TableQuery.GenerateFilterConditionForDate("LastUpdatedTime", QueryComparisons.GreaterThanOrEqual, new DateTimeOffset(this.LastUpdatedTimeFrom)));
-            }
-
-            if (default(DateTime) != this.LastUpdatedTimeTo)
-            {
-                conditions.Add(TableQuery.GenerateFilterConditionForDate("LastUpdatedTime", QueryComparisons.LessThanOrEqual, new DateTimeOffset(this.LastUpdatedTimeTo)));
-            }
-
             if (!string.IsNullOrEmpty(this.RuntimeStatus))
             {
                 conditions.Add(TableQuery.GenerateFilterCondition("RuntimeStatus", QueryComparisons.Equal, this.RuntimeStatus));
@@ -86,7 +68,6 @@ namespace DurableTask.AzureStorage.Tracking
             }
 
         }
-
 
     }
 }

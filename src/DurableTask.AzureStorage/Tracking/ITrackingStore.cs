@@ -84,10 +84,12 @@ namespace DurableTask.AzureStorage.Tracking
         /// <summary>
         /// Get The Orchestration State for querying orchestration instances by the condition
         /// </summary>
-        /// <param name="condition">query condition object</param>
+        /// <param name="createdTimeFrom">CreatedTimeFrom</param>
+        /// <param name="createdTimeTo">CreatedTimeTo</param>
+        /// <param name="RuntimeStatus">RuntimeStatus</param>
         /// <param name="cancellationToken">cancellation token</param>
         /// <returns></returns>
-        Task<IList<OrchestrationState>> QueryStateAsync(OrchestrationInstanceStatusQueryCondition condition, CancellationToken cancellationToken = default(CancellationToken));
+        Task<IList<OrchestrationState>> QueryStateAsync(DateTime createdTimeFrom, DateTime createdTimeTo, String RuntimeStatus, CancellationToken cancellationToken = default(CancellationToken));
 
 
         /// <summary>
