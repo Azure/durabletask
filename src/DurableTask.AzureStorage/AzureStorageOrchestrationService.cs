@@ -1761,6 +1761,20 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
+        /// Get states which match the condition
+        /// </summary>
+        /// <param name="createdTimeFrom">fetch status greater than this createdTime</param>
+        /// <param name="createdTimeTo">fetch status less than this createdTime createdTime</param>
+        /// <param name="runtimeStatus">fetch status matches this runtimeStatus</param>
+        /// <param name="cancellationToken">Cancellation Token</param>
+        /// <returns>List of <see cref="OrchestrationState"/></returns>
+        public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(DateTime createdTimeFrom, DateTime createdTimeTo, string runtimeStatus, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            await this.EnsureTaskHubAsync();
+            return await this.trackingStore.GetStateAsync(createdTimeFrom, createdTimeTo, runtimeStatus, cancellationToken);
+        }
+
+        /// <summary>
         /// Force terminates an orchestration by sending a execution terminated event
         /// </summary>
         /// <param name="instanceId">Instance ID of the orchestration to terminate.</param>
