@@ -66,6 +66,13 @@ namespace DurableTask.AzureStorage.Tests
              Assert.AreEqual("((CreatedTime ge datetime'2018-01-10T01:10:10.0000000Z') and (CreatedTime le datetime'2018-01-10T01:10:50.0000000Z')) and (RuntimeStatus eq 'Running')", condition.ToTableQuery<OrchestrationInstanceStatus>().FilterString);
 
         }
+        [TestMethod]
+        public void OrchestrationInstanceQuery_NoParameter()
+        {
+            var condition = new OrchestrationInstanceStatusQueryCondition();
+            var query = condition.ToTableQuery<OrchestrationInstanceStatus>();
+            Assert.IsNull(query.Expression);
+        }
 
     }
 }

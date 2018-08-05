@@ -32,10 +32,12 @@ namespace DurableTask.AzureStorage.Tracking
         public TableQuery<T> ToTableQuery<T>() 
             where T : TableEntity, new()
         {
-            var query = new TableQuery<T>()
-                .Where(
+            var query = new TableQuery<T>();
+            if (!(string.IsNullOrEmpty(RuntimeStatus) && CreatedTimeFrom == default(DateTime) && CreatedTimeTo == default(DateTime))){ 
+                query.Where(
                     GetConditions()
                     );
+            }
             return query;
         }
 
