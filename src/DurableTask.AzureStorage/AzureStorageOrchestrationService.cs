@@ -1751,7 +1751,7 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
-        /// Get states of the all orchestration instances
+        /// Get states all orchestration instances
         /// </summary>
         /// <returns>List of <see cref="OrchestrationState"/></returns>
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(CancellationToken cancellationToken = default(CancellationToken))
@@ -1761,11 +1761,11 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
-        /// Get states which match the condition
+        /// Get states which match the specified parameters.
         /// </summary>
-        /// <param name="createdTimeFrom">fetch status greater than this createdTime</param>
-        /// <param name="createdTimeTo">fetch status less than this createdTime createdTime</param>
-        /// <param name="runtimeStatus">fetch status matches this runtimeStatus</param>
+        /// <param name="createdTimeFrom">CreatedTime of orchestrations. Fetch status grater than this value.</param>
+        /// <param name="createdTimeTo">CreatedTime of orchestrations. Fetch status less than this value.</param>
+        /// <param name="runtimeStatus">RuntimeStatus of orchestrations. You can specify several status.</param>
         /// <param name="cancellationToken">Cancellation Token</param>
         /// <returns>List of <see cref="OrchestrationState"/></returns>
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(DateTime createdTimeFrom, DateTime createdTimeTo, string runtimeStatus, CancellationToken cancellationToken = default(CancellationToken))
