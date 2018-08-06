@@ -291,11 +291,6 @@ namespace DurableTask.AzureStorage.Tracking
                 }
             }
 
-            if (entities.Count < 1)
-            {
-                throw new Exception($"No resuts in history table where {filterCondition}");
-            }
-
             AnalyticsEventSource.Log.FetchedInstanceHistory(
                 this.storageAccountName,
                 this.taskHubName,
@@ -312,21 +307,31 @@ namespace DurableTask.AzureStorage.Tracking
 
         public override async Task<IList<string>> RewindHistoryAsync(string instanceId, IList<string> failedLeaves, CancellationToken cancellationToken)
         {
-            string SOInstanceId = instanceId;
+            //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            // REWIND ALGORITHM:
+            // 1. Finds failed execution of specified orchestraion instance to rewind
+            // 2. Finds failure entities to clear and over-writes them (as well as corresponding trigger events)
+            // 3. Identifies sub-orchestration failure(s) from parent instance and calls RewindHistoryAsync recursively on failed sub-orchestration child instance(s)
+            // 4. Resets orchestration status of rewound instance in instance store table to prepare it to be restarted
+            // 5. Returns "failedLeaves", a list of the deepest failed instances on each failed branch to revive with RewindEvent messages
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+            string soInstanceId = instanceId;
+            bool hasFailedSubOrchestrations = false;
             const char Quote = '\'';
 
             var orchestratorStartedFilterCondition = new StringBuilder(200);
 
-            // e.g. "PartitionKey eq 'c138dd969a1e4a699b0644c7d8279f81'"
             orchestratorStartedFilterCondition.Append("PartitionKey eq ").Append(Quote).Append(instanceId).Append(Quote); // = TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, instanceId);
             orchestratorStartedFilterCondition.Append(" and EventType eq ").Append(Quote).Append("OrchestratorStarted").Append(Quote);
 
             var orchestratorStartedEntities = await QueryHistory(orchestratorStartedFilterCondition.ToString(), instanceId, cancellationToken);
 
+            // get most recent orchestratorStarted event
             var recentStartRowKey = orchestratorStartedEntities.Max(x => x.RowKey);
             var recentStartRow = orchestratorStartedEntities.Where(y => y.RowKey == recentStartRowKey).ToList();
             var executionId = recentStartRow[0].Properties["ExecutionId"].StringValue;
-            var instanceTimestamp = recentStartRow[0].Timestamp.DateTime; // TODO: what time do we want here? Currently ignored in UpdateExistingInstance method
+            var instanceTimestamp = recentStartRow[0].Timestamp.DateTime;
 
             var rowsToUpdateFilterCondition = new StringBuilder(200);
 
@@ -338,12 +343,11 @@ namespace DurableTask.AzureStorage.Tracking
 
             var entitiesToClear = await QueryHistory(rowsToUpdateFilterCondition.ToString(), instanceId, cancellationToken);
 
-            bool hasFailedSubOrchestrations = false;
             foreach (DynamicTableEntity entity in entitiesToClear)
             {
                 if (entity.Properties["ExecutionId"].StringValue != executionId)
                 {
-                    // The remaining entities are from a previous generation and can be discarded.
+                    // the remaining entities are from a previous generation and can be discarded.
                     break;
                 }
 
@@ -353,54 +357,54 @@ namespace DurableTask.AzureStorage.Tracking
                     continue;
                 }
 
-                //Delete TaskScheduled corresponding to TaskFailed event 
-                if(entity.Properties["EventType"].StringValue == "TaskFailed")
+                // delete TaskScheduled corresponding to TaskFailed event 
+                if (entity.Properties["EventType"].StringValue == nameof(EventType.TaskFailed))
                 {
                     var taskScheduledId = entity.Properties["TaskScheduledId"].Int32Value.ToString();
 
-                    var TSFilterCondition = new StringBuilder(200);
+                    var tsFilterCondition = new StringBuilder(200);
 
-                    TSFilterCondition.Append("PartitionKey eq ").Append(Quote).Append(instanceId).Append(Quote);
-                    TSFilterCondition.Append(" and ExecutionId eq ").Append(Quote).Append(executionId).Append(Quote);
-                    TSFilterCondition.Append(" and EventId eq ").Append(taskScheduledId);
-                    TSFilterCondition.Append(" and EventType eq ").Append(Quote).Append("TaskScheduled").Append(Quote);
+                    tsFilterCondition.Append("PartitionKey eq ").Append(Quote).Append(instanceId).Append(Quote);
+                    tsFilterCondition.Append(" and ExecutionId eq ").Append(Quote).Append(executionId).Append(Quote);
+                    tsFilterCondition.Append(" and EventId eq ").Append(taskScheduledId);
+                    tsFilterCondition.Append(" and EventType eq ").Append(Quote).Append(nameof(EventType.TaskScheduled)).Append(Quote);
 
-                    var taskScheduledEntities = await QueryHistory(TSFilterCondition.ToString(), instanceId, cancellationToken);
+                    var taskScheduledEntities = await QueryHistory(tsFilterCondition.ToString(), instanceId, cancellationToken);
 
-                    taskScheduledEntities[0].Properties["EventType"] = new EntityProperty("GenericEvent");
+                    taskScheduledEntities[0].Properties["EventType"] = new EntityProperty(nameof(EventType.GenericEvent));
                     await this.historyTable.ExecuteAsync(
                         TableOperation.Replace(taskScheduledEntities[0]));
                 }
 
-                //Delete SubOrchestratorCreated corresponding to SubORchestraionInstanceFailed event
-                if (entity.Properties["EventType"].StringValue == "SubOrchestrationInstanceFailed")
+                // delete SubOrchestratorCreated corresponding to SubOrchestraionInstanceFailed event
+                if (entity.Properties["EventType"].StringValue == nameof(EventType.SubOrchestrationInstanceFailed))
                 {
                     hasFailedSubOrchestrations = true;
                     var subOrchestrationId = entity.Properties["TaskScheduledId"].Int32Value.ToString();
 
-                    var SOFilterCondition = new StringBuilder(200);
+                    var soFilterCondition = new StringBuilder(200);
 
-                    SOFilterCondition.Append("PartitionKey eq ").Append(Quote).Append(instanceId).Append(Quote);
-                    SOFilterCondition.Append(" and ExecutionId eq ").Append(Quote).Append(executionId).Append(Quote);
-                    SOFilterCondition.Append(" and EventId eq ").Append(subOrchestrationId);
-                    SOFilterCondition.Append(" and EventType eq ").Append(Quote).Append("SubOrchestrationInstanceCreated").Append(Quote);
+                    soFilterCondition.Append("PartitionKey eq ").Append(Quote).Append(instanceId).Append(Quote);
+                    soFilterCondition.Append(" and ExecutionId eq ").Append(Quote).Append(executionId).Append(Quote);
+                    soFilterCondition.Append(" and EventId eq ").Append(subOrchestrationId);
+                    soFilterCondition.Append(" and EventType eq ").Append(Quote).Append(nameof(EventType.SubOrchestrationInstanceCreated)).Append(Quote);
 
-                    var SubOrchesratrationEntities = await QueryHistory(SOFilterCondition.ToString(), instanceId, cancellationToken);
+                    var subOrchesratrationEntities = await QueryHistory(soFilterCondition.ToString(), instanceId, cancellationToken);
 
-                    SOInstanceId = SubOrchesratrationEntities[0].Properties["InstanceId"].StringValue;
+                    soInstanceId = subOrchesratrationEntities[0].Properties["InstanceId"].StringValue;
 
-                    await RewindHistoryAsync(SOInstanceId, failedLeaves, cancellationToken);
+                    // recursive call to clear out failure events on child instances
+                    await RewindHistoryAsync(soInstanceId, failedLeaves, cancellationToken);
                 }
 
-                //Clear ExecutionIds for the orchestrator and activity failures and make Generic Event to preserve rowKey
-                // TODO: decide if clearing exId is still relevant
-                //entity.Properties["ExecutionId"] = new EntityProperty(string.Empty);
-                entity.Properties["EventType"] = new EntityProperty("GenericEvent");
+                // "clear" failure event by making GenericEvent: replay ignores row while to preserving rowKey
+                entity.Properties["EventType"] = new EntityProperty(nameof(EventType.GenericEvent));
 
                 await this.historyTable.ExecuteAsync(
                     TableOperation.Replace(entity));
             }
 
+            // reset orchestration status in instance store table
             await UpdateExistingExecutionAsync(instanceId, instanceTimestamp);
 
             if (!hasFailedSubOrchestrations)
@@ -525,10 +529,10 @@ namespace DurableTask.AzureStorage.Tracking
                     ["Name"] = new EntityProperty(executionStartedEvent.Name),
                     ["Version"] = new EntityProperty(executionStartedEvent.Version),
                     ["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Pending.ToString()),
-                    ["LastUpdatedTime"] = new EntityProperty(executionStartedEvent.Timestamp),
+                    ["LastUpdatedTime"] = new EntityProperty(DateTime.UtcNow),
                 }
             };
-            //TODO: MERGE HERE
+
             await this.CompressLargeMessageAsync(entity);
 
             Stopwatch stopwatch = Stopwatch.StartNew();
@@ -573,7 +577,7 @@ namespace DurableTask.AzureStorage.Tracking
                 this.taskHubName,
                 instanceId,
                 string.Empty,
-                "GenericEvent",
+                nameof(EventType.RewindEvent),
                 stopwatch.ElapsedMilliseconds,
                 Utils.ExtensionVersion);
         }

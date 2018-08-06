@@ -531,7 +531,6 @@ namespace DurableTask.AzureStorage.Tests
                 var statusRewind = await client_parent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, statusRewind?.OrchestrationStatus);
-                //Assert.AreEqual("\"Hello, Catherine!\"", statusRewind?.Output);
 
                 await host.StopAsync();
             }
@@ -597,41 +596,6 @@ namespace DurableTask.AzureStorage.Tests
                 await client.RaiseEventAsync("approval", eventData: true);
 
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
-                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                Assert.AreEqual("Approved", JToken.Parse(status?.Output));
-
-                await host.StopAsync();
-            }
-        }
-
-        [DataTestMethod]
-        //[DataRow(true)]
-        [DataRow(false)]
-        [TestMethod]
-        public async Task RewindTimerCancellation(bool enableExtendedSessions)
-        {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
-            {
-                Orchestrations.Approval.shouldFail = true;
-                await host.StartAsync();
-
-                var timeout = TimeSpan.FromSeconds(10);
-                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Approval), timeout);
-
-                // Need to wait for the instance to start before sending events to it.
-                // TODO: This requirement may not be ideal and should be revisited.
-                await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
-                await client.RaiseEventAsync("approval", eventData: true);
-
-                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
-                Assert.AreEqual(OrchestrationStatus.Failed, status?.OrchestrationStatus);
-
-                Orchestrations.Approval.shouldFail = false;
-
-                await client.RewindAsync("rewind the timer!");
-
-                status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
-
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
                 Assert.AreEqual("Approved", JToken.Parse(status?.Output));
 
@@ -1155,7 +1119,6 @@ namespace DurableTask.AzureStorage.Tests
 
         static class Orchestrations
         {
-
             internal class SayHelloInline : TaskOrchestration<string, string>
             {
                 public override Task<string> RunTask(OrchestrationContext context, string input)
@@ -1172,15 +1135,6 @@ namespace DurableTask.AzureStorage.Tests
                     return context.ScheduleTask<string>(typeof(Activities.Hello), input);
                 }
             }
-
-            //[KnownType(typeof(Activities.HelloFail))]
-            //internal class SayHelloWithActivityFail : TaskOrchestration<string, string>
-            //{
-            //    public override Task<string> RunTask(OrchestrationContext context, string input)
-            //    {
-            //        return context.ScheduleTask<string>(typeof(Activities.HelloFail), input);
-            //    }
-            //}
 
             [KnownType(typeof(Activities.HelloFailActivity))]
             internal class SayHelloWithActivityFail: TaskOrchestration<string, string>
@@ -1208,7 +1162,6 @@ namespace DurableTask.AzureStorage.Tests
             [KnownType(typeof(Activities.Multiply))]
             internal class FactorialFail : TaskOrchestration<long, int>
             {
-                // HACK: selectively fails orchestration so rewind can revive it
                 public static bool ShouldFail = true;
                 public override async Task<long> RunTask(OrchestrationContext context, int n)
                 {
@@ -1228,7 +1181,6 @@ namespace DurableTask.AzureStorage.Tests
             [KnownType(typeof(Activities.Multiply))]
             internal class FactorialOrchestratorFail : TaskOrchestration<long, int>
             {
-                // HACK: selectively fails orchestration so rewind can revive it
                 public static bool ShouldFail = true;
                 public override async Task<long> RunTask(OrchestrationContext context, int n)
                 {
@@ -1397,7 +1349,6 @@ namespace DurableTask.AzureStorage.Tests
             [KnownType(typeof(Activities.Hello))]
             public class ParentWorkflowSubOrchestrationFail : TaskOrchestration<string, bool>
             {
-                // HACK: This is just a hack to communicate result of orchestration back to test
                 public static string Result;
                 public override async Task<string> RunTask(OrchestrationContext context, bool waitForCompletion)
                 {
@@ -1424,7 +1375,6 @@ namespace DurableTask.AzureStorage.Tests
             [KnownType(typeof(Activities.HelloFailNestedSuborchestration))]
             public class ParentWorkflowNestedActivityFail : TaskOrchestration<string, bool>
             {
-                // HACK: This is just a hack to communicate result of orchestration back to test
                 public static string Result;
                 public override async Task<string> RunTask(OrchestrationContext context, bool waitForCompletion)
                 {
@@ -1449,7 +1399,6 @@ namespace DurableTask.AzureStorage.Tests
             [KnownType(typeof(Activities.HelloFailSubOrchestrationActivity))]
             public class ParentWorkflowSubOrchestrationActivityFail : TaskOrchestration<string, bool>
             {
-                // HACK: This is just a hack to communicate result of orchestration back to test
                 public static string Result;
                 public override async Task<string> RunTask(OrchestrationContext context, bool waitForCompletion)
                 {
@@ -1470,38 +1419,11 @@ namespace DurableTask.AzureStorage.Tests
                 }
             }
 
-            //[KnownType(typeof(Orchestrations.ParentWorkflowSubOrchestrationFail))]
-            //[KnownType(typeof(Orchestrations.ChildWorkflowSubOrchestrationFail))]
-            //[KnownType(typeof(Activities.HelloFail))]
-            //public class GrandparentWorkflow : TaskOrchestration<string, bool>
-            //{
-            //    // HACK: This is just a hack to communicate result of orchestration back to test
-            //    public static string Result;
-            //    public override async Task<string> RunTask(OrchestrationContext context, bool waitForCompletion)
-            //    {
-            //        var results = new Task<string>[2];
-            //        for (int i = 0; i < 2; i++)
-            //        {
-            //            Task<string> r = context.CreateSubOrchestrationInstance<string>(typeof(Orchestrations.ParentWorkflowSubOrchestrationFail), i);
-            //            if (waitForCompletion)
-            //            {
-            //                await r;
-            //            }
-            //            results[i] = r;
-            //        }
-
-            //        string[] data = await Task.WhenAll(results);
-            //        Result = string.Concat(data);
-            //        return Result;
-            //    }
-            //}
-
             [KnownType(typeof(Orchestrations.ParentWorkflowNestedActivityFail))]
             [KnownType(typeof(Orchestrations.ChildWorkflowNestedActivityFail))]
             [KnownType(typeof(Activities.HelloFailNestedSuborchestration))]
             public class GrandparentWorkflowNestedActivityFail : TaskOrchestration<string, bool>
             {
-                // HACK: This is just a hack to communicate result of orchestration back to test
                 public static string Result;
                 public override async Task<string> RunTask(OrchestrationContext context, bool waitForCompletion)
                 {
@@ -1709,7 +1631,6 @@ namespace DurableTask.AzureStorage.Tests
         {
             internal class HelloFailActivity : TaskActivity<string, string>
             {
-                // HACK: selectively fails activity function/orchestration so rewind can revive it
                 public static bool ShouldFail = true;
                 protected override string Execute(TaskContext context, string input)
                 {
@@ -1729,7 +1650,6 @@ namespace DurableTask.AzureStorage.Tests
 
             internal class HelloFailFanOut : TaskActivity<string, string>
             {
-                // HACK: selectively fails activity function/orchestration so rewind can revive it
                 public static bool ShouldFail1 = true;
                 public static bool ShouldFail2 = true;
                 protected override string Execute(TaskContext context, string input)
@@ -1748,9 +1668,8 @@ namespace DurableTask.AzureStorage.Tests
                 }
             }
 
-            internal class HelloFailMultipleActivity : TaskActivity<string, string> //ADD input failures
+            internal class HelloFailMultipleActivity : TaskActivity<string, string> 
             {
-                // HACK: selectively fails activity function/orchestration so rewind can revive it
                 public static bool ShouldFail1 = true;
                 public static bool ShouldFail2 = true;
                 protected override string Execute(TaskContext context, string input)
@@ -1760,7 +1679,7 @@ namespace DurableTask.AzureStorage.Tests
                         throw new ArgumentNullException(nameof(input));
                     }
 
-                    if (ShouldFail1 || ShouldFail2) //&& (input == "0" || input == "2"))
+                    if (ShouldFail1 || ShouldFail2)
                     {
                         throw new Exception("Simulating unhandled activty function failure...");
                     }
@@ -1771,7 +1690,6 @@ namespace DurableTask.AzureStorage.Tests
 
             internal class HelloFailNestedSuborchestration : TaskActivity<string, string>
             {
-                // HACK: selectively fails activity function/orchestration so rewind can revive it
                 public static bool ShouldFail1 = true;
                 public static bool ShouldFail2 = true;
                 protected override string Execute(TaskContext context, string input)
@@ -1781,7 +1699,7 @@ namespace DurableTask.AzureStorage.Tests
                         throw new ArgumentNullException(nameof(input));
                     }
 
-                    if (ShouldFail1 || ShouldFail2) //&& (input == "0" || input == "2"))
+                    if (ShouldFail1 || ShouldFail2)
                     {
                         throw new Exception("Simulating unhandled activty function failure...");
                     }
@@ -1792,7 +1710,6 @@ namespace DurableTask.AzureStorage.Tests
 
             internal class HelloFailSubOrchestrationActivity : TaskActivity<string, string>
             {
-                // HACK: selectively fails activity function/orchestration so rewind can revive it
                 public static bool ShouldFail1 = true;
                 public static bool ShouldFail2 = true;
                 protected override string Execute(TaskContext context, string input)
@@ -1802,7 +1719,7 @@ namespace DurableTask.AzureStorage.Tests
                         throw new ArgumentNullException(nameof(input));
                     }
 
-                    if (ShouldFail1 || ShouldFail2) //&& (input == "0" || input == "2"))
+                    if (ShouldFail1 || ShouldFail2)
                     {
                         throw new Exception("Simulating unhandled activty function failure...");
                     }
@@ -1813,7 +1730,6 @@ namespace DurableTask.AzureStorage.Tests
 
             internal class Hello : TaskActivity<string, string>
             {
-                // HACK: selectively fails activity function/orchestration so rewind can revive it
                 protected override string Execute(TaskContext context, string input)
                 {
                     if (string.IsNullOrEmpty(input))

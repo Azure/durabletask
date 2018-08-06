@@ -1788,8 +1788,7 @@ namespace DurableTask.AzureStorage
             foreach (string id in queueIds){
                 var orchestrationInstance = new OrchestrationInstance
                 {
-                    InstanceId = id,
-                    //ExecutionId = Guid.NewGuid().ToString("N"),
+                    InstanceId = id
                 };
 
                 var startedEvent = new RewindEvent(-1, reason);
