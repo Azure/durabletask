@@ -304,7 +304,8 @@ namespace DurableTask.AzureStorage.Tracking
                 entities.Count,
                 requestCount,
                 stopwatch.ElapsedMilliseconds,
-                this.GetETagValue(instanceId));
+                this.GetETagValue(instanceId),
+                Utils.ExtensionVersion);
 
             return entities; 
         }
@@ -555,7 +556,7 @@ namespace DurableTask.AzureStorage.Tracking
                 Properties =
                 {
                     ["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Pending.ToString()),
-                    //["LastUpdatedTime"] = new EntityProperty(newTimestamp),
+                    ["LastUpdatedTime"] = new EntityProperty(DateTime.UtcNow),
                 }
             };
 
@@ -571,9 +572,10 @@ namespace DurableTask.AzureStorage.Tracking
                 this.storageAccountName,
                 this.taskHubName,
                 instanceId,
-                null, //TODO: figure out executionID
+                string.Empty,
                 "GenericEvent",
-                stopwatch.ElapsedMilliseconds);
+                stopwatch.ElapsedMilliseconds,
+                Utils.ExtensionVersion);
         }
 
 

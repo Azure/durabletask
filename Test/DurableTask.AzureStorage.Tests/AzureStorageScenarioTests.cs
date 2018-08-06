@@ -296,23 +296,19 @@ namespace DurableTask.AzureStorage.Tests
         /// </summary>
         [DataTestMethod]
         //[DataRow(true)]
-        // TODO: figure out what to do about extended sessions
         [DataRow(false)]
         public async Task RewindOrchestrationsFail(bool enableExtendedSessions)
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
             {
-                Orchestrations.FactorialFail.ShouldFail = true;
+                Orchestrations.FactorialOrchestratorFail.ShouldFail = true;
                 await host.StartAsync();
 
                 string singletonInstanceId1 = $"1_Test_{Guid.NewGuid():N}";
                 string singletonInstanceId2 = $"2_Test_{Guid.NewGuid():N}";
 
-                Activities.MultiplyFail.ShouldFail1 = false;
-                Activities.MultiplyFail.ShouldFail2 = false;
-
                 var client1 = await host.StartOrchestrationAsync(
-                    typeof(Orchestrations.FactorialFail),
+                    typeof(Orchestrations.FactorialOrchestratorFail),
                     input: 3, 
                     instanceId: singletonInstanceId1);
 
@@ -320,14 +316,14 @@ namespace DurableTask.AzureStorage.Tests
 
                 Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
 
-                Orchestrations.FactorialFail.ShouldFail = false;
+                Orchestrations.FactorialOrchestratorFail.ShouldFail = false;
 
                 var client2 = await host.StartOrchestrationAsync(
                 typeof(Orchestrations.SayHelloWithActivity),
                 input: "Catherine",
                 instanceId: singletonInstanceId2);
 
-                await client1.RewindAsync("rewind!"); 
+                await client1.RewindAsync("Rewind failed orchestration only"); 
 
                 var statusRewind = await client1.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
@@ -348,7 +344,7 @@ namespace DurableTask.AzureStorage.Tests
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
             {
-                Activities.HelloFail.ShouldFail1 = false;
+                Activities.HelloFailFanOut.ShouldFail1 = false;
                 await host.StartAsync();
 
                 string singletonInstanceId = $"Test_{Guid.NewGuid():N}";
@@ -362,9 +358,9 @@ namespace DurableTask.AzureStorage.Tests
 
                 Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
 
-                Activities.HelloFail.ShouldFail2 = false;
+                Activities.HelloFailFanOut.ShouldFail2 = false;
 
-                await client.RewindAsync("rewind!");
+                await client.RewindAsync("Rewind orchestrator with failed parallel activity.");
 
                 var statusRewind = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
@@ -391,8 +387,6 @@ namespace DurableTask.AzureStorage.Tests
 
                 string singletonInstanceId = $"{Guid.NewGuid():N}";
 
-                Activities.HelloFail.ShouldFail1 = false;
-
                 var client = await host.StartOrchestrationAsync(
                     typeof(Orchestrations.SayHelloWithActivityFail),
                     input: "World",
@@ -402,9 +396,9 @@ namespace DurableTask.AzureStorage.Tests
 
                 Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
 
-                Activities.HelloFail.ShouldFail2 = false;
+                Activities.HelloFailActivity.ShouldFail = false;
 
-                await client.RewindAsync("REWIND");
+                await client.RewindAsync("Activity failure test.");
 
                 var statusRewind = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
@@ -426,10 +420,8 @@ namespace DurableTask.AzureStorage.Tests
 
                 string singletonInstanceId = $"Test_{Guid.NewGuid():N}";
 
-                Orchestrations.FactorialFail.ShouldFail = false;
-
                 var client = await host.StartOrchestrationAsync(
-                    typeof(Orchestrations.FactorialFail),
+                    typeof(Orchestrations.FactorialMultipleActivityFail),
                     input: 4,
                     instanceId: singletonInstanceId);
 
@@ -437,17 +429,17 @@ namespace DurableTask.AzureStorage.Tests
 
                 Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
 
-                Activities.MultiplyFail.ShouldFail1 = false;
+                Activities.MultiplyMultipleActivityFail.ShouldFail1 = false;
 
-                await client.RewindAsync("rewind!");
+                await client.RewindAsync("Rewind for activity failure 1.");
 
                 statusFail = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
                 Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
 
-                Activities.MultiplyFail.ShouldFail2 = false;
+                Activities.MultiplyMultipleActivityFail.ShouldFail2 = false;
 
-                await client.RewindAsync("rewind!");
+                await client.RewindAsync("Rewind for activity failure 2.");
 
                 var statusRewind = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
@@ -471,11 +463,8 @@ namespace DurableTask.AzureStorage.Tests
                 string ParentInstanceId = $"Parent_{Guid.NewGuid():N}";
                 string ChildInstanceId = $"Child_{Guid.NewGuid():N}";
 
-                Activities.HelloFail.ShouldFail1 = false;
-                Activities.HelloFail.ShouldFail2 = false;
-
                 var client_parent = await host.StartOrchestrationAsync(
-                    typeof(Orchestrations.ParentWorkflow),
+                    typeof(Orchestrations.ParentWorkflowSubOrchestrationFail),
                     input: true,
                     instanceId: ParentInstanceId);
 
@@ -484,22 +473,21 @@ namespace DurableTask.AzureStorage.Tests
 
                 Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
 
-                Orchestrations.ChildWorkflow.ShouldFail1 = false;
+                Orchestrations.ChildWorkflowSubOrchestrationFail.ShouldFail1 = false;
 
-                await client_parent.RewindAsync("rewind!");
+                await client_parent.RewindAsync("Rewind first suborchestration failure.");
 
                 statusFail = await client_parent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
                 Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
 
-                Orchestrations.ChildWorkflow.ShouldFail2 = false;
+                Orchestrations.ChildWorkflowSubOrchestrationFail.ShouldFail2 = false;
 
-                await client_parent.RewindAsync("rewind!");
+                await client_parent.RewindAsync("Rewind second suborchestration failure.");
 
                 var statusRewind = await client_parent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, statusRewind?.OrchestrationStatus);
-                //Assert.AreEqual("\"Hello, Catherine!\"", statusRewind?.Output);
 
                 await host.StopAsync();
             }
@@ -518,11 +506,8 @@ namespace DurableTask.AzureStorage.Tests
                 string ParentInstanceId = $"Parent_{Guid.NewGuid():N}";
                 string ChildInstanceId = $"Child_{Guid.NewGuid():N}";
 
-                Orchestrations.ChildWorkflow.ShouldFail1 = false;
-                Orchestrations.ChildWorkflow.ShouldFail2 = false;
-
                 var client_parent = await host.StartOrchestrationAsync(
-                    typeof(Orchestrations.ParentWorkflow),
+                    typeof(Orchestrations.ParentWorkflowSubOrchestrationActivityFail),
                     input: true,
                     instanceId: ParentInstanceId);
 
@@ -531,17 +516,17 @@ namespace DurableTask.AzureStorage.Tests
 
                 Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
 
-                Activities.HelloFail.ShouldFail1 = false;
+                Activities.HelloFailSubOrchestrationActivity.ShouldFail1 = false;
 
-                await client_parent.RewindAsync("rewind!");
+                await client_parent.RewindAsync("Rewinding 1: child should still fail.");
 
                 statusFail = await client_parent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
                 Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
 
-                Activities.HelloFail.ShouldFail2 = false;
+                Activities.HelloFailSubOrchestrationActivity.ShouldFail2 = false;
 
-                await client_parent.RewindAsync("rewind!");
+                await client_parent.RewindAsync("Rewinding 2: child should complete.");
 
                 var statusRewind = await client_parent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
@@ -564,14 +549,9 @@ namespace DurableTask.AzureStorage.Tests
 
                 string GrandparentInstanceId = $"Grandparent_{Guid.NewGuid():N}";
                 string ChildInstanceId = $"Child_{Guid.NewGuid():N}";
-                //string NestedInstanceId = $"Nested_{Guid.NewGuid():N}";
-
-                Orchestrations.ChildWorkflow.ShouldFail1 = false;
-                Orchestrations.ChildWorkflow.ShouldFail2 = false;
-                Activities.HelloFail.ShouldFail1 = false;
 
                 var client_grandparent = await host.StartOrchestrationAsync(
-                    typeof(Orchestrations.GrandparentWorkflow),
+                    typeof(Orchestrations.GrandparentWorkflowNestedActivityFail),
                     input: true,
                     instanceId: GrandparentInstanceId);
 
@@ -579,9 +559,15 @@ namespace DurableTask.AzureStorage.Tests
 
                 Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
 
-                Activities.HelloFail.ShouldFail2 = false;
+                Activities.HelloFailNestedSuborchestration.ShouldFail1 = false;
 
-                await client_grandparent.RewindAsync("rewind!");
+                await client_grandparent.RewindAsync("Rewind 1: Nested child activity still fails.");
+
+                Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
+
+                Activities.HelloFailNestedSuborchestration.ShouldFail2 = false;
+
+                await client_grandparent.RewindAsync("Rewind 2: Nested child activity completes.");
 
                 var statusRewind = await client_grandparent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
@@ -1187,17 +1173,40 @@ namespace DurableTask.AzureStorage.Tests
                 }
             }
 
-            [KnownType(typeof(Activities.HelloFail))]
-            internal class SayHelloWithActivityFail : TaskOrchestration<string, string>
+            //[KnownType(typeof(Activities.HelloFail))]
+            //internal class SayHelloWithActivityFail : TaskOrchestration<string, string>
+            //{
+            //    public override Task<string> RunTask(OrchestrationContext context, string input)
+            //    {
+            //        return context.ScheduleTask<string>(typeof(Activities.HelloFail), input);
+            //    }
+            //}
+
+            [KnownType(typeof(Activities.HelloFailActivity))]
+            internal class SayHelloWithActivityFail: TaskOrchestration<string, string>
             {
                 public override Task<string> RunTask(OrchestrationContext context, string input)
                 {
-                    return context.ScheduleTask<string>(typeof(Activities.HelloFail), input);
+                    return context.ScheduleTask<string>(typeof(Activities.HelloFailActivity), input);
                 }
             }
 
             [KnownType(typeof(Activities.Multiply))]
             internal class Factorial : TaskOrchestration<long, int>
+            {
+                public override async Task<long> RunTask(OrchestrationContext context, int n)
+                {
+                    long result = 1;
+                    for (int i = 1; i <= n; i++)
+                    {
+                        result = await (context.ScheduleTask<long>(typeof(Activities.Multiply), new[] { result, i }));
+                    }
+                    return result;
+                }
+            }
+
+            [KnownType(typeof(Activities.Multiply))]
+            internal class FactorialFail : TaskOrchestration<long, int>
             {
                 // HACK: selectively fails orchestration so rewind can revive it
                 public static bool ShouldFail = true;
@@ -1216,8 +1225,8 @@ namespace DurableTask.AzureStorage.Tests
                 }
             }
 
-            [KnownType(typeof(Activities.MultiplyFail))]
-            internal class FactorialFail : TaskOrchestration<long, int>
+            [KnownType(typeof(Activities.Multiply))]
+            internal class FactorialOrchestratorFail : TaskOrchestration<long, int>
             {
                 // HACK: selectively fails orchestration so rewind can revive it
                 public static bool ShouldFail = true;
@@ -1226,11 +1235,25 @@ namespace DurableTask.AzureStorage.Tests
                     long result = 1;
                     for (int i = 1; i <= n; i++)
                     {
-                        result = await (context.ScheduleTask<long>(typeof(Activities.MultiplyFail), new[] { result, i }));
+                        result = await (context.ScheduleTask<long>(typeof(Activities.Multiply), new[] { result, i }));
                     }
                     if (ShouldFail)
                     {
                         throw new Exception("Simulating a transient, unhandled exception");
+                    }
+                    return result;
+                }
+            }
+
+            [KnownType(typeof(Activities.MultiplyMultipleActivityFail))]
+            internal class FactorialMultipleActivityFail : TaskOrchestration<long, int>
+            {
+                public override async Task<long> RunTask(OrchestrationContext context, int n)
+                {
+                    long result = 1;
+                    for (int i = 1; i <= n; i++)
+                    {
+                        result = await (context.ScheduleTask<long>(typeof(Activities.MultiplyMultipleActivityFail), new[] { result, i }));
                     }
                     return result;
                 }
@@ -1279,7 +1302,7 @@ namespace DurableTask.AzureStorage.Tests
                     var tasks = new Task[parallelTasks];
                     for (int i = 0; i < tasks.Length; i++)
                     {
-                        tasks[i] = context.ScheduleTask<string>(typeof(Activities.HelloFail), i.ToString("000"));
+                        tasks[i] = context.ScheduleTask<string>(typeof(Activities.Hello), i.ToString("000"));
                     }
 
                     await Task.WhenAll(tasks);
@@ -1288,7 +1311,7 @@ namespace DurableTask.AzureStorage.Tests
                 }
             }
 
-            [KnownType(typeof(Activities.HelloFail))]
+            [KnownType(typeof(Activities.HelloFailFanOut))]
             internal class FanOutFanInRewind : TaskOrchestration<string, int>
             {
                 public override async Task<string> RunTask(OrchestrationContext context, int parallelTasks)
@@ -1296,7 +1319,7 @@ namespace DurableTask.AzureStorage.Tests
                     var tasks = new Task[parallelTasks];
                     for (int i = 0; i < tasks.Length; i++)
                     {
-                        tasks[i] = context.ScheduleTask<string>(typeof(Activities.HelloFail), i.ToString("000"));
+                        tasks[i] = context.ScheduleTask<string>(typeof(Activities.HelloFailFanOut), i.ToString("000"));
                     }
 
                     await Task.WhenAll(tasks);
@@ -1330,10 +1353,9 @@ namespace DurableTask.AzureStorage.Tests
                 }
             }
 
-            [KnownType(typeof(Orchestrations.GrandparentWorkflow))]
-            [KnownType(typeof(Orchestrations.ParentWorkflow))]
-            [KnownType(typeof(Activities.HelloFail))]
-            public class ChildWorkflow : TaskOrchestration<string, int>
+            [KnownType(typeof(Orchestrations.ParentWorkflowSubOrchestrationFail))]
+            [KnownType(typeof(Activities.Hello))]
+            public class ChildWorkflowSubOrchestrationFail : TaskOrchestration<string, int>
             {
                 public static bool ShouldFail1 = true;
                 public static bool ShouldFail2 = true;
@@ -1341,18 +1363,39 @@ namespace DurableTask.AzureStorage.Tests
                 {
                     if (ShouldFail1 || ShouldFail2)
                     {
-                        throw new Exception("Simulating parent of sub-orchestration failure...");
+                        throw new Exception("Simulating sub-orchestration failure...");
                     }
-                    var result = await context.ScheduleTask<string>(typeof(Activities.HelloFail), input);
+                    var result = await context.ScheduleTask<string>(typeof(Activities.Hello), input);
                     return result;
-                    //return Task.FromResult($"Child '{input}' completed.");
                 }
             }
 
-            [KnownType(typeof(Orchestrations.GrandparentWorkflow))]
-            [KnownType(typeof(Orchestrations.ChildWorkflow))]
-            [KnownType(typeof(Activities.HelloFail))]
-            public class ParentWorkflow : TaskOrchestration<string, bool>
+            [KnownType(typeof(Orchestrations.ParentWorkflowSubOrchestrationActivityFail))]
+            [KnownType(typeof(Activities.HelloFailSubOrchestrationActivity))]
+            public class ChildWorkflowSubOrchestrationActivityFail : TaskOrchestration<string, int>
+            {
+                public override async Task<string> RunTask(OrchestrationContext context, int input)
+                {
+                    var result = await context.ScheduleTask<string>(typeof(Activities.HelloFailSubOrchestrationActivity), input);
+                    return result;
+                }
+            }
+
+            [KnownType(typeof(Orchestrations.GrandparentWorkflowNestedActivityFail))]
+            [KnownType(typeof(Orchestrations.ParentWorkflowNestedActivityFail))]
+            [KnownType(typeof(Activities.HelloFailNestedSuborchestration))]
+            public class ChildWorkflowNestedActivityFail : TaskOrchestration<string, int>
+            {
+                public override async Task<string> RunTask(OrchestrationContext context, int input)
+                {
+                    var result = await context.ScheduleTask<string>(typeof(Activities.HelloFailNestedSuborchestration), input);
+                    return result;
+                }
+            }
+
+            [KnownType(typeof(Orchestrations.ChildWorkflowSubOrchestrationFail))]
+            [KnownType(typeof(Activities.Hello))]
+            public class ParentWorkflowSubOrchestrationFail : TaskOrchestration<string, bool>
             {
                 // HACK: This is just a hack to communicate result of orchestration back to test
                 public static string Result;
@@ -1361,7 +1404,7 @@ namespace DurableTask.AzureStorage.Tests
                     var results = new Task<string>[2];
                     for (int i = 0; i < 2; i++)
                     {
-                        Task<string> r = context.CreateSubOrchestrationInstance<string>(typeof(Orchestrations.ChildWorkflow), i);
+                        Task<string> r = context.CreateSubOrchestrationInstance<string>(typeof(Orchestrations.ChildWorkflowSubOrchestrationFail), i);
                         if (waitForCompletion)
                         {
                             await r;
@@ -1375,10 +1418,11 @@ namespace DurableTask.AzureStorage.Tests
                 }
             }
 
-            [KnownType(typeof(Orchestrations.ParentWorkflow))]
-            [KnownType(typeof(Orchestrations.ChildWorkflow))]
-            [KnownType(typeof(Activities.HelloFail))]
-            public class GrandparentWorkflow : TaskOrchestration<string, bool>
+
+            [KnownType(typeof(Orchestrations.GrandparentWorkflowNestedActivityFail))]
+            [KnownType(typeof(Orchestrations.ChildWorkflowNestedActivityFail))]
+            [KnownType(typeof(Activities.HelloFailNestedSuborchestration))]
+            public class ParentWorkflowNestedActivityFail : TaskOrchestration<string, bool>
             {
                 // HACK: This is just a hack to communicate result of orchestration back to test
                 public static string Result;
@@ -1387,7 +1431,84 @@ namespace DurableTask.AzureStorage.Tests
                     var results = new Task<string>[2];
                     for (int i = 0; i < 2; i++)
                     {
-                        Task<string> r = context.CreateSubOrchestrationInstance<string>(typeof(Orchestrations.ParentWorkflow), i);
+                        Task<string> r = context.CreateSubOrchestrationInstance<string>(typeof(Orchestrations.ChildWorkflowNestedActivityFail), i);
+                        if (waitForCompletion)
+                        {
+                            await r;
+                        }
+                        results[i] = r;
+                    }
+
+                    string[] data = await Task.WhenAll(results);
+                    Result = string.Concat(data);
+                    return Result;
+                }
+            }
+
+            [KnownType(typeof(Orchestrations.ChildWorkflowSubOrchestrationActivityFail))]
+            [KnownType(typeof(Activities.HelloFailSubOrchestrationActivity))]
+            public class ParentWorkflowSubOrchestrationActivityFail : TaskOrchestration<string, bool>
+            {
+                // HACK: This is just a hack to communicate result of orchestration back to test
+                public static string Result;
+                public override async Task<string> RunTask(OrchestrationContext context, bool waitForCompletion)
+                {
+                    var results = new Task<string>[2];
+                    for (int i = 0; i < 2; i++)
+                    {
+                        Task<string> r = context.CreateSubOrchestrationInstance<string>(typeof(Orchestrations.ChildWorkflowSubOrchestrationActivityFail), i);
+                        if (waitForCompletion)
+                        {
+                            await r;
+                        }
+                        results[i] = r;
+                    }
+
+                    string[] data = await Task.WhenAll(results);
+                    Result = string.Concat(data);
+                    return Result;
+                }
+            }
+
+            //[KnownType(typeof(Orchestrations.ParentWorkflowSubOrchestrationFail))]
+            //[KnownType(typeof(Orchestrations.ChildWorkflowSubOrchestrationFail))]
+            //[KnownType(typeof(Activities.HelloFail))]
+            //public class GrandparentWorkflow : TaskOrchestration<string, bool>
+            //{
+            //    // HACK: This is just a hack to communicate result of orchestration back to test
+            //    public static string Result;
+            //    public override async Task<string> RunTask(OrchestrationContext context, bool waitForCompletion)
+            //    {
+            //        var results = new Task<string>[2];
+            //        for (int i = 0; i < 2; i++)
+            //        {
+            //            Task<string> r = context.CreateSubOrchestrationInstance<string>(typeof(Orchestrations.ParentWorkflowSubOrchestrationFail), i);
+            //            if (waitForCompletion)
+            //            {
+            //                await r;
+            //            }
+            //            results[i] = r;
+            //        }
+
+            //        string[] data = await Task.WhenAll(results);
+            //        Result = string.Concat(data);
+            //        return Result;
+            //    }
+            //}
+
+            [KnownType(typeof(Orchestrations.ParentWorkflowNestedActivityFail))]
+            [KnownType(typeof(Orchestrations.ChildWorkflowNestedActivityFail))]
+            [KnownType(typeof(Activities.HelloFailNestedSuborchestration))]
+            public class GrandparentWorkflowNestedActivityFail : TaskOrchestration<string, bool>
+            {
+                // HACK: This is just a hack to communicate result of orchestration back to test
+                public static string Result;
+                public override async Task<string> RunTask(OrchestrationContext context, bool waitForCompletion)
+                {
+                    var results = new Task<string>[2];
+                    for (int i = 0; i < 2; i++)
+                    {
+                        Task<string> r = context.CreateSubOrchestrationInstance<string>(typeof(Orchestrations.ParentWorkflowNestedActivityFail), i);
                         if (waitForCompletion)
                         {
                             await r;
@@ -1586,7 +1707,90 @@ namespace DurableTask.AzureStorage.Tests
 
         static class Activities
         {
-            internal class HelloFail : TaskActivity<string, string>
+            internal class HelloFailActivity : TaskActivity<string, string>
+            {
+                // HACK: selectively fails activity function/orchestration so rewind can revive it
+                public static bool ShouldFail = true;
+                protected override string Execute(TaskContext context, string input)
+                {
+                    if (string.IsNullOrEmpty(input))
+                    {
+                        throw new ArgumentNullException(nameof(input));
+                    }
+
+                    if (ShouldFail)
+                    {
+                        throw new Exception("Simulating unhandled activty function failure...");
+                    }
+
+                    return $"Hello, {input}!";
+                }
+            }
+
+            internal class HelloFailFanOut : TaskActivity<string, string>
+            {
+                // HACK: selectively fails activity function/orchestration so rewind can revive it
+                public static bool ShouldFail1 = true;
+                public static bool ShouldFail2 = true;
+                protected override string Execute(TaskContext context, string input)
+                {
+                    if (string.IsNullOrEmpty(input))
+                    {
+                        throw new ArgumentNullException(nameof(input));
+                    }
+
+                    if (ShouldFail1 || ShouldFail2) //&& (input == "0" || input == "2"))
+                    {
+                        throw new Exception("Simulating unhandled activty function failure...");
+                    }
+
+                    return $"Hello, {input}!";
+                }
+            }
+
+            internal class HelloFailMultipleActivity : TaskActivity<string, string> //ADD input failures
+            {
+                // HACK: selectively fails activity function/orchestration so rewind can revive it
+                public static bool ShouldFail1 = true;
+                public static bool ShouldFail2 = true;
+                protected override string Execute(TaskContext context, string input)
+                {
+                    if (string.IsNullOrEmpty(input))
+                    {
+                        throw new ArgumentNullException(nameof(input));
+                    }
+
+                    if (ShouldFail1 || ShouldFail2) //&& (input == "0" || input == "2"))
+                    {
+                        throw new Exception("Simulating unhandled activty function failure...");
+                    }
+
+                    return $"Hello, {input}!";
+                }
+            }
+
+            internal class HelloFailNestedSuborchestration : TaskActivity<string, string>
+            {
+                // HACK: selectively fails activity function/orchestration so rewind can revive it
+                public static bool ShouldFail1 = true;
+                public static bool ShouldFail2 = true;
+                protected override string Execute(TaskContext context, string input)
+                {
+                    if (string.IsNullOrEmpty(input))
+                    {
+                        throw new ArgumentNullException(nameof(input));
+                    }
+
+                    if (ShouldFail1 || ShouldFail2) //&& (input == "0" || input == "2"))
+                    {
+                        throw new Exception("Simulating unhandled activty function failure...");
+                    }
+
+                    return $"Hello, {input}!";
+                }
+            }
+
+            internal class HelloFailSubOrchestrationActivity : TaskActivity<string, string>
             {
                 // HACK: selectively fails activity function/orchestration so rewind can revive it
                 public static bool ShouldFail1 = true;
@@ -1628,7 +1832,7 @@ namespace DurableTask.AzureStorage.Tests
                 }
             }
 
-            internal class MultiplyFail : TaskActivity<long[], long>
+            internal class MultiplyMultipleActivityFail : TaskActivity<long[], long>
             {
                 public static bool ShouldFail1 = true;
                 public static bool ShouldFail2 = true;
@@ -1641,6 +1845,20 @@ namespace DurableTask.AzureStorage.Tests
                     return values[0] * values[1];
                 }
             }
+            internal class MultiplyFailOrchestration : TaskActivity<long[], long>
+            {
+                public static bool ShouldFail1 = true;
+                public static bool ShouldFail2 = true;
+                protected override long Execute(TaskContext context, long[] values)
+                {
+                    if ((ShouldFail1 && (values[1] == 1)) || (ShouldFail2 && values[1] == 2))
+                    {
+                        throw new Exception("Simulating a transient, unhandled exception");
+                    }
+                    return values[0] * values[1];
+                }
+            }
+
 
             internal class GetFileList : TaskActivity<string, string[]>
             {
