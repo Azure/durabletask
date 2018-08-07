@@ -91,7 +91,7 @@ namespace DurableTask.ServiceBus.Tests
             Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
             Assert.AreEqual(4, GenerationBasicOrchestration.Result, "Orchestration Result is wrong!!!");
 
-            Assert.AreEqual(0, TestHelpers.GetOrchestratorQueueMessageCount());
+            Assert.AreEqual(0, await TestHelpers.GetOrchestratorQueueMessageCount());
         }
 
         [TestMethod]

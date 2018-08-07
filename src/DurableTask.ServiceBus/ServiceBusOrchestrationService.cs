@@ -33,8 +33,10 @@ namespace DurableTask.ServiceBus
     using DurableTask.ServiceBus.Settings;
     using DurableTask.ServiceBus.Stats;
     using DurableTask.ServiceBus.Tracking;
-    using Microsoft.ServiceBus;
-    using Microsoft.ServiceBus.Messaging;
+    using Microsoft.Azure.ServiceBus;
+    using Microsoft.Azure.ServiceBus.Core;
+    using Microsoft.Azure.ServiceBus.Management;
+    using Microsoft.Azure.ServiceBus.Primitives;
 
     /// <summary>
     /// Orchestration Service and Client implementation using Azure Service Bus
@@ -75,32 +77,27 @@ namespace DurableTask.ServiceBus
         readonly string connectionString;
         readonly string hubName;
 
-        MessagingFactory workerSenderMessagingFactory;
-        MessagingFactory orchestratorSenderMessagingFactory;
-        readonly MessagingFactory orchestratorBatchSenderMessagingFactory;
-        MessagingFactory trackingSenderMessagingFactory;
-        MessagingFactory workerQueueClientMessagingFactory;
-        MessagingFactory orchestratorQueueClientMessagingFactory;
-        MessagingFactory trackingQueueClientMessagingFactory;
-
         MessageSender orchestratorSender;
         readonly MessageSender orchestrationBatchMessageSender;
         QueueClient orchestratorQueueClient;
         MessageSender workerSender;
-        QueueClient workerQueueClient;
         MessageSender trackingSender;
-        QueueClient trackingQueueClient;
+        SessionClient orchestratorSessionClient;
+        MessageReceiver workerReceiver;
+        SessionClient trackingClient;
         readonly string workerEntityName;
         readonly string orchestratorEntityName;
         readonly string trackingEntityName;
         readonly WorkItemDispatcher<TrackingWorkItem> trackingDispatcher;
         readonly JumpStartManager jumpStartManager;
-        readonly NamespaceManager namespaceManager;
+        readonly ManagementClient managementClient;
         readonly ServiceBusConnectionStringBuilder sbConnectionStringBuilder;
 
         ConcurrentDictionary<string, ServiceBusOrchestrationSession> orchestrationSessions;
-        ConcurrentDictionary<string, BrokeredMessage> orchestrationMessages;
+        ConcurrentDictionary<string, Message> orchestrationMessages;
         CancellationTokenSource cancellationTokenSource;
+
+        ServiceBusConnection serviceBusConnection;
 
         /// <summary>
         ///     Create a new ServiceBusOrchestrationService to the given service bus connection string and hub name
@@ -124,15 +121,19 @@ namespace DurableTask.ServiceBus
             this.workerEntityName = string.Format(ServiceBusConstants.WorkerEndpointFormat, this.hubName);
             this.orchestratorEntityName = string.Format(ServiceBusConstants.OrchestratorEndpointFormat, this.hubName);
             this.trackingEntityName = string.Format(ServiceBusConstants.TrackingEndpointFormat, this.hubName);
-            this.namespaceManager = NamespaceManager.CreateFromConnectionString(connectionString);
+            this.managementClient = new ManagementClient(connectionString);
             this.sbConnectionStringBuilder = new ServiceBusConnectionStringBuilder(connectionString);
+            
+            this.serviceBusConnection = new ServiceBusConnection(this.sbConnectionStringBuilder)
+            {
+                TokenProvider = TokenProvider.CreateSharedAccessSignatureTokenProvider(this.sbConnectionStringBuilder.SasKeyName,
+                    this.sbConnectionStringBuilder.SasKey, ServiceBusUtils.TokenTimeToLive)
+            };
+
             this.Settings = settings ?? new ServiceBusOrchestrationServiceSettings();
-            this.orchestratorBatchSenderMessagingFactory = ServiceBusUtils.CreateSenderMessagingFactory(
-                this.namespaceManager,
-                this.sbConnectionStringBuilder,
-                this.orchestratorEntityName,
-                this.Settings.MessageSenderSettings);
-            this.orchestrationBatchMessageSender = ServiceBusUtils.CreateMessageSender(this.orchestratorBatchSenderMessagingFactory, this.orchestratorEntityName);
+            this.orchestrationBatchMessageSender = new MessageSender(this.serviceBusConnection,this.orchestratorEntityName);
+
+
             this.BlobStore = blobStore;
             if (instanceStore != null)
             {
@@ -163,21 +164,15 @@ namespace DurableTask.ServiceBus
         {
             this.cancellationTokenSource = new CancellationTokenSource();
             this.orchestrationSessions = new ConcurrentDictionary<string, ServiceBusOrchestrationSession>();
-            this.orchestrationMessages = new ConcurrentDictionary<string, BrokeredMessage>();
-
-            this.orchestratorSenderMessagingFactory = ServiceBusUtils.CreateSenderMessagingFactory(this.namespaceManager, this.sbConnectionStringBuilder, this.orchestratorEntityName, this.Settings.MessageSenderSettings);
-            this.workerSenderMessagingFactory = ServiceBusUtils.CreateSenderMessagingFactory(this.namespaceManager, this.sbConnectionStringBuilder, this.workerEntityName, this.Settings.MessageSenderSettings);
-            this.trackingSenderMessagingFactory = ServiceBusUtils.CreateSenderMessagingFactory(this.namespaceManager, this.sbConnectionStringBuilder, this.trackingEntityName, this.Settings.MessageSenderSettings);
-            this.workerQueueClientMessagingFactory = ServiceBusUtils.CreateReceiverMessagingFactory(this.namespaceManager, this.sbConnectionStringBuilder, this.workerEntityName);
-            this.orchestratorQueueClientMessagingFactory = ServiceBusUtils.CreateReceiverMessagingFactory(this.namespaceManager, this.sbConnectionStringBuilder, this.orchestratorEntityName);
-            this.trackingQueueClientMessagingFactory = ServiceBusUtils.CreateReceiverMessagingFactory(this.namespaceManager, this.sbConnectionStringBuilder, this.trackingEntityName);
-
-            this.orchestratorSender = ServiceBusUtils.CreateMessageSender(this.orchestratorSenderMessagingFactory, this.orchestratorEntityName, this.workerEntityName);
-            this.workerSender = ServiceBusUtils.CreateMessageSender(this.workerSenderMessagingFactory, this.workerEntityName, this.orchestratorEntityName);
-            this.trackingSender = ServiceBusUtils.CreateMessageSender(this.trackingSenderMessagingFactory, this.trackingEntityName, this.orchestratorEntityName);
-            this.workerQueueClient = ServiceBusUtils.CreateQueueClient(this.workerQueueClientMessagingFactory, this.workerEntityName);
-            this.orchestratorQueueClient = ServiceBusUtils.CreateQueueClient(this.orchestratorQueueClientMessagingFactory, this.orchestratorEntityName);
-            this.trackingQueueClient = ServiceBusUtils.CreateQueueClient(this.trackingQueueClientMessagingFactory, this.trackingEntityName);
+            this.orchestrationMessages = new ConcurrentDictionary<string, Message>();
+            
+            this.orchestratorSender = new MessageSender(this.serviceBusConnection, this.orchestratorEntityName, this.workerEntityName);
+            this.workerSender = new MessageSender(this.serviceBusConnection, this.workerEntityName, this.orchestratorEntityName);
+            this.trackingSender = new MessageSender(this.serviceBusConnection, this.trackingEntityName, this.orchestratorEntityName);
+            this.orchestratorQueueClient = new QueueClient(this.serviceBusConnection, this.orchestratorEntityName, ReceiveMode.PeekLock, RetryPolicy.Default);
+            this.workerReceiver = new MessageReceiver(serviceBusConnection, this.workerEntityName);
+            this.orchestratorSessionClient = new SessionClient(serviceBusConnection, this.orchestratorEntityName, ReceiveMode.PeekLock);
+            this.trackingClient = new SessionClient(serviceBusConnection, this.trackingEntityName, ReceiveMode.PeekLock);
 
             if (this.trackingDispatcher != null)
             {
@@ -216,9 +211,9 @@ namespace DurableTask.ServiceBus
                 this.orchestratorSender.CloseAsync(),
                 this.orchestrationBatchMessageSender?.CloseAsync(),
                 this.trackingSender.CloseAsync(),
-                this.orchestratorQueueClient.CloseAsync(),
-                this.trackingQueueClient.CloseAsync(),
-                this.workerQueueClient.CloseAsync()
+                this.orchestratorSessionClient.CloseAsync(),
+                this.trackingClient.CloseAsync(),
+                this.workerReceiver.CloseAsync()
                 );
             if (this.trackingDispatcher != null)
             {
@@ -229,16 +224,6 @@ namespace DurableTask.ServiceBus
             {
                 await this.jumpStartManager.StopAsync();
             }
-
-            // TODO : Move this, we don't open in start so calling close then start yields a broken reference
-            Task.WaitAll(
-                this.workerSenderMessagingFactory.CloseAsync(),
-                this.orchestratorSenderMessagingFactory.CloseAsync(),
-                this.orchestratorBatchSenderMessagingFactory.CloseAsync(),
-                this.trackingSenderMessagingFactory.CloseAsync(),
-                this.workerQueueClientMessagingFactory.CloseAsync(),
-                this.orchestratorQueueClientMessagingFactory.CloseAsync(),
-                this.trackingQueueClientMessagingFactory.CloseAsync());
         }
 
         /// <summary>
@@ -255,16 +240,16 @@ namespace DurableTask.ServiceBus
         /// <param name="recreateInstanceStore">Flag indicating whether to drop and create instance store</param>
         public async Task CreateAsync(bool recreateInstanceStore)
         {
-            NamespaceManager manager = NamespaceManager.CreateFromConnectionString(this.connectionString);
+            ManagementClient managementClient = new ManagementClient(this.connectionString);
 
             await Task.WhenAll(
-                SafeDeleteAndCreateQueueAsync(manager, this.orchestratorEntityName, true, true, this.Settings.MaxTaskOrchestrationDeliveryCount, this.Settings.MaxQueueSizeInMegabytes),
-                SafeDeleteAndCreateQueueAsync(manager, this.workerEntityName, false, false, this.Settings.MaxTaskActivityDeliveryCount, this.Settings.MaxQueueSizeInMegabytes)
+                SafeDeleteAndCreateQueueAsync(managementClient, this.orchestratorEntityName, true, true, this.Settings.MaxTaskOrchestrationDeliveryCount, this.Settings.MaxQueueSizeInMegabytes),
+                SafeDeleteAndCreateQueueAsync(managementClient, this.workerEntityName, false, false, this.Settings.MaxTaskActivityDeliveryCount, this.Settings.MaxQueueSizeInMegabytes)
                 );
 
             if (this.InstanceStore != null)
             {
-                await SafeDeleteAndCreateQueueAsync(manager, this.trackingEntityName, true, false, this.Settings.MaxTrackingDeliveryCount, this.Settings.MaxQueueSizeInMegabytes);
+                await SafeDeleteAndCreateQueueAsync(managementClient, this.trackingEntityName, true, false, this.Settings.MaxTrackingDeliveryCount, this.Settings.MaxQueueSizeInMegabytes);
                 await this.InstanceStore.InitializeStoreAsync(recreateInstanceStore);
             }
         }
@@ -274,15 +259,15 @@ namespace DurableTask.ServiceBus
         /// </summary>
         public async Task CreateIfNotExistsAsync()
         {
-            NamespaceManager manager = NamespaceManager.CreateFromConnectionString(this.connectionString);
+            ManagementClient managementClient = new ManagementClient(this.connectionString);
 
             await Task.WhenAll(
-                SafeCreateQueueAsync(manager, this.orchestratorEntityName, true, true, this.Settings.MaxTaskOrchestrationDeliveryCount, this.Settings.MaxQueueSizeInMegabytes),
-                SafeCreateQueueAsync(manager, this.workerEntityName, false, false, this.Settings.MaxTaskActivityDeliveryCount, this.Settings.MaxQueueSizeInMegabytes)
+                SafeCreateQueueAsync(managementClient, this.orchestratorEntityName, true, true, this.Settings.MaxTaskOrchestrationDeliveryCount, this.Settings.MaxQueueSizeInMegabytes),
+                SafeCreateQueueAsync(managementClient, this.workerEntityName, false, false, this.Settings.MaxTaskActivityDeliveryCount, this.Settings.MaxQueueSizeInMegabytes)
                 );
             if (this.InstanceStore != null)
             {
-                await SafeCreateQueueAsync(manager, this.trackingEntityName, true, false, this.Settings.MaxTrackingDeliveryCount, this.Settings.MaxQueueSizeInMegabytes);
+                await SafeCreateQueueAsync(managementClient, this.trackingEntityName, true, false, this.Settings.MaxTrackingDeliveryCount, this.Settings.MaxQueueSizeInMegabytes);
                 await this.InstanceStore.InitializeStoreAsync(false);
             }
         }
@@ -301,15 +286,15 @@ namespace DurableTask.ServiceBus
         /// <param name="deleteInstanceStore">Flag indicating whether to drop instance store</param>
         public async Task DeleteAsync(bool deleteInstanceStore)
         {
-            NamespaceManager manager = NamespaceManager.CreateFromConnectionString(this.connectionString);
+            ManagementClient managementClient = new ManagementClient(this.connectionString);
 
             await Task.WhenAll(
-                SafeDeleteQueueAsync(manager, this.orchestratorEntityName),
-                SafeDeleteQueueAsync(manager, this.workerEntityName)
+                SafeDeleteQueueAsync(managementClient, this.orchestratorEntityName),
+                SafeDeleteQueueAsync(managementClient, this.workerEntityName)
                 );
             if (this.InstanceStore != null)
             {
-                await SafeDeleteQueueAsync(manager, this.trackingEntityName);
+                await SafeDeleteQueueAsync(managementClient, this.trackingEntityName);
                 if (deleteInstanceStore)
                 {
                     await this.InstanceStore.DeleteStoreAsync();
@@ -330,11 +315,9 @@ namespace DurableTask.ServiceBus
         /// <returns>True if all needed queues are present, false otherwise</returns>
         public async Task<bool> HubExistsAsync()
         {
-            NamespaceManager manager = NamespaceManager.CreateFromConnectionString(this.connectionString);
+            ManagementClient managementClient = new ManagementClient(this.connectionString);
 
-            IEnumerable<QueueDescription> queueDescriptions =
-                // ReSharper disable once StringLiteralTypo
-                (await manager.GetQueuesAsync("startswith(path, '" + this.hubName + "') eq TRUE")).ToList();
+            IEnumerable<QueueDescription> queueDescriptions = (await managementClient.GetQueuesAsync()).Where(x => x.Path.StartsWith(this.hubName)).ToList();
 
             return queueDescriptions.Any(q => string.Equals(q.Path, this.orchestratorEntityName))
                 && queueDescriptions.Any(q => string.Equals(q.Path, this.workerEntityName))
@@ -345,27 +328,27 @@ namespace DurableTask.ServiceBus
         ///     Get the count of pending orchestrations
         /// </summary>
         /// <returns>Count of pending orchestrations</returns>
-        public long GetPendingOrchestrationsCount()
+        public async Task<long> GetPendingOrchestrationsCount()
         {
-            return GetQueueCount(this.orchestratorEntityName);
+            return await GetQueueCount(this.orchestratorEntityName);
         }
 
         /// <summary>
         ///     Get the count of pending work items (activities)
         /// </summary>
         /// <returns>Count of pending activities</returns>
-        public long GetPendingWorkItemsCount()
+        public async Task<long> GetPendingWorkItemsCount()
         {
-            return GetQueueCount(this.workerEntityName);
+            return await GetQueueCount(this.workerEntityName);
         }
 
         /// <summary>
         ///     Internal method for getting the number of items in a queue
         /// </summary>
-        long GetQueueCount(string entityName)
+        async Task<long> GetQueueCount(string entityName)
         {
-            NamespaceManager manager = NamespaceManager.CreateFromConnectionString(this.connectionString);
-            QueueDescription queueDescription = manager.GetQueue(entityName);
+            ManagementClient managementClient = new ManagementClient(this.connectionString);
+            QueueRuntimeInfo queueDescription = await managementClient.GetQueueRuntimeInfoAsync(entityName);
             if (queueDescription == null)
             {
                 throw TraceHelper.TraceException(
@@ -382,13 +365,12 @@ namespace DurableTask.ServiceBus
         /// </summary>
         internal async Task<Dictionary<string, int>> GetHubQueueMaxDeliveryCountsAsync()
         {
-            NamespaceManager manager = NamespaceManager.CreateFromConnectionString(this.connectionString);
+            ManagementClient managementClient = new ManagementClient(this.connectionString);
 
             var result = new Dictionary<string, int>(3);
-
-            IEnumerable<QueueDescription> queues =
-                // ReSharper disable once StringLiteralTypo
-                (await manager.GetQueuesAsync("startswith(path, '" + this.hubName + "') eq TRUE")).ToList();
+            
+            IEnumerable<QueueDescription> queues = 
+                (await managementClient.GetQueuesAsync()).Where(x => x.Path.StartsWith(this.hubName)).ToList();
 
             result.Add("TaskOrchestration", queues.Single(q => string.Equals(q.Path, this.orchestratorEntityName))?.MaxDeliveryCount ?? -1);
             result.Add("TaskActivity", queues.Single(q => string.Equals(q.Path, this.workerEntityName))?.MaxDeliveryCount ?? -1);
@@ -467,7 +449,7 @@ namespace DurableTask.ServiceBus
         /// <param name="cancellationToken">The cancellation token to cancel execution of the task</param>
         public async Task<TaskOrchestrationWorkItem> LockNextTaskOrchestrationWorkItemAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken)
         {
-            MessageSession session = await this.orchestratorQueueClient.AcceptMessageSessionAsync(receiveTimeout);
+            IMessageSession session = await this.orchestratorSessionClient.AcceptMessageSessionAsync(receiveTimeout);
             if (session == null)
             {
                 return null;
@@ -476,10 +458,10 @@ namespace DurableTask.ServiceBus
             this.ServiceStats.OrchestrationDispatcherStats.SessionsReceived.Increment();
 
             // TODO : Here and elsewhere, consider standard retry block instead of our own hand rolled version
-            IList<BrokeredMessage> newMessages =
-                (await Utils.ExecuteWithRetries(() => session.ReceiveBatchAsync(this.Settings.PrefetchCount),
+            IList<Message> newMessages =
+                (await Utils.ExecuteWithRetries(() => session.ReceiveAsync(this.Settings.PrefetchCount),
                     session.SessionId, "Receive Session Message Batch", this.Settings.MaxRetries, this.Settings.IntervalBetweenRetriesSecs)).ToList();
-
+            
             this.ServiceStats.OrchestrationDispatcherStats.MessagesReceived.Increment(newMessages.Count);
             TraceHelper.TraceSession(
                 TraceEventType.Information,
@@ -496,9 +478,9 @@ namespace DurableTask.ServiceBus
 
             OrchestrationRuntimeState runtimeState = await GetSessionStateAsync(session, this.BlobStore);
 
-            long maxSequenceNumber = newMessages.Max(message => message.SequenceNumber);
+            long maxSequenceNumber = newMessages.Max(message => message.SystemProperties.SequenceNumber);
 
-            Dictionary<Guid, BrokeredMessage> lockTokens = newMessages.ToDictionary(m => m.LockToken, m => m);
+            Dictionary<string, Message> lockTokens = newMessages.ToDictionary(m => m.SystemProperties.LockToken, m => m);
             var sessionState = new ServiceBusOrchestrationSession
             {
                 Session = session,
@@ -605,7 +587,7 @@ namespace DurableTask.ServiceBus
             }
 
             TraceHelper.TraceSession(TraceEventType.Information, "ServiceBusOrchestrationService-RenewTaskOrchestrationWorkItem", workItem.InstanceId, "Renew lock on orchestration session");
-            await sessionState.Session.RenewLockAsync();
+            await sessionState.Session.RenewSessionLockAsync();
             this.ServiceStats.OrchestrationDispatcherStats.SessionsRenewed.Increment();
             workItem.LockedUntilUtc = sessionState.Session.LockedUntilUtc;
         }
@@ -637,7 +619,7 @@ namespace DurableTask.ServiceBus
                 throw new ArgumentNullException("SessionInstance");
             }
 
-            MessageSession session = sessionState.Session;
+            IMessageSession session = sessionState.Session;
 
             using (var ts = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled))
             {
@@ -665,7 +647,7 @@ namespace DurableTask.ServiceBus
                     {
                         MessageContainer[] outboundBrokeredMessages = await Task.WhenAll(outboundMessages.Select(async m =>
                         {
-                            BrokeredMessage message = await ServiceBusUtils.GetBrokeredMessageFromObjectAsync(
+                            Message message = await ServiceBusUtils.GetBrokeredMessageFromObjectAsync(
                                 m,
                                 this.Settings.MessageCompressionSettings,
                                 this.Settings.MessageSettings,
@@ -675,7 +657,7 @@ namespace DurableTask.ServiceBus
                                 DateTimeUtils.MinDateTime);
                             return new MessageContainer(message, m);
                         }));
-                        await this.workerSender.SendBatchAsync(outboundBrokeredMessages.Select(m => m.Message));
+                        await this.workerSender.SendAsync(outboundBrokeredMessages.Select(m => m.Message).ToList());
                         LogSentMessages(session, "Worker outbound", outboundBrokeredMessages);
                         this.ServiceStats.ActivityDispatcherStats.MessageBatchesSent.Increment();
                         this.ServiceStats.ActivityDispatcherStats.MessagesSent.Increment(outboundMessages.Count);
@@ -685,8 +667,8 @@ namespace DurableTask.ServiceBus
                     {
                         MessageContainer[] timerBrokeredMessages = await Task.WhenAll(timerMessages.Select(async m =>
                         {
-                            DateTime messageFireTime = ((TimerFiredEvent)m.Event).FireAt;
-                            BrokeredMessage message = await ServiceBusUtils.GetBrokeredMessageFromObjectAsync(
+                            DateTime messageFireTime = ((TimerFiredEvent) m.Event).FireAt;
+                            Message message = await ServiceBusUtils.GetBrokeredMessageFromObjectAsync(
                                 m,
                                 this.Settings.MessageCompressionSettings,
                                 this.Settings.MessageSettings,
@@ -698,7 +680,7 @@ namespace DurableTask.ServiceBus
                             return new MessageContainer(message, m);
                         }));
 
-                        await this.orchestratorQueueClient.SendBatchAsync(timerBrokeredMessages.Select(m => m.Message));
+                        await this.orchestratorQueueClient.SendAsync(timerBrokeredMessages.Select(m => m.Message).ToList());
                         LogSentMessages(session, "Timer Message", timerBrokeredMessages);
                         this.ServiceStats.OrchestrationDispatcherStats.MessageBatchesSent.Increment();
                         this.ServiceStats.OrchestrationDispatcherStats.MessagesSent.Increment(timerMessages.Count);
@@ -708,7 +690,7 @@ namespace DurableTask.ServiceBus
                     {
                         MessageContainer[] orchestrationBrokeredMessages = await Task.WhenAll(orchestratorMessages.Select(async m =>
                         {
-                            BrokeredMessage message = await ServiceBusUtils.GetBrokeredMessageFromObjectAsync(
+                            Message message = await ServiceBusUtils.GetBrokeredMessageFromObjectAsync(
                                 m,
                                 this.Settings.MessageCompressionSettings,
                                 this.Settings.MessageSettings,
@@ -718,8 +700,8 @@ namespace DurableTask.ServiceBus
                                 DateTimeUtils.MinDateTime);
                             return new MessageContainer(message, m);
                         }));
-                        await this.orchestratorQueueClient.SendBatchAsync(orchestrationBrokeredMessages.Select(m => m.Message));
-
+                        await this.orchestratorQueueClient.SendAsync(orchestrationBrokeredMessages.Select(m => m.Message).ToList());
+                        
                         LogSentMessages(session, "Sub Orchestration", orchestrationBrokeredMessages);
                         this.ServiceStats.OrchestrationDispatcherStats.MessageBatchesSent.Increment();
                         this.ServiceStats.OrchestrationDispatcherStats.MessagesSent.Increment(orchestratorMessages.Count);
@@ -727,7 +709,7 @@ namespace DurableTask.ServiceBus
 
                     if (continuedAsNewMessage != null)
                     {
-                        BrokeredMessage continuedAsNewBrokeredMessage = await ServiceBusUtils.GetBrokeredMessageFromObjectAsync(
+                        Message continuedAsNewBrokeredMessage = await ServiceBusUtils.GetBrokeredMessageFromObjectAsync(
                             continuedAsNewMessage,
                             this.Settings.MessageCompressionSettings,
                             this.Settings.MessageSettings,
@@ -752,7 +734,7 @@ namespace DurableTask.ServiceBus
 
                         if (trackingMessages.Count > 0)
                         {
-                            await this.trackingSender.SendBatchAsync(trackingMessages.Select(m => m.Message));
+                            await this.trackingSender.SendAsync(trackingMessages.Select(m => m.Message).ToList());
                             LogSentMessages(session, "Tracking messages", trackingMessages);
                             this.ServiceStats.TrackingDispatcherStats.MessageBatchesSent.Increment();
                             this.ServiceStats.TrackingDispatcherStats.MessagesSent.Increment(trackingMessages.Count);
@@ -769,7 +751,7 @@ namespace DurableTask.ServiceBus
 
                             if (trackingMessages.Count > 0)
                             {
-                                await this.trackingSender.SendBatchAsync(trackingMessages.Select(m => m.Message));
+                                await this.trackingSender.SendAsync(trackingMessages.Select(m => m.Message).ToList());
                                 LogSentMessages(session, "Tracking messages", trackingMessages);
                                 this.ServiceStats.TrackingDispatcherStats.MessageBatchesSent.Increment();
                                 this.ServiceStats.TrackingDispatcherStats.MessagesSent.Increment(trackingMessages.Count);
@@ -784,11 +766,11 @@ namespace DurableTask.ServiceBus
                     runtimeState.OrchestrationInstance,
                     () =>
                     {
-                        string allIds = string.Join(" ", sessionState.LockTokens.Values.Select(m => $"[SEQ: {m.SequenceNumber} LT: {m.LockToken}]"));
+                        string allIds = string.Join(" ", sessionState.LockTokens.Values.Select(m => $"[SEQ: {m.SystemProperties.SequenceNumber} LT: {m.SystemProperties.LockToken}]"));
                         return $"Completing orchestration messages sequence and lock tokens: {allIds}";
                     });
 
-                await session.CompleteBatchAsync(sessionState.LockTokens.Keys);
+                await session.CompleteAsync(sessionState.LockTokens.Keys);
                 this.ServiceStats.OrchestrationDispatcherStats.SessionBatchesCompleted.Increment();
                 ts.Complete();
             }
@@ -828,14 +810,14 @@ namespace DurableTask.ServiceBus
             }
 
             TraceHelper.TraceSession(TraceEventType.Error, "ServiceBusOrchestrationService-AbandonTaskOrchestrationWorkItem", workItem.InstanceId, "Abandoning {0} messages due to work item abort", sessionState.LockTokens.Keys.Count());
-            foreach (Guid lockToken in sessionState.LockTokens.Keys)
+            foreach (string lockToken in sessionState.LockTokens.Keys)
             {
                 await sessionState.Session.AbandonAsync(lockToken);
             }
 
             try
             {
-                sessionState.Session.Abort();
+                await sessionState.Session.CloseAsync();
             }
             catch (Exception ex) when (!Utils.IsFatal(ex))
             {
@@ -860,7 +842,7 @@ namespace DurableTask.ServiceBus
         /// <param name="cancellationToken">The cancellation token to cancel execution of the task</param>
         public async Task<TaskActivityWorkItem> LockNextTaskActivityWorkItem(TimeSpan receiveTimeout, CancellationToken cancellationToken)
         {
-            BrokeredMessage receivedMessage = await this.workerQueueClient.ReceiveAsync(receiveTimeout);
+            Message receivedMessage = await this.workerReceiver.ReceiveAsync(receiveTimeout);
             if (receivedMessage == null)
             {
                 return null;
@@ -872,7 +854,7 @@ namespace DurableTask.ServiceBus
                 TraceEventType.Information,
                 "ServiceBusOrchestrationService-LockNextTaskActivityWorkItem-Messages",
                 receivedMessage.SessionId,
-                GetFormattedLog($"New message to process: {receivedMessage.MessageId} [{receivedMessage.SequenceNumber}], latency: {receivedMessage.DeliveryLatency()}ms"));
+                GetFormattedLog($"New message to process: {receivedMessage.MessageId} [{receivedMessage.SystemProperties.SequenceNumber}], latency: {receivedMessage.DeliveryLatency()}ms"));
 
             TaskMessage taskMessage = await ServiceBusUtils.GetObjectFromBrokeredMessageAsync<TaskMessage>(receivedMessage, this.BlobStore);
 
@@ -888,30 +870,30 @@ namespace DurableTask.ServiceBus
             return new TaskActivityWorkItem
             {
                 Id = receivedMessage.MessageId,
-                LockedUntilUtc = receivedMessage.LockedUntilUtc,
+                LockedUntilUtc = receivedMessage.SystemProperties.LockedUntilUtc,
                 TaskMessage = taskMessage
             };
         }
 
-        BrokeredMessage GetBrokeredMessageForWorkItem(TaskActivityWorkItem workItem)
+        Message GetBrokeredMessageForWorkItem(TaskActivityWorkItem workItem)
         {
             if (string.IsNullOrWhiteSpace(workItem?.Id))
             {
                 return null;
             }
 
-            this.orchestrationMessages.TryGetValue(workItem.Id, out BrokeredMessage message);
+            this.orchestrationMessages.TryGetValue(workItem.Id, out Message message);
             return message;
         }
 
-        BrokeredMessage GetAndDeleteBrokeredMessageForWorkItem(TaskActivityWorkItem workItem)
+        Message GetAndDeleteBrokeredMessageForWorkItem(TaskActivityWorkItem workItem)
         {
             if (string.IsNullOrWhiteSpace(workItem?.Id))
             {
                 return null;
             }
 
-            this.orchestrationMessages.TryRemove(workItem.Id, out BrokeredMessage existingMessage);
+            this.orchestrationMessages.TryRemove(workItem.Id, out Message existingMessage);
             return existingMessage;
         }
 
@@ -921,11 +903,12 @@ namespace DurableTask.ServiceBus
         /// <param name="workItem">Work item to renew the lock on</param>
         public async Task<TaskActivityWorkItem> RenewTaskActivityWorkItemLockAsync(TaskActivityWorkItem workItem)
         {
-            BrokeredMessage message = GetBrokeredMessageForWorkItem(workItem);
+            Message message = GetBrokeredMessageForWorkItem(workItem);
+            
             if (message != null)
             {
-                await message.RenewLockAsync();
-                workItem.LockedUntilUtc = message.LockedUntilUtc;
+                await this.workerReceiver.RenewLockAsync(message);
+                workItem.LockedUntilUtc = message.SystemProperties.LockedUntilUtc;
                 this.ServiceStats.ActivityDispatcherStats.SessionsRenewed.Increment();
             }
 
@@ -939,7 +922,7 @@ namespace DurableTask.ServiceBus
         /// <param name="responseMessage">The response message to send</param>
         public async Task CompleteTaskActivityWorkItemAsync(TaskActivityWorkItem workItem, TaskMessage responseMessage)
         {
-            BrokeredMessage brokeredResponseMessage = await ServiceBusUtils.GetBrokeredMessageFromObjectAsync(
+            Message brokeredResponseMessage = await ServiceBusUtils.GetBrokeredMessageFromObjectAsync(
                 responseMessage,
                 this.Settings.MessageCompressionSettings,
                 this.Settings.MessageSettings,
@@ -948,7 +931,7 @@ namespace DurableTask.ServiceBus
                 this.BlobStore,
                 DateTimeUtils.MinDateTime);
 
-            BrokeredMessage originalMessage = GetAndDeleteBrokeredMessageForWorkItem(workItem);
+            Message originalMessage = GetAndDeleteBrokeredMessageForWorkItem(workItem);
             if (originalMessage == null)
             {
                 // ReSharper disable once NotResolvedInText
@@ -973,11 +956,10 @@ namespace DurableTask.ServiceBus
                     workItem.TaskMessage.OrchestrationInstance,
                     () => $@"Created new TaskActivity Transaction - txnid: {
                         Transaction.Current.TransactionInformation.LocalIdentifier
-                        } - message sequence and lock token: [SEQ: {originalMessage.SequenceNumber} LT: {originalMessage.LockToken}]");
+                        } - message sequence and lock token: [SEQ: {originalMessage.SystemProperties.SequenceNumber} LT: {originalMessage.SystemProperties.LockToken}]");
 
-                await Task.WhenAll(
-                    this.workerQueueClient.CompleteAsync(originalMessage.LockToken),
-                    this.orchestratorSender.SendAsync(brokeredResponseMessage));
+                await this.workerReceiver.CompleteAsync(originalMessage.SystemProperties.LockToken);
+                await this.orchestratorSender.SendAsync(brokeredResponseMessage);
                 ts.Complete();
                 this.ServiceStats.ActivityDispatcherStats.SessionBatchesCompleted.Increment();
                 this.ServiceStats.OrchestrationDispatcherStats.MessagesSent.Increment();
@@ -991,12 +973,12 @@ namespace DurableTask.ServiceBus
         /// <param name="workItem">The work item to abandon</param>
         public Task AbandonTaskActivityWorkItemAsync(TaskActivityWorkItem workItem)
         {
-            BrokeredMessage message = GetAndDeleteBrokeredMessageForWorkItem(workItem);
-            TraceHelper.Trace(TraceEventType.Information, "ServiceBusOrchestrationService-AbandonTaskActivityWorkItem", $"Abandoning message {workItem?.Id}");
+            Message message = GetAndDeleteBrokeredMessageForWorkItem(workItem);
+            TraceHelper.Trace(TraceEventType.Information, "ServiceBusOrchestrationService-AbandonTaskActivityWorkItem",  $"Abandoning message {workItem?.Id}");
 
             return message == null
                 ? Task.FromResult<object>(null)
-                : message.AbandonAsync();
+                : this.workerReceiver.AbandonAsync(message.SystemProperties.LockToken);
         }
 
         /// <summary>
@@ -1100,19 +1082,19 @@ namespace DurableTask.ServiceBus
                 return;
             }
 
-            var tasks = new Task<BrokeredMessage>[messages.Length];
+            var tasks = new Task<Message>[messages.Length];
             for (var i = 0; i < messages.Length; i++)
             {
                 tasks[i] = GetBrokeredMessageAsync(messages[i]);
             }
 
-            BrokeredMessage[] brokeredMessages = await Task.WhenAll(tasks);
-            await this.orchestrationBatchMessageSender.SendBatchAsync(brokeredMessages).ConfigureAwait(false);
+            Message[] brokeredMessages = await Task.WhenAll(tasks);
+            await this.orchestrationBatchMessageSender.SendAsync(brokeredMessages).ConfigureAwait(false);
         }
 
-        async Task<BrokeredMessage> GetBrokeredMessageAsync(TaskMessage message)
+        async Task<Message> GetBrokeredMessageAsync(TaskMessage message)
         {
-            BrokeredMessage brokeredMessage = await ServiceBusUtils.GetBrokeredMessageFromObjectAsync(
+            Message brokeredMessage = await ServiceBusUtils.GetBrokeredMessageFromObjectAsync(
                 message,
                 this.Settings.MessageCompressionSettings,
                 this.Settings.MessageSettings,
@@ -1260,7 +1242,7 @@ namespace DurableTask.ServiceBus
         static bool IsTransientException(Exception exception)
         {
             // TODO : Once we change the exception model, check for inner exception
-            return (exception as MessagingException)?.IsTransient ?? false;
+            return (exception as ServiceBusException)?.IsTransient ?? false;
         }
 
         /// <summary>
@@ -1270,7 +1252,7 @@ namespace DurableTask.ServiceBus
         /// <param name="cancellationToken">A cancellation token which signals a host shutdown</param>
         async Task<TrackingWorkItem> FetchTrackingWorkItemAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken)
         {
-            MessageSession session = await this.trackingQueueClient.AcceptMessageSessionAsync(receiveTimeout);
+            IMessageSession session = await this.trackingClient.AcceptMessageSessionAsync(receiveTimeout);
             if (session == null)
             {
                 return null;
@@ -1278,8 +1260,8 @@ namespace DurableTask.ServiceBus
 
             this.ServiceStats.TrackingDispatcherStats.SessionsReceived.Increment();
 
-            IList<BrokeredMessage> newMessages =
-                (await Utils.ExecuteWithRetries(() => session.ReceiveBatchAsync(this.Settings.PrefetchCount),
+            IList<Message> newMessages =
+                (await Utils.ExecuteWithRetries(() => session.ReceiveAsync(this.Settings.PrefetchCount),
                     session.SessionId, "Receive Tracking Session Message Batch", this.Settings.MaxRetries, this.Settings.IntervalBetweenRetriesSecs)).ToList();
             this.ServiceStats.TrackingDispatcherStats.MessagesReceived.Increment(newMessages.Count);
 
@@ -1294,7 +1276,7 @@ namespace DurableTask.ServiceBus
             IList<TaskMessage> newTaskMessages = await Task.WhenAll(
                 newMessages.Select(async message => await ServiceBusUtils.GetObjectFromBrokeredMessageAsync<TaskMessage>(message, this.BlobStore)));
 
-            Dictionary<Guid, BrokeredMessage> lockTokens = newMessages.ToDictionary(m => m.LockToken, m => m);
+            Dictionary<string, Message> lockTokens = newMessages.ToDictionary(m => m.SystemProperties.LockToken, m => m);
             var sessionState = new ServiceBusOrchestrationSession
             {
                 Session = session,
@@ -1340,7 +1322,7 @@ namespace DurableTask.ServiceBus
                         OrchestrationInstance = runtimeState.OrchestrationInstance
                     };
 
-                    BrokeredMessage trackingMessage = await ServiceBusUtils.GetBrokeredMessageFromObjectAsync(
+                    Message trackingMessage = await ServiceBusUtils.GetBrokeredMessageFromObjectAsync(
                         taskMessage,
                         this.Settings.MessageCompressionSettings,
                         this.Settings.MessageSettings,
@@ -1359,7 +1341,7 @@ namespace DurableTask.ServiceBus
                 OrchestrationInstance = runtimeState.OrchestrationInstance
             };
 
-            BrokeredMessage brokeredStateMessage = await ServiceBusUtils.GetBrokeredMessageFromObjectAsync(
+            Message brokeredStateMessage = await ServiceBusUtils.GetBrokeredMessageFromObjectAsync(
                 stateMessage,
                 this.Settings.MessageCompressionSettings,
                 this.Settings.MessageSettings,
@@ -1438,7 +1420,7 @@ namespace DurableTask.ServiceBus
             }
 
             // Cleanup our session
-            await sessionState.Session.CompleteBatchAsync(sessionState.LockTokens.Keys);
+            await sessionState.Session.CompleteAsync(sessionState.LockTokens.Keys);
             await sessionState.Session.CloseAsync();
         }
 
@@ -1496,7 +1478,7 @@ namespace DurableTask.ServiceBus
             return input;
         }
 
-        void LogSentMessages(MessageSession session, string messageType, IList<MessageContainer> messages)
+        void LogSentMessages(IMessageSession session, string messageType, IList<MessageContainer> messages)
         {
             TraceHelper.TraceSession(
                 TraceEventType.Information,
@@ -1506,9 +1488,11 @@ namespace DurableTask.ServiceBus
                     string.Join(",", messages.Select(m => $"{m.Message.MessageId} <{m.Action?.Event.EventId.ToString()}>"))}"));
         }
 
-        async Task<OrchestrationRuntimeState> GetSessionStateAsync(MessageSession session, IOrchestrationServiceBlobStore orchestrationServiceBlobStore)
+        async Task<OrchestrationRuntimeState> GetSessionStateAsync(IMessageSession session, IOrchestrationServiceBlobStore orchestrationServiceBlobStore)
         {
-            using (Stream rawSessionStream = await session.GetStateAsync())
+            byte[] state = await session.GetStateAsync();
+
+            using (Stream rawSessionStream = state != null ? new MemoryStream(state) : null)
             {
                 this.ServiceStats.OrchestrationDispatcherStats.SessionGets.Increment();
                 return await RuntimeStateStreamConverter.RawStreamToRuntimeState(rawSessionStream, session.SessionId, orchestrationServiceBlobStore, DataConverter);
@@ -1519,7 +1503,7 @@ namespace DurableTask.ServiceBus
             TaskOrchestrationWorkItem workItem,
             OrchestrationRuntimeState newOrchestrationRuntimeState,
             OrchestrationRuntimeState runtimeState,
-            MessageSession session)
+            IMessageSession session)
         {
             if (runtimeState.CompressedSize > SessionStreamWarningSizeInBytes && runtimeState.CompressedSize < this.Settings.SessionSettings.SessionOverflowThresholdInBytes)
             {
@@ -1552,7 +1536,12 @@ namespace DurableTask.ServiceBus
                         this.BlobStore,
                         session.SessionId);
 
-                await session.SetStateAsync(rawStream);
+                using (var ms = new MemoryStream())
+                {
+                    await rawStream.CopyToAsync(ms);
+                    await session.SetStateAsync(ms.ToArray());
+                }
+
                 this.ServiceStats.OrchestrationDispatcherStats.SessionSets.Increment();
             }
             catch (OrchestrationException exception)
@@ -1572,7 +1561,7 @@ namespace DurableTask.ServiceBus
                 string reason = $"Session state size of {runtimeState.CompressedSize} exceeded the termination threshold of {this.Settings.SessionSettings.SessionMaxSizeInBytes} bytes. More info: {exception.StackTrace}";
                 TraceHelper.TraceSession(TraceEventType.Critical, "ServiceBusOrchestrationService-SessionSizeExceeded", workItem.InstanceId, reason);
 
-                BrokeredMessage forcedTerminateMessage = await CreateForcedTerminateMessageAsync(runtimeState.OrchestrationInstance.InstanceId, reason);
+                Message forcedTerminateMessage = await CreateForcedTerminateMessageAsync(runtimeState.OrchestrationInstance.InstanceId, reason);
                 await this.orchestratorQueueClient.SendAsync(forcedTerminateMessage);
 
                 this.ServiceStats.OrchestrationDispatcherStats.MessagesSent.Increment();
@@ -1593,15 +1582,19 @@ namespace DurableTask.ServiceBus
             }
         }
 
-        static async Task SafeDeleteQueueAsync(NamespaceManager namespaceManager, string path)
+        static async Task SafeDeleteQueueAsync(ManagementClient managementClient, string path)
         {
             await Utils.ExecuteWithRetries(async () =>
             {
                 try
                 {
-                    await namespaceManager.DeleteQueueAsync(path);
+                    await managementClient.DeleteQueueAsync(path);
                 }
                 catch (MessagingEntityAlreadyExistsException)
+                {
+                    await Task.FromResult(0);
+                }
+                catch (MessagingEntityNotFoundException)
                 {
                     await Task.FromResult(0);
                 }
@@ -1609,7 +1602,7 @@ namespace DurableTask.ServiceBus
         }
 
         async Task SafeCreateQueueAsync(
-            NamespaceManager manager,
+            ManagementClient managementClient,
             string path,
             bool requiresSessions,
             bool requiresDuplicateDetection,
@@ -1620,7 +1613,7 @@ namespace DurableTask.ServiceBus
             {
                 try
                 {
-                    await CreateQueueAsync(manager, path, requiresSessions, requiresDuplicateDetection, maxDeliveryCount, maxSizeInMegabytes);
+                    await CreateQueueAsync(managementClient, path, requiresSessions, requiresDuplicateDetection, maxDeliveryCount, maxSizeInMegabytes);
                 }
                 catch (MessagingEntityAlreadyExistsException)
                 {
@@ -1630,21 +1623,21 @@ namespace DurableTask.ServiceBus
         }
 
         async Task SafeDeleteAndCreateQueueAsync(
-            NamespaceManager manager,
+            ManagementClient managementClient,
             string path,
             bool requiresSessions,
             bool requiresDuplicateDetection,
             int maxDeliveryCount,
             long maxSizeInMegabytes)
         {
-            await SafeDeleteQueueAsync(manager, path);
-            await SafeCreateQueueAsync(manager, path, requiresSessions, requiresDuplicateDetection, maxDeliveryCount, maxSizeInMegabytes);
+            await SafeDeleteQueueAsync(managementClient, path);
+            await SafeCreateQueueAsync(managementClient, path, requiresSessions, requiresDuplicateDetection, maxDeliveryCount, maxSizeInMegabytes);
         }
 
         static readonly long[] ValidQueueSizes = { 1024L, 2048L, 3072L, 4096L, 5120L };
 
         async Task CreateQueueAsync(
-            NamespaceManager manager,
+            ManagementClient managementClient,
             string path,
             bool requiresSessions,
             bool requiresDuplicateDetection,
@@ -1662,13 +1655,13 @@ namespace DurableTask.ServiceBus
                 MaxDeliveryCount = maxDeliveryCount,
                 RequiresDuplicateDetection = requiresDuplicateDetection,
                 DuplicateDetectionHistoryTimeWindow = TimeSpan.FromHours(DuplicateDetectionWindowInHours),
-                MaxSizeInMegabytes = maxSizeInMegabytes
+                MaxSizeInMB = maxSizeInMegabytes
             };
 
-            await manager.CreateQueueAsync(description);
+            await managementClient.CreateQueueAsync(description);
         }
 
-        Task<BrokeredMessage> CreateForcedTerminateMessageAsync(string instanceId, string reason)
+        Task<Message> CreateForcedTerminateMessageAsync(string instanceId, string reason)
         {
             var newOrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId };
             var taskMessage = new TaskMessage
@@ -1697,11 +1690,10 @@ namespace DurableTask.ServiceBus
 
         internal class MessageContainer
         {
-            internal BrokeredMessage Message { get; set; }
-
+            internal Message Message { get; set; }
             internal TaskMessage Action { get; set; }
 
-            internal MessageContainer(BrokeredMessage message, TaskMessage action)
+            internal MessageContainer(Message message, TaskMessage action)
             {
                 Message = message;
                 Action = action;

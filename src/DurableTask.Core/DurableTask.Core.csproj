@@ -2,7 +2,7 @@
 
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
   <PropertyGroup>
-    <TargetFrameworks>netstandard2.0;net451</TargetFrameworks>
+    <TargetFrameworks>netstandard2.0</TargetFrameworks>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <PackageId>Microsoft.Azure.DurableTask.Core</PackageId>
   </PropertyGroup>

@@ -2,7 +2,7 @@
 
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
   <PropertyGroup>
-    <TargetFrameworks>netstandard2.0;net451</TargetFrameworks>
+    <TargetFrameworks>netstandard2.0</TargetFrameworks>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <FileVersion>1.6.0</FileVersion>
     <AssemblyVersion>$(FileVersion)</AssemblyVersion>
@@ -29,7 +29,7 @@
 
   <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
     <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
-    <PackageReference Include="WindowsAzure.Storage" version="8.6.0" />
+    <PackageReference Include="WindowsAzure.Storage" version="9.3.3" />
   </ItemGroup>
 
   <ItemGroup>

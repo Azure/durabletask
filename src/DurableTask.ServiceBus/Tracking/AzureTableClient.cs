@@ -336,12 +336,13 @@ namespace DurableTask.ServiceBus.Tracking
             return filterExpression;
         }
 
+        private static readonly DateTimeOffset MinDateTime = new DateTimeOffset(1601, 1, 1, 0, 0, 0, TimeSpan.Zero);
         DateTime ClipStartTime(DateTime startTime)
         {
             DateTimeOffset offsetStartTime = startTime;
-            if (offsetStartTime < TableConstants.MinDateTime)
+            if (offsetStartTime < MinDateTime)
             {
-                startTime = TableConstants.MinDateTime.DateTime;
+                startTime = MinDateTime.DateTime;
             }
 
             return startTime;

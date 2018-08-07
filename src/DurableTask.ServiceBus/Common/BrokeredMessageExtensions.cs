@@ -14,8 +14,8 @@
 namespace DurableTask.ServiceBus.Common
 {
     using System;
-    using Microsoft.ServiceBus.Messaging;
     using DurableTask.Core.Common;
+    using Microsoft.Azure.ServiceBus;
 
     /// <summary>
     /// Extension methods for BrokeredMessage
@@ -25,14 +25,14 @@ namespace DurableTask.ServiceBus.Common
         /// <summary>
         /// Returns delivery latency of the message
         /// </summary>        
-        public static double DeliveryLatency(this BrokeredMessage message)
+        public static double DeliveryLatency(this Message message)
         {
             if (message == null)
             {
                 return 0;
             }
 
-            DateTime actualEnqueueTimeUtc = (!message.ScheduledEnqueueTimeUtc.IsSet()) ? message.EnqueuedTimeUtc : message.ScheduledEnqueueTimeUtc;
+            DateTime actualEnqueueTimeUtc = (!message.ScheduledEnqueueTimeUtc.IsSet()) ? message.SystemProperties.EnqueuedTimeUtc : message.ScheduledEnqueueTimeUtc;
             return (DateTime.UtcNow - actualEnqueueTimeUtc).TotalMilliseconds;
         }
     }

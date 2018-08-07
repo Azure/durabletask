@@ -1,0 +1,18 @@
+﻿{
+  "inputs": [
+    {
+      "type": "EventSource",
+      "sources": [
+        {
+          "level": "Warning"
+        }
+      ]
+    }
+  ],
+  "outputs": [
+    {
+      "type": "StdOutput"
+    }
+  ],
+  "schemaVersion": "2016-08-11"
+}

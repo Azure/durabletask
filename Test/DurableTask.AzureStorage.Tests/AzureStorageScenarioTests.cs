@@ -2479,7 +2479,7 @@ namespace DurableTask.AzureStorage.Tests
                         {
                             string connectionString = TestHelpers.GetTestStorageAccountConnectionString();
                             CloudTable table = CloudStorageAccount.Parse(connectionString).CreateCloudTableClient().GetTableReference("TestTable");
-                            table.CreateIfNotExists();
+                            table.CreateIfNotExistsAsync().Wait();
                             cachedTable = table;
                         }
 
@@ -2492,7 +2492,7 @@ namespace DurableTask.AzureStorage.Tests
                     var entity = new DynamicTableEntity(
                         partitionKey: rowData.Item1,
                         rowKey: $"{rowData.Item2}.{Guid.NewGuid():N}");
-                    TestCloudTable.Execute(TableOperation.Insert(entity));
+                    TestCloudTable.ExecuteAsync(TableOperation.Insert(entity)).Wait();
                     return null;
                 }
             }
@@ -2507,7 +2507,7 @@ namespace DurableTask.AzureStorage.Tests
                             QueryComparisons.Equal,
                             partitionKey));
 
-                    return WriteTableRow.TestCloudTable.ExecuteQuery(query).Count();
+                    return WriteTableRow.TestCloudTable.ExecuteQuerySegmentedAsync(query, new TableContinuationToken()).Result.Count();
                 }
             }
             internal class Echo : TaskActivity<string, string>

@@ -109,7 +109,7 @@ namespace DurableTask.AzureStorage.Tests
         {
             var condition = new OrchestrationInstanceStatusQueryCondition();
             var query = condition.ToTableQuery<OrchestrationInstanceStatus>();
-            Assert.IsNull(query.Expression);
+            Assert.IsTrue(string.IsNullOrWhiteSpace(query.FilterString));
         }
 
         [TestMethod]

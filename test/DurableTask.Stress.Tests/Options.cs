@@ -18,11 +18,11 @@ namespace DurableTask.Stress.Tests
 
     internal class Options
     {
-        [Option('c', "create-hub", DefaultValue = false,
+        [Option('c', "create-hub", Default = false,
             HelpText = "Create Orchestration Hub.")]
         public bool CreateHub { get; set; }
 
-        [Option('s', "start-instance", DefaultValue = null,
+        [Option('s', "start-instance", Default = null,
             HelpText = "Start Driver Instance")]
         public string StartInstance { get; set; }
 
@@ -30,22 +30,21 @@ namespace DurableTask.Stress.Tests
             HelpText = "Instance id for new orchestration instance.")]
         public string InstanceId { get; set; }
 
-        [HelpOption]
-        public string GetUsage()
+        public static string GetUsage(ParserResult<Options> options)
         {
             // this without using CommandLine.Text
             //  or using HelpText.AutoBuild
 
             var help = new HelpText
             {
-                Heading = new HeadingInfo("TaskHubStressTest", "1.0"),
+                Heading = new HeadingInfo("TaskHubStressTest", "1.01"),
                 AdditionalNewLineAfterOption = true,
                 AddDashesToOption = true
             };
             help.AddPreOptionsLine("Usage: TaskHubStressTest.exe -c");
             help.AddPreOptionsLine("Usage: TaskHubStressTest.exe -c -s <id>");
             help.AddPreOptionsLine("Usage: TaskHubStressTest.exe -i <id>");
-            help.AddOptions(this);
+            help.AddOptions(options);
             return help;
         }
     }

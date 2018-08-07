@@ -180,7 +180,7 @@ namespace DurableTask.ServiceBus.Tests
             await Task.Delay(TimeSpan.FromSeconds(5));
 
             // ReSharper disable once UnusedVariable
-            long count = TestHelpers.GetOrchestratorQueueMessageCount();
+            long count = await TestHelpers.GetOrchestratorQueueMessageCount();
 
             IList<OrchestrationState> executions = await this.client.GetOrchestrationStateAsync(id.InstanceId, true);
             Assert.AreEqual(1, executions.Count, "Duplicate detection failed and orchestration ran for second time");

@@ -27,7 +27,7 @@ namespace DurableTask.AzureStorage.Tests
             var settings = new AzureStorageOrchestrationServiceSettings
             {
                 StorageConnectionString = storageConnectionString,
-                TaskHubName = ConfigurationManager.AppSettings.Get("TaskHubName"),
+                TaskHubName = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None).AppSettings.Settings["TaskHubName"].Value,
                 ExtendedSessionsEnabled = enableExtendedSessions,
                 ExtendedSessionIdleTimeout = TimeSpan.FromSeconds(extendedSessionTimeoutInSeconds),
             };
@@ -51,7 +51,7 @@ namespace DurableTask.AzureStorage.Tests
             string value = Environment.GetEnvironmentVariable("DurableTaskTest" + name);
             if (string.IsNullOrEmpty(value))
             {
-                value = ConfigurationManager.AppSettings.Get(name);
+                value = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None).AppSettings.Settings[name].Value;
             }
 
             return value;

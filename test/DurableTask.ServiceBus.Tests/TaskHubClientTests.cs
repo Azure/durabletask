@@ -51,7 +51,7 @@ namespace DurableTask.ServiceBus.Tests
             await this.client.CreateOrchestrationInstanceAsync("foo", "1.0", null);
             await this.client.CreateOrchestrationInstanceAsync("foo1", "1.0", null);
             await this.client.CreateOrchestrationInstanceAsync("foo2", "1.0", null);
-            Assert.IsTrue(service.GetPendingOrchestrationsCount() == 3);
+            Assert.IsTrue(await service.GetPendingOrchestrationsCount() == 3);
             await service.DeleteAsync();
         }
 

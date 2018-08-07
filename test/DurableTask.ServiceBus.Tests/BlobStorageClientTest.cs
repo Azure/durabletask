@@ -40,11 +40,14 @@ namespace DurableTask.ServiceBus.Tests
         }
 
         [TestCleanup]
-        public void TestCleanup()
+        public async Task TestCleanup()
         {
-            List<CloudBlobContainer> containers = this.blobStorageClient.ListContainers().ToList();
-            containers.ForEach(container => container.DeleteIfExists());
-            containers = this.blobStorageClient.ListContainers().ToList();
+            List<CloudBlobContainer> containers = (await this.blobStorageClient.ListContainers()).ToList();
+            foreach (var container in containers)
+            {
+                Assert.IsTrue(await container.DeleteIfExistsAsync());
+            }
+            containers = (await this.blobStorageClient.ListContainers()).ToList();
             Assert.AreEqual(0, containers.Count);
         }
 
@@ -80,7 +83,7 @@ namespace DurableTask.ServiceBus.Tests
             var dateTime = new DateTime(2015, 05, 17);
             await this.blobStorageClient.DeleteExpiredContainersAsync(dateTime);
 
-            List<CloudBlobContainer> containers = this.blobStorageClient.ListContainers().ToList();
+            List<CloudBlobContainer> containers = (await this.blobStorageClient.ListContainers()).ToList();
             Assert.AreEqual(2, containers.Count);
             var sortedList = new List<string> {containers[0].Name, containers[1].Name};
             sortedList.Sort();
@@ -89,7 +92,7 @@ namespace DurableTask.ServiceBus.Tests
             Assert.IsTrue(sortedList[1].EndsWith("20150518"));
 
             await this.blobStorageClient.DeleteBlobStoreContainersAsync();
-            containers = this.blobStorageClient.ListContainers().ToList();
+            containers = (await this.blobStorageClient.ListContainers()).ToList();
             Assert.AreEqual(0, containers.Count);
         }
     }

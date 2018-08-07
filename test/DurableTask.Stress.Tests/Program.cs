@@ -24,100 +24,103 @@ namespace DurableTask.Stress.Tests
     using DurableTask.ServiceBus;
     using DurableTask.Test.Orchestrations.Stress;
     using DurableTask.ServiceBus.Tracking;
-    using Microsoft.Practices.EnterpriseLibrary.SemanticLogging;
-    using System.Diagnostics.Tracing;
+    using CommandLine;
+    using Microsoft.Diagnostics.EventFlow;
 
     internal class Program
     {
-        static readonly Options ArgumentOptions = new Options();
-        static ObservableEventListener eventListener;
 
         // ReSharper disable once UnusedMember.Local
         static void Main(string[] args)
         {
-            eventListener = new ObservableEventListener();
-            eventListener.LogToFlatFile("Trace.log");
-            eventListener.EnableEvents(DefaultEventSource.Log, EventLevel.Warning);
-
-            string tableConnectionString = ConfigurationManager.AppSettings["StorageConnectionString"];
-
-            if (CommandLine.Parser.Default.ParseArgumentsStrict(args, ArgumentOptions))
+            using (DiagnosticPipelineFactory.CreatePipeline("eventFlowConfig.json"))
             {
-                string connectionString = ConfigurationManager.ConnectionStrings["Microsoft.ServiceBus.ConnectionString"].ConnectionString;
-                string taskHubName = ConfigurationManager.AppSettings["TaskHubName"];
-           
-                IOrchestrationServiceInstanceStore instanceStore = new AzureTableInstanceStore(taskHubName, tableConnectionString);
 
-                var settings = new ServiceBusOrchestrationServiceSettings
-                {
-                    TaskOrchestrationDispatcherSettings =
-                    {
-                        CompressOrchestrationState = bool.Parse(ConfigurationManager.AppSettings["CompressOrchestrationState"]),
-                        MaxConcurrentOrchestrations = int.Parse(ConfigurationManager.AppSettings["MaxConcurrentOrchestrations"])
-                    },
-                    TaskActivityDispatcherSettings =
-                    {
-                        MaxConcurrentActivities = int.Parse(ConfigurationManager.AppSettings["MaxConcurrentActivities"])
-                    }
-                };
-
-                var orchestrationServiceAndClient =
-                    new ServiceBusOrchestrationService(connectionString, taskHubName, instanceStore, null, settings);
-
-                var taskHubClient = new TaskHubClient(orchestrationServiceAndClient);
-                var taskHub = new TaskHubWorker(orchestrationServiceAndClient);
-
-                if (ArgumentOptions.CreateHub)
-                {
-                    orchestrationServiceAndClient.CreateIfNotExistsAsync().Wait();
-                }
-
-                OrchestrationInstance instance;
-                string instanceId = ArgumentOptions.StartInstance;
-
-                if (!string.IsNullOrWhiteSpace(instanceId))
-                {
-                    var driverConfig = new DriverOrchestrationData
-                    {
-                        NumberOfIteration = int.Parse(ConfigurationManager.AppSettings["DriverOrchestrationIterations"]),
-                        NumberOfParallelTasks = int.Parse(ConfigurationManager.AppSettings["DriverOrchestrationParallelTasks"]),
-                        SubOrchestrationData = new TestOrchestrationData
+                var config = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
+                string tableConnectionString = config.AppSettings.Settings["StorageConnectionString"].Value;
+                ParserResult<Options> parserResult = Parser.Default.ParseArguments<Options>(args);
+                parserResult.WithParsed(
+                        options =>
                         {
-                            NumberOfParallelTasks = int.Parse(ConfigurationManager.AppSettings["ChildOrchestrationParallelTasks"]),
-                            NumberOfSerialTasks = int.Parse(ConfigurationManager.AppSettings["ChildOrchestrationSerialTasks"]),
-                            MaxDelayInMinutes = int.Parse(ConfigurationManager.AppSettings["TestTaskMaxDelayInMinutes"]),
-                        }
-                    };
+                            string connectionString = config.ConnectionStrings.ConnectionStrings["Microsoft.ServiceBus.ConnectionString"].ConnectionString;
+                            string taskHubName = config.AppSettings.Settings["TaskHubName"].Value;
 
-                    instance = taskHubClient.CreateOrchestrationInstanceAsync(typeof(DriverOrchestration), instanceId, driverConfig).Result;
-                }
-                else
-                {
-                    instance = new OrchestrationInstance { InstanceId = ArgumentOptions.InstanceId };
-                }
 
-                Console.WriteLine($"Orchestration starting: {DateTime.Now}");
-                Stopwatch stopWatch = Stopwatch.StartNew();
+                            IOrchestrationServiceInstanceStore instanceStore = new AzureTableInstanceStore(taskHubName, tableConnectionString);
 
-                var testTask = new TestTask();
-                taskHub.AddTaskActivities(testTask);
-                taskHub.AddTaskOrchestrations(typeof(DriverOrchestration));
-                taskHub.AddTaskOrchestrations(typeof(TestOrchestration));
-                taskHub.StartAsync().Wait();
+                            var settings = new ServiceBusOrchestrationServiceSettings
+                            {
+                                TaskOrchestrationDispatcherSettings =
+                                {
+                                    CompressOrchestrationState = bool.Parse(config.AppSettings.Settings["CompressOrchestrationState"].Value),
+                                    MaxConcurrentOrchestrations = int.Parse(config.AppSettings.Settings["MaxConcurrentOrchestrations"].Value)
+                                },
+                                TaskActivityDispatcherSettings =
+                                {
+                                    MaxConcurrentActivities = int.Parse(config.AppSettings.Settings["MaxConcurrentActivities"].Value)
+                                }
+                            };
 
-                int testTimeoutInSeconds = int.Parse(ConfigurationManager.AppSettings["TestTimeoutInSeconds"]);
-                OrchestrationState state = WaitForInstance(taskHubClient, instance, testTimeoutInSeconds);
-                stopWatch.Stop();
-                Console.WriteLine($"Orchestration Status: {state.OrchestrationStatus}");
-                Console.WriteLine($"Orchestration Result: {state.Output}");
-                Console.WriteLine($"Counter: {testTask.Counter}");
+                            var orchestrationServiceAndClient =
+                                new ServiceBusOrchestrationService(connectionString, taskHubName, instanceStore, null, settings);
 
-                TimeSpan totalTime = stopWatch.Elapsed;
-                string elapsedTime = $"{totalTime.Hours:00}:{totalTime.Minutes:00}:{totalTime.Seconds:00}.{totalTime.Milliseconds/10:00}";
-                Console.WriteLine($"Total Time: {elapsedTime}");
-                Console.ReadLine();
 
-                taskHub.StopAsync().Wait();
+                            var taskHubClient = new TaskHubClient(orchestrationServiceAndClient);
+                            var taskHub = new TaskHubWorker(orchestrationServiceAndClient);
+
+                            if (options.CreateHub)
+                            {
+                                orchestrationServiceAndClient.CreateIfNotExistsAsync().Wait();
+                            }
+
+                            OrchestrationInstance instance;
+                            string instanceId = options.StartInstance;
+
+                            if (!string.IsNullOrWhiteSpace(instanceId))
+                            {
+                                var driverConfig = new DriverOrchestrationData
+                                {
+                                    NumberOfIteration = int.Parse(config.AppSettings.Settings["DriverOrchestrationIterations"].Value),
+                                    NumberOfParallelTasks = int.Parse(config.AppSettings.Settings["DriverOrchestrationParallelTasks"].Value),
+                                    SubOrchestrationData = new TestOrchestrationData
+                                    {
+                                        NumberOfParallelTasks = int.Parse(config.AppSettings.Settings["ChildOrchestrationParallelTasks"].Value),
+                                        NumberOfSerialTasks = int.Parse(config.AppSettings.Settings["ChildOrchestrationSerialTasks"].Value),
+                                        MaxDelayInMinutes = int.Parse(config.AppSettings.Settings["TestTaskMaxDelayInMinutes"].Value),
+                                    }
+                                };
+
+                                instance = taskHubClient.CreateOrchestrationInstanceAsync(typeof(DriverOrchestration), instanceId, driverConfig).Result;
+                            }
+                            else
+                            {
+                                instance = new OrchestrationInstance { InstanceId = options.InstanceId };
+                            }
+
+                            Console.WriteLine($"Orchestration starting: {DateTime.Now}");
+                            Stopwatch stopWatch = Stopwatch.StartNew();
+
+                            var testTask = new TestTask();
+                            taskHub.AddTaskActivities(testTask);
+                            taskHub.AddTaskOrchestrations(typeof(DriverOrchestration));
+                            taskHub.AddTaskOrchestrations(typeof(TestOrchestration));
+                            taskHub.StartAsync().Wait();
+
+                            int testTimeoutInSeconds = int.Parse(config.AppSettings.Settings["TestTimeoutInSeconds"].Value);
+                            OrchestrationState state = WaitForInstance(taskHubClient, instance, testTimeoutInSeconds);
+                            stopWatch.Stop();
+                            Console.WriteLine($"Orchestration Status: {state.OrchestrationStatus}");
+                            Console.WriteLine($"Orchestration Result: {state.Output}");
+                            Console.WriteLine($"Counter: {testTask.Counter}");
+
+                            TimeSpan totalTime = stopWatch.Elapsed;
+                            string elapsedTime = $"{totalTime.Hours:00}:{totalTime.Minutes:00}:{totalTime.Seconds:00}.{totalTime.Milliseconds / 10:00}";
+                            Console.WriteLine($"Total Time: {elapsedTime}");
+                            Console.ReadLine();
+
+                            taskHub.StopAsync().Wait();
+                        })
+                    .WithNotParsed(errors => Console.Error.WriteLine(Options.GetUsage(parserResult)));
             }
         }
 

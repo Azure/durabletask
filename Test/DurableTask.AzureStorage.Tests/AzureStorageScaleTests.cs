@@ -89,13 +89,13 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(4, controlQueues.Length, "Expected to see the default four control queues created.");
             foreach (ControlQueue queue in controlQueues)
             {
-                Assert.IsTrue(queue.InnerQueue.Exists(), $"Queue {queue.Name} was not created.");
+                Assert.IsTrue(await queue.InnerQueue.ExistsAsync(), $"Queue {queue.Name} was not created.");
             }
 
             // Work-item queue
             WorkItemQueue workItemQueue = service.WorkItemQueue;
             Assert.IsNotNull(workItemQueue, "Work-item queue client was not initialized.");
-            Assert.IsTrue(workItemQueue.InnerQueue.Exists(), $"Queue {workItemQueue.Name} was not created.");
+            Assert.IsTrue(await workItemQueue.InnerQueue.ExistsAsync(), $"Queue {workItemQueue.Name} was not created.");
 
             // TrackingStore
             ITrackingStore trackingStore = service.TrackingStore;
@@ -110,15 +110,15 @@ namespace DurableTask.AzureStorage.Tests
 
             string expectedContainerName = taskHubName.ToLowerInvariant() + "-leases";
             CloudBlobContainer taskHubContainer = storageAccount.CreateCloudBlobClient().GetContainerReference(expectedContainerName);
-            Assert.IsTrue(taskHubContainer.Exists(), $"Task hub blob container {expectedContainerName} was not created.");
+            Assert.IsTrue(await taskHubContainer.ExistsAsync(), $"Task hub blob container {expectedContainerName} was not created.");
 
             // Task Hub config blob
             CloudBlob infoBlob = taskHubContainer.GetBlobReference("taskhub.json");
-            Assert.IsTrue(infoBlob.Exists(), $"The blob {infoBlob.Name} was not created.");
+            Assert.IsTrue(await infoBlob.ExistsAsync(), $"The blob {infoBlob.Name} was not created.");
 
             // Task Hub lease container
             CloudBlobDirectory leaseDirectory = taskHubContainer.GetDirectoryReference("default");
-            IListBlobItem[] leaseBlobs = leaseDirectory.ListBlobs().ToArray();
+            IListBlobItem[] leaseBlobs = (await this.ListBlobsAsync(leaseDirectory)).ToArray();
             Assert.AreEqual(controlQueues.Length, leaseBlobs.Length, "Expected to see the same number of control queues and lease blobs.");
 
             foreach (IListBlobItem blobItem in leaseBlobs)
@@ -135,10 +135,10 @@ namespace DurableTask.AzureStorage.Tests
 
                 foreach (ControlQueue queue in controlQueues)
                 {
-                    Assert.IsFalse(queue.InnerQueue.Exists(), $"Queue {queue.Name} was not deleted.");
+                    Assert.IsFalse(await queue.InnerQueue.ExistsAsync(), $"Queue {queue.Name} was not deleted.");
                 }
 
-                Assert.IsFalse(workItemQueue.InnerQueue.Exists(), $"Queue {workItemQueue.Name} was not deleted.");
+                Assert.IsFalse(await workItemQueue.InnerQueue.ExistsAsync(), $"Queue {workItemQueue.Name} was not deleted.");
 
                 try
                 {
@@ -147,17 +147,31 @@ namespace DurableTask.AzureStorage.Tests
                 catch (NotSupportedException)
                 { }
 
-                Assert.IsFalse(taskHubContainer.Exists(), $"Task hub blob container {taskHubContainer.Name} was not deleted.");
+                Assert.IsFalse(await taskHubContainer.ExistsAsync(), $"Task hub blob container {taskHubContainer.Name} was not deleted.");
             }
 
             return service;
         }
 
-        /// <summary>
-        /// REQUIREMENT: Workers can be added or removed at any time and control-queue partitions are load-balanced automatically.
-        /// REQUIREMENT: No two workers will ever process the same control queue.
-        /// </summary>
-        [TestMethod]
+        public async Task<List<IListBlobItem>> ListBlobsAsync(CloudBlobDirectory client)
+        {
+            BlobContinuationToken continuationToken = null;
+            var results = new List<IListBlobItem>();
+            do
+            {
+                BlobResultSegment response = await client.ListBlobsSegmentedAsync(continuationToken);
+                continuationToken = response.ContinuationToken;
+                results.AddRange(response.Results);
+            }
+            while (continuationToken != null);
+            return results;
+        }
+
+/// <summary>
+/// REQUIREMENT: Workers can be added or removed at any time and control-queue partitions are load-balanced automatically.
+/// REQUIREMENT: No two workers will ever process the same control queue.
+/// </summary>
+[TestMethod]
         public async Task MultiWorkerLeaseMovement()
         {
             const int MaxWorkerCount = 4;
@@ -256,7 +270,7 @@ namespace DurableTask.AzureStorage.Tests
                                     service.OwnedControlQueues.All(q => ownedLeases.Any(l => l.Name.Contains(q.Name))),
                                     "Mismatch between queue assignment and lease ownership.");
                                 Assert.IsTrue(
-                                    service.OwnedControlQueues.All(q => q.InnerQueue.Exists()),
+                                    service.OwnedControlQueues.All(q => q.InnerQueue.ExistsAsync().GetAwaiter().GetResult()),
                                     $"One or more control queues owned by {service.WorkerId} do not exist");
                             }
 
@@ -340,7 +354,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 if (tableTrackingStore != null)
                 {
-                    DynamicTableEntity[] entities = tableTrackingStore.HistoryTable.ExecuteQuery(new TableQuery()).ToArray();
+                    DynamicTableEntity[] entities = (await tableTrackingStore.HistoryTable.ExecuteQuerySegmentedAsync(new TableQuery(), new TableContinuationToken())).ToArray();
                     int uniquePartitions = entities.GroupBy(e => e.PartitionKey).Count();
                     Trace.TraceInformation($"Found {uniquePartitions} unique partition(s) in table storage.");
                     Assert.AreEqual(InstanceCount, uniquePartitions, "Unexpected number of table partitions.");
