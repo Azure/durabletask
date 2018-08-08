@@ -15,9 +15,11 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public void OrchestrationInstanceQuery_RuntimeStatus()
         {
+            var runtimeStatus = new List<string>();
+            runtimeStatus.Add("Running");
             var condition = new OrchestrationInstanceStatusQueryCondition
             {
-                RuntimeStatus = "Running"
+                RuntimeStatus = runtimeStatus
             };
 
             var query = condition.ToTableQuery<OrchestrationInstanceStatus>();
@@ -58,8 +60,10 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public void OrchestrationInstanceQuery_Combination()
         {
+            var runtimeStatus = new List<string>();
+            runtimeStatus.Add("Running");
             var condition = new OrchestrationInstanceStatusQueryCondition {
-                RuntimeStatus = "Running",
+                RuntimeStatus = runtimeStatus,
                 CreatedTimeFrom = new DateTime(2018, 1, 10, 10, 10, 10),
                 CreatedTimeTo = new DateTime(2018, 1, 10, 10, 10, 50)
             };
@@ -74,5 +78,29 @@ namespace DurableTask.AzureStorage.Tests
             Assert.IsNull(query.Expression);
         }
 
+        [TestMethod]
+        public void OrchestrationInstance_MultipleRuntimeStatus()
+        {
+            var runtimeStatus = new List<string>();
+            runtimeStatus.Add("Running");
+            runtimeStatus.Add("Completed");
+            var condition = new OrchestrationInstanceStatusQueryCondition
+            {
+                RuntimeStatus = runtimeStatus,
+                CreatedTimeFrom = new DateTime(2018, 1, 10, 10, 10, 10),
+                CreatedTimeTo = new DateTime(2018, 1, 10, 10, 10, 50)
+            };
+            Assert.AreEqual("((CreatedTime ge datetime'2018-01-10T01:10:10.0000000Z') and (CreatedTime le datetime'2018-01-10T01:10:50.0000000Z')) and ((RuntimeStatus eq 'Running') or (RuntimeStatus eq 'Completed'))", condition.ToTableQuery<OrchestrationInstanceStatus>().FilterString);
+        }
+
+        [TestMethod]
+        public void OrchestrationInstance_Parse()
+        {
+            var runtimeStatus = new List<string>();
+            runtimeStatus.Add("Running");
+            var condition = OrchestrationInstanceStatusQueryCondition.Parse(new DateTime(2018, 1, 10, 10, 10, 10), new DateTime(2018, 1, 10, 10, 10, 50), runtimeStatus);
+            Assert.AreEqual("((CreatedTime ge datetime'2018-01-10T01:10:10.0000000Z') and (CreatedTime le datetime'2018-01-10T01:10:50.0000000Z')) and (RuntimeStatus eq 'Running')", condition.ToTableQuery<OrchestrationInstanceStatus>().FilterString);
+
+        }
     }
 }

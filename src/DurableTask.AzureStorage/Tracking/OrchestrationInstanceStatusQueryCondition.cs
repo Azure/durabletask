@@ -15,7 +15,7 @@ namespace DurableTask.AzureStorage.Tracking
         /// <summary>
         /// RuntimeStatus
         /// </summary>
-        public string RuntimeStatus { get; set; }
+        public IEnumerable<string> RuntimeStatus { get; set; }
         /// <summary>
         /// CreatedTimeFrom. Greater than this time
         /// </summary>
@@ -33,7 +33,7 @@ namespace DurableTask.AzureStorage.Tracking
             where T : TableEntity, new()
         {
             var query = new TableQuery<T>();
-            if (!(string.IsNullOrEmpty(RuntimeStatus) && CreatedTimeFrom == default(DateTime) && CreatedTimeTo == default(DateTime))){ 
+            if (!((RuntimeStatus == null || RuntimeStatus.Count() == 0) && CreatedTimeFrom == default(DateTime) && CreatedTimeTo == default(DateTime))){ 
                 query.Where(
                     GetConditions()
                     );
@@ -55,9 +55,13 @@ namespace DurableTask.AzureStorage.Tracking
                 conditions.Add(TableQuery.GenerateFilterConditionForDate("CreatedTime", QueryComparisons.LessThanOrEqual, new DateTimeOffset(this.CreatedTimeTo)));
             }
 
-            if (!string.IsNullOrEmpty(this.RuntimeStatus))
+            if (this.RuntimeStatus != null)
             {
-                conditions.Add(TableQuery.GenerateFilterCondition("RuntimeStatus", QueryComparisons.Equal, this.RuntimeStatus));
+                var runtimeCondition = this.RuntimeStatus.Select(x => TableQuery.GenerateFilterCondition("RuntimeStatus", QueryComparisons.Equal, x))
+                                    .Aggregate((a, b) => TableQuery.CombineFilters(a, TableOperators.Or, b));
+                if (runtimeCondition.Count() != 0) {
+                    conditions.Add(runtimeCondition);
+                }
             }
 
             if (conditions.Count == 1)
@@ -71,5 +75,20 @@ namespace DurableTask.AzureStorage.Tracking
 
         }
 
+        /// <summary>
+        /// Parse is a factory method of the OrchestrationInstanceStatusConditionQuery
+        /// </summary>
+        /// <param name="createdTimeFrom">CreatedTimeFrom</param>
+        /// <param name="createdTimeTo">CreatedTimeTo</param>
+        /// <param name="runtimeStatus">RuntimeStatus</param>
+        /// <returns></returns>
+        public static OrchestrationInstanceStatusQueryCondition Parse(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<string> runtimeStatus)
+        {
+            var condition = new OrchestrationInstanceStatusQueryCondition();
+            condition.CreatedTimeFrom = createdTimeFrom;
+            condition.CreatedTimeTo = (createdTimeTo != null) ? (DateTime)createdTimeTo : default(DateTime);
+            condition.RuntimeStatus = runtimeStatus;
+            return condition;
+        }
     }
 }
