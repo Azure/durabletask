@@ -98,9 +98,8 @@ namespace DurableTask.AzureStorage.Tracking
         /// <summary>
         /// Used to update a state in the tracking store to pending whenever a rewind is initiated from the client
         /// </summary>
-        /// <param name="newTimestamp">The timesptamp for the revised instance table entity</param>
         /// <param name="instanceId">The instance being rewound</param>
-        Task UpdateExistingExecutionAsync(string instanceId, DateTime newTimestamp);
+        Task UpdateStatusForRewindAsync(string instanceId);
 
         /// <summary>
         /// Purge The History and state  which is older than thresholdDateTimeUtc based on the timestamp type specified by timeRangeFilterType

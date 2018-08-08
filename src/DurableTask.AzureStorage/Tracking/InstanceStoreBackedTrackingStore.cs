@@ -137,7 +137,7 @@ namespace DurableTask.AzureStorage.Tracking
             await this.instanceStore.WriteEntitiesAsync(new[] { orchestrationStateEntity });
         }
 
-        public override Task UpdateExistingExecutionAsync(string instanceId, DateTime genericEvent)
+        public override Task UpdateStatusForRewindAsync(string instanceId)
         {
             throw new NotImplementedException();
         }

@@ -371,7 +371,9 @@ namespace DurableTask.AzureStorage.Tracking
 
                     var taskScheduledEntities = await QueryHistory(tsFilterCondition.ToString(), instanceId, cancellationToken);
 
-                    taskScheduledEntities[0].Properties["EventType"] = new EntityProperty(nameof(EventType.GenericEvent));
+                    taskScheduledEntities[0].Properties["Reason"] = new EntityProperty("Rewound: " + taskScheduledEntities[0].Properties["EventType"].StringValue);
+                    taskScheduledEntities[0].Properties["EventType"] = new EntityProperty(nameof(EventType.RewindEvent));
+                    
                     await this.historyTable.ExecuteAsync(
                         TableOperation.Replace(taskScheduledEntities[0]));
                 }
@@ -393,19 +395,26 @@ namespace DurableTask.AzureStorage.Tracking
 
                     soInstanceId = subOrchesratrationEntities[0].Properties["InstanceId"].StringValue;
 
+                    subOrchesratrationEntities[0].Properties["Reason"] = new EntityProperty("Rewound: " + subOrchesratrationEntities[0].Properties["EventType"].StringValue);
+                    //subOrchesratrationEntities[0].Properties["EventType"] = new EntityProperty(nameof(EventType.RewindEvent));
+
+                    await this.historyTable.ExecuteAsync(
+                        TableOperation.Replace(subOrchesratrationEntities[0]));
+
                     // recursive call to clear out failure events on child instances
                     await RewindHistoryAsync(soInstanceId, failedLeaves, cancellationToken);
                 }
 
                 // "clear" failure event by making GenericEvent: replay ignores row while to preserving rowKey
-                entity.Properties["EventType"] = new EntityProperty(nameof(EventType.GenericEvent));
+                entity.Properties["Reason"] = new EntityProperty("Rewound: " + entity.Properties["EventType"].StringValue);
+                entity.Properties["EventType"] = new EntityProperty(nameof(EventType.RewindEvent));
 
                 await this.historyTable.ExecuteAsync(
                     TableOperation.Replace(entity));
             }
 
             // reset orchestration status in instance store table
-            await UpdateExistingExecutionAsync(instanceId, instanceTimestamp);
+            await UpdateStatusForRewindAsync(instanceId);
 
             if (!hasFailedSubOrchestrations)
             {
@@ -552,7 +561,7 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
 
-        public override async Task UpdateExistingExecutionAsync(string instanceId, DateTime newTimestamp)
+        public override async Task UpdateStatusForRewindAsync(string instanceId)
         {
             DynamicTableEntity entity = new DynamicTableEntity(instanceId, "")
             {

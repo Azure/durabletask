@@ -55,7 +55,7 @@ namespace DurableTask.AzureStorage.Tracking
         public abstract Task SetNewExecutionAsync(ExecutionStartedEvent executionStartedEvent);
 
         /// <inheritdoc />
-        public abstract Task UpdateExistingExecutionAsync(string instanceId, DateTime genericEvent);
+        public abstract Task UpdateStatusForRewindAsync(string instanceId);
 
         /// <inheritdoc />
         public abstract Task StartAsync();
