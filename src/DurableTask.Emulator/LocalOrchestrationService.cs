@@ -219,12 +219,6 @@ namespace DurableTask.Emulator
         }
 
         /// <inheritdoc />
-        public Task RewindFindFailureEventsAndClearAsync(string instanceId, CancellationToken cancellationToken)
-        {
-            throw new NotImplementedException();
-        }
-
-        /// <inheritdoc />
         public Task RewindTaskOrchestrationAsync(string instanceId, string reason)
         {
             throw new NotImplementedException();
