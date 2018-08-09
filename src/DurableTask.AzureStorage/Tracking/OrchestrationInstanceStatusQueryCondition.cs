@@ -1,12 +1,25 @@
-﻿using Microsoft.WindowsAzure.Storage.Table;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Xml.Linq;
+﻿//  ----------------------------------------------------------------------------------
+//  Copyright Microsoft Corporation
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//  http://www.apache.org/licenses/LICENSE-2.0
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+//  ----------------------------------------------------------------------------------
 
 namespace DurableTask.AzureStorage.Tracking
 {
+    using Microsoft.WindowsAzure.Storage.Table;
+    using System;
+    using System.Collections.Generic;
+    using System.Linq;
+    using System.Text;
+    using System.Xml.Linq;
+
     /// <summary>
     /// OrchestrationInstanceStatusQueryBuilder is a builder to create a StorageTable Query
     /// </summary>
@@ -29,11 +42,12 @@ namespace DurableTask.AzureStorage.Tracking
         /// Build returns query object.
         /// </summary>
         /// <returns></returns>
-        public TableQuery<T> ToTableQuery<T>() 
+        public TableQuery<T> ToTableQuery<T>()
             where T : TableEntity, new()
         {
             var query = new TableQuery<T>();
-            if (!((RuntimeStatus == null || RuntimeStatus.Count() == 0) && CreatedTimeFrom == default(DateTime) && CreatedTimeTo == default(DateTime))){ 
+            if (!((RuntimeStatus == null || RuntimeStatus.Count() == 0) && CreatedTimeFrom == default(DateTime) && CreatedTimeTo == default(DateTime)))
+            {
                 query.Where(
                     GetConditions()
                     );
@@ -59,7 +73,8 @@ namespace DurableTask.AzureStorage.Tracking
             {
                 var runtimeCondition = this.RuntimeStatus.Select(x => TableQuery.GenerateFilterCondition("RuntimeStatus", QueryComparisons.Equal, x))
                                     .Aggregate((a, b) => TableQuery.CombineFilters(a, TableOperators.Or, b));
-                if (runtimeCondition.Count() != 0) {
+                if (runtimeCondition.Count() != 0)
+                {
                     conditions.Add(runtimeCondition);
                 }
             }
