@@ -104,6 +104,11 @@ namespace DurableTask.Core.History
         GenericEvent,
 
         /// <summary>
+        /// Event for tracking instance rewinds
+        /// </summary>
+        RewindEvent,
+
+        /// <summary>
         /// Orchestration state history event
         /// </summary>
         HistoryState,

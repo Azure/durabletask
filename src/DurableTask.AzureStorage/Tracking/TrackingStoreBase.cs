@@ -37,6 +37,9 @@ namespace DurableTask.AzureStorage.Tracking
         public abstract Task<IList<HistoryEvent>> GetHistoryEventsAsync(string instanceId, string expectedExecutionId, CancellationToken cancellationToken = default(CancellationToken));
 
         /// <inheritdoc />
+        public abstract Task<IList<string>> RewindHistoryAsync(string instanceId, IList<string> failedLeaves, CancellationToken cancellationToken);
+
+        /// <inheritdoc />
         public abstract Task<IList<OrchestrationState>> GetStateAsync(string instanceId, bool allExecutions);
         
         /// <inheritdoc />
@@ -50,6 +53,9 @@ namespace DurableTask.AzureStorage.Tracking
 
         /// <inheritdoc />
         public abstract Task SetNewExecutionAsync(ExecutionStartedEvent executionStartedEvent);
+
+        /// <inheritdoc />
+        public abstract Task UpdateStatusForRewindAsync(string instanceId);
 
         /// <inheritdoc />
         public abstract Task StartAsync();

@@ -75,6 +75,11 @@ namespace DurableTask.AzureStorage.Tracking
             }
         }
 
+        public override Task<IList<string>> RewindHistoryAsync(string instanceId, IList<string> failedLeaves, CancellationToken cancellationToken)
+        {
+            throw new NotImplementedException();
+        }
+
         /// <inheritdoc />
         public override async Task<IList<OrchestrationState>> GetStateAsync(string instanceId, bool allExecutions)
         {
@@ -130,6 +135,11 @@ namespace DurableTask.AzureStorage.Tracking
             };
 
             await this.instanceStore.WriteEntitiesAsync(new[] { orchestrationStateEntity });
+        }
+
+        public override Task UpdateStatusForRewindAsync(string instanceId)
+        {
+            throw new NotImplementedException();
         }
 
         /// <inheritdoc />
