@@ -93,7 +93,7 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
-        public void OrchestrationInstance_MultipleRuntimeStatus()
+        public void OrchestrationInstanceQuery_MultipleRuntimeStatus()
         {
             var runtimeStatus = new List<string>();
             runtimeStatus.Add("Running");
@@ -108,7 +108,7 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
-        public void OrchestrationInstance_Parse()
+        public void OrchestrationInstanceQuery_Parse()
         {
             var runtimeStatus = new List<string>();
             runtimeStatus.Add("Running");
