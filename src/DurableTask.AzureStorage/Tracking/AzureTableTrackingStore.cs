@@ -328,14 +328,10 @@ namespace DurableTask.AzureStorage.Tracking
             return await QueryStateAsync(query, cancellationToken);
         }
 
-        public override async Task<IList<OrchestrationState>> GetStateAsync(DateTime createdTimeFrom, DateTime createdTimeTo, IEnumerable<string> runtimeStatus, CancellationToken cancellationToken = default(CancellationToken))
+        public override async Task<IList<OrchestrationState>> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<string> runtimeStatus, CancellationToken cancellationToken = default(CancellationToken))
         {
-            return await QueryStateAsync(new OrchestrationInstanceStatusQueryCondition
-            {
-                CreatedTimeFrom = createdTimeFrom,
-                CreatedTimeTo = createdTimeTo,
-                RuntimeStatus = runtimeStatus
-            }.ToTableQuery<OrchestrationInstanceStatus>(), cancellationToken);
+            return await QueryStateAsync(OrchestrationInstanceStatusQueryCondition.Parse(createdTimeFrom, createdTimeTo, runtimeStatus)
+                            .ToTableQuery<OrchestrationInstanceStatus>(), cancellationToken);
         }
 
         private async Task<IList<OrchestrationState>> QueryStateAsync(TableQuery<OrchestrationInstanceStatus> query, CancellationToken cancellationToken)
