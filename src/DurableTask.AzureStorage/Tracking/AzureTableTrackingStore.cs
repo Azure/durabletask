@@ -395,8 +395,8 @@ namespace DurableTask.AzureStorage.Tracking
 
                     soInstanceId = subOrchesratrationEntities[0].Properties["InstanceId"].StringValue;
 
+                    // the SubORchestrationCreatedEvent is still healthy and will not be overwritten, just marked as rewound
                     subOrchesratrationEntities[0].Properties["Reason"] = new EntityProperty("Rewound: " + subOrchesratrationEntities[0].Properties["EventType"].StringValue);
-                    //subOrchesratrationEntities[0].Properties["EventType"] = new EntityProperty(nameof(EventType.RewindEvent));
 
                     await this.historyTable.ExecuteAsync(
                         TableOperation.Replace(subOrchesratrationEntities[0]));
@@ -405,7 +405,7 @@ namespace DurableTask.AzureStorage.Tracking
                     await RewindHistoryAsync(soInstanceId, failedLeaves, cancellationToken);
                 }
 
-                // "clear" failure event by making GenericEvent: replay ignores row while to preserving rowKey
+                // "clear" failure event by making RewindEvent: replay ignores row while dummy event preserves rowKey
                 entity.Properties["Reason"] = new EntityProperty("Rewound: " + entity.Properties["EventType"].StringValue);
                 entity.Properties["EventType"] = new EntityProperty(nameof(EventType.RewindEvent));
 
