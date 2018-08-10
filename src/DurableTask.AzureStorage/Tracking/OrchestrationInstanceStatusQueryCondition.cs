@@ -72,7 +72,7 @@ namespace DurableTask.AzureStorage.Tracking
             if (this.RuntimeStatus != null)
             {
                 var runtimeCondition = this.RuntimeStatus.Select(x => TableQuery.GenerateFilterCondition("RuntimeStatus", QueryComparisons.Equal, x))
-                                    .Aggregate((a, b) => TableQuery.CombineFilters(a, TableOperators.Or, b));
+                                    .Aggregate("", (a, b) => TableQuery.CombineFilters(a, TableOperators.Or, b));
                 if (runtimeCondition.Count() != 0)
                 {
                     conditions.Add(runtimeCondition);
