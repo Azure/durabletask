@@ -1751,7 +1751,7 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
-        /// Get states all orchestration instances
+        /// Gets the state of all orchestration instances.
         /// </summary>
         /// <returns>List of <see cref="OrchestrationState"/></returns>
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(CancellationToken cancellationToken = default(CancellationToken))
@@ -1761,7 +1761,7 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
-        /// Get states which match the specified parameters.
+        /// Gets the state of all orchestration instances that match the specified parameters.
         /// </summary>
         /// <param name="createdTimeFrom">CreatedTime of orchestrations. Fetch status grater than this value.</param>
         /// <param name="createdTimeTo">CreatedTime of orchestrations. Fetch status less than this value.</param>
