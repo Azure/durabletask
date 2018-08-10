@@ -101,7 +101,7 @@ namespace DurableTask.AzureStorage.Tracking
             throw new NotImplementedException();
         }
         /// <inheritdoc />
-        public override Task<IList<OrchestrationState>> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<string> runtimeStatus, CancellationToken cancellationToken = default(CancellationToken))
+        public override Task<IList<OrchestrationState>> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken = default(CancellationToken))
        {
             throw new NotImplementedException();
         }

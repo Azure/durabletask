@@ -13,6 +13,7 @@
 
 namespace DurableTask.AzureStorage.Tracking
 {
+    using DurableTask.Core;
     using Microsoft.WindowsAzure.Storage.Table;
     using System;
     using System.Collections.Generic;
@@ -97,12 +98,12 @@ namespace DurableTask.AzureStorage.Tracking
         /// <param name="createdTimeTo">CreatedTimeTo</param>
         /// <param name="runtimeStatus">RuntimeStatus</param>
         /// <returns></returns>
-        public static OrchestrationInstanceStatusQueryCondition Parse(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<string> runtimeStatus)
+        public static OrchestrationInstanceStatusQueryCondition Parse(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
         {
             var condition = new OrchestrationInstanceStatusQueryCondition();
             condition.CreatedTimeFrom = createdTimeFrom;
             condition.CreatedTimeTo = (createdTimeTo != null) ? (DateTime)createdTimeTo : default(DateTime);
-            condition.RuntimeStatus = runtimeStatus;
+            condition.RuntimeStatus = runtimeStatus.Select(x => x.ToString());
             return condition;
         }
     }

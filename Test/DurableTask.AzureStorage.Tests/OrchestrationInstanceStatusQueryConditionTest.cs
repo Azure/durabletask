@@ -19,6 +19,7 @@ namespace DurableTask.AzureStorage.Tests
     using System.Text;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Tracking;
+    using DurableTask.Core;
     using DurableTask.ServiceBus.Tracking;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -124,8 +125,8 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public void OrchestrationInstanceQuery_Parse()
         {
-            var runtimeStatus = new List<string>();
-            runtimeStatus.Add("Running");
+            var runtimeStatus = new List<OrchestrationStatus>();
+            runtimeStatus.Add(OrchestrationStatus.Running);
             var condition = OrchestrationInstanceStatusQueryCondition.Parse(new DateTime(2018, 1, 10, 10, 10, 10), new DateTime(2018, 1, 10, 10, 10, 50), runtimeStatus);
             Assert.AreEqual("((CreatedTime ge datetime'2018-01-10T01:10:10.0000000Z') and (CreatedTime le datetime'2018-01-10T01:10:50.0000000Z')) and (RuntimeStatus eq 'Running')", condition.ToTableQuery<OrchestrationInstanceStatus>().FilterString);
 
@@ -134,8 +135,8 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public void OrchestrationInstanceQuery_ParseOptional()
         {
-            var runtimeStatus = new List<string>();
-            runtimeStatus.Add("Running");
+            var runtimeStatus = new List<OrchestrationStatus>();
+            runtimeStatus.Add(OrchestrationStatus.Running);
             var condition = OrchestrationInstanceStatusQueryCondition.Parse(default(DateTime), null, runtimeStatus);
             var query = condition.ToTableQuery<OrchestrationInstanceStatus>();
             Assert.AreEqual("RuntimeStatus eq 'Running'", query.FilterString);
