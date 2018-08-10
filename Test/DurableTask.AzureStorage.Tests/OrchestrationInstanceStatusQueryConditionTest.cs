@@ -29,8 +29,7 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public void OrchestrationInstanceQuery_RuntimeStatus()
         {
-            var runtimeStatus = new List<string>();
-            runtimeStatus.Add("Running");
+            var runtimeStatus = new string[] { "Running" };
             var condition = new OrchestrationInstanceStatusQueryCondition
             {
                 RuntimeStatus = runtimeStatus
@@ -88,8 +87,7 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public void OrchestrationInstanceQuery_Combination()
         {
-            var runtimeStatus = new List<string>();
-            runtimeStatus.Add("Running");
+            var runtimeStatus = new string[] { "Running" };
             var condition = new OrchestrationInstanceStatusQueryCondition
             {
                 RuntimeStatus = runtimeStatus,
@@ -110,9 +108,7 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public void OrchestrationInstanceQuery_MultipleRuntimeStatus()
         {
-            var runtimeStatus = new List<string>();
-            runtimeStatus.Add("Running");
-            runtimeStatus.Add("Completed");
+            var runtimeStatus = new string[] { "Running" , "Completed" };
             var condition = new OrchestrationInstanceStatusQueryCondition
             {
                 RuntimeStatus = runtimeStatus,
