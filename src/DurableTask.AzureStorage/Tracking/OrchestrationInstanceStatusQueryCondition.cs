@@ -69,10 +69,10 @@ namespace DurableTask.AzureStorage.Tracking
                 conditions.Add(TableQuery.GenerateFilterConditionForDate("CreatedTime", QueryComparisons.LessThanOrEqual, new DateTimeOffset(this.CreatedTimeTo)));
             }
 
-            if (this.RuntimeStatus != null)
+            if (this.RuntimeStatus != null && this.RuntimeStatus.Count() != 0)
             {
                 var runtimeCondition = this.RuntimeStatus.Select(x => TableQuery.GenerateFilterCondition("RuntimeStatus", QueryComparisons.Equal, x))
-                                    .Aggregate("", (a, b) => TableQuery.CombineFilters(a, TableOperators.Or, b));
+                                    .Aggregate((a, b) => TableQuery.CombineFilters(a, TableOperators.Or, b));
                 if (runtimeCondition.Count() != 0)
                 {
                     conditions.Add(runtimeCondition);
