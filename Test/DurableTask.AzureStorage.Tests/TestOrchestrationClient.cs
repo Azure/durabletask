@@ -118,6 +118,12 @@ namespace DurableTask.AzureStorage.Tests
             await this.client.TerminateInstanceAsync(instance, reason);
         }
 
+        public async Task RewindAsync(string reason)
+        {
+            var instance = new OrchestrationInstance { InstanceId = this.instanceId };
+            await this.client.RewindInstanceAsync(instance, reason);
+        }
+
         static TimeSpan AdjustTimeout(TimeSpan requestedTimeout)
         {
             TimeSpan timeout = requestedTimeout;

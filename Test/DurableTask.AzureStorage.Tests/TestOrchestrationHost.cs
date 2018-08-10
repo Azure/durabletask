@@ -75,15 +75,25 @@ namespace DurableTask.AzureStorage.Tests
 
             // Allow orchestration types to declare which activity types they depend on.
             // CONSIDER: Make this a supported pattern in DTFx?
-            KnownTypeAttribute[] knownActivityTypes =
+            KnownTypeAttribute[] knownTypes =
                 (KnownTypeAttribute[])orchestrationType.GetCustomAttributes(typeof(KnownTypeAttribute), false);
 
-            foreach (KnownTypeAttribute referencedActivity in knownActivityTypes)
+           
+
+            foreach (KnownTypeAttribute referencedKnownType in knownTypes)
             {
-                if (!this.addedActivityTypes.Contains(referencedActivity.Type))
+                bool orch = referencedKnownType.Type.IsSubclassOf(typeof(TaskOrchestration));
+                bool activ = referencedKnownType.Type.IsSubclassOf(typeof(TaskActivity));
+                if (orch && !this.addedOrchestrationTypes.Contains(referencedKnownType.Type))
                 {
-                    this.worker.AddTaskActivities(referencedActivity.Type);
-                    this.addedActivityTypes.Add(referencedActivity.Type);
+                    this.worker.AddTaskOrchestrations(referencedKnownType.Type);
+                    this.addedOrchestrationTypes.Add(referencedKnownType.Type);
+                }
+
+                else if (activ && !this.addedActivityTypes.Contains(referencedKnownType.Type))
+                {
+                    this.worker.AddTaskActivities(referencedKnownType.Type);
+                    this.addedActivityTypes.Add(referencedKnownType.Type);
                 }
             }
 

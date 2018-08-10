@@ -1049,6 +1049,7 @@ namespace DurableTask.ServiceBus
             return SendTaskOrchestrationMessageBatchAsync(message);
         }
 
+
         /// <summary>
         ///    Sends a set of orchestration messages
         /// </summary>
@@ -1105,6 +1106,16 @@ namespace DurableTask.ServiceBus
             };
 
             await SendTaskOrchestrationMessageAsync(taskMessage);
+        }
+
+        /// <summary>
+        /// Rewinds an orchestration by sending a generic event
+        /// </summary>
+        /// <param name="instanceId">Instance ID of the orchestration to rewind.</param>
+        /// <param name="reason">The user-friendly reason for rewinding.</param>
+        public Task RewindTaskOrchestrationAsync(string instanceId, string reason)
+        {
+            throw new NotImplementedException();
         }
 
         /// <summary>

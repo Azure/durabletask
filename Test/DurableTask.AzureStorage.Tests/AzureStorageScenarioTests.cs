@@ -292,11 +292,295 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         /// <summary>
-        /// End-to-end test which validates the cancellation of durable timers.
+        /// End-to-end test which validates the Rewind functionality on more than one orchestration.
+        /// </summary>
+        [DataTestMethod]
+        //[DataRow(true)]
+        [DataRow(false)]
+        public async Task RewindOrchestrationsFail(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                Orchestrations.FactorialOrchestratorFail.ShouldFail = true;
+                await host.StartAsync();
+
+                string singletonInstanceId1 = $"1_Test_{Guid.NewGuid():N}";
+                string singletonInstanceId2 = $"2_Test_{Guid.NewGuid():N}";
+
+                var client1 = await host.StartOrchestrationAsync(
+                    typeof(Orchestrations.FactorialOrchestratorFail),
+                    input: 3, 
+                    instanceId: singletonInstanceId1);
+
+                var statusFail = await client1.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
+
+                Orchestrations.FactorialOrchestratorFail.ShouldFail = false;
+
+                var client2 = await host.StartOrchestrationAsync(
+                typeof(Orchestrations.SayHelloWithActivity),
+                input: "Catherine",
+                instanceId: singletonInstanceId2);
+
+                await client1.RewindAsync("Rewind failed orchestration only"); 
+
+                var statusRewind = await client1.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, statusRewind?.OrchestrationStatus);
+                Assert.AreEqual("6", statusRewind?.Output);
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// End-to-end test which validates the Rewind functionality with fan in fan out pattern.
         /// </summary>
         [DataTestMethod]
         [DataRow(true)]
+        //[DataRow(false)]
+        public async Task RewindActivityFailFanOut(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                Activities.HelloFailFanOut.ShouldFail1 = false;
+                await host.StartAsync();
+
+                string singletonInstanceId = $"Test_{Guid.NewGuid():N}";
+
+                var client = await host.StartOrchestrationAsync(
+                    typeof(Orchestrations.FanOutFanInRewind),
+                    input: 3,
+                    instanceId: singletonInstanceId);
+
+                var statusFail = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
+
+                Activities.HelloFailFanOut.ShouldFail2 = false;
+
+                await client.RewindAsync("Rewind orchestrator with failed parallel activity.");
+
+                var statusRewind = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, statusRewind?.OrchestrationStatus);
+                Assert.AreEqual("\"Done\"", statusRewind?.Output);
+
+                await host.StopAsync();
+            }
+        }
+
+
+        /// <summary>
+        /// End-to-end test which validates the Rewind functionality on an activity function failure 
+        /// with modified (to fail initially) SayHelloWithActivity orchestrator.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(true)]
+        //[DataRow(false)]
+        public async Task RewindActivityFail(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                await host.StartAsync();
+
+                string singletonInstanceId = $"{Guid.NewGuid():N}";
+
+                var client = await host.StartOrchestrationAsync(
+                    typeof(Orchestrations.SayHelloWithActivityFail),
+                    input: "World",
+                    instanceId: singletonInstanceId);
+
+                var statusFail = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
+
+                Activities.HelloFailActivity.ShouldFail = false;
+
+                await client.RewindAsync("Activity failure test.");
+
+                var statusRewind = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, statusRewind?.OrchestrationStatus);
+                Assert.AreEqual("\"Hello, World!\"", statusRewind?.Output);
+
+                await host.StopAsync();
+            }
+        }
+
+        [DataTestMethod]
+        //[DataRow(true)]
         [DataRow(false)]
+        public async Task RewindMultipleActivityFail(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                await host.StartAsync();
+
+                string singletonInstanceId = $"Test_{Guid.NewGuid():N}";
+
+                var client = await host.StartOrchestrationAsync(
+                    typeof(Orchestrations.FactorialMultipleActivityFail),
+                    input: 4,
+                    instanceId: singletonInstanceId);
+
+                var statusFail = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
+
+                Activities.MultiplyMultipleActivityFail.ShouldFail1 = false;
+
+                await client.RewindAsync("Rewind for activity failure 1.");
+
+                statusFail = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
+
+                Activities.MultiplyMultipleActivityFail.ShouldFail2 = false;
+
+                await client.RewindAsync("Rewind for activity failure 2.");
+
+                var statusRewind = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, statusRewind?.OrchestrationStatus);
+                Assert.AreEqual("24", statusRewind?.Output);
+
+                await host.StopAsync();
+            }
+        }
+
+        [DataTestMethod]
+        //[DataRow(true)]
+        [DataRow(false)]
+        [TestMethod]
+        public async Task RewindSubOrchestrationsTest(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                await host.StartAsync();
+
+                string ParentInstanceId = $"Parent_{Guid.NewGuid():N}";
+                string ChildInstanceId = $"Child_{Guid.NewGuid():N}";
+
+                var client_parent = await host.StartOrchestrationAsync(
+                    typeof(Orchestrations.ParentWorkflowSubOrchestrationFail),
+                    input: true,
+                    instanceId: ParentInstanceId);
+
+
+                var statusFail = await client_parent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
+
+                Orchestrations.ChildWorkflowSubOrchestrationFail.ShouldFail1 = false;
+
+                await client_parent.RewindAsync("Rewind first suborchestration failure.");
+
+                statusFail = await client_parent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
+
+                Orchestrations.ChildWorkflowSubOrchestrationFail.ShouldFail2 = false;
+
+                await client_parent.RewindAsync("Rewind second suborchestration failure.");
+
+                var statusRewind = await client_parent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, statusRewind?.OrchestrationStatus);
+
+                await host.StopAsync();
+            }
+        }
+
+        [DataTestMethod]
+        [DataRow(true)]
+        //[DataRow(false)]
+        [TestMethod]
+        public async Task RewindSubOrchestrationActivityTest(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                await host.StartAsync();
+
+                string ParentInstanceId = $"Parent_{Guid.NewGuid():N}";
+                string ChildInstanceId = $"Child_{Guid.NewGuid():N}";
+
+                var client_parent = await host.StartOrchestrationAsync(
+                    typeof(Orchestrations.ParentWorkflowSubOrchestrationActivityFail),
+                    input: true,
+                    instanceId: ParentInstanceId);
+
+
+                var statusFail = await client_parent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
+
+                Activities.HelloFailSubOrchestrationActivity.ShouldFail1 = false;
+
+                await client_parent.RewindAsync("Rewinding 1: child should still fail.");
+
+                statusFail = await client_parent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
+
+                Activities.HelloFailSubOrchestrationActivity.ShouldFail2 = false;
+
+                await client_parent.RewindAsync("Rewinding 2: child should complete.");
+
+                var statusRewind = await client_parent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, statusRewind?.OrchestrationStatus);
+
+                await host.StopAsync();
+            }
+        }
+
+        [DataTestMethod]
+        [DataRow(true)]
+        //[DataRow(false)]
+        [TestMethod]
+        public async Task RewindNestedSubOrchestrationTest(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                await host.StartAsync();
+
+                string GrandparentInstanceId = $"Grandparent_{Guid.NewGuid():N}";
+                string ChildInstanceId = $"Child_{Guid.NewGuid():N}";
+
+                var client_grandparent = await host.StartOrchestrationAsync(
+                    typeof(Orchestrations.GrandparentWorkflowNestedActivityFail),
+                    input: true,
+                    instanceId: GrandparentInstanceId);
+
+                var statusFail = await client_grandparent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
+
+                Activities.HelloFailNestedSuborchestration.ShouldFail1 = false;
+
+                await client_grandparent.RewindAsync("Rewind 1: Nested child activity still fails.");
+
+                Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
+
+                Activities.HelloFailNestedSuborchestration.ShouldFail2 = false;
+
+                await client_grandparent.RewindAsync("Rewind 2: Nested child activity completes.");
+
+                var statusRewind = await client_grandparent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, statusRewind?.OrchestrationStatus);
+                //Assert.AreEqual("\"Hello, Catherine!\"", statusRewind?.Output);
+
+                await host.StopAsync();
+            }
+        }
+
+        [DataTestMethod]
+        //[DataRow(true)]
+        [DataRow(false)]
+        [TestMethod]
         public async Task TimerCancellation(bool enableExtendedSessions)
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
@@ -852,6 +1136,15 @@ namespace DurableTask.AzureStorage.Tests
                 }
             }
 
+            [KnownType(typeof(Activities.HelloFailActivity))]
+            internal class SayHelloWithActivityFail: TaskOrchestration<string, string>
+            {
+                public override Task<string> RunTask(OrchestrationContext context, string input)
+                {
+                    return context.ScheduleTask<string>(typeof(Activities.HelloFailActivity), input);
+                }
+            }
+
             [KnownType(typeof(Activities.Multiply))]
             internal class Factorial : TaskOrchestration<long, int>
             {
@@ -860,9 +1153,60 @@ namespace DurableTask.AzureStorage.Tests
                     long result = 1;
                     for (int i = 1; i <= n; i++)
                     {
-                        result = await context.ScheduleTask<long>(typeof(Activities.Multiply), new[] { result, i });
+                        result = await (context.ScheduleTask<long>(typeof(Activities.Multiply), new[] { result, i }));
                     }
+                    return result;
+                }
+            }
 
+            [KnownType(typeof(Activities.Multiply))]
+            internal class FactorialFail : TaskOrchestration<long, int>
+            {
+                public static bool ShouldFail = true;
+                public override async Task<long> RunTask(OrchestrationContext context, int n)
+                {
+                    long result = 1;
+                    for (int i = 1; i <= n; i++)
+                    {
+                        result = await (context.ScheduleTask<long>(typeof(Activities.Multiply), new[] { result, i }));
+                    }
+                    if (ShouldFail)
+                    {
+                        throw new Exception("Simulating a transient, unhandled exception");
+                    }
+                    return result;
+                }
+            }
+
+            [KnownType(typeof(Activities.Multiply))]
+            internal class FactorialOrchestratorFail : TaskOrchestration<long, int>
+            {
+                public static bool ShouldFail = true;
+                public override async Task<long> RunTask(OrchestrationContext context, int n)
+                {
+                    long result = 1;
+                    for (int i = 1; i <= n; i++)
+                    {
+                        result = await (context.ScheduleTask<long>(typeof(Activities.Multiply), new[] { result, i }));
+                    }
+                    if (ShouldFail)
+                    {
+                        throw new Exception("Simulating a transient, unhandled exception");
+                    }
+                    return result;
+                }
+            }
+
+            [KnownType(typeof(Activities.MultiplyMultipleActivityFail))]
+            internal class FactorialMultipleActivityFail : TaskOrchestration<long, int>
+            {
+                public override async Task<long> RunTask(OrchestrationContext context, int n)
+                {
+                    long result = 1;
+                    for (int i = 1; i <= n; i++)
+                    {
+                        result = await (context.ScheduleTask<long>(typeof(Activities.MultiplyMultipleActivityFail), new[] { result, i }));
+                    }
                     return result;
                 }
             }
@@ -919,6 +1263,23 @@ namespace DurableTask.AzureStorage.Tests
                 }
             }
 
+            [KnownType(typeof(Activities.HelloFailFanOut))]
+            internal class FanOutFanInRewind : TaskOrchestration<string, int>
+            {
+                public override async Task<string> RunTask(OrchestrationContext context, int parallelTasks)
+                {
+                    var tasks = new Task[parallelTasks];
+                    for (int i = 0; i < tasks.Length; i++)
+                    {
+                        tasks[i] = context.ScheduleTask<string>(typeof(Activities.HelloFailFanOut), i.ToString("000"));
+                    }
+
+                    await Task.WhenAll(tasks);
+
+                    return "Done";
+                }
+            }
+
             [KnownType(typeof(Activities.Echo))]
             internal class SemiLargePayloadFanOutFanIn : TaskOrchestration<string, int>
             {
@@ -944,8 +1305,148 @@ namespace DurableTask.AzureStorage.Tests
                 }
             }
 
+            [KnownType(typeof(Orchestrations.ParentWorkflowSubOrchestrationFail))]
+            [KnownType(typeof(Activities.Hello))]
+            public class ChildWorkflowSubOrchestrationFail : TaskOrchestration<string, int>
+            {
+                public static bool ShouldFail1 = true;
+                public static bool ShouldFail2 = true;
+                public override async Task<string> RunTask(OrchestrationContext context, int input)
+                {
+                    if (ShouldFail1 || ShouldFail2)
+                    {
+                        throw new Exception("Simulating sub-orchestration failure...");
+                    }
+                    var result = await context.ScheduleTask<string>(typeof(Activities.Hello), input);
+                    return result;
+                }
+            }
+
+            [KnownType(typeof(Orchestrations.ParentWorkflowSubOrchestrationActivityFail))]
+            [KnownType(typeof(Activities.HelloFailSubOrchestrationActivity))]
+            public class ChildWorkflowSubOrchestrationActivityFail : TaskOrchestration<string, int>
+            {
+                public override async Task<string> RunTask(OrchestrationContext context, int input)
+                {
+                    var result = await context.ScheduleTask<string>(typeof(Activities.HelloFailSubOrchestrationActivity), input);
+                    return result;
+                }
+            }
+
+            [KnownType(typeof(Orchestrations.GrandparentWorkflowNestedActivityFail))]
+            [KnownType(typeof(Orchestrations.ParentWorkflowNestedActivityFail))]
+            [KnownType(typeof(Activities.HelloFailNestedSuborchestration))]
+            public class ChildWorkflowNestedActivityFail : TaskOrchestration<string, int>
+            {
+                public override async Task<string> RunTask(OrchestrationContext context, int input)
+                {
+                    var result = await context.ScheduleTask<string>(typeof(Activities.HelloFailNestedSuborchestration), input);
+                    return result;
+                }
+            }
+
+            [KnownType(typeof(Orchestrations.ChildWorkflowSubOrchestrationFail))]
+            [KnownType(typeof(Activities.Hello))]
+            public class ParentWorkflowSubOrchestrationFail : TaskOrchestration<string, bool>
+            {
+                public static string Result;
+                public override async Task<string> RunTask(OrchestrationContext context, bool waitForCompletion)
+                {
+                    var results = new Task<string>[2];
+                    for (int i = 0; i < 2; i++)
+                    {
+                        Task<string> r = context.CreateSubOrchestrationInstance<string>(typeof(Orchestrations.ChildWorkflowSubOrchestrationFail), i);
+                        if (waitForCompletion)
+                        {
+                            await r;
+                        }
+                        results[i] = r;
+                    }
+
+                    string[] data = await Task.WhenAll(results);
+                    Result = string.Concat(data);
+                    return Result;
+                }
+            }
+
+
+            [KnownType(typeof(Orchestrations.GrandparentWorkflowNestedActivityFail))]
+            [KnownType(typeof(Orchestrations.ChildWorkflowNestedActivityFail))]
+            [KnownType(typeof(Activities.HelloFailNestedSuborchestration))]
+            public class ParentWorkflowNestedActivityFail : TaskOrchestration<string, bool>
+            {
+                public static string Result;
+                public override async Task<string> RunTask(OrchestrationContext context, bool waitForCompletion)
+                {
+                    var results = new Task<string>[2];
+                    for (int i = 0; i < 2; i++)
+                    {
+                        Task<string> r = context.CreateSubOrchestrationInstance<string>(typeof(Orchestrations.ChildWorkflowNestedActivityFail), i);
+                        if (waitForCompletion)
+                        {
+                            await r;
+                        }
+                        results[i] = r;
+                    }
+
+                    string[] data = await Task.WhenAll(results);
+                    Result = string.Concat(data);
+                    return Result;
+                }
+            }
+
+            [KnownType(typeof(Orchestrations.ChildWorkflowSubOrchestrationActivityFail))]
+            [KnownType(typeof(Activities.HelloFailSubOrchestrationActivity))]
+            public class ParentWorkflowSubOrchestrationActivityFail : TaskOrchestration<string, bool>
+            {
+                public static string Result;
+                public override async Task<string> RunTask(OrchestrationContext context, bool waitForCompletion)
+                {
+                    var results = new Task<string>[2];
+                    for (int i = 0; i < 2; i++)
+                    {
+                        Task<string> r = context.CreateSubOrchestrationInstance<string>(typeof(Orchestrations.ChildWorkflowSubOrchestrationActivityFail), i);
+                        if (waitForCompletion)
+                        {
+                            await r;
+                        }
+                        results[i] = r;
+                    }
+
+                    string[] data = await Task.WhenAll(results);
+                    Result = string.Concat(data);
+                    return Result;
+                }
+            }
+
+            [KnownType(typeof(Orchestrations.ParentWorkflowNestedActivityFail))]
+            [KnownType(typeof(Orchestrations.ChildWorkflowNestedActivityFail))]
+            [KnownType(typeof(Activities.HelloFailNestedSuborchestration))]
+            public class GrandparentWorkflowNestedActivityFail : TaskOrchestration<string, bool>
+            {
+                public static string Result;
+                public override async Task<string> RunTask(OrchestrationContext context, bool waitForCompletion)
+                {
+                    var results = new Task<string>[2];
+                    for (int i = 0; i < 2; i++)
+                    {
+                        Task<string> r = context.CreateSubOrchestrationInstance<string>(typeof(Orchestrations.ParentWorkflowNestedActivityFail), i);
+                        if (waitForCompletion)
+                        {
+                            await r;
+                        }
+                        results[i] = r;
+                    }
+
+                    string[] data = await Task.WhenAll(results);
+                    Result = string.Concat(data);
+                    return Result;
+                }
+            }
+
             internal class Counter : TaskOrchestration<int, int>
             {
+
                 TaskCompletionSource<string> waitForOperationHandle;
 
                 public override async Task<int> RunTask(OrchestrationContext context, int currentValue)
@@ -972,6 +1473,7 @@ namespace DurableTask.AzureStorage.Tests
                     }
 
                     return currentValue;
+                    
                 }
 
                 async Task<string> WaitForOperation()
@@ -995,6 +1497,7 @@ namespace DurableTask.AzureStorage.Tests
             internal class Approval : TaskOrchestration<string, TimeSpan, bool, string>
             {
                 TaskCompletionSource<bool> waitForApprovalHandle;
+                public static bool shouldFail = false;
 
                 public override async Task<string> RunTask(OrchestrationContext context, TimeSpan timeout)
                 {
@@ -1004,6 +1507,11 @@ namespace DurableTask.AzureStorage.Tests
                     {
                         Task<bool> approvalTask = this.GetWaitForApprovalTask();
                         Task timeoutTask = context.CreateTimer(deadline, cts.Token);
+
+                        if (shouldFail)
+                        {
+                            throw new Exception("Simulating unhanded error exception");
+                        }
 
                         if (approvalTask == await Task.WhenAny(approvalTask, timeoutTask))
                         {
@@ -1121,6 +1629,105 @@ namespace DurableTask.AzureStorage.Tests
 
         static class Activities
         {
+            internal class HelloFailActivity : TaskActivity<string, string>
+            {
+                public static bool ShouldFail = true;
+                protected override string Execute(TaskContext context, string input)
+                {
+                    if (string.IsNullOrEmpty(input))
+                    {
+                        throw new ArgumentNullException(nameof(input));
+                    }
+
+                    if (ShouldFail)
+                    {
+                        throw new Exception("Simulating unhandled activty function failure...");
+                    }
+
+                    return $"Hello, {input}!";
+                }
+            }
+
+            internal class HelloFailFanOut : TaskActivity<string, string>
+            {
+                public static bool ShouldFail1 = true;
+                public static bool ShouldFail2 = true;
+                protected override string Execute(TaskContext context, string input)
+                {
+                    if (string.IsNullOrEmpty(input))
+                    {
+                        throw new ArgumentNullException(nameof(input));
+                    }
+
+                    if (ShouldFail1 || ShouldFail2) //&& (input == "0" || input == "2"))
+                    {
+                        throw new Exception("Simulating unhandled activty function failure...");
+                    }
+
+                    return $"Hello, {input}!";
+                }
+            }
+
+            internal class HelloFailMultipleActivity : TaskActivity<string, string> 
+            {
+                public static bool ShouldFail1 = true;
+                public static bool ShouldFail2 = true;
+                protected override string Execute(TaskContext context, string input)
+                {
+                    if (string.IsNullOrEmpty(input))
+                    {
+                        throw new ArgumentNullException(nameof(input));
+                    }
+
+                    if (ShouldFail1 || ShouldFail2)
+                    {
+                        throw new Exception("Simulating unhandled activty function failure...");
+                    }
+
+                    return $"Hello, {input}!";
+                }
+            }
+
+            internal class HelloFailNestedSuborchestration : TaskActivity<string, string>
+            {
+                public static bool ShouldFail1 = true;
+                public static bool ShouldFail2 = true;
+                protected override string Execute(TaskContext context, string input)
+                {
+                    if (string.IsNullOrEmpty(input))
+                    {
+                        throw new ArgumentNullException(nameof(input));
+                    }
+
+                    if (ShouldFail1 || ShouldFail2)
+                    {
+                        throw new Exception("Simulating unhandled activty function failure...");
+                    }
+
+                    return $"Hello, {input}!";
+                }
+            }
+
+            internal class HelloFailSubOrchestrationActivity : TaskActivity<string, string>
+            {
+                public static bool ShouldFail1 = true;
+                public static bool ShouldFail2 = true;
+                protected override string Execute(TaskContext context, string input)
+                {
+                    if (string.IsNullOrEmpty(input))
+                    {
+                        throw new ArgumentNullException(nameof(input));
+                    }
+
+                    if (ShouldFail1 || ShouldFail2)
+                    {
+                        throw new Exception("Simulating unhandled activty function failure...");
+                    }
+
+                    return $"Hello, {input}!";
+                }
+            }
+
             internal class Hello : TaskActivity<string, string>
             {
                 protected override string Execute(TaskContext context, string input)
@@ -1129,7 +1736,6 @@ namespace DurableTask.AzureStorage.Tests
                     {
                         throw new ArgumentNullException(nameof(input));
                     }
-
                     return $"Hello, {input}!";
                 }
             }
@@ -1141,6 +1747,34 @@ namespace DurableTask.AzureStorage.Tests
                     return values[0] * values[1];
                 }
             }
+
+            internal class MultiplyMultipleActivityFail : TaskActivity<long[], long>
+            {
+                public static bool ShouldFail1 = true;
+                public static bool ShouldFail2 = true;
+                protected override long Execute(TaskContext context, long[] values)
+                {
+                    if ((ShouldFail1 && (values[1] == 1)) || (ShouldFail2 && values[1] == 2))
+                    {
+                        throw new Exception("Simulating a transient, unhandled exception");
+                    }
+                    return values[0] * values[1];
+                }
+            }
+            internal class MultiplyFailOrchestration : TaskActivity<long[], long>
+            {
+                public static bool ShouldFail1 = true;
+                public static bool ShouldFail2 = true;
+                protected override long Execute(TaskContext context, long[] values)
+                {
+                    if ((ShouldFail1 && (values[1] == 1)) || (ShouldFail2 && values[1] == 2))
+                    {
+                        throw new Exception("Simulating a transient, unhandled exception");
+                    }
+                    return values[0] * values[1];
+                }
+            }
+
 
             internal class GetFileList : TaskActivity<string, string[]>
             {

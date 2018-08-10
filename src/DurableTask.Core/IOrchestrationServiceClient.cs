@@ -65,6 +65,13 @@ namespace DurableTask.Core
         Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason);
 
         /// <summary>
+        /// Rewinds an orchestration then revives it from rewound state with a generic event message.
+        /// </summary>
+        /// <param name="instanceId">Instance ID of the orchestration to rewind.</param>
+        /// <param name="reason">The reason for rewinding.</param>
+        Task RewindTaskOrchestrationAsync(string instanceId, string reason);
+
+        /// <summary>
         /// Get a list of orchestration states from the instance storage for the most current execution (generation) of the specified instance.
         /// </summary>
         /// <param name="instanceId">Instance id</param>
