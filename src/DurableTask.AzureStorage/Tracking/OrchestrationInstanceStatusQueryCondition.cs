@@ -24,25 +24,14 @@ namespace DurableTask.AzureStorage.Tracking
     /// <summary>
     /// OrchestrationInstanceStatusQueryBuilder is a builder to create a StorageTable Query
     /// </summary>
-    public class OrchestrationInstanceStatusQueryCondition
+    internal class OrchestrationInstanceStatusQueryCondition
     {
-        /// <summary>
-        /// RuntimeStatus
-        /// </summary>
         public IEnumerable<string> RuntimeStatus { get; set; }
-        /// <summary>
-        /// CreatedTimeFrom. Greater than this time
-        /// </summary>
+
         public DateTime CreatedTimeFrom { get; set; }
-        /// <summary>
-        /// CreatedTimeTo. Less than this time
-        /// </summary>
+
         public DateTime CreatedTimeTo { get; set; }
 
-        /// <summary>
-        /// Build returns query object.
-        /// </summary>
-        /// <returns></returns>
         public TableQuery<T> ToTableQuery<T>()
             where T : TableEntity, new()
         {
