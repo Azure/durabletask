@@ -36,7 +36,7 @@ namespace DurableTask.AzureStorage.Tracking
             where T : TableEntity, new()
         {
             var query = new TableQuery<T>();
-            if (!((RuntimeStatus == null || RuntimeStatus.Count() == 0) && CreatedTimeFrom == default(DateTime) && CreatedTimeTo == default(DateTime)))
+            if (!((RuntimeStatus == null || (!RuntimeStatus.Any())) && CreatedTimeFrom == default(DateTime) && CreatedTimeTo == default(DateTime)))
             {
                 query.Where(
                     GetConditions()
@@ -59,7 +59,7 @@ namespace DurableTask.AzureStorage.Tracking
                 conditions.Add(TableQuery.GenerateFilterConditionForDate("CreatedTime", QueryComparisons.LessThanOrEqual, new DateTimeOffset(this.CreatedTimeTo)));
             }
 
-            if (this.RuntimeStatus != null && this.RuntimeStatus.Count() != 0)
+            if (this.RuntimeStatus != null && this.RuntimeStatus.Any())
             {
                 var runtimeCondition = this.RuntimeStatus.Select(x => TableQuery.GenerateFilterCondition("RuntimeStatus", QueryComparisons.Equal, x))
                                     .Aggregate((a, b) => TableQuery.CombineFilters(a, TableOperators.Or, b));
