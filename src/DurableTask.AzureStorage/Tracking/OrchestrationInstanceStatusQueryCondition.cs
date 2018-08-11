@@ -26,7 +26,7 @@ namespace DurableTask.AzureStorage.Tracking
     /// </summary>
     internal class OrchestrationInstanceStatusQueryCondition
     {
-        public IEnumerable<string> RuntimeStatus { get; set; }
+        public IEnumerable<OrchestrationStatus> RuntimeStatus { get; set; }
 
         public DateTime CreatedTimeFrom { get; set; }
 
@@ -61,7 +61,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             if (this.RuntimeStatus != null && this.RuntimeStatus.Any())
             {
-                var runtimeCondition = this.RuntimeStatus.Select(x => TableQuery.GenerateFilterCondition("RuntimeStatus", QueryComparisons.Equal, x))
+                var runtimeCondition = this.RuntimeStatus.Select(x => TableQuery.GenerateFilterCondition("RuntimeStatus", QueryComparisons.Equal, x.ToString()))
                                     .Aggregate((a, b) => TableQuery.CombineFilters(a, TableOperators.Or, b));
                 if (runtimeCondition.Count() != 0)
                 {
@@ -92,7 +92,7 @@ namespace DurableTask.AzureStorage.Tracking
             var condition = new OrchestrationInstanceStatusQueryCondition();
             condition.CreatedTimeFrom = createdTimeFrom;
             condition.CreatedTimeTo = (createdTimeTo != null) ? (DateTime)createdTimeTo : default(DateTime);
-            condition.RuntimeStatus = runtimeStatus.Select(x => x.ToString());
+            condition.RuntimeStatus = runtimeStatus;
             return condition;
         }
     }
