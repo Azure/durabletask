@@ -491,16 +491,25 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public override async Task<IList<OrchestrationState>> GetStateAsync(CancellationToken cancellationToken = default(CancellationToken))
+        public override Task<IList<OrchestrationState>> GetStateAsync(CancellationToken cancellationToken = default(CancellationToken))
         {
             var query = new TableQuery<OrchestrationInstanceStatus>();
+            return this.QueryStateAsync(query, cancellationToken);
+        }
+
+        public override Task<IList<OrchestrationState>> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            return this.QueryStateAsync(OrchestrationInstanceStatusQueryCondition.Parse(createdTimeFrom, createdTimeTo, runtimeStatus)
+                            .ToTableQuery<OrchestrationInstanceStatus>(), cancellationToken);
+        }
+
+        private async Task<IList<OrchestrationState>> QueryStateAsync(TableQuery<OrchestrationInstanceStatus> query, CancellationToken cancellationToken)
+        {
             TableContinuationToken token = null;
-
             var orchestrationStates = new List<OrchestrationState>(100);
-
             while (true)
             {
-                var segment = await this.instancesTable.ExecuteQuerySegmentedAsync(query, token); // TODO make sure if it has enough parameters
+                var segment = await this.instancesTable.ExecuteQuerySegmentedAsync(query, token);
 
                 int previousCount = orchestrationStates.Count;
                 var tasks = segment.AsEnumerable<OrchestrationInstanceStatus>().Select(async x => await ConvertFromAsync(x, x.PartitionKey));
@@ -514,10 +523,11 @@ namespace DurableTask.AzureStorage.Tracking
                 if (token == null || cancellationToken.IsCancellationRequested)
                 {
                     break;
-                }      
-            }
+                }
 
+            }
             return orchestrationStates;
+
         }
 
         /// <inheritdoc />
