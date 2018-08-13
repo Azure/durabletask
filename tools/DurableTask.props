@@ -43,7 +43,7 @@
     <Copyright>© Microsoft Corporation. All rights reserved.</Copyright>
     <PackageProjectUrl>https://github.com/Azure/durabletask/</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Azure/durabletask/</RepositoryUrl>
-    <PackageIconUrl>https://github.com/Azure/durabletask/logo.png</PackageIconUrl>
+    <PackageIconUrl>https://github.com/Azure/durabletask/blob/master/logo.png</PackageIconUrl>
     <PackageTags>ServiceBus Azure Task Durable Orchestration Workflow Activity Reliable</PackageTags>
     <NeutralLanguage>en-US</NeutralLanguage>
     <IncludeSymbols>true</IncludeSymbols>
