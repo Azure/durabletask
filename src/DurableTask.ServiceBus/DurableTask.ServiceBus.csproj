@@ -3,6 +3,7 @@
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
   <PropertyGroup>
     <TargetFramework>net451</TargetFramework>
+    <PackageId>Microsoft.Azure.DurableTask.ServiceBus</PackageId>
   </PropertyGroup>
 
   <ItemGroup>
