@@ -1186,7 +1186,6 @@ namespace DurableTask.AzureStorage
             return await this.trackingStore.GetStateAsync(createdTimeFrom, createdTimeTo, runtimeStatus, cancellationToken);
         }
 
-
         /// <summary>
         /// Force terminates an orchestration by sending a execution terminated event
         /// </summary>
@@ -1219,17 +1218,15 @@ namespace DurableTask.AzureStorage
                     InstanceId = id
                 };
 
-                var startedEvent = new RewindEvent(-1, reason);
+                var startedEvent = new GenericEvent(-1, reason);
                 var taskMessage = new TaskMessage
                 {
                     OrchestrationInstance = orchestrationInstance,
                     Event = startedEvent
                 };
 
-
                 await SendTaskOrchestrationMessageAsync(taskMessage);
             }
-
         }
 
         /// <summary>

@@ -428,21 +428,6 @@ namespace DurableTask.Core
         }
 
         /// <summary>
-        ///    Rewind the specified orchestration instance with a reason
-        /// </summary>
-        /// <param name="orchestrationInstance">Failed instance to rewind</param>
-        /// <param name="reason">Reason for rewinding the instance</param>
-        public async Task RewindInstanceAsync(OrchestrationInstance orchestrationInstance, string reason)
-        {
-            if (string.IsNullOrWhiteSpace(orchestrationInstance?.InstanceId))
-            {
-                throw new ArgumentException(nameof(orchestrationInstance));
-            }
-
-            await this.serviceClient.RewindTaskOrchestrationAsync(orchestrationInstance.InstanceId, reason);
-        }
-
-        /// <summary>
         ///     Wait for an orchestration to reach any terminal state within the given timeout
         /// </summary>
         /// <param name="orchestrationInstance">Instance to terminate</param>

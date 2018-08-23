@@ -252,7 +252,7 @@ namespace DurableTask.AzureStorage.Tracking
             return new OrchestrationHistory(historyEvents, eTagValue);
         }
 
-        private async Task<List<DynamicTableEntity>> QueryHistory(string filterCondition, string instanceId, CancellationToken cancellationToken)
+        private async Task<List<DynamicTableEntity>> QueryHistoryForRewind(string filterCondition, string instanceId, CancellationToken cancellationToken)
         {
             TableQuery query = new TableQuery().Where(filterCondition.ToString());
 
@@ -267,7 +267,7 @@ namespace DurableTask.AzureStorage.Tracking
             {
                 requestCount++;
                 stopwatch.Start();
-                var segment = await this.historyTable.ExecuteQuerySegmentedAsync(
+                var segment = await this.HistoryTable.ExecuteQuerySegmentedAsync(
                     query,
                     continuationToken,
                     this.StorageTableRequestOptions,
@@ -295,7 +295,7 @@ namespace DurableTask.AzureStorage.Tracking
                 entities.Count,
                 requestCount,
                 stopwatch.ElapsedMilliseconds,
-                this.GetETagValue(instanceId),
+                string.Empty /* ETag */,
                 Utils.ExtensionVersion);
 
             return entities; 
@@ -305,7 +305,7 @@ namespace DurableTask.AzureStorage.Tracking
         {
             //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
             // REWIND ALGORITHM:
-            // 1. Finds failed execution of specified orchestraion instance to rewind
+            // 1. Finds failed execution of specified orchestration instance to rewind
             // 2. Finds failure entities to clear and over-writes them (as well as corresponding trigger events)
             // 3. Identifies sub-orchestration failure(s) from parent instance and calls RewindHistoryAsync recursively on failed sub-orchestration child instance(s)
             // 4. Resets orchestration status of rewound instance in instance store table to prepare it to be restarted
@@ -321,7 +321,7 @@ namespace DurableTask.AzureStorage.Tracking
             orchestratorStartedFilterCondition.Append("PartitionKey eq ").Append(Quote).Append(instanceId).Append(Quote); // = TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, instanceId);
             orchestratorStartedFilterCondition.Append(" and EventType eq ").Append(Quote).Append("OrchestratorStarted").Append(Quote);
 
-            var orchestratorStartedEntities = await QueryHistory(orchestratorStartedFilterCondition.ToString(), instanceId, cancellationToken);
+            var orchestratorStartedEntities = await this.QueryHistoryForRewind(orchestratorStartedFilterCondition.ToString(), instanceId, cancellationToken);
 
             // get most recent orchestratorStarted event
             var recentStartRowKey = orchestratorStartedEntities.Max(x => x.RowKey);
@@ -337,7 +337,7 @@ namespace DurableTask.AzureStorage.Tracking
             rowsToUpdateFilterCondition.Append(" or EventType eq").Append(Quote).Append("TaskFailed").Append(Quote);
             rowsToUpdateFilterCondition.Append(" or EventType eq").Append(Quote).Append("SubOrchestrationInstanceFailed").Append(Quote).Append(")");
 
-            var entitiesToClear = await QueryHistory(rowsToUpdateFilterCondition.ToString(), instanceId, cancellationToken);
+            var entitiesToClear = await this.QueryHistoryForRewind(rowsToUpdateFilterCondition.ToString(), instanceId, cancellationToken);
 
             foreach (DynamicTableEntity entity in entitiesToClear)
             {
@@ -349,7 +349,6 @@ namespace DurableTask.AzureStorage.Tracking
 
                 if (entity.RowKey == SentinelRowKey)
                 {
-                    this.eTagValues[instanceId] = entity.ETag;
                     continue;
                 }
 
@@ -365,13 +364,12 @@ namespace DurableTask.AzureStorage.Tracking
                     tsFilterCondition.Append(" and EventId eq ").Append(taskScheduledId);
                     tsFilterCondition.Append(" and EventType eq ").Append(Quote).Append(nameof(EventType.TaskScheduled)).Append(Quote);
 
-                    var taskScheduledEntities = await QueryHistory(tsFilterCondition.ToString(), instanceId, cancellationToken);
+                    var taskScheduledEntities = await QueryHistoryForRewind(tsFilterCondition.ToString(), instanceId, cancellationToken);
 
                     taskScheduledEntities[0].Properties["Reason"] = new EntityProperty("Rewound: " + taskScheduledEntities[0].Properties["EventType"].StringValue);
-                    taskScheduledEntities[0].Properties["EventType"] = new EntityProperty(nameof(EventType.RewindEvent));
+                    taskScheduledEntities[0].Properties["EventType"] = new EntityProperty(nameof(EventType.GenericEvent));
                     
-                    await this.historyTable.ExecuteAsync(
-                        TableOperation.Replace(taskScheduledEntities[0]));
+                    await this.HistoryTable.ExecuteAsync(TableOperation.Replace(taskScheduledEntities[0]));
                 }
 
                 // delete SubOrchestratorCreated corresponding to SubOrchestraionInstanceFailed event
@@ -387,26 +385,24 @@ namespace DurableTask.AzureStorage.Tracking
                     soFilterCondition.Append(" and EventId eq ").Append(subOrchestrationId);
                     soFilterCondition.Append(" and EventType eq ").Append(Quote).Append(nameof(EventType.SubOrchestrationInstanceCreated)).Append(Quote);
 
-                    var subOrchesratrationEntities = await QueryHistory(soFilterCondition.ToString(), instanceId, cancellationToken);
+                    var subOrchesratrationEntities = await QueryHistoryForRewind(soFilterCondition.ToString(), instanceId, cancellationToken);
 
                     soInstanceId = subOrchesratrationEntities[0].Properties["InstanceId"].StringValue;
 
                     // the SubORchestrationCreatedEvent is still healthy and will not be overwritten, just marked as rewound
                     subOrchesratrationEntities[0].Properties["Reason"] = new EntityProperty("Rewound: " + subOrchesratrationEntities[0].Properties["EventType"].StringValue);
 
-                    await this.historyTable.ExecuteAsync(
-                        TableOperation.Replace(subOrchesratrationEntities[0]));
+                    await this.HistoryTable.ExecuteAsync(TableOperation.Replace(subOrchesratrationEntities[0]));
 
                     // recursive call to clear out failure events on child instances
-                    await RewindHistoryAsync(soInstanceId, failedLeaves, cancellationToken);
+                    await this.RewindHistoryAsync(soInstanceId, failedLeaves, cancellationToken);
                 }
 
                 // "clear" failure event by making RewindEvent: replay ignores row while dummy event preserves rowKey
                 entity.Properties["Reason"] = new EntityProperty("Rewound: " + entity.Properties["EventType"].StringValue);
-                entity.Properties["EventType"] = new EntityProperty(nameof(EventType.RewindEvent));
+                entity.Properties["EventType"] = new EntityProperty(nameof(EventType.GenericEvent));
 
-                await this.historyTable.ExecuteAsync(
-                    TableOperation.Replace(entity));
+                await this.HistoryTable.ExecuteAsync(TableOperation.Replace(entity));
             }
 
             // reset orchestration status in instance store table
@@ -418,7 +414,6 @@ namespace DurableTask.AzureStorage.Tracking
             }
 
             return failedLeaves;
-
         }
 
         /// <inheritdoc />
@@ -525,7 +520,6 @@ namespace DurableTask.AzureStorage.Tracking
             }
 
             return orchestrationStates;
-
         }
 
         /// <inheritdoc />
@@ -584,8 +578,7 @@ namespace DurableTask.AzureStorage.Tracking
             await this.CompressLargeMessageAsync(entity);
 
             Stopwatch stopwatch = Stopwatch.StartNew();
-            await this.instancesTable.ExecuteAsync(
-                TableOperation.Merge(entity));
+            await this.InstancesTable.ExecuteAsync(TableOperation.Merge(entity));
             this.stats.StorageRequests.Increment();
             this.stats.TableEntitiesWritten.Increment(1);
 
@@ -594,7 +587,7 @@ namespace DurableTask.AzureStorage.Tracking
                 this.taskHubName,
                 instanceId,
                 string.Empty,
-                nameof(EventType.RewindEvent),
+                nameof(EventType.GenericEvent),
                 stopwatch.ElapsedMilliseconds,
                 Utils.ExtensionVersion);
         }
@@ -754,7 +747,6 @@ namespace DurableTask.AzureStorage.Tracking
 
             return estimatedByteCount;
         }
-
 
         Type GetTypeForTableEntity(DynamicTableEntity tableEntity)
         {
