@@ -22,7 +22,6 @@ namespace DurableTask.AzureStorage.Messaging
     {
         readonly string storageAccountName;
         readonly string taskHubName;
-        readonly Guid traceActivityId;
 
         public SessionBase(string storageAccountName, string taskHubName, OrchestrationInstance orchestrationInstance, Guid traceActivityId)
         {
@@ -30,10 +29,10 @@ namespace DurableTask.AzureStorage.Messaging
             this.taskHubName = taskHubName ?? throw new ArgumentNullException(nameof(taskHubName));
             this.Instance = orchestrationInstance ?? throw new ArgumentNullException(nameof(orchestrationInstance));
 
-            this.traceActivityId = traceActivityId;
+            this.TraceActivityId = traceActivityId;
             this.StorageOperationContext = new OperationContext
             {
-                ClientRequestID = this.traceActivityId.ToString(),
+                ClientRequestID = this.TraceActivityId.ToString(),
             };
         }
 
@@ -41,12 +40,14 @@ namespace DurableTask.AzureStorage.Messaging
 
         public OperationContext StorageOperationContext { get; }
 
+        public Guid TraceActivityId { get; }
+
         public void StartNewLogicalTraceScope()
         {
             // This call sets the activity trace ID both on the current thread context
             // and on the logical call context. AnalyticsEventSource will use this 
             // activity ID for all trace operations.
-            AnalyticsEventSource.SetLogicalTraceActivityId(this.traceActivityId);
+            AnalyticsEventSource.SetLogicalTraceActivityId(this.TraceActivityId);
         }
 
         public void TraceProcessingMessage(MessageData data, bool isExtendedSession)
@@ -68,6 +69,7 @@ namespace DurableTask.AzureStorage.Messaging
                 taskMessage.OrchestrationInstance.ExecutionId,
                 queueMessage.Id,
                 Math.Max(0, (int)DateTimeOffset.UtcNow.Subtract(queueMessage.InsertionTime.Value).TotalMilliseconds),
+                data.SequenceNumber,
                 isExtendedSession,
                 Utils.ExtensionVersion);
         }

@@ -87,6 +87,12 @@ namespace DurableTask.AzureStorage
         public int MaxConcurrentTaskOrchestrationWorkItems { get; set; } = 100;
 
         /// <summary>
+        /// Gets or sets the maximum number of concurrent storage operations that can be executed in the context
+        /// of a single orchestration instance.
+        /// </summary>
+        public int MaxStorageOperationConcurrency { get; set; } = Environment.ProcessorCount * 25;
+
+        /// <summary>
         /// Gets or sets the identifier for the current worker.
         /// </summary>
         public string WorkerId { get; set; } = Environment.MachineName;

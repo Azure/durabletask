@@ -58,6 +58,14 @@ namespace DurableTask.AzureStorage
         [DataMember]
         public string CompressedBlobName { get; set; }
 
+        /// <summary>
+        /// The client-side sequence number of the message.
+        /// </summary>
+        [DataMember]
+        public long SequenceNumber { get; set; }
+
+        internal string Id => this.OriginalQueueMessage?.Id;
+
         internal string QueueName { get; set; }
 
         internal CloudQueueMessage OriginalQueueMessage { get; set; }

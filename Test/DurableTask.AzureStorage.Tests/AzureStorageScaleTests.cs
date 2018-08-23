@@ -19,13 +19,13 @@ namespace DurableTask.AzureStorage.Tests
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
+    using DurableTask.AzureStorage.Messaging;
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Blob;
-    using Microsoft.WindowsAzure.Storage.Queue;
     using Microsoft.WindowsAzure.Storage.Table;
 
     /// <summary>
@@ -85,17 +85,17 @@ namespace DurableTask.AzureStorage.Tests
 
             // Control queues
             Assert.IsNotNull(service.AllControlQueues, "Control queue collection was not initialized.");
-            CloudQueue[] controlQueues = service.AllControlQueues.ToArray();
+            ControlQueue[] controlQueues = service.AllControlQueues.ToArray();
             Assert.AreEqual(4, controlQueues.Length, "Expected to see the default four control queues created.");
-            foreach (CloudQueue queue in controlQueues)
+            foreach (ControlQueue queue in controlQueues)
             {
-                Assert.IsTrue(queue.Exists(), $"Queue {queue.Name} was not created.");
+                Assert.IsTrue(queue.InnerQueue.Exists(), $"Queue {queue.Name} was not created.");
             }
 
             // Work-item queue
-            CloudQueue workItemQueue = service.WorkItemQueue;
+            WorkItemQueue workItemQueue = service.WorkItemQueue;
             Assert.IsNotNull(workItemQueue, "Work-item queue client was not initialized.");
-            Assert.IsTrue(workItemQueue.Exists(), $"Queue {workItemQueue.Name} was not created.");
+            Assert.IsTrue(workItemQueue.InnerQueue.Exists(), $"Queue {workItemQueue.Name} was not created.");
 
             // TrackingStore
             ITrackingStore trackingStore = service.TrackingStore;
@@ -133,12 +133,12 @@ namespace DurableTask.AzureStorage.Tests
             {
                 await service.DeleteAsync();
 
-                foreach (CloudQueue queue in controlQueues)
+                foreach (ControlQueue queue in controlQueues)
                 {
-                    Assert.IsFalse(queue.Exists(), $"Queue {queue.Name} was not deleted.");
+                    Assert.IsFalse(queue.InnerQueue.Exists(), $"Queue {queue.Name} was not deleted.");
                 }
 
-                Assert.IsFalse(workItemQueue.Exists(), $"Queue {workItemQueue.Name} was not deleted.");
+                Assert.IsFalse(workItemQueue.InnerQueue.Exists(), $"Queue {workItemQueue.Name} was not deleted.");
 
                 try
                 {
@@ -237,7 +237,7 @@ namespace DurableTask.AzureStorage.Tests
                                     continue;
                                 }
 
-                                foreach (CloudQueue controlQueue in service.OwnedControlQueues)
+                                foreach (ControlQueue controlQueue in service.OwnedControlQueues)
                                 {
                                     Assert.IsTrue(allQueueNames.Add(controlQueue.Name));
                                 }
@@ -256,7 +256,7 @@ namespace DurableTask.AzureStorage.Tests
                                     service.OwnedControlQueues.All(q => ownedLeases.Any(l => l.Name.Contains(q.Name))),
                                     "Mismatch between queue assignment and lease ownership.");
                                 Assert.IsTrue(
-                                    service.OwnedControlQueues.All(q => q.Exists()),
+                                    service.OwnedControlQueues.All(q => q.InnerQueue.Exists()),
                                     $"One or more control queues owned by {service.WorkerId} do not exist");
                             }
 
@@ -306,13 +306,13 @@ namespace DurableTask.AzureStorage.Tests
 
             OrchestrationInstance[] instances = await Task.WhenAll(createTasks);
 
-            CloudQueue[] controlQueues = service.AllControlQueues.ToArray();
+            ControlQueue[] controlQueues = service.AllControlQueues.ToArray();
             Assert.AreEqual(settings.PartitionCount, controlQueues.Length, "Unexpected number of control queues");
 
-            foreach (CloudQueue cloudQueue in controlQueues)
+            foreach (ControlQueue cloudQueue in controlQueues)
             {
-                await cloudQueue.FetchAttributesAsync();
-                int messageCount = cloudQueue.ApproximateMessageCount.GetValueOrDefault(-1);
+                await cloudQueue.InnerQueue.FetchAttributesAsync();
+                int messageCount = cloudQueue.InnerQueue.ApproximateMessageCount.GetValueOrDefault(-1);
 
                 Trace.TraceInformation($"Queue {cloudQueue.Name} has {messageCount} message(s).");
                 Assert.IsTrue(messageCount > 0, $"Queue {cloudQueue.Name} didn't receive any messages");
