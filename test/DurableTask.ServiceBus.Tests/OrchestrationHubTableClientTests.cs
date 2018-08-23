@@ -17,9 +17,9 @@ namespace DurableTask.ServiceBus.Tests
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Threading.Tasks;
-    using DurableTask;
-    using DurableTask.History;
-    using DurableTask.Tracking;
+    using DurableTask.Core;
+    using DurableTask.Core.History;
+    using DurableTask.ServiceBus.Tracking;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]
@@ -303,7 +303,7 @@ namespace DurableTask.ServiceBus.Tests
                 historyEntities.Add(new AzureTableOrchestrationHistoryEventEntity(instanceId, genId, i, DateTime.Now,
                     eeStartedEvent));
             }
-            client.WriteEntitesAsync(historyEntities).Wait();
+            client.WriteEntitiesAsync(historyEntities).Wait();
             return historyEntities;
         }
 
@@ -328,7 +328,7 @@ namespace DurableTask.ServiceBus.Tests
             };
 
             entities.Add(new AzureTableOrchestrationStateEntity(runtimeState));
-            client.WriteEntitesAsync(entities).Wait();
+            client.WriteEntitiesAsync(entities).Wait();
             return entities;
         }
 

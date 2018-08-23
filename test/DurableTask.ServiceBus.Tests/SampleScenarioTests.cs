@@ -20,10 +20,9 @@ namespace DurableTask.ServiceBus.Tests
     using System.Threading.Tasks;
     using System.Linq;
 
-    using DurableTask;
-    using DurableTask.Exceptions;
-    using DurableTask.Test;
-    using Framework.Tests;
+    using DurableTask.Core;
+    using DurableTask.Core.Exceptions;
+    using DurableTask.Core.Tests;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]
@@ -90,6 +89,49 @@ namespace DurableTask.ServiceBus.Tests
             Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
             Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,
                 "Orchestration Result is wrong!!!");
+        }
+
+        [TestMethod]
+        public async Task SimplestGreetingsRecreationTest()
+        {
+            SimplestGreetingsOrchestration.Result = string.Empty;
+
+            await taskHub.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
+                .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
+                .StartAsync();
+
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), null);
+
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60, true, true);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,
+                "Orchestration Result is wrong!!!");
+
+            await Assert.ThrowsExceptionAsync<OrchestrationAlreadyExistsException>(() => client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null));
+
+            await Assert.ThrowsExceptionAsync<OrchestrationAlreadyExistsException>(() => client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null, null));
+
+            await Assert.ThrowsExceptionAsync<OrchestrationAlreadyExistsException>(() => client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null, new OrchestrationStatus[] { OrchestrationStatus.Completed, OrchestrationStatus.Terminated }));
+
+            isCompleted = false;
+            SimplestGreetingsOrchestration.Result = string.Empty;
+
+            OrchestrationInstance id2 = await client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null, new OrchestrationStatus[] { OrchestrationStatus.Terminated });
+
+            isCompleted = await TestHelpers.WaitForInstanceAsync(client, id2, 60, true, true);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id2, 60));
+            Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,
+                "Orchestration Result on re create is wrong!!!");
+
+            isCompleted = false;
+            SimplestGreetingsOrchestration.Result = string.Empty;
+
+            OrchestrationInstance id3 = await client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null, new OrchestrationStatus[] { });
+
+            isCompleted = await TestHelpers.WaitForInstanceAsync(client, id3, 60, true, true);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id3, 60));
+            Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,
+                "Orchestration Result on 2nd re create is wrong!!!");
         }
 
         [TestMethod]
@@ -761,18 +803,6 @@ namespace DurableTask.ServiceBus.Tests
 
             bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
             Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
-            Assert.AreEqual("foo_instance", SimpleChildWorkflow.ChildInstanceId);
-        }
-
-        [TestMethod]
-        public async Task TestHostSubOrchestrationExplicitIdTest()
-        {
-            SimpleChildWorkflow.ChildInstanceId = null;
-            var testHost = new OrchestrationTestHost();
-            testHost.AddTaskOrchestrations(typeof (SimpleParentWorkflow), typeof (SimpleChildWorkflow));
-
-            object res = await testHost.RunOrchestration<object>(typeof (SimpleParentWorkflow), null);
-
             Assert.AreEqual("foo_instance", SimpleChildWorkflow.ChildInstanceId);
         }
 

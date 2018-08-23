@@ -16,7 +16,7 @@ namespace DurableTask.Samples.SumOfSquares
     using System;
     using System.Collections.Generic;
     using System.Threading.Tasks;
-    using DurableTask;
+    using DurableTask.Core;
     using Newtonsoft.Json.Linq;
 
     public class SumOfSquaresOrchestration : TaskOrchestration<int, string>

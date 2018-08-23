@@ -21,7 +21,7 @@ namespace DurableTask.ServiceBus.Tests
     using System.Threading.Tasks;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Microsoft.WindowsAzure.Storage.Blob;
-    using DurableTask.Tracking;
+    using DurableTask.ServiceBus.Tracking;
 
     [TestClass]
     public class BlobStorageClientTest

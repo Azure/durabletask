@@ -1,0 +1,27 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
+	<PropertyGroup>
+		<TargetFramework>net451</TargetFramework>
+	</PropertyGroup>
+
+	<ItemGroup>
+    <PackageReference Include="EnterpriseLibrary.SemanticLogging.EventSourceAnalyzer" Version="2.0.1406.1" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.0.0" />
+		<PackageReference Include="MSTest.TestAdapter" Version="1.1.11" />
+		<PackageReference Include="MSTest.TestFramework" Version="1.1.11" />
+		<PackageReference Include="Newtonsoft.Json" version="7.0.1" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <ProjectReference Include="..\..\src\DurableTask.Core\DurableTask.Core.csproj" />
+	  <ProjectReference Include="..\..\src\DurableTask.Emulator\DurableTask.Emulator.csproj" />
+	  <ProjectReference Include="..\..\src\DurableTask.ServiceBus\DurableTask.ServiceBus.csproj" />
+	  <ProjectReference Include="..\DurableTask.Test.Orchestrations\DurableTask.Test.Orchestrations.csproj" />
+	</ItemGroup>	
+	
+	<ItemGroup>
+		<Service Include="{82a7f48d-3b50-4b1e-b82e-3ada8210c358}" />
+	</ItemGroup>
+	
+</Project>

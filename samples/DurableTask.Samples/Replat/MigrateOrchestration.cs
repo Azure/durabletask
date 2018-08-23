@@ -17,7 +17,7 @@ namespace DurableTask.Samples.Replat
     using System.Collections.Generic;
     using System.Linq;
     using System.Threading.Tasks;
-    using DurableTask;
+    using DurableTask.Core;
 
     /// <summary>
     /// </summary>

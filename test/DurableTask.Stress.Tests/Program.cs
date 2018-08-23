@@ -11,22 +11,32 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+[assembly: System.Runtime.InteropServices.ComVisible(false)]
 namespace DurableTask.Stress.Tests
 {
     using System;
     using System.Configuration;
     using System.Diagnostics;
-    using DurableTask.Settings;
+    using DurableTask.Core;
+    using DurableTask.Core.Tracing;
+    using DurableTask.ServiceBus.Settings;
+    using DurableTask.ServiceBus;
     using DurableTask.Test.Orchestrations.Stress;
-    using DurableTask.Tracking;
-    using DurableTask.Common;
+    using DurableTask.ServiceBus.Tracking;
+    using Microsoft.Practices.EnterpriseLibrary.SemanticLogging;
+    using System.Diagnostics.Tracing;
 
     class Program
     {
         static Options options = new Options();
+        static ObservableEventListener eventListener;
 
         static void Main(string[] args)
         {
+            eventListener = new ObservableEventListener();
+            eventListener.LogToFlatFile("Trace.log");
+            eventListener.EnableEvents(DefaultEventSource.Log, EventLevel.Warning);
+
             string tableConnectionString = ConfigurationManager.AppSettings["StorageConnectionString"];
 
             if (CommandLine.Parser.Default.ParseArgumentsStrict(args, options))

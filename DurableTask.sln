@@ -1,11 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 14
-VisualStudioVersion = 14.0.25420.1
+# Visual Studio 15
+VisualStudioVersion = 15.0.26403.7
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.Framework", "src\DurableTask.Framework\DurableTask.Framework.csproj", "{6F5D2EAD-726D-4FE5-A575-AEB96D1CCE37}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.ServiceBus", "src\DurableTask.ServiceBus\DurableTask.ServiceBus.csproj", "{6F5D2EAD-726D-4FE5-A575-AEB96D1CCE37}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.ServiceBus.Tests", "test\DurableTask.ServiceBus.Tests\DurableTask.ServiceBus.Tests.csproj", "{6639DA74-9063-4A7C-9484-0A71C4FB5C18}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.ServiceBus.Tests", "test\DurableTask.ServiceBus.Tests\DurableTask.ServiceBus.Tests.csproj", "{6639DA74-9063-4A7C-9484-0A71C4FB5C18}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".nuget", ".nuget", "{501E1168-418C-4832-B88C-617735BD02C9}"
 	ProjectSection(SolutionItems) = preProject
@@ -23,15 +23,23 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tools", "tools", "{C0904C83
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "samples", "samples", "{AF4E71A6-B16E-4488-B22D-2761101A601A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.Framework.Tests", "test\DurableTask.Framework.Tests\DurableTask.Framework.Tests.csproj", "{879670A7-919B-4AF9-8AFB-7C4EDAA0CC04}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.Core.Tests", "test\DurableTask.Core.Tests\DurableTask.Core.Tests.csproj", "{879670A7-919B-4AF9-8AFB-7C4EDAA0CC04}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.Samples", "samples\DurableTask.Samples\DurableTask.Samples.csproj", "{BC204374-927C-4A48-8473-F5BF8C97EAEA}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.Samples", "samples\DurableTask.Samples\DurableTask.Samples.csproj", "{BC204374-927C-4A48-8473-F5BF8C97EAEA}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.Stress.Tests", "test\DurableTask.Stress.Tests\DurableTask.Stress.Tests.csproj", "{96980359-8003-4500-B97B-949A7FE01F31}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.Stress.Tests", "test\DurableTask.Stress.Tests\DurableTask.Stress.Tests.csproj", "{96980359-8003-4500-B97B-949A7FE01F31}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.Samples.Tests", "test\DurableTask.Samples.Tests\DurableTask.Samples.Tests.csproj", "{1F20B608-0206-4B58-8C0B-CB7430A880FD}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.Test.Orchestrations", "test\DurableTask.Test.Orchestrations\DurableTask.Test.Orchestrations.csproj", "{2BC2A5AD-4200-41B9-A034-332BB1D7187B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.Test.Orchestrations", "Test\DurableTask.Test.Orchestrations\DurableTask.Test.Orchestrations.csproj", "{2BC2A5AD-4200-41B9-A034-332BB1D7187B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.Core", "src\DurableTask.Core\DurableTask.Core.csproj", "{C8634F14-BE3B-4685-B0E1-C5726F8F3758}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.Emulator", "src\DurableTask.Emulator\DurableTask.Emulator.csproj", "{ACC997BF-D541-4BAF-A91C-7EC0B65426A9}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.Emulator.Tests", "test\DurableTask.Emulator.Tests\DurableTask.Emulator.Tests.csproj", "{295A38D6-F8BF-446A-A274-E78BD1C56514}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.AzureStorage", "src\DurableTask.AzureStorage\DurableTask.AzureStorage.csproj", "{F1B270EA-9DC2-4753-B3DE-B45D3C128FDB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.AzureStorage.Tests", "Test\DurableTask.AzureStorage.Tests\DurableTask.AzureStorage.Tests.csproj", "{7CD147F9-1BB9-41FD-A310-BCA07447A6B9}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -59,14 +67,30 @@ Global
 		{96980359-8003-4500-B97B-949A7FE01F31}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{96980359-8003-4500-B97B-949A7FE01F31}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{96980359-8003-4500-B97B-949A7FE01F31}.Release|Any CPU.Build.0 = Release|Any CPU
-		{1F20B608-0206-4B58-8C0B-CB7430A880FD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{1F20B608-0206-4B58-8C0B-CB7430A880FD}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{1F20B608-0206-4B58-8C0B-CB7430A880FD}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{1F20B608-0206-4B58-8C0B-CB7430A880FD}.Release|Any CPU.Build.0 = Release|Any CPU
 		{2BC2A5AD-4200-41B9-A034-332BB1D7187B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{2BC2A5AD-4200-41B9-A034-332BB1D7187B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2BC2A5AD-4200-41B9-A034-332BB1D7187B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2BC2A5AD-4200-41B9-A034-332BB1D7187B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C8634F14-BE3B-4685-B0E1-C5726F8F3758}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C8634F14-BE3B-4685-B0E1-C5726F8F3758}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C8634F14-BE3B-4685-B0E1-C5726F8F3758}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C8634F14-BE3B-4685-B0E1-C5726F8F3758}.Release|Any CPU.Build.0 = Release|Any CPU
+		{ACC997BF-D541-4BAF-A91C-7EC0B65426A9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{ACC997BF-D541-4BAF-A91C-7EC0B65426A9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{ACC997BF-D541-4BAF-A91C-7EC0B65426A9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{ACC997BF-D541-4BAF-A91C-7EC0B65426A9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{295A38D6-F8BF-446A-A274-E78BD1C56514}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{295A38D6-F8BF-446A-A274-E78BD1C56514}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{295A38D6-F8BF-446A-A274-E78BD1C56514}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{295A38D6-F8BF-446A-A274-E78BD1C56514}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F1B270EA-9DC2-4753-B3DE-B45D3C128FDB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F1B270EA-9DC2-4753-B3DE-B45D3C128FDB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F1B270EA-9DC2-4753-B3DE-B45D3C128FDB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F1B270EA-9DC2-4753-B3DE-B45D3C128FDB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7CD147F9-1BB9-41FD-A310-BCA07447A6B9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7CD147F9-1BB9-41FD-A310-BCA07447A6B9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7CD147F9-1BB9-41FD-A310-BCA07447A6B9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7CD147F9-1BB9-41FD-A310-BCA07447A6B9}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -77,8 +101,12 @@ Global
 		{879670A7-919B-4AF9-8AFB-7C4EDAA0CC04} = {95C69A06-7F62-4652-A480-207B614C2869}
 		{BC204374-927C-4A48-8473-F5BF8C97EAEA} = {AF4E71A6-B16E-4488-B22D-2761101A601A}
 		{96980359-8003-4500-B97B-949A7FE01F31} = {95C69A06-7F62-4652-A480-207B614C2869}
-		{1F20B608-0206-4B58-8C0B-CB7430A880FD} = {95C69A06-7F62-4652-A480-207B614C2869}
 		{2BC2A5AD-4200-41B9-A034-332BB1D7187B} = {95C69A06-7F62-4652-A480-207B614C2869}
+		{C8634F14-BE3B-4685-B0E1-C5726F8F3758} = {DBCD161C-D409-48E5-924E-9B7FA1C36B84}
+		{ACC997BF-D541-4BAF-A91C-7EC0B65426A9} = {DBCD161C-D409-48E5-924E-9B7FA1C36B84}
+		{295A38D6-F8BF-446A-A274-E78BD1C56514} = {95C69A06-7F62-4652-A480-207B614C2869}
+		{F1B270EA-9DC2-4753-B3DE-B45D3C128FDB} = {DBCD161C-D409-48E5-924E-9B7FA1C36B84}
+		{7CD147F9-1BB9-41FD-A310-BCA07447A6B9} = {95C69A06-7F62-4652-A480-207B614C2869}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		EnterpriseLibraryConfigurationToolBinariesPath = packages\TransientFaultHandling.Core.5.1.1209.1\lib\NET4

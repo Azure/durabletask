@@ -19,12 +19,11 @@ namespace DurableTask.ServiceBus.Tests
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
-    using DurableTask;
-    using DurableTask.Exceptions;
-    using DurableTask.Serializing;
-    using DurableTask.Settings;
-    using DurableTask.Test;
-    using Framework.Tests;
+    using DurableTask.Core;
+    using DurableTask.Core.Exceptions;
+    using DurableTask.Core.Serializing;
+    using DurableTask.ServiceBus.Settings;
+    using DurableTask.Core.Tests;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]
@@ -431,28 +430,6 @@ namespace DurableTask.ServiceBus.Tests
 
             bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
             Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
-            Assert.IsTrue(GenerationV1Orchestration.WasRun);
-            Assert.IsTrue(GenerationV2Orchestration.WasRun);
-            Assert.IsTrue(GenerationV3Orchestration.WasRun);
-        }
-
-        [TestMethod]
-        public async Task TestHostGenerationVersionTest()
-        {
-            var c1 = new NameValueObjectCreator<TaskOrchestration>("GenerationOrchestration",
-                "V1", typeof (GenerationV1Orchestration));
-
-            var c2 = new NameValueObjectCreator<TaskOrchestration>("GenerationOrchestration",
-                "V2", typeof (GenerationV2Orchestration));
-
-            var c3 = new NameValueObjectCreator<TaskOrchestration>("GenerationOrchestration",
-                "V3", typeof (GenerationV3Orchestration));
-
-            var testHost = new OrchestrationTestHost();
-            testHost.AddTaskOrchestrations(c1, c2, c3);
-
-            object res = await testHost.RunOrchestration<object>("GenerationOrchestration", "V1", null);
-
             Assert.IsTrue(GenerationV1Orchestration.WasRun);
             Assert.IsTrue(GenerationV2Orchestration.WasRun);
             Assert.IsTrue(GenerationV3Orchestration.WasRun);

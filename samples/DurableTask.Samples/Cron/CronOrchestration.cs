@@ -15,7 +15,7 @@ namespace DurableTask.Samples.Cron
 {
     using System;
     using System.Threading.Tasks;
-    using DurableTask;
+    using DurableTask.Core;
     using NCrontab;
 
     public class CronOrchestration : TaskOrchestration<string, string>

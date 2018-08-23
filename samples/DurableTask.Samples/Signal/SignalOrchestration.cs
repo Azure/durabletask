@@ -14,7 +14,7 @@
 namespace DurableTask.Samples.Signal
 {
     using System.Threading.Tasks;
-    using DurableTask;
+    using DurableTask.Core;
 
     public class SignalOrchestration : TaskOrchestration<string,string>
     {

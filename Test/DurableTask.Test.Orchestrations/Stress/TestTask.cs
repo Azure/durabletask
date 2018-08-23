@@ -16,6 +16,7 @@ namespace DurableTask.Test.Orchestrations.Stress
     using System;
     using System.Threading;
     using System.Threading.Tasks;
+    using DurableTask.Core;
 
     public sealed class TestTask : AsyncTaskActivity<TestTaskData, int>
     {

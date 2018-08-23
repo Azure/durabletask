@@ -16,9 +16,9 @@ namespace DurableTask.ServiceBus.Tests
     using System;
     using System.IO;
     using System.Threading.Tasks;
-    using DurableTask;
-    using DurableTask.History;
-    using DurableTask.Serializing;
+    using DurableTask.Core;
+    using DurableTask.Core.History;
+    using DurableTask.Core.Serializing;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]
@@ -67,6 +67,32 @@ namespace DurableTask.ServiceBus.Tests
             serializedState = File.ReadAllText(@"TestData\SerializedOrchestrationStateWithTags.json");
             runtimeState = dataConverter.Deserialize<OrchestrationRuntimeState>(serializedState);
             Assert.IsNotNull(runtimeState);
+        }
+
+        [TestMethod]
+        public void PackageUpgradeCompatibilityDeserializationTest()
+        {
+            var dataConverter = new JsonDataConverter();
+
+            string serialized= File.ReadAllText(@"TestData\v1.0\SerializedTaskMessage.json");
+            var message = dataConverter.Deserialize<TaskMessage>(serialized);
+            Assert.IsNotNull(message);
+
+            serialized = File.ReadAllText(@"TestData\v1.0\SerializedOrchestrationStateNoTags.json");
+            var state = dataConverter.Deserialize<OrchestrationState>(serialized);
+            Assert.IsNotNull(state);
+
+            serialized = File.ReadAllText(@"TestData\v1.0\SerializedRuntimeState.json");
+            var runtimeState = dataConverter.Deserialize<OrchestrationRuntimeState>(serialized);
+            Assert.IsNotNull(runtimeState);
+
+            serialized = File.ReadAllText(@"TestData\vnext\SerializedExecutionStartedEvent.json");
+            var executionStarted = dataConverter.Deserialize<ExecutionStartedEvent>(serialized);
+            Assert.IsNotNull(executionStarted);
+
+            serialized = File.ReadAllText(@"TestData\vnext\SerializedStateWithTags.json");
+            state = dataConverter.Deserialize<OrchestrationState>(serialized);
+            Assert.IsNotNull(state);
         }
 
         [TestMethod]

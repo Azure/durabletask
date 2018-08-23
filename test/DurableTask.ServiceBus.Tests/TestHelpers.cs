@@ -15,21 +15,28 @@ namespace DurableTask.ServiceBus.Tests
 {
     using System;
     using System.Configuration;
+    using System.Diagnostics.Tracing;
     using System.Threading.Tasks;
-    using DurableTask;
-    using DurableTask.Common;
-    using DurableTask.History;
-    using DurableTask.Settings;
-    using DurableTask.Tracking;
+    using DurableTask.Core;
+    using DurableTask.Core.Common;
+    using DurableTask.Core.History;
+    using DurableTask.Core.Settings;
+    using DurableTask.Core.Tracing;
+    using DurableTask.Core.Tracking;
+    using DurableTask.ServiceBus;
+    using DurableTask.ServiceBus.Settings;
+    using DurableTask.ServiceBus.Tracking;
     using Microsoft.ServiceBus;
     using Microsoft.ServiceBus.Messaging;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
+    using Microsoft.Practices.EnterpriseLibrary.SemanticLogging;
 
     public static class TestHelpers
     {
         static string ServiceBusConnectionString;
         static string StorageConnectionString;
         static string TaskHubName;
+        static ObservableEventListener eventListener;
 
         static TestHelpers()
         {
@@ -46,6 +53,10 @@ namespace DurableTask.ServiceBus.Tests
             }
 
             TaskHubName = ConfigurationManager.AppSettings.Get("TaskHubName");
+
+            eventListener = new ObservableEventListener();
+            eventListener.LogToConsole();
+            eventListener.EnableEvents(DefaultEventSource.Log, EventLevel.LogAlways);
         }
 
         public static ServiceBusOrchestrationServiceSettings CreateTestWorkerSettings(CompressionStyle style = CompressionStyle.Threshold)
@@ -167,7 +178,8 @@ namespace DurableTask.ServiceBus.Tests
 
         public static async Task<bool> WaitForInstanceAsync(TaskHubClient taskHubClient, OrchestrationInstance instance,
             int timeoutSeconds,
-            bool waitForCompletion = true)
+            bool waitForCompletion = true,
+            bool exactExecution = false)
         {
             if (string.IsNullOrWhiteSpace(instance?.InstanceId))
             {
@@ -178,7 +190,14 @@ namespace DurableTask.ServiceBus.Tests
 
             while (timeoutSeconds > 0)
             {
-                OrchestrationState state = await taskHubClient.GetOrchestrationStateAsync(instance.InstanceId);
+                OrchestrationState state;
+                if (exactExecution)
+                {
+                    state = await taskHubClient.GetOrchestrationStateAsync(instance);
+                }
+                else {
+                    state = await taskHubClient.GetOrchestrationStateAsync(instance.InstanceId);
+                }
                 if (state == null)
                 {
                     throw new ArgumentException("OrchestrationState is expected but NULL value returned");
