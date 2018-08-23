@@ -15,7 +15,7 @@ namespace DurableTask.ServiceFabric
 {
     using System;
     using System.Collections.Generic;
-    using DurableTask.History;
+    using DurableTask.Core.History;
 
     sealed class TimerFiredEventComparer : IComparer<Message<string, TaskMessageItem>>
     {

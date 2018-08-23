@@ -20,8 +20,9 @@ namespace DurableTask.ServiceFabric
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-    using DurableTask.History;
-    using DurableTask.Tracking;
+    using DurableTask.Core;
+    using DurableTask.Core.History;
+    using DurableTask.Core.Tracking;
     using Microsoft.ServiceFabric.Data;
 
     class FabricOrchestrationService : IOrchestrationService

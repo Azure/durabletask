@@ -14,6 +14,7 @@
 namespace DurableTask.ServiceFabric
 {
     using System.Collections.Generic;
+    using DurableTask.Core;
 
     internal class OrchestrationInstanceComparer : IEqualityComparer<OrchestrationInstance>
     {

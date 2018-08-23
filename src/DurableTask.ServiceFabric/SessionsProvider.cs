@@ -20,6 +20,7 @@ namespace DurableTask.ServiceFabric
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
+    using DurableTask.Core;
     using Microsoft.ServiceFabric.Data;
 
     /// <summary>

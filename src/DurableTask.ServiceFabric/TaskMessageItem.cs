@@ -15,6 +15,7 @@ namespace DurableTask.ServiceFabric
 {
     using System;
     using System.Runtime.Serialization;
+    using DurableTask.Core;
 
     [DataContract]
     sealed class TaskMessageItem : IExtensibleDataObject

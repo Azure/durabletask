@@ -13,6 +13,8 @@
 
 namespace DurableTask.ServiceFabric
 {
+    using DurableTask.Core;
+
     static class OrchestrationStatusExtensions
     {
         public static bool IsTerminalState(this OrchestrationStatus status)

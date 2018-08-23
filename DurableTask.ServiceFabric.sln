@@ -24,23 +24,23 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestApplication.Common", "T
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.ServiceFabric", "src\DurableTask.ServiceFabric\DurableTask.ServiceFabric.csproj", "{5C617B24-4902-4992-8F71-AB14F00B74A8}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.Framework", "src\DurableTask.Framework\DurableTask.Framework.csproj", "{6F5D2EAD-726D-4FE5-A575-AEB96D1CCE37}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.ServiceFabric.Test", "Test\DurableTask.ServiceFabric.Test\DurableTask.ServiceFabric.Test.csproj", "{EDC63DDB-8397-4AEC-BF54-6395B2527075}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.Stress.Tests", "Test\DurableTask.Stress.Tests\DurableTask.Stress.Tests.csproj", "{96980359-8003-4500-B97B-949A7FE01F31}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.ServiceBus.Tests", "Test\DurableTask.ServiceBus.Tests\DurableTask.ServiceBus.Tests.csproj", "{6639DA74-9063-4A7C-9484-0A71C4FB5C18}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.ServiceBus.Tests", "Test\DurableTask.ServiceBus.Tests\DurableTask.ServiceBus.Tests.csproj", "{6639DA74-9063-4A7C-9484-0A71C4FB5C18}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.Framework.Tests", "Test\DurableTask.Framework.Tests\DurableTask.Framework.Tests.csproj", "{879670A7-919B-4AF9-8AFB-7C4EDAA0CC04}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.Test.Orchestrations", "Test\DurableTask.Test.Orchestrations\DurableTask.Test.Orchestrations.csproj", "{2BC2A5AD-4200-41B9-A034-332BB1D7187B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.Test.Orchestrations", "Test\DurableTask.Test.Orchestrations\DurableTask.Test.Orchestrations.csproj", "{2BC2A5AD-4200-41B9-A034-332BB1D7187B}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.ServiceFabric.Failover.Tests", "Test\DurableTask.ServiceFabric.Stress.Tests\DurableTask.ServiceFabric.Failover.Tests.csproj", "{BE4624F3-E565-428F-9EED-E6847530746A}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.ServiceFabric.UnitTests", "Test\DurableTask.ServiceFabric.UnitTests\DurableTask.ServiceFabric.UnitTests.csproj", "{31C9C932-6376-46D4-A68A-A0A7F2726D38}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.ServiceFabric.Tests.Tooling", "Test\DurableTask.ServiceFabric.Tests.Tooling\DurableTask.ServiceFabric.Tests.Tooling.csproj", "{ED6817FD-A301-40CA-B287-1C40E7AAC7D1}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.Core", "src\DurableTask.Core\DurableTask.Core.csproj", "{6B386E8F-20EB-43DE-BBD7-6408A232B4BA}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -80,14 +80,6 @@ Global
 		{5C617B24-4902-4992-8F71-AB14F00B74A8}.Release|Any CPU.Build.0 = Release|Any CPU
 		{5C617B24-4902-4992-8F71-AB14F00B74A8}.Release|x64.ActiveCfg = Release|Any CPU
 		{5C617B24-4902-4992-8F71-AB14F00B74A8}.Release|x64.Build.0 = Release|Any CPU
-		{6F5D2EAD-726D-4FE5-A575-AEB96D1CCE37}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{6F5D2EAD-726D-4FE5-A575-AEB96D1CCE37}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{6F5D2EAD-726D-4FE5-A575-AEB96D1CCE37}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{6F5D2EAD-726D-4FE5-A575-AEB96D1CCE37}.Debug|x64.Build.0 = Debug|Any CPU
-		{6F5D2EAD-726D-4FE5-A575-AEB96D1CCE37}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{6F5D2EAD-726D-4FE5-A575-AEB96D1CCE37}.Release|Any CPU.Build.0 = Release|Any CPU
-		{6F5D2EAD-726D-4FE5-A575-AEB96D1CCE37}.Release|x64.ActiveCfg = Release|Any CPU
-		{6F5D2EAD-726D-4FE5-A575-AEB96D1CCE37}.Release|x64.Build.0 = Release|Any CPU
 		{EDC63DDB-8397-4AEC-BF54-6395B2527075}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{EDC63DDB-8397-4AEC-BF54-6395B2527075}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{EDC63DDB-8397-4AEC-BF54-6395B2527075}.Debug|x64.ActiveCfg = Debug|Any CPU
@@ -148,6 +140,14 @@ Global
 		{ED6817FD-A301-40CA-B287-1C40E7AAC7D1}.Release|Any CPU.ActiveCfg = Release|x64
 		{ED6817FD-A301-40CA-B287-1C40E7AAC7D1}.Release|x64.ActiveCfg = Release|x64
 		{ED6817FD-A301-40CA-B287-1C40E7AAC7D1}.Release|x64.Build.0 = Release|x64
+		{6B386E8F-20EB-43DE-BBD7-6408A232B4BA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6B386E8F-20EB-43DE-BBD7-6408A232B4BA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6B386E8F-20EB-43DE-BBD7-6408A232B4BA}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{6B386E8F-20EB-43DE-BBD7-6408A232B4BA}.Debug|x64.Build.0 = Debug|Any CPU
+		{6B386E8F-20EB-43DE-BBD7-6408A232B4BA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6B386E8F-20EB-43DE-BBD7-6408A232B4BA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6B386E8F-20EB-43DE-BBD7-6408A232B4BA}.Release|x64.ActiveCfg = Release|Any CPU
+		{6B386E8F-20EB-43DE-BBD7-6408A232B4BA}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -158,7 +158,6 @@ Global
 		{95D6C9C7-F7A0-4125-840D-1854BEC24978} = {507C0CC2-082F-4EB7-8984-E2648976EB04}
 		{EA90334D-3194-4266-81EB-EECA9C760315} = {507C0CC2-082F-4EB7-8984-E2648976EB04}
 		{5C617B24-4902-4992-8F71-AB14F00B74A8} = {0AE737F5-4AA1-402F-A61C-258CA00E282C}
-		{6F5D2EAD-726D-4FE5-A575-AEB96D1CCE37} = {0AE737F5-4AA1-402F-A61C-258CA00E282C}
 		{EDC63DDB-8397-4AEC-BF54-6395B2527075} = {5177D1DE-AC86-41B9-8D04-41988A7C2208}
 		{96980359-8003-4500-B97B-949A7FE01F31} = {5177D1DE-AC86-41B9-8D04-41988A7C2208}
 		{6639DA74-9063-4A7C-9484-0A71C4FB5C18} = {5177D1DE-AC86-41B9-8D04-41988A7C2208}
@@ -167,8 +166,10 @@ Global
 		{BE4624F3-E565-428F-9EED-E6847530746A} = {5177D1DE-AC86-41B9-8D04-41988A7C2208}
 		{31C9C932-6376-46D4-A68A-A0A7F2726D38} = {5177D1DE-AC86-41B9-8D04-41988A7C2208}
 		{ED6817FD-A301-40CA-B287-1C40E7AAC7D1} = {5177D1DE-AC86-41B9-8D04-41988A7C2208}
+		{6B386E8F-20EB-43DE-BBD7-6408A232B4BA} = {0AE737F5-4AA1-402F-A61C-258CA00E282C}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		EnterpriseLibraryConfigurationToolBinariesPath = packages\TransientFaultHandling.Core.5.1.1209.1\lib\NET4
+		SolutionGuid = {AB50E5E3-EAB4-4EBA-AE13-551034A521F8}
 	EndGlobalSection
 EndGlobal

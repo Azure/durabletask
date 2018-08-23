@@ -15,16 +15,17 @@ namespace DurableTask.ServiceFabric
 {
     using System;
     using System.Threading;
+    using DurableTask.Core;
     using Microsoft.ServiceFabric.Data;
 
     /// <summary>
     /// Manages instances of a service fabric based store provider implementations
-    /// for <see cref="DurableTask.IOrchestrationService"/> and <see cref="DurableTask.IOrchestrationServiceClient"/>
-    /// to be used in constructing <see cref="DurableTask.TaskHubWorker"/> and <see cref="DurableTask.TaskHubClient"/>.
+    /// for <see cref="IOrchestrationService"/> and <see cref="IOrchestrationServiceClient"/>
+    /// to be used in constructing <see cref="TaskHubWorker"/> and <see cref="TaskHubClient"/>.
     /// </summary>
     /// <remarks>
     /// Use <see cref="FabricOrchestrationProviderFactory"/> to create an instance of <see cref="FabricOrchestrationProvider"/>.
-    /// Note that this provider object should not be used once <see cref="DurableTask.TaskHubWorker.StopAsync()"/> method is called
+    /// Note that this provider object should not be used once <see cref="TaskHubWorker.StopAsync()"/> method is called
     /// on the worker object created using this provider. A new provider object should be created after that point.
     /// </remarks>
     public sealed class FabricOrchestrationProvider : IDisposable
@@ -45,7 +46,7 @@ namespace DurableTask.ServiceFabric
         }
 
         /// <summary>
-        /// <see cref="DurableTask.IOrchestrationService"/> instance that can be used for constructing <see cref="DurableTask.TaskHubWorker"/>.
+        /// <see cref="IOrchestrationService"/> instance that can be used for constructing <see cref="TaskHubWorker"/>.
         /// </summary>
         public IOrchestrationService OrchestrationService
         {
@@ -57,7 +58,7 @@ namespace DurableTask.ServiceFabric
         }
 
         /// <summary>
-        /// <see cref="DurableTask.IOrchestrationServiceClient"/> instance that can be used for constructing <see cref="DurableTask.TaskHubClient"/>.
+        /// <see cref="IOrchestrationServiceClient"/> instance that can be used for constructing <see cref="TaskHubClient"/>.
         /// </summary>
         public IOrchestrationServiceClient OrchestrationServiceClient
         {
@@ -81,8 +82,8 @@ namespace DurableTask.ServiceFabric
         }
 
         /// <summary>
-        /// Disposes the object. The object should be disposed after <see cref="DurableTask.TaskHubWorker.StopAsync()"/>
-        /// is invoked on the <see cref="DurableTask.TaskHubWorker" /> created with the <see cref="OrchestrationService"/>.
+        /// Disposes the object. The object should be disposed after <see cref="TaskHubWorker.StopAsync()"/>
+        /// is invoked on the <see cref="TaskHubWorker" /> created with the <see cref="OrchestrationService"/>.
         /// </summary>
         public void Dispose()
         {

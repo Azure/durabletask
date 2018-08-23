@@ -16,6 +16,7 @@ namespace DurableTask.Test.Orchestrations.Perf
     using System.Collections.Generic;
     using System.Linq;
     using System.Threading.Tasks;
+    using DurableTask.Core;
 
     public class DriverOrchestration : TaskOrchestration<int, DriverOrchestrationData>
     {

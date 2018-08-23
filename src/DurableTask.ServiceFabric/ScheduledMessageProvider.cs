@@ -19,9 +19,9 @@ namespace DurableTask.ServiceFabric
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-    using DurableTask.History;
+    using DurableTask.Core;
+    using DurableTask.Core.History;
     using Microsoft.ServiceFabric.Data;
-    using Microsoft.ServiceFabric.Data.Collections;
 
     class ScheduledMessageProvider : MessageProviderBase<string, TaskMessageItem>
     {

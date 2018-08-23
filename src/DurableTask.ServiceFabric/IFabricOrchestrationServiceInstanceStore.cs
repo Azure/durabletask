@@ -15,9 +15,9 @@ namespace DurableTask.ServiceFabric
 {
     using System;
     using System.Collections.Generic;
-    using System.Threading;
     using System.Threading.Tasks;
-    using DurableTask.Tracking;
+    using DurableTask.Core;
+    using DurableTask.Core.Tracking;
     using Microsoft.ServiceFabric.Data;
 
     // Todo: Figure out a way to not include internal XML documentation in the generated documentation file

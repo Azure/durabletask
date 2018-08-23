@@ -17,7 +17,8 @@ namespace DurableTask.ServiceFabric
     using System.Collections.Generic;
     using System.Linq;
     using System.Threading.Tasks;
-    using DurableTask.Serializing;
+    using DurableTask.Core;
+    using DurableTask.Core.Serializing;
     using Microsoft.ServiceFabric.Data;
     using Newtonsoft.Json;
 

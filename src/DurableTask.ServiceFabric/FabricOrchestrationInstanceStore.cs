@@ -20,7 +20,8 @@ namespace DurableTask.ServiceFabric
     using System.Globalization;
     using System.Threading;
     using System.Threading.Tasks;
-    using DurableTask.Tracking;
+    using DurableTask.Core;
+    using DurableTask.Core.Tracking;
     using Microsoft.ServiceFabric.Data;
     using Microsoft.ServiceFabric.Data.Collections;
 

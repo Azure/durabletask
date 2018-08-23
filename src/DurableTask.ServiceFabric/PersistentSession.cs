@@ -16,7 +16,8 @@ namespace DurableTask.ServiceFabric
     using System.Collections.Generic;
     using System.Collections.Immutable;
     using System.Runtime.Serialization;
-    using DurableTask.History;
+    using DurableTask.Core;
+    using DurableTask.Core.History;
 
     [DataContract]
     sealed partial class PersistentSession : IExtensibleDataObject

@@ -16,9 +16,10 @@ namespace DurableTask.ServiceFabric
     using System;
     using System.Collections.Generic;
     using System.Threading.Tasks;
+    using DurableTask.Core;
 
     /// <summary>
-    /// Provides additional useful functionality which is not available through <see cref="DurableTask.TaskHubClient"/>.
+    /// Provides additional useful functionality which is not available through <see cref="TaskHubClient"/>.
     /// </summary>
     public interface IFabricProviderClient
     {
@@ -31,7 +32,7 @@ namespace DurableTask.ServiceFabric
         /// <summary>
         /// Gets runtime state of a running or pending orchestration which includes the history events.
         /// </summary>
-        /// <param name="instanceId">The <see cref="DurableTask.OrchestrationInstance.InstanceId"/>
+        /// <param name="instanceId">The <see cref="OrchestrationInstance.InstanceId"/>
         /// of the orchestration.</param>
         /// <returns>Returns serialized runtime state which includes all the history events if the 
         /// orchestration is running or pending.</returns>
