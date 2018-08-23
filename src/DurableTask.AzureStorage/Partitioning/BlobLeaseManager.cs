@@ -130,10 +130,10 @@ namespace DurableTask.AzureStorage.Partitioning
             return blobLeases;
         }
 
-        public async Task CreateLeaseIfNotExistAsync(string paritionId)
+        public async Task CreateLeaseIfNotExistAsync(string partitionId)
         {
-            CloudBlockBlob leaseBlob = this.consumerGroupDirectory.GetBlockBlobReference(paritionId);
-            BlobLease lease = new BlobLease(leaseBlob) { PartitionId = paritionId };
+            CloudBlockBlob leaseBlob = this.consumerGroupDirectory.GetBlockBlobReference(partitionId);
+            BlobLease lease = new BlobLease(leaseBlob) { PartitionId = partitionId };
             string serializedLease = JsonConvert.SerializeObject(lease);
             try
             {
@@ -141,12 +141,13 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.storageAccountName,
                     this.taskHubName,
                     this.workerName,
+                    partitionId,
                     string.Format(
                         CultureInfo.InvariantCulture,
                         "CreateLeaseIfNotExistAsync - leaseContainerName: {0}, consumerGroupName: {1}, partitionId: {2}. blobPrefix: {3}",
                         this.leaseContainerName,
                         this.consumerGroupName,
-                        paritionId,
+                        partitionId,
                         this.blobPrefix ?? string.Empty),
                     Utils.ExtensionVersion);
 
@@ -160,12 +161,13 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.storageAccountName,
                     this.taskHubName,
                     this.workerName,
+                    partitionId,
                     string.Format(
                         CultureInfo.InvariantCulture,
                         "CreateLeaseIfNotExistAsync - leaseContainerName: {0}, consumerGroupName: {1}, partitionId: {2}, blobPrefix: {3}, exception: {4}.",
                         this.leaseContainerName,
                         this.consumerGroupName,
-                        paritionId,
+                        partitionId,
                         this.blobPrefix ?? string.Empty,
                         se.Message),
                     Utils.ExtensionVersion);

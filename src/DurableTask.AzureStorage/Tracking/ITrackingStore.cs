@@ -51,7 +51,7 @@ namespace DurableTask.AzureStorage.Tracking
         /// <param name="instanceId">InstanceId for</param>
         /// <param name="expectedExecutionId">ExcutionId for the execution that we want this retrieve for. If null the latest execution will be retrieved</param>
         /// <param name="cancellationToken">CancellationToken if abortion is needed</param>
-        Task<IList<HistoryEvent>> GetHistoryEventsAsync(string instanceId, string expectedExecutionId, CancellationToken cancellationToken = default(CancellationToken));
+        Task<OrchestrationHistory> GetHistoryEventsAsync(string instanceId, string expectedExecutionId, CancellationToken cancellationToken = default(CancellationToken));
 
         /// <summary>
         /// Queries by InstanceId and locates failure - then calls function to wipe ExecutionIds
@@ -67,7 +67,8 @@ namespace DurableTask.AzureStorage.Tracking
         /// <param name="runtimeState">The New RuntimeState</param>
         /// <param name="instanceId">InstanceId for the Orchestration Update</param>
         /// <param name="executionId">ExecutionId for the Orchestration Update</param>
-        Task UpdateStateAsync(OrchestrationRuntimeState runtimeState, string instanceId, string executionId);
+        /// <param name="eTag">The ETag value to use for safe updates</param>
+        Task<string> UpdateStateAsync(OrchestrationRuntimeState runtimeState, string instanceId, string executionId, string eTag);
 
         /// <summary>
         /// Get The Orchestration State for the Latest or All Executions

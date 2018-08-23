@@ -151,7 +151,7 @@ namespace DurableTask.AzureStorage.Tests
         /// </summary>
         [DataTestMethod]
         [DataRow(true)]
-        //[DataRow(false)] // TODO: Re-enable when fixed: https://github.com/Azure/azure-functions-durable-extension/issues/344
+        [DataRow(false)]
         public async Task ParallelOrchestration(bool enableExtendedSessions)
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
@@ -171,7 +171,7 @@ namespace DurableTask.AzureStorage.Tests
 
         [DataTestMethod]
         [DataRow(true)]
-        //[DataRow(false)]
+        [DataRow(false)]
         public async Task LargeFanOutOrchestration(bool enableExtendedSessions)
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
@@ -637,7 +637,7 @@ namespace DurableTask.AzureStorage.Tests
         /// </summary>
         [DataTestMethod]
         [DataRow(true)]
-        //[DataRow(false)] // TODO: Re-enable when fixed: https://github.com/Azure/azure-functions-durable-extension/issues/344
+        [DataRow(false)]
         public async Task OrchestrationConcurrency(bool enableExtendedSessions)
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
@@ -745,7 +745,7 @@ namespace DurableTask.AzureStorage.Tests
         /// </summary>
         [DataTestMethod]
         [DataRow(true)]
-        //[DataRow(false)] // TODO: Re-enable when fixed: https://github.com/Azure/azure-functions-durable-extension/issues/344
+        [DataRow(false)]
         public async Task FanOutToTableStorage(bool enableExtendedSessions)
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
