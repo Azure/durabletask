@@ -11,7 +11,8 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using DurableTask.History;
+using DurableTask.Core;
+using DurableTask.Core.History;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace DurableTask.ServiceFabric.UnitTests

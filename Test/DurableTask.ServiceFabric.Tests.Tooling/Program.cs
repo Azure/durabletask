@@ -15,6 +15,7 @@ namespace DurableTask.ServiceFabric.Tests.Tooling
 {
     using System;
     using System.Threading.Tasks;
+    using DurableTask.Core;
     using Microsoft.ServiceFabric.Services.Client;
     using Microsoft.ServiceFabric.Services.Remoting.Client;
     using TestApplication.Common;

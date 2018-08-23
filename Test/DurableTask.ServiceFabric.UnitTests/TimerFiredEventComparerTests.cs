@@ -13,7 +13,8 @@
 
 using System;
 using System.Collections.Immutable;
-using DurableTask.History;
+using DurableTask.Core;
+using DurableTask.Core.History;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace DurableTask.ServiceFabric.UnitTests

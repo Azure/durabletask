@@ -11,7 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using DurableTask;
+using DurableTask.Core;
 
 namespace TestStatefulService.TestOrchestrations
 {

@@ -17,7 +17,7 @@ using System.Fabric;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using DurableTask;
+using DurableTask.Core;
 using DurableTask.ServiceFabric;
 using DurableTask.Test.Orchestrations.Perf;
 using Microsoft.ServiceFabric.Services.Communication.Runtime;

@@ -16,7 +16,7 @@ namespace TestApplication.Common
     using System;
     using System.Collections.Generic;
     using System.Threading.Tasks;
-    using DurableTask;
+    using DurableTask.Core;
     using DurableTask.Test.Orchestrations.Perf;
     using Microsoft.ServiceFabric.Services.Remoting;
 

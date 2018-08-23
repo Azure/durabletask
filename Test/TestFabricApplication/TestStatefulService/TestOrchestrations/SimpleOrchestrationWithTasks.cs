@@ -12,7 +12,7 @@
 //  ----------------------------------------------------------------------------------
 
 using System.Threading.Tasks;
-using DurableTask;
+using DurableTask.Core;
 
 namespace TestStatefulService.TestOrchestrations
 {

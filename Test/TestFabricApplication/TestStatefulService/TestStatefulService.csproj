@@ -141,6 +141,10 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\..\src\DurableTask.Core\DurableTask.Core.csproj">
+      <Project>{6B386E8F-20EB-43DE-BBD7-6408A232B4BA}</Project>
+      <Name>DurableTask.Core</Name>
+    </ProjectReference>
     <ProjectReference Include="..\..\..\src\DurableTask.ServiceFabric\DurableTask.ServiceFabric.csproj">
       <Project>{5c617b24-4902-4992-8f71-ab14f00b74a8}</Project>
       <Name>DurableTask.ServiceFabric</Name>

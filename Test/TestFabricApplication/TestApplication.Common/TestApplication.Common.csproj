@@ -98,6 +98,10 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\..\src\DurableTask.Core\DurableTask.Core.csproj">
+      <Project>{6B386E8F-20EB-43DE-BBD7-6408A232B4BA}</Project>
+      <Name>DurableTask.Core</Name>
+    </ProjectReference>
     <ProjectReference Include="..\..\DurableTask.Test.Orchestrations\DurableTask.Test.Orchestrations.csproj">
       <Project>{2bc2a5ad-4200-41b9-a034-332bb1d7187b}</Project>
       <Name>DurableTask.Test.Orchestrations</Name>

@@ -14,10 +14,8 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Diagnostics;
-using System.IO;
-using System.Runtime.Serialization;
-using DurableTask.History;
+using DurableTask.Core;
+using DurableTask.Core.History;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace DurableTask.ServiceFabric.UnitTests

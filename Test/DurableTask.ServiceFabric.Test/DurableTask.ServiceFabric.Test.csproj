@@ -11,6 +11,8 @@
     <RootNamespace>DurableTask.ServiceFabric.Test</RootNamespace>
     <AssemblyName>DurableTask.ServiceFabric.Test</AssemblyName>
     <FileAlignment>512</FileAlignment>
+    <TargetFrameworkVersion>v4.5.1</TargetFrameworkVersion>
+    <TargetFrameworkProfile />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -21,6 +23,7 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <PlatformTarget>x64</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -29,6 +32,7 @@
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Microsoft.ServiceFabric.Data">
@@ -90,6 +94,10 @@
     <Compile Include="WaitForOrchestrationTests.cs" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\src\DurableTask.Core\DurableTask.Core.csproj">
+      <Project>{6B386E8F-20EB-43DE-BBD7-6408A232B4BA}</Project>
+      <Name>DurableTask.Core</Name>
+    </ProjectReference>
     <ProjectReference Include="..\..\src\DurableTask.ServiceFabric\DurableTask.ServiceFabric.csproj">
       <Project>{5c617b24-4902-4992-8f71-ab14f00b74a8}</Project>
       <Name>DurableTask.ServiceFabric</Name>
