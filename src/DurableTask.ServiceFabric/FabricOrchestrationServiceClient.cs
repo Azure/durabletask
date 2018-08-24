@@ -75,7 +75,13 @@ namespace DurableTask.ServiceFabric
 
         public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses)
         {
-            throw new NotImplementedException();
+            // Todo: Support for dedupeStatuses?
+            if (dedupeStatuses != null)
+            {
+                throw new NotSupportedException($"DedupeStatuses are not supported yet with service fabric provider");
+            }
+
+            return CreateTaskOrchestrationAsync(creationMessage);
         }
 
         public Task SendTaskOrchestrationMessageAsync(TaskMessage message)
@@ -83,9 +89,12 @@ namespace DurableTask.ServiceFabric
             return this.orchestrationProvider.AppendMessageAsync(new TaskMessageItem(message));
         }
 
-        public Task SendTaskOrchestrationMessageBatchAsync(params TaskMessage[] messages)
+        public async Task SendTaskOrchestrationMessageBatchAsync(params TaskMessage[] messages)
         {
-            throw new NotImplementedException();
+            foreach(var message in messages)
+            {
+                await this.SendTaskOrchestrationMessageAsync(message);
+            }
         }
 
         public async Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason)
