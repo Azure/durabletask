@@ -36,3 +36,4 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyFileVersion("1.0.0.0")]
 
 [assembly: InternalsVisibleTo("DurableTask.ServiceFabric.UnitTests")]
+[assembly: InternalsVisibleTo("Microsoft.Cloud.Common.Instrumentation" + PublicKeyConstants.PublicKeyPhrase)]
