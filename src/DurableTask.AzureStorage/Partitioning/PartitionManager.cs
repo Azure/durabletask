@@ -73,6 +73,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.accountName,
                     this.taskHub,
                     this.workerName,
+                    lease.PartitionId,
                     $"Acquired lease for PartitionId '{lease.PartitionId}' on startup.",
                     Utils.ExtensionVersion);
                 addLeaseTasks.Add(this.AddLeaseAsync(lease));
@@ -144,6 +145,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.accountName,
                 this.taskHub,
                 this.workerName,
+                string.Empty /* partitionId */,
                 $"Starting background renewal of leases with interval: {this.options.RenewInterval}.",
                 Utils.ExtensionVersion);
 
@@ -202,12 +204,13 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.accountName,
                         this.taskHub,
                         this.workerName,
+                        string.Empty /* partitionId */,
                         "Background renewal task was canceled.",
                         Utils.ExtensionVersion);
                 }
                 catch (Exception ex)
                 {
-                    AnalyticsEventSource.Log.PartitionManagerError(this.accountName, this.taskHub, this.workerName, ex, Utils.ExtensionVersion);
+                    AnalyticsEventSource.Log.PartitionManagerError(this.accountName, this.taskHub, this.workerName, string.Empty, ex, Utils.ExtensionVersion);
                 }
             }
 
@@ -217,6 +220,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.accountName,
                 this.taskHub,
                 this.workerName,
+                string.Empty /* partitionId */,
                 "Background renewer task completed.",
                 Utils.ExtensionVersion);
         }
@@ -227,6 +231,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.accountName,
                 this.taskHub,
                 this.workerName,
+                string.Empty /* partitionId */,
                 $"Starting to check for available leases with interval: {this.options.AcquireInterval}.",
                 Utils.ExtensionVersion);
 
@@ -246,7 +251,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 }
                 catch (Exception ex)
                 {
-                    AnalyticsEventSource.Log.PartitionManagerError(this.accountName, this.taskHub, this.workerName, ex, Utils.ExtensionVersion);
+                    AnalyticsEventSource.Log.PartitionManagerError(this.accountName, this.taskHub, this.workerName, string.Empty, ex, Utils.ExtensionVersion);
                 }
 
                 try
@@ -259,6 +264,7 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.accountName,
                         this.taskHub,
                         this.workerName,
+                        string.Empty /* partitionId */,
                         "Background AcquireLease task was canceled.",
                         Utils.ExtensionVersion);
                 }
@@ -268,6 +274,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.accountName,
                 this.taskHub,
                 this.workerName,
+                string.Empty /* partitionId */,
                 "Background AcquireLease task completed.",
                 Utils.ExtensionVersion);
         }
@@ -498,6 +505,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.accountName,
                     this.taskHub,
                     this.workerName,
+                    lease.PartitionId,
                     ex,
                     Utils.ExtensionVersion);
             }
@@ -520,7 +528,7 @@ namespace DurableTask.AzureStorage.Partitioning
             catch (Exception ex)
             {
                 // Eat any exceptions during stealing
-                AnalyticsEventSource.Log.PartitionManagerError(this.accountName, this.taskHub, this.workerName, ex, Utils.ExtensionVersion);
+                AnalyticsEventSource.Log.PartitionManagerError(this.accountName, this.taskHub, this.workerName, lease.PartitionId, ex, Utils.ExtensionVersion);
             }
 
             return stolen;
@@ -540,7 +548,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     failedToInitialize = true;
 
                     // Eat any exceptions during notification of observers
-                    AnalyticsEventSource.Log.PartitionManagerError(this.accountName, this.taskHub, this.workerName, ex, Utils.ExtensionVersion);
+                    AnalyticsEventSource.Log.PartitionManagerError(this.accountName, this.taskHub, this.workerName, lease.PartitionId, ex, Utils.ExtensionVersion);
                 }
 
                 // We need to release the lease if we fail to initialize the processor, so some other node can pick up the parition
@@ -560,6 +568,7 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.accountName,
                         this.taskHub,
                         this.workerName,
+                        lease.PartitionId,
                         $"Unable to add PartitionId '{lease.PartitionId}' with lease token '{lease.Token}' to currently owned partitions.",
                         Utils.ExtensionVersion);
 
@@ -589,6 +598,7 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.accountName,
                         this.taskHub,
                         this.workerName,
+                        lease.PartitionId,
                         ex,
                         Utils.ExtensionVersion);
                 }
@@ -622,7 +632,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 catch (Exception ex)
                 {
                     // Eat any exceptions during notification of observers
-                    AnalyticsEventSource.Log.PartitionManagerError(this.accountName, this.taskHub, this.workerName, ex, Utils.ExtensionVersion);
+                    AnalyticsEventSource.Log.PartitionManagerError(this.accountName, this.taskHub, this.workerName, lease.PartitionId, ex, Utils.ExtensionVersion);
                 }
                 finally
                 {
@@ -658,7 +668,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     }
                     catch (Exception ex)
                     {
-                        AnalyticsEventSource.Log.PartitionManagerError(this.accountName, this.taskHub, this.workerName, ex, Utils.ExtensionVersion);
+                        AnalyticsEventSource.Log.PartitionManagerError(this.accountName, this.taskHub, this.workerName, lease.PartitionId, ex, Utils.ExtensionVersion);
                     }
                 }
             }
@@ -694,6 +704,7 @@ namespace DurableTask.AzureStorage.Partitioning
                                 partitionManager.accountName,
                                 partitionManager.taskHub,
                                 partitionManager.workerName,
+                                lease.PartitionId,
                                 ex,
                                 Utils.ExtensionVersion);
                         }

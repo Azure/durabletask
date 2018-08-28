@@ -34,7 +34,10 @@ namespace DurableTask.AzureStorage.Tracking
         public abstract Task<bool> ExistsAsync();
 
         /// <inheritdoc />
-        public abstract Task<IList<HistoryEvent>> GetHistoryEventsAsync(string instanceId, string expectedExecutionId, CancellationToken cancellationToken = default(CancellationToken));
+        public abstract Task<OrchestrationHistory> GetHistoryEventsAsync(string instanceId, string expectedExecutionId, CancellationToken cancellationToken = default(CancellationToken));
+
+        /// <inheritdoc />
+        public abstract Task<IList<string>> RewindHistoryAsync(string instanceId, IList<string> failedLeaves, CancellationToken cancellationToken);
 
         /// <inheritdoc />
         public abstract Task<IList<OrchestrationState>> GetStateAsync(string instanceId, bool allExecutions);
@@ -46,15 +49,21 @@ namespace DurableTask.AzureStorage.Tracking
         public abstract Task<IList<OrchestrationState>> GetStateAsync(CancellationToken cancellationToken = default(CancellationToken));
 
         /// <inheritdoc />
+        public abstract Task<IList<OrchestrationState>> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken = default(CancellationToken));
+
+        /// <inheritdoc />
         public abstract Task PurgeHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType);
 
         /// <inheritdoc />
         public abstract Task SetNewExecutionAsync(ExecutionStartedEvent executionStartedEvent);
 
         /// <inheritdoc />
+        public abstract Task UpdateStatusForRewindAsync(string instanceId);
+
+        /// <inheritdoc />
         public abstract Task StartAsync();
 
         /// <inheritdoc />
-        public abstract Task UpdateStateAsync(OrchestrationRuntimeState runtimeState, string instanceId, string executionId);
+        public abstract Task<string> UpdateStateAsync(OrchestrationRuntimeState runtimeState, string instanceId, string executionId, string eTag);
     }
 }

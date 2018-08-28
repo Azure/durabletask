@@ -55,7 +55,7 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public override async Task<IList<HistoryEvent>> GetHistoryEventsAsync(string instanceId, string expectedExecutionId, CancellationToken cancellationToken = default(CancellationToken))
+        public override async Task<OrchestrationHistory> GetHistoryEventsAsync(string instanceId, string expectedExecutionId, CancellationToken cancellationToken = default(CancellationToken))
         {
             //If no execution Id is provided get the latest executionId by getting the latest state
             if (expectedExecutionId == null)
@@ -67,12 +67,17 @@ namespace DurableTask.AzureStorage.Tracking
 
             if (events == null || !events.Any())
             {
-                return EmptyHistoryEventList;
+                return new OrchestrationHistory(EmptyHistoryEventList);
             }
             else
             {
-                return events.Select(x => x.HistoryEvent).ToList();
+                return new OrchestrationHistory(events.Select(x => x.HistoryEvent).ToList());
             }
+        }
+
+        public override Task<IList<string>> RewindHistoryAsync(string instanceId, IList<string> failedLeaves, CancellationToken cancellationToken)
+        {
+            throw new NotImplementedException();
         }
 
         /// <inheritdoc />
@@ -100,6 +105,12 @@ namespace DurableTask.AzureStorage.Tracking
         {
             throw new NotImplementedException();
         }
+        /// <inheritdoc />
+        public override Task<IList<OrchestrationState>> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken = default(CancellationToken))
+       {
+            throw new NotImplementedException();
+        }
+
 
         /// <inheritdoc />
         public override Task PurgeHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType)
@@ -132,6 +143,11 @@ namespace DurableTask.AzureStorage.Tracking
             await this.instanceStore.WriteEntitiesAsync(new[] { orchestrationStateEntity });
         }
 
+        public override Task UpdateStatusForRewindAsync(string instanceId)
+        {
+            throw new NotImplementedException();
+        }
+
         /// <inheritdoc />
         public override Task StartAsync()
         {
@@ -140,7 +156,7 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public override async Task UpdateStateAsync(OrchestrationRuntimeState runtimeState, string instanceId, string executionId)
+        public override async Task<string> UpdateStateAsync(OrchestrationRuntimeState runtimeState, string instanceId, string executionId, string eTag)
         {
             int oldEventsCount = (runtimeState.Events.Count - runtimeState.NewEvents.Count);
             await instanceStore.WriteEntitiesAsync(runtimeState.NewEvents.Select((x, i) =>
@@ -164,6 +180,8 @@ namespace DurableTask.AzureStorage.Tracking
                         SequenceNumber = runtimeState.Events.Count
                     }
             });
+
+            return null;
         }
     }
 }

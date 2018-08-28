@@ -51,7 +51,15 @@ namespace DurableTask.AzureStorage.Tracking
         /// <param name="instanceId">InstanceId for</param>
         /// <param name="expectedExecutionId">ExcutionId for the execution that we want this retrieve for. If null the latest execution will be retrieved</param>
         /// <param name="cancellationToken">CancellationToken if abortion is needed</param>
-        Task<IList<HistoryEvent>> GetHistoryEventsAsync(string instanceId, string expectedExecutionId, CancellationToken cancellationToken = default(CancellationToken));
+        Task<OrchestrationHistory> GetHistoryEventsAsync(string instanceId, string expectedExecutionId, CancellationToken cancellationToken = default(CancellationToken));
+
+        /// <summary>
+        /// Queries by InstanceId and locates failure - then calls function to wipe ExecutionIds
+        /// </summary>
+        /// <param name="instanceId">InstanceId for orchestration</param>
+        /// <param name="failedLeaves">List of failed orchestrators to send to message queue - no failed sub-orchestrators</param>
+        /// <param name="cancellationToken">CancellationToken if abortion is needed</param>
+        Task<IList<string>> RewindHistoryAsync(string instanceId, IList<string> failedLeaves, CancellationToken cancellationToken);
 
         /// <summary>
         /// Update State in the Tracking store for a particular orchestration instance and execution base on the new runtime state
@@ -59,7 +67,8 @@ namespace DurableTask.AzureStorage.Tracking
         /// <param name="runtimeState">The New RuntimeState</param>
         /// <param name="instanceId">InstanceId for the Orchestration Update</param>
         /// <param name="executionId">ExecutionId for the Orchestration Update</param>
-        Task UpdateStateAsync(OrchestrationRuntimeState runtimeState, string instanceId, string executionId);
+        /// <param name="eTag">The ETag value to use for safe updates</param>
+        Task<string> UpdateStateAsync(OrchestrationRuntimeState runtimeState, string instanceId, string executionId, string eTag);
 
         /// <summary>
         /// Get The Orchestration State for the Latest or All Executions
@@ -82,10 +91,27 @@ namespace DurableTask.AzureStorage.Tracking
         Task<IList<OrchestrationState>> GetStateAsync(CancellationToken cancellationToken = default(CancellationToken));
 
         /// <summary>
+        /// Get The Orchestration State for querying orchestration instances by the condition
+        /// </summary>
+        /// <param name="createdTimeFrom">CreatedTimeFrom</param>
+        /// <param name="createdTimeTo">CreatedTimeTo</param>
+        /// <param name="runtimeStatus">RuntimeStatus</param>
+        /// <param name="cancellationToken">cancellation token</param>
+        /// <returns></returns>
+        Task<IList<OrchestrationState>> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken = default(CancellationToken));
+
+
+        /// <summary>
         /// Used to set a state in the tracking store whenever a new execution is initiated from the client
         /// </summary>
         /// <param name="executionStartedEvent">The Execution Started Event being queued</param>
         Task SetNewExecutionAsync(ExecutionStartedEvent executionStartedEvent);
+
+        /// <summary>
+        /// Used to update a state in the tracking store to pending whenever a rewind is initiated from the client
+        /// </summary>
+        /// <param name="instanceId">The instance being rewound</param>
+        Task UpdateStatusForRewindAsync(string instanceId);
 
         /// <summary>
         /// Purge The History and state  which is older than thresholdDateTimeUtc based on the timestamp type specified by timeRangeFilterType

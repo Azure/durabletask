@@ -50,18 +50,6 @@ namespace DurableTask.AzureStorage.Tests
             return this.worker.StopAsync(isForced: true);
         }
 
-        /// <summary>
-        /// This method is only for testing purpose. 
-        /// When we need to add fix to the DurableTask.Core (e.g. TaskHubClient), we need approval process. 
-        /// during wating for the approval, we can use this method to test the method. 
-        /// This method is not allowed for the production. Before going to the production, please refacotr to use TaskHubClient instead.
-        /// </summary>
-        /// <returns></returns>
-        internal AzureStorageOrchestrationService GetServiceClient()
-        {
-            return (AzureStorageOrchestrationService)this.client.serviceClient;
-        }
-
         public async Task<TestOrchestrationClient> StartOrchestrationAsync(
             Type orchestrationType,
             object input,
@@ -75,15 +63,23 @@ namespace DurableTask.AzureStorage.Tests
 
             // Allow orchestration types to declare which activity types they depend on.
             // CONSIDER: Make this a supported pattern in DTFx?
-            KnownTypeAttribute[] knownActivityTypes =
+            KnownTypeAttribute[] knownTypes =
                 (KnownTypeAttribute[])orchestrationType.GetCustomAttributes(typeof(KnownTypeAttribute), false);
 
-            foreach (KnownTypeAttribute referencedActivity in knownActivityTypes)
+            foreach (KnownTypeAttribute referencedKnownType in knownTypes)
             {
-                if (!this.addedActivityTypes.Contains(referencedActivity.Type))
+                bool orch = referencedKnownType.Type.IsSubclassOf(typeof(TaskOrchestration));
+                bool activ = referencedKnownType.Type.IsSubclassOf(typeof(TaskActivity));
+                if (orch && !this.addedOrchestrationTypes.Contains(referencedKnownType.Type))
                 {
-                    this.worker.AddTaskActivities(referencedActivity.Type);
-                    this.addedActivityTypes.Add(referencedActivity.Type);
+                    this.worker.AddTaskOrchestrations(referencedKnownType.Type);
+                    this.addedOrchestrationTypes.Add(referencedKnownType.Type);
+                }
+
+                else if (activ && !this.addedActivityTypes.Contains(referencedKnownType.Type))
+                {
+                    this.worker.AddTaskActivities(referencedKnownType.Type);
+                    this.addedActivityTypes.Add(referencedKnownType.Type);
                 }
             }
 
@@ -95,6 +91,15 @@ namespace DurableTask.AzureStorage.Tests
 
             Trace.TraceInformation($"Started {orchestrationType.Name}, Instance ID = {instance.InstanceId}");
             return new TestOrchestrationClient(this.client, orchestrationType, instance.InstanceId, creationTime);
+        }
+
+        public async Task<IList<OrchestrationState>> GetAllOrchestrationInstancesAsync()
+        {
+            // This API currently only exists in the service object and is not yet exposed on the TaskHubClient
+            AzureStorageOrchestrationService service = (AzureStorageOrchestrationService)this.client.serviceClient;
+            IList<OrchestrationState> instances = await service.GetOrchestrationStateAsync();
+            Trace.TraceInformation($"Found {instances.Count} in the task hub instance store.");
+            return instances;
         }
     }
 }
