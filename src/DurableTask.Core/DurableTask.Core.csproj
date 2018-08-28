@@ -4,6 +4,7 @@
   <PropertyGroup>
     <TargetFrameworks>netstandard2.0;net451</TargetFrameworks>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PackageId>Microsoft.Azure.DurableTask.Core</PackageId>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net451'">
