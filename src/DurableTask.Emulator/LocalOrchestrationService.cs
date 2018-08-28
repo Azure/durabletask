@@ -219,12 +219,6 @@ namespace DurableTask.Emulator
         }
 
         /// <inheritdoc />
-        public Task RewindTaskOrchestrationAsync(string instanceId, string reason)
-        {
-            throw new NotImplementedException();
-        }
-
-        /// <inheritdoc />
         public async Task<OrchestrationState> WaitForOrchestrationAsync(
             string instanceId,
             string executionId,

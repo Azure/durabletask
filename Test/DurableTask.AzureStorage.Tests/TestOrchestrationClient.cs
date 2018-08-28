@@ -106,22 +106,29 @@ namespace DurableTask.AzureStorage.Tests
             return state;
         }
 
-        public async Task RaiseEventAsync(string eventName, object eventData)
+        public Task RaiseEventAsync(string eventName, object eventData)
         {
+            Trace.TraceInformation($"Raising event to instance {this.instanceId} with name = {eventName}.");
+
             var instance = new OrchestrationInstance { InstanceId = this.instanceId };
-            await this.client.RaiseEventAsync(instance, eventName, eventData);
+            return this.client.RaiseEventAsync(instance, eventName, eventData);
         }
 
-        public async Task TerminateAsync(string reason)
+        public Task TerminateAsync(string reason)
         {
+            Trace.TraceInformation($"Terminating instance {this.instanceId} with reason = {reason}.");
+
             var instance = new OrchestrationInstance { InstanceId = this.instanceId };
-            await this.client.TerminateInstanceAsync(instance, reason);
+            return this.client.TerminateInstanceAsync(instance, reason);
         }
 
-        public async Task RewindAsync(string reason)
+        public Task RewindAsync(string reason)
         {
-            var instance = new OrchestrationInstance { InstanceId = this.instanceId };
-            await this.client.RewindInstanceAsync(instance, reason);
+            Trace.TraceInformation($"Rewinding instance {this.instanceId} with reason = {reason}.");
+
+            // The Rewind API currently only exists in the service object
+            AzureStorageOrchestrationService service = (AzureStorageOrchestrationService)this.client.serviceClient;
+            return service.RewindTaskOrchestrationAsync(this.instanceId, reason);
         }
 
         static TimeSpan AdjustTimeout(TimeSpan requestedTimeout)

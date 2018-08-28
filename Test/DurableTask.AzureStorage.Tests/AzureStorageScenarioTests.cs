@@ -128,18 +128,15 @@ namespace DurableTask.AzureStorage.Tests
             {
                 // Execute the orchestrator twice. Orchestrator will be replied. However instances might be two.
                 await host.StartAsync();
-                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloInline), "wolrd one");
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloInline), "world one");
                 await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
-                client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloInline), "wolrd two");
+                client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloInline), "world two");
                 await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
-                // Create a client for testing
-                var serviceClient = host.GetServiceClient();
-                // TODO Currently we can't use TaskHub. It requires review of Core team. 
-                // Until then, we test it, not using TaskHub. Call diretly the method with some configuration. 
-                var results = await serviceClient.GetOrchestrationStateAsync();
+
+                var results = await host.GetAllOrchestrationInstancesAsync();
                 Assert.AreEqual(2, results.Count);
-                Assert.IsNotNull(results.SingleOrDefault(r => r.Output == "\"Hello, wolrd one!\""));
-                Assert.IsNotNull(results.SingleOrDefault(r => r.Output == "\"Hello, wolrd two!\""));
+                Assert.IsNotNull(results.SingleOrDefault(r => r.Output == "\"Hello, world one!\""));
+                Assert.IsNotNull(results.SingleOrDefault(r => r.Output == "\"Hello, world two!\""));
 
                 await host.StopAsync();
             }
@@ -294,12 +291,10 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates the Rewind functionality on more than one orchestration.
         /// </summary>
-        [DataTestMethod]
-        //[DataRow(true)]
-        [DataRow(false)]
-        public async Task RewindOrchestrationsFail(bool enableExtendedSessions)
+        [TestMethod]
+        public async Task RewindOrchestrationsFail()
         {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: true))
             {
                 Orchestrations.FactorialOrchestratorFail.ShouldFail = true;
                 await host.StartAsync();
@@ -337,12 +332,10 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates the Rewind functionality with fan in fan out pattern.
         /// </summary>
-        [DataTestMethod]
-        [DataRow(true)]
-        //[DataRow(false)]
-        public async Task RewindActivityFailFanOut(bool enableExtendedSessions)
+        [TestMethod]
+        public async Task RewindActivityFailFanOut()
         {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: true))
             {
                 Activities.HelloFailFanOut.ShouldFail1 = false;
                 await host.StartAsync();
@@ -376,12 +369,10 @@ namespace DurableTask.AzureStorage.Tests
         /// End-to-end test which validates the Rewind functionality on an activity function failure 
         /// with modified (to fail initially) SayHelloWithActivity orchestrator.
         /// </summary>
-        [DataTestMethod]
-        [DataRow(true)]
-        //[DataRow(false)]
-        public async Task RewindActivityFail(bool enableExtendedSessions)
+        [TestMethod]
+        public async Task RewindActivityFail()
         {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: true))
             {
                 await host.StartAsync();
 
@@ -409,12 +400,10 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-        [DataTestMethod]
-        //[DataRow(true)]
-        [DataRow(false)]
-        public async Task RewindMultipleActivityFail(bool enableExtendedSessions)
+        [TestMethod]
+        public async Task RewindMultipleActivityFail()
         {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: true))
             {
                 await host.StartAsync();
 
@@ -450,42 +439,38 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-        [DataTestMethod]
-        //[DataRow(true)]
-        [DataRow(false)]
         [TestMethod]
-        public async Task RewindSubOrchestrationsTest(bool enableExtendedSessions)
+        public async Task RewindSubOrchestrationsTest()
         {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: true))
             {
                 await host.StartAsync();
 
                 string ParentInstanceId = $"Parent_{Guid.NewGuid():N}";
                 string ChildInstanceId = $"Child_{Guid.NewGuid():N}";
 
-                var client_parent = await host.StartOrchestrationAsync(
+                var clientParent = await host.StartOrchestrationAsync(
                     typeof(Orchestrations.ParentWorkflowSubOrchestrationFail),
                     input: true,
                     instanceId: ParentInstanceId);
 
-
-                var statusFail = await client_parent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                var statusFail = await clientParent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
                 Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
 
                 Orchestrations.ChildWorkflowSubOrchestrationFail.ShouldFail1 = false;
 
-                await client_parent.RewindAsync("Rewind first suborchestration failure.");
+                await clientParent.RewindAsync("Rewind first suborchestration failure.");
 
-                statusFail = await client_parent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                statusFail = await clientParent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
                 Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
 
                 Orchestrations.ChildWorkflowSubOrchestrationFail.ShouldFail2 = false;
 
-                await client_parent.RewindAsync("Rewind second suborchestration failure.");
+                await clientParent.RewindAsync("Rewind second suborchestration failure.");
 
-                var statusRewind = await client_parent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                var statusRewind = await clientParent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, statusRewind?.OrchestrationStatus);
 
@@ -493,42 +478,38 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-        [DataTestMethod]
-        [DataRow(true)]
-        //[DataRow(false)]
         [TestMethod]
-        public async Task RewindSubOrchestrationActivityTest(bool enableExtendedSessions)
+        public async Task RewindSubOrchestrationActivityTest()
         {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: true))
             {
                 await host.StartAsync();
 
                 string ParentInstanceId = $"Parent_{Guid.NewGuid():N}";
                 string ChildInstanceId = $"Child_{Guid.NewGuid():N}";
 
-                var client_parent = await host.StartOrchestrationAsync(
+                var clientParent = await host.StartOrchestrationAsync(
                     typeof(Orchestrations.ParentWorkflowSubOrchestrationActivityFail),
                     input: true,
                     instanceId: ParentInstanceId);
 
-
-                var statusFail = await client_parent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                var statusFail = await clientParent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
                 Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
 
                 Activities.HelloFailSubOrchestrationActivity.ShouldFail1 = false;
 
-                await client_parent.RewindAsync("Rewinding 1: child should still fail.");
+                await clientParent.RewindAsync("Rewinding 1: child should still fail.");
 
-                statusFail = await client_parent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                statusFail = await clientParent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
                 Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
 
                 Activities.HelloFailSubOrchestrationActivity.ShouldFail2 = false;
 
-                await client_parent.RewindAsync("Rewinding 2: child should complete.");
+                await clientParent.RewindAsync("Rewinding 2: child should complete.");
 
-                var statusRewind = await client_parent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                var statusRewind = await clientParent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, statusRewind?.OrchestrationStatus);
 
@@ -536,39 +517,36 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-        [DataTestMethod]
-        [DataRow(true)]
-        //[DataRow(false)]
         [TestMethod]
-        public async Task RewindNestedSubOrchestrationTest(bool enableExtendedSessions)
+        public async Task RewindNestedSubOrchestrationTest()
         {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: true))
             {
                 await host.StartAsync();
 
                 string GrandparentInstanceId = $"Grandparent_{Guid.NewGuid():N}";
                 string ChildInstanceId = $"Child_{Guid.NewGuid():N}";
 
-                var client_grandparent = await host.StartOrchestrationAsync(
+                var clientGrandparent = await host.StartOrchestrationAsync(
                     typeof(Orchestrations.GrandparentWorkflowNestedActivityFail),
                     input: true,
                     instanceId: GrandparentInstanceId);
 
-                var statusFail = await client_grandparent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                var statusFail = await clientGrandparent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
                 Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
 
                 Activities.HelloFailNestedSuborchestration.ShouldFail1 = false;
 
-                await client_grandparent.RewindAsync("Rewind 1: Nested child activity still fails.");
+                await clientGrandparent.RewindAsync("Rewind 1: Nested child activity still fails.");
 
                 Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
 
                 Activities.HelloFailNestedSuborchestration.ShouldFail2 = false;
 
-                await client_grandparent.RewindAsync("Rewind 2: Nested child activity completes.");
+                await clientGrandparent.RewindAsync("Rewind 2: Nested child activity completes.");
 
-                var statusRewind = await client_grandparent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                var statusRewind = await clientGrandparent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, statusRewind?.OrchestrationStatus);
                 //Assert.AreEqual("\"Hello, Catherine!\"", statusRewind?.Output);
@@ -578,9 +556,8 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [DataTestMethod]
-        //[DataRow(true)]
+        [DataRow(true)]
         [DataRow(false)]
-        [TestMethod]
         public async Task TimerCancellation(bool enableExtendedSessions)
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
@@ -1207,6 +1184,7 @@ namespace DurableTask.AzureStorage.Tests
                     {
                         result = await (context.ScheduleTask<long>(typeof(Activities.MultiplyMultipleActivityFail), new[] { result, i }));
                     }
+
                     return result;
                 }
             }
@@ -1758,6 +1736,7 @@ namespace DurableTask.AzureStorage.Tests
                     {
                         throw new Exception("Simulating a transient, unhandled exception");
                     }
+
                     return values[0] * values[1];
                 }
             }
@@ -1771,6 +1750,7 @@ namespace DurableTask.AzureStorage.Tests
                     {
                         throw new Exception("Simulating a transient, unhandled exception");
                     }
+
                     return values[0] * values[1];
                 }
             }
