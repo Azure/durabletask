@@ -50,7 +50,7 @@ namespace DurableTask.Core.Exceptions
         }
 
         /// <summary>
-        /// Initializes an new instance of the OrchestrationException class with a specified eventid and error message
+        /// Initializes an new instance of the OrchestrationException class with a specified event id and error message
         ///    and a reference to the inner exception that is the cause of this exception.
         /// </summary>
         /// <param name="eventId">EventId of the error.</param>

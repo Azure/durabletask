@@ -46,7 +46,7 @@ namespace DurableTask.Core
         /// <summary>
         ///     Create a new TaskHubWorker with given OrchestrationService
         /// </summary>
-        /// <param name="orchestrationService">Reference the orchestration service implmentaion</param>
+        /// <param name="orchestrationService">Reference the orchestration service implementation</param>
         public TaskHubWorker(IOrchestrationService orchestrationService)
             : this(
                   orchestrationService,
@@ -58,7 +58,7 @@ namespace DurableTask.Core
         /// <summary>
         ///     Create a new TaskHubWorker with given OrchestrationService and name version managers
         /// </summary>
-        /// <param name="orchestrationService">Reference the orchestration service implmentaion</param>
+        /// <param name="orchestrationService">Reference the orchestration service implementation</param>
         /// <param name="orchestrationObjectManager">NameVersionObjectManager for Orchestrations</param>
         /// <param name="activityObjectManager">NameVersionObjectManager for Activities</param>
         public TaskHubWorker(

@@ -16,7 +16,6 @@ namespace DurableTask.ServiceBus
     using System;
     using System.Collections.Generic;
     using Microsoft.ServiceBus.Messaging;
-    using DurableTask.Core;
 
     class ServiceBusOrchestrationSession
     {

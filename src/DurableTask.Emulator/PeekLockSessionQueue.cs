@@ -25,7 +25,7 @@ namespace DurableTask.Emulator
         List<TaskSession> sessionQueue;
         List<TaskSession> lockedSessionQueue;
 
-        public object ThisLock = new object();
+        private object thisLock = new object();
 
         public PeekLockSessionQueue()
         {
@@ -35,7 +35,7 @@ namespace DurableTask.Emulator
 
         public void DropSession(string id)
         {
-            lock(this.ThisLock)
+            lock(this.thisLock)
             {
                 TaskSession taskSession = this.lockedSessionQueue.Find((ts) => string.Equals(ts.Id, id, StringComparison.InvariantCultureIgnoreCase));
 
@@ -57,7 +57,7 @@ namespace DurableTask.Emulator
 
         public void SendMessage(TaskMessage message)
         {
-            lock(this.ThisLock)
+            lock(this.thisLock)
             {
                 foreach(TaskSession ts in this.sessionQueue)
                 {
@@ -93,7 +93,7 @@ namespace DurableTask.Emulator
             IList<TaskMessage> newMessages,
             TaskMessage continuedAsNewMessage)
         {
-            lock (this.ThisLock)
+            lock (this.thisLock)
             {
                 TaskSession taskSession = this.lockedSessionQueue.Find((ts) => string.Equals(ts.Id, id, StringComparison.InvariantCultureIgnoreCase));
 
@@ -134,7 +134,7 @@ namespace DurableTask.Emulator
 
         public void AbandonSession(string id)
         {
-            lock (this.ThisLock)
+            lock (this.thisLock)
             {
                 TaskSession taskSession = this.lockedSessionQueue.Find((ts) => string.Equals(ts.Id, id, StringComparison.InvariantCultureIgnoreCase));
 
@@ -147,7 +147,7 @@ namespace DurableTask.Emulator
                 this.lockedSessionQueue.Remove(taskSession);
 
                 // AFFANDAR : TODO : note that this we are adding to the tail of the queue rather than head, which is what sbus would actually do
-                //      doesnt really matter though in terms of semantics
+                //      doesn't really matter though in terms of semantics
                 this.sessionQueue.Add(taskSession);
 
                 // unlock all messages
@@ -162,7 +162,7 @@ namespace DurableTask.Emulator
             while (timer.Elapsed < receiveTimeout && !cancellationToken.IsCancellationRequested)
             {
 
-                lock(this.ThisLock)
+                lock(this.thisLock)
                 {
                     foreach (TaskSession ts in this.sessionQueue)
                     {
@@ -182,7 +182,7 @@ namespace DurableTask.Emulator
                     }
                 }
 
-                await Task.Delay(TimeSpan.FromMilliseconds(500));
+                await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken);
             }
 
             if(cancellationToken.IsCancellationRequested)

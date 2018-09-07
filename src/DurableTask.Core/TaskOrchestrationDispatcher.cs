@@ -28,7 +28,7 @@ namespace DurableTask.Core
     using DurableTask.Core.Tracing;
 
     /// <summary>
-    /// Dispatcher for orchestrations to handle processing and renewing, completetion of orchestration events
+    /// Dispatcher for orchestrations to handle processing and renewing, completion of orchestration events
     /// </summary>
     public class TaskOrchestrationDispatcher
     {
@@ -93,7 +93,7 @@ namespace DurableTask.Core
         public bool IncludeDetails { get; set; }
 
         /// <summary>
-        /// Gets or sets flag whether to pass orchestration input parameters to sub orchestations
+        /// Gets or sets flag whether to pass orchestration input parameters to sub orchestrations
         /// </summary>
         public bool IncludeParameters { get; set; }
 
@@ -121,7 +121,7 @@ namespace DurableTask.Core
             int processCount = 0;
             try
             {
-                bool isCompletedOrInterrupted = false;
+                bool isCompletedOrInterrupted;
                 while (true)
                 {
                     // If the provider provided work items, execute them.

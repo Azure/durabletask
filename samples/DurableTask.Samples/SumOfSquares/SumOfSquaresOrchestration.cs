@@ -23,7 +23,7 @@ namespace DurableTask.Samples.SumOfSquares
     {
         public override async Task<int> RunTask(OrchestrationContext context, string input)
         {
-            if (string.IsNullOrEmpty(input))
+            if (string.IsNullOrWhiteSpace(input))
             {
                 throw new ArgumentException(nameof(input));
             }

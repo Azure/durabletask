@@ -204,7 +204,7 @@ namespace DurableTask.ServiceBus
         /// <summary>
         /// Stops the orchestration service with optional forced flag
         /// </summary>
-        /// <param name="isForced">Flag when true stops resources agresssively, when false stops gracefully</param>
+        /// <param name="isForced">Flag when true stops resources aggressively, when false stops gracefully</param>
         public async Task StopAsync(bool isForced)
         {
             this.cancellationTokenSource?.Cancel();
@@ -243,7 +243,7 @@ namespace DurableTask.ServiceBus
         }
 
         /// <summary>
-        /// Deletes and creates the neccesary resources for the orchestration service including the instance store
+        /// Deletes and creates the necessary resources for the orchestration service including the instance store
         /// </summary>
         public Task CreateAsync()
         {
@@ -251,7 +251,7 @@ namespace DurableTask.ServiceBus
         }
 
         /// <summary>
-        /// Deletes and creates the neccesary resources for the orchestration service
+        /// Deletes and creates the necessary resources for the orchestration service
         /// </summary>
         /// <param name="recreateInstanceStore">Flag indicating whether to drop and create instance store</param>
         public async Task CreateAsync(bool recreateInstanceStore)
@@ -271,7 +271,7 @@ namespace DurableTask.ServiceBus
         }
 
         /// <summary>
-        /// Drops and creates the neccesary resources for the orchestration service and the instance store
+        /// Drops and creates the necessary resources for the orchestration service and the instance store
         /// </summary>
         public async Task CreateIfNotExistsAsync()
         {
@@ -342,7 +342,7 @@ namespace DurableTask.ServiceBus
         }
 
         /// <summary>
-        ///     Get the count of pending orchestrationsb
+        ///     Get the count of pending orchestrations
         /// </summary>
         /// <returns>Count of pending orchestrations</returns>
         public long GetPendingOrchestrationsCount()
@@ -567,7 +567,7 @@ namespace DurableTask.ServiceBus
 
         ServiceBusOrchestrationSession GetSessionInstanceForWorkItem(TaskOrchestrationWorkItem workItem)
         {
-            if (string.IsNullOrEmpty(workItem?.InstanceId))
+            if (string.IsNullOrWhiteSpace(workItem?.InstanceId))
             {
                 return null;
             }
@@ -577,7 +577,7 @@ namespace DurableTask.ServiceBus
 
         ServiceBusOrchestrationSession GetAndDeleteSessionInstanceForWorkItem(TaskOrchestrationWorkItem workItem)
         {
-            if (string.IsNullOrEmpty(workItem?.InstanceId))
+            if (string.IsNullOrWhiteSpace(workItem?.InstanceId))
             {
                 return null;
             }
@@ -793,7 +793,7 @@ namespace DurableTask.ServiceBus
         }
 
         /// <summary>
-        ///     Abandon an orchestation, this abandons ownership/locking of all messages for an orchestation and it's session
+        ///     Abandon an orchestration, this abandons ownership/locking of all messages for an orchestration and it's session
         /// </summary>
         /// <param name="workItem">The task orchestration to abandon</param>
         public async Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
@@ -872,25 +872,23 @@ namespace DurableTask.ServiceBus
 
         BrokeredMessage GetBrokeredMessageForWorkItem(TaskActivityWorkItem workItem)
         {
-            if (string.IsNullOrEmpty(workItem?.Id))
+            if (string.IsNullOrWhiteSpace(workItem?.Id))
             {
                 return null;
             }
 
-            BrokeredMessage message;
-            this.orchestrationMessages.TryGetValue(workItem.Id, out message);
+            this.orchestrationMessages.TryGetValue(workItem.Id, out BrokeredMessage message);
             return message;
         }
 
         BrokeredMessage GetAndDeleteBrokeredMessageForWorkItem(TaskActivityWorkItem workItem)
         {
-            if (string.IsNullOrEmpty(workItem?.Id))
+            if (string.IsNullOrWhiteSpace(workItem?.Id))
             {
                 return null;
             }
 
-            BrokeredMessage existingMessage;
-            this.orchestrationMessages.TryRemove(workItem.Id, out existingMessage);
+            this.orchestrationMessages.TryRemove(workItem.Id, out BrokeredMessage existingMessage);
             return existingMessage;
         }
 
@@ -1024,7 +1022,7 @@ namespace DurableTask.ServiceBus
             }
             catch (Exception ex) when (!Utils.IsFatal(ex) && jumpStartEnabled)
             {
-                // Ingore exception
+                // Ignore exception
                 TraceHelper.Trace(TraceEventType.Warning, "ServiceBusOrchestrationService-CreateTaskOrchestration-ServiceBusError", $"Error while adding message to ServiceBus: {ex.ToString()}");
             }
         }
@@ -1293,7 +1291,7 @@ namespace DurableTask.ServiceBus
         /// <summary>
         ///     Creates a list of tracking message for the supplied orchestration state
         /// </summary>
-        /// <param name="runtimeState">The orchestation runtime state</param>
+        /// <param name="runtimeState">The orchestration runtime state</param>
         /// <param name="sequenceNumber">Sequence number for the created tracking messages</param>
         async Task<List<MessageContainer>> CreateTrackingMessagesAsync(OrchestrationRuntimeState runtimeState, long sequenceNumber)
         {
@@ -1361,7 +1359,7 @@ namespace DurableTask.ServiceBus
             var sessionState = workItem.SessionInstance as ServiceBusOrchestrationSession;
             if (sessionState == null)
             {
-                throw new ArgumentNullException("SessionInstance");
+                throw new ArgumentNullException(nameof(workItem.SessionInstance));
             }
 
             var historyEntities = new List<OrchestrationWorkItemInstanceEntity>();

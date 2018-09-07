@@ -22,12 +22,12 @@ namespace DurableTask.Core
     using Newtonsoft.Json.Linq;
 
     /// <summary>
-    /// Relection based task activity for interface based task activities
+    /// Reflection based task activity for interface based task activities
     /// </summary>
     public class ReflectionBasedTaskActivity : TaskActivity
     {
         /// <summary>
-        /// Creates a new ReflectionBasedTaskActivity based on an acticity object and method info
+        /// Creates a new ReflectionBasedTaskActivity based on an activity object and method info
         /// </summary>
         /// <param name="activityObject">The activity object to invoke methods on</param>
         /// <param name="methodInfo">The Reflection.methodInfo for invoking the method on the activity object</param>
@@ -39,7 +39,7 @@ namespace DurableTask.Core
         }
 
         /// <summary>
-        /// The dataconverter to use for input and output serialization/deserialization
+        /// The DataConverter to use for input and output serialization/deserialization
         /// </summary>
         public DataConverter DataConverter { get; private set; }
 
@@ -54,7 +54,7 @@ namespace DurableTask.Core
         public MethodInfo MethodInfo { get; private set; }
 
         /// <summary>
-        /// Syncronous execute method, blocked for AsyncTaskActivity
+        /// Synchronous execute method, blocked for AsyncTaskActivity
         /// </summary>
         /// <returns>string.Empty</returns>
         public override string Run(TaskContext context, string input)
@@ -64,7 +64,7 @@ namespace DurableTask.Core
         }
 
         /// <summary>
-        /// Method for executing a task activity asyncronously
+        /// Method for executing a task activity asynchronously
         /// </summary>
         /// <param name="context">The task context</param>
         /// <param name="input">The serialized input</param>
@@ -87,8 +87,7 @@ namespace DurableTask.Core
                 if (i < parameterCount)
                 {
                     JToken jToken = jArray[i];
-                    var jValue = jToken as JValue;
-                    if (jValue != null)
+                    if (jToken is JValue jValue)
                     {
                         inputParameters[i] = jValue.ToObject(parameterType);
                     }
@@ -151,7 +150,7 @@ namespace DurableTask.Core
         }
 
         /// <summary>
-        /// Invokes the target method on the actiivity object with supplied parameters
+        /// Invokes the target method on the activity object with supplied parameters
         /// </summary>
         /// <param name="inputParameters"></param>
         /// <returns></returns>

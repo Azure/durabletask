@@ -70,7 +70,7 @@ namespace DurableTask.Core.Common
         }
 
         /// <summary>
-        /// Writes the supplied string input to a MemoryStream, optionaly compressing the string, returns the stream
+        /// Writes the supplied string input to a MemoryStream, optionally compressing the string, returns the stream
         /// </summary>
         public static Stream WriteStringToStream(string input, bool compress, out long originalStreamSize)
         {
@@ -222,7 +222,7 @@ namespace DurableTask.Core.Common
         /// <summary>
         /// Returns true or false whether an exception is considered fatal
         /// </summary>
-        public static Boolean IsFatal(Exception exception)
+        public static bool IsFatal(Exception exception)
         {
             if (exception is OutOfMemoryException || exception is StackOverflowException)
             {
@@ -237,6 +237,12 @@ namespace DurableTask.Core.Common
         public static async Task ExecuteWithRetries(Func<Task> retryAction, string sessionId, string operation,
             int numberOfAttempts, int delayInAttemptsSecs)
         {
+            if (numberOfAttempts == 0)
+            {
+                // No attempts are requested to execute the action
+                return;
+            }
+
             int retryCount = numberOfAttempts;
             Exception lastException = null;
             while (retryCount-- > 0)
@@ -244,7 +250,7 @@ namespace DurableTask.Core.Common
                 try
                 {
                     await retryAction();
-                    break;
+                    return;
                 }
                 catch (Exception exception) when (!Utils.IsFatal(exception))
                 {
@@ -259,11 +265,8 @@ namespace DurableTask.Core.Common
                 await Task.Delay(TimeSpan.FromSeconds(delayInAttemptsSecs));
             }
 
-            if (retryCount <= 0 && lastException != null)
-            {
-                TraceHelper.Trace(TraceEventType.Error, "ExecuteWithRetry-RetriesExhausted", "Exhausted all retries for operation " + operation);
-                throw TraceHelper.TraceExceptionSession(TraceEventType.Error, "ExecuteWithRetryRetriesExhausted", sessionId, lastException);
-            }
+            TraceHelper.Trace(TraceEventType.Error, "ExecuteWithRetry-RetriesExhausted", "Exhausted all retries for operation " + operation);
+            throw TraceHelper.TraceExceptionSession(TraceEventType.Error, "ExecuteWithRetryRetriesExhausted", sessionId, lastException);
         }
 
         /// <summary>
@@ -272,15 +275,19 @@ namespace DurableTask.Core.Common
         public static async Task<T> ExecuteWithRetries<T>(Func<Task<T>> retryAction, string sessionId, string operation,
             int numberOfAttempts, int delayInAttemptsSecs)
         {
-            T retVal = default(T);
+            if (numberOfAttempts == 0)
+            {
+                // No attempts are requested to execute the action
+                return default(T);
+            }
+
             int retryCount = numberOfAttempts;
             Exception lastException = null;
             while (retryCount-- > 0)
             {
                 try
                 {
-                    retVal = await retryAction();
-                    break;
+                    return await retryAction();
                 }
                 catch (Exception exception) when (!Utils.IsFatal(exception))
                 {
@@ -295,14 +302,9 @@ namespace DurableTask.Core.Common
                 await Task.Delay(TimeSpan.FromSeconds(delayInAttemptsSecs));
             }
 
-            if (retryCount <= 0 && lastException != null)
-            {
-                var eventType = $"ExecuteWithRetry<{typeof(T)}>-Failure";
-                TraceHelper.Trace(TraceEventType.Error, eventType, "Exhausted all retries for operation " + operation);
-                throw TraceHelper.TraceExceptionSession(TraceEventType.Error, eventType, sessionId, lastException);
-            }
-
-            return retVal;
+            var eventType = $"ExecuteWithRetry<{typeof(T)}>-Failure";
+            TraceHelper.Trace(TraceEventType.Error, eventType, "Exhausted all retries for operation " + operation);
+            throw TraceHelper.TraceExceptionSession(TraceEventType.Error, eventType, sessionId, lastException);
         }
 
 

@@ -39,7 +39,7 @@ namespace DurableTask.Core
         /// Abstract method for raising an event in the orchestration
         /// </summary>
         /// <param name="context">The orchestration context</param>
-        /// <param name="name">Name for this event to be passed to the onevent handler</param>
+        /// <param name="name">Name for this event to be passed to the OnEvent handler</param>
         /// <param name="input">The serialized input</param>
         public abstract void RaiseEvent(OrchestrationContext context, string name, string input);
 
@@ -69,7 +69,7 @@ namespace DurableTask.Core
     public abstract class TaskOrchestration<TResult, TInput, TEvent, TStatus> : TaskOrchestration
     {
         /// <summary>
-        /// Creates a new TaskOrchestration with the default dataconverter
+        /// Creates a new TaskOrchestration with the default DataConverter
         /// </summary>
         public TaskOrchestration()
         {
@@ -77,7 +77,7 @@ namespace DurableTask.Core
         }
 
         /// <summary>
-        /// The dataconverter to use for input and output serialization/deserialization
+        /// The DataConverter to use for input and output serialization/deserialization
         /// </summary>
         public DataConverter DataConverter { get; protected set; }
 
@@ -108,7 +108,7 @@ namespace DurableTask.Core
         /// Method for raising an event in the orchestration
         /// </summary>
         /// <param name="context">The orchestration context</param>
-        /// <param name="name">Name for this event to be passed to the onevent handler</param>
+        /// <param name="name">Name for this event to be passed to the OnEvent handler</param>
         /// <param name="input">The serialized input</param>
         public override void RaiseEvent(OrchestrationContext context, string name, string input)
         {
@@ -129,7 +129,7 @@ namespace DurableTask.Core
         /// <summary>
         /// Method for executing the orchestration with context and typed input
         /// </summary>
-        /// <param name="context">The orchestraion context</param>
+        /// <param name="context">The orchestration context</param>
         /// <param name="input">The typed input</param>
         /// <returns>The typed output</returns>
         public abstract Task<TResult> RunTask(OrchestrationContext context, TInput input);
@@ -137,7 +137,7 @@ namespace DurableTask.Core
         /// <summary>
         /// Virtual method for processing an event with given context, name and typed input
         /// </summary>
-        /// <param name="context">The orchestraion context</param>
+        /// <param name="context">The orchestration context</param>
         /// <param name="name">Name for this event</param>
         /// <param name="input">Typed input</param>
         public virtual void OnEvent(OrchestrationContext context, string name, TEvent input)

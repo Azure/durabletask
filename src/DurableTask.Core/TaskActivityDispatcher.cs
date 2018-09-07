@@ -116,7 +116,7 @@ namespace DurableTask.Core
                     throw new TypeMissingException($"TaskActivity {scheduledEvent.Name} version {scheduledEvent.Version} was not found");
                 }
 
-                renewTask = Task.Factory.StartNew(() => RenewUntil(workItem, renewCancellationTokenSource.Token));
+                renewTask = Task.Factory.StartNew(() => RenewUntil(workItem, renewCancellationTokenSource.Token), renewCancellationTokenSource.Token);
 
                 // TODO : pass workflow instance data
                 var context = new TaskContext(taskMessage.OrchestrationInstance);
@@ -196,16 +196,16 @@ namespace DurableTask.Core
 
                     try
                     {
-                        TraceHelper.Trace(TraceEventType.Information, "TaskActivityDispatcher-RenewLock", "Renewing lock for workitem id {0}", workItem.Id);
+                        TraceHelper.Trace(TraceEventType.Information, "TaskActivityDispatcher-RenewLock", "Renewing lock for work item id {0}", workItem.Id);
                         workItem = await this.orchestrationService.RenewTaskActivityWorkItemLockAsync(workItem);
                         renewAt = workItem.LockedUntilUtc.Subtract(TimeSpan.FromSeconds(30));
                         renewAt = AdjustRenewAt(renewAt);
-                        TraceHelper.Trace(TraceEventType.Information, "TaskActivityDispatcher-RenewLockAt", "Next renew for workitem id '{0}' at '{1}'", workItem.Id, renewAt);
+                        TraceHelper.Trace(TraceEventType.Information, "TaskActivityDispatcher-RenewLockAt", "Next renew for work item id '{0}' at '{1}'", workItem.Id, renewAt);
                     }
                     catch (Exception exception) when (!Utils.IsFatal(exception))
                     {
                         // might have been completed
-                        TraceHelper.TraceException(TraceEventType.Warning, "TaskActivityDispatcher-RenewLockFailure", exception, "Failed to renew lock for workitem {0}", workItem.Id);
+                        TraceHelper.TraceException(TraceEventType.Warning, "TaskActivityDispatcher-RenewLockFailure", exception, "Failed to renew lock for work item {0}", workItem.Id);
                         break;
                     }
                 }

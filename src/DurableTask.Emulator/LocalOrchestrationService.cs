@@ -90,7 +90,7 @@ namespace DurableTask.Emulator
                             this.timerMessages.Remove(tm);
                         }
                     }
-                 }
+                }
 
                 await Task.Delay(TimeSpan.FromSeconds(1));
             }
@@ -474,8 +474,8 @@ namespace DurableTask.Emulator
                         tasks.Add(Task.Run(() => tcs.TrySetResult(state)));
                     }
 
-                    // for instanceid level waiters, we will not consider continueasnew as a terminal state because
-                    // the high level orch is still ongoing
+                    // for instance id level waiters, we will not consider ContinueAsNew as a terminal state because
+                    // the high level orchestration is still ongoing
                     if (state.OrchestrationStatus != OrchestrationStatus.ContinuedAsNew
                         && this.orchestrationWaiters.TryGetValue(key1, out tcs1))
                     {

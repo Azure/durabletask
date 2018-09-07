@@ -80,7 +80,7 @@ namespace DurableTask.ServiceBus.Tracking
                 {
                     TraceHelper.Trace(TraceEventType.Information, "JumpStartManager-Fetch-Begin",  "Jump start starting fetch");
 
-                    // TODO: Query in batchces and change timeframe only after curent range is finished
+                    // TODO: Query in batches and change time frame only after current range is finished
                     IEnumerable<OrchestrationJumpStartInstanceEntity> entities = await this.service.InstanceStore.GetJumpStartEntitiesAsync(1000);
                     TraceHelper.Trace(
                         TraceEventType.Information,

@@ -24,10 +24,7 @@ namespace DurableTask.Core.History
             Input = input;
         }
 
-        public override EventType EventType
-        {
-            get { return EventType.EventRaised; }
-        }
+        public override EventType EventType => EventType.EventRaised;
 
         [DataMember]
         public string Name { get; set; }

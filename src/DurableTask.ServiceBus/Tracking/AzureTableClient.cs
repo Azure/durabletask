@@ -51,14 +51,14 @@ namespace DurableTask.ServiceBus.Tracking
 
         public AzureTableClient(string hubName, string tableConnectionString)
         {
-            if (string.IsNullOrEmpty(tableConnectionString))
+            if (string.IsNullOrWhiteSpace(tableConnectionString))
             {
-                throw new ArgumentException("Invalid connection string", "tableConnectionString");
+                throw new ArgumentException("Invalid connection string", nameof(tableConnectionString));
             }
 
-            if (string.IsNullOrEmpty(hubName))
+            if (string.IsNullOrWhiteSpace(hubName))
             {
-                throw new ArgumentException("Invalid hub name", "hubName");
+                throw new ArgumentException("Invalid hub name", nameof(hubName));
             }
 
             this.tableClient = CloudStorageAccount.Parse(tableConnectionString).CreateCloudTableClient();
@@ -71,15 +71,9 @@ namespace DurableTask.ServiceBus.Tracking
             this.jumpStartTable = tableClient.GetTableReference(this.JumpStartTableName);
         }
 
-        public string TableName
-        {
-            get { return AzureTableConstants.InstanceHistoryTableNamePrefix + "00" + this.hubName; }
-        }
+        public string TableName => AzureTableConstants.InstanceHistoryTableNamePrefix + "00" + this.hubName;
 
-        public string JumpStartTableName
-        {
-            get { return AzureTableConstants.JumpStartTableNamePrefix + "00" + this.hubName; }
-        }
+        public string JumpStartTableName => AzureTableConstants.JumpStartTableNamePrefix + "00" + this.hubName;
 
         internal async Task CreateTableIfNotExistsAsync()
         {
@@ -160,7 +154,7 @@ namespace DurableTask.ServiceBus.Tracking
             return query;
         }
 
-        TableQuery<AzureTableOrchestrationStateEntity> CreateQueryInternal(OrchestrationStateQuery stateQuery, int count, bool useTimerangePrimaryFilter)
+        internal TableQuery<AzureTableOrchestrationStateEntity> CreateQueryInternal(OrchestrationStateQuery stateQuery, int count, bool useTimerangePrimaryFilter)
         {
             OrchestrationStateQueryFilter primaryFilter = null;
             IEnumerable<OrchestrationStateQueryFilter> secondaryFilters = null;
@@ -173,7 +167,7 @@ namespace DurableTask.ServiceBus.Tracking
             }
 
             string filterExpression = GetPrimaryFilterExpression(primaryFilter, useTimerangePrimaryFilter);
-            if (string.IsNullOrEmpty(filterExpression))
+            if (string.IsNullOrWhiteSpace(filterExpression))
             {
                 throw new InvalidOperationException("Invalid primary filter");
             }
@@ -185,9 +179,9 @@ namespace DurableTask.ServiceBus.Tracking
                     {
                         string newFilter = current;
                         string secondaryFilter = GetSecondaryFilterExpression(filter);
-                        if (!string.IsNullOrEmpty(secondaryFilter))
+                        if (!string.IsNullOrWhiteSpace(secondaryFilter))
                         {
-                            newFilter += " and " + GetSecondaryFilterExpression(filter);
+                            newFilter += " and " + secondaryFilter;
                         }
                         return newFilter;
                     });
@@ -232,7 +226,7 @@ namespace DurableTask.ServiceBus.Tracking
                     }
                     else
                     {
-                        if (string.IsNullOrEmpty(typedFilter.ExecutionId))
+                        if (string.IsNullOrWhiteSpace(typedFilter.ExecutionId))
                         {
                             filterExpression = string.Format(CultureInfo.InvariantCulture,
                                 AzureTableConstants.PrimaryInstanceQueryRangeTemplate,
@@ -254,7 +248,7 @@ namespace DurableTask.ServiceBus.Tracking
                     filterExpression = GetSecondaryFilterExpression(filter);
                 }
             }
-            return basicPrimaryFilter + (string.IsNullOrEmpty(filterExpression) ?
+            return basicPrimaryFilter + (string.IsNullOrWhiteSpace(filterExpression) ?
                 string.Empty : " and " + filterExpression);
         }
 
@@ -273,7 +267,7 @@ namespace DurableTask.ServiceBus.Tracking
                 }
                 else
                 {
-                    if (string.IsNullOrEmpty(typedFilter.ExecutionId))
+                    if (string.IsNullOrWhiteSpace(typedFilter.ExecutionId))
                     {
                         filterExpression = string.Format(CultureInfo.InvariantCulture,
                             AzureTableConstants.InstanceQuerySecondaryFilterTemplate, typedFilter.InstanceId);
@@ -424,7 +418,7 @@ namespace DurableTask.ServiceBus.Tracking
         {
             if (entities == null)
             {
-                throw new ArgumentNullException("entities");
+                throw new ArgumentNullException(nameof(entities));
             }
 
             var batchOperation = new TableBatchOperation();

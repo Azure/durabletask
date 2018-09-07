@@ -123,12 +123,9 @@ namespace DurableTask.Core
         }
 
         /// <summary>
-        /// Gets the serialized output of the ExecutionCompletedEvent if compeleted else null
+        /// Gets the serialized output of the ExecutionCompletedEvent if completed else null
         /// </summary>
-        public String Output
-        {
-            get { return ExecutionCompletedEvent == null ? null : ExecutionCompletedEvent.Result; }
-        }
+        public String Output => ExecutionCompletedEvent?.Result;
 
         /// <summary>
         /// Gets the orchestration name of the ExecutionStartedEvent
@@ -143,7 +140,7 @@ namespace DurableTask.Core
         }
 
         /// <summary>
-        /// Gets the orchestraion version of the ExecutionStartedEvent
+        /// Gets the orchestration version of the ExecutionStartedEvent
         /// </summary>
         public string Version
         {
@@ -157,17 +154,11 @@ namespace DurableTask.Core
         /// <summary>
         /// Gets the tags from the ExecutionStartedEvent
         /// </summary>
-        public IDictionary<string, string> Tags
-        {
-            get
-            {
-                // This gets called by json.net for deserialization, we can't assert if there is no ExecutionStartedEvent
-                return ExecutionStartedEvent?.Tags;
-            }
-        }
+        // This gets called by json.net for deserialization, we can't assert if there is no ExecutionStartedEvent
+        public IDictionary<string, string> Tags => ExecutionStartedEvent?.Tags;
 
         /// <summary>
-        /// Gets the status of the orchestation
+        /// Gets the status of the orchestration
         /// If complete then the status from the ExecutionCompletedEvent else Running.
         /// </summary>
         public OrchestrationStatus OrchestrationStatus
@@ -188,18 +179,12 @@ namespace DurableTask.Core
         /// <summary>
         /// Gets the OrchestrationInstance of the ExecutionStartedEvent else null
         /// </summary>
-        public OrchestrationInstance OrchestrationInstance
-        {
-            get { return ExecutionStartedEvent == null ? null : ExecutionStartedEvent.OrchestrationInstance; }
-        }
+        public OrchestrationInstance OrchestrationInstance => ExecutionStartedEvent?.OrchestrationInstance;
 
         /// <summary>
         /// Gets the ParentInstance of the ExecutionStartedEvent else null
         /// </summary>
-        public ParentInstance ParentInstance
-        {
-            get { return ExecutionStartedEvent == null ? null : ExecutionStartedEvent.ParentInstance; }
-        }
+        public ParentInstance ParentInstance => ExecutionStartedEvent?.ParentInstance;
 
         /// <summary>
         /// Adds a new history event to the Events list and NewEvents list

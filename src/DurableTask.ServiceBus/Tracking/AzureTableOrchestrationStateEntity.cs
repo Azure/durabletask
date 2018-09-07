@@ -48,7 +48,7 @@ namespace DurableTask.ServiceBus.Tracking
         }
 
         /// <summary>
-        /// Gets or sets the orchestraion state for the entity
+        /// Gets or sets the orchestration state for the entity
         /// </summary>
         public OrchestrationState State { get; set; }
 
@@ -166,7 +166,7 @@ namespace DurableTask.ServiceBus.Tracking
         private IDictionary<string, string> GetTagsFromString(IDictionary<string, EntityProperty> properties)
         {
             string strTags = GetValue("Tags", properties, property => property.StringValue);
-            if (string.IsNullOrEmpty(strTags))
+            if (string.IsNullOrWhiteSpace(strTags))
             {
                 return null;
             }

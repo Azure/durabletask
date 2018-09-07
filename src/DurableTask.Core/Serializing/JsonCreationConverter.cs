@@ -22,10 +22,7 @@ namespace DurableTask.Core.Serializing
     /// </summary>
     internal abstract class JsonCreationConverter<T> : JsonConverter where T : class
     {
-        public override bool CanWrite
-        {
-            get { return false; }
-        }
+        public override bool CanWrite => false;
 
         public override bool CanConvert(Type objectType)
         {

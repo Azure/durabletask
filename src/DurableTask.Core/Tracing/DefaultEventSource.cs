@@ -93,7 +93,7 @@ namespace DurableTask.Core.Tracing
         public bool IsCriticalEnabled => this.IsEnabled(EventLevel.Critical, Keywords.Diagnostics);
 
         /// <summary>
-        /// Trace an event for the supplied eventtype and parameters
+        /// Trace an event for the supplied event type and parameters
         /// </summary>
         [NonEvent]
         public void TraceEvent(TraceEventType eventLevel, string source, string instanceId, string executionId, string sessionId, string message, string eventType)
@@ -119,7 +119,7 @@ namespace DurableTask.Core.Tracing
         }
 
         /// <summary>
-        /// Trace an event for the supplied eventtype, exception and parameters
+        /// Trace an event for the supplied event type, exception and parameters
         /// </summary>
         [NonEvent]
         public void TraceEvent(TraceEventType eventLevel, string source, string instanceId, string executionId, string sessionId, Exception exception, string eventType) =>

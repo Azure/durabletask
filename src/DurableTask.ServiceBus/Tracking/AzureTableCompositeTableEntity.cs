@@ -73,8 +73,7 @@ namespace DurableTask.ServiceBus.Tracking
         protected T GetValue<T>(string key, IDictionary<string, EntityProperty> properties,
             Func<EntityProperty, T> extract)
         {
-            EntityProperty ep;
-            if (!properties.TryGetValue(key, out ep))
+            if (!properties.TryGetValue(key, out EntityProperty ep))
             {
                 return default(T);
             }

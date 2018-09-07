@@ -22,7 +22,7 @@ namespace DurableTask.Core.History
     public class SubOrchestrationInstanceCreatedEvent : HistoryEvent
     {
         /// <summary>
-        /// Creates a new SubOrchestrationInstanceCreatedEvent with the supplied eventid
+        /// Creates a new SubOrchestrationInstanceCreatedEvent with the supplied event id
         /// </summary>
         /// <param name="eventId">The event id of the history event</param>
         public SubOrchestrationInstanceCreatedEvent(int eventId)
@@ -33,10 +33,7 @@ namespace DurableTask.Core.History
         /// <summary>
         /// Gets the event type
         /// </summary>
-        public override EventType EventType
-        {
-            get { return EventType.SubOrchestrationInstanceCreated; }
-        }
+        public override EventType EventType => EventType.SubOrchestrationInstanceCreated;
 
         /// <summary>
         /// Gets or sets the sub orchestration Name

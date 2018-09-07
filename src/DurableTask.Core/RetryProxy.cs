@@ -48,8 +48,7 @@ namespace DurableTask.Core
 
         public override bool TryInvokeMember(InvokeMemberBinder binder, object[] args, out object result)
         {
-            Type returnType = null;
-            if (!returnTypes.TryGetValue(binder.Name, out returnType))
+            if (!returnTypes.TryGetValue(binder.Name, out Type returnType))
             {
                 throw new Exception("Method name '" + binder.Name + "' not known.");
             }

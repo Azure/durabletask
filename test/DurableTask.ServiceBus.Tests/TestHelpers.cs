@@ -41,15 +41,15 @@ namespace DurableTask.ServiceBus.Tests
         static TestHelpers()
         {
             ServiceBusConnectionString = GetTestSetting("ServiceBusConnectionString");
-            if (string.IsNullOrEmpty(ServiceBusConnectionString))
+            if (string.IsNullOrWhiteSpace(ServiceBusConnectionString))
             {
-                throw new ArgumentNullException("A ServiceBus connection string must be defined in either an environment variable or in configuration.");
+                throw new ArgumentException("A ServiceBus connection string must be defined in either an environment variable or in configuration.");
             }
 
             StorageConnectionString = GetTestSetting("StorageConnectionString");
-            if (string.IsNullOrEmpty(StorageConnectionString))
+            if (string.IsNullOrWhiteSpace(StorageConnectionString))
             {
-                throw new ArgumentNullException("A Storage connection string must be defined in either an environment variable or in configuration.");
+                throw new ArgumentException("A Storage connection string must be defined in either an environment variable or in configuration.");
             }
 
             TaskHubName = ConfigurationManager.AppSettings.Get("TaskHubName");
@@ -244,7 +244,7 @@ namespace DurableTask.ServiceBus.Tests
         public static string GetTestSetting(string name)
         {
             string value = Environment.GetEnvironmentVariable("DurableTaskTest" + name);
-            if (string.IsNullOrEmpty(value))
+            if (string.IsNullOrWhiteSpace(value))
             {
                 value = ConfigurationManager.AppSettings.Get(name);
             }
@@ -308,7 +308,7 @@ namespace DurableTask.ServiceBus.Tests
             return orchestrationInstance;
         }
 
-        public async static Task<TException> ThrowsAsync<TException>(Func<Task> action, string errorMessage = null) where TException : Exception
+        public static async Task<TException> ThrowsAsync<TException>(Func<Task> action, string errorMessage = null) where TException : Exception
         {
             errorMessage = errorMessage ?? "Failed";
             try

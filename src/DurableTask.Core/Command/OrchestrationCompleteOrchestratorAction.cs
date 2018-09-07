@@ -17,10 +17,7 @@ namespace DurableTask.Core.Command
     {
         public OrchestrationStatus OrchestrationStatus;
 
-        public override OrchestratorActionType OrchestratorActionType
-        {
-            get { return OrchestratorActionType.OrchestrationComplete; }
-        }
+        public override OrchestratorActionType OrchestratorActionType => OrchestratorActionType.OrchestrationComplete;
 
         public string Result { get; set; }
         public string Details { get; set; }

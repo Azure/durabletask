@@ -19,12 +19,12 @@ namespace DurableTask.Core
     public class OrchestrationStateNameVersionFilter : OrchestrationStateQueryFilter
     {
         /// <summary>
-        /// Gets or sets the Orchestration Name for the filter
+        /// Gets or sets the orchestration Name for the filter
         /// </summary>
         public string Name { get; set; }
 
         /// <summary>
-        /// Gets or sets the Orchestration Version for the filter
+        /// Gets or sets the orchestration Version for the filter
         /// </summary>
         public string Version { get; set; }
     }
