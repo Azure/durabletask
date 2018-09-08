@@ -25,7 +25,7 @@ namespace DurableTask.Emulator
         List<TaskSession> sessionQueue;
         List<TaskSession> lockedSessionQueue;
 
-        private object thisLock = new object();
+        object thisLock = new object();
 
         public PeekLockSessionQueue()
         {

@@ -317,7 +317,7 @@ namespace DurableTask.ServiceBus.Common
                         TraceEventType.Critical, 
                         "MaxDeliveryCountApproaching-Session", 
                         sessionId,
-                        "Delivery count for message with id {0} is {1}. Message will be deleted if processing continues to fail.",
+                        "Delivery count for message with id {0} is {1}. Message will be deadlettered if processing continues to fail.",
                         message.MessageId,
                         message.DeliveryCount);
                 }
@@ -326,7 +326,7 @@ namespace DurableTask.ServiceBus.Common
                     TraceHelper.Trace(
                         TraceEventType.Critical,
                         "MaxDeliveryCountApproaching",
-                        "Delivery count for message with id {0} is {1}. Message will be deleted if processing continues to fail.",
+                        "Delivery count for message with id {0} is {1}. Message will be deadlettered if processing continues to fail.",
                         message.MessageId, 
                         message.DeliveryCount);
                 }
