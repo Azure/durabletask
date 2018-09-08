@@ -162,7 +162,7 @@ namespace DurableTask.Core
         }
 
         /// <summary>
-        ///     Adds a name/version filter on the returned orchestations
+        ///     Adds a name/version filter on the returned orchestrations
         /// </summary>
         /// <param name="name">The name of the orchestration to filter by</param>
         /// <param name="version">The version of the orchestration to filter by</param>

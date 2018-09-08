@@ -39,10 +39,7 @@ namespace DurableTask.Core.History
         /// <summary>
         /// Gets the event type
         /// </summary>
-        public override EventType EventType
-        {
-            get { return EventType.SubOrchestrationInstanceFailed; }
-        }
+        public override EventType EventType => EventType.SubOrchestrationInstanceFailed;
 
         /// <summary>
         /// Gets the scheduled parent instance event id

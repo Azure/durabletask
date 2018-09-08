@@ -642,7 +642,7 @@ namespace DurableTask.Core
         ///     specified execution (generation) of the specified instance.
         /// </summary>
         /// <param name="instanceId">Instance id</param>
-        /// <param name="executionId">Exectuion id</param>
+        /// <param name="executionId">Execution id</param>
         /// <returns>The OrchestrationState of the specified instanceId or null if not found</returns>
         /// <exception cref="InvalidOperationException">Thrown if instance store not configured</exception>
         public Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)
@@ -661,10 +661,10 @@ namespace DurableTask.Core
         /// <exception cref="InvalidOperationException">Thrown if instance store not configured</exception>
         public Task<string> GetOrchestrationHistoryAsync(OrchestrationInstance instance)
         {
-            if (string.IsNullOrEmpty(instance?.InstanceId) ||
-                string.IsNullOrEmpty(instance.ExecutionId))
+            if (string.IsNullOrWhiteSpace(instance?.InstanceId) ||
+                string.IsNullOrWhiteSpace(instance.ExecutionId))
             {
-                throw new ArgumentNullException(nameof(instance));
+                throw new ArgumentException("instance, instanceId and/or ExecutionId cannot be null or empty", nameof(instance));
             }
 
             return this.serviceClient.GetOrchestrationHistoryAsync(instance.InstanceId, instance.ExecutionId);

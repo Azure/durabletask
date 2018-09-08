@@ -51,7 +51,7 @@ namespace DurableTask.Emulator
                     }
                 }
 
-                await Task.Delay(TimeSpan.FromMilliseconds(500));
+                await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken);
             }
 
             if (cancellationToken.IsCancellationRequested)

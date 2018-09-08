@@ -33,7 +33,7 @@ namespace DurableTask.Core
         /// <summary>
         /// Creates a new instance of the RetryInterceptor with specified parameters
         /// </summary>
-        /// <param name="context">The orchestraion context of the function call</param>
+        /// <param name="context">The orchestration context of the function call</param>
         /// <param name="retryOptions">The options for performing retries</param>
         /// <param name="retryCall">The code to execute</param>
         public RetryInterceptor(OrchestrationContext context, RetryOptions retryOptions, Func<Task<T>> retryCall)

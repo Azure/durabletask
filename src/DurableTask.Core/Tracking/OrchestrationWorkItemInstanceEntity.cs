@@ -23,12 +23,12 @@ namespace DurableTask.Core.Tracking
     {
 
         /// <summary>
-        /// The orchestration Instance Id
+        /// The orchestration instance id
         /// </summary>
         public string InstanceId;
 
         /// <summary>
-        /// The orchestration Execution Id
+        /// The orchestration execution id
         /// </summary>
         public string ExecutionId;
 

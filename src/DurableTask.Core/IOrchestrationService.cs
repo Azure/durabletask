@@ -46,17 +46,17 @@ namespace DurableTask.Core
         Task StopAsync(bool isForced);
 
         /// <summary>
-        /// Deletes and Creates the neccesary resources for the orchestration service and the instance store
+        /// Deletes and Creates the necessary resources for the orchestration service and the instance store
         /// </summary>
         Task CreateAsync();
 
         /// <summary>
-        /// Deletes and Creates the neccesary resources for the orchestration service and optionally the instance store
+        /// Deletes and Creates the necessary resources for the orchestration service and optionally the instance store
         /// </summary>
         Task CreateAsync(bool recreateInstanceStore);
 
         /// <summary>
-        /// Creates the neccesary resources for the orchestration service and the instance store
+        /// Creates the necessary resources for the orchestration service and the instance store
         /// </summary>
         Task CreateIfNotExistsAsync();
 
@@ -108,7 +108,7 @@ namespace DurableTask.Core
         Task RenewTaskOrchestrationWorkItemLockAsync(TaskOrchestrationWorkItem workItem);
 
         /// <summary>
-        ///     Complete an orchestation, send any outbound messages and completes the session for all current messages
+        ///     Complete an orchestration, send any outbound messages and completes the session for all current messages
         /// </summary>
         Task CompleteTaskOrchestrationWorkItemAsync(
             TaskOrchestrationWorkItem workItem,
@@ -120,7 +120,7 @@ namespace DurableTask.Core
             OrchestrationState orchestrationState);
 
         /// <summary>
-        ///     Abandon an orchestation, this abandons ownership/locking of all messages for an orchestation and it's session
+        ///     Abandon an orchestration, this abandons ownership/locking of all messages for an orchestration and it's session
         /// </summary>
         Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem);
 

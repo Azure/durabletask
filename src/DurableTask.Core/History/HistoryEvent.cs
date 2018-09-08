@@ -39,10 +39,10 @@ namespace DurableTask.Core.History
     public abstract class HistoryEvent : IExtensibleDataObject
     {
         /// <summary>
-        /// Creates a new history event with the supplied eventid
+        /// Creates a new history event with the supplied event id
         /// </summary>
         /// <param name="eventId">The integer event id</param>
-        public HistoryEvent(int eventId)
+        protected HistoryEvent(int eventId)
         {
             EventId = eventId;
             IsPlayed = false;
@@ -56,7 +56,7 @@ namespace DurableTask.Core.History
         public int EventId { get; private set; }
 
         /// <summary>
-        /// Gets the isplayed status
+        /// Gets the IsPlayed status
         /// </summary>
         [DataMember]
         public bool IsPlayed { get; internal set; }

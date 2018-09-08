@@ -29,7 +29,7 @@ namespace DurableTask.Core
         [DataMember] public DateTime CompletedTime;
 
         /// <summary>
-        /// The size of the compressed serialized runtimestate
+        /// The size of the compressed serialized runtime state
         /// </summary>
         [DataMember] public long CompressedSize;
 
@@ -74,7 +74,7 @@ namespace DurableTask.Core
         [DataMember] public ParentInstance ParentInstance;
 
         /// <summary>
-        /// The size of the raw (uncompressed) serialized runtimestate
+        /// The size of the raw (uncompressed) serialized runtime state
         /// </summary>
         [DataMember] public long Size;
 

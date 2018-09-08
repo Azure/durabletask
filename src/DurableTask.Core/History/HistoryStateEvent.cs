@@ -22,7 +22,7 @@ namespace DurableTask.Core.History
     public class HistoryStateEvent : HistoryEvent
     {
         /// <summary>
-        /// Creates a new HistoryStateEvent with the supplied eventid and state
+        /// Creates a new HistoryStateEvent with the supplied event id and state
         /// </summary>
         /// <param name="eventId">The integer event id</param>
         /// <param name="state">The event state</param>

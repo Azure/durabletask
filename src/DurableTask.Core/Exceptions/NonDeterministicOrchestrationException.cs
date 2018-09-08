@@ -23,7 +23,7 @@ namespace DurableTask.Core.Exceptions
     public class NonDeterministicOrchestrationException : OrchestrationException
     {
         /// <summary>
-        /// Initializes an new instance of the NonDeterministicOrchestrationException class with a specified eventid and error message
+        /// Initializes an new instance of the NonDeterministicOrchestrationException class with a specified event id and error message
         /// </summary>
         /// <param name="eventId">EventId of the error.</param>
         /// <param name="eventDetails">The message that describes the error.</param>

@@ -13,9 +13,6 @@
 
 namespace DurableTask.Core.Tracking
 {
-    using System;
-    using DurableTask.Core.History;
-
     /// <summary>
     /// Base class for history tracking events
     /// </summary>

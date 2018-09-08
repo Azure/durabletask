@@ -24,7 +24,7 @@ namespace DurableTask.Core
     internal class OrchestrationSessionState
     {
         /// <summary>
-        /// A constructor for deserialzation.
+        /// A constructor for deserialization.
         /// </summary>
         public OrchestrationSessionState()
         {

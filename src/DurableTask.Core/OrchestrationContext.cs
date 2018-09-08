@@ -149,19 +149,19 @@ namespace DurableTask.Core
         public virtual Task<T> ScheduleWithRetry<T>(string name, string version, RetryOptions retryOptions,
             params object[] parameters)
         {
-            Func<Task<T>> retryCall = () => { return ScheduleTask<T>(name, version, parameters); };
+            Func<Task<T>> retryCall = () => this.ScheduleTask<T>(name, version, parameters);
             var retryInterceptor = new RetryInterceptor<T>(this, retryOptions, retryCall);
             return retryInterceptor.Invoke();
         }
 
         /// <summary>
-        ///     Create a suborchestration of the specified type. Also retry on failure as per supplied policy.
+        ///     Create a sub-orchestration of the specified type. Also retry on failure as per supplied policy.
         /// </summary>
         /// <typeparam name="T">Return Type of the TaskOrchestration.RunTask method</typeparam>
         /// <param name="orchestrationType">Type of the TaskOrchestration derived class to instantiate</param>
         /// <param name="retryOptions">Retry policy</param>
         /// <param name="input">Input for the TaskOrchestration.RunTask method</param>
-        /// <returns>Task that represents the execution of the specified suborchestration</returns>
+        /// <returns>Task that represents the execution of the specified sub-orchestration</returns>
         public virtual Task<T> CreateSubOrchestrationInstanceWithRetry<T>(Type orchestrationType,
             RetryOptions retryOptions, object input)
         {
@@ -170,14 +170,14 @@ namespace DurableTask.Core
         }
 
         /// <summary>
-        ///     Create a suborchestration of the specified type. Also retry on failure as per supplied policy.
+        ///     Create a sub-orchestration of the specified type. Also retry on failure as per supplied policy.
         /// </summary>
         /// <typeparam name="T">Return Type of the TaskOrchestration.RunTask method</typeparam>
         /// <param name="orchestrationType">Type of the TaskOrchestration derived class to instantiate</param>
-        /// <param name="instanceId">Instance Id of the suborchestration</param>
+        /// <param name="instanceId">Instance Id of the sub-orchestration</param>
         /// <param name="retryOptions">Retry policy</param>
         /// <param name="input">Input for the TaskOrchestration.RunTask method</param>
-        /// <returns>Task that represents the execution of the specified suborchestration</returns>
+        /// <returns>Task that represents the execution of the specified sub-orchestration</returns>
         public virtual Task<T> CreateSubOrchestrationInstanceWithRetry<T>(Type orchestrationType, string instanceId,
             RetryOptions retryOptions, object input)
         {
@@ -186,37 +186,37 @@ namespace DurableTask.Core
         }
 
         /// <summary>
-        ///     Create a suborchestration of the specified name and version. Also retry on failure as per supplied policy.
+        ///     Create a sub-orchestration of the specified name and version. Also retry on failure as per supplied policy.
         /// </summary>
         /// <typeparam name="T">Return Type of the TaskOrchestration.RunTask method</typeparam>
         /// <param name="name">Name of the orchestration as specified by the ObjectCreator</param>
         /// <param name="version">Name of the orchestration as specified by the ObjectCreator</param>
         /// <param name="retryOptions">Retry policy</param>
         /// <param name="input">Input for the TaskOrchestration.RunTask method</param>
-        /// <returns>Task that represents the execution of the specified suborchestration</returns>
+        /// <returns>Task that represents the execution of the specified sub-orchestration</returns>
         public virtual Task<T> CreateSubOrchestrationInstanceWithRetry<T>(string name, string version,
             RetryOptions retryOptions, object input)
         {
-            Func<Task<T>> retryCall = () => { return CreateSubOrchestrationInstance<T>(name, version, input); };
+            Func<Task<T>> retryCall = () => this.CreateSubOrchestrationInstance<T>(name, version, input);
             var retryInterceptor = new RetryInterceptor<T>(this, retryOptions, retryCall);
             return retryInterceptor.Invoke();
         }
 
         /// <summary>
-        ///     Create a suborchestration of the specified name and version. Also retry on failure as per supplied policy.
+        ///     Create a sub-orchestration of the specified name and version. Also retry on failure as per supplied policy.
         /// </summary>
         /// <typeparam name="T">Return Type of the TaskOrchestration.RunTask method</typeparam>
         /// <param name="name">Name of the orchestration as specified by the ObjectCreator</param>
         /// <param name="version">Name of the orchestration as specified by the ObjectCreator</param>
-        /// <param name="instanceId">Instance Id of the suborchestration</param>
+        /// <param name="instanceId">Instance Id of the sub-orchestration</param>
         /// <param name="retryOptions">Retry policy</param>
         /// <param name="input">Input for the TaskOrchestration.RunTask method</param>
-        /// <returns>Task that represents the execution of the specified suborchestration</returns>
+        /// <returns>Task that represents the execution of the specified sub-orchestration</returns>
         public virtual Task<T> CreateSubOrchestrationInstanceWithRetry<T>(string name, string version, string instanceId,
             RetryOptions retryOptions, object input)
         {
             Func<Task<T>> retryCall =
-                () => { return CreateSubOrchestrationInstance<T>(name, version, instanceId, input); };
+                () => this.CreateSubOrchestrationInstance<T>(name, version, instanceId, input);
             var retryInterceptor = new RetryInterceptor<T>(this, retryOptions, retryCall);
             return retryInterceptor.Invoke();
         }
@@ -225,7 +225,7 @@ namespace DurableTask.Core
         ///     Schedule a TaskActivity by type.
         /// </summary>
         /// <typeparam name="TResult">Return Type of the TaskActivity.Execute method</typeparam>
-        /// <param name="activityType">Type that dervices from TaskActivity class</param>
+        /// <param name="activityType">Type that devices from TaskActivity class</param>
         /// <param name="parameters">Parameters for the TaskActivity.Execute method</param>
         /// <returns>Task that represents the execution of the specified TaskActivity</returns>
         public virtual Task<TResult> ScheduleTask<TResult>(Type activityType, params object[] parameters)
@@ -264,12 +264,12 @@ namespace DurableTask.Core
         public abstract Task<T> CreateTimer<T>(DateTime fireAt, T state, CancellationToken cancelToken);
 
         /// <summary>
-        ///     Create a suborchestration of the specified type.
+        ///     Create a sub-orchestration of the specified type.
         /// </summary>
         /// <typeparam name="T">Return Type of the TaskOrchestration.RunTask method</typeparam>
         /// <param name="orchestrationType">Type of the TaskOrchestration derived class to instantiate</param>
         /// <param name="input">Input for the TaskOrchestration.RunTask method</param>
-        /// <returns>Task that represents the execution of the specified suborchestration</returns>
+        /// <returns>Task that represents the execution of the specified sub-orchestration</returns>
         public virtual Task<T> CreateSubOrchestrationInstance<T>(Type orchestrationType, object input)
         {
             return CreateSubOrchestrationInstance<T>(NameVersionHelper.GetDefaultName(orchestrationType),
@@ -277,13 +277,13 @@ namespace DurableTask.Core
         }
 
         /// <summary>
-        ///     Create a suborchestration of the specified type with the specified instance id
+        ///     Create a sub-orchestration of the specified type with the specified instance id
         /// </summary>
         /// <typeparam name="T">Return Type of the TaskOrchestration.RunTask method</typeparam>
         /// <param name="orchestrationType">Type of the TaskOrchestration derived class to instantiate</param>
-        /// <param name="instanceId">InstanceId of the suborchestration to create</param>
+        /// <param name="instanceId">InstanceId of the sub-orchestration to create</param>
         /// <param name="input">Input for the TaskOrchestration.RunTask method</param>
-        /// <returns>Task that represents the execution of the specified suborchestration</returns>
+        /// <returns>Task that represents the execution of the specified sub-orchestration</returns>
         public virtual Task<T> CreateSubOrchestrationInstance<T>(Type orchestrationType, string instanceId, object input)
         {
             return CreateSubOrchestrationInstance<T>(NameVersionHelper.GetDefaultName(orchestrationType),
@@ -291,37 +291,37 @@ namespace DurableTask.Core
         }
 
         /// <summary>
-        ///     Create a suborchestration of the specified name and version.
+        ///     Create a sub-orchestration of the specified name and version.
         /// </summary>
         /// <typeparam name="T">Return Type of the TaskOrchestration.RunTask method</typeparam>
         /// <param name="name">Name of the orchestration as specified by the ObjectCreator</param>
         /// <param name="version">Name of the orchestration as specified by the ObjectCreator</param>
         /// <param name="input">Input for the TaskOrchestration.RunTask method</param>
-        /// <returns>Task that represents the execution of the specified suborchestration</returns>
+        /// <returns>Task that represents the execution of the specified sub-orchestration</returns>
         public abstract Task<T> CreateSubOrchestrationInstance<T>(string name, string version, object input);
 
         /// <summary>
-        ///     Create a suborchestration of the specified name and version with the specific instance id
+        ///     Create a sub-orchestration of the specified name and version with the specific instance id
         /// </summary>
         /// <typeparam name="T">Return Type of the TaskOrchestration.RunTask method</typeparam>
         /// <param name="name">Name of the orchestration as specified by the ObjectCreator</param>
         /// <param name="version">Name of the orchestration as specified by the ObjectCreator</param>
-        /// <param name="instanceId">InstanceId of the suborchestration to create</param>
+        /// <param name="instanceId">InstanceId of the sub-orchestration to create</param>
         /// <param name="input">Input for the TaskOrchestration.RunTask method</param>
-        /// <returns>Task that represents the execution of the specified suborchestration</returns>
+        /// <returns>Task that represents the execution of the specified sub-orchestration</returns>
         public abstract Task<T> CreateSubOrchestrationInstance<T>(string name, string version, string instanceId,
             object input);
 
         /// <summary>
-        ///     Create a suborchestration of the specified name and version with the specific instance id
+        ///     Create a sub-orchestration of the specified name and version with the specific instance id
         /// </summary>
         /// <typeparam name="T">Return Type of the TaskOrchestration.RunTask method</typeparam>
         /// <param name="name">Name of the orchestration as specified by the ObjectCreator</param>
         /// <param name="version">Name of the orchestration as specified by the ObjectCreator</param>
-        /// <param name="instanceId">InstanceId of the suborchestration to create</param>
+        /// <param name="instanceId">InstanceId of the sub-orchestration to create</param>
         /// <param name="input">Input for the TaskOrchestration.RunTask method</param>
         /// <param name="tags">Dictionary of key/value tags associated with this instance</param>
-        /// <returns>Task that represents the execution of the specified suborchestration</returns>
+        /// <returns>Task that represents the execution of the specified sub-orchestration</returns>
         public abstract Task<T> CreateSubOrchestrationInstance<T>(string name, string version, string instanceId,
             object input, IDictionary<string, string> tags);
 

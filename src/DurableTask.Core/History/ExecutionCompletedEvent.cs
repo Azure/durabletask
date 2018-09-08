@@ -37,10 +37,7 @@ namespace DurableTask.Core.History
         /// <summary>
         /// Gets the event type
         /// </summary>
-        public override EventType EventType
-        {
-            get { return EventType.ExecutionCompleted; }
-        }
+        public override EventType EventType => EventType.ExecutionCompleted;
 
         /// <summary>
         /// Gets the history events orchestration status

@@ -76,14 +76,14 @@ namespace DurableTask.Core.Serializing
                     "RuntimeStateStreamConverter-SessionStateThresholdExceeded",
                     sessionId,
                     $"Session state size of {runtimeState.CompressedSize} exceeded the termination threshold of {serviceBusSessionSettings.SessionOverflowThresholdInBytes} bytes." +
-                    $"Creating an OrchestrationSessionState instance with key for exteranl storage.");
+                    $"Creating an OrchestrationSessionState instance with key for external storage.");
                 return await CreateStreamForExternalStorageAsync(shouldCompress, orchestrationServiceBlobStore, sessionId, dataConverter, compressedState);
             }
 
             return compressedState;
         }
 
-        async static Task<Stream> CreateStreamForExternalStorageAsync(
+        static async Task<Stream> CreateStreamForExternalStorageAsync(
             bool shouldCompress,
             IOrchestrationServiceBlobStore orchestrationServiceBlobStore,
             string sessionId,
@@ -162,7 +162,7 @@ namespace DurableTask.Core.Serializing
                 TraceEventType.Information,
                 "RuntimeStateStreamConverter-StreamToRuntimeStateLoadFromStorage",
                 sessionId,
-                $"Loading the serialzied stream from external storage with blob key {blobKey}.");
+                $"Loading the serialized stream from external storage with blob key {blobKey}.");
 
             Stream externalStream = await orchestrationServiceBlobStore.LoadStreamAsync(blobKey);
             return await RawStreamToRuntimeState(externalStream, sessionId, orchestrationServiceBlobStore, dataConverter);

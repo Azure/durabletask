@@ -107,7 +107,7 @@ namespace DurableTask.Core.Tracing
         ///     Trace an exception and message
         /// </summary>
         public static Exception TraceException(TraceEventType eventLevel, string eventType, Exception exception,
-            Func<String> generateMessage)
+            Func<string> generateMessage)
         {
             return TraceExceptionCore(eventLevel, eventType, string.Empty, string.Empty, exception, generateMessage);
         }

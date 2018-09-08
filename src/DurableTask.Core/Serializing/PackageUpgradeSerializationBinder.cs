@@ -27,7 +27,7 @@ namespace DurableTask.Core.Serializing
     [ComVisible(false)]
     public class PackageUpgradeSerializationBinder : DefaultSerializationBinder
     {
-        static Lazy<IDictionary<string, Type>> KnownTypes = new Lazy<IDictionary<string, Type>>(() =>
+        static readonly Lazy<IDictionary<string, Type>> KnownTypes = new Lazy<IDictionary<string, Type>>(() =>
         {
             //Get all types in the DurableTask.Core Namespace
             return typeof(PackageUpgradeSerializationBinder).Assembly.GetTypes()

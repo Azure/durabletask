@@ -37,10 +37,7 @@ namespace DurableTask.Core.History
         /// <summary>
         /// Gets the event type
         /// </summary>
-        public override EventType EventType
-        {
-            get { return EventType.TaskCompleted; }
-        }
+        public override EventType EventType => EventType.TaskCompleted;
 
         /// <summary>
         /// Gets the scheduled parent instance event id

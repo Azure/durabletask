@@ -22,7 +22,7 @@ namespace DurableTask.ServiceBus.Stats
         // TODO: Add: 
         //      receive latency
         //      message/session throughput
-        //      average E2E latency(i.e.look at curenttimeutc -enqueuedtimeutc on the received message)
+        //      average E2E latency(i.e.look at curenttimeutc - enqueuedtimeutc on the received message)
         //      queue depths
 
         /// <summary>

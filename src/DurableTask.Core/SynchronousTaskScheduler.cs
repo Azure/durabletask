@@ -19,10 +19,7 @@ namespace DurableTask.Core
 
     class SynchronousTaskScheduler : TaskScheduler
     {
-        public override int MaximumConcurrencyLevel
-        {
-            get { return 1; }
-        }
+        public override int MaximumConcurrencyLevel => 1;
 
         protected override void QueueTask(Task task)
         {

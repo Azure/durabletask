@@ -32,7 +32,7 @@ namespace DurableTask.Core
         public OrchestrationRuntimeState OrchestrationRuntimeState;
 
         /// <summary>
-        /// The datetime this orchestraion work item is locked until
+        /// The datetime this orchestration work item is locked until
         /// </summary>
         public DateTime LockedUntilUtc;
 

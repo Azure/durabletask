@@ -22,7 +22,7 @@ namespace DurableTask.ServiceBus.Settings
     public class ServiceBusSessionSettings : ISessionSettings
     {
         internal ServiceBusSessionSettings() :
-            this (FrameworkConstants.SessionOverflowThresholdInBytesDefault, FrameworkConstants.SessionMaxSizeInBytesDefault)
+            this(FrameworkConstants.SessionOverflowThresholdInBytesDefault, FrameworkConstants.SessionMaxSizeInBytesDefault)
         {
         }
 

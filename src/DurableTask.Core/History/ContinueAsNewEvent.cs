@@ -23,9 +23,6 @@ namespace DurableTask.Core.History
         {
         }
 
-        public override EventType EventType
-        {
-            get { return EventType.ContinueAsNew; }
-        }
+        public override EventType EventType => EventType.ContinueAsNew;
     }
 }

@@ -47,15 +47,9 @@ namespace DurableTask.Core
             IsReplaying = false;
         }
 
-        public IEnumerable<OrchestratorAction> OrchestratorActions
-        {
-            get { return orchestratorActionsMap.Values; }
-        }
+        public IEnumerable<OrchestratorAction> OrchestratorActions => orchestratorActionsMap.Values;
 
-        public bool HasOpenTasks
-        {
-            get { return openTasks.Count > 0; }
-        }
+        public bool HasOpenTasks => openTasks.Count > 0;
 
         internal void ClearPendingActions()
         {
@@ -73,9 +67,9 @@ namespace DurableTask.Core
         public async Task<TResult> ScheduleTaskToWorker<TResult>(string name, string version, string tasklist,
             params object[] parameters)
         {
-            object result = await ScheduleTaskInternal(name, version, tasklist, typeof (TResult), parameters);
+            object result = await ScheduleTaskInternal(name, version, tasklist, typeof(TResult), parameters);
 
-            return (TResult) result;
+            return (TResult)result;
         }
 
         public async Task<object> ScheduleTaskInternal(string name, string version, string tasklist, Type resultType,
@@ -95,7 +89,7 @@ namespace DurableTask.Core
             orchestratorActionsMap.Add(id, scheduleTaskTaskAction);
 
             var tcs = new TaskCompletionSource<string>();
-            openTasks.Add(id, new OpenTaskInfo {Name = name, Version = version, Result = tcs});
+            openTasks.Add(id, new OpenTaskInfo { Name = name, Version = version, Result = tcs });
 
             string serializedResult = await tcs.Task;
 
@@ -122,25 +116,25 @@ namespace DurableTask.Core
         }
 
         public override Task<T> CreateSubOrchestrationInstance<T>(
-            string name, 
-            string version, 
+            string name,
+            string version,
             object input)
         {
             return CreateSubOrchestrationInstanceCore<T>(name, version, null, input, null);
         }
 
         async Task<T> CreateSubOrchestrationInstanceCore<T>(
-            string name, 
-            string version, 
-            string instanceId, 
-            object input, 
+            string name,
+            string version,
+            string instanceId,
+            object input,
             IDictionary<string, string> tags)
         {
             int id = idCounter++;
             string serializedInput = dataConverter.Serialize(input);
 
             string actualInstanceId = instanceId;
-            if (string.IsNullOrEmpty(actualInstanceId))
+            if (string.IsNullOrWhiteSpace(actualInstanceId))
             {
                 actualInstanceId = OrchestrationInstance.ExecutionId + ":" + id;
             }
@@ -158,7 +152,7 @@ namespace DurableTask.Core
             orchestratorActionsMap.Add(id, action);
 
             var tcs = new TaskCompletionSource<string>();
-            openTasks.Add(id, new OpenTaskInfo {Name = name, Version = version, Result = tcs});
+            openTasks.Add(id, new OpenTaskInfo { Name = name, Version = version, Result = tcs });
 
             string serializedResult = await tcs.Task;
 
@@ -204,7 +198,7 @@ namespace DurableTask.Core
             orchestratorActionsMap.Add(id, createTimerOrchestratorAction);
 
             var tcs = new TaskCompletionSource<string>();
-            openTasks.Add(id, new OpenTaskInfo {Name = null, Version = null, Result = tcs});
+            openTasks.Add(id, new OpenTaskInfo { Name = null, Version = null, Result = tcs });
 
             if (cancelToken != CancellationToken.None)
             {
@@ -401,20 +395,18 @@ namespace DurableTask.Core
         {
             if (failure == null)
             {
-                throw new ArgumentNullException("failure");
+                throw new ArgumentNullException(nameof(failure));
             }
 
             string reason = failure.Message;
-            string details = null;
-            var orchestrationFailureException = failure as OrchestrationFailureException;
-            if (orchestrationFailureException != null)
+            string details;
+            if (failure is OrchestrationFailureException orchestrationFailureException)
             {
                 details = orchestrationFailureException.Details;
             }
             else
             {
-                details = string.Format("Unhandled exception while executing orchestration: {0}\n\t{1}", failure,
-                    failure.StackTrace);
+                details = $"Unhandled exception while executing orchestration: {failure}\n\t{failure.StackTrace}";
             }
 
             CompleteOrchestration(reason, details, OrchestrationStatus.Failed);

@@ -85,12 +85,12 @@ namespace DurableTask.Core
 
         // tracking dispatcher default constants
         /// <summary>
-        /// The default error backoff for transient errors tracking activities in seconds
+        /// The default error back-off for transient errors tracking activities in seconds
         /// </summary>
         public const int TrackingTransientErrorBackOffSecs = 10;
 
         /// <summary>
-        /// The default error backoff for non-transient errors tracking activities in seconds
+        /// The default error back-off for non-transient errors tracking activities in seconds
         /// </summary>
         public const int TrackingNonTransientErrorBackOffSecs = 120;
 

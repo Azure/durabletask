@@ -24,7 +24,7 @@ namespace DurableTask.Core
     public class TaskMessage : IExtensibleDataObject
     {
         /// <summary>
-        /// Even information for this taks message
+        /// Even information for this task message
         /// </summary>
         [DataMember] public HistoryEvent Event;
 

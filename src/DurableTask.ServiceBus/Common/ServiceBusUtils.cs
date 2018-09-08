@@ -32,7 +32,7 @@ namespace DurableTask.ServiceBus.Common
 
     internal static class ServiceBusUtils
     {
-        static TimeSpan TokenTimeToLive = TimeSpan.FromDays(30);
+        static readonly TimeSpan TokenTimeToLive = TimeSpan.FromDays(30);
 
         public static Task<BrokeredMessage> GetBrokeredMessageFromObjectAsync(object serializableObject, CompressionSettings compressionSettings)
         {
@@ -70,26 +70,26 @@ namespace DurableTask.ServiceBus.Common
 
             try
             {
-                BrokeredMessage brokeredMessage = null;
+                BrokeredMessage brokeredMessage;
 
                 if (compressionSettings.Style == CompressionStyle.Always ||
-                    (compressionSettings.Style == CompressionStyle.Threshold &&
+                   (compressionSettings.Style == CompressionStyle.Threshold &&
                      rawStream.Length > compressionSettings.ThresholdInBytes))
                 {
                     Stream compressedStream = Utils.GetCompressedStream(rawStream);
-                    var rawLen = rawStream.Length;
-                    TraceHelper.TraceInstance(
-                        TraceEventType.Information, 
-                        "GetBrokeredMessageFromObject-CompressionStats", 
-                        instance,
-                        () =>
-                            "Compression stats for " + (messageType ?? string.Empty) + " : " +
-                            brokeredMessage?.MessageId +
-                            ", uncompressed " + rawLen + " -> compressed " + compressedStream.Length);
 
                     if (compressedStream.Length < messageSettings.MessageOverflowThresholdInBytes)
                     {
                         brokeredMessage = GenerateBrokeredMessageWithCompressionTypeProperty(compressedStream, FrameworkConstants.CompressionTypeGzipPropertyValue);
+                        var rawLen = rawStream.Length;
+                        TraceHelper.TraceInstance(
+                            TraceEventType.Information,
+                            "GetBrokeredMessageFromObject-CompressionStats",
+                            instance,
+                            () =>
+                                "Compression stats for " + (messageType ?? string.Empty) + " : " +
+                                brokeredMessage?.MessageId +
+                                ", uncompressed " + rawLen + " -> compressed " + compressedStream.Length);
                     }
                     else
                     {
@@ -144,14 +144,14 @@ namespace DurableTask.ServiceBus.Common
             {
                 throw new ArgumentException(
                     $"The serialized message size {stream.Length} is larger than the supported external storage blob size {messageSettings.MessageMaxSizeInBytes}.",
-                    "stream");
+                    nameof(stream));
             }
 
             if (orchestrationServiceBlobStore == null)
             {
                 throw new ArgumentException(
                     "Please provide an implementation of IOrchestrationServiceBlobStore for external storage.",
-                    "orchestrationServiceBlobStore");
+                    nameof(orchestrationServiceBlobStore));
             }
 
             // save the compressed stream using external storage when it is larger
@@ -182,15 +182,14 @@ namespace DurableTask.ServiceBus.Common
 
             T deserializedObject;
 
-            object compressionTypeObj = null;
             string compressionType = string.Empty;
 
-            if (message.Properties.TryGetValue(FrameworkConstants.CompressionTypePropertyName, out compressionTypeObj))
+            if (message.Properties.TryGetValue(FrameworkConstants.CompressionTypePropertyName, out object compressionTypeObj))
             {
                 compressionType = (string)compressionTypeObj;
             }
 
-            if (string.IsNullOrEmpty(compressionType))
+            if (string.IsNullOrWhiteSpace(compressionType))
             {
                 // no compression, legacy style
                 deserializedObject = message.GetBody<T>();
@@ -264,15 +263,13 @@ namespace DurableTask.ServiceBus.Common
 
         static Task<Stream> LoadMessageStreamAsync(BrokeredMessage message, IOrchestrationServiceBlobStore orchestrationServiceBlobStore)
         {
-            object blobKeyObj = null;
             string blobKey = string.Empty;
-
-            if (message.Properties.TryGetValue(ServiceBusConstants.MessageBlobKey, out blobKeyObj))
+            if (message.Properties.TryGetValue(ServiceBusConstants.MessageBlobKey, out object blobKeyObj))
             {
                 blobKey = (string)blobKeyObj;
             }
 
-            if (string.IsNullOrEmpty(blobKey))
+            if (string.IsNullOrWhiteSpace(blobKey))
             {
                 // load the stream from the message directly if the blob key property is not set,
                 // i.e., it is not stored externally
@@ -289,32 +286,32 @@ namespace DurableTask.ServiceBus.Common
             return orchestrationServiceBlobStore.LoadStreamAsync(blobKey);
         }
 
-        public static void CheckAndLogDeliveryCount(string sessionId, IEnumerable<BrokeredMessage> messages, int maxDeliverycount)
+        public static void CheckAndLogDeliveryCount(string sessionId, IEnumerable<BrokeredMessage> messages, int maxDeliveryCount)
         {
             foreach (BrokeredMessage message in messages)
             {
-                CheckAndLogDeliveryCount(sessionId, message, maxDeliverycount);
+                CheckAndLogDeliveryCount(sessionId, message, maxDeliveryCount);
             }
         }
 
-        public static void CheckAndLogDeliveryCount(IEnumerable<BrokeredMessage> messages, int maxDeliverycount)
+        public static void CheckAndLogDeliveryCount(IEnumerable<BrokeredMessage> messages, int maxDeliveryCount)
         {
             foreach (BrokeredMessage message in messages)
             {
-                CheckAndLogDeliveryCount(message, maxDeliverycount);
+                CheckAndLogDeliveryCount(message, maxDeliveryCount);
             }
         }
 
-        public static void CheckAndLogDeliveryCount(BrokeredMessage message, int maxDeliverycount)
+        public static void CheckAndLogDeliveryCount(BrokeredMessage message, int maxDeliveryCount)
         {
-            CheckAndLogDeliveryCount(null, message, maxDeliverycount);
+            CheckAndLogDeliveryCount(null, message, maxDeliveryCount);
         }
 
         public static void CheckAndLogDeliveryCount(string sessionId, BrokeredMessage message, int maxDeliveryCount)
         {
             if (message.DeliveryCount >= maxDeliveryCount - 2)
             {
-                if (!string.IsNullOrEmpty(sessionId))
+                if (!string.IsNullOrWhiteSpace(sessionId))
                 {
                     TraceHelper.TraceSession(
                         TraceEventType.Critical, 

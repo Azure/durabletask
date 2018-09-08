@@ -24,7 +24,7 @@ namespace DurableTask.Core.History
         /// <summary>
         /// Creates a new ExecutionTerminatedEvent with the supplied params
         /// </summary>
-        /// <param name="eventId">The eventid of the history event</param>
+        /// <param name="eventId">The event id of the history event</param>
         /// <param name="input">The serialized input of the termination event</param>
         public ExecutionTerminatedEvent(int eventId, string input)
             : base(eventId)
@@ -35,10 +35,7 @@ namespace DurableTask.Core.History
         /// <summary>
         /// Gets the event type
         /// </summary>
-        public override EventType EventType
-        {
-            get { return EventType.ExecutionTerminated; }
-        }
+        public override EventType EventType => EventType.ExecutionTerminated;
 
         /// <summary>
         /// Gets or sets the serialized input for the the termination event

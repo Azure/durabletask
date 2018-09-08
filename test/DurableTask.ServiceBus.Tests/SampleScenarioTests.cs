@@ -515,7 +515,7 @@ namespace DurableTask.ServiceBus.Tests
                     hasError = true;
                 }
 
-                if (hasError && !string.IsNullOrEmpty(goodResult))
+                if (hasError && !string.IsNullOrWhiteSpace(goodResult))
                 {
                     result = await context.ScheduleTask<string>(typeof (CleanupTask));
                 }

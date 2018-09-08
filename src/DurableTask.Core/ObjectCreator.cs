@@ -32,7 +32,7 @@ namespace DurableTask.Core
         /// <summary>
         /// Instance creator method
         /// </summary>
-        /// <returns>An intance of the type T</returns>
+        /// <returns>An instance of the type T</returns>
         public abstract T Create();
     }
 }

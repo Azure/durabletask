@@ -87,7 +87,7 @@ namespace DurableTask.Core
         /// Get a list of orchestration states from the instance storage for the specified execution (generation) of the specified instance.
         /// </summary>
         /// <param name="instanceId">Instance id</param>
-        /// <param name="executionId">Exectuion id</param>
+        /// <param name="executionId">Execution id</param>
         /// <returns>The OrchestrationState of the specified instanceId or null if not found</returns>
         Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId);
 
@@ -95,7 +95,7 @@ namespace DurableTask.Core
         /// Get a string dump of the execution history of the specified orchestration instance specified execution (generation) of the specified instance
         /// </summary>
         /// <param name="instanceId">Instance id</param>
-        /// <param name="executionId">Exectuion id</param>
+        /// <param name="executionId">Execution id</param>
         /// <returns>String with formatted JSON representing the execution history</returns>
         Task<string> GetOrchestrationHistoryAsync(string instanceId, string executionId);
 

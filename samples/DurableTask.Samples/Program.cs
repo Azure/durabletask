@@ -214,7 +214,7 @@ namespace DurableTask.Samples
         public static string GetSetting(string name)
         {
             string value = Environment.GetEnvironmentVariable("DurableTaskTest" + name);
-            if (string.IsNullOrEmpty(value))
+            if (string.IsNullOrWhiteSpace(value))
             {
                 value = ConfigurationManager.AppSettings.Get(name);
             }

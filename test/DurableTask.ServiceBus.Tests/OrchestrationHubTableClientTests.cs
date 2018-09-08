@@ -74,7 +74,7 @@ namespace DurableTask.ServiceBus.Tests
             Assert.AreEqual(runtimeState.Output, "\"Spartacus\"");
 
             string history = await client.GetOrchestrationHistoryAsync(id);
-            Assert.IsTrue(!string.IsNullOrEmpty(history));
+            Assert.IsTrue(!string.IsNullOrWhiteSpace(history));
             Assert.IsTrue(history.Contains("ExecutionStartedEvent"));
         }
 
@@ -288,7 +288,7 @@ namespace DurableTask.ServiceBus.Tests
                  expected.State.CompletedTime.Equals(actual.State.CompletedTime)) &&
                 expected.State.Status.Equals(actual.State.Status) &&
                 expected.State.Input.Equals(actual.State.Input) &&
-                ((string.IsNullOrEmpty(expected.State.Output) && string.IsNullOrEmpty(actual.State.Output)) ||
+                ((string.IsNullOrWhiteSpace(expected.State.Output) && string.IsNullOrWhiteSpace(actual.State.Output)) ||
                  expected.State.Output.Equals(actual.State.Output));
         }
 

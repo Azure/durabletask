@@ -99,7 +99,7 @@ namespace DurableTask.Core.History
         ContinueAsNew,
 
         /// <summary>
-        /// Generic event for tracking event existance
+        /// Generic event for tracking event existence
         /// </summary>
         GenericEvent,
 

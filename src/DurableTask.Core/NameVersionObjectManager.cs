@@ -48,8 +48,7 @@ namespace DurableTask.Core
 
             lock (thisLock)
             {
-                ObjectCreator<T> creator = null;
-                if (creators.TryGetValue(key, out creator))
+                if (creators.TryGetValue(key, out ObjectCreator<T> creator))
                 {
                     return creator.Create();
                 }

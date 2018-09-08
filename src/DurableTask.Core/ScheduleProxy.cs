@@ -53,7 +53,7 @@ namespace DurableTask.Core
 
         public override bool TryInvokeMember(InvokeMemberBinder binder, object[] args, out object result)
         {
-            Type returnType = null;
+            Type returnType;
             if (!returnTypes.TryGetValue(binder.Name, out returnType))
             {
                 throw new Exception("Method name '" + binder.Name + "' not known.");
@@ -63,7 +63,7 @@ namespace DurableTask.Core
                 ? NameVersionHelper.GetFullyQualifiedMethodName(interfaze.Name, NameVersionHelper.GetDefaultName(binder))
                 : NameVersionHelper.GetDefaultName(binder);
 
-            if (returnType.Equals(typeof (Task)))
+            if (returnType.Equals(typeof(Task)))
             {
                 result = context.ScheduleTask<object>(normalizedMethodName,
                     NameVersionHelper.GetDefaultVersion(binder), args);
@@ -81,8 +81,8 @@ namespace DurableTask.Core
                     throw new Exception("Generic Parameters are not equal to 1. Type Name: " + returnType.FullName);
                 }
 
-                MethodInfo scheduleMethod = typeof (OrchestrationContext).GetMethod("ScheduleTask",
-                    new[] {typeof (string), typeof (string), typeof (object[])});
+                MethodInfo scheduleMethod = typeof(OrchestrationContext).GetMethod("ScheduleTask",
+                    new[] { typeof(string), typeof(string), typeof(object[]) });
                 MethodInfo genericScheduleMethod = scheduleMethod.MakeGenericMethod(genericArguments[0]);
 
                 result = genericScheduleMethod.Invoke(context, new object[]

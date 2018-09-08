@@ -110,7 +110,7 @@ namespace DurableTask.ServiceBus.Tracking
             // replace with a generic event with the truncated history so at least we have some record
             // note that this makes the history stored in the instance store unreplayable. so any replay logic
             // that we build will have to especially check for this event and flag the orchestration as unplayable if it sees this event
-            if (!string.IsNullOrEmpty(serializedHistoryEvent) &&
+            if (!string.IsNullOrWhiteSpace(serializedHistoryEvent) &&
                 serializedHistoryEvent.Length > ServiceBusConstants.MaxStringLengthForAzureTableColumn)
             {
                 serializedHistoryEvent = JsonConvert.SerializeObject(new GenericEvent(HistoryEvent.EventId,

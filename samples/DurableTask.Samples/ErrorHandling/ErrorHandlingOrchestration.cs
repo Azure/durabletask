@@ -54,7 +54,7 @@ namespace DurableTask.Samples.ErrorHandling
                 Console.WriteLine($"BadTask unexpected exception: {e}");
             }
 
-            if (hasError && !string.IsNullOrEmpty(goodResult))
+            if (hasError && !string.IsNullOrWhiteSpace(goodResult))
             {
                 result = await context.ScheduleTask<string>(typeof(CleanupTask));
             }

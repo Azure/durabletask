@@ -13,7 +13,7 @@
 
 namespace DurableTask.ServiceBus.Settings
 {
-    using DurableTask.Core; 
+    using DurableTask.Core;
 
     /// <summary>
     ///     Settings to configure the Service Bus message.
@@ -21,7 +21,6 @@ namespace DurableTask.ServiceBus.Settings
     /// </summary>
     public class ServiceBusMessageSettings
     {
-
         internal ServiceBusMessageSettings() :
             this(FrameworkConstants.MessageOverflowThresholdInBytesDefault, FrameworkConstants.MessageMaxSizeInBytesDefault)
         {

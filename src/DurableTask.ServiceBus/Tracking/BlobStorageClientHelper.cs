@@ -29,7 +29,7 @@ namespace DurableTask.ServiceBus.Tracking
         static readonly char ContainerNameDelimiter = '-';
 
         /// <summary>
-        /// the blob storage accesss key is in the format of {DateTime}|{blobName}
+        /// the blob storage access key is in the format of {DateTime}|{blobName}
         /// </summary>
         public static readonly char KeyDelimiter = '|';
 

@@ -78,7 +78,7 @@ namespace DurableTask.ServiceBus.Tracking
         }
 
         /// <summary>
-        /// Gets the maximum length a history entry can be so it can be truncated if neccesary
+        /// Gets the maximum length a history entry can be so it can be truncated if necessary
         /// </summary>
         /// <returns>The maximum length</returns>
         public int MaxHistoryEntryLength => MaxDisplayStringLengthForAzureTableColumn;
@@ -101,7 +101,7 @@ namespace DurableTask.ServiceBus.Tracking
         /// </summary>
         /// <param name="instanceId">The instance id to return state for</param>
         /// <param name="executionId">The execution id to return state for</param>
-        /// <returns>The matching orchestation state or null if not found</returns>
+        /// <returns>The matching orchestration state or null if not found</returns>
         public async Task<IEnumerable<OrchestrationStateInstanceEntity>> GetEntitiesAsync(string instanceId, string executionId)
         {
             IEnumerable<AzureTableOrchestrationStateEntity> results =

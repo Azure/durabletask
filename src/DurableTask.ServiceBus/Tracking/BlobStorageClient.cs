@@ -45,12 +45,12 @@ namespace DurableTask.ServiceBus.Tracking
         /// <param name="connectionString">The connection string</param>
         public BlobStorageClient(string hubName, string connectionString)
         {
-            if (string.IsNullOrEmpty(connectionString))
+            if (string.IsNullOrWhiteSpace(connectionString))
             {
                 throw new ArgumentException("Invalid connection string", nameof(connectionString));
             }
 
-            if (string.IsNullOrEmpty(hubName))
+            if (string.IsNullOrWhiteSpace(hubName))
             {
                 throw new ArgumentException("Invalid hub name", nameof(hubName));
             }
@@ -115,7 +115,7 @@ namespace DurableTask.ServiceBus.Tracking
         }
 
         /// <summary>
-        /// Delete all contianers that are older than the input threshold date.
+        /// Delete all containers that are older than the input threshold date.
         /// </summary>
         /// <param name="thresholdDateTimeUtc">The specified date threshold</param>
         /// <returns></returns>
