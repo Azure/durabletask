@@ -11,12 +11,12 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-using System.Threading.Tasks;
-using DurableTask.Core;
-
 namespace TestStatefulService.TestOrchestrations
 {
+    using System;
+    using System.Threading.Tasks;
+    using DurableTask.Core;
+
     public class SimpleOrchestrationWithTimer : TaskOrchestration<string, int>
     {
         public override async Task<string> RunTask(OrchestrationContext context, int input)

@@ -11,18 +11,18 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-using System.Diagnostics;
-using System.Fabric;
-using System.Fabric.Description;
-using System.Globalization;
-using System.Threading;
-using System.Threading.Tasks;
-using Microsoft.Owin.Hosting;
-using Microsoft.ServiceFabric.Services.Communication.Runtime;
-
 namespace TestApplication.Common
 {
+    using System;
+    using System.Diagnostics;
+    using System.Fabric;
+    using System.Fabric.Description;
+    using System.Globalization;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using Microsoft.Owin.Hosting;
+    using Microsoft.ServiceFabric.Services.Communication.Runtime;
+
     public class OwinCommunicationListener : ICommunicationListener
     {
         private readonly ServiceContext serviceContext;

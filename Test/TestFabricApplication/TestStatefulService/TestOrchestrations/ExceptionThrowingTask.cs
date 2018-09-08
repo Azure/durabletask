@@ -11,10 +11,10 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using DurableTask.Core;
-
 namespace TestStatefulService.TestOrchestrations
 {
+    using DurableTask.Core;
+
     class ExceptionThrowingTask : TaskActivity<int, bool>
     {
         protected override bool Execute(TaskContext context, int remainingAttempts)

@@ -11,13 +11,13 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System.Collections.Specialized;
-using System.IO;
-using System.Linq;
-using System.Xml;
-
 namespace DurableTask.ServiceFabric.Test.DeploymentUtil
 {
+    using System.Collections.Specialized;
+    using System.IO;
+    using System.Linq;
+    using System.Xml;
+
     class ApplicationInfoReader
     {
         string applicationRootPath;

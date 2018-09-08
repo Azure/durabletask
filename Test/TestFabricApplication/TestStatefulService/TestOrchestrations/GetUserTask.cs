@@ -11,10 +11,10 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using DurableTask.Core;
-
 namespace TestStatefulService.TestOrchestrations
 {
+    using DurableTask.Core;
+
     class GetUserTask : TaskActivity<string, string>
     {
         protected override string Execute(TaskContext context, string input)

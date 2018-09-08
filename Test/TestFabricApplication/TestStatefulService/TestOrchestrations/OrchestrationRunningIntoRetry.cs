@@ -11,13 +11,13 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-using System.Threading.Tasks;
-using DurableTask.Core;
-using DurableTask.Core.Exceptions;
-
 namespace TestStatefulService.TestOrchestrations
 {
+    using System;
+    using System.Threading.Tasks;
+    using DurableTask.Core;
+    using DurableTask.Core.Exceptions;
+
     public class OrchestrationRunningIntoRetry : TaskOrchestration<int, int>
     {
         CounterException LatestException;

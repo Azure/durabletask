@@ -11,23 +11,23 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-using System.Collections.Generic;
-using System.Fabric;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using DurableTask.Core;
-using DurableTask.ServiceFabric;
-using DurableTask.Test.Orchestrations.Perf;
-using Microsoft.ServiceFabric.Services.Communication.Runtime;
-using Microsoft.ServiceFabric.Services.Remoting.Runtime;
-using Microsoft.ServiceFabric.Services.Runtime;
-using TestApplication.Common;
-using TestStatefulService.TestOrchestrations;
-
 namespace TestStatefulService
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Fabric;
+    using System.Linq;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using DurableTask.Core;
+    using DurableTask.ServiceFabric;
+    using DurableTask.Test.Orchestrations.Perf;
+    using Microsoft.ServiceFabric.Services.Communication.Runtime;
+    using Microsoft.ServiceFabric.Services.Remoting.Runtime;
+    using Microsoft.ServiceFabric.Services.Runtime;
+    using TestApplication.Common;
+    using TestStatefulService.TestOrchestrations;
+
     /// <summary>
     /// An instance of this class is created for each service replica by the Service Fabric runtime.
     /// </summary>

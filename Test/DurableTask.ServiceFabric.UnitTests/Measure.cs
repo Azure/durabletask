@@ -11,13 +11,13 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-using System.Diagnostics;
-using System.IO;
-using System.Runtime.Serialization;
-
 namespace DurableTask.ServiceFabric.UnitTests
 {
+    using System;
+    using System.Diagnostics;
+    using System.IO;
+    using System.Runtime.Serialization;
+
     class Measure
     {
         public static T DataContractSerialization<T>(T testObject)

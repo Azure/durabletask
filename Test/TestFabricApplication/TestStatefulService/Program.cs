@@ -11,13 +11,13 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-using System.Diagnostics;
-using System.Threading;
-using Microsoft.ServiceFabric.Services.Runtime;
-
 namespace TestStatefulService
 {
+    using System;
+    using System.Diagnostics;
+    using System.Threading;
+    using Microsoft.ServiceFabric.Services.Runtime;
+
     internal static class Program
     {
         /// <summary>

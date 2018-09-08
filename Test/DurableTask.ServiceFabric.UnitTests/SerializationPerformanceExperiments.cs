@@ -11,14 +11,14 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Runtime.Serialization;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-
 namespace DurableTask.ServiceFabric.UnitTests
 {
+    using System;
+    using System.Collections.Generic;
+    using System.IO;
+    using System.Runtime.Serialization;
+    using Microsoft.VisualStudio.TestTools.UnitTesting;
+
     [TestClass]
     public class SerializationPerformanceExperiments
     {

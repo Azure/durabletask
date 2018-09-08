@@ -11,13 +11,13 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-using System.Diagnostics.Tracing;
-using System.Threading.Tasks;
-using Microsoft.ServiceFabric.Services.Runtime;
-
 namespace TestStatefulService
 {
+    using System;
+    using System.Diagnostics.Tracing;
+    using System.Threading.Tasks;
+    using Microsoft.ServiceFabric.Services.Runtime;
+
     [EventSource(Name = "MyCompany-TestFabricApplication-TestStatefulService")]
     internal sealed class ServiceEventSource : EventSource
     {

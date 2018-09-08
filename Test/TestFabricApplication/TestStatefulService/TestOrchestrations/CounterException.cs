@@ -11,11 +11,11 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-using System.Runtime.Serialization;
-
 namespace TestStatefulService.TestOrchestrations
 {
+    using System;
+    using System.Runtime.Serialization;
+
     [Serializable]
     public class CounterException : Exception
     {

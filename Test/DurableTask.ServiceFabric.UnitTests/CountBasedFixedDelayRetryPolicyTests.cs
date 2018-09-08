@@ -11,11 +11,11 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-
 namespace DurableTask.ServiceFabric.UnitTests
 {
+    using System;
+    using Microsoft.VisualStudio.TestTools.UnitTesting;
+
     [TestClass]
     public class CountBasedFixedDelayRetryPolicyTests
     {

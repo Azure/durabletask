@@ -11,19 +11,19 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Threading.Tasks;
-using DurableTask.Core;
-using DurableTask.Test.Orchestrations.Perf;
-using Microsoft.ServiceFabric.Services.Client;
-using Microsoft.ServiceFabric.Services.Remoting.Client;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using TestApplication.Common;
-
 namespace DurableTask.ServiceFabric.Test
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Diagnostics;
+    using System.Threading.Tasks;
+    using DurableTask.Core;
+    using DurableTask.Test.Orchestrations.Perf;
+    using Microsoft.ServiceFabric.Services.Client;
+    using Microsoft.ServiceFabric.Services.Remoting.Client;
+    using Microsoft.VisualStudio.TestTools.UnitTesting;
+    using TestApplication.Common;
+
     [TestClass]
     public class StressTests
     {

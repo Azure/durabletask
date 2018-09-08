@@ -11,12 +11,12 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System.Web.Http;
-using Owin;
-using TestApplication.Common;
-
 namespace TestStatefulService
 {
+    using System.Web.Http;
+    using Owin;
+    using TestApplication.Common;
+
     class Startup : IOwinAppBuilder
     {
         public void Configuration(IAppBuilder appBuilder)

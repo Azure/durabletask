@@ -11,10 +11,10 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using Owin;
-
 namespace TestApplication.Common
 {
+    using Owin;
+
     public interface IOwinAppBuilder
     {
         void Configuration(IAppBuilder appBuilder);

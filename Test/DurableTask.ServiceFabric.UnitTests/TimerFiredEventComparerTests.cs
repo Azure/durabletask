@@ -11,14 +11,14 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-using System.Collections.Immutable;
-using DurableTask.Core;
-using DurableTask.Core.History;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-
 namespace DurableTask.ServiceFabric.UnitTests
 {
+    using System;
+    using System.Collections.Immutable;
+    using DurableTask.Core;
+    using DurableTask.Core.History;
+    using Microsoft.VisualStudio.TestTools.UnitTesting;
+
     [TestClass]
     public class TimerFiredEventComparerTests
     {

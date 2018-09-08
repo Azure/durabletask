@@ -11,13 +11,13 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-using System.IO;
-using DurableTask.ServiceFabric.Test.DeploymentUtil;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-
 namespace DurableTask.ServiceFabric.Test
 {
+    using System;
+    using System.IO;
+    using DurableTask.ServiceFabric.Test.DeploymentUtil;
+    using Microsoft.VisualStudio.TestTools.UnitTesting;
+
     [TestClass]
     public class AssemblySetup
     {

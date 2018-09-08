@@ -11,17 +11,17 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-using System.Fabric;
-using System.Fabric.Description;
-using System.Fabric.Health;
-using System.Fabric.Query;
-using System.Linq;
-using System.Threading.Tasks;
-using System.Xml;
-
 namespace DurableTask.ServiceFabric.Test.DeploymentUtil
 {
+    using System;
+    using System.Fabric;
+    using System.Fabric.Description;
+    using System.Fabric.Health;
+    using System.Fabric.Query;
+    using System.Linq;
+    using System.Threading.Tasks;
+    using System.Xml;
+
     static class DeploymentHelper
     {
         static readonly FabricClient client = new FabricClient();

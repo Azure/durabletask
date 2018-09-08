@@ -11,11 +11,11 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System.Threading.Tasks;
-using DurableTask.Core;
-
 namespace TestStatefulService.TestOrchestrations
 {
+    using System.Threading.Tasks;
+    using DurableTask.Core;
+
     public class GenerationBasicOrchestration : TaskOrchestration<int, int>
     {
         // HACK: This is just a hack to communicate result of orchestration back to test

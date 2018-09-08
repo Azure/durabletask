@@ -11,12 +11,12 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using DurableTask.Core;
-using DurableTask.Core.History;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-
 namespace DurableTask.ServiceFabric.UnitTests
 {
+    using DurableTask.Core;
+    using DurableTask.Core.History;
+    using Microsoft.VisualStudio.TestTools.UnitTesting;
+
     [TestClass]
     public class TaskMessageItemTests
     {
