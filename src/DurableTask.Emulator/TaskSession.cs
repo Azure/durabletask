@@ -16,7 +16,7 @@ namespace DurableTask.Emulator
     using DurableTask.Core;
     using System.Collections.Generic;
 
-    class TaskSession
+    internal class TaskSession
     {
         public string Id;
         public byte[] SessionState;

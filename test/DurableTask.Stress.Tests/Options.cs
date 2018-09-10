@@ -15,9 +15,8 @@ namespace DurableTask.Stress.Tests
 {
     using CommandLine;
     using CommandLine.Text;
-    using System.Text;
 
-    class Options
+    internal class Options
     {
         [Option('c', "create-hub", DefaultValue = false,
             HelpText = "Create Orchestration Hub.")]

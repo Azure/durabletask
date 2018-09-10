@@ -20,9 +20,13 @@ namespace DurableTask.Core.Command
         public override OrchestratorActionType OrchestratorActionType => OrchestratorActionType.CreateSubOrchestration;
 
         public string Name { get; set; }
+
         public string Version { get; set; }
+
         public string InstanceId { get; set; }
+
         public string Input { get; set; }
+
         public IDictionary<string, string> Tags { get; set; }
     }
 }

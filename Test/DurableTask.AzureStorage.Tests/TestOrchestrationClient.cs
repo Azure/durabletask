@@ -127,7 +127,7 @@ namespace DurableTask.AzureStorage.Tests
             Trace.TraceInformation($"Rewinding instance {this.instanceId} with reason = {reason}.");
 
             // The Rewind API currently only exists in the service object
-            AzureStorageOrchestrationService service = (AzureStorageOrchestrationService)this.client.serviceClient;
+            AzureStorageOrchestrationService service = (AzureStorageOrchestrationService)this.client.ServiceClient;
             return service.RewindTaskOrchestrationAsync(this.instanceId, reason);
         }
 

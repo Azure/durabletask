@@ -27,11 +27,7 @@ namespace DurableTask.Samples.Common.WorkItems
 
     public sealed class EmailTask : TaskActivity<EmailInput, object>
     {
-        private static MailAddress FromAddress = new MailAddress("azuresbtest@outlook.com", "Service Bus Task Mailer");
-
-        public EmailTask()
-        {
-        }
+        static readonly MailAddress FromAddress = new MailAddress("azuresbtest@outlook.com", "Service Bus Task Mailer");
 
         protected override object Execute(TaskContext context, EmailInput input)
         {
@@ -55,8 +51,8 @@ namespace DurableTask.Samples.Common.WorkItems
             {
                 smtp.Send(message);
             }
+
             return null;
         }
-
     }
 }

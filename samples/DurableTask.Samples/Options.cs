@@ -15,16 +15,15 @@ namespace DurableTask.Samples
 {
     using CommandLine;
     using CommandLine.Text;
-    using System.Text;
 
-    class Options
+    internal class Options
     {
         [Option('c', "create-hub", DefaultValue = false,
             HelpText = "Create Orchestration Hub.")]
         public bool CreateHub { get; set; }
 
         [Option('s', "start-instance", DefaultValue = null,
-            HelpText = "Start new instance.  Suported Orchestrations: 'Greetings, Cron, Average, ErrorHandling Signal'.")]
+            HelpText = "Start new instance.  Supported Orchestrations: 'Greetings, Cron, Average, ErrorHandling Signal'.")]
         public string StartInstance { get; set; }
 
         [Option('i', "instance-id",

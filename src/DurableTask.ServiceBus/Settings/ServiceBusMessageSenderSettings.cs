@@ -33,6 +33,7 @@ namespace DurableTask.ServiceBus.Settings
         /// <summary>
         ///    The sender batch flush interval in milliseconds
         /// </summary>
+        // ReSharper disable once IdentifierTypo (avoid breaking change)
         public int BatchFlushIntervalInMilliSecs { get; set; }
     }
 }

@@ -12,6 +12,7 @@
 //  ----------------------------------------------------------------------------------
 
 [assembly: System.Runtime.InteropServices.ComVisible(false)]
+
 namespace DurableTask.Stress.Tests
 {
     using System;
@@ -26,11 +27,12 @@ namespace DurableTask.Stress.Tests
     using Microsoft.Practices.EnterpriseLibrary.SemanticLogging;
     using System.Diagnostics.Tracing;
 
-    class Program
+    internal class Program
     {
-        static Options options = new Options();
+        static readonly Options ArgumentOptions = new Options();
         static ObservableEventListener eventListener;
 
+        // ReSharper disable once UnusedMember.Local
         static void Main(string[] args)
         {
             eventListener = new ObservableEventListener();
@@ -39,15 +41,14 @@ namespace DurableTask.Stress.Tests
 
             string tableConnectionString = ConfigurationManager.AppSettings["StorageConnectionString"];
 
-            if (CommandLine.Parser.Default.ParseArgumentsStrict(args, options))
+            if (CommandLine.Parser.Default.ParseArgumentsStrict(args, ArgumentOptions))
             {
                 string connectionString = ConfigurationManager.ConnectionStrings["Microsoft.ServiceBus.ConnectionString"].ConnectionString;
                 string taskHubName = ConfigurationManager.AppSettings["TaskHubName"];
            
-
                 IOrchestrationServiceInstanceStore instanceStore = new AzureTableInstanceStore(taskHubName, tableConnectionString);
 
-                ServiceBusOrchestrationServiceSettings settings = new ServiceBusOrchestrationServiceSettings
+                var settings = new ServiceBusOrchestrationServiceSettings
                 {
                     TaskOrchestrationDispatcherSettings =
                     {
@@ -60,20 +61,19 @@ namespace DurableTask.Stress.Tests
                     }
                 };
 
-                ServiceBusOrchestrationService orchestrationServiceAndClient =
+                var orchestrationServiceAndClient =
                     new ServiceBusOrchestrationService(connectionString, taskHubName, instanceStore, null, settings);
 
+                var taskHubClient = new TaskHubClient(orchestrationServiceAndClient);
+                var taskHub = new TaskHubWorker(orchestrationServiceAndClient);
 
-                TaskHubClient taskHubClient = new TaskHubClient(orchestrationServiceAndClient);
-                TaskHubWorker taskHub = new TaskHubWorker(orchestrationServiceAndClient);
-
-                if (options.CreateHub)
+                if (ArgumentOptions.CreateHub)
                 {
                     orchestrationServiceAndClient.CreateIfNotExistsAsync().Wait();
                 }
 
-                OrchestrationInstance instance = null;
-                string instanceId = options.StartInstance;
+                OrchestrationInstance instance;
+                string instanceId = ArgumentOptions.StartInstance;
 
                 if (!string.IsNullOrWhiteSpace(instanceId))
                 {
@@ -93,13 +93,13 @@ namespace DurableTask.Stress.Tests
                 }
                 else
                 {
-                    instance = new OrchestrationInstance { InstanceId = options.InstanceId };
+                    instance = new OrchestrationInstance { InstanceId = ArgumentOptions.InstanceId };
                 }
 
                 Console.WriteLine($"Orchestration starting: {DateTime.Now}");
                 Stopwatch stopWatch = Stopwatch.StartNew();
 
-                TestTask testTask = new TestTask();
+                var testTask = new TestTask();
                 taskHub.AddTaskActivities(testTask);
                 taskHub.AddTaskOrchestrations(typeof(DriverOrchestration));
                 taskHub.AddTaskOrchestrations(typeof(TestOrchestration));
@@ -110,7 +110,7 @@ namespace DurableTask.Stress.Tests
                 stopWatch.Stop();
                 Console.WriteLine($"Orchestration Status: {state.OrchestrationStatus}");
                 Console.WriteLine($"Orchestration Result: {state.Output}");
-                Console.WriteLine($"Counter: {testTask.counter}");
+                Console.WriteLine($"Counter: {testTask.Counter}");
 
                 TimeSpan totalTime = stopWatch.Elapsed;
                 string elapsedTime = $"{totalTime.Hours:00}:{totalTime.Minutes:00}:{totalTime.Seconds:00}.{totalTime.Milliseconds/10:00}";
@@ -119,23 +119,22 @@ namespace DurableTask.Stress.Tests
 
                 taskHub.StopAsync().Wait();
             }
-
         }
 
         public static OrchestrationState WaitForInstance(TaskHubClient taskHubClient, OrchestrationInstance instance, int timeoutSeconds)
         {
-            OrchestrationStatus status = OrchestrationStatus.Running;
+            var status = OrchestrationStatus.Running;
             if (string.IsNullOrWhiteSpace(instance?.InstanceId))
             {
                 throw new ArgumentException("instance");
             }
 
-            int sleepForSeconds = 30;
+            var sleepForSeconds = 30;
             while (timeoutSeconds > 0)
             {
                 try
                 {
-                    var state = taskHubClient.GetOrchestrationStateAsync(instance.InstanceId).Result;
+                    OrchestrationState state = taskHubClient.GetOrchestrationStateAsync(instance.InstanceId).Result;
                     if (state != null) status = state.OrchestrationStatus;
                     if (status == OrchestrationStatus.Running || status == OrchestrationStatus.Pending)
                     {

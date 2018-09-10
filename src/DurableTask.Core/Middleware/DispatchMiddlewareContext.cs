@@ -32,7 +32,7 @@ namespace DurableTask.Core.Middleware
         /// <param name="value">The value of the property.</param>
         public void SetProperty<T>(T value)
         {
-            this.SetProperty(typeof(T).FullName, value);
+            SetProperty(typeof(T).FullName, value);
         }
 
         /// <summary>
@@ -43,7 +43,7 @@ namespace DurableTask.Core.Middleware
         /// <param name="value">The value of the property.</param>
         public void SetProperty<T>(string key, T value)
         {
-            this.Properties[key] = value;
+            Properties[key] = value;
         }
 
         /// <summary>
@@ -53,7 +53,7 @@ namespace DurableTask.Core.Middleware
         /// <returns>The value of the property or <c>default(T)</c> if the property is not defined.</returns>
         public T GetProperty<T>()
         {
-            return this.GetProperty<T>(typeof(T).FullName);
+            return GetProperty<T>(typeof(T).FullName);
         }
 
         /// <summary>
@@ -64,7 +64,7 @@ namespace DurableTask.Core.Middleware
         /// <returns>The value of the property or <c>default(T)</c> if the property is not defined.</returns>
         public T GetProperty<T>(string key)
         {
-            return this.Properties.TryGetValue(key, out object value) ? (T)value : default(T);
+            return Properties.TryGetValue(key, out object value) ? (T)value : default(T);
         }
 
         /// <summary>

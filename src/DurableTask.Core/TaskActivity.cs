@@ -68,14 +68,7 @@ namespace DurableTask.Core
         /// <param name="dataConverter"></param>
         protected AsyncTaskActivity(DataConverter dataConverter)
         {
-            if (dataConverter != null)
-            {
-                DataConverter = dataConverter;
-            }
-            else
-            {
-                DataConverter = new JsonDataConverter();
-            }
+            DataConverter = dataConverter ?? new JsonDataConverter();
         }
 
         /// <summary>

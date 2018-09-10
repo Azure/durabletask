@@ -63,7 +63,7 @@ namespace DurableTask.ServiceBus.Common
                 messageSettings = new ServiceBusMessageSettings();
             }
 
-            bool disposeStream = true;
+            var disposeStream = true;
             var rawStream = new MemoryStream();
 
             Utils.WriteObjectToStream(rawStream, serializableObject);
@@ -81,7 +81,7 @@ namespace DurableTask.ServiceBus.Common
                     if (compressedStream.Length < messageSettings.MessageOverflowThresholdInBytes)
                     {
                         brokeredMessage = GenerateBrokeredMessageWithCompressionTypeProperty(compressedStream, FrameworkConstants.CompressionTypeGzipPropertyValue);
-                        var rawLen = rawStream.Length;
+                        long rawLen = rawStream.Length;
                         TraceHelper.TraceInstance(
                             TraceEventType.Information,
                             "GetBrokeredMessageFromObject-CompressionStats",
@@ -112,7 +112,7 @@ namespace DurableTask.ServiceBus.Common
                 brokeredMessage.SessionId = instance?.InstanceId;
                 // TODO : Test more if this helps, initial tests shows not change in performance
                 // brokeredMessage.ViaPartitionKey = instance?.InstanceId;
-                
+
                 return brokeredMessage;
             }
             finally
@@ -126,7 +126,7 @@ namespace DurableTask.ServiceBus.Common
 
         static BrokeredMessage GenerateBrokeredMessageWithCompressionTypeProperty(Stream stream, string compressionType)
         {
-            BrokeredMessage brokeredMessage = new BrokeredMessage(stream, true);
+            var brokeredMessage = new BrokeredMessage(stream, true);
             brokeredMessage.Properties[FrameworkConstants.CompressionTypePropertyName] = compressionType;
 
             return brokeredMessage;
@@ -166,7 +166,7 @@ namespace DurableTask.ServiceBus.Common
                 () => $"Saving the message stream in blob storage using key {blobKey}.");
             await orchestrationServiceBlobStore.SaveStreamAsync(blobKey, stream);
 
-            BrokeredMessage brokeredMessage = new BrokeredMessage();
+            var brokeredMessage = new BrokeredMessage();
             brokeredMessage.Properties[ServiceBusConstants.MessageBlobKey] = blobKey;
             brokeredMessage.Properties[FrameworkConstants.CompressionTypePropertyName] = compressionType;
 
@@ -197,7 +197,7 @@ namespace DurableTask.ServiceBus.Common
             else if (string.Equals(compressionType, FrameworkConstants.CompressionTypeGzipPropertyValue,
                 StringComparison.OrdinalIgnoreCase))
             {
-                using (var compressedStream = await LoadMessageStreamAsync(message, orchestrationServiceBlobStore))
+                using (Stream compressedStream = await LoadMessageStreamAsync(message, orchestrationServiceBlobStore))
                 {
                     if (!Utils.IsGzipStream(compressedStream))
                     {
@@ -215,7 +215,7 @@ namespace DurableTask.ServiceBus.Common
             else if (string.Equals(compressionType, FrameworkConstants.CompressionTypeNonePropertyValue,
                 StringComparison.OrdinalIgnoreCase))
             {
-                using (var rawStream = await LoadMessageStreamAsync(message, orchestrationServiceBlobStore))
+                using (Stream rawStream = await LoadMessageStreamAsync(message, orchestrationServiceBlobStore))
                 {
                     deserializedObject = SafeReadFromStream<T>(rawStream);
                 }
@@ -241,7 +241,7 @@ namespace DurableTask.ServiceBus.Common
             {
                 //If deserialization to TaskMessage fails attempt to deserialize to the now deprecated StateMessage type
 #pragma warning disable 618
-                var originalException = ExceptionDispatchInfo.Capture(jex);
+                ExceptionDispatchInfo originalException = ExceptionDispatchInfo.Capture(jex);
                 StateMessage stateMessage = null;
                 try
                 {
@@ -314,8 +314,8 @@ namespace DurableTask.ServiceBus.Common
                 if (!string.IsNullOrWhiteSpace(sessionId))
                 {
                     TraceHelper.TraceSession(
-                        TraceEventType.Critical, 
-                        "MaxDeliveryCountApproaching-Session", 
+                        TraceEventType.Critical,
+                        "MaxDeliveryCountApproaching-Session",
                         sessionId,
                         "Delivery count for message with id {0} is {1}. Message will be deadlettered if processing continues to fail.",
                         message.MessageId,
@@ -327,7 +327,7 @@ namespace DurableTask.ServiceBus.Common
                         TraceEventType.Critical,
                         "MaxDeliveryCountApproaching",
                         "Delivery count for message with id {0} is {1}. Message will be deadlettered if processing continues to fail.",
-                        message.MessageId, 
+                        message.MessageId,
                         message.DeliveryCount);
                 }
             }
@@ -356,10 +356,10 @@ namespace DurableTask.ServiceBus.Common
                 {
                     TransportType = TransportType.NetMessaging,
                     TokenProvider = TokenProvider.CreateSharedAccessSignatureTokenProvider(
-                        sbConnectionStringBuilder.SharedAccessKeyName, 
-                        sbConnectionStringBuilder.SharedAccessKey, 
+                        sbConnectionStringBuilder.SharedAccessKeyName,
+                        sbConnectionStringBuilder.SharedAccessKey,
                         TokenTimeToLive),
-                    NetMessagingTransportSettings = new NetMessagingTransportSettings()
+                    NetMessagingTransportSettings = new NetMessagingTransportSettings
                     {
                         BatchFlushInterval = TimeSpan.FromMilliseconds(messageSenderSettings.BatchFlushIntervalInMilliSecs)
                     }
@@ -382,8 +382,8 @@ namespace DurableTask.ServiceBus.Common
                 {
                     TransportType = TransportType.NetMessaging,
                     TokenProvider = TokenProvider.CreateSharedAccessSignatureTokenProvider(
-                        sbConnectionStringBuilder.SharedAccessKeyName, 
-                        sbConnectionStringBuilder.SharedAccessKey, 
+                        sbConnectionStringBuilder.SharedAccessKeyName,
+                        sbConnectionStringBuilder.SharedAccessKey,
                         TokenTimeToLive)
                 });
 

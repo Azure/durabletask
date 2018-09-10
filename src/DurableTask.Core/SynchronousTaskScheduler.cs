@@ -17,7 +17,7 @@ namespace DurableTask.Core
     using System.Linq;
     using System.Threading.Tasks;
 
-    class SynchronousTaskScheduler : TaskScheduler
+    internal class SynchronousTaskScheduler : TaskScheduler
     {
         public override int MaximumConcurrencyLevel => 1;
 

@@ -77,7 +77,7 @@ namespace DurableTask.Core.Tests
                 return next();
             });
 
-            var instance = await this.client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), null);
+            OrchestrationInstance instance = await this.client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), null);
 
             TimeSpan timeout = TimeSpan.FromSeconds(Debugger.IsAttached ? 1000 : 10);
             await this.client.WaitForOrchestrationAsync(instance, timeout);
@@ -99,7 +99,7 @@ namespace DurableTask.Core.Tests
         {
             StringBuilder output = null;
 
-            for (int i = 0; i < 10; i++)
+            for (var i = 0; i < 10; i++)
             {
                 string value = i.ToString();
                 this.worker.AddOrchestrationDispatcherMiddleware(async (context, next) =>
@@ -111,13 +111,16 @@ namespace DurableTask.Core.Tests
                         context.SetProperty("output", output);
                     }
 
+                    // This is an async method and the output is out of the scope, output is used in closure
+                    Debug.Assert(output != null);
+
                     output.Append(value);
                     await next();
                     output.Append(value);
                 });
             }
-            
-            var instance = await this.client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), null);
+
+            OrchestrationInstance instance = await this.client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), null);
 
             TimeSpan timeout = TimeSpan.FromSeconds(Debugger.IsAttached ? 1000 : 10);
             await this.client.WaitForOrchestrationAsync(instance, timeout);
@@ -133,7 +136,7 @@ namespace DurableTask.Core.Tests
         {
             StringBuilder output = null;
 
-            for (int i = 0; i < 10; i++)
+            for (var i = 0; i < 10; i++)
             {
                 string value = i.ToString();
                 this.worker.AddActivityDispatcherMiddleware(async (context, next) =>
@@ -145,18 +148,21 @@ namespace DurableTask.Core.Tests
                         context.SetProperty("output", output);
                     }
 
+                    // This is an async method and the output is out of the scope, output is used in closure
+                    Debug.Assert(output != null);
+
                     output.Append(value);
                     await next();
                     output.Append(value);
                 });
             }
 
-            var instance = await this.client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), null);
+            OrchestrationInstance instance = await this.client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), null);
 
             TimeSpan timeout = TimeSpan.FromSeconds(Debugger.IsAttached ? 1000 : 10);
             await this.client.WaitForOrchestrationAsync(instance, timeout);
 
-            // Each actiivty gets a new context, so the output should stay the same regardless of how
+            // Each activity gets a new context, so the output should stay the same regardless of how
             // many activities an orchestration schedules (as long as there is at least one).
             Assert.IsNotNull(output);
             Assert.AreEqual("01234567899876543210", output.ToString());

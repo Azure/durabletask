@@ -51,7 +51,7 @@ namespace DurableTask.Core.Tests
         public async Task ExecuteWithRetryIsNoOpBecauseNoAttemptsWereMade()
         {
             const int NumberOfAttempts = 0;
-            int retries = 0;
+            var retries = 0;
 
             // Call the method overload which signature does not return any value
             await Utils.ExecuteWithRetries(() =>
@@ -63,7 +63,7 @@ namespace DurableTask.Core.Tests
             Assert.AreEqual(NumberOfAttempts, retries, "Action was executed when should have been ignored");
 
             // Call the method overload which signature does return a value
-            bool hasSucceed = await Utils.ExecuteWithRetries(() => 
+            bool hasSucceed = await Utils.ExecuteWithRetries(() =>
                 Task.FromResult(true), string.Empty, string.Empty, NumberOfAttempts, 0);
 
             Assert.AreEqual(NumberOfAttempts, retries, "Action was executed when should have been ignored");
@@ -78,8 +78,8 @@ namespace DurableTask.Core.Tests
         public async Task ExecuteWithRetryThrowsByRetryCountLimit()
         {
             const int NumberOfAttempts = 3;
-            int retries = 0;
-            bool hasFailed = false;
+            var retries = 0;
+            var hasFailed = false;
 
             try
             {
@@ -129,10 +129,10 @@ namespace DurableTask.Core.Tests
         {
             const int NumberOfAttempts = 5;
 
-            for (int attemptsBeforeFailure = 1; attemptsBeforeFailure < 5; attemptsBeforeFailure++)
+            for (var attemptsBeforeFailure = 1; attemptsBeforeFailure < 5; attemptsBeforeFailure++)
             {
-                int retries = 0;
-                bool hasSucceed = false;
+                var retries = 0;
+                var hasSucceed = false;
 
                 // Call the method overload which signature does not return any value
                 await Utils.ExecuteWithRetries(() =>
@@ -153,9 +153,9 @@ namespace DurableTask.Core.Tests
                 Assert.IsTrue(hasSucceed, "Retry logic throws an exception when should succeed");
             }
 
-            for (int attemptsBeforeFailure = 1; attemptsBeforeFailure < 5; attemptsBeforeFailure++)
+            for (var attemptsBeforeFailure = 1; attemptsBeforeFailure < 5; attemptsBeforeFailure++)
             {
-                int retries = 0;
+                var retries = 0;
 
                 // Call the method overload which signature does return any value
                 bool hasSucceed = await Utils.ExecuteWithRetries(() =>

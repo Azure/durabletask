@@ -18,10 +18,6 @@ namespace DurableTask.Samples.ErrorHandling
 
     public sealed class GoodTask : TaskActivity<string, string>
     {
-        public GoodTask()
-        {
-        }
-
         protected override string Execute(DurableTask.Core.TaskContext context, string input)
         {
             Console.WriteLine("GoodTask Executed...");
@@ -32,10 +28,6 @@ namespace DurableTask.Samples.ErrorHandling
 
     public sealed class BadTask : TaskActivity<string, string>
     {
-        public BadTask()
-        {
-        }
-
         protected override string Execute(DurableTask.Core.TaskContext context, string input)
         {
             Console.WriteLine("BadTask Executed...");
@@ -46,10 +38,6 @@ namespace DurableTask.Samples.ErrorHandling
 
     public sealed class CleanupTask : TaskActivity<string, string>
     {
-        public CleanupTask()
-        {
-        }
-
         protected override string Execute(DurableTask.Core.TaskContext context, string input)
         {
             Console.WriteLine("CleanupTask Executed...");

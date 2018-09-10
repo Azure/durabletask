@@ -1,4 +1,4 @@
-﻿namespace DurableTaskSamples.Greetings
+﻿namespace DurableTask.Samples.Greetings
 {
     partial class GetUserName
     {

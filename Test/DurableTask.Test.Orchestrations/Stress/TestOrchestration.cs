@@ -23,10 +23,9 @@ namespace DurableTask.Test.Orchestrations.Stress
     {
         public override async Task<int> RunTask(OrchestrationContext context, TestOrchestrationData data)
         {
-            int result = 0;
-            List<Task<int>> results = new List<Task<int>>();
-            int i = 0;
-            int j = 0;
+            var results = new List<Task<int>>();
+            var i = 0;
+            var j = 0;
             for (; i < data.NumberOfParallelTasks; i++)
             {
                 results.Add(context.ScheduleTask<int>(typeof(TestTask), new TestTaskData
@@ -37,7 +36,7 @@ namespace DurableTask.Test.Orchestrations.Stress
             }
 
             int[] counters = await Task.WhenAll(results.ToArray());
-            result = counters.Max();
+            int result = counters.Max();
 
             for (; j < data.NumberOfSerialTasks; j++)
             {

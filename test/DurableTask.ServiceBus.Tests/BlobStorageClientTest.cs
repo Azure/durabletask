@@ -15,6 +15,7 @@ namespace DurableTask.ServiceBus.Tests
 {
     using System;
     using System.Collections.Generic;
+    using System.Diagnostics;
     using System.IO;
     using System.Linq;
     using System.Text;
@@ -33,7 +34,7 @@ namespace DurableTask.ServiceBus.Tests
         {
             var r = new Random();
             string storageConnectionString = TestHelpers.GetTestSetting("StorageConnectionString");
-            blobStorageClient = new BlobStorageClient(
+            this.blobStorageClient = new BlobStorageClient(
                 "Test00" + r.Next(0, 10000), storageConnectionString
                 );
         }
@@ -41,21 +42,24 @@ namespace DurableTask.ServiceBus.Tests
         [TestCleanup]
         public void TestCleanup()
         {
-            List<CloudBlobContainer> containers = blobStorageClient.ListContainers().ToList();
+            List<CloudBlobContainer> containers = this.blobStorageClient.ListContainers().ToList();
             containers.ForEach(container => container.DeleteIfExists());
-            containers = blobStorageClient.ListContainers().ToList();
+            containers = this.blobStorageClient.ListContainers().ToList();
             Assert.AreEqual(0, containers.Count);
         }
 
         [TestMethod]
         public async Task TestStreamBlobCreationAndDeletion()
         {
-            string testContent = "test stream content";
-            string key = "message-20101003|testBlobName";
+            var testContent = "test stream content";
+            var key = "message-20101003|testBlobName";
             Stream stream = new MemoryStream(Encoding.UTF8.GetBytes(testContent));
-            await blobStorageClient.UploadStreamBlobAsync(key, stream);
+            await this.blobStorageClient.UploadStreamBlobAsync(key, stream);
 
-            MemoryStream result = await blobStorageClient.DownloadStreamAsync(key) as MemoryStream;
+            var result = await this.blobStorageClient.DownloadStreamAsync(key) as MemoryStream;
+
+            Debug.Assert(result != null);
+
             string resultString = Encoding.UTF8.GetString(result.ToArray());
             Assert.AreEqual(resultString, testContent);
         }
@@ -63,29 +67,29 @@ namespace DurableTask.ServiceBus.Tests
         [TestMethod]
         public async Task TestDeleteContainers()
         {
-            string testContent = "test stream content";
-            string key1 = "message-20150516|a";
-            string key2 = "message-20150517|b";
-            string key3 = "message-20150518|c";
+            var testContent = "test stream content";
+            var key1 = "message-20150516|a";
+            var key2 = "message-20150517|b";
+            var key3 = "message-20150518|c";
 
             Stream stream = new MemoryStream(Encoding.UTF8.GetBytes(testContent));
-            await blobStorageClient.UploadStreamBlobAsync(key1, stream);
-            await blobStorageClient.UploadStreamBlobAsync(key2, stream);
-            await blobStorageClient.UploadStreamBlobAsync(key3, stream);
+            await this.blobStorageClient.UploadStreamBlobAsync(key1, stream);
+            await this.blobStorageClient.UploadStreamBlobAsync(key2, stream);
+            await this.blobStorageClient.UploadStreamBlobAsync(key3, stream);
 
-            DateTime dateTime = new DateTime(2015, 05, 17);
-            await blobStorageClient.DeleteExpiredContainersAsync(dateTime);
+            var dateTime = new DateTime(2015, 05, 17);
+            await this.blobStorageClient.DeleteExpiredContainersAsync(dateTime);
 
-            List<CloudBlobContainer> containers = blobStorageClient.ListContainers().ToList();
+            List<CloudBlobContainer> containers = this.blobStorageClient.ListContainers().ToList();
             Assert.AreEqual(2, containers.Count);
-            List<string> sortedList = new List<string> {containers[0].Name, containers[1].Name};
+            var sortedList = new List<string> {containers[0].Name, containers[1].Name};
             sortedList.Sort();
 
             Assert.IsTrue(sortedList[0].EndsWith("20150517"));
             Assert.IsTrue(sortedList[1].EndsWith("20150518"));
 
-            await blobStorageClient.DeleteBlobStoreContainersAsync();
-            containers = blobStorageClient.ListContainers().ToList();
+            await this.blobStorageClient.DeleteBlobStoreContainersAsync();
+            containers = this.blobStorageClient.ListContainers().ToList();
             Assert.AreEqual(0, containers.Count);
         }
     }

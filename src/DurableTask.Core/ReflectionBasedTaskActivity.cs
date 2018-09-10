@@ -34,7 +34,7 @@ namespace DurableTask.Core
         public ReflectionBasedTaskActivity(object activityObject, MethodInfo methodInfo)
         {
             DataConverter = new JsonDataConverter();
-            this.activityObject = activityObject;
+            ActivityObject = activityObject;
             MethodInfo = methodInfo;
         }
 
@@ -46,7 +46,7 @@ namespace DurableTask.Core
         /// <summary>
         /// The activity object to invoke methods on
         /// </summary>
-        public object activityObject { get; private set; }
+        public object ActivityObject { get; private set; }
 
         /// <summary>
         /// The Reflection.methodInfo for invoking the method on the activity object
@@ -78,10 +78,11 @@ namespace DurableTask.Core
             {
                 throw new TaskFailureException(
                     "TaskActivity implementation cannot be invoked due to more than expected input parameters.  Signature mismatch.")
-                    .WithFailureSource(this.MethodInfoString());
+                    .WithFailureSource(MethodInfoString());
             }
+
             var inputParameters = new object[methodParameters.Length];
-            for (int i = 0; i < methodParameters.Length; i++)
+            for (var i = 0; i < methodParameters.Length; i++)
             {
                 Type parameterType = methodParameters[i].ParameterType;
                 if (i < parameterCount)
@@ -114,12 +115,11 @@ namespace DurableTask.Core
             try
             {
                 object invocationResult = InvokeActivity(inputParameters);
-                if (invocationResult is Task)
+                if (invocationResult is Task invocationTask)
                 {
-                    var invocationTask = invocationResult as Task;
                     if (MethodInfo.ReturnType.IsGenericType)
                     {
-                        serializedReturn = DataConverter.Serialize(await ((dynamic) invocationTask));
+                        serializedReturn = DataConverter.Serialize(await ((dynamic)invocationTask));
                     }
                     else
                     {
@@ -137,13 +137,13 @@ namespace DurableTask.Core
                 Exception realException = e.InnerException ?? e;
                 string details = Utils.SerializeCause(realException, DataConverter);
                 throw new TaskFailureException(realException.Message, details)
-                    .WithFailureSource(this.MethodInfoString());
+                    .WithFailureSource(MethodInfoString());
             }
             catch (Exception e) when (!Utils.IsFatal(e))
             {
                 string details = Utils.SerializeCause(e, DataConverter);
                 throw new TaskFailureException(e.Message, e, details)
-                    .WithFailureSource(this.MethodInfoString());
+                    .WithFailureSource(MethodInfoString());
             }
 
             return serializedReturn;
@@ -156,12 +156,12 @@ namespace DurableTask.Core
         /// <returns></returns>
         public virtual object InvokeActivity(object[] inputParameters)
         {
-            return MethodInfo.Invoke(activityObject, inputParameters);
+            return MethodInfo.Invoke(ActivityObject, inputParameters);
         }
 
         string MethodInfoString()
         {
-            return $"{this.MethodInfo.ReflectedType?.FullName}.{this.MethodInfo.Name}";
+            return $"{MethodInfo.ReflectedType?.FullName}.{MethodInfo.Name}";
         }
     }
 }

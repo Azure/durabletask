@@ -14,6 +14,7 @@
 namespace DurableTask.ServiceBus.Tests
 {
     using System;
+    using System.Diagnostics.CodeAnalysis;
     using System.IO;
     using System.Threading.Tasks;
     using DurableTask.Core;
@@ -30,17 +31,17 @@ namespace DurableTask.ServiceBus.Tests
         [TestInitialize]
         public void TestInitialize()
         {
-            client = TestHelpers.CreateTaskHubClient();
+            this.client = TestHelpers.CreateTaskHubClient();
 
-            taskHub = TestHelpers.CreateTaskHub();
-            taskHub.orchestrationService.CreateAsync(true).Wait();
+            this.taskHub = TestHelpers.CreateTaskHub();
+            this.taskHub.orchestrationService.CreateAsync(true).Wait();
         }
 
         [TestCleanup]
         public void TestCleanup()
         {
-            taskHub.StopAsync(true).Wait();
-            taskHub.orchestrationService.DeleteAsync(true).Wait();
+            this.taskHub.StopAsync(true).Wait();
+            this.taskHub.orchestrationService.DeleteAsync(true).Wait();
         }
 
         #region Interface based activity serialization tests
@@ -74,7 +75,7 @@ namespace DurableTask.ServiceBus.Tests
         {
             var dataConverter = new JsonDataConverter();
 
-            string serialized= File.ReadAllText(@"TestData\v1.0\SerializedTaskMessage.json");
+            string serialized = File.ReadAllText(@"TestData\v1.0\SerializedTaskMessage.json");
             var message = dataConverter.Deserialize<TaskMessage>(serialized);
             Assert.IsNotNull(message);
 
@@ -98,7 +99,7 @@ namespace DurableTask.ServiceBus.Tests
         [TestMethod]
         public async Task PrimitiveTypeActivitiesSerializationTest()
         {
-            await taskHub.AddTaskOrchestrations(typeof (PrimitiveTypeActivitiesOrchestration))
+            await this.taskHub.AddTaskOrchestrations(typeof(PrimitiveTypeActivitiesOrchestration))
                 .AddTaskActivitiesFromInterface<IPrimitiveTypeActivities>(new PrimitiveTypeActivities())
                 .StartAsync();
 
@@ -122,11 +123,11 @@ namespace DurableTask.ServiceBus.Tests
                 TimeSpan = TimeSpan.FromDays(2),
                 Enum = TestEnum.Val2,
             };
-            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(
-                typeof (PrimitiveTypeActivitiesOrchestration), input);
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(
+                typeof(PrimitiveTypeActivitiesOrchestration), input);
 
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 120);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 120));
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 120);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 120));
 
             Assert.AreEqual(input.Byte, PrimitiveTypeActivitiesOrchestration.Byte);
             Assert.AreEqual(input.SByte, PrimitiveTypeActivitiesOrchestration.SByte);
@@ -146,8 +147,7 @@ namespace DurableTask.ServiceBus.Tests
             Assert.AreEqual(input.TimeSpan, PrimitiveTypeActivitiesOrchestration.TimeSpan);
             Assert.AreEqual(input.Enum, PrimitiveTypeActivitiesOrchestration.MyEnum);
 
-
-            for (int i = 0; i < 2; i++)
+            for (var i = 0; i < 2; i++)
             {
                 Assert.AreEqual(input.Byte, PrimitiveTypeActivitiesOrchestration.ByteArray[i]);
                 Assert.AreEqual(input.SByte, PrimitiveTypeActivitiesOrchestration.SByteArray[i]);
@@ -214,25 +214,43 @@ namespace DurableTask.ServiceBus.Tests
                 double d, char c, bool bl, string str, decimal dm);
 
             DateTime ReturnDateTime(DateTime dateTime);
+
             TimeSpan ReturnTimeSpan(TimeSpan timeSpan);
+
             TestEnum ReturnEnum(TestEnum e);
 
             byte[] ReturnByteArray(byte[] b);
+
             sbyte[] ReturnSByteArray(sbyte[] sb);
+
             int[] ReturnIntegerArray(int[] i);
+
             uint[] ReturnUIntegerArray(uint[] ui);
+
             short[] ReturnShortArray(short[] s);
+
             ushort[] ReturnUShortArray(ushort[] us);
+
             long[] ReturnLongArray(long[] l);
+
             ulong[] ReturnULongArray(ulong[] ul);
+
             float[] ReturnFloatArray(float[] f);
+
             double[] ReturnDoubleArray(double[] d);
+
             char[] ReturnCharArray(char[] c);
+
             bool[] ReturnBoolArray(bool[] bl);
+
             string[] ReturnStrArray(string[] str);
+
             decimal[] ReturnDecimalArray(decimal[] dm);
+
             DateTime[] ReturnDateTimeArray(DateTime[] dates);
+
             TimeSpan[] ReturnTimeSpanArray(TimeSpan[] spans);
+
             TestEnum[] ReturnEnumArray(TestEnum[] e);
         }
 
@@ -281,24 +299,43 @@ namespace DurableTask.ServiceBus.Tests
                 double d, char c, bool bl, string str, decimal dm);
 
             Task<DateTime> ReturnDateTime(DateTime dateTime);
+
             Task<TimeSpan> ReturnTimeSpan(TimeSpan timeSpan);
+
             Task<TestEnum> ReturnEnum(TestEnum e);
+
             Task<byte[]> ReturnByteArray(byte[] b);
+
             Task<sbyte[]> ReturnSByteArray(sbyte[] sb);
+
             Task<int[]> ReturnIntegerArray(int[] i);
+
             Task<uint[]> ReturnUIntegerArray(uint[] ui);
+
             Task<short[]> ReturnShortArray(short[] s);
+
             Task<ushort[]> ReturnUShortArray(ushort[] us);
+
             Task<long[]> ReturnLongArray(long[] l);
+
             Task<ulong[]> ReturnULongArray(ulong[] ul);
+
             Task<float[]> ReturnFloatArray(float[] f);
+
             Task<double[]> ReturnDoubleArray(double[] d);
+
             Task<char[]> ReturnCharArray(char[] c);
+
             Task<bool[]> ReturnBoolArray(bool[] bl);
+
             Task<string[]> ReturnStrArray(string[] str);
+
             Task<decimal[]> ReturnDecimalArray(decimal[] dm);
+
             Task<DateTime[]> ReturnDateTimeArray(DateTime[] dates);
+
             Task<TimeSpan[]> ReturnTimeSpanArray(TimeSpan[] spans);
+
             Task<TestEnum[]> ReturnEnumArray(TestEnum[] e);
         }
 
@@ -388,7 +425,6 @@ namespace DurableTask.ServiceBus.Tests
                 return dm;
             }
 
-
             public DateTime ReturnDateTime(DateTime dateTime)
             {
                 return dateTime;
@@ -399,12 +435,10 @@ namespace DurableTask.ServiceBus.Tests
                 return timeSpan;
             }
 
-
             public byte[] ReturnByteArray(byte[] b)
             {
                 return b;
             }
-
 
             public sbyte[] ReturnSByteArray(sbyte[] sb)
             {
@@ -492,43 +526,76 @@ namespace DurableTask.ServiceBus.Tests
             }
         }
 
+        [SuppressMessage("ReSharper", "MemberCanBePrivate.Local")]
         sealed class PrimitiveTypeActivitiesOrchestration : TaskOrchestration<string, PrimitiveTypeOrchestrationInput>
         {
             // HACK: This is just a hack to communicate result of orchestration back to test
             public static byte Byte { get; set; }
+
             public static sbyte SByte { get; set; }
+
             public static int Integer { get; set; }
+
             public static uint UInteger { get; set; }
+
             public static short Short { get; set; }
+
             public static ushort UShort { get; set; }
+
             public static long Long { get; set; }
+
             public static ulong ULong { get; set; }
+
             public static float Float { get; set; }
+
             public static double Double { get; set; }
+
             public static char Char { get; set; }
+
             public static bool Bool { get; set; }
+
             public static string Str { get; set; }
+
             public static decimal Decimal { get; set; }
+
             public static DateTime DateTime { get; set; }
+
             public static TimeSpan TimeSpan { get; set; }
+
             public static TestEnum MyEnum { get; set; }
 
             public static byte[] ByteArray { get; set; }
+
             public static sbyte[] SByteArray { get; set; }
+
             public static int[] IntegerArray { get; set; }
+
             public static uint[] UIntegerArray { get; set; }
+
             public static short[] ShortArray { get; set; }
+
             public static ushort[] UShortArray { get; set; }
+
             public static long[] LongArray { get; set; }
+
             public static ulong[] ULongArray { get; set; }
+
             public static float[] FloatArray { get; set; }
+
             public static double[] DoubleArray { get; set; }
+
             public static char[] CharArray { get; set; }
+
             public static bool[] BoolArray { get; set; }
+
             public static string[] StrArray { get; set; }
+
             public static decimal[] DecimalArray { get; set; }
+
             public static DateTime[] DateTimeArray { get; set; }
+
             public static TimeSpan[] TimeSpanArray { get; set; }
+
             public static TestEnum[] MyEnumArray { get; set; }
 
             public override async Task<string> RunTask(OrchestrationContext context,
@@ -608,23 +675,23 @@ namespace DurableTask.ServiceBus.Tests
                 DateTime = await activitiesClient.ReturnDateTime(input.DateTime);
                 TimeSpan = await activitiesClient.ReturnTimeSpan(input.TimeSpan);
                 MyEnum = await activitiesClient.ReturnEnum(input.Enum);
-                ByteArray = await activitiesClient.ReturnByteArray(new[] {input.Byte, input.Byte});
-                SByteArray = await activitiesClient.ReturnSByteArray(new[] {input.SByte, input.SByte});
-                IntegerArray = await activitiesClient.ReturnIntegerArray(new[] {input.Integer, input.Integer});
-                UIntegerArray = await activitiesClient.ReturnUIntegerArray(new[] {input.UInteger, input.UInteger});
-                ShortArray = await activitiesClient.ReturnShortArray(new[] {input.Short, input.Short});
-                UShortArray = await activitiesClient.ReturnUShortArray(new[] {input.UShort, input.UShort});
-                LongArray = await activitiesClient.ReturnLongArray(new[] {input.Long, input.Long});
-                ULongArray = await activitiesClient.ReturnULongArray(new[] {input.ULong, input.ULong});
-                FloatArray = await activitiesClient.ReturnFloatArray(new[] {input.Float, input.Float});
-                DoubleArray = await activitiesClient.ReturnDoubleArray(new[] {input.Double, input.Double});
-                CharArray = await activitiesClient.ReturnCharArray(new[] {input.Char, input.Char});
-                BoolArray = await activitiesClient.ReturnBoolArray(new[] {input.Bool, input.Bool});
-                StrArray = await activitiesClient.ReturnStrArray(new[] {input.Str, input.Str});
-                DecimalArray = await activitiesClient.ReturnDecimalArray(new[] {input.Decimal, input.Decimal});
-                DateTimeArray = await activitiesClient.ReturnDateTimeArray(new[] {input.DateTime, input.DateTime});
-                TimeSpanArray = await activitiesClient.ReturnTimeSpanArray(new[] {input.TimeSpan, input.TimeSpan});
-                MyEnumArray = await activitiesClient.ReturnEnumArray(new[] {input.Enum, input.Enum});
+                ByteArray = await activitiesClient.ReturnByteArray(new[] { input.Byte, input.Byte });
+                SByteArray = await activitiesClient.ReturnSByteArray(new[] { input.SByte, input.SByte });
+                IntegerArray = await activitiesClient.ReturnIntegerArray(new[] { input.Integer, input.Integer });
+                UIntegerArray = await activitiesClient.ReturnUIntegerArray(new[] { input.UInteger, input.UInteger });
+                ShortArray = await activitiesClient.ReturnShortArray(new[] { input.Short, input.Short });
+                UShortArray = await activitiesClient.ReturnUShortArray(new[] { input.UShort, input.UShort });
+                LongArray = await activitiesClient.ReturnLongArray(new[] { input.Long, input.Long });
+                ULongArray = await activitiesClient.ReturnULongArray(new[] { input.ULong, input.ULong });
+                FloatArray = await activitiesClient.ReturnFloatArray(new[] { input.Float, input.Float });
+                DoubleArray = await activitiesClient.ReturnDoubleArray(new[] { input.Double, input.Double });
+                CharArray = await activitiesClient.ReturnCharArray(new[] { input.Char, input.Char });
+                BoolArray = await activitiesClient.ReturnBoolArray(new[] { input.Bool, input.Bool });
+                StrArray = await activitiesClient.ReturnStrArray(new[] { input.Str, input.Str });
+                DecimalArray = await activitiesClient.ReturnDecimalArray(new[] { input.Decimal, input.Decimal });
+                DateTimeArray = await activitiesClient.ReturnDateTimeArray(new[] { input.DateTime, input.DateTime });
+                TimeSpanArray = await activitiesClient.ReturnTimeSpanArray(new[] { input.TimeSpan, input.TimeSpan });
+                MyEnumArray = await activitiesClient.ReturnEnumArray(new[] { input.Enum, input.Enum });
 
                 return "Done";
             }
@@ -633,21 +700,37 @@ namespace DurableTask.ServiceBus.Tests
         public class PrimitiveTypeOrchestrationInput
         {
             public byte Byte { get; set; }
+
             public sbyte SByte { get; set; }
+
             public int Integer { get; set; }
+
             public uint UInteger { get; set; }
+
             public short Short { get; set; }
+
             public ushort UShort { get; set; }
+
             public long Long { get; set; }
+
             public ulong ULong { get; set; }
+
             public float Float { get; set; }
+
             public double Double { get; set; }
+
             public char Char { get; set; }
+
             public bool Bool { get; set; }
+
             public string Str { get; set; }
+
             public decimal Decimal { get; set; }
+
             public DateTime DateTime { get; set; }
+
             public TimeSpan TimeSpan { get; set; }
+
             public TestEnum Enum { get; set; }
         }
 
@@ -658,16 +741,15 @@ namespace DurableTask.ServiceBus.Tests
         [TestMethod]
         public async Task MoreParamsOrchestrationTest()
         {
-            await taskHub.AddTaskOrchestrations(typeof (MoreParamsOrchestration))
+            await this.taskHub.AddTaskOrchestrations(typeof(MoreParamsOrchestration))
                 .AddTaskActivitiesFromInterface<IMoreParamsActivities>(new MoreParamsActivities())
                 .StartAsync();
 
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(MoreParamsOrchestration),
+                new MoreParamsOrchestrationInput { Str = "Hello" });
 
-            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (MoreParamsOrchestration),
-                new MoreParamsOrchestrationInput {Str = "Hello"});
-
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
 
             Assert.AreEqual("Hello00Hello1015", MoreParamsOrchestration.Result);
         }
@@ -675,12 +757,14 @@ namespace DurableTask.ServiceBus.Tests
         public interface IMoreParamsActivities
         {
             string Activity1(string str, int i, double d);
+
             string Activity2(string str, int i = 10, double d = 15);
         }
 
         public interface IMoreParamsActivitiesClient
         {
             Task<string> Activity1(string str);
+
             Task<string> Activity2(string str);
         }
 
@@ -716,7 +800,9 @@ namespace DurableTask.ServiceBus.Tests
         public class MoreParamsOrchestrationInput
         {
             public int Integer { get; set; }
+
             public double Double { get; set; }
+
             public string Str { get; set; }
         }
 

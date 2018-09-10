@@ -14,21 +14,26 @@
 namespace DurableTask.Samples
 {
     using System;
+    using System.Collections.Generic;
     using System.Linq;
     using System.Diagnostics;
 
-    class OrchestrationConsoleTraceListener : ConsoleTraceListener
+    internal class OrchestrationConsoleTraceListener : ConsoleTraceListener
     {
         public override void TraceEvent(TraceEventCache eventCache, string source, TraceEventType eventType, int id, string message)
         {
+            if (message == null)
+            {
+                throw new ArgumentNullException(nameof(message));
+            }
+
             try
             {
-                var dict = message.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
+                Dictionary<string, string> dict = message.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
                    .Select(part => part.Split('='))
                    .ToDictionary(split => split[0], split => split[1]);
-                string iid;
-                string msg;
-                if (dict.TryGetValue("iid", out iid) && dict.TryGetValue("msg", out msg))
+
+                if (dict.TryGetValue("iid", out string iid) && dict.TryGetValue("msg", out string msg))
                 {
                     string toWrite = $"[{DateTime.Now} {iid}] {msg}";
                     Console.WriteLine(toWrite);

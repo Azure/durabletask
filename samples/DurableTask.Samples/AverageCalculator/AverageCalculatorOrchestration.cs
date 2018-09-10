@@ -33,31 +33,30 @@ namespace DurableTask.Samples.AverageCalculator
             int total = end - start + 1;
 
             var chunks = new List<Task<int>>();
-            int current;
             while (start < end)
             {
-                current = start + step - 1;
+                int current = start + step - 1;
                 if (current > end)
                 {
                     current = end;
                 }
 
-                var chunk = context.ScheduleTask<int>(typeof(ComputeSumTask), new int[] {start, current});
+                Task<int> chunk = context.ScheduleTask<int>(typeof(ComputeSumTask), new int[] { start, current });
                 chunks.Add(chunk);
 
                 start = current + 1;
             }
 
-            int sum = 0;
+            var sum = 0;
             int[] allChunks = await Task.WhenAll(chunks.ToArray());
             foreach (int result in allChunks)
             {
                 sum += result;
             }
 
-            Console.WriteLine($"Completed Average: for sum: {sum}, total: {total} = {sum/total}");
+            Console.WriteLine($"Completed Average: for sum: {sum}, total: {total} = {sum / total}");
 
-            return sum/total;
+            return sum / (double)total;
         }
     }
 }

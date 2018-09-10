@@ -30,14 +30,16 @@ namespace DurableTask.Core.Serializing
         /// Creates a new instance of the JsonDataConverter with default settings
         /// </summary>
         public JsonDataConverter()
-            : this(new JsonSerializerSettings {TypeNameHandling = TypeNameHandling.Objects,
+            : this(new JsonSerializerSettings
+            {
+                TypeNameHandling = TypeNameHandling.Objects,
 #if NETSTANDARD2_0
                 SerializationBinder = new PackageUpgradeSerializationBinder()
 #else
                 Binder = new PackageUpgradeSerializationBinder()
 #endif
             })
-                {}
+        { }
 
         /// <summary>
         /// Creates a new instance of the JsonDataConverter with supplied settings
@@ -45,7 +47,7 @@ namespace DurableTask.Core.Serializing
         /// <param name="settings">Settings for the json serializer</param>
         public JsonDataConverter(JsonSerializerSettings settings)
         {
-            serializer = JsonSerializer.Create(settings);
+            this.serializer = JsonSerializer.Create(settings);
         }
 
         /// <summary>
@@ -71,7 +73,7 @@ namespace DurableTask.Core.Serializing
             using (var writer = new JsonTextWriter(textWriter))
             {
                 writer.Formatting = (formatted ? Formatting.Indented : Formatting.None);
-                serializer.Serialize(writer, value);
+                this.serializer.Serialize(writer, value);
             }
 
             return textWriter.ToString();
@@ -92,7 +94,7 @@ namespace DurableTask.Core.Serializing
 
             var reader = new StringReader(data);
 
-            return serializer.Deserialize(new JsonTextReader(reader), objectType);
+            return this.serializer.Deserialize(new JsonTextReader(reader), objectType);
         }
     }
 }

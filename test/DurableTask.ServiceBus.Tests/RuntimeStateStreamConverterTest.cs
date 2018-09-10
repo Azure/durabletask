@@ -13,7 +13,6 @@
 
 namespace DurableTask.ServiceBus.Tests
 {
-    using System;
     using System.Collections.Generic;
     using System.IO;
     using System.Threading.Tasks;
@@ -30,10 +29,10 @@ namespace DurableTask.ServiceBus.Tests
     [TestClass]
     public class RuntimeStateStreamConverterTest
     {
-        const int sessionOverflowThresholdInBytes = 2 * 1024;
-        const int sessionMaxSizeInBytes = 10 * 1024;
-        const string sessionId = "session123";
-        ServiceBusSessionSettings serviceBusSessionSettings = new ServiceBusSessionSettings(sessionOverflowThresholdInBytes, sessionMaxSizeInBytes);
+        const int SessionOverflowThresholdInBytes = 2 * 1024;
+        const int SessionMaxSizeInBytes = 10 * 1024;
+        const string SessionId = "session123";
+        readonly ServiceBusSessionSettings serviceBusSessionSettings = new ServiceBusSessionSettings(SessionOverflowThresholdInBytes, SessionMaxSizeInBytes);
 
         AzureTableInstanceStore azureTableInstanceStore;
         AzureStorageBlobStore azureStorageBlobStore;
@@ -41,24 +40,25 @@ namespace DurableTask.ServiceBus.Tests
         [TestInitialize]
         public void TestInitialize()
         {
-            azureTableInstanceStore = TestHelpers.CreateAzureTableInstanceStore();
-            azureStorageBlobStore = TestHelpers.CreateAzureStorageBlobStore();
+            this.azureTableInstanceStore = TestHelpers.CreateAzureTableInstanceStore();
+            this.azureStorageBlobStore = TestHelpers.CreateAzureStorageBlobStore();
         }
 
         [TestCleanup]
         public void TestCleanup()
         {
-            azureTableInstanceStore.DeleteStoreAsync().Wait();
-            azureStorageBlobStore.DeleteStoreAsync().Wait();
+            this.azureTableInstanceStore.DeleteStoreAsync().Wait();
+            this.azureStorageBlobStore.DeleteStoreAsync().Wait();
         }
 
         [TestMethod]
         public async Task SmallRuntimeStateConverterTest()
         {       
-            string smallInput = "abc";
+            var smallInput = "abc";
 
             OrchestrationRuntimeState newOrchestrationRuntimeStateSmall = generateOrchestrationRuntimeState(smallInput);
-            OrchestrationRuntimeState runtimeState = new OrchestrationRuntimeState();
+
+            var runtimeState = new OrchestrationRuntimeState();
             DataConverter dataConverter = new JsonDataConverter();
 
             // a small runtime state doesn't need external storage.
@@ -67,10 +67,10 @@ namespace DurableTask.ServiceBus.Tests
                 runtimeState,
                 dataConverter,
                 true,
-                serviceBusSessionSettings,
-                azureStorageBlobStore,
-                sessionId);
-            OrchestrationRuntimeState convertedRuntimeStateSmall = await RuntimeStateStreamConverter.RawStreamToRuntimeState(rawStreamSmall, "sessionId", azureStorageBlobStore, dataConverter);
+                this.serviceBusSessionSettings,
+                this.azureStorageBlobStore,
+                SessionId);
+            OrchestrationRuntimeState convertedRuntimeStateSmall = await RuntimeStateStreamConverter.RawStreamToRuntimeState(rawStreamSmall, "sessionId", this.azureStorageBlobStore, dataConverter);
             verifyEventInput(smallInput, convertedRuntimeStateSmall);
 
             // test for un-compress case
@@ -79,10 +79,10 @@ namespace DurableTask.ServiceBus.Tests
                 runtimeState,
                 dataConverter,
                 false,
-                serviceBusSessionSettings,
-                azureStorageBlobStore,
-                sessionId);
-            OrchestrationRuntimeState convertedRuntimeStateSmall2 = await RuntimeStateStreamConverter.RawStreamToRuntimeState(rawStreamSmall2, "sessionId", azureStorageBlobStore, dataConverter);
+                this.serviceBusSessionSettings,
+                this.azureStorageBlobStore,
+                SessionId);
+            OrchestrationRuntimeState convertedRuntimeStateSmall2 = await RuntimeStateStreamConverter.RawStreamToRuntimeState(rawStreamSmall2, "sessionId", this.azureStorageBlobStore, dataConverter);
             verifyEventInput(smallInput, convertedRuntimeStateSmall2);
 
             // test for backward comp: ok for an un-implemented (or null) IBlobStorage for small runtime states
@@ -91,9 +91,9 @@ namespace DurableTask.ServiceBus.Tests
                 runtimeState,
                 dataConverter,
                 true,
-                serviceBusSessionSettings,
+                this.serviceBusSessionSettings,
                 null,
-                sessionId);
+                SessionId);
             OrchestrationRuntimeState convertedRuntimeStateSmall3 = await RuntimeStateStreamConverter.RawStreamToRuntimeState(rawStreamSmall3, "sessionId", null, dataConverter);
             verifyEventInput(smallInput, convertedRuntimeStateSmall3);
         }
@@ -103,7 +103,8 @@ namespace DurableTask.ServiceBus.Tests
         {
             string largeInput = TestUtils.GenerateRandomString(5 * 1024);
             OrchestrationRuntimeState newOrchestrationRuntimeStateLarge = generateOrchestrationRuntimeState(largeInput);
-            OrchestrationRuntimeState runtimeState = new OrchestrationRuntimeState();
+
+            var runtimeState = new OrchestrationRuntimeState();
             DataConverter dataConverter = new JsonDataConverter();
 
             // a large runtime state that needs external storage.
@@ -112,10 +113,10 @@ namespace DurableTask.ServiceBus.Tests
                 runtimeState,
                 dataConverter,
                 true,
-                serviceBusSessionSettings,
-                azureStorageBlobStore,
-                sessionId);
-            OrchestrationRuntimeState convertedRuntimeStateLarge = await RuntimeStateStreamConverter.RawStreamToRuntimeState(rawStreamLarge, "sessionId", azureStorageBlobStore, dataConverter);
+                this.serviceBusSessionSettings,
+                this.azureStorageBlobStore,
+                SessionId);
+            OrchestrationRuntimeState convertedRuntimeStateLarge = await RuntimeStateStreamConverter.RawStreamToRuntimeState(rawStreamLarge, "sessionId", this.azureStorageBlobStore, dataConverter);
             verifyEventInput(largeInput, convertedRuntimeStateLarge);
 
             // test for un-compress case
@@ -126,10 +127,10 @@ namespace DurableTask.ServiceBus.Tests
                 runtimeState,
                 dataConverter,
                 false,
-                serviceBusSessionSettings,
-                azureStorageBlobStore,
-                sessionId);
-            OrchestrationRuntimeState convertedRuntimeStateLarge2 = await RuntimeStateStreamConverter.RawStreamToRuntimeState(rawStreamLarge2, "sessionId", azureStorageBlobStore, dataConverter);
+                this.serviceBusSessionSettings,
+                this.azureStorageBlobStore,
+                SessionId);
+            OrchestrationRuntimeState convertedRuntimeStateLarge2 = await RuntimeStateStreamConverter.RawStreamToRuntimeState(rawStreamLarge2, "sessionId", this.azureStorageBlobStore, dataConverter);
             verifyEventInput(largeInput2, convertedRuntimeStateLarge2);
 
             // test for an un-implemented (or null) IBlobStorage for large runtime states: should throw exception
@@ -141,9 +142,9 @@ namespace DurableTask.ServiceBus.Tests
                         runtimeState,
                         dataConverter,
                         true,
-                        serviceBusSessionSettings,
+                        this.serviceBusSessionSettings,
                         null,
-                        sessionId);
+                        SessionId);
                 Assert.Fail("ArgumentException must be thrown");
             }
             catch (OrchestrationException e)
@@ -158,10 +159,11 @@ namespace DurableTask.ServiceBus.Tests
         {
             string veryLargeInput = TestUtils.GenerateRandomString(20 * 1024);
             OrchestrationRuntimeState newOrchestrationRuntimeStateLarge = generateOrchestrationRuntimeState(veryLargeInput);
-            OrchestrationRuntimeState runtimeState = new OrchestrationRuntimeState();
+
+            var runtimeState = new OrchestrationRuntimeState();
             DataConverter dataConverter = new JsonDataConverter();
 
-            // test for very large size rumtime state that cannot be saved externally: should throw exception
+            // test for very large size runtime state that cannot be saved externally: should throw exception
             try
             {
                 Stream rawStreamVeryLarge = await RuntimeStateStreamConverter.OrchestrationRuntimeStateToRawStream(
@@ -169,9 +171,11 @@ namespace DurableTask.ServiceBus.Tests
                     runtimeState,
                     dataConverter,
                     true,
-                    serviceBusSessionSettings,
-                    azureStorageBlobStore,
-                    sessionId);
+                    this.serviceBusSessionSettings,
+                    this.azureStorageBlobStore,
+                    SessionId);
+
+                Utils.UnusedParameter(rawStreamVeryLarge);
                 Assert.Fail("ArgumentException must be thrown");
             }
             catch (OrchestrationException e)
@@ -182,11 +186,11 @@ namespace DurableTask.ServiceBus.Tests
         }
 
         [TestMethod]
-        public async Task ConverterCompatabilityTest()
+        public async Task ConverterCompatibilityTest()
         {
-            string smallInput = "abc";
+            var smallInput = "abc";
             OrchestrationRuntimeState newOrchestrationRuntimeStateSmall = generateOrchestrationRuntimeState(smallInput);
-            OrchestrationRuntimeState runtimeState = new OrchestrationRuntimeState();
+
             DataConverter dataConverter = new JsonDataConverter();
 
             // deserialize a OrchestrationRuntimeState object, with both compression and not compression
@@ -211,37 +215,35 @@ namespace DurableTask.ServiceBus.Tests
         private Stream serializeToStream(DataConverter dataConverter, OrchestrationRuntimeState orchestrationRuntimeState, bool shouldCompress)
         {
             string serializedState = dataConverter.Serialize(orchestrationRuntimeState);
-            long originalStreamSize = 0;
             return Utils.WriteStringToStream(
                 serializedState,
                 shouldCompress,
-                out originalStreamSize);
+                out long _);
         }
 
         private Stream serializeToStream(DataConverter dataConverter, IList<HistoryEvent> events, bool shouldCompress)
         {
             string serializedState = dataConverter.Serialize(events);
-            long originalStreamSize = 0;
             return Utils.WriteStringToStream(
                 serializedState,
                 shouldCompress,
-                out originalStreamSize);
+                out long _);
         }
 
         OrchestrationRuntimeState generateOrchestrationRuntimeState(string input)
         {
             IList<HistoryEvent> historyEvents = new List<HistoryEvent>();
-            ExecutionStartedEvent historyEvent = new ExecutionStartedEvent(1, input);
+            var historyEvent = new ExecutionStartedEvent(1, input);
             historyEvents.Add(historyEvent);
-            OrchestrationRuntimeState newOrchestrationRuntimeState = new OrchestrationRuntimeState(historyEvents);
+            var newOrchestrationRuntimeState = new OrchestrationRuntimeState(historyEvents);
 
             return newOrchestrationRuntimeState;
         }
 
         void verifyEventInput(string expectedHistoryEventInput, OrchestrationRuntimeState runtimeState)
         {
-            ExecutionStartedEvent executionStartedEvent = runtimeState.Events[0] as ExecutionStartedEvent;
-            Assert.AreEqual(expectedHistoryEventInput, executionStartedEvent.Input);
+            var executionStartedEvent = runtimeState.Events[0] as ExecutionStartedEvent;
+            Assert.AreEqual(expectedHistoryEventInput, executionStartedEvent?.Input);
         }
     }
 }

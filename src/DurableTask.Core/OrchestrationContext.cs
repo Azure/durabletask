@@ -67,12 +67,12 @@ namespace DurableTask.Core
         /// <returns></returns>
         public virtual T CreateClient<T>(bool useFullyQualifiedMethodNames) where T : class
         {
-            if (!typeof (T).IsInterface)
+            if (!typeof(T).IsInterface)
             {
                 throw new InvalidOperationException("Pass in an interface.");
             }
 
-            var proxy = new ScheduleProxy(this, typeof (T), useFullyQualifiedMethodNames);
+            var proxy = new ScheduleProxy(this, typeof(T), useFullyQualifiedMethodNames);
             return proxy.ActLike<T>();
         }
 
@@ -90,7 +90,7 @@ namespace DurableTask.Core
         /// <returns>Dynamic proxy that can be used to schedule the remote tasks</returns>
         public virtual T CreateRetryableClient<T>(RetryOptions retryOptions) where T : class
         {
-            return this.CreateRetryableClient<T>(retryOptions, false);
+            return CreateRetryableClient<T>(retryOptions, false);
         }
 
         /// <summary>
@@ -124,8 +124,8 @@ namespace DurableTask.Core
         /// <summary>
         ///     Schedule a TaskActivity by type. Also retry on failure as per supplied policy.
         /// </summary>
-        /// <typeparam name="T">Return Type of the TaskActivity.Exeute method</typeparam>
-        /// <param name="taskActivityType">Type that dervices from TaskActivity class</param>
+        /// <typeparam name="T">Return Type of the TaskActivity.Execute method</typeparam>
+        /// <param name="taskActivityType">Type that devices from TaskActivity class</param>
         /// <param name="retryOptions">Retry policy</param>
         /// <param name="parameters">Parameters for the TaskActivity.Execute method</param>
         /// <returns>Task that represents the execution of the specified TaskActivity</returns>
@@ -140,7 +140,7 @@ namespace DurableTask.Core
         /// <summary>
         ///     Schedule a TaskActivity by name and version. Also retry on failure as per supplied policy.
         /// </summary>
-        /// <typeparam name="T">Return Type of the TaskActivity.Exeute method</typeparam>
+        /// <typeparam name="T">Return Type of the TaskActivity.Execute method</typeparam>
         /// <param name="name">Name of the orchestration as specified by the ObjectCreator</param>
         /// <param name="version">Name of the orchestration as specified by the ObjectCreator</param>
         /// <param name="retryOptions">Retry policy</param>
@@ -149,8 +149,8 @@ namespace DurableTask.Core
         public virtual Task<T> ScheduleWithRetry<T>(string name, string version, RetryOptions retryOptions,
             params object[] parameters)
         {
-            Func<Task<T>> retryCall = () => this.ScheduleTask<T>(name, version, parameters);
-            var retryInterceptor = new RetryInterceptor<T>(this, retryOptions, retryCall);
+            Task<T> RetryCall() => ScheduleTask<T>(name, version, parameters);
+            var retryInterceptor = new RetryInterceptor<T>(this, retryOptions, RetryCall);
             return retryInterceptor.Invoke();
         }
 
@@ -197,8 +197,8 @@ namespace DurableTask.Core
         public virtual Task<T> CreateSubOrchestrationInstanceWithRetry<T>(string name, string version,
             RetryOptions retryOptions, object input)
         {
-            Func<Task<T>> retryCall = () => this.CreateSubOrchestrationInstance<T>(name, version, input);
-            var retryInterceptor = new RetryInterceptor<T>(this, retryOptions, retryCall);
+            Task<T> RetryCall() => CreateSubOrchestrationInstance<T>(name, version, input);
+            var retryInterceptor = new RetryInterceptor<T>(this, retryOptions, RetryCall);
             return retryInterceptor.Invoke();
         }
 
@@ -215,9 +215,8 @@ namespace DurableTask.Core
         public virtual Task<T> CreateSubOrchestrationInstanceWithRetry<T>(string name, string version, string instanceId,
             RetryOptions retryOptions, object input)
         {
-            Func<Task<T>> retryCall =
-                () => this.CreateSubOrchestrationInstance<T>(name, version, instanceId, input);
-            var retryInterceptor = new RetryInterceptor<T>(this, retryOptions, retryCall);
+            Task<T> RetryCall() => CreateSubOrchestrationInstance<T>(name, version, instanceId, input);
+            var retryInterceptor = new RetryInterceptor<T>(this, retryOptions, RetryCall);
             return retryInterceptor.Invoke();
         }
 

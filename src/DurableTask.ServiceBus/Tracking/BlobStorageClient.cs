@@ -72,10 +72,8 @@ namespace DurableTask.ServiceBus.Tracking
         /// <returns></returns>
         public async Task UploadStreamBlobAsync(string key, Stream stream)
         {
-            string containerNameSuffix;
-            string blobName;
-            BlobStorageClientHelper.ParseKey(key, out containerNameSuffix, out blobName);
-            var cloudBlob = await this.GetCloudBlockBlobReferenceAsync(containerNameSuffix, blobName);
+            BlobStorageClientHelper.ParseKey(key, out string containerNameSuffix, out string blobName);
+            ICloudBlob cloudBlob = await GetCloudBlockBlobReferenceAsync(containerNameSuffix, blobName);
             await cloudBlob.UploadFromStreamAsync(stream);
         }
 
@@ -86,11 +84,9 @@ namespace DurableTask.ServiceBus.Tracking
         /// <returns>A downloaded stream</returns>
         public async Task<Stream> DownloadStreamAsync(string key)
         {
-            string containerNameSuffix;
-            string blobName;
-            BlobStorageClientHelper.ParseKey(key, out containerNameSuffix, out blobName);
+            BlobStorageClientHelper.ParseKey(key, out string containerNameSuffix, out string blobName);
 
-            var cloudBlob = await this.GetCloudBlockBlobReferenceAsync(containerNameSuffix, blobName);
+            ICloudBlob cloudBlob = await GetCloudBlockBlobReferenceAsync(containerNameSuffix, blobName);
             Stream targetStream = new MemoryStream();
             await cloudBlob.DownloadToStreamAsync(targetStream);
             targetStream.Position = 0;
@@ -100,7 +96,7 @@ namespace DurableTask.ServiceBus.Tracking
         async Task<ICloudBlob> GetCloudBlockBlobReferenceAsync(string containerNameSuffix, string blobName)
         {
             string containerName = BlobStorageClientHelper.BuildContainerName(this.containerNamePrefix, containerNameSuffix);
-            var cloudBlobContainer = this.blobClient.GetContainerReference(containerName);
+            CloudBlobContainer cloudBlobContainer = this.blobClient.GetContainerReference(containerName);
             await cloudBlobContainer.CreateIfNotExistsAsync();
             return cloudBlobContainer.GetBlockBlobReference(blobName);
         }
@@ -122,7 +118,10 @@ namespace DurableTask.ServiceBus.Tracking
         public async Task DeleteExpiredContainersAsync(DateTime thresholdDateTimeUtc)
         {
             IEnumerable<CloudBlobContainer> containers = ListContainers();
-            var tasks = containers.Where(container => BlobStorageClientHelper.IsContainerExpired(container.Name, thresholdDateTimeUtc)).ToList().Select(container => container.DeleteIfExistsAsync());
+            IEnumerable<Task<bool>> tasks = containers
+                .Where(container => BlobStorageClientHelper.IsContainerExpired(container.Name, thresholdDateTimeUtc))
+                .ToList()
+                .Select(container => container.DeleteIfExistsAsync());
             await Task.WhenAll(tasks);
         }
 
@@ -132,8 +131,10 @@ namespace DurableTask.ServiceBus.Tracking
         /// <returns></returns>
         public async Task DeleteBlobStoreContainersAsync()
         {
-            IEnumerable<CloudBlobContainer> containers = this.ListContainers();
-            var tasks = containers.ToList().Select(container => container.DeleteIfExistsAsync());
+            IEnumerable<CloudBlobContainer> containers = ListContainers();
+            IEnumerable<Task<bool>> tasks = containers
+                .ToList()
+                .Select(container => container.DeleteIfExistsAsync());
             await Task.WhenAll(tasks);
         }
     }

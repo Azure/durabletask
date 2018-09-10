@@ -71,7 +71,7 @@ namespace DurableTask.Core
         /// <summary>
         /// Creates a new TaskOrchestration with the default DataConverter
         /// </summary>
-        public TaskOrchestration()
+        protected TaskOrchestration()
         {
             DataConverter = new JsonDataConverter();
         }
@@ -90,7 +90,7 @@ namespace DurableTask.Core
         public override async Task<string> Execute(OrchestrationContext context, string input)
         {
             var parameter = DataConverter.Deserialize<TInput>(input);
-            TResult result = default(TResult);
+            TResult result;
             try
             {
                 result = await RunTask(context, parameter);

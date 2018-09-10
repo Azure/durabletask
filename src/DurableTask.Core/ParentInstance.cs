@@ -45,10 +45,10 @@ namespace DurableTask.Core
         {
             return new ParentInstance
             {
-                Name = Name,
-                Version = Version,
-                TaskScheduleId = TaskScheduleId,
-                OrchestrationInstance = OrchestrationInstance.Clone()
+                Name = this.Name,
+                Version = this.Version,
+                TaskScheduleId = this.TaskScheduleId,
+                OrchestrationInstance = this.OrchestrationInstance.Clone()
             };
         }
 

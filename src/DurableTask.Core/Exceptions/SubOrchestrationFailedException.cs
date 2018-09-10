@@ -82,9 +82,9 @@ namespace DurableTask.Core.Exceptions
         public override void GetObjectData(SerializationInfo info, StreamingContext context)
         {
             base.GetObjectData(info, context);
-            info.AddValue("ScheduleId", this.ScheduleId);
-            info.AddValue("Name", this.Name);
-            info.AddValue("Version", this.Version);
+            info.AddValue("ScheduleId", ScheduleId);
+            info.AddValue("Name", Name);
+            info.AddValue("Version", Version);
         }
 
         /// <summary>

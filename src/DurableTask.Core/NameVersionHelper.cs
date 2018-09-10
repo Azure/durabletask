@@ -96,6 +96,7 @@ namespace DurableTask.Core
             {
                 return methodName;
             }
+
             return declaringType + "." + methodName;
         }
     }
