@@ -13,6 +13,7 @@
 
 namespace DurableTask.Samples.Common.WorkItems
 {
+    using System;
     using System.Configuration;
     using System.Net;
     using System.Net.Mail;
@@ -34,6 +35,12 @@ namespace DurableTask.Samples.Common.WorkItems
         {
             var toAddress = new MailAddress(input.ToAddress, input.To);
 
+            string networkCredentials = ConfigurationManager.AppSettings["SmtpNetworkCredentials"];
+            if (string.IsNullOrWhiteSpace(networkCredentials))
+            {
+                throw new ArgumentException("Network Credentials not set for SMTP client, set the 'SmtpNetworkCredentials' parameter in App.config");
+            }
+
             var smtp = new SmtpClient
             {
                 Host = "smtp.live.com",
@@ -41,7 +48,7 @@ namespace DurableTask.Samples.Common.WorkItems
                 EnableSsl = true,
                 DeliveryMethod = SmtpDeliveryMethod.Network,
                 UseDefaultCredentials = false,
-                Credentials = new NetworkCredential(FromAddress.Address, ConfigurationManager.AppSettings["NetworkCredential"])
+                Credentials = new NetworkCredential(FromAddress.Address, networkCredentials)
             };
 
             using (var message = new MailMessage(FromAddress, toAddress)

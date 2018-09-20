@@ -2,7 +2,7 @@
   "profiles": {
     "DurableTask.Samples": {
       "commandName": "Project",
-      "commandLineArgs": "-s Greetings"
+      "commandLineArgs": "-c -s Greetings"
     }
   }
 }
