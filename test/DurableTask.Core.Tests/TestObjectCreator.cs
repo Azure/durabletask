@@ -29,7 +29,7 @@ namespace DurableTask.Core.Tests
 
         public override T Create()
         {
-            return creator();
+            return this.creator();
         }
     }
 }

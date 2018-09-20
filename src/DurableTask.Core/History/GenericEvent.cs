@@ -34,7 +34,7 @@ namespace DurableTask.Core.History
         public GenericEvent(int eventId, string data)
             : base(eventId)
         {
-            Data = data;
+            this.Data = data;
         }
 
         /// <summary>

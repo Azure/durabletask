@@ -14,6 +14,7 @@
 namespace DurableTask.Core
 {
     using System.Collections.Generic;
+    using System.Diagnostics;
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
@@ -32,8 +33,8 @@ namespace DurableTask.Core
         public TaskOrchestrationExecutor(OrchestrationRuntimeState orchestrationRuntimeState,
             TaskOrchestration taskOrchestration)
         {
-            decisionScheduler = new SynchronousTaskScheduler();
-            context = new TaskOrchestrationContext(orchestrationRuntimeState.OrchestrationInstance, decisionScheduler);
+            this.decisionScheduler = new SynchronousTaskScheduler();
+            this.context = new TaskOrchestrationContext(orchestrationRuntimeState.OrchestrationInstance, this.decisionScheduler);
             this.orchestrationRuntimeState = orchestrationRuntimeState;
             this.taskOrchestration = taskOrchestration;
         }
@@ -42,13 +43,13 @@ namespace DurableTask.Core
 
         public IEnumerable<OrchestratorAction> Execute()
         {
-            return this.ExecuteCore(orchestrationRuntimeState.Events);
+            return ExecuteCore(this.orchestrationRuntimeState.Events);
         }
 
         public IEnumerable<OrchestratorAction> ExecuteNewEvents()
         {
-            context.ClearPendingActions();
-            return this.ExecuteCore(orchestrationRuntimeState.NewEvents);
+            this.context.ClearPendingActions();
+            return ExecuteCore(this.orchestrationRuntimeState.NewEvents);
         }
 
         IEnumerable<OrchestratorAction> ExecuteCore(IEnumerable<HistoryEvent> eventHistory)
@@ -57,7 +58,7 @@ namespace DurableTask.Core
 
             try
             {
-                SynchronizationContext syncCtx = new TaskOrchestrationSynchronizationContext(decisionScheduler);
+                SynchronizationContext syncCtx = new TaskOrchestrationSynchronizationContext(this.decisionScheduler);
                 SynchronizationContext.SetSynchronizationContext(syncCtx);
                 OrchestrationContext.IsOrchestratorThread = true;
 
@@ -68,27 +69,29 @@ namespace DurableTask.Core
                         if (historyEvent.EventType == EventType.OrchestratorStarted)
                         {
                             var decisionStartedEvent = (OrchestratorStartedEvent)historyEvent;
-                            context.CurrentUtcDateTime = decisionStartedEvent.Timestamp;
+                            this.context.CurrentUtcDateTime = decisionStartedEvent.Timestamp;
                             continue;
                         }
 
-                        context.IsReplaying = historyEvent.IsPlayed;
+                        this.context.IsReplaying = historyEvent.IsPlayed;
                         ProcessEvent(historyEvent);
                         historyEvent.IsPlayed = true;
                     }
 
                     // check if workflow is completed after this replay
-                    if (!context.HasOpenTasks)
+                    if (!this.context.HasOpenTasks)
                     {
-                        if (result.IsCompleted)
+                        if (this.result.IsCompleted)
                         {
-                            if (result.IsFaulted)
+                            if (this.result.IsFaulted)
                             {
-                                context.FailOrchestration(result.Exception.InnerExceptions.FirstOrDefault());
+                                Debug.Assert(this.result.Exception != null);
+
+                                this.context.FailOrchestration(this.result.Exception.InnerExceptions.FirstOrDefault());
                             }
                             else
                             {
-                                context.CompleteOrchestration(result.Result);
+                                this.context.CompleteOrchestration(this.result.Result);
                             }
                         }
 
@@ -98,14 +101,14 @@ namespace DurableTask.Core
                 }
                 catch (NonDeterministicOrchestrationException exception)
                 {
-                    context.FailOrchestration(exception);
+                    this.context.FailOrchestration(exception);
                 }
 
-                return context.OrchestratorActions;
+                return this.context.OrchestratorActions;
             }
             finally
             {
-                orchestrationRuntimeState.Status = taskOrchestration.GetStatus();
+                this.orchestrationRuntimeState.Status = this.taskOrchestration.GetStatus();
                 SynchronizationContext.SetSynchronizationContext(prevCtx);
                 OrchestrationContext.IsOrchestratorThread = false;
             }
@@ -117,39 +120,39 @@ namespace DurableTask.Core
             {
                 case EventType.ExecutionStarted:
                     var executionStartedEvent = (ExecutionStartedEvent)historyEvent;
-                    result = taskOrchestration.Execute(context, executionStartedEvent.Input);
+                    this.result = this.taskOrchestration.Execute(this.context, executionStartedEvent.Input);
                     break;
                 case EventType.ExecutionTerminated:
-                    context.HandleExecutionTerminatedEvent((ExecutionTerminatedEvent)historyEvent);
+                    this.context.HandleExecutionTerminatedEvent((ExecutionTerminatedEvent)historyEvent);
                     break;
                 case EventType.TaskScheduled:
-                    context.HandleTaskScheduledEvent((TaskScheduledEvent)historyEvent);
+                    this.context.HandleTaskScheduledEvent((TaskScheduledEvent)historyEvent);
                     break;
                 case EventType.TaskCompleted:
-                    context.HandleTaskCompletedEvent((TaskCompletedEvent)historyEvent);
+                    this.context.HandleTaskCompletedEvent((TaskCompletedEvent)historyEvent);
                     break;
                 case EventType.TaskFailed:
-                    context.HandleTaskFailedEvent((TaskFailedEvent)historyEvent);
+                    this.context.HandleTaskFailedEvent((TaskFailedEvent)historyEvent);
                     break;
                 case EventType.SubOrchestrationInstanceCreated:
-                    context.HandleSubOrchestrationCreatedEvent((SubOrchestrationInstanceCreatedEvent)historyEvent);
+                    this.context.HandleSubOrchestrationCreatedEvent((SubOrchestrationInstanceCreatedEvent)historyEvent);
                     break;
                 case EventType.SubOrchestrationInstanceCompleted:
-                    context.HandleSubOrchestrationInstanceCompletedEvent(
+                    this.context.HandleSubOrchestrationInstanceCompletedEvent(
                         (SubOrchestrationInstanceCompletedEvent)historyEvent);
                     break;
                 case EventType.SubOrchestrationInstanceFailed:
-                    context.HandleSubOrchestrationInstanceFailedEvent((SubOrchestrationInstanceFailedEvent)historyEvent);
+                    this.context.HandleSubOrchestrationInstanceFailedEvent((SubOrchestrationInstanceFailedEvent)historyEvent);
                     break;
                 case EventType.TimerCreated:
-                    context.HandleTimerCreatedEvent((TimerCreatedEvent)historyEvent);
+                    this.context.HandleTimerCreatedEvent((TimerCreatedEvent)historyEvent);
                     break;
                 case EventType.TimerFired:
-                    context.HandleTimerFiredEvent((TimerFiredEvent)historyEvent);
+                    this.context.HandleTimerFiredEvent((TimerFiredEvent)historyEvent);
                     break;
                 case EventType.EventRaised:
                     var eventRaisedEvent = (EventRaisedEvent)historyEvent;
-                    taskOrchestration.RaiseEvent(context, eventRaisedEvent.Name, eventRaisedEvent.Input);
+                    this.taskOrchestration.RaiseEvent(this.context, eventRaisedEvent.Name, eventRaisedEvent.Input);
                     break;
             }
         }

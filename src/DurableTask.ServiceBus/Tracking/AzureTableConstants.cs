@@ -48,7 +48,6 @@ namespace DurableTask.ServiceBus.Tracking
         public const string JoinDelimiter = "_";
         public const string JoinDelimiterPlusOne = "`";
 
-
         // table query filters
 
         // general primary filters
@@ -61,9 +60,10 @@ namespace DurableTask.ServiceBus.Tracking
         public const string PrimaryFilterTemplate = "(PartitionKey eq 'IS')";
         public const string PrimaryTimeRangeTemplate = "((PartitionKey ge '{0}') and (PartitionKey lt '{1}'))";
 
-        // rowkey format: ID_EID_<instanceId>_<executionId>
+        // row key format: ID_EID_<instanceId>_<executionId>
         public const string PrimaryInstanceQueryExactTemplate =
             "(RowKey eq '" + InstanceStateExactRowPrefix + JoinDelimiter + "{0}" + JoinDelimiter + "{1}')";
+
         public const string PrimaryInstanceQueryRangeTemplate =
             "(RowKey ge '" + InstanceStateExactRowPrefix + JoinDelimiter + "{0}') and (RowKey lt '" + InstanceStateExactRowPrefix + JoinDelimiter + "{1}')";
 

@@ -42,7 +42,7 @@ namespace DurableTask.Core.Common
         {
             BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.Static;
             Type settingsType = typeof(DateTimeUtils);
-            FieldInfo field = settingsType.GetField(nameof(DateTimeUtils.MinDateTime), flags);
+            FieldInfo field = settingsType.GetField(nameof(MinDateTime), flags);
             field?.SetValue(settingsType, DateTime.FromFileTimeUtc(0));
         }
     }

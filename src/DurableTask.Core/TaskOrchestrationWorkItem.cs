@@ -27,7 +27,7 @@ namespace DurableTask.Core
         public string InstanceId;
 
         /// <summary>
-        /// The current runtimestate of this work item
+        /// The current runtime state of this work item
         /// </summary>
         public OrchestrationRuntimeState OrchestrationRuntimeState;
 

@@ -48,15 +48,12 @@ namespace DurableTask.ServiceBus.Tracking
         /// </summary>
         public string ETag { get; set; }
 
-
         /// <summary>
         /// Read an entity properties based on the supplied dictionary or entity properties
         /// </summary>
         /// <param name="properties">Dictionary of properties to read for the entity</param>
         /// <param name="operationContext">The operation context</param>
-        public abstract void ReadEntity(IDictionary<string, EntityProperty> properties,
-            OperationContext operationContext);
-
+        public abstract void ReadEntity(IDictionary<string, EntityProperty> properties, OperationContext operationContext);
 
         /// <summary>
         /// Write an entity to a dictionary of entity properties
@@ -65,7 +62,6 @@ namespace DurableTask.ServiceBus.Tracking
         public abstract IDictionary<string, EntityProperty> WriteEntity(OperationContext operationContext);
 
         internal abstract IEnumerable<ITableEntity> BuildDenormalizedEntities();
-
 
         /// <summary>
         /// 
@@ -77,6 +73,7 @@ namespace DurableTask.ServiceBus.Tracking
             {
                 return default(T);
             }
+
             return extract(ep);
         }
     }

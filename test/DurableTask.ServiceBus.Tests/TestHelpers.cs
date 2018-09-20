@@ -22,7 +22,6 @@ namespace DurableTask.ServiceBus.Tests
     using DurableTask.Core.History;
     using DurableTask.Core.Settings;
     using DurableTask.Core.Tracing;
-    using DurableTask.Core.Tracking;
     using DurableTask.ServiceBus;
     using DurableTask.ServiceBus.Settings;
     using DurableTask.ServiceBus.Tracking;
@@ -33,10 +32,12 @@ namespace DurableTask.ServiceBus.Tests
 
     public static class TestHelpers
     {
-        static string ServiceBusConnectionString;
-        static string StorageConnectionString;
-        static string TaskHubName;
-        static ObservableEventListener eventListener;
+        static readonly string ServiceBusConnectionString;
+        static readonly string StorageConnectionString;
+        static readonly string TaskHubName;
+
+        // ReSharper disable once PrivateFieldCanBeConvertedToLocalVariable
+        static readonly ObservableEventListener EventListener;
 
         static TestHelpers()
         {
@@ -54,9 +55,9 @@ namespace DurableTask.ServiceBus.Tests
 
             TaskHubName = ConfigurationManager.AppSettings.Get("TaskHubName");
 
-            eventListener = new ObservableEventListener();
-            eventListener.LogToConsole();
-            eventListener.EnableEvents(DefaultEventSource.Log, EventLevel.LogAlways);
+            EventListener = new ObservableEventListener();
+            EventListener.LogToConsole();
+            EventListener.EnableEvents(DefaultEventSource.Log, EventLevel.LogAlways);
         }
 
         public static ServiceBusOrchestrationServiceSettings CreateTestWorkerSettings(CompressionStyle style = CompressionStyle.Threshold)
@@ -85,6 +86,7 @@ namespace DurableTask.ServiceBus.Tests
             return settings;
         }
 
+        // ReSharper disable once UnusedParameter.Local
         static IOrchestrationService CreateOrchestrationServiceWorker(
             ServiceBusOrchestrationServiceSettings settings,
             TimeSpan jumpStartAttemptInterval)
@@ -186,7 +188,7 @@ namespace DurableTask.ServiceBus.Tests
                 throw new ArgumentException("instance");
             }
 
-            int sleepForSeconds = 2;
+            var sleepForSeconds = 2;
 
             while (timeoutSeconds > 0)
             {
@@ -195,9 +197,11 @@ namespace DurableTask.ServiceBus.Tests
                 {
                     state = await taskHubClient.GetOrchestrationStateAsync(instance);
                 }
-                else {
+                else
+                {
                     state = await taskHubClient.GetOrchestrationStateAsync(instance.InstanceId);
                 }
+
                 if (state == null)
                 {
                     throw new ArgumentException("OrchestrationState is expected but NULL value returned");
@@ -251,7 +255,6 @@ namespace DurableTask.ServiceBus.Tests
 
             return value;
         }
-
 
         public static async Task<OrchestrationInstance> CreateOrchestrationInstanceAsync(
             ServiceBusOrchestrationService sboService,
@@ -322,10 +325,10 @@ namespace DurableTask.ServiceBus.Tests
             catch (Exception ex)
             {
                 throw new AssertFailedException(
-                    string.Format("{0}. Expected:<{1}> Actual<{2}>", errorMessage, typeof(TException).ToString(), ex.GetType().ToString()), ex);
+                    $"{errorMessage}. Expected:<{typeof(TException).ToString()}> Actual<{ex.GetType().ToString()}>", ex);
             }
 
-            throw new AssertFailedException(string.Format("{0}. Expected {1} exception but no exception is thrown", errorMessage, typeof(TException).ToString()));
+            throw new AssertFailedException($"{errorMessage}. Expected {typeof(TException).ToString()} exception but no exception is thrown");
         }
     }
 }

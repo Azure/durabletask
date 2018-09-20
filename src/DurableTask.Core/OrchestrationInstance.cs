@@ -13,6 +13,7 @@
 
 namespace DurableTask.Core
 {
+    using System.Diagnostics.CodeAnalysis;
     using System.Runtime.Serialization;
 
     /// <summary>
@@ -48,6 +49,7 @@ namespace DurableTask.Core
         /// <returns>
         /// A hash code for the current object.
         /// </returns>
+        [SuppressMessage("ReSharper", "NonReadonlyMemberInGetHashCode")]
         public override int GetHashCode()
         {
             return (InstanceId ?? string.Empty).GetHashCode() ^ (ExecutionId ?? string.Empty).GetHashCode();

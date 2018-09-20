@@ -30,17 +30,14 @@ namespace DurableTask.Samples.Signal
         async Task<string> WaitForSignal()
         {
             this.resumeHandle = new TaskCompletionSource<string>();
-            var data = await this.resumeHandle.Task;
+            string data = await this.resumeHandle.Task;
             this.resumeHandle = null;
             return data;
         }
 
         public override void OnEvent(OrchestrationContext context, string name, string input)
         {
-            if (this.resumeHandle != null)
-            {
-                this.resumeHandle.SetResult(input);
-            }
+            this.resumeHandle?.SetResult(input);
         }
     }
 }

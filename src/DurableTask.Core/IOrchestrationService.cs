@@ -18,7 +18,7 @@ namespace DurableTask.Core
     using System.Threading;
     using System.Threading.Tasks;
 
-    // AFFANDAR : TODO : MASTER
+    // TODO : MASTER (AFFANDAR)
     //      + implement batched message receive
     //      + proper exception model for orchestration service providers
 
@@ -29,7 +29,7 @@ namespace DurableTask.Core
     public interface IOrchestrationService
     {
         // Service management and lifecycle operations
-        
+
         /// <summary>
         /// Starts the service initializing the required resources
         /// </summary>
@@ -112,9 +112,9 @@ namespace DurableTask.Core
         /// </summary>
         Task CompleteTaskOrchestrationWorkItemAsync(
             TaskOrchestrationWorkItem workItem,
-            OrchestrationRuntimeState newOrchestrationRuntimeState, 
-            IList<TaskMessage> outboundMessages, 
-            IList<TaskMessage> orchestratorMessages, 
+            OrchestrationRuntimeState newOrchestrationRuntimeState,
+            IList<TaskMessage> outboundMessages,
+            IList<TaskMessage> orchestratorMessages,
             IList<TaskMessage> timerMessages,
             TaskMessage continuedAsNewMessage,
             OrchestrationState orchestrationState);

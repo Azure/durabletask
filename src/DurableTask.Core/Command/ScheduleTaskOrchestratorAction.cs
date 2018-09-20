@@ -18,8 +18,11 @@ namespace DurableTask.Core.Command
         public override OrchestratorActionType OrchestratorActionType => OrchestratorActionType.ScheduleOrchestrator;
 
         public string Name { get; set; }
+
         public string Version { get; set; }
+
         public string Input { get; set; }
+
         public string Tasklist { get; set; }
     }
 }

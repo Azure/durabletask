@@ -18,10 +18,6 @@ namespace DurableTask.Samples.AverageCalculator
 
     public sealed class ComputeSumTask : TaskActivity<int[], int>
     {
-        public ComputeSumTask()
-        {
-        }
-
         protected override int Execute(DurableTask.Core.TaskContext context, int[] chunk)
         {
             if (chunk == null || chunk.Length != 2)
@@ -30,7 +26,7 @@ namespace DurableTask.Samples.AverageCalculator
             }
 
             Console.WriteLine("Compute Sum for " + chunk[0] + "," + chunk[1]);
-            int sum = 0;
+            var sum = 0;
             int start = chunk[0];
             int end = chunk[1];
             for (int i = start; i <= end; i++)
@@ -43,5 +39,4 @@ namespace DurableTask.Samples.AverageCalculator
             return sum;
         }
     }
-
 }

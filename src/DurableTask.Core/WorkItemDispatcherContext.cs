@@ -26,9 +26,9 @@ namespace DurableTask.Core
         /// <param name="dispatcherId">The context dispatcher id</param>
         public WorkItemDispatcherContext(string name, string id, string dispatcherId)
         {
-            this.Name = name;
-            this.Id = id;
-            this.DispatcherId = dispatcherId;
+            Name = name;
+            Id = id;
+            DispatcherId = dispatcherId;
         }
 
         /// <summary>

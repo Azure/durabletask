@@ -34,23 +34,22 @@ namespace DurableTask.Emulator.Tests
         [TestMethod]
         public async Task MockOrchestrationTest()
         {
-            LocalOrchestrationService orchService = new LocalOrchestrationService();
+            var orchestrationService = new LocalOrchestrationService();
 
-            TaskHubWorker worker = new TaskHubWorker(orchService);
+            var worker = new TaskHubWorker(orchestrationService);
 
             await worker.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
                 .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
                 .StartAsync();
 
-            TaskHubClient client = new TaskHubClient(orchService);
+            var client = new TaskHubClient(orchestrationService);
 
             OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), null);
 
             OrchestrationState result = await client.WaitForOrchestrationAsync(id, TimeSpan.FromSeconds(30), new CancellationToken());
             Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
 
-            Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,
-                "Orchestration Result is wrong!!!");
+            Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result, "Orchestration Result is wrong!!!");
 
             await worker.StopAsync(true);
         }
@@ -58,15 +57,15 @@ namespace DurableTask.Emulator.Tests
         [TestMethod]
         public async Task MockRecreateOrchestrationTest()
         {
-            LocalOrchestrationService orchService = new LocalOrchestrationService();
+            var orchestrationService = new LocalOrchestrationService();
 
-            TaskHubWorker worker = new TaskHubWorker(orchService);
+            var worker = new TaskHubWorker(orchestrationService);
 
             await worker.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
                 .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
                 .StartAsync();
 
-            TaskHubClient client = new TaskHubClient(orchService);
+            var client = new TaskHubClient(orchestrationService);
 
             OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), null);
 
@@ -75,11 +74,11 @@ namespace DurableTask.Emulator.Tests
 
             await Assert.ThrowsExceptionAsync<OrchestrationAlreadyExistsException>(() => client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null));
 
-            await Assert.ThrowsExceptionAsync<OrchestrationAlreadyExistsException>(() => client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null, new OrchestrationStatus[] { OrchestrationStatus.Completed}));
+            await Assert.ThrowsExceptionAsync<OrchestrationAlreadyExistsException>(() => client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null, new[] { OrchestrationStatus.Completed }));
 
             SimplestGreetingsOrchestration.Result = String.Empty;
 
-            OrchestrationInstance id2 = await client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null, new OrchestrationStatus[] {});
+            OrchestrationInstance id2 = await client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null, new OrchestrationStatus[] { });
             result = await client.WaitForOrchestrationAsync(id2, TimeSpan.FromSeconds(30), new CancellationToken());
             Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
 
@@ -92,15 +91,15 @@ namespace DurableTask.Emulator.Tests
         [TestMethod]
         public async Task MockTimerTest()
         {
-            LocalOrchestrationService orchService = new LocalOrchestrationService();
+            var orchestrationService = new LocalOrchestrationService();
 
-            TaskHubWorker worker = new TaskHubWorker(orchService);
+            var worker = new TaskHubWorker(orchestrationService);
 
             await worker.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
                 .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
                 .StartAsync();
 
-            TaskHubClient client = new TaskHubClient(orchService);
+            var client = new TaskHubClient(orchestrationService);
 
             OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), "6");
 
@@ -119,15 +118,15 @@ namespace DurableTask.Emulator.Tests
         [TestMethod]
         public async Task MockRepeatTimerTest()
         {
-            LocalOrchestrationService orchService = new LocalOrchestrationService();
+            var orchestrationService = new LocalOrchestrationService();
 
-            TaskHubWorker worker = new TaskHubWorker(orchService);
+            var worker = new TaskHubWorker(orchestrationService);
 
             await worker.AddTaskOrchestrations(typeof(GreetingsRepeatWaitOrchestration))
                 .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
                 .StartAsync();
 
-            TaskHubClient client = new TaskHubClient(orchService);
+            var client = new TaskHubClient(orchestrationService);
 
             OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof(GreetingsRepeatWaitOrchestration), "1");
 
@@ -149,10 +148,10 @@ namespace DurableTask.Emulator.Tests
             GenerationBasicOrchestration.Result = 0;
             GenerationBasicTask.GenerationCount = 0;
 
-            LocalOrchestrationService orchService = new LocalOrchestrationService();
+            var orchestrationService = new LocalOrchestrationService();
 
-            TaskHubWorker worker = new TaskHubWorker(orchService);
-            TaskHubClient client = new TaskHubClient(orchService);
+            var worker = new TaskHubWorker(orchestrationService);
+            var client = new TaskHubClient(orchestrationService);
 
             await worker.AddTaskOrchestrations(typeof(GenerationBasicOrchestration))
                 .AddTaskActivities(new GenerationBasicTask())
@@ -161,11 +160,11 @@ namespace DurableTask.Emulator.Tests
             OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof(GenerationBasicOrchestration), 4);
 
             // strip out the eid so we wait for the latest one always
-            OrchestrationInstance masterid = new OrchestrationInstance { InstanceId = id.InstanceId };
+            var masterId = new OrchestrationInstance { InstanceId = id.InstanceId };
 
             OrchestrationState result1 = await client.WaitForOrchestrationAsync(id, TimeSpan.FromSeconds(10), CancellationToken.None);
 
-            OrchestrationState result2 = await client.WaitForOrchestrationAsync(masterid, TimeSpan.FromSeconds(20), CancellationToken.None);
+            OrchestrationState result2 = await client.WaitForOrchestrationAsync(masterId, TimeSpan.FromSeconds(20), CancellationToken.None);
 
             Assert.AreEqual(OrchestrationStatus.ContinuedAsNew, result1.OrchestrationStatus);
             Assert.AreEqual(OrchestrationStatus.Completed, result2.OrchestrationStatus);
@@ -174,19 +173,19 @@ namespace DurableTask.Emulator.Tests
         }
 
         [TestMethod]
-        public async Task MockSuborchestrationTest()
+        public async Task MockSubOrchestrationTest()
         {
-            LocalOrchestrationService orchService = new LocalOrchestrationService();
+            var orchestrationService = new LocalOrchestrationService();
 
-            TaskHubWorker worker = new TaskHubWorker(orchService);
-            TaskHubClient client = new TaskHubClient(orchService);
+            var worker = new TaskHubWorker(orchestrationService);
+            var client = new TaskHubClient(orchestrationService);
 
             await worker.AddTaskOrchestrations(typeof(ParentWorkflow), typeof(ChildWorkflow))
                 .StartAsync();
 
             OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof(ParentWorkflow), true);
 
-            OrchestrationState result = await client.WaitForOrchestrationAsync(id, 
+            OrchestrationState result = await client.WaitForOrchestrationAsync(id,
                 TimeSpan.FromSeconds(40), CancellationToken.None);
 
             Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
@@ -211,10 +210,10 @@ namespace DurableTask.Emulator.Tests
         [TestMethod]
         public async Task MockRaiseEventTest()
         {
-            LocalOrchestrationService orchService = new LocalOrchestrationService();
+            var orchestrationService = new LocalOrchestrationService();
 
-            TaskHubWorker worker = new TaskHubWorker(orchService);
-            TaskHubClient client = new TaskHubClient(orchService);
+            var worker = new TaskHubWorker(orchestrationService);
+            var client = new TaskHubClient(orchestrationService);
 
             await worker.AddTaskOrchestrations(typeof(GenerationSignalOrchestration))
                 .StartAsync();
@@ -226,23 +225,23 @@ namespace DurableTask.Emulator.Tests
 
             await Task.Delay(2 * 500);
             await client.RaiseEventAsync(signalId, "Count", "1");
-            GenerationSignalOrchestration.signal.Set();
+            GenerationSignalOrchestration.Signal.Set();
 
             await Task.Delay(2 * 500);
-            GenerationSignalOrchestration.signal.Reset();
+            GenerationSignalOrchestration.Signal.Reset();
             await client.RaiseEventAsync(signalId, "Count", "2");
             await Task.Delay(2 * 500);
-            await client.RaiseEventAsync(signalId, "Count", "3"); // will be recieved by next generation
-            GenerationSignalOrchestration.signal.Set();
+            await client.RaiseEventAsync(signalId, "Count", "3"); // will be received by next generation
+            GenerationSignalOrchestration.Signal.Set();
 
             await Task.Delay(2 * 500);
-            GenerationSignalOrchestration.signal.Reset();
+            GenerationSignalOrchestration.Signal.Reset();
             await client.RaiseEventAsync(signalId, "Count", "4");
             await Task.Delay(2 * 500);
-            await client.RaiseEventAsync(signalId, "Count", "5"); // will be recieved by next generation
+            await client.RaiseEventAsync(signalId, "Count", "5"); // will be received by next generation
             await client.RaiseEventAsync(signalId, "Count", "6"); // lost
             await client.RaiseEventAsync(signalId, "Count", "7"); // lost
-            GenerationSignalOrchestration.signal.Set();
+            GenerationSignalOrchestration.Signal.Set();
 
             OrchestrationState result = await client.WaitForOrchestrationAsync(new OrchestrationInstance { InstanceId = id.InstanceId },
                 TimeSpan.FromSeconds(40), CancellationToken.None);
@@ -251,30 +250,28 @@ namespace DurableTask.Emulator.Tests
             Assert.AreEqual("5", GenerationSignalOrchestration.Result, "Orchestration Result is wrong!!!");
         }
 
+        ////[TestMethod]
+        ////public async Task TerminateOrchestrationTest()
+        ////{
+        ////    var orchestrationService = new LocalOrchestrationService();
 
+        ////    await orchestrationService.StartAsync();
 
-        //[TestMethod]
-        //public async Task TerminateOrchestrationTest()
-        //{
-        //    LocalOrchestrationService orchService = new LocalOrchestrationService();
+        ////    TaskHubWorker worker = new TaskHubWorker(orchestrationService, "test", new TaskHubWorkerSettings());
 
-        //    await orchService.StartAsync();
+        ////    worker.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
+        ////        .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
+        ////        .Start();
 
-        //    TaskHubWorker worker = new TaskHubWorker(orchService, "test", new TaskHubWorkerSettings());
+        ////    TaskHubClient client = new TaskHubClient(orchestrationService, "test", new TaskHubClientSettings());
 
-        //    worker.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
-        //        .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
-        //        .Start();
+        ////    OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), "60");
 
-        //    TaskHubClient client = new TaskHubClient(orchService, "test", new TaskHubClientSettings());
+        ////    OrchestrationState result = await client.WaitForOrchestrationAsync(id, TimeSpan.FromSeconds(10), new CancellationToken());
+        ////    Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,
+        ////        "Orchestration Result is wrong!!!");
 
-        //    OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), "60");
-
-        //    OrchestrationState result = await client.WaitForOrchestrationAsync(id, TimeSpan.FromSeconds(10), new CancellationToken());
-        //    Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,
-        //        "Orchestration Result is wrong!!!");
-
-        //    await orchService.StopAsync();
-        //}
+        ////    await orchestrationService.StopAsync();
+        ////}
     }
 }

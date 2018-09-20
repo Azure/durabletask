@@ -34,10 +34,7 @@ namespace DurableTask.Core.History
         /// <summary>
         /// Gets the event type
         /// </summary>
-        public override EventType EventType
-        {
-            get { return EventType.TimerFired; }
-        }
+        public override EventType EventType => EventType.TimerFired;
 
         /// <summary>
         /// Gets or sets the timer id
@@ -45,7 +42,7 @@ namespace DurableTask.Core.History
         [DataMember]
         public int TimerId { get; set; }
 
-        // AFFANDAR : TODO : wire format change. 
+        // TODO : wire format change. (AFFANDAR)
         /// <summary>
         /// Gets or sets datetime to fire
         /// </summary>

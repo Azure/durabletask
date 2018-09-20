@@ -13,6 +13,8 @@
 
 namespace DurableTask.Samples.Common.WorkItems
 {
+    using System;
+    using System.Configuration;
     using System.Net;
     using System.Net.Mail;
     using DurableTask.Core;
@@ -27,36 +29,38 @@ namespace DurableTask.Samples.Common.WorkItems
 
     public sealed class EmailTask : TaskActivity<EmailInput, object>
     {
-        private static MailAddress FromAddress = new MailAddress("azuresbtest@outlook.com", "Service Bus Task Mailer");
-
-        public EmailTask()
-        {
-        }
+        static readonly MailAddress FromAddress = new MailAddress("azuresbtest@outlook.com", "Service Bus Task Mailer");
 
         protected override object Execute(TaskContext context, EmailInput input)
         {
             var toAddress = new MailAddress(input.ToAddress, input.To);
 
+            string networkCredentials = ConfigurationManager.AppSettings["SmtpNetworkCredentials"];
+            if (string.IsNullOrWhiteSpace(networkCredentials))
+            {
+                throw new ArgumentException("Network Credentials not set for SMTP client, set the 'SmtpNetworkCredentials' parameter in App.config");
+            }
+
             var smtp = new SmtpClient
-                {
-                    Host = "smtp.live.com",
-                    Port = 587,
-                    EnableSsl = true,
-                    DeliveryMethod = SmtpDeliveryMethod.Network,
-                    UseDefaultCredentials = false,
-                    Credentials = new NetworkCredential(FromAddress.Address, "Broken!12")
-                };
+            {
+                Host = "smtp.live.com",
+                Port = 587,
+                EnableSsl = true,
+                DeliveryMethod = SmtpDeliveryMethod.Network,
+                UseDefaultCredentials = false,
+                Credentials = new NetworkCredential(FromAddress.Address, networkCredentials)
+            };
 
             using (var message = new MailMessage(FromAddress, toAddress)
-                {
-                    Subject = input.Subject,
-                    Body = input.Body
-                })
+            {
+                Subject = input.Subject,
+                Body = input.Body
+            })
             {
                 smtp.Send(message);
             }
+
             return null;
         }
-
     }
 }

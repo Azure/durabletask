@@ -34,10 +34,10 @@ namespace DurableTask.ServiceBus.Tests
         {
             if (!TestContext.TestName.Contains("TestHost"))
             {
-                client = TestHelpers.CreateTaskHubClient();
+                this.client = TestHelpers.CreateTaskHubClient();
 
-                taskHub = TestHelpers.CreateTaskHub(TimeSpan.FromSeconds(30));
-                taskHub.orchestrationService.CreateAsync(true).Wait();
+                this.taskHub = TestHelpers.CreateTaskHub(TimeSpan.FromSeconds(30));
+                this.taskHub.orchestrationService.CreateAsync(true).Wait();
             }
         }
 
@@ -46,26 +46,26 @@ namespace DurableTask.ServiceBus.Tests
         {
             if (!TestContext.TestName.Contains("TestHost"))
             {
-                taskHub.StopAsync(true).Wait();
-                taskHub.orchestrationService.DeleteAsync(true).Wait();
+                this.taskHub.StopAsync(true).Wait();
+                this.taskHub.orchestrationService.DeleteAsync(true).Wait();
             }
         }
 
         [TestMethod]
         public async Task SimplestGreetingsJumpStartTest()
         {
-            var sbService = (ServiceBusOrchestrationService)taskHub.orchestrationService;
+            var sbService = (ServiceBusOrchestrationService)this.taskHub.orchestrationService;
             string name = NameVersionHelper.GetDefaultName(typeof(SimplestGreetingsOrchestration));
             string version = NameVersionHelper.GetDefaultVersion(typeof(SimplestGreetingsOrchestration));
 
-            await taskHub.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
+            await this.taskHub.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
                 .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
                 .StartAsync();
 
             OrchestrationInstance id = await TestHelpers.CreateOrchestrationInstanceAsync(sbService, name, version, null, null, true, false);
 
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
             Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,
                 "Orchestration Result is wrong!!!");
         }
@@ -73,72 +73,73 @@ namespace DurableTask.ServiceBus.Tests
         [TestMethod]
         public async Task SimplestGreetingsJumpStartDelayTest()
         {
-            var sbService = (ServiceBusOrchestrationService)taskHub.orchestrationService;
+            var sbService = (ServiceBusOrchestrationService)this.taskHub.orchestrationService;
             string name = NameVersionHelper.GetDefaultName(typeof(SimplestGreetingsOrchestration));
             string version = NameVersionHelper.GetDefaultVersion(typeof(SimplestGreetingsOrchestration));
 
-            await taskHub.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
+            await this.taskHub.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
                 .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
                 .StartAsync();
 
             OrchestrationInstance id = await TestHelpers.CreateOrchestrationInstanceAsync(sbService, name, version, null, null, true, false);
 
-            // Wait only 8 seconds, the jumptstartinterval is set to 10
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 8);
-            Assert.IsFalse(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 8));
+            // Wait only 8 seconds, the jumpStart interval is set to 10
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 8);
+            Assert.IsFalse(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 8));
         }
 
         [TestMethod]
         public async Task DupeDetectionByInstanceStoreTest()
         {
-            var sbService = (ServiceBusOrchestrationService)taskHub.orchestrationService;
+            var sbService = (ServiceBusOrchestrationService)this.taskHub.orchestrationService;
             string name = NameVersionHelper.GetDefaultName(typeof(SimplestGreetingsOrchestration));
             string version = NameVersionHelper.GetDefaultVersion(typeof(SimplestGreetingsOrchestration));
 
-            await taskHub.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
+            await this.taskHub.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
                 .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
                 .StartAsync();
 
-            // Write to jumpstart table only
+            // Write to jumpStart table only
             OrchestrationInstance id = await TestHelpers.CreateOrchestrationInstanceAsync(sbService, name, version, null, null, true, false);
 
-            // Try to create orchestraton with same instanceId
-            var exception = await TestHelpers.ThrowsAsync<OrchestrationAlreadyExistsException>(() => TestHelpers.CreateOrchestrationInstanceAsync(sbService, name, version, id.InstanceId, null, false, false));
+            // Try to create orchestration with same instanceId
+            OrchestrationAlreadyExistsException exception = await TestHelpers.ThrowsAsync<OrchestrationAlreadyExistsException>(() => TestHelpers.CreateOrchestrationInstanceAsync(sbService, name, version, id.InstanceId, null, false, false));
             Assert.IsTrue(exception.Message.Contains("already exists"));
         }
 
         [TestMethod]
         public async Task DupeDetectionByServiceBusQueueTest()
         {
-            var sbService = (ServiceBusOrchestrationService)taskHub.orchestrationService;
+            var sbService = (ServiceBusOrchestrationService)this.taskHub.orchestrationService;
             string name = NameVersionHelper.GetDefaultName(typeof(SimplestGreetingsOrchestration));
             string version = NameVersionHelper.GetDefaultVersion(typeof(SimplestGreetingsOrchestration));
 
-            await taskHub.AddTaskOrchestrations(typeof(GenerationBasicOrchestration))
+            await this.taskHub.AddTaskOrchestrations(typeof(GenerationBasicOrchestration))
                 .AddTaskActivities(new GenerationBasicTask())
                 .AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
                 .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
                 .StartAsync();
 
             GenerationBasicTask.GenerationCount = 0;
-            int generationCount = 0;
-            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof(GenerationBasicOrchestration), generationCount);
+            var generationCount = 0;
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(GenerationBasicOrchestration), generationCount);
 
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
 
             // We use instanceId and execution for SB level d-dup
-            // Write to ServiceBus only. SB drops the message and the orchestraion does not start
+            // Write to ServiceBus only. SB drops the message and the orchestration does not start
             id = await TestHelpers.CreateOrchestrationInstanceAsync(sbService, name, version, id.InstanceId, id.ExecutionId, false, true);
 
             await Task.Delay(TimeSpan.FromSeconds(5));
 
+            // ReSharper disable once UnusedVariable
             long count = TestHelpers.GetOrchestratorQueueMessageCount();
 
-            IList<OrchestrationState> executions = await client.GetOrchestrationStateAsync(id.InstanceId, true);
+            IList<OrchestrationState> executions = await this.client.GetOrchestrationStateAsync(id.InstanceId, true);
             Assert.AreEqual(1, executions.Count, "Duplicate detection failed and orchestration ran for second time");
 
-            // Make sure the second orchestraton never started by checking the output from first orchestration
+            // Make sure the second orchestration never started by checking the output from first orchestration
             Assert.AreNotEqual("Greeting send to Gabbar", executions[0].Output);
             Assert.AreEqual(generationCount + 1, int.Parse(executions[0].Output));
         }

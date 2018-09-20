@@ -20,7 +20,9 @@ namespace DurableTask.Core.Command
         public override OrchestratorActionType OrchestratorActionType => OrchestratorActionType.OrchestrationComplete;
 
         public string Result { get; set; }
+
         public string Details { get; set; }
+
         public string NewVersion { get; set; }
     }
 }

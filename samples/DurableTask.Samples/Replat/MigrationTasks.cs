@@ -19,13 +19,21 @@ namespace DurableTask.Samples.Replat
     public interface IMigrationTasks
     {
         Task<bool> ExportSite(string id, string subscriptionId, Application application);
+
         Task<bool> ImportSite(string id, string subscriptionId, Application application);
+
         Task<bool> MigrateServerFarmConfig(string id, string subscriptionId, Application application);
+
         Task<bool> UpdateWebSiteHostName(string subscriptionId, Application application);
+
         Task<bool> WhitelistSubscription(string subscriptionId);
+
         Task<bool> CleanupPrivateStamp(string subscriptionId);
+
         Task<bool> EnableSubscription(string subscriptionId);
+
         Task<bool> DisableSubscription(string subscriptionId);
+
         Task<bool> UpdateTtl(string subscriptionId);
     }
 
@@ -33,66 +41,59 @@ namespace DurableTask.Samples.Replat
     {
         public Task<bool> ExportSite(string id, string subscriptionId, Application application)
         {
-            Console.WriteLine(string.Format(
-                "Export Site Called for SubId: '{0}' with Id: '{1}'.  App Name: '{2}'", subscriptionId, id, application.Name));
+            Console.WriteLine($"Export Site Called for SubId: '{subscriptionId}' with Id: '{id}'.  App Name: '{application.Name}'");
 
             return Task.FromResult(true);
         }
 
         public Task<bool> ImportSite(string id, string subscriptionId, Application application)
         {
-            Console.WriteLine(string.Format(
-                "Import Site Called for SubId: '{0}' with Id: '{1}'.  App Name: '{2}'", subscriptionId, id, application.Name));
+            Console.WriteLine($"Import Site Called for SubId: '{subscriptionId}' with Id: '{id}'.  App Name: '{application.Name}'");
 
             return Task.FromResult(true);
         }
 
         public Task<bool> MigrateServerFarmConfig(string id, string subscriptionId, Application application)
         {
-            Console.WriteLine(string.Format(
-                "Migrate ServerFarm Called for SubId: '{0}' with Id: '{1}'.  App Name: '{2}'", subscriptionId, id, application.Name));
+            Console.WriteLine($"Migrate ServerFarm Called for SubId: '{subscriptionId}' with Id: '{id}'.  App Name: '{application.Name}'");
 
             return Task.FromResult(true);
         }
 
         public Task<bool> UpdateWebSiteHostName(string subscriptionId, Application application)
         {
-            Console.WriteLine(string.Format(
-                "Update Website Hostname Called for SubId: '{0}'.  App Name: '{1}'", subscriptionId, application.Name));
+            Console.WriteLine($"Update Website Hostname Called for SubId: '{subscriptionId}'.  App Name: '{application.Name}'");
 
             return Task.FromResult(true);
         }
 
         public Task<bool> WhitelistSubscription(string subscriptionId)
         {
-            Console.WriteLine(string.Format(
-                "WhitelistSubscription Called for SubId: '{0}'.", subscriptionId));
+            Console.WriteLine($"WhitelistSubscription Called for SubId: '{subscriptionId}'.");
 
             return Task.FromResult(true);
         }
 
         public Task<bool> CleanupPrivateStamp(string subscriptionId)
         {
-            Console.WriteLine(string.Format(
-                "CleanupPrivateStamp Called for SubId: '{0}'.", subscriptionId));
+            Console.WriteLine($"CleanupPrivateStamp Called for SubId: '{subscriptionId}'.");
 
             return Task.FromResult(true);
         }
 
         public Task<bool> EnableSubscription(string subscriptionId)
         {
-            throw new NotImplementedException();
+            throw new NotSupportedException();
         }
 
         public Task<bool> DisableSubscription(string subscriptionId)
         {
-            throw new NotImplementedException();
+            throw new NotSupportedException();
         }
 
         public Task<bool> UpdateTtl(string subscriptionId)
         {
-            Console.WriteLine(string.Format(
-                "UpdateTtl Called for SubId: '{0}'.", subscriptionId));
+            Console.WriteLine($"UpdateTtl Called for SubId: '{subscriptionId}'.");
 
             return Task.FromResult(true);
         }

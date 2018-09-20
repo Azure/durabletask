@@ -22,11 +22,10 @@ namespace DurableTask.Samples.Cron
     {
         public override async Task<string> RunTask(OrchestrationContext context, string cronSchedule)
         {
-            int numberOfTimes = 4;
-            bool waitForCompletion = false;
-            int runAfterEverySeconds = 10;
+            var numberOfTimes = 4;
+            var runAfterEverySeconds = 10;
 
-            for (int i = 1; i <= numberOfTimes; i++)
+            for (var i = 1; i <= numberOfTimes; i++)
             {
                 Console.WriteLine($"Schedule CronTask({i}) start");
 
@@ -42,15 +41,11 @@ namespace DurableTask.Samples.Cron
                     fireAt = schedule.GetNextOccurrence(context.CurrentUtcDateTime);
                 }
                 
-                var attempt = await context.CreateTimer<string>(fireAt, i.ToString());
+                string attempt = await context.CreateTimer(fireAt, i.ToString());
                 Console.WriteLine($"Schedule CronTask({i}) at {fireAt}");
 
                 Task<string> resultTask = context.ScheduleTask<string>(typeof(CronTask), attempt);
-
-                if (waitForCompletion)
-                {
-                    await resultTask;
-                }
+                await resultTask;
             }
 
             return "Done";

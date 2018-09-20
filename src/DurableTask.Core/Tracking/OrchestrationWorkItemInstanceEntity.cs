@@ -21,7 +21,6 @@ namespace DurableTask.Core.Tracking
     /// </summary>
     public class OrchestrationWorkItemInstanceEntity : InstanceEntityBase
     {
-
         /// <summary>
         /// The orchestration instance id
         /// </summary>
@@ -36,7 +35,7 @@ namespace DurableTask.Core.Tracking
         /// Timestamp of the instance event
         /// </summary>
         public DateTime EventTimestamp;
-        
+
         /// <summary>
         /// History event corresponding to this work item instance entity
         /// </summary>

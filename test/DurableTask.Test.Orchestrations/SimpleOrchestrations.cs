@@ -85,7 +85,7 @@ namespace DurableTask.Test.Orchestrations
 
             if (delayInSeconds > 0)
             {
-                for (int i = 0; i < 3; i++)
+                for (var i = 0; i < 3; i++)
                 {
                     await context.CreateTimer<object>(context.CurrentUtcDateTime.Add(TimeSpan.FromSeconds(delayInSeconds)), null);
                 }
@@ -106,18 +106,19 @@ namespace DurableTask.Test.Orchestrations
             return "Greeting send to " + user;
         }
     }
+
     public class GenerationSignalOrchestration : TaskOrchestration<int, int>
     {
         // HACK: This is just a hack to communicate result of orchestration back to test
         public static string Result;
-        public static ManualResetEvent signal = new ManualResetEvent(false);
+        public static ManualResetEvent Signal = new ManualResetEvent(false);
 
         TaskCompletionSource<string> resumeHandle;
 
         public override async Task<int> RunTask(OrchestrationContext context, int numberOfGenerations)
         {
             int count = await WaitForSignal();
-            signal.WaitOne();
+            Signal.WaitOne();
             numberOfGenerations--;
             if (numberOfGenerations > 0)
             {
@@ -131,9 +132,9 @@ namespace DurableTask.Test.Orchestrations
 
         async Task<int> WaitForSignal()
         {
-            resumeHandle = new TaskCompletionSource<string>();
-            string data = await resumeHandle.Task;
-            resumeHandle = null;
+            this.resumeHandle = new TaskCompletionSource<string>();
+            string data = await this.resumeHandle.Task;
+            this.resumeHandle = null;
             return int.Parse(data);
         }
 
@@ -144,10 +145,7 @@ namespace DurableTask.Test.Orchestrations
                 throw new ArgumentOutOfRangeException(nameof(name), name, "Unknown signal recieved...");
             }
 
-            if (resumeHandle != null)
-            {
-                resumeHandle.SetResult(input);
-            }
+            this.resumeHandle?.SetResult(input);
         }
     }
 

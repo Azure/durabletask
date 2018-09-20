@@ -28,8 +28,8 @@ namespace DurableTask.ServiceBus.Tests
         [TestMethod]
         public async Task TestCreateIfNew()
         {
-            taskHub = TestHelpers.CreateTaskHub();
-            var service = taskHub.orchestrationService as ServiceBusOrchestrationService;
+            this.taskHub = TestHelpers.CreateTaskHub();
+            var service = this.taskHub.orchestrationService as ServiceBusOrchestrationService;
             Assert.IsNotNull(service);
 
             await service.CreateAsync();
@@ -42,14 +42,14 @@ namespace DurableTask.ServiceBus.Tests
         [TestMethod]
         public async Task TestOrchestrationCount()
         {
-            taskHub = TestHelpers.CreateTaskHub();
-            client = TestHelpers.CreateTaskHubClient();
-            var service = taskHub.orchestrationService as ServiceBusOrchestrationService;
+            this.taskHub = TestHelpers.CreateTaskHub();
+            this.client = TestHelpers.CreateTaskHubClient();
+            var service = this.taskHub.orchestrationService as ServiceBusOrchestrationService;
             Assert.IsNotNull(service);
             await service.CreateAsync();
-            await client.CreateOrchestrationInstanceAsync("foo", "1.0", null);
-            await client.CreateOrchestrationInstanceAsync("foo1", "1.0", null);
-            await client.CreateOrchestrationInstanceAsync("foo2", "1.0", null);
+            await this.client.CreateOrchestrationInstanceAsync("foo", "1.0", null);
+            await this.client.CreateOrchestrationInstanceAsync("foo1", "1.0", null);
+            await this.client.CreateOrchestrationInstanceAsync("foo2", "1.0", null);
             Assert.IsTrue(service.GetPendingOrchestrationsCount() == 3);
             await service.DeleteAsync();
         }
@@ -64,8 +64,8 @@ namespace DurableTask.ServiceBus.Tests
                 MaxTrackingDeliveryCount = 100
             };
 
-            taskHub = TestHelpers.CreateTaskHub(settings);
-            var service = taskHub.orchestrationService as ServiceBusOrchestrationService;
+            this.taskHub = TestHelpers.CreateTaskHub(settings);
+            var service = this.taskHub.orchestrationService as ServiceBusOrchestrationService;
             Assert.IsNotNull(service);
             await service.CreateAsync();
 
@@ -88,8 +88,8 @@ namespace DurableTask.ServiceBus.Tests
                 MaxTrackingDeliveryCount = 100
             };
 
-            taskHub = TestHelpers.CreateTaskHub(settings);
-            var service = taskHub.orchestrationService as ServiceBusOrchestrationService;
+            this.taskHub = TestHelpers.CreateTaskHub(settings);
+            var service = this.taskHub.orchestrationService as ServiceBusOrchestrationService;
             Assert.IsNotNull(service);
             await service.CreateIfNotExistsAsync();
 
@@ -102,15 +102,15 @@ namespace DurableTask.ServiceBus.Tests
             await service.DeleteAsync();
         }
 
-//        [TestMethod]
-//        public void TestWorkItemCount()
-//        {
-//            this.client.Create();
-//            this.client.CreateOrchestrationInstance("foo", "1.0", null);
-//            this.client.CreateOrchestrationInstance("foo1", "1.0", null);
-//            this.client.CreateOrchestrationInstance("foo2", "1.0", null);
-//            Assert.IsTrue(this.client.GetOrchestrationCount() == 1);
-//            this.client.Delete();
-//        }
+        //        [TestMethod]
+        //        public void TestWorkItemCount()
+        //        {
+        //            this.client.Create();
+        //            this.client.CreateOrchestrationInstance("foo", "1.0", null);
+        //            this.client.CreateOrchestrationInstance("foo1", "1.0", null);
+        //            this.client.CreateOrchestrationInstance("foo2", "1.0", null);
+        //            Assert.IsTrue(this.client.GetOrchestrationCount() == 1);
+        //            this.client.Delete();
+        //        }
     }
 }

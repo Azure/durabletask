@@ -20,10 +20,10 @@ namespace DurableTask.Samples.Greetings2
     {
         public override async Task<string> RunTask(OrchestrationContext context, int secondsToWait)
         {
-            var user = context.ScheduleTask<string>("DurableTaskSamples.Greetings.GetUserTask", string.Empty);
-            var timer = context.CreateTimer<string>(context.CurrentUtcDateTime.AddSeconds(secondsToWait), "TimedOut");
+            Task<string> user = context.ScheduleTask<string>("DurableTaskSamples.Greetings.GetUserTask", string.Empty);
+            Task<string> timer = context.CreateTimer(context.CurrentUtcDateTime.AddSeconds(secondsToWait), "TimedOut");
 
-            var u = await Task.WhenAny(user, timer);
+            Task<string> u = await Task.WhenAny(user, timer);
             string greeting = await context.ScheduleTask<string>("DurableTaskSamples.Greetings.SendGreetingTask", string.Empty, u.Result);
 
             return greeting;

@@ -23,9 +23,9 @@ namespace DurableTask.ServiceBus.Settings
     {
         internal JumpStartSettings()
         {
-            this.JumpStartEnabled = true;
-            this.Interval = FrameworkConstants.JumpStartDefaultInterval;
-            this.IgnoreWindow = FrameworkConstants.JumpStartDefaultIgnoreWindow;
+            JumpStartEnabled = true;
+            Interval = FrameworkConstants.JumpStartDefaultInterval;
+            IgnoreWindow = FrameworkConstants.JumpStartDefaultIgnoreWindow;
         }
 
         /// <summary>

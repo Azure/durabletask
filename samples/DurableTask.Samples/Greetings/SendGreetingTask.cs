@@ -19,13 +19,9 @@ namespace DurableTask.Samples.Greetings
 
     public sealed class SendGreetingTask : TaskActivity<string, string>
     {
-        public SendGreetingTask()
-        {
-        }
-
         protected override string Execute(DurableTask.Core.TaskContext context, string user)
         {
-            string message = null;
+            string message;
             if (!string.IsNullOrWhiteSpace(user) && user.Equals("TimedOut"))
             {
                 message = "GetUser Timed out!!!";
@@ -44,5 +40,4 @@ namespace DurableTask.Samples.Greetings
             return message;
         }
     }
-
 }

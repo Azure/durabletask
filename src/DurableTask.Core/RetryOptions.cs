@@ -58,6 +58,7 @@ namespace DurableTask.Core
         /// Gets or sets the back-off coefficient
         /// defaults to 1, used to determine rate of increase of back-off
         /// </summary>
+        // ReSharper disable once IdentifierTypo (avoid breaking change)
         public double BackoffCoefficient { get; set; }
 
         /// <summary>

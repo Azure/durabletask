@@ -76,7 +76,7 @@ namespace DurableTask.Core.Exceptions
         public override void GetObjectData(SerializationInfo info, StreamingContext context)
         {
             base.GetObjectData(info, context);
-            info.AddValue("EventId", this.EventId);
+            info.AddValue("EventId", EventId);
         }
 
         /// <summary>

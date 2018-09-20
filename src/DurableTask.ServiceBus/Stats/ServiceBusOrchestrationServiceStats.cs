@@ -30,9 +30,9 @@ namespace DurableTask.ServiceBus.Stats
         /// </summary>
         public ServiceBusOrchestrationServiceStats()
         {
-            this.OrchestrationDispatcherStats = new ServiceBusQueueStats();
-            this.ActivityDispatcherStats = new ServiceBusQueueStats();
-            this.TrackingDispatcherStats = new ServiceBusQueueStats();
+            OrchestrationDispatcherStats = new ServiceBusQueueStats();
+            ActivityDispatcherStats = new ServiceBusQueueStats();
+            TrackingDispatcherStats = new ServiceBusQueueStats();
         }
 
         /// <summary>
