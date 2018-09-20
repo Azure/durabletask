@@ -13,6 +13,7 @@
 
 namespace DurableTask.Samples.Common.WorkItems
 {
+    using System.Configuration;
     using System.Net;
     using System.Net.Mail;
     using DurableTask.Core;
@@ -34,20 +35,20 @@ namespace DurableTask.Samples.Common.WorkItems
             var toAddress = new MailAddress(input.ToAddress, input.To);
 
             var smtp = new SmtpClient
-                {
-                    Host = "smtp.live.com",
-                    Port = 587,
-                    EnableSsl = true,
-                    DeliveryMethod = SmtpDeliveryMethod.Network,
-                    UseDefaultCredentials = false,
-                    Credentials = new NetworkCredential(FromAddress.Address, "Broken!12")
-                };
+            {
+                Host = "smtp.live.com",
+                Port = 587,
+                EnableSsl = true,
+                DeliveryMethod = SmtpDeliveryMethod.Network,
+                UseDefaultCredentials = false,
+                Credentials = new NetworkCredential(FromAddress.Address, ConfigurationManager.AppSettings["NetworkCredential"])
+            };
 
             using (var message = new MailMessage(FromAddress, toAddress)
-                {
-                    Subject = input.Subject,
-                    Body = input.Body
-                })
+            {
+                Subject = input.Subject,
+                Body = input.Body
+            })
             {
                 smtp.Send(message);
             }

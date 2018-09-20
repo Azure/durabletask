@@ -169,7 +169,7 @@ namespace DurableTask.ServiceBus.Tracking
         /// </returns>
         public override string ToString()
         {
-            return $"Instance Id: {InstanceId} Execution Id: {ExecutionId} Seq: {SequenceNumber} Time: {TaskTimeStamp} HistoryEvent: {HistoryEvent.EventType}";
+            return $"Instance Id: {InstanceId} Execution Id: {ExecutionId} Seq: {SequenceNumber.ToString()} Time: {TaskTimeStamp} HistoryEvent: {HistoryEvent.EventType.ToString()}";
         }
     }
 }

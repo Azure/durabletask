@@ -151,7 +151,7 @@ namespace DurableTask.Core.Serializing
             if (orchestrationServiceBlobStore == null)
             {
                 throw new OrchestrationException(
-                    "Please provide an implementation of IOrchestrationServiceBlobStore for external storage to load the runtime state.");
+                    $"Please provide an implementation of {nameof(IOrchestrationServiceBlobStore)} for external storage to load the runtime state.");
             }
 
             TraceHelper.TraceSession(

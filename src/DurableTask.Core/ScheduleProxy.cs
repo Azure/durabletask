@@ -23,7 +23,7 @@ namespace DurableTask.Core
     internal class ScheduleProxy : DynamicObject
     {
         readonly OrchestrationContext context;
-        
+
         // ReSharper disable once IdentifierTypo (intentional)
         readonly Type interfaze;
         readonly IDictionary<string, Type> returnTypes;
@@ -86,7 +86,7 @@ namespace DurableTask.Core
                     new[] { typeof(string), typeof(string), typeof(object[]) });
                 if (scheduleMethod == null)
                 {
-                    throw new Exception("Method 'ScheduleTask' not found. Type Name: OrchestrationContext");
+                    throw new Exception($"Method 'ScheduleTask' not found. Type Name: {nameof(OrchestrationContext)}");
                 }
 
                 MethodInfo genericScheduleMethod = scheduleMethod.MakeGenericMethod(genericArguments[0]);
