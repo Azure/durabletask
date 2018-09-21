@@ -142,6 +142,30 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+
+        [TestMethod]
+        public async Task PurgeInstanceHistory()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            {
+                string instanceId = Guid.NewGuid().ToString();
+                await host.StartAsync();
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloInline), "world one", instanceId);
+                await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                
+
+                var historyEvents = await client.GetOrchestrationHistoryAsync(instanceId);
+                Assert.IsTrue(historyEvents.Count > 0);
+
+                await client.PurgeInstancehistory();
+
+                var historyEventsAfterPurging = await client.GetOrchestrationHistoryAsync(instanceId);
+                Assert.AreEqual(0, historyEventsAfterPurging.Count);
+              
+                await host.StopAsync();
+            }
+        }
+
         /// <summary>
         /// End-to-end test which validates parallel function execution by enumerating all files in the current directory 
         /// in parallel and getting the sum total of all file sizes.

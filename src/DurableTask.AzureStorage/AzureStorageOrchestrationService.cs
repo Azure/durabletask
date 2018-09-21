@@ -1255,6 +1255,15 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
+        /// Purge history for an orchestration with a specified instance id.
+        /// </summary>
+        /// <param name="instanceId">Instance ID of the orchestration.</param>
+        public async Task PurgeInstanceHistoryAsync(string instanceId)
+        {
+            await this.trackingStore.PurgeInstanceHistoryAsync(instanceId);
+        }
+
+        /// <summary>
         /// Wait for an orchestration to reach any terminal state within the given timeout
         /// </summary>
         /// <param name="instanceId">The orchestration instance to wait for.</param>

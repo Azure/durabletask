@@ -14,10 +14,15 @@
 namespace DurableTask.AzureStorage.Tests
 {
     using System;
+    using System.Collections.Generic;
     using System.Diagnostics;
+    using System.Threading;
     using System.Threading.Tasks;
+    using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
+    using DurableTask.Core.History;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
+    using Newtonsoft.Json;
 
     class TestOrchestrationClient
     {
@@ -129,6 +134,26 @@ namespace DurableTask.AzureStorage.Tests
             // The Rewind API currently only exists in the service object
             AzureStorageOrchestrationService service = (AzureStorageOrchestrationService)this.client.serviceClient;
             return service.RewindTaskOrchestrationAsync(this.instanceId, reason);
+        }
+
+        public Task PurgeInstancehistory()
+        {
+            Trace.TraceInformation($"Purging history for instance with id - {this.instanceId}");
+
+            // The Purge Instance History API only exists in the service object
+            AzureStorageOrchestrationService service = (AzureStorageOrchestrationService)this.client.serviceClient;
+            return service.PurgeInstanceHistoryAsync(this.instanceId);
+        }
+
+        public async Task<List<HistoryStateEvent>> GetOrchestrationHistoryAsync(string instanceId)
+        {
+            Trace.TraceInformation($"Geting history for instance with id - {this.instanceId}");
+
+            // GetOrchestrationHistoryAsync is exposed in the TaskHubClinet but requires execution id. 
+            // However, we need to get all the history records for an instance id not for specific execution.
+            AzureStorageOrchestrationService service = (AzureStorageOrchestrationService)this.client.serviceClient;
+            string historyString = await service.GetOrchestrationHistoryAsync(instanceId, null);
+            return JsonConvert.DeserializeObject<List<HistoryStateEvent>>(historyString);
         }
 
         static TimeSpan AdjustTimeout(TimeSpan requestedTimeout)

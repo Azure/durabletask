@@ -119,5 +119,11 @@ namespace DurableTask.AzureStorage.Tracking
         /// <param name="thresholdDateTimeUtc">Timestamp threshold, data older than this will be removed</param>
         /// <param name="timeRangeFilterType">timeRangeFilterType governs the type of time stamp that will be used for decision making</param>
         Task PurgeHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType);
+
+        /// <summary>
+        /// Purge the history for a concrete instance 
+        /// </summary>
+        /// <param name="instanceId">Instance ID</param>
+        Task PurgeInstanceHistoryAsync(string instanceId);
     }
 }

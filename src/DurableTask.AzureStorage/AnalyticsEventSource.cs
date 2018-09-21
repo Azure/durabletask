@@ -788,6 +788,26 @@ namespace DurableTask.AzureStorage
                 ExtensionVersion);
         }
 
+        [Event(141, Level = EventLevel.Informational)]
+        public void PurgeInstanceHistory(
+            string Account,
+            string TaskHub,
+            string InstanceId,
+            int RequestCount,
+            long LatencyMs,
+            string ExtensionVersion)
+        {
+            EnsureLogicalTraceActivityId();
+            this.WriteEvent(
+                141,
+                Account,
+                TaskHub,
+                InstanceId,
+                RequestCount,
+                LatencyMs,
+                ExtensionVersion);
+        }
+
         // Specifying tasks is necessary when using WriteEventWithRelatedActivityId
         // or else the "TaskName" property written to ETW is the name of the opcode instead
         // of the name of the trace method.

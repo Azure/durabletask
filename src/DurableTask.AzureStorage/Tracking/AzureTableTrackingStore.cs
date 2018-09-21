@@ -137,66 +137,19 @@ namespace DurableTask.AzureStorage.Tracking
         /// <inheritdoc />
         public override async Task<OrchestrationHistory> GetHistoryEventsAsync(string instanceId, string expectedExecutionId, CancellationToken cancellationToken = default(CancellationToken))
         {
-            var filterCondition = new StringBuilder(200);
-
-            const char Quote = '\'';
-
-            // e.g. "PartitionKey eq 'c138dd969a1e4a699b0644c7d8279f81'"
-            filterCondition.Append("PartitionKey eq ").Append(Quote).Append(instanceId).Append(Quote);
-            if (expectedExecutionId != null)
-            {
-                // Filter down to a specific generation.
-                // e.g. "PartitionKey eq 'c138dd969a1e4a699b0644c7d8279f81' and ExecutionId eq '85f05ce1494c4a29989f64d3fe0f9089'"
-                filterCondition.Append(" and ExecutionId eq ").Append(Quote).Append(expectedExecutionId).Append(Quote);
-            }
-
-            TableQuery query = new TableQuery().Where(filterCondition.ToString());
-
-            // TODO: Write-through caching should ensure that we rarely need to make this call?
-            var historyEventEntities = new List<DynamicTableEntity>(100);
-
-            var stopwatch = new Stopwatch();
-            int requestCount = 0;
-
-            bool finishedEarly = false;
-            TableContinuationToken continuationToken = null;
-            while (true)
-            {
-                requestCount++;
-                stopwatch.Start();
-
-                var segment = await this.HistoryTable.ExecuteQuerySegmentedAsync(
-                    query,
-                    continuationToken,
-                    this.StorageTableRequestOptions,
-                    null,
-                    cancellationToken);
-                stopwatch.Stop();
-
-                int previousCount = historyEventEntities.Count;
-                historyEventEntities.AddRange(segment);
-                this.stats.StorageRequests.Increment();
-                this.stats.TableEntitiesRead.Increment(historyEventEntities.Count - previousCount);
-
-                continuationToken = segment.ContinuationToken;
-                if (finishedEarly || continuationToken == null || cancellationToken.IsCancellationRequested)
-                {
-                    break;
-                }
-            }
-
+            HistoryEntitiesResponseInfo historyEntitiesResponseInfo = await this.GetHistoryEntitiesResponseInfoAsync(instanceId, expectedExecutionId, null, cancellationToken);
             IList<HistoryEvent> historyEvents;
             string executionId;
             string eTagValue = null;
-            if (historyEventEntities.Count > 0)
+            if (historyEntitiesResponseInfo.HistoryEventEntities.Count > 0)
             {
                 // The most recent generation will always be in the first history event.
-                executionId = historyEventEntities[0].Properties["ExecutionId"].StringValue;
+                executionId = historyEntitiesResponseInfo.HistoryEventEntities[0].Properties["ExecutionId"].StringValue;
 
                 // Convert the table entities into history events.
-                var events = new List<HistoryEvent>(historyEventEntities.Count);
+                var events = new List<HistoryEvent>(historyEntitiesResponseInfo.HistoryEventEntities.Count);
 
-                foreach (DynamicTableEntity entity in historyEventEntities)
+                foreach (DynamicTableEntity entity in historyEntitiesResponseInfo.HistoryEventEntities)
                 {
                     if (entity.Properties["ExecutionId"].StringValue != executionId)
                     {
@@ -244,12 +197,75 @@ namespace DurableTask.AzureStorage.Tracking
                 instanceId,
                 executionId,
                 historyEvents.Count,
-                requestCount,
-                stopwatch.ElapsedMilliseconds,
+                historyEntitiesResponseInfo.RequestCount,
+                historyEntitiesResponseInfo.PerformanceStopwatch.ElapsedMilliseconds,
                 eTagValue,
                 Utils.ExtensionVersion);
 
             return new OrchestrationHistory(historyEvents, eTagValue);
+        }
+
+        async Task<HistoryEntitiesResponseInfo> GetHistoryEntitiesResponseInfoAsync(string instanceId, string expectedExecutionId, IList<string> projectionColumns,  CancellationToken cancellationToken = default(CancellationToken))
+        {
+            var filterCondition = new StringBuilder(200);
+
+            const char Quote = '\'';
+
+            // e.g. "PartitionKey eq 'c138dd969a1e4a699b0644c7d8279f81'"
+            filterCondition.Append("PartitionKey eq ").Append(Quote).Append(instanceId).Append(Quote);
+            if (expectedExecutionId != null)
+            {
+                // Filter down to a specific generation.
+                // e.g. "PartitionKey eq 'c138dd969a1e4a699b0644c7d8279f81' and ExecutionId eq '85f05ce1494c4a29989f64d3fe0f9089'"
+                filterCondition.Append(" and ExecutionId eq ").Append(Quote).Append(expectedExecutionId).Append(Quote);
+            }
+
+            TableQuery query = new TableQuery().Where(filterCondition.ToString());
+
+            if (projectionColumns != null)
+            {
+                query.Select(projectionColumns);
+            }
+
+            // TODO: Write-through caching should ensure that we rarely need to make this call?
+            var historyEventEntities = new List<DynamicTableEntity>(100);
+
+            var stopwatch = new Stopwatch();
+            int requestCount = 0;
+
+            bool finishedEarly = false;
+            TableContinuationToken continuationToken = null;
+            while (true)
+            {
+                requestCount++;
+                stopwatch.Start();
+
+                var segment = await this.HistoryTable.ExecuteQuerySegmentedAsync(
+                    query,
+                    continuationToken,
+                    this.StorageTableRequestOptions,
+                    null,
+                    cancellationToken);
+                stopwatch.Stop();
+
+                int previousCount = historyEventEntities.Count;
+                historyEventEntities.AddRange(segment);
+                this.stats.StorageRequests.Increment();
+                this.stats.TableEntitiesRead.Increment(historyEventEntities.Count - previousCount);
+
+                continuationToken = segment.ContinuationToken;
+                if (finishedEarly || continuationToken == null || cancellationToken.IsCancellationRequested)
+                {
+                    break;
+                }
+            }
+
+            return new HistoryEntitiesResponseInfo
+            {
+                HistoryEventEntities = historyEventEntities,
+                PerformanceStopwatch = stopwatch,
+                RequestCount = requestCount
+            };
         }
 
         private async Task<List<DynamicTableEntity>> QueryHistoryForRewind(string filterCondition, string instanceId, CancellationToken cancellationToken)
@@ -526,6 +542,42 @@ namespace DurableTask.AzureStorage.Tracking
         public override Task PurgeHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType)
         {
             throw new NotSupportedException();
+        }
+
+        /// <inheritdoc />
+        public override async Task PurgeInstanceHistoryAsync(string instanceId)
+        {
+            HistoryEntitiesResponseInfo historyEntitiesResponseInfo = await this.GetHistoryEntitiesResponseInfoAsync(
+                instanceId,
+                null,
+                new List<string>
+                {
+                    "RowKey"
+                },
+                new CancellationToken());
+
+            int pageOffset = 0;
+            while (pageOffset < historyEntitiesResponseInfo.HistoryEventEntities.Count)
+            {
+                var batch = new TableBatchOperation();
+                List<DynamicTableEntity> batchForDeletion = historyEntitiesResponseInfo.HistoryEventEntities.Skip(pageOffset).Take(100).ToList();
+                foreach (DynamicTableEntity itemForDeletion in batchForDeletion)
+                {
+                    batch.Delete(itemForDeletion);
+                }
+
+                await this.HistoryTable.ExecuteBatchAsync(batch);
+                historyEntitiesResponseInfo.RequestCount++;
+                pageOffset += batchForDeletion.Count;
+            }
+
+            AnalyticsEventSource.Log.PurgeInstanceHistory(
+                this.storageAccountName,
+                this.taskHubName,
+                instanceId,
+                historyEntitiesResponseInfo.RequestCount,
+                historyEntitiesResponseInfo.PerformanceStopwatch.ElapsedMilliseconds,
+                Utils.ExtensionVersion);
         }
 
         /// <inheritdoc />
@@ -1010,6 +1062,13 @@ namespace DurableTask.AzureStorage.Tracking
             }
 
             return false;
+        }
+
+        class HistoryEntitiesResponseInfo
+        {
+            internal Stopwatch PerformanceStopwatch { get; set; }
+            internal int RequestCount { get; set; }
+            internal List<DynamicTableEntity> HistoryEventEntities { get; set; }
         }
     }
 }
