@@ -125,5 +125,14 @@ namespace DurableTask.AzureStorage.Tracking
         /// </summary>
         /// <param name="instanceId">Instance ID</param>
         Task PurgeInstanceHistoryAsync(string instanceId);
+
+        /// <summary>
+        /// Purge the orchestration history for instances that match the conditions
+        /// </summary>
+        /// <param name="createdTimeFrom"></param>
+        /// <param name="createdTimeTo"></param>
+        /// <param name="runtimeStatus"></param>
+        /// <returns></returns>
+        Task PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus);
     }
 }

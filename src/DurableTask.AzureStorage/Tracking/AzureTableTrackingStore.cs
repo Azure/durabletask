@@ -581,6 +581,29 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
+        public override  async Task PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
+        {
+            var stopwatch = new Stopwatch();
+            IList<OrchestrationState> orchestrationStates = await this.GetStateAsync(createdTimeFrom, createdTimeTo, runtimeStatus);
+            IList<Task> deleteTaskList = new List<Task>();
+            foreach (OrchestrationState orchestrationState in orchestrationStates)
+            {
+                deleteTaskList.Add(this.PurgeInstanceHistoryAsync(orchestrationState.OrchestrationInstance.InstanceId));
+            }
+
+            await Task.WhenAll(deleteTaskList);
+
+            AnalyticsEventSource.Log.PurgeInstanceHistoryTimeFilter(
+                this.storageAccountName,
+                this.taskHubName,
+                createdTimeFrom,
+                createdTimeTo,
+                runtimeStatus,
+                stopwatch.ElapsedMilliseconds,
+                Utils.ExtensionVersion);
+        }
+
+        /// <inheritdoc />
         public override async Task SetNewExecutionAsync(ExecutionStartedEvent executionStartedEvent)
         {
             DynamicTableEntity entity = new DynamicTableEntity(executionStartedEvent.OrchestrationInstance.InstanceId, "")

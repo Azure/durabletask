@@ -136,13 +136,22 @@ namespace DurableTask.AzureStorage.Tests
             return service.RewindTaskOrchestrationAsync(this.instanceId, reason);
         }
 
-        public Task PurgeInstancehistory()
+        public Task PurgeInstanceHistory()
         {
             Trace.TraceInformation($"Purging history for instance with id - {this.instanceId}");
 
             // The Purge Instance History API only exists in the service object
             AzureStorageOrchestrationService service = (AzureStorageOrchestrationService)this.client.serviceClient;
             return service.PurgeInstanceHistoryAsync(this.instanceId);
+        }
+
+        public Task PurgeInstanceHistoryByTimePeriod(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
+        {
+            Trace.TraceInformation($"Purging history from {createdTimeFrom} to {createdTimeTo}");
+
+            // The Purge Instance History API only exists in the service object
+            AzureStorageOrchestrationService service = (AzureStorageOrchestrationService)this.client.serviceClient;
+            return service.PurgeInstanceHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatus);
         }
 
         public async Task<List<HistoryStateEvent>> GetOrchestrationHistoryAsync(string instanceId)

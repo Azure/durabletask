@@ -14,8 +14,10 @@
 namespace DurableTask.AzureStorage
 {
     using System;
+    using System.Collections.Generic;
     using System.Diagnostics.Tracing;
     using System.Threading;
+    using DurableTask.Core;
 
     /// <summary>
     /// ETW Event Provider for the DurableTask.AzureStorage provider extension.
@@ -804,6 +806,29 @@ namespace DurableTask.AzureStorage
                 TaskHub,
                 InstanceId,
                 RequestCount,
+                LatencyMs,
+                ExtensionVersion);
+        }
+
+        [Event(142, Level = EventLevel.Informational)]
+
+        public void PurgeInstanceHistoryTimeFilter(
+            string Account,
+            string TaskHub,
+            DateTime createdTimeFrom,
+            DateTime? createdTimeTo,
+            IEnumerable<OrchestrationStatus> runtimeStatus,
+            long LatencyMs,
+            string ExtensionVersion)
+        {
+            EnsureLogicalTraceActivityId();
+            this.WriteEvent(
+                142,
+                Account,
+                TaskHub,
+                createdTimeFrom,
+                createdTimeTo,
+                runtimeStatus,
                 LatencyMs,
                 ExtensionVersion);
         }
