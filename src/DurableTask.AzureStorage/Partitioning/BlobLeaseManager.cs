@@ -214,7 +214,7 @@ namespace DurableTask.AzureStorage.Partitioning
             try
             {
                 await leaseBlob.FetchAttributesAsync();
-                string newLeaseId = Guid.NewGuid().ToString("N");
+                string newLeaseId = Guid.NewGuid().ToString();
                 if (leaseBlob.Properties.LeaseState == LeaseState.Leased)
                 {
                     lease.Token = await leaseBlob.ChangeLeaseAsync(newLeaseId, accessCondition: AccessCondition.GenerateLeaseCondition(lease.Token));
