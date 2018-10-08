@@ -48,9 +48,9 @@ namespace DurableTask.AzureStorage.Messaging
             this.stats = stats;
             this.messageManager = messageManager;
 
+            TimeSpan minPollingDelay = TimeSpan.FromMilliseconds(50);
             TimeSpan maxPollingDelay = AzureStorageOrchestrationService.MaxQueuePollingDelay;
-            TimeSpan minPollingDelayThreshold = TimeSpan.FromMilliseconds(500);
-            this.backoffHelper = new BackoffPollingHelper(maxPollingDelay, minPollingDelayThreshold);
+            this.backoffHelper = new BackoffPollingHelper(minPollingDelay, maxPollingDelay);
         }
 
         public string Name => this.storageQueue.Name;

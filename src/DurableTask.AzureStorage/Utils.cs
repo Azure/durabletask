@@ -67,5 +67,10 @@ namespace DurableTask.AzureStorage
                 semaphore.Release();
             }
         }
+
+        public static double Next(this Random random, double minValue, double maxValue)
+        {
+            return random.NextDouble() * (maxValue - minValue) + minValue;
+        }
     }
 }
