@@ -171,26 +171,32 @@ namespace DurableTask.AzureStorage.Tests
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
             {
-                // Execute the orchestrator twice. Orchestrator will be replied. However instances might be two.
                 await host.StartAsync();
                 DateTime startDateTime = DateTime.Now;
                 string firstInstanceId = Guid.NewGuid().ToString();
-                TestOrchestrationClient client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloInline), "world one", firstInstanceId);
+                TestOrchestrationClient client = await host.StartOrchestrationAsync(typeof(Orchestrations.FanOutFanIn), 50, firstInstanceId);
                 await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
                 string secondInstanceId = Guid.NewGuid().ToString();
-                client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloInline), "world two", secondInstanceId);
+                client = await host.StartOrchestrationAsync(typeof(Orchestrations.FanOutFanIn), 50, secondInstanceId);
+                await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                string thirdInstanceId = Guid.NewGuid().ToString();
+                client = await host.StartOrchestrationAsync(typeof(Orchestrations.FanOutFanIn), 50, thirdInstanceId);
                 await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
                 IList<OrchestrationState> results = await host.GetAllOrchestrationInstancesAsync();
-                Assert.AreEqual(2, results.Count);
-                Assert.IsNotNull(results.SingleOrDefault(r => r.Output == "\"Hello, world one!\""));
-                Assert.IsNotNull(results.SingleOrDefault(r => r.Output == "\"Hello, world two!\""));
+                Assert.AreEqual(3, results.Count);
+                Assert.IsNotNull(results[0].Output.Equals("\"Done\""));
+                Assert.IsNotNull(results[1].Output.Equals("\"Done\""));
+                Assert.IsNotNull(results[2].Output.Equals("\"Done\""));
 
 
                 List<HistoryStateEvent> firstHistoryEvents = await client.GetOrchestrationHistoryAsync(firstInstanceId);
                 Assert.IsTrue(firstHistoryEvents.Count > 0);
 
                 List<HistoryStateEvent> secondHistoryEvents = await client.GetOrchestrationHistoryAsync(secondInstanceId);
+                Assert.IsTrue(secondHistoryEvents.Count > 0);
+
+                List<HistoryStateEvent> thirdHistoryEvents = await client.GetOrchestrationHistoryAsync(thirdInstanceId);
                 Assert.IsTrue(secondHistoryEvents.Count > 0);
 
                 await client.PurgeInstanceHistoryByTimePeriod(startDateTime, DateTime.Now, new List<OrchestrationStatus> {OrchestrationStatus.Completed, OrchestrationStatus.Terminated, OrchestrationStatus.Failed, OrchestrationStatus.Running});
@@ -200,6 +206,9 @@ namespace DurableTask.AzureStorage.Tests
 
                 List<HistoryStateEvent> secondHistoryEventsAfterPurging = await client.GetOrchestrationHistoryAsync(secondInstanceId);
                 Assert.AreEqual(0, secondHistoryEventsAfterPurging.Count);
+
+                List<HistoryStateEvent> thirdHistoryEventsAfterPurging = await client.GetOrchestrationHistoryAsync(thirdInstanceId);
+                Assert.AreEqual(0, thirdHistoryEventsAfterPurging.Count);
 
                 await host.StopAsync();
             }
@@ -214,18 +223,22 @@ namespace DurableTask.AzureStorage.Tests
                 await host.StartAsync();
                 DateTime startDateTime = DateTime.Now;
                 string firstInstanceId = Guid.NewGuid().ToString();
-                TestOrchestrationClient client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloInline), "world one", firstInstanceId);
+                TestOrchestrationClient client = await host.StartOrchestrationAsync(typeof(Orchestrations.FanOutFanIn), 50, firstInstanceId);
                 await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
                 DateTime endDateTime = DateTime.Now;
                 await Task.Delay(5000);
                 string secondInstanceId = Guid.NewGuid().ToString();
-                client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloInline), "world two", secondInstanceId);
+                client = await host.StartOrchestrationAsync(typeof(Orchestrations.FanOutFanIn), 50, secondInstanceId);
+                await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                string thirdInstanceId = Guid.NewGuid().ToString();
+                client = await host.StartOrchestrationAsync(typeof(Orchestrations.FanOutFanIn), 50, thirdInstanceId);
                 await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
                 IList<OrchestrationState> results = await host.GetAllOrchestrationInstancesAsync();
-                Assert.AreEqual(2, results.Count);
-                Assert.IsNotNull(results.SingleOrDefault(r => r.Output == "\"Hello, world one!\""));
-                Assert.IsNotNull(results.SingleOrDefault(r => r.Output == "\"Hello, world two!\""));
+                Assert.AreEqual(3, results.Count);
+                Assert.IsNotNull(results[0].Output.Equals("\"Done\""));
+                Assert.IsNotNull(results[1].Output.Equals("\"Done\""));
+                Assert.IsNotNull(results[2].Output.Equals("\"Done\""));
 
 
                 List<HistoryStateEvent> firstHistoryEvents = await client.GetOrchestrationHistoryAsync(firstInstanceId);
@@ -234,13 +247,19 @@ namespace DurableTask.AzureStorage.Tests
                 List<HistoryStateEvent> secondHistoryEvents = await client.GetOrchestrationHistoryAsync(secondInstanceId);
                 Assert.IsTrue(secondHistoryEvents.Count > 0);
 
-                await client.PurgeInstanceHistoryByTimePeriod(startDateTime, endDateTime, new List<OrchestrationStatus> { OrchestrationStatus.Completed });
+                List<HistoryStateEvent> thirdHistoryEvents = await client.GetOrchestrationHistoryAsync(thirdInstanceId);
+                Assert.IsTrue(secondHistoryEvents.Count > 0);
+
+                await client.PurgeInstanceHistoryByTimePeriod(startDateTime, endDateTime, new List<OrchestrationStatus> { OrchestrationStatus.Completed, OrchestrationStatus.Terminated, OrchestrationStatus.Failed, OrchestrationStatus.Running });
 
                 List<HistoryStateEvent> firstHistoryEventsAfterPurging = await client.GetOrchestrationHistoryAsync(firstInstanceId);
                 Assert.AreEqual(0, firstHistoryEventsAfterPurging.Count);
 
                 List<HistoryStateEvent> secondHistoryEventsAfterPurging = await client.GetOrchestrationHistoryAsync(secondInstanceId);
                 Assert.IsTrue(secondHistoryEventsAfterPurging.Count > 0);
+
+                List<HistoryStateEvent> thirdHistoryEventsAfterPurging = await client.GetOrchestrationHistoryAsync(thirdInstanceId);
+                Assert.IsTrue(thirdHistoryEventsAfterPurging.Count > 0);
 
                 await host.StopAsync();
             }
