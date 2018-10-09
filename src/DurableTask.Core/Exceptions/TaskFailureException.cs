@@ -77,7 +77,12 @@ namespace DurableTask.Core.Exceptions
             : base(info, context)
         {
             Details = info.GetString(nameof(Details));
-            FailureSource = info.GetString(nameof(FailureSource));
+
+            if (ExistPropertyInfo(info, nameof(FailureSource)))
+            {
+                // FailureSource is an internal property, it may not be populated by the serialization engine
+                FailureSource = info.GetString(nameof(FailureSource));
+            }
         }
 
         /// <summary>
@@ -109,5 +114,19 @@ namespace DurableTask.Core.Exceptions
         public string Details { get; set; }
 
         internal string FailureSource { get; set; }
+
+        bool ExistPropertyInfo(SerializationInfo info, string propertyName)
+        {
+            SerializationInfoEnumerator enumerator = info.GetEnumerator();
+            while (enumerator.MoveNext())
+            {
+                if (enumerator.Current.Name == propertyName)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
     }
 }
