@@ -538,6 +538,79 @@ namespace DurableTask.AzureStorage.Tracking
             return orchestrationStates;
         }
 
+        private async Task DeleteHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
+        {
+            TableQuery<OrchestrationInstanceStatus> query = OrchestrationInstanceStatusQueryCondition.Parse(createdTimeFrom, createdTimeTo, runtimeStatus)
+                .ToTableQuery<OrchestrationInstanceStatus>();
+
+            TableContinuationToken token = null;
+            var orchestrationStates = new List<OrchestrationState>(100);
+            while (true)
+            {
+                TableQuerySegment<OrchestrationInstanceStatus> segment = await this.InstancesTable.ExecuteQuerySegmentedAsync(query, token);
+                int previousCount = orchestrationStates.Count;
+                IEnumerable<Task<OrchestrationState>> tasks = segment.Select(async status => await this.ConvertFromAsync(status, status.PartitionKey));
+                OrchestrationState[] result = await Task.WhenAll(tasks);
+                this.stats.StorageRequests.Increment();
+                this.stats.TableEntitiesRead.Increment(result.Length);
+                foreach (OrchestrationState orchestrationState in result)
+                {
+                    HistoryEntitiesResponseInfo historyEntitiesResponseInfo = await this.GetHistoryEntitiesResponseInfoAsync(
+                        orchestrationState.OrchestrationInstance.InstanceId,
+                        null,
+                        new List<string>
+                        {
+                            "RowKey",
+                            "InputBlobName",
+                            "ResultBlobName"
+                        });
+
+                    int pageOffset = 0;
+                    while (pageOffset < historyEntitiesResponseInfo.HistoryEventEntities.Count)
+                    {
+                        var batch = new TableBatchOperation();
+                        List<DynamicTableEntity> batchForDeletion = historyEntitiesResponseInfo.HistoryEventEntities.Skip(pageOffset).Take(100).ToList();
+                        var blobNamesForDeletion = new List<string>();
+                        foreach (DynamicTableEntity itemForDeletion in batchForDeletion)
+                        {
+                            if (!string.IsNullOrEmpty(itemForDeletion.Properties["InputBlobName"].StringValue))
+                            {
+                                blobNamesForDeletion.Add(itemForDeletion.Properties["InputBlobName"].StringValue);
+                            }
+                            if (!string.IsNullOrEmpty(itemForDeletion.Properties["ResultBlobName"].StringValue))
+                            {
+                                blobNamesForDeletion.Add(itemForDeletion.Properties["ResultBlobName"].StringValue);
+                            }
+                            batch.Delete(itemForDeletion);
+                        }
+
+                        await this.HistoryTable.ExecuteBatchAsync(batch);
+                        this.stats.StorageRequests.Increment();
+                        pageOffset += batchForDeletion.Count;
+
+                        var blobDeleteTasksList = new List<Task>();
+                        foreach (string blobName in blobNamesForDeletion)
+                        {
+                            blobDeleteTasksList.Add(this.messageManager.DeleteBlobAsync(blobName));
+                        }
+
+                        await Task.WhenAll(blobDeleteTasksList);
+                        this.stats.StorageRequests.Increment(blobDeleteTasksList.Count);
+                    }
+                }
+                orchestrationStates.AddRange(result);
+
+                this.stats.StorageRequests.Increment();
+                this.stats.TableEntitiesRead.Increment(orchestrationStates.Count - previousCount);
+
+                token = segment.ContinuationToken;
+                if (token == null)
+                {
+                    break;
+                }
+            }
+        }
+
         /// <inheritdoc />
         public override Task PurgeHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType)
         {
@@ -584,14 +657,12 @@ namespace DurableTask.AzureStorage.Tracking
         public override  async Task PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
         {
             var stopwatch = new Stopwatch();
-            IList<OrchestrationState> orchestrationStates = await this.GetStateAsync(createdTimeFrom, createdTimeTo, runtimeStatus);
-            IList<Task> deleteTaskList = new List<Task>();
-            foreach (OrchestrationState orchestrationState in orchestrationStates)
-            {
-                deleteTaskList.Add(this.PurgeInstanceHistoryAsync(orchestrationState.OrchestrationInstance.InstanceId));
-            }
+            List<OrchestrationStatus> runtimeStatusList =  runtimeStatus?.Where(
+               x => x == OrchestrationStatus.Completed ||
+                    x == OrchestrationStatus.Terminated ||
+                    x == OrchestrationStatus.Failed).ToList();
 
-            await Task.WhenAll(deleteTaskList);
+            await this.DeleteHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatusList);
 
             AnalyticsEventSource.Log.PurgeInstanceHistoryTimeFilter(
                 this.storageAccountName,

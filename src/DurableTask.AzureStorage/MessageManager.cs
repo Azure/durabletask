@@ -175,5 +175,11 @@
             CloudBlockBlob cloudBlockBlob = this.cloudBlobContainer.GetBlockBlobReference(blobName);
             await cloudBlockBlob.UploadFromByteArrayAsync(data, 0, dataByteCount);
         }
+
+        internal async Task DeleteBlobAsync(string blobName)
+        {
+            CloudBlockBlob cloudBlockBlob = this.cloudBlobContainer.GetBlockBlobReference(blobName);
+            await cloudBlockBlob.DeleteIfExistsAsync();
+        }
     }
 }

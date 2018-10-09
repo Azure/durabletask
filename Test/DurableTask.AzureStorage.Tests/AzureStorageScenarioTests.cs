@@ -193,7 +193,7 @@ namespace DurableTask.AzureStorage.Tests
                 List<HistoryStateEvent> secondHistoryEvents = await client.GetOrchestrationHistoryAsync(secondInstanceId);
                 Assert.IsTrue(secondHistoryEvents.Count > 0);
 
-                await client.PurgeInstanceHistoryByTimePeriod(startDateTime, DateTime.Now, new List<OrchestrationStatus> {OrchestrationStatus.Completed});
+                await client.PurgeInstanceHistoryByTimePeriod(startDateTime, DateTime.Now, new List<OrchestrationStatus> {OrchestrationStatus.Completed, OrchestrationStatus.Terminated, OrchestrationStatus.Failed, OrchestrationStatus.Running});
 
                 List<HistoryStateEvent> firstHistoryEventsAfterPurging = await client.GetOrchestrationHistoryAsync(firstInstanceId);
                 Assert.AreEqual(0, firstHistoryEventsAfterPurging.Count);
