@@ -183,12 +183,18 @@ namespace DurableTask.AzureStorage.Tests
                 client = await host.StartOrchestrationAsync(typeof(Orchestrations.FanOutFanIn), 50, thirdInstanceId);
                 await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
+                string message = this.GenerateMendiumRandomStringPayload().ToString();
+                client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), message);
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
+
                 IList<OrchestrationState> results = await host.GetAllOrchestrationInstancesAsync();
-                Assert.AreEqual(3, results.Count);
+                Assert.AreEqual(4, results.Count);
                 Assert.IsNotNull(results[0].Output.Equals("\"Done\""));
                 Assert.IsNotNull(results[1].Output.Equals("\"Done\""));
                 Assert.IsNotNull(results[2].Output.Equals("\"Done\""));
 
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                Assert.AreEqual(message, JToken.Parse(status?.Output));
 
                 List<HistoryStateEvent> firstHistoryEvents = await client.GetOrchestrationHistoryAsync(firstInstanceId);
                 Assert.IsTrue(firstHistoryEvents.Count > 0);
@@ -921,20 +927,7 @@ namespace DurableTask.AzureStorage.Tests
             {
                 await host.StartAsync();
 
-                // Generate a medium random string payload
-                const int TargetPayloadSize = 128 * 1024; // 128 KB
-                const string Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 {}/<>.-";
-                var sb = new StringBuilder();
-                var random = new Random();
-                while (Encoding.Unicode.GetByteCount(sb.ToString()) < TargetPayloadSize)
-                {
-                    for (int i = 0; i < 1000; i++)
-                    {
-                        sb.Append(Chars[random.Next(Chars.Length)]);
-                    }
-                }
-
-                string message = sb.ToString();
+                string message = this.GenerateMendiumRandomStringPayload().ToString();
                 var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), message);
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
 
@@ -943,6 +936,24 @@ namespace DurableTask.AzureStorage.Tests
 
                 await host.StopAsync();
             }
+        }
+
+        private StringBuilder GenerateMendiumRandomStringPayload()
+        {
+            // Generate a medium random string payload
+            const int TargetPayloadSize = 128 * 1024; // 128 KB
+            const string Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 {}/<>.-";
+            var sb = new StringBuilder();
+            var random = new Random();
+            while (Encoding.Unicode.GetByteCount(sb.ToString()) < TargetPayloadSize)
+            {
+                for (int i = 0; i < 1000; i++)
+                {
+                    sb.Append(Chars[random.Next(Chars.Length)]);
+                }
+            }
+
+            return sb;
         }
 
         /// <summary>
