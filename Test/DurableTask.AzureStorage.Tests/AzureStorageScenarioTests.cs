@@ -150,7 +150,7 @@ namespace DurableTask.AzureStorage.Tests
             {
                 string instanceId = Guid.NewGuid().ToString();
                 await host.StartAsync();
-                TestOrchestrationClient client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloWithActivity), "world one", instanceId);
+                TestOrchestrationClient client = await host.StartOrchestrationAsync(typeof(Orchestrations.Factorial), 110, instanceId);
                 await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
                 
 
