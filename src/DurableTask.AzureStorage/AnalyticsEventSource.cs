@@ -811,7 +811,6 @@ namespace DurableTask.AzureStorage
         }
 
         [Event(142, Level = EventLevel.Informational)]
-
         public void PurgeInstanceHistoryTimeFilter(
             string Account,
             string TaskHub,
