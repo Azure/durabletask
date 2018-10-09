@@ -76,15 +76,18 @@ namespace DurableTask.Core.Exceptions
         protected SubOrchestrationFailedException(SerializationInfo info, StreamingContext context)
             : base(info, context)
         {
+            ScheduleId = info.GetInt32(nameof(ScheduleId));
+            Name = info.GetString(nameof(Name));
+            Version = info.GetString(nameof(Version));
         }
 
         /// <inheritdoc />
         public override void GetObjectData(SerializationInfo info, StreamingContext context)
         {
             base.GetObjectData(info, context);
-            info.AddValue("ScheduleId", ScheduleId);
-            info.AddValue("Name", Name);
-            info.AddValue("Version", Version);
+            info.AddValue(nameof(ScheduleId), ScheduleId);
+            info.AddValue(nameof(Name), Name);
+            info.AddValue(nameof(Version), Version);
         }
 
         /// <summary>
