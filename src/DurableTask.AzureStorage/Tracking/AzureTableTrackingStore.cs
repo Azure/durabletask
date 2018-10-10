@@ -660,6 +660,7 @@ namespace DurableTask.AzureStorage.Tracking
             List<OrchestrationStatus> runtimeStatusList =  runtimeStatus?.Where(
                x => x == OrchestrationStatus.Completed ||
                     x == OrchestrationStatus.Terminated ||
+                    x == OrchestrationStatus.Canceled ||
                     x == OrchestrationStatus.Failed).ToList();
 
             await this.DeleteHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatusList);
