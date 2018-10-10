@@ -588,14 +588,6 @@ namespace DurableTask.AzureStorage.Tracking
                         this.stats.StorageRequests.Increment();
                         pageOffset += batchForDeletion.Count;
 
-                        await this.InstancesTable.ExecuteAsync(TableOperation.Delete(new DynamicTableEntity
-                        {
-                            PartitionKey = orchestrationState.OrchestrationInstance.InstanceId,
-                            RowKey = string.Empty,
-                            ETag = "*"
-                        }));
-                        this.stats.StorageRequests.Increment();
-
                         var blobDeleteTasksList = new List<Task>();
                         foreach (string blobName in blobNamesForDeletion)
                         {
@@ -605,6 +597,14 @@ namespace DurableTask.AzureStorage.Tracking
                         await Task.WhenAll(blobDeleteTasksList);
                         this.stats.StorageRequests.Increment(blobDeleteTasksList.Count);
                     }
+
+                    await this.InstancesTable.ExecuteAsync(TableOperation.Delete(new DynamicTableEntity
+                    {
+                        PartitionKey = orchestrationState.OrchestrationInstance.InstanceId,
+                        RowKey = string.Empty,
+                        ETag = "*"
+                    }));
+                    this.stats.StorageRequests.Increment();
                 }
                 orchestrationStates.AddRange(result);
 
