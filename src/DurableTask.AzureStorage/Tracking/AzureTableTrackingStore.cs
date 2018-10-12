@@ -501,7 +501,7 @@ namespace DurableTask.AzureStorage.Tracking
         /// <inheritdoc />
         public override Task<IList<OrchestrationState>> GetStateAsync(CancellationToken cancellationToken = default(CancellationToken))
         {
-            var query = new TableQuery<OrchestrationInstanceStatus>();
+            var query = new TableQuery<OrchestrationInstanceStatus>().Where(TableQuery.GenerateFilterCondition("RowKey", QueryComparisons.Equal, string.Empty));
             return this.QueryStateAsync(query, cancellationToken);
         }
 
@@ -570,41 +570,65 @@ namespace DurableTask.AzureStorage.Tracking
                     {
                         var batch = new TableBatchOperation();
                         List<DynamicTableEntity> batchForDeletion = historyEntitiesResponseInfo.HistoryEventEntities.Skip(pageOffset).Take(100).ToList();
-                        var blobNamesForDeletion = new List<string>();
+                        
                         foreach (DynamicTableEntity itemForDeletion in batchForDeletion)
                         {
-                            if (!string.IsNullOrEmpty(itemForDeletion.Properties["InputBlobName"].StringValue))
-                            {
-                                blobNamesForDeletion.Add(itemForDeletion.Properties["InputBlobName"].StringValue);
-                            }
-                            if (!string.IsNullOrEmpty(itemForDeletion.Properties["ResultBlobName"].StringValue))
-                            {
-                                blobNamesForDeletion.Add(itemForDeletion.Properties["ResultBlobName"].StringValue);
-                            }
                             batch.Delete(itemForDeletion);
                         }
 
                         await this.HistoryTable.ExecuteBatchAsync(batch);
                         this.stats.StorageRequests.Increment();
                         pageOffset += batchForDeletion.Count;
-
-                        var blobDeleteTasksList = new List<Task>();
-                        foreach (string blobName in blobNamesForDeletion)
-                        {
-                            blobDeleteTasksList.Add(this.messageManager.DeleteBlobAsync(blobName));
-                        }
-
-                        await Task.WhenAll(blobDeleteTasksList);
-                        this.stats.StorageRequests.Increment(blobDeleteTasksList.Count);
                     }
 
-                    await this.InstancesTable.ExecuteAsync(TableOperation.Delete(new DynamicTableEntity
+                    List<DynamicTableEntity> partitionItems = new List<DynamicTableEntity>();
+                    TableContinuationToken partitionQueryContinuationToken = null;
+                    TableQuery partitionQuery = new TableQuery().Where(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, orchestrationState.OrchestrationInstance.InstanceId));
+                    while (true)
                     {
-                        PartitionKey = orchestrationState.OrchestrationInstance.InstanceId,
-                        RowKey = string.Empty,
-                        ETag = "*"
-                    }));
-                    this.stats.StorageRequests.Increment();
+                        var partionSegment = await this.InstancesTable.ExecuteQuerySegmentedAsync(
+                            partitionQuery, 
+                            partitionQueryContinuationToken,
+                            this.StorageTableRequestOptions,
+                            null,
+                            default(CancellationToken));
+
+                        int partitionQueryPreviousCount = partitionItems.Count;
+                        partitionItems.AddRange(partionSegment);
+                        this.stats.StorageRequests.Increment();
+                        this.stats.TableEntitiesRead.Increment(partitionItems.Count - partitionQueryPreviousCount);
+
+                        partitionQueryContinuationToken = segment.ContinuationToken;
+                        if (partitionQueryContinuationToken == null)
+                        {
+                            break;
+                        }
+                    }
+                   
+                    var deleteTasksList = new List<Task>();
+                    int deleteRequestCounter = 0;
+                    foreach (DynamicTableEntity partionItem in partitionItems)
+                    {
+                        if (!string.IsNullOrEmpty(partionItem.RowKey))
+                        {
+                            deleteTasksList.Add(this.messageManager.DeleteBlobAsync(partionItem.RowKey));
+                            deleteRequestCounter++;
+                        }
+
+                        deleteTasksList.Add(
+                            this.InstancesTable.ExecuteAsync(
+                                TableOperation.Delete(
+                                    new DynamicTableEntity
+                                    {
+                                        PartitionKey = partionItem.PartitionKey,
+                                        RowKey = partionItem.RowKey,
+                                        ETag = "*"
+                                    })));
+                        deleteRequestCounter++;
+                    }
+
+                    await Task.WhenAll(deleteTasksList);
+                    this.stats.StorageRequests.Increment(deleteRequestCounter);
                 }
                 orchestrationStates.AddRange(result);
 
@@ -707,7 +731,19 @@ namespace DurableTask.AzureStorage.Tracking
                 }
             };
 
-            await this.CompressLargeMessageAsync(entity);
+            string blobName = await this.CompressLargeMessageAsync(entity);
+            if (!string.IsNullOrEmpty(blobName))
+            {
+                await LargePayloadBlobManager.AddBlobsData(this.InstancesTable, this.settings, new List<InstanceBlob>
+                {
+                    new InstanceBlob
+                    {
+                        InstanceId = executionStartedEvent.OrchestrationInstance.InstanceId,
+                        BlobName = blobName
+                    }
+                });
+                this.stats.StorageRequests.Increment();
+            }
 
             Stopwatch stopwatch = Stopwatch.StartNew();
             await this.InstancesTable.ExecuteAsync(
@@ -738,7 +774,19 @@ namespace DurableTask.AzureStorage.Tracking
                 }
             };
 
-            await this.CompressLargeMessageAsync(entity);
+            string blobName = await this.CompressLargeMessageAsync(entity);
+            if (!string.IsNullOrEmpty(blobName))
+            {
+                await LargePayloadBlobManager.AddBlobsData(this.InstancesTable, this.settings, new List<InstanceBlob>
+                {
+                    new InstanceBlob
+                    {
+                        InstanceId = instanceId,
+                        BlobName = blobName
+                    }
+                });
+                this.stats.StorageRequests.Increment();
+            }
 
             Stopwatch stopwatch = Stopwatch.StartNew();
             await this.InstancesTable.ExecuteAsync(TableOperation.Merge(entity));
@@ -789,13 +837,22 @@ namespace DurableTask.AzureStorage.Tracking
                     ["LastUpdatedTime"] = new EntityProperty(newEvents.Last().Timestamp),
                 }
             };
-
+            
+            var instanceBlobList = new List<InstanceBlob>();
             for (int i = 0; i < newEvents.Count; i++)
             {
                 HistoryEvent historyEvent = newEvents[i];
                 DynamicTableEntity entity = this.tableEntityConverter.ConvertToTableEntity(historyEvent);
 
-                await this.CompressLargeMessageAsync(entity);
+                string blobName = await this.CompressLargeMessageAsync(entity);
+                if (!string.IsNullOrEmpty(blobName))
+                {
+                    instanceBlobList.Add(new InstanceBlob
+                    {
+                        InstanceId = instanceId,
+                        BlobName = blobName
+                    });
+                }
 
                 newEventListBuffer.Append(historyEvent.EventType.ToString()).Append(',');
 
@@ -862,6 +919,12 @@ namespace DurableTask.AzureStorage.Tracking
                 }
             }
 
+            if (instanceBlobList.Count > 0)
+            {
+                await LargePayloadBlobManager.AddBlobsData(this.InstancesTable, this.settings, instanceBlobList);
+                this.stats.StorageRequests.Increment();
+            }
+            
             // First persistence step is to commit history to the history table. Messages must come after.
             if (historyEventBatch.Count > 0)
             {
@@ -1023,12 +1086,13 @@ namespace DurableTask.AzureStorage.Tracking
             }
         }
 
-        async Task CompressLargeMessageAsync(DynamicTableEntity entity)
+        async Task<string> CompressLargeMessageAsync(DynamicTableEntity entity)
         {
+            string blobName = string.Empty;
             string propertyKey = this.GetLargeTableEntity(entity);
             if (propertyKey != null)
             {
-                string blobName = Guid.NewGuid().ToString();
+                blobName = Guid.NewGuid().ToString();
 
                 // e.g.InputBlobName, OutputBlobName, ResultBlobName
                 string blobNameKey = $"{propertyKey}{BlobNamePropertySuffix}";
@@ -1037,6 +1101,8 @@ namespace DurableTask.AzureStorage.Tracking
                 entity.Properties.Add(blobNameKey, new EntityProperty(blobName));
                 this.SetPropertyMessageToEmptyString(entity);
             }
+
+            return blobName;
         }
 
         async Task<string> UploadHistoryBatch(

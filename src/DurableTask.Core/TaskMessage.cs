@@ -34,6 +34,12 @@ namespace DurableTask.Core
         [DataMember] public long SequenceNumber;
 
         /// <summary>
+        /// The blob name for the compressed message. This value is set if there is a compressed blob.
+        /// </summary>
+        [DataMember]
+        public string CompressedBlobName { get; set; }
+
+        /// <summary>
         /// The orchestration instance information
         /// </summary>
         [DataMember] public OrchestrationInstance OrchestrationInstance;

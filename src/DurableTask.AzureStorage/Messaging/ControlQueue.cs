@@ -89,7 +89,7 @@ namespace DurableTask.AzureStorage.Messaging
                         });
 
                         this.backoffHelper.Reset();
-
+                        var instanceBlobs = new List<InstanceBlob>();
                         // Try to preserve insertion order when processing
                         IReadOnlyList<MessageData> sortedMessages = batchMessages.OrderBy(m => m, MessageOrderingComparer.Default).ToList();
                         foreach (MessageData message in sortedMessages)
@@ -98,7 +98,18 @@ namespace DurableTask.AzureStorage.Messaging
                                 message,
                                 this.storageAccountName,
                                 this.settings.TaskHubName);
+                            if (!string.IsNullOrEmpty(message.TaskMessage.CompressedBlobName))
+                            {
+                                instanceBlobs.Add(new InstanceBlob
+                                {
+                                    InstanceId = message.TaskMessage.OrchestrationInstance.InstanceId,
+                                    BlobName = message.TaskMessage.CompressedBlobName
+                                });
+                            }
                         }
+
+                        await LargePayloadBlobManager.AddBlobsData(null, this.settings, instanceBlobs);
+                        this.stats.StorageRequests.Increment();
 
                         return sortedMessages;
                     }

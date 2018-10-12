@@ -14,6 +14,7 @@
 namespace DurableTask.AzureStorage.Messaging
 {
     using System;
+    using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Monitoring;
@@ -61,6 +62,22 @@ namespace DurableTask.AzureStorage.Messaging
                         this.storageQueue.Name);
 
                     this.backoffHelper.Reset();
+                    if (!string.IsNullOrEmpty(data.TaskMessage.CompressedBlobName))
+                    {
+                        await LargePayloadBlobManager.AddBlobsData(
+                            null,
+                            this.settings,
+                            new List<InstanceBlob>
+                            {
+                                new InstanceBlob
+                                {
+                                    InstanceId = data.TaskMessage.OrchestrationInstance.InstanceId,
+                                    BlobName = data.TaskMessage.CompressedBlobName
+                                }
+                            });
+                    }
+
+                    this.stats.StorageRequests.Increment();
 
                     return data;
                 }
