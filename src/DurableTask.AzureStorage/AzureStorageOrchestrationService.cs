@@ -1185,19 +1185,6 @@ namespace DurableTask.AzureStorage
         /// <summary>
         /// Gets the state of all orchestration instances that match the specified parameters.
         /// </summary>
-         /// <param name="top">Top is number of records per one request.</param>
-        /// <param name="continuationToken">ContinuationToken of the pager.</param>
-        /// <param name="cancellationToken">Cancellation Token</param>
-        /// <returns>List of <see cref="OrchestrationState"/></returns>
-        public async Task<ValueTuple<IList<OrchestrationState>, string>> GetOrchestrationStateAsync(int top, string continuationToken, CancellationToken cancellationToken = default(CancellationToken))
-        {
-            await this.EnsureTaskHubAsync();
-            return await this.trackingStore.GetStateAsync(top, continuationToken, cancellationToken);
-        }
-
-        /// <summary>
-        /// Gets the state of all orchestration instances that match the specified parameters.
-        /// </summary>
         /// <param name="createdTimeFrom">CreatedTime of orchestrations. Fetch status grater than this value.</param>
         /// <param name="createdTimeTo">CreatedTime of orchestrations. Fetch status less than this value.</param>
         /// <param name="runtimeStatus">RuntimeStatus of orchestrations. You can specify several status.</param>
