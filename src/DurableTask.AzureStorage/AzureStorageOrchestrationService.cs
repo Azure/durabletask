@@ -1258,11 +1258,10 @@ namespace DurableTask.AzureStorage
         /// Purge history for an orchestration with a specified instance id.
         /// </summary>
         /// <param name="instanceId">Instance ID of the orchestration.</param>
-        public async Task PurgeInstanceHistoryAsync(string instanceId)
+        public Task PurgeInstanceHistoryAsync(string instanceId)
         {
-            await this.trackingStore.PurgeInstanceHistoryAsync(instanceId);
+            return this.trackingStore.PurgeInstanceHistoryAsync(instanceId);
         }
-
 
         /// <summary>
         /// Purge history for orchestrations that match the specified parameters.
