@@ -1269,9 +1269,9 @@ namespace DurableTask.AzureStorage
         /// <param name="createdTimeFrom">CreatedTime of orchestrations. Purges history grater than this value.</param>
         /// <param name="createdTimeTo">CreatedTime of orchestrations. Purges history less than this value.</param>
         /// <param name="runtimeStatus">RuntimeStatus of orchestrations. You can specify several status.</param>
-        public async Task PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
+        public Task PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
         {
-            await this.trackingStore.PurgeInstanceHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatus);
+            return this.trackingStore.PurgeInstanceHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatus);
         }
 
         /// <summary>
