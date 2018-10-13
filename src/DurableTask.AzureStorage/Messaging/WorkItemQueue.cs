@@ -62,7 +62,7 @@ namespace DurableTask.AzureStorage.Messaging
                         this.storageQueue.Name);
 
                     this.backoffHelper.Reset();
-                    if (!string.IsNullOrEmpty(data.TaskMessage.CompressedBlobName))
+                    if (!string.IsNullOrEmpty(data.CompressedBlobName))
                     {
                         await LargePayloadBlobManager.AddBlobsData(
                             null,
@@ -72,7 +72,7 @@ namespace DurableTask.AzureStorage.Messaging
                                 new InstanceBlob
                                 {
                                     InstanceId = data.TaskMessage.OrchestrationInstance.InstanceId,
-                                    BlobName = data.TaskMessage.CompressedBlobName
+                                    BlobName = data.CompressedBlobName
                                 }
                             });
                     }

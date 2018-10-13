@@ -90,7 +90,7 @@ namespace DurableTask.AzureStorage
                     decompressedMessage,
                     this.taskMessageSerializerSettings);
                 envelope.MessageFormat = MessageFormatFlags.StorageBlob;
-                envelope.TaskMessage.CompressedBlobName = compressedBlobName;
+                envelope.CompressedBlobName = compressedBlobName;
             }
 
             envelope.OriginalQueueMessage = queueMessage;

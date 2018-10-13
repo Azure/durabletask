@@ -98,12 +98,12 @@ namespace DurableTask.AzureStorage.Messaging
                                 message,
                                 this.storageAccountName,
                                 this.settings.TaskHubName);
-                            if (!string.IsNullOrEmpty(message.TaskMessage.CompressedBlobName))
+                            if (!string.IsNullOrEmpty(message.CompressedBlobName))
                             {
                                 instanceBlobs.Add(new InstanceBlob
                                 {
                                     InstanceId = message.TaskMessage.OrchestrationInstance.InstanceId,
-                                    BlobName = message.TaskMessage.CompressedBlobName
+                                    BlobName = message.CompressedBlobName
                                 });
                             }
                         }

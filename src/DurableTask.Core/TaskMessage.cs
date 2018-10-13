@@ -24,7 +24,7 @@ namespace DurableTask.Core
     public class TaskMessage : IExtensibleDataObject
     {
         /// <summary>
-        /// Even information for this taks message
+        /// Event information for this task message
         /// </summary>
         [DataMember] public HistoryEvent Event;
 
@@ -32,12 +32,6 @@ namespace DurableTask.Core
         /// Sequence number for ordering of messages in history tracking
         /// </summary>
         [DataMember] public long SequenceNumber;
-
-        /// <summary>
-        /// The blob name for the compressed message. This value is set if there is a compressed blob.
-        /// </summary>
-        [DataMember]
-        public string CompressedBlobName { get; set; }
 
         /// <summary>
         /// The orchestration instance information
