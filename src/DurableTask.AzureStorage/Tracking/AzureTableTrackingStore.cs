@@ -524,8 +524,9 @@ namespace DurableTask.AzureStorage.Tracking
             {
                 var tokenContent = decodeBase64(continuationToken);
                 token = JsonConvert.DeserializeObject<TableContinuationToken>(tokenContent);
-            } 
+            }
 
+            query.Take(top);
             var segment = await this.InstancesTable.ExecuteQuerySegmentedAsync(query, token);
             int previousCount = orchestrationStates.Count;
             var tasks = segment.Select(async status => await this.ConvertFromAsync(status, status.PartitionKey));
