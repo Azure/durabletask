@@ -15,6 +15,7 @@ namespace DurableTask.AzureStorage.Tests
 {
     using System;
     using System.Collections.Generic;
+    using System.Configuration;
     using System.IO;
     using System.Linq;
     using System.Runtime.Serialization;
@@ -27,6 +28,7 @@ namespace DurableTask.AzureStorage.Tests
     using Microsoft.Practices.EnterpriseLibrary.SemanticLogging.Utility;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Microsoft.WindowsAzure.Storage;
+    using Microsoft.WindowsAzure.Storage.Blob;
     using Microsoft.WindowsAzure.Storage.Table;
     using Newtonsoft.Json.Linq;
 
@@ -224,6 +226,9 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual(1, thirdOrchestrationStateList.Count);
                 Assert.AreEqual(thirdInstanceId, thirdOrchestrationStateList.First().OrchestrationInstance.InstanceId);
 
+                int blobCount = await this.GetBlobCount("test-largemessages");
+                Assert.AreEqual(7, blobCount);
+
                 await client.PurgeInstanceHistoryByTimePeriod(
                     startDateTime,
                     DateTime.Now,
@@ -256,9 +261,39 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual(1, thirdOrchestrationStateList.Count);
                 Assert.IsNull(thirdOrchestrationStateList.First());
 
+                blobCount = await this.GetBlobCount("test-largemessages");
+                Assert.AreEqual(0, blobCount);
+
                 await host.StopAsync();
             }
         }
+
+        private async Task<int> GetBlobCount(string containerName)
+        {
+            string storageConnectionString = ConfigurationManager.AppSettings["StorageConnectionString"];
+            CloudStorageAccount storageAccount;
+            if (!CloudStorageAccount.TryParse(storageConnectionString, out storageAccount))
+            {
+                return 0;
+            }
+
+            CloudBlobClient cloudBlobClient = storageAccount.CreateCloudBlobClient();
+
+            CloudBlobContainer cloudBlobContainer = cloudBlobClient.GetContainerReference(containerName);
+            await cloudBlobContainer.CreateIfNotExistsAsync();
+
+            int blobCount = 0;
+            BlobContinuationToken blobContinuationToken = null;
+            do
+            {
+                BlobResultSegment results = await cloudBlobContainer.ListBlobsSegmentedAsync(null, blobContinuationToken);
+                blobContinuationToken = results.ContinuationToken;
+                blobCount += results.Results.Count();
+            } while (blobContinuationToken != null);
+
+            return blobCount;
+        }
+
 
         [TestMethod]
         public async Task PurgeInstanceHistoryForTimePeriodDeletePartially()
