@@ -826,7 +826,7 @@ namespace DurableTask.AzureStorage
                 Account,
                 TaskHub,
                 createdTimeFrom,
-                createdTimeTo,
+                createdTimeTo ?? new DateTime(1900, 1, 1),
                 runtimeStatus,
                 LatencyMs,
                 ExtensionVersion);
