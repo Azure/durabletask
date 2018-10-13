@@ -224,7 +224,16 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual(1, thirdOrchestrationStateList.Count);
                 Assert.AreEqual(thirdInstanceId, thirdOrchestrationStateList.First().OrchestrationInstance.InstanceId);
 
-                await client.PurgeInstanceHistoryByTimePeriod(startDateTime, DateTime.Now, new List<OrchestrationStatus> {OrchestrationStatus.Completed, OrchestrationStatus.Terminated, OrchestrationStatus.Failed, OrchestrationStatus.Running});
+                await client.PurgeInstanceHistoryByTimePeriod(
+                    startDateTime,
+                    DateTime.Now,
+                    new List<OrchestrationStatus>
+                    {
+                        OrchestrationStatus.Completed,
+                        OrchestrationStatus.Terminated,
+                        OrchestrationStatus.Failed,
+                        OrchestrationStatus.Running
+                    });
 
                 List<HistoryStateEvent> firstHistoryEventsAfterPurging = await client.GetOrchestrationHistoryAsync(firstInstanceId);
                 Assert.AreEqual(0, firstHistoryEventsAfterPurging.Count);
