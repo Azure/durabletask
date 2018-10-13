@@ -190,18 +190,18 @@ namespace DurableTask.AzureStorage.Tests
                 client = await host.StartOrchestrationAsync(typeof(Orchestrations.FanOutFanIn), 50, thirdInstanceId);
                 await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
+                string fourthInstanceId = Guid.NewGuid().ToString();
                 string message = this.GenerateMendiumRandomStringPayload().ToString();
-                client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), message);
+                client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), message, fourthInstanceId);
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
 
                 IList<OrchestrationState> results = await host.GetAllOrchestrationInstancesAsync();
                 Assert.AreEqual(4, results.Count);
-                Assert.IsNotNull(results[0].Output.Equals("\"Done\""));
-                Assert.IsNotNull(results[1].Output.Equals("\"Done\""));
-                Assert.IsNotNull(results[2].Output.Equals("\"Done\""));
-
-                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                Assert.AreEqual(message, JToken.Parse(status?.Output));
+                Assert.AreEqual("\"Done\"", results.First(x => x.OrchestrationInstance.InstanceId == firstInstanceId).Output);
+                Assert.AreEqual("\"Done\"", results.First(x => x.OrchestrationInstance.InstanceId == secondInstanceId).Output);
+                Assert.AreEqual("\"Done\"", results.First(x => x.OrchestrationInstance.InstanceId == thirdInstanceId).Output);
+                Assert.AreEqual(message, JToken.Parse(results.First(x => x.OrchestrationInstance.InstanceId == fourthInstanceId).Output));
 
                 List<HistoryStateEvent> firstHistoryEvents = await client.GetOrchestrationHistoryAsync(firstInstanceId);
                 Assert.IsTrue(firstHistoryEvents.Count > 0);
