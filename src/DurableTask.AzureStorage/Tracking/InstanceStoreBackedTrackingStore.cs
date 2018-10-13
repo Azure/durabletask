@@ -117,6 +117,12 @@ namespace DurableTask.AzureStorage.Tracking
             throw new NotImplementedException();
         }
 
+        public override Task<ValueTuple<IList<OrchestrationState>, string>> GetStateAsync(int top, string continuationToken, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            throw new NotImplementedException();
+        }
+
+
         /// <inheritdoc />
         public override Task PurgeHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType)
         {
