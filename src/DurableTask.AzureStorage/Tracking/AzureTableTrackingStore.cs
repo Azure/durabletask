@@ -688,6 +688,9 @@ namespace DurableTask.AzureStorage.Tracking
                 this.storageAccountName,
                 this.taskHubName,
                 instanceId,
+                null,
+                null,
+                null,
                 historyEntitiesResponseInfo.RequestCount,
                 historyEntitiesResponseInfo.PerformanceStopwatch.ElapsedMilliseconds,
                 Utils.ExtensionVersion);
@@ -705,12 +708,14 @@ namespace DurableTask.AzureStorage.Tracking
 
             await this.DeleteHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatusList);
 
-            AnalyticsEventSource.Log.PurgeInstanceHistoryTimeFilter(
+            AnalyticsEventSource.Log.PurgeInstanceHistory(
                 this.storageAccountName,
                 this.taskHubName,
+                string.Empty,
                 createdTimeFrom,
                 createdTimeTo,
                 runtimeStatus,
+                0,
                 stopwatch.ElapsedMilliseconds,
                 Utils.ExtensionVersion);
         }

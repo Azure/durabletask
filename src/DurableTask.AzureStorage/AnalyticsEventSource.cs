@@ -795,6 +795,9 @@ namespace DurableTask.AzureStorage
             string Account,
             string TaskHub,
             string InstanceId,
+            DateTime? createdTimeFrom,
+            DateTime? createdTimeTo,
+            IEnumerable<OrchestrationStatus> runtimeStatus,
             int RequestCount,
             long LatencyMs,
             string ExtensionVersion)
@@ -805,29 +808,10 @@ namespace DurableTask.AzureStorage
                 Account,
                 TaskHub,
                 InstanceId,
-                RequestCount,
-                LatencyMs,
-                ExtensionVersion);
-        }
-
-        [Event(142, Level = EventLevel.Informational)]
-        public void PurgeInstanceHistoryTimeFilter(
-            string Account,
-            string TaskHub,
-            DateTime createdTimeFrom,
-            DateTime? createdTimeTo,
-            IEnumerable<OrchestrationStatus> runtimeStatus,
-            long LatencyMs,
-            string ExtensionVersion)
-        {
-            EnsureLogicalTraceActivityId();
-            this.WriteEvent(
-                142,
-                Account,
-                TaskHub,
-                createdTimeFrom,
+                createdTimeFrom ?? new DateTime(1900, 1, 1),
                 createdTimeTo ?? new DateTime(1900, 1, 1),
-                runtimeStatus,
+                runtimeStatus ?? new List<OrchestrationStatus>(0),
+                RequestCount,
                 LatencyMs,
                 ExtensionVersion);
         }
