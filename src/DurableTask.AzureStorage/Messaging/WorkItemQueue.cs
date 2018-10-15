@@ -65,7 +65,6 @@ namespace DurableTask.AzureStorage.Messaging
                     if (!string.IsNullOrEmpty(data.CompressedBlobName))
                     {
                         await LargePayloadBlobManager.AddBlobsData(
-                            null,
                             this.settings,
                             new List<InstanceBlob>
                             {

@@ -20,33 +20,34 @@ namespace DurableTask.AzureStorage
 
     internal static class LargePayloadBlobManager
     {
-        internal static async Task AddBlobsData(CloudTable instancesTable, AzureStorageOrchestrationServiceSettings settings, List<InstanceBlob> instanceBlobs)
+        internal static async Task AddBlobsData(AzureStorageOrchestrationServiceSettings settings, List<InstanceBlob> instanceBlobs)
         {
             if (instanceBlobs.Count > 0)
             {
-                if (instancesTable == null)
-                {
-                    instancesTable = await CreateInstancesTable(settings);
-                }
-
-                var batchOperation = new TableBatchOperation();
-                foreach (InstanceBlob instanceBlob in instanceBlobs)
-                {
-                    batchOperation.InsertOrReplace(new DynamicTableEntity(instanceBlob.InstanceId, instanceBlob.BlobName));
-                }
-
-                await instancesTable.ExecuteBatchAsync(batchOperation);
+                CloudTable instancesTable = await CreateInstancesTable(settings, $"{settings.TaskHubName}LargeMessages");
+                await InsertBlobData(instancesTable, instanceBlobs);
             }
         }
 
-        static async Task<CloudTable> CreateInstancesTable(AzureStorageOrchestrationServiceSettings settings)
+        static async Task InsertBlobData(CloudTable instancesTable, List<InstanceBlob> instanceBlobs)
+        {
+            var batchOperation = new TableBatchOperation();
+            foreach (InstanceBlob instanceBlob in instanceBlobs)
+            {
+                batchOperation.InsertOrReplace(new DynamicTableEntity(instanceBlob.InstanceId, instanceBlob.BlobName));
+            }
+
+            await instancesTable.ExecuteBatchAsync(batchOperation);
+        }
+
+        static async Task<CloudTable> CreateInstancesTable(AzureStorageOrchestrationServiceSettings settings, string tableName)
         {
             CloudStorageAccount account = CloudStorageAccount.Parse(settings.StorageConnectionString);
 
             CloudTableClient tableClient = account.CreateCloudTableClient();
             tableClient.BufferManager = SimpleBufferManager.Shared;
 
-            string instancesTableName = $"{settings.TaskHubName}Instances";
+            string instancesTableName = tableName;
             NameValidator.ValidateTableName(instancesTableName);
 
             CloudTable instancesTable = tableClient.GetTableReference(instancesTableName);
