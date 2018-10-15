@@ -231,7 +231,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 await client.PurgeInstanceHistoryByTimePeriod(
                     startDateTime,
-                    DateTime.Now,
+                    DateTime.UtcNow,
                     new List<OrchestrationStatus>
                     {
                         OrchestrationStatus.Completed,
