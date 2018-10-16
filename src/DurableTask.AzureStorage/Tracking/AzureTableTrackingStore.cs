@@ -82,12 +82,8 @@ namespace DurableTask.AzureStorage.Tracking
             string instancesTableName = $"{taskHubName}Instances";
             NameValidator.ValidateTableName(instancesTableName);
 
-            string largeMessagesTableName = $"{this.taskHubName}LargeMessages";
-            NameValidator.ValidateTableName(instancesTableName);
-
             this.HistoryTable = tableClient.GetTableReference(historyTableName);
             this.InstancesTable = tableClient.GetTableReference(instancesTableName);
-            this.LargeMessagesTable = tableClient.GetTableReference(largeMessagesTableName);
 
             this.StorageTableRequestOptions = settings.HistoryTableRequestOptions;
 
@@ -112,15 +108,13 @@ namespace DurableTask.AzureStorage.Tracking
 
         internal CloudTable InstancesTable { get; }
 
-        internal CloudTable LargeMessagesTable { get; }
         /// <inheritdoc />
         public override Task CreateAsync()
         {
             return Task.WhenAll(new Task[]
             {
                 this.HistoryTable.CreateIfNotExistsAsync(),
-                this.InstancesTable.CreateIfNotExistsAsync(),
-                this.LargeMessagesTable.CreateIfNotExistsAsync()
+                this.InstancesTable.CreateIfNotExistsAsync()
             });
         }
 
@@ -130,15 +124,14 @@ namespace DurableTask.AzureStorage.Tracking
             return Task.WhenAll(new Task[]
             {
                 this.HistoryTable.DeleteIfExistsAsync(),
-                this.InstancesTable.DeleteIfExistsAsync(),
-                this.LargeMessagesTable.DeleteIfExistsAsync()
+                this.InstancesTable.DeleteIfExistsAsync()
             });
         }
 
         /// <inheritdoc />
         public override async Task<bool> ExistsAsync()
         {
-            return this.HistoryTable != null && this.InstancesTable != null && this.LargeMessagesTable != null && await this.HistoryTable.ExistsAsync() && await this.InstancesTable.ExistsAsync() && await this.LargeMessagesTable.ExistsAsync();
+            return this.HistoryTable != null && this.InstancesTable != null && await this.HistoryTable.ExistsAsync() && await this.InstancesTable.ExistsAsync();
         }
 
         /// <inheritdoc />
@@ -593,7 +586,7 @@ namespace DurableTask.AzureStorage.Tracking
                     TableQuery partitionQuery = new TableQuery().Where(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, orchestrationState.OrchestrationInstance.InstanceId));
                     while (true)
                     {
-                        var partionSegment = await this.LargeMessagesTable.ExecuteQuerySegmentedAsync(
+                        var partionSegment = await this.InstancesTable.ExecuteQuerySegmentedAsync(
                             partitionQuery, 
                             partitionQueryContinuationToken,
                             this.StorageTableRequestOptions,
@@ -613,40 +606,19 @@ namespace DurableTask.AzureStorage.Tracking
                     }
                    
                     var deleteTasksList = new List<Task>();
-                    int deleteRequestCounter = 0;
+                    var deleteBatchOperation = new TableBatchOperation();
                     foreach (DynamicTableEntity partionItem in partitionItems)
                     {
                         if (!string.IsNullOrEmpty(partionItem.RowKey))
                         {
                             deleteTasksList.Add(this.messageManager.DeleteBlobAsync(partionItem.RowKey));
-                            deleteRequestCounter++;
                         }
-
-                        deleteTasksList.Add(
-                            this.LargeMessagesTable.ExecuteAsync(
-                                TableOperation.Delete(
-                                    new DynamicTableEntity
-                                    {
-                                        PartitionKey = partionItem.PartitionKey,
-                                        RowKey = partionItem.RowKey,
-                                        ETag = "*"
-                                    })));
-                        deleteRequestCounter++;
+                        deleteBatchOperation.Delete(partionItem);
                     }
 
-                    deleteTasksList.Add(
-                        this.InstancesTable.ExecuteAsync(
-                            TableOperation.Delete(
-                                new DynamicTableEntity
-                                {
-                                    PartitionKey = orchestrationState.OrchestrationInstance.InstanceId,
-                                    RowKey = string.Empty,
-                                    ETag = "*"
-                                })));
-                    deleteRequestCounter++;
-
                     await Task.WhenAll(deleteTasksList);
-                    this.stats.StorageRequests.Increment(deleteRequestCounter);
+                    await this.InstancesTable.ExecuteBatchAsync(deleteBatchOperation);
+                    this.stats.StorageRequests.Increment(deleteTasksList.Count + 1);
                 }
                 orchestrationStates.AddRange(result);
 
@@ -757,14 +729,17 @@ namespace DurableTask.AzureStorage.Tracking
             string blobName = await this.CompressLargeMessageAsync(entity);
             if (!string.IsNullOrEmpty(blobName))
             {
-                await LargePayloadBlobManager.AddBlobsData(this.settings, new List<InstanceBlob>
-                {
-                    new InstanceBlob
+                await LargePayloadBlobManager.AddBlobsData(
+                    this.InstancesTable,
+                    this.settings,
+                    new List<InstanceBlob>
                     {
-                        InstanceId = executionStartedEvent.OrchestrationInstance.InstanceId,
-                        BlobName = blobName
-                    }
-                });
+                        new InstanceBlob
+                        {
+                            InstanceId = executionStartedEvent.OrchestrationInstance.InstanceId,
+                            BlobName = blobName
+                        }
+                    });
                 this.stats.StorageRequests.Increment();
             }
 
@@ -800,7 +775,10 @@ namespace DurableTask.AzureStorage.Tracking
             string blobName = await this.CompressLargeMessageAsync(entity);
             if (!string.IsNullOrEmpty(blobName))
             {
-                await LargePayloadBlobManager.AddBlobsData(this.settings, new List<InstanceBlob>
+                await LargePayloadBlobManager.AddBlobsData(
+                    this.InstancesTable,
+                    this.settings, 
+                    new List<InstanceBlob>
                 {
                     new InstanceBlob
                     {
@@ -944,7 +922,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             if (instanceBlobList.Count > 0)
             {
-                await LargePayloadBlobManager.AddBlobsData(this.settings, instanceBlobList);
+                await LargePayloadBlobManager.AddBlobsData(this.InstancesTable, this.settings, instanceBlobList);
                 this.stats.StorageRequests.Increment();
             }
             

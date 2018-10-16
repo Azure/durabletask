@@ -20,11 +20,15 @@ namespace DurableTask.AzureStorage
 
     internal static class LargePayloadBlobManager
     {
-        internal static async Task AddBlobsData(AzureStorageOrchestrationServiceSettings settings, List<InstanceBlob> instanceBlobs)
+        internal static async Task AddBlobsData(CloudTable instancesTable, AzureStorageOrchestrationServiceSettings settings, List<InstanceBlob> instanceBlobs)
         {
             if (instanceBlobs.Count > 0)
             {
-                CloudTable instancesTable = await CreateInstancesTable(settings, $"{settings.TaskHubName}LargeMessages");
+                if (instancesTable == null)
+                {
+                    instancesTable = await CreateInstancesTable(settings, $"{settings.TaskHubName}Instances");
+                }
+
                 await InsertBlobData(instancesTable, instanceBlobs);
             }
         }

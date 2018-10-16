@@ -108,8 +108,8 @@ namespace DurableTask.AzureStorage.Messaging
                             }
                         }
 
-                        await LargePayloadBlobManager.AddBlobsData(this.settings, instanceBlobs);
-                        this.stats.StorageRequests.Increment();
+                        await LargePayloadBlobManager.AddBlobsData(null, this.settings, instanceBlobs);
+                        this.stats.StorageRequests.Increment(2);
 
                         return sortedMessages;
                     }
