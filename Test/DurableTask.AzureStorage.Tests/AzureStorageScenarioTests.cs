@@ -171,6 +171,8 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual(1, orchestrationStateList.Count);
                 Assert.IsNull(orchestrationStateList.First());
 
+                // TODO - add check for the number of blobs
+
                 await host.StopAsync();
             }
         }
