@@ -68,7 +68,8 @@ namespace DurableTask.AzureStorage.Tracking
         /// <param name="instanceId">InstanceId for the Orchestration Update</param>
         /// <param name="executionId">ExecutionId for the Orchestration Update</param>
         /// <param name="eTag">The ETag value to use for safe updates</param>
-        Task<string> UpdateStateAsync(OrchestrationRuntimeState runtimeState, string instanceId, string executionId, string eTag);
+        /// <param name="historyEventBlobNames">Mapping between history events and blob names</param>
+        Task<string> UpdateStateAsync(OrchestrationRuntimeState runtimeState, string instanceId, string executionId, string eTag, IDictionary<HistoryEvent, string> historyEventBlobNames = null);
 
         /// <summary>
         /// Get The Orchestration State for the Latest or All Executions

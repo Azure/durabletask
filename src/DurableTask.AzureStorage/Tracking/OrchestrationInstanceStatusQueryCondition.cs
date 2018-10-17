@@ -49,8 +49,6 @@ namespace DurableTask.AzureStorage.Tracking
         {
             var conditions = new List<string>();
 
-            conditions.Add(TableQuery.GenerateFilterCondition("RowKey", QueryComparisons.Equal, string.Empty));
-
             if (default(DateTime) != this.CreatedTimeFrom)
             {
                 conditions.Add(TableQuery.GenerateFilterConditionForDate("CreatedTime", QueryComparisons.GreaterThanOrEqual, new DateTimeOffset(this.CreatedTimeFrom)));

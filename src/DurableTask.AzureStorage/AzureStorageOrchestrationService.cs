@@ -70,6 +70,8 @@ namespace DurableTask.AzureStorage
         readonly PartitionManager<BlobLease> partitionManager;
         readonly OrchestrationSessionManager orchestrationSessionManager;
 
+        readonly IDictionary<HistoryEvent, string> historyEventBlobNames;
+
         readonly object hubCreationLock;
 
         bool isStarted;
@@ -163,6 +165,8 @@ namespace DurableTask.AzureStorage
                 this.settings,
                 this.stats,
                 this.trackingStore);
+
+            this.historyEventBlobNames = new Dictionary<HistoryEvent, string>();
         }
 
         internal string WorkerId => this.settings.WorkerId;
@@ -596,6 +600,10 @@ namespace DurableTask.AzureStorage
                     foreach (MessageData message in session.CurrentMessageBatch)
                     {
                         session.TraceProcessingMessage(message, isExtendedSession: false);
+                        if (!string.IsNullOrEmpty(message.CompressedBlobName))
+                        {
+                            this.historyEventBlobNames.Add(message.TaskMessage.Event, message.CompressedBlobName);
+                        }
                     }
 
                     orchestrationWorkItem = new TaskOrchestrationWorkItem
@@ -778,7 +786,18 @@ namespace DurableTask.AzureStorage
             // will result in a duplicate replay of the orchestration with no side-effects.
             try
             {
-                session.ETag = await this.trackingStore.UpdateStateAsync(runtimeState, instanceId, executionId, session.ETag);
+                if (session.CurrentMessageBatch.Any())
+                {
+                    foreach (MessageData messageData in session.CurrentMessageBatch)
+                    {
+                        if (!this.historyEventBlobNames.ContainsKey(messageData.TaskMessage.Event))
+                        {
+                            this.historyEventBlobNames.Add(messageData.TaskMessage.Event, messageData.CompressedBlobName);
+                        }
+                    }
+                }
+
+                session.ETag = await this.trackingStore.UpdateStateAsync(runtimeState, instanceId, executionId, session.ETag, this.historyEventBlobNames);
             }
             catch (Exception e)
             {
@@ -945,6 +964,11 @@ namespace DurableTask.AzureStorage
                 {
                     // shutting down
                     return null;
+                }
+
+                if (!string.IsNullOrEmpty(message.CompressedBlobName))
+                {
+                    this.historyEventBlobNames.Add(message.TaskMessage.Event, message.CompressedBlobName);
                 }
 
                 Guid traceActivityId = Guid.NewGuid();

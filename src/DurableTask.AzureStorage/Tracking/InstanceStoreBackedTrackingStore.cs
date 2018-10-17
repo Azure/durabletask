@@ -168,7 +168,7 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public override async Task<string> UpdateStateAsync(OrchestrationRuntimeState runtimeState, string instanceId, string executionId, string eTag)
+        public override async Task<string> UpdateStateAsync(OrchestrationRuntimeState runtimeState, string instanceId, string executionId, string eTag, IDictionary<HistoryEvent, string> historyEventBlobNames)
         {
             int oldEventsCount = (runtimeState.Events.Count - runtimeState.NewEvents.Count);
             await instanceStore.WriteEntitiesAsync(runtimeState.NewEvents.Select((x, i) =>
