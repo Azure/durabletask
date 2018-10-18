@@ -512,7 +512,7 @@ namespace DurableTask.AzureStorage.Tracking
             var orchestrationStates = new List<OrchestrationState>(top);
             if (!string.IsNullOrEmpty(continuationToken))
             {
-                var tokenContent = decodeBase64(continuationToken);
+                var tokenContent = Encoding.UTF8.GetString(Convert.FromBase64String(continuationToken));
                 token = JsonConvert.DeserializeObject<TableContinuationToken>(tokenContent);
             }
 
@@ -531,20 +531,9 @@ namespace DurableTask.AzureStorage.Tracking
             return new DurableStatusQueryResult()
             {
                 OrchestrationState = orchestrationStates,
-                ContinuationToken = encodeBase64(tokenJson)
+                ContinuationToken = Convert.ToBase64String(Encoding.UTF8.GetBytes(tokenJson))
             };
         }
-
-        private string decodeBase64(string s)
-        {
-            return Encoding.ASCII.GetString(Convert.FromBase64String(s));
-        }
-
-        private string encodeBase64(string s)
-        {
-            return Convert.ToBase64String(Encoding.ASCII.GetBytes(s));
-        }
-
 
         private async Task<IList<OrchestrationState>> QueryStateAsync(TableQuery<OrchestrationInstanceStatus> query, CancellationToken cancellationToken)
         {
