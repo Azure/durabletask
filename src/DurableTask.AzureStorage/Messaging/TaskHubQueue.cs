@@ -64,11 +64,23 @@ namespace DurableTask.AzureStorage.Messaging
         // Intended only for use by unit tests
         internal CloudQueue InnerQueue => this.storageQueue;
 
+        /// <summary>
+        /// Adds message to a queue
+        /// </summary>
+        /// <param name="message">Instance of <see cref="TaskMessage"/></param>
+        /// <param name="sourceSession">Instance of <see cref="SessionBase"/></param>
+        /// <returns>Instance of <see cref="MessageData"/></returns>
         public Task<MessageData> AddMessageAsync(TaskMessage message, SessionBase sourceSession)
         {
             return this.AddMessageAsync(message, sourceSession.Instance, sourceSession);
         }
 
+        /// <summary>
+        /// Adds message to a queue
+        /// </summary>
+        /// <param name="message">Instance of <see cref="TaskMessage"/></param>
+        /// <param name="sourceInstance">Instnace of <see cref="OrchestrationInstance"/></param>
+        /// <returns></returns>
         public Task<MessageData> AddMessageAsync(TaskMessage message, OrchestrationInstance sourceInstance)
         {
             return this.AddMessageAsync(message, sourceInstance, session: null);
@@ -78,7 +90,7 @@ namespace DurableTask.AzureStorage.Messaging
         {
             try
             {
-                var tuple = await this.CreateOutboundQueueMessageAsync(sourceInstance, this.storageQueue.Name, message);
+                Tuple<MessageData, CloudQueueMessage> tuple = await this.CreateOutboundQueueMessageAsync(sourceInstance, this.storageQueue.Name, message);
                 await this.storageQueue.AddMessageAsync(
                     tuple.Item2,
                     null /* timeToLive */,

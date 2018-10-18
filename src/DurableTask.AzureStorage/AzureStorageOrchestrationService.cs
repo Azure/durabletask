@@ -69,7 +69,6 @@ namespace DurableTask.AzureStorage
         readonly BlobLeaseManager leaseManager; 
         readonly PartitionManager<BlobLease> partitionManager;
         readonly OrchestrationSessionManager orchestrationSessionManager;
-
         readonly object hubCreationLock;
 
         bool isStarted;
@@ -768,13 +767,15 @@ namespace DurableTask.AzureStorage
             // First, add new messages into the queue. If a failure happens after this, duplicate messages will
             // be written after the retry, but the results of those messages are expected to be de-dup'd later.
             ControlQueue currentControlQueue = await this.GetControlQueueAsync(instanceId);
-            var messageDataList = await CommitOutboundQueueMessages(
+            IList<MessageData> messageDataList = await this.CommitOutboundQueueMessages(
                 currentControlQueue,
                 session,
                 outboundMessages,
                 orchestratorMessages,
                 timerMessages,
-                continuedAsNewMessage); foreach (var messageData in messageDataList)
+                continuedAsNewMessage);
+
+            foreach (MessageData messageData in messageDataList)
             {
                 if (!string.IsNullOrEmpty(messageData.CompressedBlobName))
                 {

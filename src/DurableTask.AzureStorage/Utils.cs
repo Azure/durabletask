@@ -50,7 +50,6 @@ namespace DurableTask.AzureStorage
                 {
                     tasks[i] = InvokeThrottledAction(items[i], action, semaphore);
                 }
-
                 await Task.WhenAll(tasks);
             }
         }
@@ -65,8 +64,6 @@ namespace DurableTask.AzureStorage
                 {
                     tasks[i] = InvokeThrottledAction(items[i], action, semaphore);
                 }
-
-         
                 await Task.WhenAll(tasks);
                 foreach (Task<TP> task in tasks)
                 {
