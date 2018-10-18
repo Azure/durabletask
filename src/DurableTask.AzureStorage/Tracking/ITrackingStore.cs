@@ -110,7 +110,7 @@ namespace DurableTask.AzureStorage.Tracking
         /// <param name="continuationToken">Continuation token</param>
         /// <param name="cancellationToken">cancellation token</param>
         /// <returns></returns>
-        Task<ValueTuple<IList<OrchestrationState>, string>> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, int top, string continuationToken, CancellationToken cancellationToken = default(CancellationToken));
+        Task<DurableStatusQueryResult> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, int top, string continuationToken, CancellationToken cancellationToken = default(CancellationToken));
 
 
 

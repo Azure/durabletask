@@ -1206,7 +1206,7 @@ namespace DurableTask.AzureStorage
         /// <param name="continuationToken">ContinuationToken of the pager.</param>
         /// <param name="cancellationToken">Cancellation Token</param>
         /// <returns>List of <see cref="OrchestrationState"/></returns>
-        public async Task<ValueTuple<IList<OrchestrationState>, string>> GetOrchestrationStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, int top, string continuationToken, CancellationToken cancellationToken = default(CancellationToken))
+        public async Task<DurableStatusQueryResult> GetOrchestrationStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, int top, string continuationToken, CancellationToken cancellationToken = default(CancellationToken))
         {
             await this.EnsureTaskHubAsync();
             return await this.trackingStore.GetStateAsync(createdTimeFrom, createdTimeTo, runtimeStatus, top, continuationToken, cancellationToken);

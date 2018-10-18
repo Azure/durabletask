@@ -496,7 +496,7 @@ namespace DurableTask.AzureStorage.Tracking
                             .ToTableQuery<OrchestrationInstanceStatus>(), cancellationToken);
         }
 
-        public override Task<ValueTuple<IList<OrchestrationState>, string>> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, int top, string continuationToken, CancellationToken cancellationToken = default(CancellationToken))
+        public override Task<DurableStatusQueryResult> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, int top, string continuationToken, CancellationToken cancellationToken = default(CancellationToken))
         {
             return this.QueryStateAsync(
                 OrchestrationInstanceStatusQueryCondition.Parse(createdTimeFrom, createdTimeTo, runtimeStatus)
@@ -506,7 +506,7 @@ namespace DurableTask.AzureStorage.Tracking
                 cancellationToken);
         }
 
-        private async Task<ValueTuple<IList<OrchestrationState>, string>> QueryStateAsync(TableQuery<OrchestrationInstanceStatus> query, int top, string continuationToken, CancellationToken cancellationToken)
+        private async Task<DurableStatusQueryResult> QueryStateAsync(TableQuery<OrchestrationInstanceStatus> query, int top, string continuationToken, CancellationToken cancellationToken)
         {
             TableContinuationToken token = null;
             var orchestrationStates = new List<OrchestrationState>(top);
@@ -528,7 +528,11 @@ namespace DurableTask.AzureStorage.Tracking
 
             token = segment.ContinuationToken;
             var tokenJson = JsonConvert.SerializeObject(token);
-            return (orchestrationStates, encodeBase64(tokenJson));
+            return new DurableStatusQueryResult()
+            {
+                OrchestrationState = orchestrationStates,
+                ContinuationToken = encodeBase64(tokenJson)
+            };
         }
 
         private string decodeBase64(string s)
