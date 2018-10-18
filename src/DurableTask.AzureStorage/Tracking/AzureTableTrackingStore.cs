@@ -518,13 +518,12 @@ namespace DurableTask.AzureStorage.Tracking
 
             query.Take(top);
             var segment = await this.InstancesTable.ExecuteQuerySegmentedAsync(query, token);
-            int previousCount = orchestrationStates.Count;
             var tasks = segment.Select(async status => await this.ConvertFromAsync(status, status.PartitionKey));
             OrchestrationState[] result = await Task.WhenAll(tasks);
             orchestrationStates.AddRange(result);
 
             this.stats.StorageRequests.Increment();
-            this.stats.TableEntitiesRead.Increment(orchestrationStates.Count - previousCount);
+            this.stats.TableEntitiesRead.Increment(orchestrationStates.Count);
 
             token = segment.ContinuationToken;
             var tokenJson = JsonConvert.SerializeObject(token);
