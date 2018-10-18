@@ -64,22 +64,23 @@ namespace DurableTask.AzureStorage.Messaging
         // Intended only for use by unit tests
         internal CloudQueue InnerQueue => this.storageQueue;
 
-        public Task AddMessageAsync(TaskMessage message, SessionBase sourceSession)
+        public Task<MessageData> AddMessageAsync(TaskMessage message, SessionBase sourceSession)
         {
             return this.AddMessageAsync(message, sourceSession.Instance, sourceSession);
         }
 
-        public Task AddMessageAsync(TaskMessage message, OrchestrationInstance sourceInstance)
+        public Task<MessageData> AddMessageAsync(TaskMessage message, OrchestrationInstance sourceInstance)
         {
             return this.AddMessageAsync(message, sourceInstance, session: null);
         }
 
-        async Task AddMessageAsync(TaskMessage message, OrchestrationInstance sourceInstance, SessionBase session)
+        async Task<MessageData> AddMessageAsync(TaskMessage message, OrchestrationInstance sourceInstance, SessionBase session)
         {
             try
             {
+                var tuple = await this.CreateOutboundQueueMessageAsync(sourceInstance, this.storageQueue.Name, message);
                 await this.storageQueue.AddMessageAsync(
-                    await this.CreateOutboundQueueMessageAsync(sourceInstance, this.storageQueue.Name, message),
+                    tuple.Item2,
                     null /* timeToLive */,
                     GetVisibilityDelay(message),
                     this.QueueRequestOptions,
@@ -89,6 +90,8 @@ namespace DurableTask.AzureStorage.Messaging
 
                 // Wake up the queue polling thread
                 this.backoffHelper.Reset();
+
+                return tuple.Item1;
             }
             catch (StorageException e)
             {
@@ -270,7 +273,7 @@ namespace DurableTask.AzureStorage.Messaging
             }
         }
 
-        Task<CloudQueueMessage> CreateOutboundQueueMessageAsync(
+        Task<Tuple<MessageData, CloudQueueMessage>> CreateOutboundQueueMessageAsync(
             OrchestrationInstance sourceInstance,
             string queueName,
             TaskMessage taskMessage)
@@ -284,7 +287,7 @@ namespace DurableTask.AzureStorage.Messaging
                 taskMessage);
         }
 
-        static async Task<CloudQueueMessage> CreateOutboundQueueMessageAsync(
+        static async Task<Tuple<MessageData, CloudQueueMessage>> CreateOutboundQueueMessageAsync(
             MessageManager messageManager,
             OrchestrationInstance sourceInstance,
             string storageAccountName,
@@ -298,7 +301,8 @@ namespace DurableTask.AzureStorage.Messaging
             var data = new MessageData(taskMessage, outboundTraceActivityId, queueName);
             data.SequenceNumber = Interlocked.Increment(ref messageSequenceNumber);
 
-            string rawContent = await messageManager.SerializeMessageDataAsync(data);
+            Tuple<MessageData, string> tuple = await messageManager.SerializeMessageDataAsync(data);
+            string rawContent = tuple.Item2;
 
             AnalyticsEventSource.Log.SendingMessage(
                 outboundTraceActivityId,
@@ -314,7 +318,7 @@ namespace DurableTask.AzureStorage.Messaging
                 data.SequenceNumber,
                 Utils.ExtensionVersion);
 
-            return new CloudQueueMessage(rawContent);
+            return new Tuple<MessageData, CloudQueueMessage>(tuple.Item1, new CloudQueueMessage(rawContent));
         }
 
         public async Task CreateIfNotExistsAsync()

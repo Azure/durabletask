@@ -48,7 +48,9 @@ namespace DurableTask.AzureStorage
         /// <summary>
         /// Serializes the MessageData object
         /// </summary>
-        public async Task<string> SerializeMessageDataAsync(MessageData messageData)
+        /// <param name="messageData">Instance of <see cref="MessageData"/></param>
+        /// <returns>Instance of Tuple mapping instance of <see cref="MessageData"/> and blob name</returns>
+        public async Task<Tuple<MessageData, string>> SerializeMessageDataAsync(MessageData messageData)
         {
             string rawContent = JsonConvert.SerializeObject(messageData, this.taskMessageSerializerSettings);
             messageData.TotalMessageSizeBytes = Encoding.Unicode.GetByteCount(rawContent);
@@ -67,10 +69,12 @@ namespace DurableTask.AzureStorage
                     CompressedBlobName = blobName
                 };
 
-                return JsonConvert.SerializeObject(wrapperMessageData, this.taskMessageSerializerSettings);
+                messageData.CompressedBlobName = blobName;
+
+                return new Tuple<MessageData, string>(messageData, JsonConvert.SerializeObject(wrapperMessageData, this.taskMessageSerializerSettings));
             }
 
-            return JsonConvert.SerializeObject(messageData, this.taskMessageSerializerSettings);
+            return new Tuple<MessageData, string>(messageData, JsonConvert.SerializeObject(messageData, this.taskMessageSerializerSettings));
         }
 
         /// <summary>

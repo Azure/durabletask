@@ -70,8 +70,6 @@ namespace DurableTask.AzureStorage
         readonly PartitionManager<BlobLease> partitionManager;
         readonly OrchestrationSessionManager orchestrationSessionManager;
 
-        readonly IDictionary<HistoryEvent, string> historyEventBlobNames;
-
         readonly object hubCreationLock;
 
         bool isStarted;
@@ -165,8 +163,6 @@ namespace DurableTask.AzureStorage
                 this.settings,
                 this.stats,
                 this.trackingStore);
-
-            this.historyEventBlobNames = new Dictionary<HistoryEvent, string>();
         }
 
         internal string WorkerId => this.settings.WorkerId;
@@ -600,10 +596,6 @@ namespace DurableTask.AzureStorage
                     foreach (MessageData message in session.CurrentMessageBatch)
                     {
                         session.TraceProcessingMessage(message, isExtendedSession: false);
-                        if (!string.IsNullOrEmpty(message.CompressedBlobName))
-                        {
-                            this.historyEventBlobNames.Add(message.TaskMessage.Event, message.CompressedBlobName);
-                        }
                     }
 
                     orchestrationWorkItem = new TaskOrchestrationWorkItem
@@ -771,16 +763,24 @@ namespace DurableTask.AzureStorage
             string instanceId = workItem.InstanceId;
             string executionId = runtimeState.OrchestrationInstance.ExecutionId;
 
+            var historyEventBlobNames = new Dictionary<HistoryEvent, string>();
+
             // First, add new messages into the queue. If a failure happens after this, duplicate messages will
             // be written after the retry, but the results of those messages are expected to be de-dup'd later.
             ControlQueue currentControlQueue = await this.GetControlQueueAsync(instanceId);
-            await CommitOutboundQueueMessages(
+            var messageDataList = await CommitOutboundQueueMessages(
                 currentControlQueue,
                 session,
                 outboundMessages,
                 orchestratorMessages,
                 timerMessages,
-                continuedAsNewMessage);
+                continuedAsNewMessage); foreach (var messageData in messageDataList)
+            {
+                if (!string.IsNullOrEmpty(messageData.CompressedBlobName))
+                {
+                    historyEventBlobNames.Add(messageData.TaskMessage.Event, messageData.CompressedBlobName);
+                }
+            }
 
             // Next, commit the orchestration history updates. This is the actual "checkpoint". Failures after this
             // will result in a duplicate replay of the orchestration with no side-effects.
@@ -790,14 +790,14 @@ namespace DurableTask.AzureStorage
                 {
                     foreach (MessageData messageData in session.CurrentMessageBatch)
                     {
-                        if (!this.historyEventBlobNames.ContainsKey(messageData.TaskMessage.Event))
+                        if (!historyEventBlobNames.ContainsKey(messageData.TaskMessage.Event))
                         {
-                            this.historyEventBlobNames.Add(messageData.TaskMessage.Event, messageData.CompressedBlobName);
+                            historyEventBlobNames.Add(messageData.TaskMessage.Event, messageData.CompressedBlobName);
                         }
                     }
                 }
 
-                session.ETag = await this.trackingStore.UpdateStateAsync(runtimeState, instanceId, executionId, session.ETag, this.historyEventBlobNames);
+                session.ETag = await this.trackingStore.UpdateStateAsync(runtimeState, instanceId, executionId, session.ETag, historyEventBlobNames);
             }
             catch (Exception e)
             {
@@ -828,7 +828,7 @@ namespace DurableTask.AzureStorage
             await this.DeleteMessageBatchAsync(session, currentControlQueue);
         }
 
-        async Task CommitOutboundQueueMessages(
+        async Task<IList<MessageData>> CommitOutboundQueueMessages(
             ControlQueue currentControlQueue,
             OrchestrationSession session,
             IList<TaskMessage> outboundMessages,
@@ -877,7 +877,7 @@ namespace DurableTask.AzureStorage
                 }
             }
 
-            await enqueueOperations.ParallelForEachAsync(
+            return await enqueueOperations.ParallelForEachAsync(
                 this.settings.MaxStorageOperationConcurrency,
                 op => op.Queue.AddMessageAsync(op.Message, session));
         }
@@ -964,11 +964,6 @@ namespace DurableTask.AzureStorage
                 {
                     // shutting down
                     return null;
-                }
-
-                if (!string.IsNullOrEmpty(message.CompressedBlobName))
-                {
-                    this.historyEventBlobNames.Add(message.TaskMessage.Event, message.CompressedBlobName);
                 }
 
                 Guid traceActivityId = Guid.NewGuid();
