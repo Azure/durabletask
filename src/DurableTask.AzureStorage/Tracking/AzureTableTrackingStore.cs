@@ -506,7 +506,8 @@ namespace DurableTask.AzureStorage.Tracking
         /// <inheritdoc />
         public override Task<IList<OrchestrationState>> GetStateAsync(CancellationToken cancellationToken = default(CancellationToken))
         {
-            var query = new TableQuery<OrchestrationInstanceStatus>().Where(TableQuery.GenerateFilterCondition(RowKeyProperty, QueryComparisons.Equal, string.Empty));
+            TableQuery<OrchestrationInstanceStatus> query = new TableQuery<OrchestrationInstanceStatus>().
+                Where(TableQuery.GenerateFilterCondition(RowKeyProperty, QueryComparisons.Equal, string.Empty));
             return this.QueryStateAsync(query, cancellationToken);
         }
 
@@ -522,10 +523,11 @@ namespace DurableTask.AzureStorage.Tracking
             var orchestrationStates = new List<OrchestrationState>(100);
             while (true)
             {
-                var segment = await this.InstancesTable.ExecuteQuerySegmentedAsync(query, token);
+                TableQuerySegment<OrchestrationInstanceStatus> segment = await this.InstancesTable.ExecuteQuerySegmentedAsync(query, token);
 
                 int previousCount = orchestrationStates.Count;
-                var tasks = segment.Select(async status => await this.ConvertFromAsync(status, status.PartitionKey));
+                IEnumerable<Task<OrchestrationState>> tasks = segment.Select(
+                    async status => await this.ConvertFromAsync(status, status.PartitionKey));
                 OrchestrationState[] result = await Task.WhenAll(tasks);
                 orchestrationStates.AddRange(result);
 
@@ -601,7 +603,6 @@ namespace DurableTask.AzureStorage.Tracking
                             blobDeleteTaskList.Add(this.messageManager.DeleteBlobAsync(orchestrationInstanceStatus.InitialInputBlobName));
                         }
 
-                        // TODO batch can hold only 100 items - check for that
                         await this.HistoryTable.ExecuteBatchAsync(batch);
                         this.stats.StorageRequests.Increment();
                         pageOffset += batchForDeletion.Count;
