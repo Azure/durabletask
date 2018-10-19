@@ -45,6 +45,8 @@ namespace DurableTask.AzureStorage.Tests
 
             var result = await fixture.TrakingStore.GetStateAsync(fixture.ExpectedCreatedDateFrom, fixture.ExpectedCreatedDateTo, InputState, 3, fixture.InputToken);
 
+            Assert.IsNull(fixture.ActualPassedTokenObject);
+
             Assert.AreEqual(fixture.ExpectedResult.ContinuationToken, result.ContinuationToken);
             Assert.AreEqual(fixture.ExpectedResult.OrchestrationState.Count(), result.OrchestrationState.Count());
             Assert.AreEqual(fixture.ExpectedResult.OrchestrationState.FirstOrDefault().Name, result.OrchestrationState.FirstOrDefault().Name);
@@ -71,6 +73,8 @@ namespace DurableTask.AzureStorage.Tests
 
             var result = await fixture.TrakingStore.GetStateAsync(fixture.ExpectedCreatedDateFrom, fixture.ExpectedCreatedDateTo, InputState, 3, fixture.InputToken);
 
+            Assert.AreEqual(inputToken.NextPartitionKey, fixture.ActualPassedTokenObject.NextPartitionKey);
+        
             Assert.AreEqual(fixture.ExpectedResult.ContinuationToken, result.ContinuationToken);
             Assert.AreEqual(fixture.ExpectedResult.OrchestrationState.Count(), result.OrchestrationState.Count());
             Assert.AreEqual(fixture.ExpectedResult.OrchestrationState.FirstOrDefault().Name, result.OrchestrationState.FirstOrDefault().Name);
@@ -100,6 +104,7 @@ namespace DurableTask.AzureStorage.Tests
         public string InputToken { get; set; }
 
         public TableContinuationToken ExpectedPassedTokenObject { get; set; }
+        public TableContinuationToken ActualPassedTokenObject { get; set; }
 
         public List<OrchestrationInstanceStatus> InputStatus { get; set; }
 
@@ -157,7 +162,7 @@ namespace DurableTask.AzureStorage.Tests
                 .Callback<TableQuery<OrchestrationInstanceStatus>, TableContinuationToken>(
                     (q, token) =>
                     {
-                        Assert.IsNull(token);
+                        this.ActualPassedTokenObject = token;
                        Assert.AreEqual(this.ExpectedTop, q.TakeCount);
                     });
         }
@@ -175,7 +180,7 @@ namespace DurableTask.AzureStorage.Tests
                 .Callback<TableQuery<OrchestrationInstanceStatus>, TableContinuationToken>(
                     (q, token) =>
                     {
-                        Assert.AreEqual(this.ExpectedPassedTokenObject.NextPartitionKey, token.NextPartitionKey);
+                        this.ActualPassedTokenObject = token;
                         Assert.AreEqual(this.ExpectedTop, q.TakeCount);
                     });
         }
