@@ -16,6 +16,7 @@ namespace DurableTask.AzureStorage
     using System;
     using System.Collections.Generic;
     using System.Diagnostics.Tracing;
+    using System.Linq;
     using System.Threading;
     using DurableTask.Core;
 
@@ -810,7 +811,9 @@ namespace DurableTask.AzureStorage
                 InstanceId,
                 createdTimeFrom ?? new DateTime(1900, 1, 1),
                 createdTimeTo ?? new DateTime(1900, 1, 1),
-                runtimeStatus ?? new List<OrchestrationStatus>(0),
+                runtimeStatus != null ? 
+                string.Join(";", runtimeStatus.Select(x=>x.ToString()).ToArray()) : 
+                string.Empty,
                 RequestCount,
                 LatencyMs,
                 ExtensionVersion);
