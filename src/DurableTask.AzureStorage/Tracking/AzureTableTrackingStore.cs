@@ -38,8 +38,13 @@ namespace DurableTask.AzureStorage.Tracking
         const string InputProperty = "Input";
         const string ResultProperty = "Result";
         const string OutputProperty = "Output";
+        const string RowKeyProperty = "RowKey";
+        const string PartitionKeyProperty = "PartitionKey";
         const string BlobNamePropertySuffix = "BlobName";
+        const string MessageDataBlobNameProperty = "MessageDataBlobName";
+        const string IntialInputBlobNameProperty = "InitialInputBlobName";
         const string SentinelRowKey = "sentinel";
+
         const int MaxStorageQueuePayloadSizeInBytes = 60 * 1024; // 60KB
         const int GuidByteSize = 72;
 
@@ -212,7 +217,7 @@ namespace DurableTask.AzureStorage.Tracking
             const char Quote = '\'';
 
             // e.g. "PartitionKey eq 'c138dd969a1e4a699b0644c7d8279f81'"
-            filterCondition.Append("PartitionKey eq ").Append(Quote).Append(instanceId).Append(Quote);
+            filterCondition.Append($"{PartitionKeyProperty} eq ").Append(Quote).Append(instanceId).Append(Quote);
             if (expectedExecutionId != null)
             {
                 // Filter down to a specific generation.
@@ -334,7 +339,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             var orchestratorStartedFilterCondition = new StringBuilder(200);
 
-            orchestratorStartedFilterCondition.Append("PartitionKey eq ").Append(Quote).Append(instanceId).Append(Quote); // = TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, instanceId);
+            orchestratorStartedFilterCondition.Append($"{PartitionKeyProperty} eq ").Append(Quote).Append(instanceId).Append(Quote); // = TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, instanceId);
             orchestratorStartedFilterCondition.Append(" and EventType eq ").Append(Quote).Append("OrchestratorStarted").Append(Quote);
 
             var orchestratorStartedEntities = await this.QueryHistoryForRewind(orchestratorStartedFilterCondition.ToString(), instanceId, cancellationToken);
@@ -347,7 +352,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             var rowsToUpdateFilterCondition = new StringBuilder(200);
 
-            rowsToUpdateFilterCondition.Append("PartitionKey eq ").Append(Quote).Append(instanceId).Append(Quote);
+            rowsToUpdateFilterCondition.Append($"{PartitionKeyProperty} eq ").Append(Quote).Append(instanceId).Append(Quote);
             rowsToUpdateFilterCondition.Append(" and ExecutionId eq ").Append(Quote).Append(executionId).Append(Quote);
             rowsToUpdateFilterCondition.Append(" and (OrchestrationStatus eq ").Append(Quote).Append("Failed").Append(Quote);
             rowsToUpdateFilterCondition.Append(" or EventType eq").Append(Quote).Append("TaskFailed").Append(Quote);
@@ -396,7 +401,7 @@ namespace DurableTask.AzureStorage.Tracking
 
                     var soFilterCondition = new StringBuilder(200);
 
-                    soFilterCondition.Append("PartitionKey eq ").Append(Quote).Append(instanceId).Append(Quote);
+                    soFilterCondition.Append($"{PartitionKeyProperty} eq ").Append(Quote).Append(instanceId).Append(Quote);
                     soFilterCondition.Append(" and ExecutionId eq ").Append(Quote).Append(executionId).Append(Quote);
                     soFilterCondition.Append(" and EventId eq ").Append(subOrchestrationId);
                     soFilterCondition.Append(" and EventType eq ").Append(Quote).Append(nameof(EventType.SubOrchestrationInstanceCreated)).Append(Quote);
@@ -501,7 +506,7 @@ namespace DurableTask.AzureStorage.Tracking
         /// <inheritdoc />
         public override Task<IList<OrchestrationState>> GetStateAsync(CancellationToken cancellationToken = default(CancellationToken))
         {
-            var query = new TableQuery<OrchestrationInstanceStatus>().Where(TableQuery.GenerateFilterCondition("RowKey", QueryComparisons.Equal, string.Empty));
+            var query = new TableQuery<OrchestrationInstanceStatus>().Where(TableQuery.GenerateFilterCondition(RowKeyProperty, QueryComparisons.Equal, string.Empty));
             return this.QueryStateAsync(query, cancellationToken);
         }
 
@@ -559,10 +564,10 @@ namespace DurableTask.AzureStorage.Tracking
                         null,
                         new List<string>
                         {
-                            "RowKey",
-                            "InputBlobName",
-                            "ResultBlobName",
-                            "PreviousBlobName"
+                            RowKeyProperty,
+                            $"{InputProperty}{BlobNamePropertySuffix}",
+                            $"{ResultProperty}{BlobNamePropertySuffix}",
+                            MessageDataBlobNameProperty
                         });
 
                     int pageOffset = 0;
@@ -574,37 +579,26 @@ namespace DurableTask.AzureStorage.Tracking
                         foreach (DynamicTableEntity itemForDeletion in batchForDeletion)
                         {
                             batch.Delete(itemForDeletion);
-                            if (itemForDeletion.Properties.ContainsKey("InputBlobName") &&
-                                !string.IsNullOrEmpty(itemForDeletion.Properties["InputBlobName"].StringValue))
+                            if (itemForDeletion.Properties.ContainsKey($"{InputProperty}{BlobNamePropertySuffix}") &&
+                                !string.IsNullOrEmpty(itemForDeletion.Properties[$"{InputProperty}{BlobNamePropertySuffix}"].StringValue))
                             {
-                                blobDeleteTaskList.Add(this.messageManager.DeleteBlobAsync(itemForDeletion.Properties["InputBlobName"].StringValue));
+                                blobDeleteTaskList.Add(this.messageManager.DeleteBlobAsync(itemForDeletion.Properties[$"{InputProperty}{BlobNamePropertySuffix}"].StringValue));
                             }
-                            if (itemForDeletion.Properties.ContainsKey("ResultBlobName") &&
-                                !string.IsNullOrEmpty(itemForDeletion.Properties["ResultBlobName"].StringValue))
+                            if (itemForDeletion.Properties.ContainsKey($"{ResultProperty}{BlobNamePropertySuffix}") &&
+                                !string.IsNullOrEmpty(itemForDeletion.Properties[$"{ResultProperty}{BlobNamePropertySuffix}"].StringValue))
                             {
-                                blobDeleteTaskList.Add(this.messageManager.DeleteBlobAsync(itemForDeletion.Properties["ResultBlobName"].StringValue));
+                                blobDeleteTaskList.Add(this.messageManager.DeleteBlobAsync(itemForDeletion.Properties[$"{ResultProperty}{BlobNamePropertySuffix}"].StringValue));
                             }
-                            if (itemForDeletion.Properties.ContainsKey("PreviousBlobName") &&
-                                !string.IsNullOrEmpty(itemForDeletion.Properties["PreviousBlobName"].StringValue))
+                            if (itemForDeletion.Properties.ContainsKey(MessageDataBlobNameProperty) &&
+                                !string.IsNullOrEmpty(itemForDeletion.Properties[MessageDataBlobNameProperty].StringValue))
                             {
-                                blobDeleteTaskList.Add(this.messageManager.DeleteBlobAsync(itemForDeletion.Properties["PreviousBlobName"].StringValue));
+                                blobDeleteTaskList.Add(this.messageManager.DeleteBlobAsync(itemForDeletion.Properties[MessageDataBlobNameProperty].StringValue));
                             }
                         }
 
-                        if (!string.IsNullOrEmpty(orchestrationInstanceStatus.PreviousBlobName))
+                        if (!string.IsNullOrEmpty(orchestrationInstanceStatus.InitialInputBlobName))
                         {
-                            if (orchestrationInstanceStatus.PreviousBlobName.Contains(";"))
-                            {
-                                var parts = orchestrationInstanceStatus.PreviousBlobName.Split(new string[] { ";" }, StringSplitOptions.None);
-                                foreach (var part in parts)
-                                {
-                                    blobDeleteTaskList.Add(this.messageManager.DeleteBlobAsync(part));
-                                }
-                            }
-                            else
-                            {
-                                blobDeleteTaskList.Add(this.messageManager.DeleteBlobAsync(orchestrationInstanceStatus.PreviousBlobName));
-                            }
+                            blobDeleteTaskList.Add(this.messageManager.DeleteBlobAsync(orchestrationInstanceStatus.InitialInputBlobName));
                         }
 
                         // TODO batch can hold only 100 items - check for that
@@ -649,7 +643,7 @@ namespace DurableTask.AzureStorage.Tracking
                 null,
                 new List<string>
                 {
-                    "RowKey"
+                    RowKeyProperty
                 },
                 new CancellationToken());
 
@@ -729,22 +723,7 @@ namespace DurableTask.AzureStorage.Tracking
                 }
             };
 
-            // TODO - add test for multiple executions for an orchestration
-            TableQuery query = new TableQuery().Where(TableQuery.CombineFilters(
-                TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, executionStartedEvent.OrchestrationInstance.InstanceId),
-                TableOperators.And,
-                TableQuery.GenerateFilterCondition("RowKey", QueryComparisons.LessThan, string.Empty))).Select(new List<string> { "PreviousBlobName"});
-            TableContinuationToken token = null;
-            var segment = await this.InstancesTable.ExecuteQuerySegmentedAsync(query, token);
-            string previousBlobName = string.Empty;
-            if(segment.Results.Any() &&
-               segment.Results.First().Properties.ContainsKey("PreviousBlobName") &&
-               !string.IsNullOrEmpty(segment.Results.First().Properties["PreviousBlobName"].StringValue))
-            {
-                previousBlobName = segment.Results.First().Properties["PreviousBlobName"].StringValue;
-            }
-
-            await this.CompressLargeMessageAsync(entity, string.Empty, true, previousBlobName);
+            await this.CompressLargeMessageAsync(entity, string.Empty, true);
 
             Stopwatch stopwatch = Stopwatch.StartNew();
             await this.InstancesTable.ExecuteAsync(
@@ -762,7 +741,7 @@ namespace DurableTask.AzureStorage.Tracking
                 Utils.ExtensionVersion);
         }
 
-
+        /// <inheritdoc />
         public override async Task UpdateStatusForRewindAsync(string instanceId)
         {
             DynamicTableEntity entity = new DynamicTableEntity(instanceId, "")
@@ -844,7 +823,7 @@ namespace DurableTask.AzureStorage.Tracking
                 if (i == newEvents.Count - 1 && historyEventBlobNames.Keys.Count > 0)
                 {
                     HistoryEvent key = historyEventBlobNames.Keys.First();
-                    entity.Properties["PreviousBlobName"] = new EntityProperty(historyEventBlobNames[key]);
+                    entity.Properties[MessageDataBlobNameProperty] = new EntityProperty(historyEventBlobNames[key]);
                     historyEventBlobNames.Remove(key);
                 }
 
@@ -1074,7 +1053,7 @@ namespace DurableTask.AzureStorage.Tracking
             }
         }
 
-        async Task CompressLargeMessageAsync(DynamicTableEntity entity, string previousBlobName = "", bool isSetNewExecutionAsync = false, string exisitingPreviousBlobName = "")
+        async Task CompressLargeMessageAsync(DynamicTableEntity entity, string messageDataBlobName = "", bool isSetNewExecutionAsync = false)
         {
             string propertyKey = this.GetLargeTableEntity(entity);
             if (propertyKey != null)
@@ -1087,14 +1066,11 @@ namespace DurableTask.AzureStorage.Tracking
                 entity.Properties.Add(blobNameKey, new EntityProperty(blobName));
                 if (isSetNewExecutionAsync)
                 {
-                    entity.Properties.Add("PreviousBlobName", new EntityProperty(
-                        string.IsNullOrEmpty(exisitingPreviousBlobName) ? 
-                        blobName : 
-                        $"{exisitingPreviousBlobName};{blobName}"));
+                    entity.Properties.Add(IntialInputBlobNameProperty, new EntityProperty(blobName));
                 }
-                if (!string.IsNullOrEmpty(previousBlobName))
+                if (!string.IsNullOrEmpty(messageDataBlobName))
                 {
-                    entity.Properties.Add("PreviousBlobName", new EntityProperty(previousBlobName));
+                    entity.Properties.Add(MessageDataBlobNameProperty, new EntityProperty(messageDataBlobName));
                 }
                 this.SetPropertyMessageToEmptyString(entity);
             }

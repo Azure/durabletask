@@ -36,11 +36,11 @@ namespace DurableTask.AzureStorage.Tracking
             where T : TableEntity, new()
         {
             var query = new TableQuery<T>();
-            if (!((RuntimeStatus == null || (!RuntimeStatus.Any())) && CreatedTimeFrom == default(DateTime) && CreatedTimeTo == default(DateTime)))
+            if (!((this.RuntimeStatus == null || (!this.RuntimeStatus.Any())) && 
+                this.CreatedTimeFrom == default(DateTime) && 
+                this.CreatedTimeTo == default(DateTime)))
             {
-                query.Where(
-                    GetConditions()
-                    );
+                query.Where(this.GetConditions());
             }
             return query;
         }
@@ -61,7 +61,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             if (this.RuntimeStatus != null && this.RuntimeStatus.Any())
             {
-                var runtimeCondition = this.RuntimeStatus.Select(x => TableQuery.GenerateFilterCondition("RuntimeStatus", QueryComparisons.Equal, x.ToString()))
+                string runtimeCondition = this.RuntimeStatus.Select(x => TableQuery.GenerateFilterCondition("RuntimeStatus", QueryComparisons.Equal, x.ToString()))
                                     .Aggregate((a, b) => TableQuery.CombineFilters(a, TableOperators.Or, b));
                 if (runtimeCondition.Count() != 0)
                 {
@@ -69,14 +69,9 @@ namespace DurableTask.AzureStorage.Tracking
                 }
             }
 
-            if (conditions.Count == 1)
-            {
-                return conditions[0];
-            }
-            else
-            {
-                return conditions.Aggregate((a, b) => TableQuery.CombineFilters(a, TableOperators.And, b));
-            }
+            return conditions.Count == 1 ? 
+                conditions[0] : 
+                conditions.Aggregate((a, b) => TableQuery.CombineFilters(a, TableOperators.And, b));
 
         }
 
@@ -89,10 +84,12 @@ namespace DurableTask.AzureStorage.Tracking
         /// <returns></returns>
         public static OrchestrationInstanceStatusQueryCondition Parse(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
         {
-            var condition = new OrchestrationInstanceStatusQueryCondition();
-            condition.CreatedTimeFrom = createdTimeFrom;
-            condition.CreatedTimeTo = (createdTimeTo != null) ? (DateTime)createdTimeTo : default(DateTime);
-            condition.RuntimeStatus = runtimeStatus;
+            var condition = new OrchestrationInstanceStatusQueryCondition
+            {
+                CreatedTimeFrom = createdTimeFrom,
+                CreatedTimeTo = createdTimeTo ?? default(DateTime),
+                RuntimeStatus = runtimeStatus
+            };
             return condition;
         }
     }

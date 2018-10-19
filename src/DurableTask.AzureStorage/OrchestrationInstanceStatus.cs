@@ -32,6 +32,6 @@ namespace DurableTask.AzureStorage
         public DateTime CreatedTime { get; set; }
         public DateTime LastUpdatedTime { get; set; }
         public string RuntimeStatus { get; set; }
-        public string PreviousBlobName { get; set; }
+        public string InitialInputBlobName { get; set; }
     }
 }
