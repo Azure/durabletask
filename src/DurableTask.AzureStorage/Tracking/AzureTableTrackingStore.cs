@@ -100,6 +100,15 @@ namespace DurableTask.AzureStorage.Tracking
                 type => ((HistoryEvent)FormatterServices.GetUninitializedObject(type)).EventType);
         }
 
+        internal AzureTableTrackingStore(
+            AzureStorageOrchestrationServiceStats stats,
+            CloudTable instancesTable
+        )
+        {
+            this.stats = stats;
+            this.InstancesTable = instancesTable;
+        }
+
         /// <summary>
         ///  Table Request Options for The History and Instance Tables
         /// </summary>
