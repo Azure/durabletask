@@ -273,7 +273,7 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual(1, thirdOrchestrationStateList.Count);
                 Assert.AreEqual(thirdInstanceId, thirdOrchestrationStateList.First().OrchestrationInstance.InstanceId);
 
-                IList<OrchestrationState> fourthOrchestrationStateList = await client.GetStateAsync(thirdInstanceId);
+                IList<OrchestrationState> fourthOrchestrationStateList = await client.GetStateAsync(fourthInstanceId);
                 Assert.AreEqual(1, fourthOrchestrationStateList.Count);
                 Assert.AreEqual(fourthInstanceId, fourthOrchestrationStateList.First().OrchestrationInstance.InstanceId);
 
