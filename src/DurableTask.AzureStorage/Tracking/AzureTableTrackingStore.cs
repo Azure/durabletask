@@ -585,7 +585,6 @@ namespace DurableTask.AzureStorage.Tracking
         private async Task<int> DeleteAllDataForOrchestrationInstance(OrchestrationInstanceStatus orchestrationInstanceStatus)
         {
             int storageRequests = 0;
-            var blobDeleteTaskList = new List<Task>();
             HistoryEntitiesResponseInfo historyEntitiesResponseInfo = await this.GetHistoryEntitiesResponseInfoAsync(
                 orchestrationInstanceStatus.PartitionKey,
                 null,
@@ -603,6 +602,7 @@ namespace DurableTask.AzureStorage.Tracking
             while (pageOffset < historyEntitiesResponseInfo.HistoryEventEntities.Count)
             {
                 var batch = new TableBatchOperation();
+                var blobDeleteTaskList = new List<Task>();
                 List<DynamicTableEntity> batchForDeletion = historyEntitiesResponseInfo.HistoryEventEntities.Skip(pageOffset).Take(100).ToList();
 
                 foreach (DynamicTableEntity itemForDeletion in batchForDeletion)
@@ -630,19 +630,21 @@ namespace DurableTask.AzureStorage.Tracking
                     blobDeleteTaskList.Add(this.messageManager.DeleteBlobAsync(orchestrationInstanceStatus.InitialInputBlobName));
                 }
 
+                await Task.WhenAll(blobDeleteTaskList);
+                storageRequests += blobDeleteTaskList.Count;
                 await this.HistoryTable.ExecuteBatchAsync(batch);
                 storageRequests++;
                 pageOffset += batchForDeletion.Count;
             }
 
-            await Task.WhenAll(blobDeleteTaskList);
             await this.InstancesTable.ExecuteAsync(TableOperation.Delete(new DynamicTableEntity
             {
                 PartitionKey = orchestrationInstanceStatus.PartitionKey,
                 RowKey = string.Empty,
                 ETag = "*"
             }));
-            storageRequests += blobDeleteTaskList.Count + 1;
+            storageRequests++;
+
             return storageRequests;
         }
 
