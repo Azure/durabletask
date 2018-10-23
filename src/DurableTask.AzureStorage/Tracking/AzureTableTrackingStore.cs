@@ -825,9 +825,8 @@ namespace DurableTask.AzureStorage.Tracking
 
                 if (i == newEvents.Count - 1 && outputBlobNames.Keys.Count > 0)
                 {
-                    HistoryEvent key = outputBlobNames.Keys.First();
-                    entity.Properties[MessageDataBlobNameProperty] = new EntityProperty(outputBlobNames[key]);
-                    outputBlobNames.Remove(key);
+                    entity.Properties[MessageDataBlobNameProperty] = new EntityProperty(outputBlobNames.Values.First());
+                    outputBlobNames.Remove(outputBlobNames.Keys.First());
                 }
 
                 newEventListBuffer.Append(historyEvent.EventType.ToString()).Append(',');
