@@ -699,7 +699,9 @@ namespace DurableTask.AzureStorage.Tracking
                 string.Empty,
                 createdTimeFrom,
                 createdTimeTo,
-                runtimeStatus,
+                runtimeStatus != null ?
+                    string.Join(",", runtimeStatus.Select(x => x.ToString()).ToArray()) :
+                    string.Empty,
                 storageRequests,
                 stopwatch.ElapsedMilliseconds,
                 Utils.ExtensionVersion);

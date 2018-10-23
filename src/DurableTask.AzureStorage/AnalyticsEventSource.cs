@@ -798,7 +798,7 @@ namespace DurableTask.AzureStorage
             string InstanceId,
             DateTime? createdTimeFrom,
             DateTime? createdTimeTo,
-            IEnumerable<OrchestrationStatus> runtimeStatus,
+            string runtimeStatus,
             int RequestCount,
             long LatencyMs,
             string ExtensionVersion)
@@ -811,9 +811,7 @@ namespace DurableTask.AzureStorage
                 InstanceId,
                 createdTimeFrom ?? new DateTime(1900, 1, 1),
                 createdTimeTo ?? new DateTime(1900, 1, 1),
-                runtimeStatus != null ? 
-                string.Join(";", runtimeStatus.Select(x=>x.ToString()).ToArray()) : 
-                string.Empty,
+                runtimeStatus,
                 RequestCount,
                 LatencyMs,
                 ExtensionVersion);
