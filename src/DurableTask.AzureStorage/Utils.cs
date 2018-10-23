@@ -54,21 +54,17 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        public static async Task<List<TP>> ParallelForEachAsync<T,TP>(this IReadOnlyList<T> items, int maxConcurrency, Func<T, Task<TP>> action)
+        public static async Task<TResult[]> ParallelForEachAsync<T, TResult>(this IReadOnlyList<T> items, int maxConcurrency, Func<T, Task<TResult>> action)
         {
-            var messageDataList = new List<TP>();
+            TResult[] messageDataList;
             using (var semaphore = new SemaphoreSlim(maxConcurrency))
             {
-                var tasks = new Task<TP>[items.Count];
+                var tasks = new Task<TResult>[items.Count];
                 for (int i = 0; i < items.Count; i++)
                 {
                     tasks[i] = InvokeThrottledAction(items[i], action, semaphore);
                 }
-                await Task.WhenAll(tasks);
-                foreach (Task<TP> task in tasks)
-                {
-                    messageDataList.Add(await task);    
-                }
+                messageDataList = await Task.WhenAll(tasks);
             }
             return messageDataList;
         }
