@@ -217,7 +217,7 @@ namespace DurableTask.AzureStorage.Tracking
             const char Quote = '\'';
 
             // e.g. "PartitionKey eq 'c138dd969a1e4a699b0644c7d8279f81'"
-            filterCondition.Append($"{PartitionKeyProperty} eq ").Append(Quote).Append(instanceId).Append(Quote);
+            filterCondition.Append(PartitionKeyProperty).Append(" eq ").Append(Quote).Append(instanceId).Append(Quote);
             if (expectedExecutionId != null)
             {
                 // Filter down to a specific generation.
@@ -339,7 +339,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             var orchestratorStartedFilterCondition = new StringBuilder(200);
 
-            orchestratorStartedFilterCondition.Append($"{PartitionKeyProperty} eq ").Append(Quote).Append(instanceId).Append(Quote); // = TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, instanceId);
+            orchestratorStartedFilterCondition.Append(PartitionKeyProperty).Append(" eq ").Append(Quote).Append(instanceId).Append(Quote); // = TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, instanceId);
             orchestratorStartedFilterCondition.Append(" and EventType eq ").Append(Quote).Append("OrchestratorStarted").Append(Quote);
 
             var orchestratorStartedEntities = await this.QueryHistoryForRewind(orchestratorStartedFilterCondition.ToString(), instanceId, cancellationToken);
@@ -352,7 +352,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             var rowsToUpdateFilterCondition = new StringBuilder(200);
 
-            rowsToUpdateFilterCondition.Append($"{PartitionKeyProperty} eq ").Append(Quote).Append(instanceId).Append(Quote);
+            rowsToUpdateFilterCondition.Append(PartitionKeyProperty).Append(" eq ").Append(Quote).Append(instanceId).Append(Quote);
             rowsToUpdateFilterCondition.Append(" and ExecutionId eq ").Append(Quote).Append(executionId).Append(Quote);
             rowsToUpdateFilterCondition.Append(" and (OrchestrationStatus eq ").Append(Quote).Append("Failed").Append(Quote);
             rowsToUpdateFilterCondition.Append(" or EventType eq").Append(Quote).Append("TaskFailed").Append(Quote);
@@ -380,7 +380,7 @@ namespace DurableTask.AzureStorage.Tracking
 
                     var tsFilterCondition = new StringBuilder(200);
 
-                    tsFilterCondition.Append("PartitionKey eq ").Append(Quote).Append(instanceId).Append(Quote);
+                    tsFilterCondition.Append(PartitionKeyProperty).Append(" eq ").Append(Quote).Append(instanceId).Append(Quote);
                     tsFilterCondition.Append(" and ExecutionId eq ").Append(Quote).Append(executionId).Append(Quote);
                     tsFilterCondition.Append(" and EventId eq ").Append(taskScheduledId);
                     tsFilterCondition.Append(" and EventType eq ").Append(Quote).Append(nameof(EventType.TaskScheduled)).Append(Quote);
@@ -401,7 +401,7 @@ namespace DurableTask.AzureStorage.Tracking
 
                     var soFilterCondition = new StringBuilder(200);
 
-                    soFilterCondition.Append($"{PartitionKeyProperty} eq ").Append(Quote).Append(instanceId).Append(Quote);
+                    soFilterCondition.Append(PartitionKeyProperty).Append(" eq ").Append(Quote).Append(instanceId).Append(Quote);
                     soFilterCondition.Append(" and ExecutionId eq ").Append(Quote).Append(executionId).Append(Quote);
                     soFilterCondition.Append(" and EventId eq ").Append(subOrchestrationId);
                     soFilterCondition.Append(" and EventType eq ").Append(Quote).Append(nameof(EventType.SubOrchestrationInstanceCreated)).Append(Quote);
