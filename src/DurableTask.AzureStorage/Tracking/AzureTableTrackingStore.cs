@@ -559,6 +559,7 @@ namespace DurableTask.AzureStorage.Tracking
                 int previousCount = orchestrationStates.Count;
                 storageRequests++;
                 tableEntitiesRead += segment.Results.Count;
+                this.stats.TableEntitiesRead.Increment(tableEntitiesRead);
                 foreach (OrchestrationInstanceStatus orchestrationInstanceStatus in segment.Results)
                 {
                     storageRequests += await this.DeleteAllDataForOrchestrationInstance(orchestrationInstanceStatus);
@@ -567,6 +568,7 @@ namespace DurableTask.AzureStorage.Tracking
 
                 storageRequests++;
                 tableEntitiesRead += orchestrationStates.Count - previousCount;
+                this.stats.TableEntitiesRead.Increment(tableEntitiesRead);
 
                 token = segment.ContinuationToken;
                 if (token == null)
@@ -575,7 +577,6 @@ namespace DurableTask.AzureStorage.Tracking
                 }
             }
 
-            this.stats.TableEntitiesRead.Increment(tableEntitiesRead);
             return storageRequests;
         }
 
