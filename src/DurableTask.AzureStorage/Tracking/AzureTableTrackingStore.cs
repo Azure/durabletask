@@ -589,7 +589,7 @@ namespace DurableTask.AzureStorage.Tracking
             HistoryEntitiesResponseInfo historyEntitiesResponseInfo = await this.GetHistoryEntitiesResponseInfoAsync(
                 orchestrationInstanceStatus.PartitionKey,
                 null,
-                new List<string>
+                new []
                 {
                     RowKeyProperty,
                     InputBlobNameProperty,
