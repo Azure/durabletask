@@ -43,7 +43,6 @@ namespace DurableTask.AzureStorage.Tracking
         const string BlobNamePropertySuffix = "BlobName";
         const string InputBlobNameProperty = "InputBlobName";
         const string ResultBlobNameProperty = "ResultBlobName";
-        const string IntialInputBlobNameProperty = "InitialInputBlobName";
         const string SentinelRowKey = "sentinel";
 
         const int MaxStorageQueuePayloadSizeInBytes = 60 * 1024; // 60KB
@@ -618,9 +617,9 @@ namespace DurableTask.AzureStorage.Tracking
                     }
                 }
 
-                if (!string.IsNullOrEmpty(orchestrationInstanceStatus.InitialInputBlobName))
+                if (!string.IsNullOrEmpty(orchestrationInstanceStatus.InputBlobName))
                 {
-                    blobDeleteTaskList.Add(this.messageManager.DeleteBlobAsync(orchestrationInstanceStatus.InitialInputBlobName));
+                    blobDeleteTaskList.Add(this.messageManager.DeleteBlobAsync(orchestrationInstanceStatus.InputBlobName));
                 }
 
                 await Task.WhenAll(blobDeleteTaskList);
@@ -721,7 +720,7 @@ namespace DurableTask.AzureStorage.Tracking
                 }
             };
 
-            await this.CompressLargeMessageAsync(entity, string.Empty, true);
+            await this.CompressLargeMessageAsync(entity, string.Empty);
 
             Stopwatch stopwatch = Stopwatch.StartNew();
             await this.InstancesTable.ExecuteAsync(
@@ -752,7 +751,7 @@ namespace DurableTask.AzureStorage.Tracking
                 }
             };
 
-            await this.CompressLargeMessageAsync(entity, string.Empty, false);
+            await this.CompressLargeMessageAsync(entity, string.Empty);
             Stopwatch stopwatch = Stopwatch.StartNew();
             await this.InstancesTable.ExecuteAsync(TableOperation.Merge(entity));
             this.stats.StorageRequests.Increment();
@@ -814,7 +813,7 @@ namespace DurableTask.AzureStorage.Tracking
                     outputBlobNames.Remove(newEvents[i]);
                 }
 
-                await this.CompressLargeMessageAsync(entity, blobName, false);
+                await this.CompressLargeMessageAsync(entity, blobName);
 
                 if (i == newEvents.Count - 1 && outputBlobNames.Keys.Count > 0)
                 {
@@ -857,7 +856,12 @@ namespace DurableTask.AzureStorage.Tracking
                         orchestrationInstanceUpdate.Properties["Version"] = new EntityProperty(executionStartedEvent.Version);
                         orchestrationInstanceUpdate.Properties["CreatedTime"] = new EntityProperty(executionStartedEvent.Timestamp);
                         orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Running.ToString());
-                        this.SetTablePropertyForMessage(entity, orchestrationInstanceUpdate, InputProperty, InputProperty, executionStartedEvent.Input);
+                        if (!(await this.IsInputBlobNameAlreadySet(orchestrationInstanceUpdate.PartitionKey)))
+                        {
+                            this.SetTablePropertyForMessage(entity, orchestrationInstanceUpdate, InputProperty, InputProperty, executionStartedEvent.Input);
+                        }
+                        this.stats.StorageRequests.Increment();
+                        this.stats.TableEntitiesRead.Increment();
                         break;
                     case EventType.ExecutionCompleted:
                         orchestratorEventType = historyEvent.EventType;
@@ -1059,7 +1063,25 @@ namespace DurableTask.AzureStorage.Tracking
             }
         }
 
-        async Task CompressLargeMessageAsync(DynamicTableEntity entity, string messageDataBlobName, bool isSetNewExecutionAsync)
+        async Task<bool> IsInputBlobNameAlreadySet(string instanceId)
+        {
+            TableQuery query = new TableQuery().Where(
+                TableQuery.CombineFilters(
+                    TableQuery.GenerateFilterCondition(PartitionKeyProperty, QueryComparisons.Equal, instanceId),
+                    TableOperators.And,
+                    TableQuery.GenerateFilterCondition(RowKeyProperty, QueryComparisons.Equal, string.Empty))).Select(
+                new []
+                {
+                    InputBlobNameProperty
+                });
+            var segment = await this.InstancesTable.ExecuteQuerySegmentedAsync(query, null);
+            return segment?.Results != null &&
+                segment.Results.Any() &&
+                segment.Results.First().Properties.TryGetValue(InputBlobNameProperty, out EntityProperty inputBlobNameProperty) &&
+                !string.IsNullOrEmpty(inputBlobNameProperty.StringValue);
+        }
+
+        async Task CompressLargeMessageAsync(DynamicTableEntity entity, string messageDataBlobName)
         {
             string propertyKey = this.GetLargeTableEntity(entity);
             if (propertyKey != null)
@@ -1070,10 +1092,6 @@ namespace DurableTask.AzureStorage.Tracking
                 byte[] messageBytes = this.GetPropertyMessageAsBytes(entity);
                 await this.messageManager.CompressAndUploadAsBytesAsync(messageBytes, blobName);
                 entity.Properties.Add(blobNameKey, new EntityProperty(blobName));
-                if (isSetNewExecutionAsync)
-                {
-                    entity.Properties.Add(IntialInputBlobNameProperty, new EntityProperty(blobName));
-                }
                 if (!string.IsNullOrEmpty(messageDataBlobName))
                 {
                     if (propertyKey != InputProperty)
