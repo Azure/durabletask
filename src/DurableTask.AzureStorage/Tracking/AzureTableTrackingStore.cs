@@ -41,7 +41,6 @@ namespace DurableTask.AzureStorage.Tracking
         const string RowKeyProperty = "RowKey";
         const string PartitionKeyProperty = "PartitionKey";
         const string BlobNamePropertySuffix = "BlobName";
-        const string QueueInputBlobNameProperty = "QueueInputBlobName";
         const string InputBlobNameProperty = "InputBlobName";
         const string ResultBlobNameProperty = "ResultBlobName";
         const string IntialInputBlobNameProperty = "InitialInputBlobName";
@@ -592,8 +591,7 @@ namespace DurableTask.AzureStorage.Tracking
                 {
                     RowKeyProperty,
                     InputBlobNameProperty,
-                    ResultBlobNameProperty,
-                    QueueInputBlobNameProperty
+                    ResultBlobNameProperty
                 });
 
             storageRequests += historyEntitiesResponseInfo.RequestCount;
@@ -617,11 +615,6 @@ namespace DurableTask.AzureStorage.Tracking
                         !string.IsNullOrEmpty(itemForDeletion.Properties[ResultBlobNameProperty].StringValue))
                     {
                         blobDeleteTaskList.Add(this.messageManager.DeleteBlobAsync(itemForDeletion.Properties[ResultBlobNameProperty].StringValue));
-                    }
-                    if (itemForDeletion.Properties.ContainsKey(QueueInputBlobNameProperty) &&
-                        !string.IsNullOrEmpty(itemForDeletion.Properties[QueueInputBlobNameProperty].StringValue))
-                    {
-                        blobDeleteTaskList.Add(this.messageManager.DeleteBlobAsync(itemForDeletion.Properties[QueueInputBlobNameProperty].StringValue));
                     }
                 }
 
@@ -825,7 +818,18 @@ namespace DurableTask.AzureStorage.Tracking
 
                 if (i == newEvents.Count - 1 && outputBlobNames.Keys.Count > 0)
                 {
-                    entity.Properties[QueueInputBlobNameProperty] = new EntityProperty(outputBlobNames.Values.First());
+                    if (!entity.Properties.ContainsKey(InputProperty))
+                    {
+                        entity.Properties[InputBlobNameProperty] = new EntityProperty(outputBlobNames.Values.First());
+                    }
+                    else
+                    {
+                        if (!entity.Properties.ContainsKey(ResultProperty))
+                        {
+                            entity.Properties[ResultProperty] = new EntityProperty(outputBlobNames.Values.First());
+                        }
+                    }
+                    
                     outputBlobNames.Remove(outputBlobNames.Keys.First());
                 }
 
@@ -1072,7 +1076,18 @@ namespace DurableTask.AzureStorage.Tracking
                 }
                 if (!string.IsNullOrEmpty(messageDataBlobName))
                 {
-                    entity.Properties.Add(QueueInputBlobNameProperty, new EntityProperty(messageDataBlobName));
+                    if (propertyKey != InputProperty)
+                    {
+                        entity.Properties.Add(InputBlobNameProperty, new EntityProperty(messageDataBlobName));
+                    }
+                    else
+                    {
+                        if (propertyKey != ResultProperty)
+                        {
+                            entity.Properties.Add(ResultBlobNameProperty, new EntityProperty(messageDataBlobName));
+                        } 
+                    }
+                    
                 }
                 this.SetPropertyMessageToEmptyString(entity);
             }
