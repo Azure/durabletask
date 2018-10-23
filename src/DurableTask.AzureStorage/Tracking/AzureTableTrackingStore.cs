@@ -675,8 +675,8 @@ namespace DurableTask.AzureStorage.Tracking
                     this.storageAccountName,
                     this.taskHubName,
                     instanceId,
-                    null,
-                    null,
+                    new DateTime(1900, 1, 1),
+                    new DateTime(1900, 1, 1),
                     null,
                     storageRequests,
                     stopwatch.ElapsedMilliseconds,
@@ -701,7 +701,7 @@ namespace DurableTask.AzureStorage.Tracking
                 this.taskHubName,
                 string.Empty,
                 createdTimeFrom,
-                createdTimeTo,
+                createdTimeTo ?? new DateTime(1900, 1, 1),
                 runtimeStatus != null ?
                     string.Join(",", runtimeStatus.Select(x => x.ToString()).ToArray()) :
                     string.Empty,
