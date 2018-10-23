@@ -195,10 +195,10 @@ namespace DurableTask.AzureStorage
             await cloudBlockBlob.UploadFromByteArrayAsync(data, 0, dataByteCount);
         }
 
-        internal async Task DeleteBlobAsync(string blobName)
+        internal Task DeleteBlobAsync(string blobName)
         {
             CloudBlockBlob cloudBlockBlob = this.cloudBlobContainer.GetBlockBlobReference(blobName);
-            await cloudBlockBlob.DeleteIfExistsAsync();
+            return cloudBlockBlob.DeleteIfExistsAsync();
         }
     }
 }
