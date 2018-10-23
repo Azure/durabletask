@@ -816,10 +816,8 @@ namespace DurableTask.AzureStorage.Tracking
                 HistoryEvent historyEvent = newEvents[i];
                 DynamicTableEntity entity = this.tableEntityConverter.ConvertToTableEntity(historyEvent);
 
-                string blobName = string.Empty;
-                if (outputBlobNames.ContainsKey(newEvents[i]))
+                if (outputBlobNames.TryGetValue(newEvents[i], out string blobName))
                 {
-                    blobName = outputBlobNames[newEvents[i]];
                     outputBlobNames.Remove(newEvents[i]);
                 }
 

@@ -762,7 +762,7 @@ namespace DurableTask.AzureStorage
             string instanceId = workItem.InstanceId;
             string executionId = runtimeState.OrchestrationInstance.ExecutionId;
 
-            var historyEventBlobNames = new Dictionary<HistoryEvent, string>();
+            var outputBlobNames = new Dictionary<HistoryEvent, string>();
 
             // First, add new messages into the queue. If a failure happens after this, duplicate messages will
             // be written after the retry, but the results of those messages are expected to be de-dup'd later.
@@ -779,7 +779,7 @@ namespace DurableTask.AzureStorage
             {
                 if (!string.IsNullOrEmpty(messageData.CompressedBlobName))
                 {
-                    historyEventBlobNames.Add(messageData.TaskMessage.Event, messageData.CompressedBlobName);
+                    outputBlobNames.Add(messageData.TaskMessage.Event, messageData.CompressedBlobName);
                 }
             }
 
@@ -791,14 +791,14 @@ namespace DurableTask.AzureStorage
                 {
                     foreach (MessageData messageData in session.CurrentMessageBatch)
                     {
-                        if (!historyEventBlobNames.ContainsKey(messageData.TaskMessage.Event))
+                        if (!outputBlobNames.ContainsKey(messageData.TaskMessage.Event))
                         {
-                            historyEventBlobNames.Add(messageData.TaskMessage.Event, messageData.CompressedBlobName);
+                            outputBlobNames.Add(messageData.TaskMessage.Event, messageData.CompressedBlobName);
                         }
                     }
                 }
 
-                session.ETag = await this.trackingStore.UpdateStateAsync(runtimeState, instanceId, executionId, session.ETag, historyEventBlobNames);
+                session.ETag = await this.trackingStore.UpdateStateAsync(runtimeState, instanceId, executionId, session.ETag, outputBlobNames);
             }
             catch (Exception e)
             {
