@@ -91,8 +91,11 @@ namespace DurableTask.AzureStorage.Messaging
             try
             {
                 Tuple<MessageData, CloudQueueMessage> tuple = await this.CreateOutboundQueueMessageAsync(sourceInstance, this.storageQueue.Name, message);
+                MessageData messageData = tuple.Item1;
+                CloudQueueMessage cloudQueueMessage = tuple.Item2;
+
                 await this.storageQueue.AddMessageAsync(
-                    tuple.Item2,
+                    cloudQueueMessage,
                     null /* timeToLive */,
                     GetVisibilityDelay(message),
                     this.QueueRequestOptions,
@@ -103,7 +106,7 @@ namespace DurableTask.AzureStorage.Messaging
                 // Wake up the queue polling thread
                 this.backoffHelper.Reset();
 
-                return tuple.Item1;
+                return messageData;
             }
             catch (StorageException e)
             {
