@@ -687,7 +687,7 @@ namespace DurableTask.AzureStorage.Tracking
         /// <inheritdoc />
         public override  async Task PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
         {
-            var stopwatch = new Stopwatch();
+            Stopwatch stopwatch = Stopwatch.StartNew();
             List<OrchestrationStatus> runtimeStatusList =  runtimeStatus?.Where(
                x => x == OrchestrationStatus.Completed ||
                     x == OrchestrationStatus.Terminated ||
