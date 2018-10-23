@@ -42,6 +42,8 @@ namespace DurableTask.AzureStorage.Tracking
         const string PartitionKeyProperty = "PartitionKey";
         const string BlobNamePropertySuffix = "BlobName";
         const string MessageDataBlobNameProperty = "MessageDataBlobName";
+        const string InputBlobNameProperty = "InputBlobName";
+        const string ResultBlobNameProperty = "ResultBlobName";
         const string IntialInputBlobNameProperty = "InitialInputBlobName";
         const string SentinelRowKey = "sentinel";
 
@@ -590,8 +592,8 @@ namespace DurableTask.AzureStorage.Tracking
                 new List<string>
                 {
                     RowKeyProperty,
-                    $"{InputProperty}{BlobNamePropertySuffix}",
-                    $"{ResultProperty}{BlobNamePropertySuffix}",
+                    InputBlobNameProperty,
+                    ResultBlobNameProperty,
                     MessageDataBlobNameProperty
                 });
 
@@ -606,15 +608,15 @@ namespace DurableTask.AzureStorage.Tracking
                 foreach (DynamicTableEntity itemForDeletion in batchForDeletion)
                 {
                     batch.Delete(itemForDeletion);
-                    if (itemForDeletion.Properties.ContainsKey($"{InputProperty}{BlobNamePropertySuffix}") &&
-                        !string.IsNullOrEmpty(itemForDeletion.Properties[$"{InputProperty}{BlobNamePropertySuffix}"].StringValue))
+                    if (itemForDeletion.Properties.ContainsKey(InputBlobNameProperty) &&
+                        !string.IsNullOrEmpty(itemForDeletion.Properties[InputBlobNameProperty].StringValue))
                     {
-                        blobDeleteTaskList.Add(this.messageManager.DeleteBlobAsync(itemForDeletion.Properties[$"{InputProperty}{BlobNamePropertySuffix}"].StringValue));
+                        blobDeleteTaskList.Add(this.messageManager.DeleteBlobAsync(itemForDeletion.Properties[InputBlobNameProperty].StringValue));
                     }
-                    if (itemForDeletion.Properties.ContainsKey($"{ResultProperty}{BlobNamePropertySuffix}") &&
-                        !string.IsNullOrEmpty(itemForDeletion.Properties[$"{ResultProperty}{BlobNamePropertySuffix}"].StringValue))
+                    if (itemForDeletion.Properties.ContainsKey(ResultBlobNameProperty) &&
+                        !string.IsNullOrEmpty(itemForDeletion.Properties[ResultBlobNameProperty].StringValue))
                     {
-                        blobDeleteTaskList.Add(this.messageManager.DeleteBlobAsync(itemForDeletion.Properties[$"{ResultProperty}{BlobNamePropertySuffix}"].StringValue));
+                        blobDeleteTaskList.Add(this.messageManager.DeleteBlobAsync(itemForDeletion.Properties[ResultBlobNameProperty].StringValue));
                     }
                     if (itemForDeletion.Properties.ContainsKey(MessageDataBlobNameProperty) &&
                         !string.IsNullOrEmpty(itemForDeletion.Properties[MessageDataBlobNameProperty].StringValue))
