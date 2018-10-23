@@ -41,7 +41,7 @@ namespace DurableTask.AzureStorage.Tracking
         const string RowKeyProperty = "RowKey";
         const string PartitionKeyProperty = "PartitionKey";
         const string BlobNamePropertySuffix = "BlobName";
-        const string MessageDataBlobNameProperty = "MessageDataBlobName";
+        const string QueueInputBlobNameProperty = "QueueInputBlobName";
         const string InputBlobNameProperty = "InputBlobName";
         const string ResultBlobNameProperty = "ResultBlobName";
         const string IntialInputBlobNameProperty = "InitialInputBlobName";
@@ -593,7 +593,7 @@ namespace DurableTask.AzureStorage.Tracking
                     RowKeyProperty,
                     InputBlobNameProperty,
                     ResultBlobNameProperty,
-                    MessageDataBlobNameProperty
+                    QueueInputBlobNameProperty
                 });
 
             storageRequests += historyEntitiesResponseInfo.RequestCount;
@@ -618,10 +618,10 @@ namespace DurableTask.AzureStorage.Tracking
                     {
                         blobDeleteTaskList.Add(this.messageManager.DeleteBlobAsync(itemForDeletion.Properties[ResultBlobNameProperty].StringValue));
                     }
-                    if (itemForDeletion.Properties.ContainsKey(MessageDataBlobNameProperty) &&
-                        !string.IsNullOrEmpty(itemForDeletion.Properties[MessageDataBlobNameProperty].StringValue))
+                    if (itemForDeletion.Properties.ContainsKey(QueueInputBlobNameProperty) &&
+                        !string.IsNullOrEmpty(itemForDeletion.Properties[QueueInputBlobNameProperty].StringValue))
                     {
-                        blobDeleteTaskList.Add(this.messageManager.DeleteBlobAsync(itemForDeletion.Properties[MessageDataBlobNameProperty].StringValue));
+                        blobDeleteTaskList.Add(this.messageManager.DeleteBlobAsync(itemForDeletion.Properties[QueueInputBlobNameProperty].StringValue));
                     }
                 }
 
@@ -825,7 +825,7 @@ namespace DurableTask.AzureStorage.Tracking
 
                 if (i == newEvents.Count - 1 && outputBlobNames.Keys.Count > 0)
                 {
-                    entity.Properties[MessageDataBlobNameProperty] = new EntityProperty(outputBlobNames.Values.First());
+                    entity.Properties[QueueInputBlobNameProperty] = new EntityProperty(outputBlobNames.Values.First());
                     outputBlobNames.Remove(outputBlobNames.Keys.First());
                 }
 
@@ -1072,7 +1072,7 @@ namespace DurableTask.AzureStorage.Tracking
                 }
                 if (!string.IsNullOrEmpty(messageDataBlobName))
                 {
-                    entity.Properties.Add(MessageDataBlobNameProperty, new EntityProperty(messageDataBlobName));
+                    entity.Properties.Add(QueueInputBlobNameProperty, new EntityProperty(messageDataBlobName));
                 }
                 this.SetPropertyMessageToEmptyString(entity);
             }
