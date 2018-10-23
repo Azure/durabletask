@@ -757,7 +757,7 @@ namespace DurableTask.AzureStorage.Tracking
                 }
             };
 
-            await this.CompressLargeMessageAsync(entity);
+            await this.CompressLargeMessageAsync(entity, string.Empty, false);
             Stopwatch stopwatch = Stopwatch.StartNew();
             await this.InstancesTable.ExecuteAsync(TableOperation.Merge(entity));
             this.stats.StorageRequests.Increment();
@@ -821,7 +821,7 @@ namespace DurableTask.AzureStorage.Tracking
                     historyEventBlobNames.Remove(newEvents[i]);
                 }
 
-                await this.CompressLargeMessageAsync(entity, blobName);
+                await this.CompressLargeMessageAsync(entity, blobName, false);
 
                 if (i == newEvents.Count - 1 && historyEventBlobNames.Keys.Count > 0)
                 {
@@ -1056,7 +1056,7 @@ namespace DurableTask.AzureStorage.Tracking
             }
         }
 
-        async Task CompressLargeMessageAsync(DynamicTableEntity entity, string messageDataBlobName = "", bool isSetNewExecutionAsync = false)
+        async Task CompressLargeMessageAsync(DynamicTableEntity entity, string messageDataBlobName, bool isSetNewExecutionAsync)
         {
             string propertyKey = this.GetLargeTableEntity(entity);
             if (propertyKey != null)
