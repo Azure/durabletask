@@ -16,11 +16,8 @@ namespace DurableTask.AzureStorage
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
-    using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
-    using DurableTask.Core;
-    using Microsoft.WindowsAzure.Storage.Queue;
 
     static class Utils
     {
@@ -82,7 +79,7 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        static async Task<TP> InvokeThrottledAction<T,TP>(T item, Func<T, Task<TP>> action, SemaphoreSlim semaphore)
+        static async Task<TResult> InvokeThrottledAction<T, TResult>(T item, Func<T, Task<TResult>> action, SemaphoreSlim semaphore)
         {
             await semaphore.WaitAsync();
             try
