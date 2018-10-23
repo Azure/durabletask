@@ -790,7 +790,7 @@ namespace DurableTask.AzureStorage.Tracking
             string instanceId,
             string executionId,
             string eTagValue,
-            IDictionary<HistoryEvent, string> historyEventBlobNames = null)
+            IDictionary<HistoryEvent, string> outputBlobNames = null)
         {
             int estimatedBytes = 0;
             IList<HistoryEvent> newEvents = runtimeState.NewEvents;
@@ -817,19 +817,19 @@ namespace DurableTask.AzureStorage.Tracking
                 DynamicTableEntity entity = this.tableEntityConverter.ConvertToTableEntity(historyEvent);
 
                 string blobName = string.Empty;
-                if (historyEventBlobNames.ContainsKey(newEvents[i]))
+                if (outputBlobNames.ContainsKey(newEvents[i]))
                 {
-                    blobName = historyEventBlobNames[newEvents[i]];
-                    historyEventBlobNames.Remove(newEvents[i]);
+                    blobName = outputBlobNames[newEvents[i]];
+                    outputBlobNames.Remove(newEvents[i]);
                 }
 
                 await this.CompressLargeMessageAsync(entity, blobName, false);
 
-                if (i == newEvents.Count - 1 && historyEventBlobNames.Keys.Count > 0)
+                if (i == newEvents.Count - 1 && outputBlobNames.Keys.Count > 0)
                 {
-                    HistoryEvent key = historyEventBlobNames.Keys.First();
-                    entity.Properties[MessageDataBlobNameProperty] = new EntityProperty(historyEventBlobNames[key]);
-                    historyEventBlobNames.Remove(key);
+                    HistoryEvent key = outputBlobNames.Keys.First();
+                    entity.Properties[MessageDataBlobNameProperty] = new EntityProperty(outputBlobNames[key]);
+                    outputBlobNames.Remove(key);
                 }
 
                 newEventListBuffer.Append(historyEvent.EventType.ToString()).Append(',');
