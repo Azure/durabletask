@@ -185,23 +185,23 @@ namespace DurableTask.AzureStorage.Tests
             private void SetupQueryStateWithPagerInputStatus()
             {
                 this.InputStatus = new List<OrchestrationInstanceStatus>()
-            {
-                new OrchestrationInstanceStatus()
                 {
-                    Name = "foo",
-                    RuntimeStatus = "Running"
-                },
-                new OrchestrationInstanceStatus()
-                {
-                    Name = "bar",
-                    RuntimeStatus = "Completed"
-                },
-                new OrchestrationInstanceStatus()
-                {
-                    Name = "baz",
-                    RuntimeStatus = "Failed"
-                }
-            };
+                    new OrchestrationInstanceStatus()
+                    {
+                        Name = "foo",
+                        RuntimeStatus = "Running"
+                    },
+                    new OrchestrationInstanceStatus()
+                    {
+                        Name = "bar",
+                        RuntimeStatus = "Completed"
+                    },
+                    new OrchestrationInstanceStatus()
+                    {
+                        Name = "baz",
+                        RuntimeStatus = "Failed"
+                    }
+                };
             }
 
             private void SetUpQueryStateWithPagerResult()
