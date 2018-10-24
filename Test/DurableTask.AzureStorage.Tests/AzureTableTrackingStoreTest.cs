@@ -95,7 +95,6 @@ namespace DurableTask.AzureStorage.Tests
             public string ExpectedNextPartitionKey { get; set; }
             public TableContinuationToken ExpectedTokenObject { get; set; }
 
-
             public string InputToken { get; set; }
 
             public TableContinuationToken ExpectedPassedTokenObject { get; set; }
