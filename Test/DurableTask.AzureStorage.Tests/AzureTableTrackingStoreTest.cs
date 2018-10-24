@@ -238,7 +238,6 @@ namespace DurableTask.AzureStorage.Tests
             {
                 var stats = new AzureStorageOrchestrationServiceStats();
                 this.TrackingStore = new AzureTableTrackingStore(stats, this.CloudTableMock);
-
             }
         }
     }
