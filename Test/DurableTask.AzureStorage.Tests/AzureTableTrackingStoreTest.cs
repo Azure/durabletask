@@ -113,7 +113,7 @@ namespace DurableTask.AzureStorage.Tests
                 this.cloudTableMock = new Mock<CloudTable>(new Uri("https://microsoft.com"));
             }
 
-            private void setUpQueryStateWithPager(string inputToken, Action setupMock)
+            private void SetUpQueryStateWithPager(string inputToken, Action setupMock)
             {
                 this.ExpectedCreatedDateFrom = DateTime.UtcNow;
                 this.ExpectedCreatedDateTo = DateTime.UtcNow;
@@ -128,7 +128,7 @@ namespace DurableTask.AzureStorage.Tests
 
             public void SetUpQueryStateWithPagerWithoutInputToken()
             {
-                setUpQueryStateWithPager("", SetupQueryStateWithPagerMock);
+                SetUpQueryStateWithPager("", SetupQueryStateWithPagerMock);
             }
 
             public void SetupQueryStateWithPagerWithInputToken(TableContinuationToken inputTokenObject)
@@ -136,7 +136,7 @@ namespace DurableTask.AzureStorage.Tests
                 this.ExpectedPassedTokenObject = inputTokenObject;
                 var tokenJson = JsonConvert.SerializeObject(ExpectedPassedTokenObject);
                 this.InputToken = Convert.ToBase64String(Encoding.UTF8.GetBytes(tokenJson));
-                setUpQueryStateWithPager(this.InputToken, SetupQueryStateWithPagerMock_WithInputToken);
+                SetUpQueryStateWithPager(this.InputToken, SetupQueryStateWithPagerMock_WithInputToken);
             }
 
             public void VerifyQueryStateWithPager()
