@@ -81,9 +81,11 @@ namespace DurableTask.AzureStorage.Tests
         private class QueryFixture
         {
             private readonly Mock<CloudTable> cloudTableMock;
+
             public AzureTableTrackingStore TrackingStore { get; set; }
 
             public CloudTable CloudTableMock => this.cloudTableMock.Object;
+
             public DateTime ExpectedCreatedDateFrom { get; set; }
 
             public DateTime ExpectedCreatedDateTo { get; set; }
@@ -93,16 +95,19 @@ namespace DurableTask.AzureStorage.Tests
             public DurableStatusQueryResult ExpectedResult { get; set; }
 
             public string ExpectedNextPartitionKey { get; set; }
+
             public TableContinuationToken ExpectedTokenObject { get; set; }
 
             public string InputToken { get; set; }
 
             public TableContinuationToken ExpectedPassedTokenObject { get; set; }
+
             public TableContinuationToken ActualPassedTokenObject { get; set; }
 
             public List<OrchestrationInstanceStatus> InputStatus { get; set; }
 
             public List<OrchestrationStatus> InputState { get; set; }
+
             public QueryFixture()
             {
                 this.cloudTableMock = new Mock<CloudTable>(new Uri("https://microsoft.com"));
@@ -133,7 +138,6 @@ namespace DurableTask.AzureStorage.Tests
                 this.InputToken = Convert.ToBase64String(Encoding.UTF8.GetBytes(tokenJson));
                 setUpQueryStateWithPager(this.InputToken, SetupQueryStateWithPagerMock_WithInputToken);
             }
-
 
             public void VerifyQueryStateWithPager()
             {
