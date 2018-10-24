@@ -35,12 +35,12 @@ namespace DurableTask.AzureStorage.Tests
             var fixture = new QueryFixture();
             fixture.SetUpQueryStateWithPagerWithoutInputToken();
 
-            var InputState = new List<OrchestrationStatus>();
-            InputState.Add(OrchestrationStatus.Running);
-            InputState.Add(OrchestrationStatus.Completed);
-            InputState.Add(OrchestrationStatus.Failed);
+            var inputState = new List<OrchestrationStatus>();
+            inputState.Add(OrchestrationStatus.Running);
+            inputState.Add(OrchestrationStatus.Completed);
+            inputState.Add(OrchestrationStatus.Failed);
 
-            var result = await fixture.TrakingStore.GetStateAsync(fixture.ExpectedCreatedDateFrom, fixture.ExpectedCreatedDateTo, InputState, 3, fixture.InputToken);
+            var result = await fixture.TrakingStore.GetStateAsync(fixture.ExpectedCreatedDateFrom, fixture.ExpectedCreatedDateTo, inputState, 3, fixture.InputToken);
 
             Assert.IsNull(fixture.ActualPassedTokenObject);
 
@@ -63,12 +63,12 @@ namespace DurableTask.AzureStorage.Tests
 
             fixture.SetupQueryStateWithPagerWithInputToken(inputToken);
 
-            var InputState = new List<OrchestrationStatus>();
-            InputState.Add(OrchestrationStatus.Running);
-            InputState.Add(OrchestrationStatus.Completed);
-            InputState.Add(OrchestrationStatus.Failed);
+            var inputState = new List<OrchestrationStatus>();
+            inputState.Add(OrchestrationStatus.Running);
+            inputState.Add(OrchestrationStatus.Completed);
+            inputState.Add(OrchestrationStatus.Failed);
 
-            var result = await fixture.TrakingStore.GetStateAsync(fixture.ExpectedCreatedDateFrom, fixture.ExpectedCreatedDateTo, InputState, 3, fixture.InputToken);
+            var result = await fixture.TrakingStore.GetStateAsync(fixture.ExpectedCreatedDateFrom, fixture.ExpectedCreatedDateTo, inputState, 3, fixture.InputToken);
 
             Assert.AreEqual(inputToken.NextPartitionKey, fixture.ActualPassedTokenObject.NextPartitionKey);
         
@@ -76,7 +76,6 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(fixture.ExpectedResult.OrchestrationState.Count(), result.OrchestrationState.Count());
             Assert.AreEqual(fixture.ExpectedResult.OrchestrationState.FirstOrDefault().Name, result.OrchestrationState.FirstOrDefault().Name);
             fixture.VerifyQueryStateWithPager();
-
         }
     }
 
