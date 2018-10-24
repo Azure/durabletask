@@ -527,7 +527,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             query.Take(top);
             var segment = await this.InstancesTable.ExecuteQuerySegmentedAsync(query, token);
-            var tasks = segment.Select(async status => await this.ConvertFromAsync(status, status.PartitionKey));
+            var tasks = segment.Select(status => this.ConvertFromAsync(status, status.PartitionKey));
             OrchestrationState[] result = await Task.WhenAll(tasks);
             orchestrationStates.AddRange(result);
 
