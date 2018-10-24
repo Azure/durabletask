@@ -32,6 +32,5 @@ namespace DurableTask.AzureStorage
         /// ContinuationToken
         /// </summary>
         public string ContinuationToken { get; set; }
-
     }
 }
