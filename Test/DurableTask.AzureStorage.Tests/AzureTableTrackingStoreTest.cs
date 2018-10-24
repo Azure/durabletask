@@ -40,7 +40,7 @@ namespace DurableTask.AzureStorage.Tests
             inputState.Add(OrchestrationStatus.Completed);
             inputState.Add(OrchestrationStatus.Failed);
 
-            var result = await fixture.TrakingStore.GetStateAsync(fixture.ExpectedCreatedDateFrom, fixture.ExpectedCreatedDateTo, inputState, 3, fixture.InputToken);
+            var result = await fixture.TrackingStore.GetStateAsync(fixture.ExpectedCreatedDateFrom, fixture.ExpectedCreatedDateTo, inputState, 3, fixture.InputToken);
 
             Assert.IsNull(fixture.ActualPassedTokenObject);
 
@@ -68,10 +68,10 @@ namespace DurableTask.AzureStorage.Tests
             inputState.Add(OrchestrationStatus.Completed);
             inputState.Add(OrchestrationStatus.Failed);
 
-            var result = await fixture.TrakingStore.GetStateAsync(fixture.ExpectedCreatedDateFrom, fixture.ExpectedCreatedDateTo, inputState, 3, fixture.InputToken);
+            var result = await fixture.TrackingStore.GetStateAsync(fixture.ExpectedCreatedDateFrom, fixture.ExpectedCreatedDateTo, inputState, 3, fixture.InputToken);
 
             Assert.AreEqual(inputToken.NextPartitionKey, fixture.ActualPassedTokenObject.NextPartitionKey);
-        
+
             Assert.AreEqual(fixture.ExpectedResult.ContinuationToken, result.ContinuationToken);
             Assert.AreEqual(fixture.ExpectedResult.OrchestrationState.Count(), result.OrchestrationState.Count());
             Assert.AreEqual(fixture.ExpectedResult.OrchestrationState.FirstOrDefault().Name, result.OrchestrationState.FirstOrDefault().Name);
@@ -81,7 +81,7 @@ namespace DurableTask.AzureStorage.Tests
         private class QueryFixture
         {
             private readonly Mock<CloudTable> cloudTableMock;
-            public AzureTableTrackingStore TrakingStore { get; set; }
+            public AzureTableTrackingStore TrackingStore { get; set; }
 
             public CloudTable CloudTableMock => this.cloudTableMock.Object;
             public DateTime ExpectedCreatedDateFrom { get; set; }
@@ -115,10 +115,10 @@ namespace DurableTask.AzureStorage.Tests
                 this.ExpectedTop = 3;
 
                 this.InputToken = inputToken;
-                setupQueryStateWithPagerInputStatus();
-                setUpQueryStateWithPagerResult();
+                SetupQueryStateWithPagerInputStatus();
+                SetUpQueryStateWithPagerResult();
                 setupMock();
-                setupTrackingStore();
+                SetupTrackingStore();
             }
 
             public void SetUpQueryStateWithPagerWithoutInputToken()
@@ -178,7 +178,7 @@ namespace DurableTask.AzureStorage.Tests
                         });
             }
 
-            private void setupQueryStateWithPagerInputStatus()
+            private void SetupQueryStateWithPagerInputStatus()
             {
                 this.InputStatus = new List<OrchestrationInstanceStatus>()
             {
@@ -200,7 +200,7 @@ namespace DurableTask.AzureStorage.Tests
             };
             }
 
-            private void setUpQueryStateWithPagerResult()
+            private void SetUpQueryStateWithPagerResult()
             {
                 this.ExpectedResult = new DurableStatusQueryResult();
 
@@ -215,29 +215,29 @@ namespace DurableTask.AzureStorage.Tests
                 var tokenBase64String = Convert.ToBase64String(Encoding.UTF8.GetBytes(tokenJson));
                 this.ExpectedResult.ContinuationToken = tokenBase64String;
                 this.ExpectedResult.OrchestrationState = new List<OrchestrationState>()
-            {
-                new OrchestrationState()
                 {
-                    Name = "foo",
-                    OrchestrationStatus = OrchestrationStatus.Running
-                },
-                new OrchestrationState()
-                {
-                    Name = "bar",
-                    OrchestrationStatus = OrchestrationStatus.Completed
-                },
-                new OrchestrationState()
-                {
-                    Name = "baz",
-                    OrchestrationStatus = OrchestrationStatus.Failed
-                }
-            };
+                    new OrchestrationState()
+                    {
+                        Name = "foo",
+                        OrchestrationStatus = OrchestrationStatus.Running
+                    },
+                    new OrchestrationState()
+                    {
+                        Name = "bar",
+                        OrchestrationStatus = OrchestrationStatus.Completed
+                    },
+                    new OrchestrationState()
+                    {
+                        Name = "baz",
+                        OrchestrationStatus = OrchestrationStatus.Failed
+                    }
+                };
             }
 
-            private void setupTrackingStore()
+            private void SetupTrackingStore()
             {
                 var stats = new AzureStorageOrchestrationServiceStats();
-                this.TrakingStore = new AzureTableTrackingStore(stats, this.CloudTableMock);
+                this.TrackingStore = new AzureTableTrackingStore(stats, this.CloudTableMock);
 
             }
         }
