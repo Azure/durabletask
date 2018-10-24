@@ -80,7 +80,7 @@ namespace DurableTask.AzureStorage.Tests
 
         private class QueryFixture
         {
-            Mock<CloudTable> cloudTableMock;
+            private readonly Mock<CloudTable> cloudTableMock;
             public AzureTableTrackingStore TrakingStore { get; set; }
 
             public CloudTable CloudTableMock => this.cloudTableMock.Object;
