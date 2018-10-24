@@ -80,10 +80,10 @@ namespace DurableTask.AzureStorage.Tests
 
         private class QueryFixture
         {
-            Mock<CloudTable> _cloudTableMock;
+            Mock<CloudTable> cloudTableMock;
             public AzureTableTrackingStore TrakingStore { get; set; }
 
-            public CloudTable CloudTableMock => this._cloudTableMock.Object;
+            public CloudTable CloudTableMock => this.cloudTableMock.Object;
             public DateTime ExpectedCreatedDateFrom { get; set; }
 
             public DateTime ExpectedCreatedDateTo { get; set; }
@@ -107,13 +107,13 @@ namespace DurableTask.AzureStorage.Tests
 
             public QueryFixture()
             {
-                this._cloudTableMock = new Mock<CloudTable>(new Uri("https://microsoft.com"));
+                this.cloudTableMock = new Mock<CloudTable>(new Uri("https://microsoft.com"));
             }
 
             private void setUpQueryStateWithPager(string inputToken, Action setupMock)
             {
-                this.ExpectedCreatedDateFrom = DateTime.Now;
-                this.ExpectedCreatedDateTo = DateTime.Now;
+                this.ExpectedCreatedDateFrom = DateTime.UtcNow;
+                this.ExpectedCreatedDateTo = DateTime.UtcNow;
                 this.ExpectedTop = 3;
 
                 this.InputToken = inputToken;
@@ -125,7 +125,7 @@ namespace DurableTask.AzureStorage.Tests
 
             public void SetUpQueryStateWithPagerWithoutInputToken()
             {
-                setUpQueryStateWithPager("", setupQueryStateWithPagerMock);
+                setUpQueryStateWithPager("", SetupQueryStateWithPagerMock);
             }
 
             public void SetupQueryStateWithPagerWithInputToken(TableContinuationToken inputTokenObject)
@@ -133,24 +133,24 @@ namespace DurableTask.AzureStorage.Tests
                 this.ExpectedPassedTokenObject = inputTokenObject;
                 var tokenJson = JsonConvert.SerializeObject(ExpectedPassedTokenObject);
                 this.InputToken = Convert.ToBase64String(Encoding.UTF8.GetBytes(tokenJson));
-                setUpQueryStateWithPager(this.InputToken, setupQueryStateWithPagerMock_WithInputToken);
+                setUpQueryStateWithPager(this.InputToken, SetupQueryStateWithPagerMock_WithInputToken);
             }
 
 
             public void VerifyQueryStateWithPager()
             {
-                _cloudTableMock.Verify(t => t.ExecuteQuerySegmentedAsync<OrchestrationInstanceStatus>(
+                this.cloudTableMock.Verify(t => t.ExecuteQuerySegmentedAsync<OrchestrationInstanceStatus>(
                     It.IsAny<TableQuery<OrchestrationInstanceStatus>>(),
                     It.IsAny<TableContinuationToken>()));
             }
 
-            private void setupQueryStateWithPagerMock()
+            private void SetupQueryStateWithPagerMock()
             {
                 var segment = (TableQuerySegment<OrchestrationInstanceStatus>)System.Runtime.Serialization.FormatterServices.GetSafeUninitializedObject(typeof(TableQuerySegment<OrchestrationInstanceStatus>));
                 segment.GetType().GetProperty("Results").SetValue(segment, this.InputStatus);
                 segment.GetType().GetProperty("ContinuationToken").SetValue(segment, this.ExpectedTokenObject);
 
-                this._cloudTableMock.Setup(t => t.ExecuteQuerySegmentedAsync<OrchestrationInstanceStatus>(
+                this.cloudTableMock.Setup(t => t.ExecuteQuerySegmentedAsync<OrchestrationInstanceStatus>(
                         It.IsAny<TableQuery<OrchestrationInstanceStatus>>(),
                         It.IsAny<TableContinuationToken>()))
                     .ReturnsAsync(segment)
@@ -162,13 +162,13 @@ namespace DurableTask.AzureStorage.Tests
                         });
             }
 
-            private void setupQueryStateWithPagerMock_WithInputToken()
+            private void SetupQueryStateWithPagerMock_WithInputToken()
             {
                 var segment = (TableQuerySegment<OrchestrationInstanceStatus>)System.Runtime.Serialization.FormatterServices.GetSafeUninitializedObject(typeof(TableQuerySegment<OrchestrationInstanceStatus>));
                 segment.GetType().GetProperty("Results").SetValue(segment, this.InputStatus);
                 segment.GetType().GetProperty("ContinuationToken").SetValue(segment, this.ExpectedTokenObject);
 
-                this._cloudTableMock.Setup(t => t.ExecuteQuerySegmentedAsync<OrchestrationInstanceStatus>(
+                this.cloudTableMock.Setup(t => t.ExecuteQuerySegmentedAsync<OrchestrationInstanceStatus>(
                         It.IsAny<TableQuery<OrchestrationInstanceStatus>>(),
                         It.IsAny<TableContinuationToken>()))
                     .ReturnsAsync(segment)
