@@ -103,7 +103,6 @@ namespace DurableTask.AzureStorage.Tests
             public List<OrchestrationInstanceStatus> InputStatus { get; set; }
 
             public List<OrchestrationStatus> InputState { get; set; }
-
             public QueryFixture()
             {
                 this.cloudTableMock = new Mock<CloudTable>(new Uri("https://microsoft.com"));
