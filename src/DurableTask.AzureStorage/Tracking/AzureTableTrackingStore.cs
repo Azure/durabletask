@@ -617,7 +617,7 @@ namespace DurableTask.AzureStorage.Tracking
                 this.stats.StorageRequests.Increment(blobDeleteTaskList.Count);
                 storageRequests += blobDeleteTaskList.Count;
                 await this.HistoryTable.ExecuteBatchAsync(batch);
-                this.stats.StorageRequests.Increment();
+                this.stats.TableEntitiesWritten.Increment(batch.Count);
                 storageRequests++;
                 pageOffset += batchForDeletion.Count;
             }
@@ -628,7 +628,7 @@ namespace DurableTask.AzureStorage.Tracking
                 RowKey = string.Empty,
                 ETag = "*"
             }));
-            this.stats.StorageRequests.Increment();
+            this.stats.TableEntitiesWritten.Increment();
             storageRequests++;
 
             return storageRequests;
