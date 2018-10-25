@@ -235,16 +235,12 @@ namespace DurableTask.AzureStorage.Tracking
             // TODO: Write-through caching should ensure that we rarely need to make this call?
             var historyEventEntities = new List<DynamicTableEntity>(100);
 
-            var stopwatch = new Stopwatch();
+            Stopwatch stopwatch = Stopwatch.StartNew();
             int requestCount = 0;
 
-            bool finishedEarly = false;
             TableContinuationToken continuationToken = null;
             while (true)
             {
-                requestCount++;
-                stopwatch.Start();
-
                 var segment = await this.HistoryTable.ExecuteQuerySegmentedAsync(
                     query,
                     continuationToken,
@@ -252,14 +248,14 @@ namespace DurableTask.AzureStorage.Tracking
                     null,
                     cancellationToken);
                 stopwatch.Stop();
-
-                int previousCount = historyEventEntities.Count;
-                historyEventEntities.AddRange(segment);
                 this.stats.StorageRequests.Increment();
-                this.stats.TableEntitiesRead.Increment(historyEventEntities.Count - previousCount);
+                this.stats.TableEntitiesRead.Increment(segment.Results.Count);
+
+                requestCount++;
+                historyEventEntities.AddRange(segment);
 
                 continuationToken = segment.ContinuationToken;
-                if (finishedEarly || continuationToken == null || cancellationToken.IsCancellationRequested)
+                if (continuationToken == null || cancellationToken.IsCancellationRequested)
                 {
                     break;
                 }
@@ -552,24 +548,17 @@ namespace DurableTask.AzureStorage.Tracking
             TableContinuationToken token = null;
             var orchestrationStates = new List<OrchestrationInstanceStatus>(100);
             int storageRequests = 0;
-            int tableEntitiesRead = 0;
             while (true)
             {
                 TableQuerySegment<OrchestrationInstanceStatus> segment = await this.InstancesTable.ExecuteQuerySegmentedAsync(query, token);
-                int previousCount = orchestrationStates.Count;
                 storageRequests++;
-                tableEntitiesRead += segment.Results.Count;
-                this.stats.TableEntitiesRead.Increment(tableEntitiesRead);
+                this.stats.StorageRequests.Increment();
+                this.stats.TableEntitiesRead.Increment(segment.Results.Count);
                 foreach (OrchestrationInstanceStatus orchestrationInstanceStatus in segment.Results)
                 {
                     storageRequests += await this.DeleteAllDataForOrchestrationInstance(orchestrationInstanceStatus);
                 }
                 orchestrationStates.AddRange(segment.Results);
-
-                storageRequests++;
-                tableEntitiesRead += orchestrationStates.Count - previousCount;
-                this.stats.TableEntitiesRead.Increment(tableEntitiesRead);
-
                 token = segment.ContinuationToken;
                 if (token == null)
                 {
@@ -623,8 +612,10 @@ namespace DurableTask.AzureStorage.Tracking
                 }
 
                 await Task.WhenAll(blobDeleteTaskList);
+                this.stats.StorageRequests.Increment(blobDeleteTaskList.Count);
                 storageRequests += blobDeleteTaskList.Count;
                 await this.HistoryTable.ExecuteBatchAsync(batch);
+                this.stats.StorageRequests.Increment();
                 storageRequests++;
                 pageOffset += batchForDeletion.Count;
             }
@@ -635,6 +626,7 @@ namespace DurableTask.AzureStorage.Tracking
                 RowKey = string.Empty,
                 ETag = "*"
             }));
+            this.stats.StorageRequests.Increment();
             storageRequests++;
 
             return storageRequests;
