@@ -211,6 +211,10 @@ namespace DurableTask.Core
                     }
                 }
             }
+            catch (OperationCanceledException)
+            {
+                // cancellation token was triggered
+            }
             catch (ObjectDisposedException)
             {
                 // brokered message is already disposed probably through 
