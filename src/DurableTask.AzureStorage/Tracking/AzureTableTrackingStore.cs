@@ -203,7 +203,7 @@ namespace DurableTask.AzureStorage.Tracking
                 executionId,
                 historyEvents.Count,
                 historyEntitiesResponseInfo.RequestCount,
-                historyEntitiesResponseInfo.PerformanceStopwatch.ElapsedMilliseconds,
+                historyEntitiesResponseInfo.ElapsedMilliseconds,
                 eTagValue,
                 Utils.ExtensionVersion);
 
@@ -235,12 +235,13 @@ namespace DurableTask.AzureStorage.Tracking
             // TODO: Write-through caching should ensure that we rarely need to make this call?
             var historyEventEntities = new List<DynamicTableEntity>(100);
 
-            Stopwatch stopwatch = Stopwatch.StartNew();
+            var stopwatch = new Stopwatch();
             int requestCount = 0;
-
+            long elapsedMilliseconds = 0;
             TableContinuationToken continuationToken = null;
             while (true)
             {
+                stopwatch.Start();
                 var segment = await this.HistoryTable.ExecuteQuerySegmentedAsync(
                     query,
                     continuationToken,
@@ -248,6 +249,7 @@ namespace DurableTask.AzureStorage.Tracking
                     null,
                     cancellationToken);
                 stopwatch.Stop();
+                elapsedMilliseconds += stopwatch.ElapsedMilliseconds;
                 this.stats.StorageRequests.Increment();
                 this.stats.TableEntitiesRead.Increment(segment.Results.Count);
 
@@ -264,7 +266,7 @@ namespace DurableTask.AzureStorage.Tracking
             return new HistoryEntitiesResponseInfo
             {
                 HistoryEventEntities = historyEventEntities,
-                PerformanceStopwatch = stopwatch,
+                ElapsedMilliseconds = elapsedMilliseconds,
                 RequestCount = requestCount
             };
         }
@@ -1241,7 +1243,7 @@ namespace DurableTask.AzureStorage.Tracking
 
         class HistoryEntitiesResponseInfo
         {
-            internal Stopwatch PerformanceStopwatch { get; set; }
+            internal long ElapsedMilliseconds { get; set; }
             internal int RequestCount { get; set; }
             internal List<DynamicTableEntity> HistoryEventEntities { get; set; }
         }
