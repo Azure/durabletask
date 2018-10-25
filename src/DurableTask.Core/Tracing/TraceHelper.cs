@@ -22,7 +22,7 @@ namespace DurableTask.Core.Tracing
     /// <summary>
     ///     Helper class for logging/tracing
     /// </summary>
-    internal class TraceHelper
+    public class TraceHelper
     {
         const string Source = "DurableTask";
 

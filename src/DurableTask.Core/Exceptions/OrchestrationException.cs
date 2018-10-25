@@ -70,13 +70,14 @@ namespace DurableTask.Core.Exceptions
         protected OrchestrationException(SerializationInfo info, StreamingContext context)
             : base(info, context)
         {
+            EventId = info.GetInt32(nameof(EventId));
         }
 
         /// <inheritdoc />
         public override void GetObjectData(SerializationInfo info, StreamingContext context)
         {
             base.GetObjectData(info, context);
-            info.AddValue("EventId", EventId);
+            info.AddValue(nameof(EventId), EventId);
         }
 
         /// <summary>
