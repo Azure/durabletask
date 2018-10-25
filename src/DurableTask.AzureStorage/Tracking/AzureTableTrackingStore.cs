@@ -238,12 +238,15 @@ namespace DurableTask.AzureStorage.Tracking
                 executionId = expectedExecutionId;
             }
 
+            int currentEpisodeNumber = Utils.GetEpisodeNumber(historyEvents);
+
             AnalyticsEventSource.Log.FetchedInstanceHistory(
                 this.storageAccountName,
                 this.taskHubName,
                 instanceId,
                 executionId,
                 historyEvents.Count,
+                currentEpisodeNumber,
                 requestCount,
                 stopwatch.ElapsedMilliseconds,
                 eTagValue,
@@ -287,12 +290,17 @@ namespace DurableTask.AzureStorage.Tracking
                 }
             }
 
+            // We don't have enough information to get the episode number.
+            // It's also not important to have for this particular trace.
+            int currentEpisodeNumber = 0;
+
             AnalyticsEventSource.Log.FetchedInstanceHistory(
                 this.storageAccountName,
                 this.taskHubName,
                 instanceId,
                 entities[0].Properties["ExecutionId"].StringValue,
                 entities.Count,
+                currentEpisodeNumber,
                 requestCount,
                 stopwatch.ElapsedMilliseconds,
                 string.Empty /* ETag */,
@@ -552,12 +560,16 @@ namespace DurableTask.AzureStorage.Tracking
             this.stats.StorageRequests.Increment();
             this.stats.TableEntitiesWritten.Increment(1);
 
+            // Episode 0 means the orchestrator hasn't started yet.
+            int currentEpisodeNumber = 0;
+
             AnalyticsEventSource.Log.InstanceStatusUpdate(
                 this.storageAccountName,
                 this.taskHubName,
                 executionStartedEvent.OrchestrationInstance.InstanceId,
                 executionStartedEvent.OrchestrationInstance.ExecutionId,
                 executionStartedEvent.EventType.ToString(),
+                currentEpisodeNumber,
                 stopwatch.ElapsedMilliseconds,
                 Utils.ExtensionVersion);
         }
@@ -582,12 +594,17 @@ namespace DurableTask.AzureStorage.Tracking
             this.stats.StorageRequests.Increment();
             this.stats.TableEntitiesWritten.Increment(1);
 
+            // We don't have enough information to get the episode number.
+            // It's also not important to have for this particular trace.
+            int currentEpisodeNumber = 0;
+
             AnalyticsEventSource.Log.InstanceStatusUpdate(
                 this.storageAccountName,
                 this.taskHubName,
                 instanceId,
                 string.Empty,
                 nameof(EventType.GenericEvent),
+                currentEpisodeNumber,
                 stopwatch.ElapsedMilliseconds,
                 Utils.ExtensionVersion);
         }
@@ -611,6 +628,8 @@ namespace DurableTask.AzureStorage.Tracking
             int estimatedBytes = 0;
             IList<HistoryEvent> newEvents = runtimeState.NewEvents;
             IList<HistoryEvent> allEvents = runtimeState.Events;
+
+            int episodeNumber = Utils.GetEpisodeNumber(runtimeState);
 
             var newEventListBuffer = new StringBuilder(4000);
             var historyEventBatch = new TableBatchOperation();
@@ -689,6 +708,7 @@ namespace DurableTask.AzureStorage.Tracking
                         historyEventBatch,
                         newEventListBuffer,
                         newEvents.Count,
+                        episodeNumber,
                         estimatedBytes,
                         eTagValue);
 
@@ -708,6 +728,7 @@ namespace DurableTask.AzureStorage.Tracking
                     historyEventBatch,
                     newEventListBuffer,
                     newEvents.Count,
+                    episodeNumber,
                     estimatedBytes,
                     eTagValue);
             }
@@ -724,6 +745,7 @@ namespace DurableTask.AzureStorage.Tracking
                 instanceId,
                 executionId,
                 orchestratorEventType?.ToString() ?? string.Empty,
+                episodeNumber,
                 orchestrationInstanceUpdateStopwatch.ElapsedMilliseconds,
                 Utils.ExtensionVersion);
 
@@ -882,6 +904,7 @@ namespace DurableTask.AzureStorage.Tracking
             TableBatchOperation historyEventBatch,
             StringBuilder historyEventNamesBuffer,
             int numberOfTotalEvents,
+            int episodeNumber,
             int estimatedBatchSizeInBytes,
             string eTagValue)
         {
@@ -957,6 +980,7 @@ namespace DurableTask.AzureStorage.Tracking
                 historyEventBatch.Count,
                 numberOfTotalEvents,
                 historyEventNamesBuffer.ToString(0, historyEventNamesBuffer.Length - 1), // remove trailing comma
+                episodeNumber,
                 stopwatch.ElapsedMilliseconds,
                 estimatedBatchSizeInBytes,
                 string.Concat(eTagValue ?? "(null)", " -->", Environment.NewLine, newETagValue ?? "(null)"),

@@ -78,8 +78,14 @@ namespace DurableTask.AzureStorage.Messaging
         {
             try
             {
+                CloudQueueMessage queueMessage = await this.CreateOutboundQueueMessageAsync(
+                    sourceInstance,
+                    this.storageQueue.Name,
+                    message,
+                    session?.GetCurrentEpisode() ?? 0);
+
                 await this.storageQueue.AddMessageAsync(
-                    await this.CreateOutboundQueueMessageAsync(sourceInstance, this.storageQueue.Name, message),
+                    queueMessage,
                     null /* timeToLive */,
                     GetVisibilityDelay(message),
                     this.QueueRequestOptions,
@@ -273,7 +279,8 @@ namespace DurableTask.AzureStorage.Messaging
         Task<CloudQueueMessage> CreateOutboundQueueMessageAsync(
             OrchestrationInstance sourceInstance,
             string queueName,
-            TaskMessage taskMessage)
+            TaskMessage taskMessage,
+            int orchestrationEpisode)
         {
             return CreateOutboundQueueMessageAsync(
                 this.messageManager,
@@ -281,7 +288,8 @@ namespace DurableTask.AzureStorage.Messaging
                 this.storageAccountName,
                 this.settings.TaskHubName,
                 queueName,
-                taskMessage);
+                taskMessage,
+                orchestrationEpisode);
         }
 
         static async Task<CloudQueueMessage> CreateOutboundQueueMessageAsync(
@@ -290,12 +298,13 @@ namespace DurableTask.AzureStorage.Messaging
             string storageAccountName,
             string taskHub,
             string queueName,
-            TaskMessage taskMessage)
+            TaskMessage taskMessage,
+            int orchestrationEpisode)
         {
             // We transfer to a new trace activity ID every time a new outbound queue message is created.
             Guid outboundTraceActivityId = Guid.NewGuid();
 
-            var data = new MessageData(taskMessage, outboundTraceActivityId, queueName);
+            var data = new MessageData(taskMessage, outboundTraceActivityId, queueName, orchestrationEpisode);
             data.SequenceNumber = Interlocked.Increment(ref messageSequenceNumber);
 
             string rawContent = await messageManager.SerializeMessageDataAsync(data);
@@ -312,6 +321,7 @@ namespace DurableTask.AzureStorage.Messaging
                 taskMessage.OrchestrationInstance.InstanceId,
                 taskMessage.OrchestrationInstance.ExecutionId,
                 data.SequenceNumber,
+                data.Episode,
                 Utils.ExtensionVersion);
 
             return new CloudQueueMessage(rawContent);

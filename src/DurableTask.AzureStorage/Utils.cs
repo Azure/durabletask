@@ -16,11 +16,11 @@ namespace DurableTask.AzureStorage
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
-    using System.Text;
+    using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Core;
-    using Microsoft.WindowsAzure.Storage.Queue;
+    using DurableTask.Core.History;
 
     static class Utils
     {
@@ -71,6 +71,17 @@ namespace DurableTask.AzureStorage
         public static double Next(this Random random, double minValue, double maxValue)
         {
             return random.NextDouble() * (maxValue - minValue) + minValue;
+        }
+
+        public static int GetEpisodeNumber(OrchestrationRuntimeState runtimeState)
+        {
+            return GetEpisodeNumber(runtimeState.Events);
+        }
+
+        public static int GetEpisodeNumber(IEnumerable<HistoryEvent> historyEvents)
+        {
+            // DTFx core writes an "OrchestratorStarted" event at the start of each episode.
+            return historyEvents.Count(e => e.EventType == EventType.OrchestratorStarted);
         }
     }
 }

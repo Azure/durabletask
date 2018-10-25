@@ -31,6 +31,7 @@ namespace DurableTask.AzureStorage.Messaging
             string storageAccountName,
             string taskHubName,
             OrchestrationInstance orchestrationInstance,
+            ControlQueue controlQueue,
             IReadOnlyList<MessageData> initialMessageBatch,
             OrchestrationRuntimeState runtimeState,
             string eTag,
@@ -39,6 +40,7 @@ namespace DurableTask.AzureStorage.Messaging
             : base(storageAccountName, taskHubName, orchestrationInstance, traceActivityId)
         {
             this.idleTimeout = idleTimeout;
+            this.ControlQueue = controlQueue ?? throw new ArgumentNullException(nameof(controlQueue));
             this.CurrentMessageBatch = initialMessageBatch ?? throw new ArgumentNullException(nameof(initialMessageBatch));
             this.RuntimeState = runtimeState ?? throw new ArgumentNullException(nameof(runtimeState));
             this.ETag = eTag;
@@ -48,6 +50,8 @@ namespace DurableTask.AzureStorage.Messaging
             this.nextMessageBatch = new MessageCollection();
         }
 
+        public ControlQueue ControlQueue { get; }
+
         public IReadOnlyList<MessageData> CurrentMessageBatch { get; private set; }
 
         public OrchestrationRuntimeState RuntimeState { get; }
@@ -55,6 +59,12 @@ namespace DurableTask.AzureStorage.Messaging
         public string ETag { get; set; }
 
         public IReadOnlyList<MessageData> PendingMessages => this.nextMessageBatch;
+
+        public override int GetCurrentEpisode()
+        {
+            // RuntimeState is mutable, so we cannot cache the current episode number.
+            return Utils.GetEpisodeNumber(this.RuntimeState);
+        }
 
         public IEnumerable<MessageData> AddOrReplaceMessages(IEnumerable<MessageData> messages)
         {
