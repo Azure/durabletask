@@ -714,7 +714,7 @@ namespace DurableTask.AzureStorage.Tracking
                 }
             };
 
-            await this.CompressLargeMessageAsync(entity, string.Empty);
+            await this.CompressLargeMessageAsync(entity);
 
             Stopwatch stopwatch = Stopwatch.StartNew();
             await this.InstancesTable.ExecuteAsync(
@@ -745,7 +745,7 @@ namespace DurableTask.AzureStorage.Tracking
                 }
             };
 
-            await this.CompressLargeMessageAsync(entity, string.Empty);
+            await this.CompressLargeMessageAsync(entity);
             Stopwatch stopwatch = Stopwatch.StartNew();
             await this.InstancesTable.ExecuteAsync(TableOperation.Merge(entity));
             this.stats.StorageRequests.Increment();
@@ -802,12 +802,20 @@ namespace DurableTask.AzureStorage.Tracking
                 HistoryEvent historyEvent = newEvents[i];
                 DynamicTableEntity entity = this.tableEntityConverter.ConvertToTableEntity(historyEvent);
 
-                if (outputBlobNames.TryGetValue(newEvents[i], out string blobName))
-                {
-                    outputBlobNames.Remove(newEvents[i]);
-                }
+                await this.CompressLargeMessageAsync(entity);
 
-                await this.CompressLargeMessageAsync(entity, blobName);
+                if (outputBlobNames.TryGetValue(historyEvent, out string messageDataInputBlobName))
+                {
+                    string propertyName =
+                            entity.Properties.ContainsKey(InputProperty) ? ResultBlobNameProperty :
+                            entity.Properties.ContainsKey(ResultProperty) ? InputBlobNameProperty :
+                            null;
+                    if (propertyName != null)
+                    {
+                        entity.Properties[propertyName] = new EntityProperty(messageDataInputBlobName);
+                    }
+                    outputBlobNames.Remove(historyEvent);
+                }
 
                 if (i == newEvents.Count - 1 && outputBlobNames.Keys.Count > 0)
                 {
@@ -1075,7 +1083,7 @@ namespace DurableTask.AzureStorage.Tracking
                 !string.IsNullOrEmpty(inputBlobNameProperty.StringValue);
         }
 
-        async Task CompressLargeMessageAsync(DynamicTableEntity entity, string messageDataBlobName)
+        async Task CompressLargeMessageAsync(DynamicTableEntity entity)
         {
             string propertyKey = this.GetLargeTableEntity(entity);
             if (propertyKey != null)
@@ -1086,21 +1094,6 @@ namespace DurableTask.AzureStorage.Tracking
                 byte[] messageBytes = this.GetPropertyMessageAsBytes(entity);
                 await this.messageManager.CompressAndUploadAsBytesAsync(messageBytes, blobName);
                 entity.Properties.Add(blobNameKey, new EntityProperty(blobName));
-                if (!string.IsNullOrEmpty(messageDataBlobName))
-                {
-                    if (propertyKey != InputProperty)
-                    {
-                        entity.Properties.Add(InputBlobNameProperty, new EntityProperty(messageDataBlobName));
-                    }
-                    else
-                    {
-                        if (propertyKey != ResultProperty)
-                        {
-                            entity.Properties.Add(ResultBlobNameProperty, new EntityProperty(messageDataBlobName));
-                        } 
-                    }
-                    
-                }
                 this.SetPropertyMessageToEmptyString(entity);
             }
         }
