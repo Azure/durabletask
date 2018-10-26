@@ -28,6 +28,7 @@ namespace DurableTask.AzureStorage.Tracking
     using DurableTask.Core.History;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Table;
+    using Newtonsoft.Json;
 
     /// <summary>
     /// Tracking store for use with the AzureStorageOrxhestration Service. Uses azure table and blob storage to store runtime state.
@@ -97,6 +98,15 @@ namespace DurableTask.AzureStorage.Tracking
             PropertyInfo eventTypeProperty = historyEventType.GetProperty(nameof(HistoryEvent.EventType));
             this.eventTypeMap = historyEventTypes.ToDictionary(
                 type => ((HistoryEvent)FormatterServices.GetUninitializedObject(type)).EventType);
+        }
+
+        internal AzureTableTrackingStore(
+            AzureStorageOrchestrationServiceStats stats,
+            CloudTable instancesTable
+        )
+        {
+            this.stats = stats;
+            this.InstancesTable = instancesTable;
         }
 
         /// <summary>
@@ -495,6 +505,44 @@ namespace DurableTask.AzureStorage.Tracking
                             .ToTableQuery<OrchestrationInstanceStatus>(), cancellationToken);
         }
 
+        public override Task<DurableStatusQueryResult> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, int top, string continuationToken, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            return this.QueryStateAsync(
+                OrchestrationInstanceStatusQueryCondition.Parse(createdTimeFrom, createdTimeTo, runtimeStatus)
+                    .ToTableQuery<OrchestrationInstanceStatus>(),
+                top,
+                continuationToken,
+                cancellationToken);
+        }
+
+        private async Task<DurableStatusQueryResult> QueryStateAsync(TableQuery<OrchestrationInstanceStatus> query, int top, string continuationToken, CancellationToken cancellationToken)
+        {
+            TableContinuationToken token = null;
+            var orchestrationStates = new List<OrchestrationState>(top);
+            if (!string.IsNullOrEmpty(continuationToken))
+            {
+                var tokenContent = Encoding.UTF8.GetString(Convert.FromBase64String(continuationToken));
+                token = JsonConvert.DeserializeObject<TableContinuationToken>(tokenContent);
+            }
+
+            query.Take(top);
+            var segment = await this.InstancesTable.ExecuteQuerySegmentedAsync(query, token);
+            var tasks = segment.Select(status => this.ConvertFromAsync(status, status.PartitionKey));
+            OrchestrationState[] result = await Task.WhenAll(tasks);
+            orchestrationStates.AddRange(result);
+
+            this.stats.StorageRequests.Increment();
+            this.stats.TableEntitiesRead.Increment(orchestrationStates.Count);
+
+            token = segment.ContinuationToken;
+            var tokenJson = JsonConvert.SerializeObject(token);
+            return new DurableStatusQueryResult()
+            {
+                OrchestrationState = orchestrationStates,
+                ContinuationToken = Convert.ToBase64String(Encoding.UTF8.GetBytes(tokenJson))
+            };
+        }
+
         private async Task<IList<OrchestrationState>> QueryStateAsync(TableQuery<OrchestrationInstanceStatus> query, CancellationToken cancellationToken)
         {
             TableContinuationToken token = null;
@@ -512,6 +560,7 @@ namespace DurableTask.AzureStorage.Tracking
                 this.stats.TableEntitiesRead.Increment(orchestrationStates.Count - previousCount);
 
                 token = segment.ContinuationToken;
+                
                 if (token == null || cancellationToken.IsCancellationRequested)
                 {
                     break;
