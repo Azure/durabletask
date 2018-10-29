@@ -45,6 +45,7 @@ namespace DurableTask.AzureStorage.Tracking
         const string ResultBlobNameProperty = "ResultBlobName";
         const string EventTypeProperty = "EventType";
         const string SentinelRowKey = "sentinel";
+        const char Quote = '\'';
         const string InstnacesTableInformationMessageForLargeDataBlobs = "Too large to display. Please check History table for the actual data.";
 
         const int MaxStorageQueuePayloadSizeInBytes = 60 * 1024; // 60KB
@@ -312,7 +313,9 @@ namespace DurableTask.AzureStorage.Tracking
                 this.storageAccountName,
                 this.taskHubName,
                 instanceId,
-                entities[0].Properties["ExecutionId"].StringValue,
+                entities.Count > 0 && entities.First().Properties.ContainsKey("ExecutionId") ?
+                entities[0].Properties["ExecutionId"].StringValue :
+                string.Empty,
                 entities.Count,
                 requestCount,
                 stopwatch.ElapsedMilliseconds,
@@ -1212,32 +1215,29 @@ namespace DurableTask.AzureStorage.Tracking
         {
             string result = string.Empty;
 
-            HistoryEntitiesResponseInfo historyEntitiesResponseInfo = await this.GetHistoryEntitiesResponseInfoAsync(
-                instanceId,
-                string.Empty,
-                null);
+            var queryBuilder = new StringBuilder();
 
-            if (!historyEntitiesResponseInfo.HistoryEventEntities.Any())
+            queryBuilder.Append(PartitionKeyProperty).Append(" eq ").Append(Quote).Append(instanceId).Append(Quote);
+            queryBuilder.Append(" and ").Append(EventTypeProperty).Append(" eq ").Append(Quote).Append(eventType.ToString()).Append(Quote);
+
+            CancellationToken cancellationToken;
+            List<DynamicTableEntity> entitiesToCheck = await this.QueryHistoryForRewind(
+                queryBuilder.ToString(), 
+                instanceId, 
+                cancellationToken);
+
+            if (!entitiesToCheck.Any())
             {
                 return result;
             }
 
-            DynamicTableEntity executionCompletedTableEntity = historyEntitiesResponseInfo.HistoryEventEntities.FirstOrDefault(
-                x => x.Properties.ContainsKey(EventTypeProperty) && 
-                x.Properties[EventTypeProperty].StringValue == eventType.ToString());
-
-            if (executionCompletedTableEntity == null)
-            {
-                return result;
-            }
-
-            if (executionCompletedTableEntity.Properties.TryGetValue(blobPropertyName, out EntityProperty blobNameProperty) && 
+            if (entitiesToCheck.First().Properties.TryGetValue(blobPropertyName, out EntityProperty blobNameProperty) && 
                 !string.IsNullOrEmpty(blobNameProperty?.StringValue))
             {
                 return await this.messageManager.DownloadAndDecompressAsBytesAsync(blobNameProperty.StringValue);
             }
 
-            if (executionCompletedTableEntity.Properties.TryGetValue(propertyName, out EntityProperty property) &&
+            if (entitiesToCheck.First().Properties.TryGetValue(propertyName, out EntityProperty property) &&
                 !string.IsNullOrEmpty(property?.StringValue))
             {
                 return property.StringValue;
@@ -1245,8 +1245,6 @@ namespace DurableTask.AzureStorage.Tracking
 
             return result;
         }
-
-
 
         async Task SetDecompressedTableEntityAsync(DynamicTableEntity dynamicTableEntity, string propertyKey, string blobNameKey)
         {
