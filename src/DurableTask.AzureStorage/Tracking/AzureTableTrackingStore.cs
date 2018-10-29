@@ -43,7 +43,9 @@ namespace DurableTask.AzureStorage.Tracking
         const string BlobNamePropertySuffix = "BlobName";
         const string InputBlobNameProperty = "InputBlobName";
         const string ResultBlobNameProperty = "ResultBlobName";
+        const string EventTypeProperty = "EventType";
         const string SentinelRowKey = "sentinel";
+        const string InstnacesTableInformationMessageForLargeDataBlobs = "Too large to display. Please check History table for the actual data.";
 
         const int MaxStorageQueuePayloadSizeInBytes = 60 * 1024; // 60KB
         const int GuidByteSize = 72;
@@ -218,7 +220,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             // e.g. "PartitionKey eq 'c138dd969a1e4a699b0644c7d8279f81'"
             filterCondition.Append(PartitionKeyProperty).Append(" eq ").Append(Quote).Append(instanceId).Append(Quote);
-            if (expectedExecutionId != null)
+            if (!string.IsNullOrEmpty(expectedExecutionId))
             {
                 // Filter down to a specific generation.
                 // e.g. "PartitionKey eq 'c138dd969a1e4a699b0644c7d8279f81' and ExecutionId eq '85f05ce1494c4a29989f64d3fe0f9089'"
@@ -608,11 +610,6 @@ namespace DurableTask.AzureStorage.Tracking
                     }
                 }
 
-                if (!string.IsNullOrEmpty(orchestrationInstanceStatus.InputBlobName))
-                {
-                    blobDeleteTaskList.Add(this.messageManager.DeleteBlobAsync(orchestrationInstanceStatus.InputBlobName));
-                }
-
                 await Task.WhenAll(blobDeleteTaskList);
                 this.stats.StorageRequests.Increment(blobDeleteTaskList.Count);
                 storageRequests += blobDeleteTaskList.Count;
@@ -714,7 +711,7 @@ namespace DurableTask.AzureStorage.Tracking
                 }
             };
 
-            await this.CompressLargeMessageAsync(entity);
+            await this.CompressLargeMessageAsync(entity, true);
 
             Stopwatch stopwatch = Stopwatch.StartNew();
             await this.InstancesTable.ExecuteAsync(
@@ -745,7 +742,7 @@ namespace DurableTask.AzureStorage.Tracking
                 }
             };
 
-            await this.CompressLargeMessageAsync(entity);
+            await this.CompressLargeMessageAsync(entity, false);
             Stopwatch stopwatch = Stopwatch.StartNew();
             await this.InstancesTable.ExecuteAsync(TableOperation.Merge(entity));
             this.stats.StorageRequests.Increment();
@@ -802,7 +799,7 @@ namespace DurableTask.AzureStorage.Tracking
                 HistoryEvent historyEvent = newEvents[i];
                 DynamicTableEntity entity = this.tableEntityConverter.ConvertToTableEntity(historyEvent);
 
-                await this.CompressLargeMessageAsync(entity);
+                await this.CompressLargeMessageAsync(entity, false);
 
                 if (outputBlobNames.TryGetValue(historyEvent, out string messageDataInputBlobName))
                 {
@@ -858,10 +855,6 @@ namespace DurableTask.AzureStorage.Tracking
                         orchestrationInstanceUpdate.Properties["Version"] = new EntityProperty(executionStartedEvent.Version);
                         orchestrationInstanceUpdate.Properties["CreatedTime"] = new EntityProperty(executionStartedEvent.Timestamp);
                         orchestrationInstanceUpdate.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Running.ToString());
-                        if (!(await this.IsInputBlobNameAlreadySet(orchestrationInstanceUpdate.PartitionKey)))
-                        {
-                            this.SetTablePropertyForMessage(entity, orchestrationInstanceUpdate, InputProperty, InputProperty, executionStartedEvent.Input);
-                        }
                         this.stats.StorageRequests.Increment();
                         this.stats.TableEntitiesRead.Increment();
                         break;
@@ -1053,11 +1046,7 @@ namespace DurableTask.AzureStorage.Tracking
             // Check if the source property has a compressed blob and swap the source with the target property
             if (this.HasCompressedTableEntityByPropertyKey(entity, sourcePropertyKey, out blobNameKey))
             {
-                string blobName = entity.Properties[blobNameKey].StringValue;
-                orchestrationInstanceUpdate.Properties[sourcePropertyKey] = new EntityProperty(string.Empty);
-                string targetBlobNameKey = $"{targetPropertyKey}{BlobNamePropertySuffix}";
-
-                orchestrationInstanceUpdate.Properties[targetBlobNameKey] = new EntityProperty(blobName);
+                orchestrationInstanceUpdate.Properties[sourcePropertyKey] = new EntityProperty(InstnacesTableInformationMessageForLargeDataBlobs);
             }
             else
             {
@@ -1083,11 +1072,21 @@ namespace DurableTask.AzureStorage.Tracking
                 !string.IsNullOrEmpty(inputBlobNameProperty.StringValue);
         }
 
-        async Task CompressLargeMessageAsync(DynamicTableEntity entity)
+        async Task CompressLargeMessageAsync(DynamicTableEntity entity, bool isInstancesTable)
         {
+            if (isInstancesTable)
+            {
+                if (!string.IsNullOrEmpty(this.GetLargeTableEntityInternal(entity, InputProperty)))
+                {
+                    entity.Properties[InputProperty] = new EntityProperty(InstnacesTableInformationMessageForLargeDataBlobs);
+                    return;
+                }
+            }
+
             string propertyKey = this.GetLargeTableEntity(entity);
             if (propertyKey != null)
             {
+
                 string blobName = Guid.NewGuid().ToString();
                 // e.g.InputBlobName, OutputBlobName, ResultBlobName
                 string blobNameKey = $"{propertyKey}{BlobNamePropertySuffix}";
@@ -1189,23 +1188,65 @@ namespace DurableTask.AzureStorage.Tracking
 
         async Task<string> GetOrchestrationOutputAsync(OrchestrationInstanceStatus orchestrationInstanceStatus)
         {
-            if (string.IsNullOrEmpty(orchestrationInstanceStatus.OutputBlobName))
-            {
-                return orchestrationInstanceStatus.Output;
-            }
-
-            return await this.messageManager.DownloadAndDecompressAsBytesAsync(orchestrationInstanceStatus.OutputBlobName);
+            return await this.GetPropertyValue(
+                orchestrationInstanceStatus.PartitionKey,
+                EventType.ExecutionCompleted, 
+                ResultProperty,
+                ResultBlobNameProperty);
         }
 
         async Task<string> GetOrchestrationInputAsync(OrchestrationInstanceStatus orchestrationInstanceStatus)
         {
-            if (string.IsNullOrEmpty(orchestrationInstanceStatus.InputBlobName))
+            return await this.GetPropertyValue(
+                orchestrationInstanceStatus.PartitionKey,
+                EventType.ExecutionStarted,
+                InputProperty,
+                InputBlobNameProperty);
+        }
+
+        private async Task<string> GetPropertyValue(
+            string instanceId, 
+            EventType eventType,
+            string propertyName,
+            string blobPropertyName)
+        {
+            string result = string.Empty;
+
+            HistoryEntitiesResponseInfo historyEntitiesResponseInfo = await this.GetHistoryEntitiesResponseInfoAsync(
+                instanceId,
+                string.Empty,
+                null);
+
+            if (!historyEntitiesResponseInfo.HistoryEventEntities.Any())
             {
-                return orchestrationInstanceStatus.Input;
+                return result;
             }
 
-            return await this.messageManager.DownloadAndDecompressAsBytesAsync(orchestrationInstanceStatus.InputBlobName);
+            DynamicTableEntity executionCompletedTableEntity = historyEntitiesResponseInfo.HistoryEventEntities.FirstOrDefault(
+                x => x.Properties.ContainsKey(EventTypeProperty) && 
+                x.Properties[EventTypeProperty].StringValue == eventType.ToString());
+
+            if (executionCompletedTableEntity == null)
+            {
+                return result;
+            }
+
+            if (executionCompletedTableEntity.Properties.TryGetValue(blobPropertyName, out EntityProperty blobNameProperty) && 
+                !string.IsNullOrEmpty(blobNameProperty?.StringValue))
+            {
+                return await this.messageManager.DownloadAndDecompressAsBytesAsync(blobNameProperty.StringValue);
+            }
+
+            if (executionCompletedTableEntity.Properties.TryGetValue(propertyName, out EntityProperty property) &&
+                !string.IsNullOrEmpty(property?.StringValue))
+            {
+                return property.StringValue;
+            }
+
+            return result;
         }
+
+
 
         async Task SetDecompressedTableEntityAsync(DynamicTableEntity dynamicTableEntity, string propertyKey, string blobNameKey)
         {

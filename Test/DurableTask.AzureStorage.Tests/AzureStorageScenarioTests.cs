@@ -278,7 +278,7 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual(fourthInstanceId, fourthOrchestrationStateList.First().OrchestrationInstance.InstanceId);
 
                 int blobCount = await this.GetBlobCount("test-largemessages");
-                Assert.AreEqual(7, blobCount);
+                Assert.AreEqual(6, blobCount);
 
                 await client.PurgeInstanceHistoryByTimePeriod(
                     startDateTime,
