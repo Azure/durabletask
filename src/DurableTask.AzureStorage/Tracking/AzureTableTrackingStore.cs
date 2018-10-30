@@ -584,9 +584,7 @@ namespace DurableTask.AzureStorage.Tracking
                 null,
                 new []
                 {
-                    RowKeyProperty,
-                    InputBlobNameProperty,
-                    ResultBlobNameProperty
+                    RowKeyProperty
                 });
 
             storageRequests += historyEntitiesResponseInfo.RequestCount;
@@ -595,27 +593,15 @@ namespace DurableTask.AzureStorage.Tracking
             while (pageOffset < historyEntitiesResponseInfo.HistoryEventEntities.Count)
             {
                 var batch = new TableBatchOperation();
-                var blobDeleteTaskList = new List<Task>();
                 List<DynamicTableEntity> batchForDeletion = historyEntitiesResponseInfo.HistoryEventEntities.Skip(pageOffset).Take(100).ToList();
 
                 foreach (DynamicTableEntity itemForDeletion in batchForDeletion)
                 {
                     batch.Delete(itemForDeletion);
-                    if (itemForDeletion.Properties.ContainsKey(InputBlobNameProperty) &&
-                        !string.IsNullOrEmpty(itemForDeletion.Properties[InputBlobNameProperty].StringValue))
-                    {
-                        blobDeleteTaskList.Add(this.messageManager.DeleteBlobAsync(itemForDeletion.Properties[InputBlobNameProperty].StringValue));
-                    }
-                    if (itemForDeletion.Properties.ContainsKey(ResultBlobNameProperty) &&
-                        !string.IsNullOrEmpty(itemForDeletion.Properties[ResultBlobNameProperty].StringValue))
-                    {
-                        blobDeleteTaskList.Add(this.messageManager.DeleteBlobAsync(itemForDeletion.Properties[ResultBlobNameProperty].StringValue));
-                    }
                 }
 
-                await Task.WhenAll(blobDeleteTaskList);
-                this.stats.StorageRequests.Increment(blobDeleteTaskList.Count);
-                storageRequests += blobDeleteTaskList.Count;
+                await this.messageManager.DeleteLargeMessagesContainer(orchestrationInstanceStatus.PartitionKey);
+                this.stats.StorageRequests.Increment();
                 await this.HistoryTable.ExecuteBatchAsync(batch);
                 this.stats.TableEntitiesWritten.Increment(batch.Count);
                 storageRequests++;
@@ -775,8 +761,7 @@ namespace DurableTask.AzureStorage.Tracking
             OrchestrationRuntimeState runtimeState,
             string instanceId,
             string executionId,
-            string eTagValue,
-            IDictionary<HistoryEvent, string> outputBlobNames = null)
+            string eTagValue)
         {
             int estimatedBytes = 0;
             IList<HistoryEvent> newEvents = runtimeState.NewEvents;
@@ -801,45 +786,14 @@ namespace DurableTask.AzureStorage.Tracking
             {
                 HistoryEvent historyEvent = newEvents[i];
                 DynamicTableEntity entity = this.tableEntityConverter.ConvertToTableEntity(historyEvent);
+                entity.PartitionKey = instanceId;
 
                 await this.CompressLargeMessageAsync(entity, false);
-
-                if (outputBlobNames.TryGetValue(historyEvent, out string messageDataInputBlobName))
-                {
-                    string propertyName =
-                            entity.Properties.ContainsKey(InputProperty) ? ResultBlobNameProperty :
-                            entity.Properties.ContainsKey(ResultProperty) ? InputBlobNameProperty :
-                            null;
-                    if (propertyName != null)
-                    {
-                        entity.Properties[propertyName] = new EntityProperty(messageDataInputBlobName);
-                    }
-                    outputBlobNames.Remove(historyEvent);
-                }
-
-                if (i == newEvents.Count - 1 && outputBlobNames.Keys.Count > 0)
-                {
-                    if (!entity.Properties.ContainsKey(InputProperty))
-                    {
-                        entity.Properties[InputBlobNameProperty] = new EntityProperty(outputBlobNames.Values.First());
-                    }
-                    else
-                    {
-                        if (!entity.Properties.ContainsKey(ResultProperty))
-                        {
-                            entity.Properties[ResultProperty] = new EntityProperty(outputBlobNames.Values.First());
-                        }
-                    }
-                    
-                    outputBlobNames.Remove(outputBlobNames.Keys.First());
-                }
-
                 newEventListBuffer.Append(historyEvent.EventType.ToString()).Append(',');
 
                 // The row key is the sequence number, which represents the chronological ordinal of the event.
                 long sequenceNumber = i + (allEvents.Count - newEvents.Count);
                 entity.RowKey = sequenceNumber.ToString("X16");
-                entity.PartitionKey = instanceId;
                 entity.Properties["ExecutionId"] = new EntityProperty(executionId);
 
                 // Replacement can happen if the orchestration episode gets replayed due to a commit failure in one of the steps below.
@@ -1091,11 +1045,12 @@ namespace DurableTask.AzureStorage.Tracking
             {
 
                 string blobName = Guid.NewGuid().ToString();
+                string fullBlobName = this.messageManager.GetFullLargeMessageBlobName(entity.PartitionKey, blobName);
                 // e.g.InputBlobName, OutputBlobName, ResultBlobName
                 string blobNameKey = $"{propertyKey}{BlobNamePropertySuffix}";
                 byte[] messageBytes = this.GetPropertyMessageAsBytes(entity);
-                await this.messageManager.CompressAndUploadAsBytesAsync(messageBytes, blobName);
-                entity.Properties.Add(blobNameKey, new EntityProperty(blobName));
+                await this.messageManager.CompressAndUploadAsBytesAsync(messageBytes, entity.PartitionKey, blobName);
+                entity.Properties.Add(blobNameKey, new EntityProperty(fullBlobName));
                 this.SetPropertyMessageToEmptyString(entity);
             }
         }

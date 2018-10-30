@@ -107,9 +107,7 @@ namespace DurableTask.AzureStorage
             this.blobClient = account.CreateCloudBlobClient();
             this.blobClient.BufferManager = SimpleBufferManager.Shared;
 
-            string compressedMessageBlobContainerName = $"{settings.TaskHubName.ToLowerInvariant()}-largemessages";
-            NameValidator.ValidateContainerName(compressedMessageBlobContainerName);
-            this.messageManager = new MessageManager(this.blobClient, compressedMessageBlobContainerName);
+            this.messageManager = new MessageManager(this.blobClient);
 
             this.allControlQueues = new ConcurrentDictionary<string, ControlQueue>();
             for (int i = 0; i < this.settings.PartitionCount; i++)
@@ -775,30 +773,11 @@ namespace DurableTask.AzureStorage
                 timerMessages,
                 continuedAsNewMessage);
 
-            foreach (MessageData messageData in outboundQueueMessages)
-            {
-                if (!string.IsNullOrEmpty(messageData.CompressedBlobName))
-                {
-                    outputBlobNames.Add(messageData.TaskMessage.Event, messageData.CompressedBlobName);
-                }
-            }
-
             // Next, commit the orchestration history updates. This is the actual "checkpoint". Failures after this
             // will result in a duplicate replay of the orchestration with no side-effects.
             try
             {
-                if (session.CurrentMessageBatch.Any())
-                {
-                    foreach (MessageData messageData in session.CurrentMessageBatch)
-                    {
-                        if (!outputBlobNames.ContainsKey(messageData.TaskMessage.Event))
-                        {
-                            outputBlobNames.Add(messageData.TaskMessage.Event, messageData.CompressedBlobName);
-                        }
-                    }
-                }
-
-                session.ETag = await this.trackingStore.UpdateStateAsync(runtimeState, instanceId, executionId, session.ETag, outputBlobNames);
+                session.ETag = await this.trackingStore.UpdateStateAsync(runtimeState, instanceId, executionId, session.ETag);
             }
             catch (Exception e)
             {

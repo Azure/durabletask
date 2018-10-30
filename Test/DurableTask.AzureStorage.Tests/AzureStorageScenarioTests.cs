@@ -196,7 +196,7 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual(1, orchestrationStateList.Count);
                 Assert.AreEqual(instanceId, orchestrationStateList.First().OrchestrationInstance.InstanceId);
 
-                int blobCount = await this.GetBlobCount("test-largemessages");
+                int blobCount = await this.GetBlobCount($"largemessages-{instanceId}");
                 Assert.IsTrue(blobCount > 0);
 
                 IList<OrchestrationState> results = await host.GetAllOrchestrationInstancesAsync();
@@ -213,7 +213,7 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual(1, orchestrationStateList.Count);
                 Assert.IsNull(orchestrationStateList.First());
 
-                blobCount = await this.GetBlobCount("test-largemessages");
+                blobCount = await this.GetBlobCount($"largemessages-{instanceId}");
                 Assert.AreEqual(0, blobCount);
 
                 await host.StopAsync();
@@ -278,7 +278,7 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual(1, fourthOrchestrationStateList.Count);
                 Assert.AreEqual(fourthInstanceId, fourthOrchestrationStateList.First().OrchestrationInstance.InstanceId);
 
-                int blobCount = await this.GetBlobCount("test-largemessages");
+                int blobCount = await this.GetBlobCount($"largemessages-{fourthInstanceId}");
                 Assert.AreEqual(6, blobCount);
 
                 await client.PurgeInstanceHistoryByTimePeriod(
@@ -320,7 +320,7 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual(1, fourthOrchestrationStateList.Count);
                 Assert.IsNull(fourthOrchestrationStateList.First());
 
-                blobCount = await this.GetBlobCount("test-largemessages");
+                blobCount = await this.GetBlobCount($"largemessages-{fourthInstanceId}");
                 Assert.AreEqual(0, blobCount);
 
                 await host.StopAsync();
