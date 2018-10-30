@@ -30,6 +30,7 @@ namespace DurableTask.AzureStorage.Tests
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Blob;
     using Microsoft.WindowsAzure.Storage.Table;
+    using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
 
     [TestClass]
@@ -536,6 +537,72 @@ namespace DurableTask.AzureStorage.Tests
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
                 Assert.AreEqual(3, JToken.Parse(status?.Output));
+
+                // When using ContinueAsNew, the original input is discarded and replaced with the most recent state.
+                Assert.AreNotEqual(initialValue, JToken.Parse(status?.Input));
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// End-to-end test which validates the ContinueAsNew functionality by implementing a counter actor pattern.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task ActorOrchestrationForLargeInput(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                await host.StartAsync();
+
+                string initialMessage = this.GenerateMendiumRandomStringPayload().ToString();
+                int counter = initialMessage.Length;
+                var initialValue = new Tuple<string, int>(initialMessage, counter);
+                TestOrchestrationClient client = 
+                    await host.StartOrchestrationAsync(typeof(Orchestrations.CharacterCounter), initialValue);
+
+                // Need to wait for the instance to start before sending events to it.
+                // TODO: This requirement may not be ideal and should be revisited.
+                await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
+
+                // Perform some operations
+                await client.RaiseEventAsync("operation", "double");
+                counter *= 2;
+
+                // TODO: Sleeping to avoid a race condition where multiple ContinueAsNew messages
+                //       are processed by the same instance at the same time, resulting in a corrupt
+                //       storage failure in DTFx.
+                await Task.Delay(10000);
+                await client.RaiseEventAsync("operation", "double");
+                counter *= 2;
+                await Task.Delay(10000);
+                await client.RaiseEventAsync("operation", "double");
+                counter *= 2;
+                await Task.Delay(10000);
+                await client.RaiseEventAsync("operation", "double");
+                counter *= 2;
+                await Task.Delay(10000);
+                await client.RaiseEventAsync("operation", "double");
+                counter *= 2;
+                await Task.Delay(10000);
+
+                // Make sure it's still running and didn't complete early (or fail).
+                var status = await client.GetStatusAsync();
+                Assert.IsTrue(
+                    status?.OrchestrationStatus == OrchestrationStatus.Running ||
+                    status?.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew);
+
+                // The end message will cause the actor to complete itself.
+                await client.RaiseEventAsync("operation", "end");
+
+                status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                var result = JsonConvert.DeserializeObject <Tuple<string, int>>(status?.Output);
+                Assert.IsNotNull(result);
+                Assert.AreEqual(counter, result.Item2);
 
                 // When using ContinueAsNew, the original input is discarded and replaced with the most recent state.
                 Assert.AreNotEqual(initialValue, JToken.Parse(status?.Input));
@@ -1743,6 +1810,53 @@ namespace DurableTask.AzureStorage.Tests
 
                     return currentValue;
                     
+                }
+
+                async Task<string> WaitForOperation()
+                {
+                    this.waitForOperationHandle = new TaskCompletionSource<string>();
+                    string operation = await this.waitForOperationHandle.Task;
+                    this.waitForOperationHandle = null;
+                    return operation;
+                }
+
+                public override void OnEvent(OrchestrationContext context, string name, string input)
+                {
+                    Assert.AreEqual("operation", name, true, "Unknown signal recieved...");
+                    if (this.waitForOperationHandle != null)
+                    {
+                        this.waitForOperationHandle.SetResult(input);
+                    }
+                }
+            }
+
+            internal class CharacterCounter : TaskOrchestration<Tuple<string, int>, Tuple<string, int>>
+            {
+
+                TaskCompletionSource<string> waitForOperationHandle;
+
+                public override async Task<Tuple<string, int>> RunTask(OrchestrationContext context, Tuple<string, int> inputData)
+                {
+                    string operation = await this.WaitForOperation();
+                    bool done = false;
+                    switch (operation?.ToLowerInvariant())
+                    {
+                        case "double":
+                            inputData = new Tuple<string, int>(
+                                $"{inputData.Item1}{inputData.Item1.Reverse()}",
+                                inputData.Item2 * 2);
+                            break;
+                        case "end":
+                            done = true;
+                            break;
+                    }
+
+                    if (!done)
+                    {
+                        context.ContinueAsNew(inputData);
+                    }
+
+                    return inputData;
                 }
 
                 async Task<string> WaitForOperation()
