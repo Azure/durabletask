@@ -50,7 +50,7 @@ namespace DurableTask.Core.Exceptions
         }
 
         /// <summary>
-        /// Initializes an new instance of the SubOrchestrationFailedException class with a specified eventid, scheduleid, name, version and error message
+        /// Initializes an new instance of the SubOrchestrationFailedException class with a specified event id, schedule id, name, version and error message
         ///    and a reference to the inner exception that is the cause of this exception.
         /// </summary>
         /// <param name="eventId">EventId of the error.</param>
@@ -76,15 +76,18 @@ namespace DurableTask.Core.Exceptions
         protected SubOrchestrationFailedException(SerializationInfo info, StreamingContext context)
             : base(info, context)
         {
+            ScheduleId = info.GetInt32(nameof(ScheduleId));
+            Name = info.GetString(nameof(Name));
+            Version = info.GetString(nameof(Version));
         }
 
         /// <inheritdoc />
         public override void GetObjectData(SerializationInfo info, StreamingContext context)
         {
             base.GetObjectData(info, context);
-            info.AddValue("ScheduleId", this.ScheduleId);
-            info.AddValue("Name", this.Name);
-            info.AddValue("Version", this.Version);
+            info.AddValue(nameof(ScheduleId), ScheduleId);
+            info.AddValue(nameof(Name), Name);
+            info.AddValue(nameof(Version), Version);
         }
 
         /// <summary>

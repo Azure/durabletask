@@ -16,7 +16,7 @@ namespace DurableTask.Core
     using System.Runtime.Serialization;
 
     /// <summary>
-    /// Represents the parent orchestation of a sub orchestration
+    /// Represents the parent orchestration of a sub orchestration
     /// </summary>
     [DataContract]
     public class ParentInstance : IExtensibleDataObject
@@ -45,10 +45,10 @@ namespace DurableTask.Core
         {
             return new ParentInstance
             {
-                Name = Name,
-                Version = Version,
-                TaskScheduleId = TaskScheduleId,
-                OrchestrationInstance = OrchestrationInstance.Clone()
+                Name = this.Name,
+                Version = this.Version,
+                TaskScheduleId = this.TaskScheduleId,
+                OrchestrationInstance = this.OrchestrationInstance.Clone()
             };
         }
 

@@ -19,7 +19,7 @@ namespace DurableTask.Core.Tracking
     public class OrchestrationStateInstanceEntity : InstanceEntityBase
     {
         /// <summary>
-        /// The Orchestraion state for this Instance Entity
+        /// The orchestration state for this instance entity
         /// </summary>
         public OrchestrationState State;
     }

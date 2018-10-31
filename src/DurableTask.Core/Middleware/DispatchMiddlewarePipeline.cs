@@ -18,15 +18,15 @@ namespace DurableTask.Core.Middleware
     using System.Linq;
     using System.Threading.Tasks;
 
-    class DispatchMiddlewarePipeline
+    internal class DispatchMiddlewarePipeline
     {
-        readonly IList<Func<DispatchMiddlewareDelegate, DispatchMiddlewareDelegate>> components = 
+        readonly IList<Func<DispatchMiddlewareDelegate, DispatchMiddlewareDelegate>> components =
             new List<Func<DispatchMiddlewareDelegate, DispatchMiddlewareDelegate>>();
 
         public Task RunAsync(DispatchMiddlewareContext context, DispatchMiddlewareDelegate handler)
         {
             // Build the delegate chain
-            foreach (var component in this.components.Reverse())
+            foreach (Func<DispatchMiddlewareDelegate, DispatchMiddlewareDelegate> component in this.components.Reverse())
             {
                 handler = component(handler);
             }
@@ -40,8 +40,8 @@ namespace DurableTask.Core.Middleware
             {
                 return context =>
                 {
-                    Func<Task> simpleNext = () => next(context);
-                    return middleware(context, simpleNext);
+                    Task SimpleNext() => next(context);
+                    return middleware(context, SimpleNext);
                 };
             });
         }

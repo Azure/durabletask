@@ -43,12 +43,12 @@ namespace DurableTask.Core
 
         // task orchestration dispatcher default constants
         /// <summary>
-        /// The default error backoff for transient errors task orchestrations in seconds
+        /// The default error back-off for transient errors task orchestrations in seconds
         /// </summary>
         public const int OrchestrationTransientErrorBackOffSecs = 10;
 
         /// <summary>
-        /// The default error backoff for non-transient errors task orchestrations in seconds
+        /// The default error back-off for non-transient errors task orchestrations in seconds
         /// </summary>
         public const int OrchestrationNonTransientErrorBackOffSecs = 120;
 
@@ -64,12 +64,12 @@ namespace DurableTask.Core
 
         // task activity dispatcher default constants
         /// <summary>
-        /// The default error backoff for transient errors task activities in seconds
+        /// The default error back-off for transient errors task activities in seconds
         /// </summary>
         public const int ActivityTransientErrorBackOffSecs = 10;
 
         /// <summary>
-        /// The default error backoff for non-transient errors task activities in seconds
+        /// The default error back-off for non-transient errors task activities in seconds
         /// </summary>
         public const int ActivityNonTransientErrorBackOffSecs = 120;
 
@@ -85,12 +85,12 @@ namespace DurableTask.Core
 
         // tracking dispatcher default constants
         /// <summary>
-        /// The default error backoff for transient errors tracking activities in seconds
+        /// The default error back-off for transient errors tracking activities in seconds
         /// </summary>
         public const int TrackingTransientErrorBackOffSecs = 10;
 
         /// <summary>
-        /// The default error backoff for non-transient errors tracking activities in seconds
+        /// The default error back-off for non-transient errors tracking activities in seconds
         /// </summary>
         public const int TrackingNonTransientErrorBackOffSecs = 120;
 
@@ -109,7 +109,7 @@ namespace DurableTask.Core
         /// </summary>
         public const bool TrackingTrackHistoryEvents = true;
 
-        // Jumpstart constants
+        // JumpStart constants
         /// <summary>
         /// The default timespan for the JumpStart interval
         /// </summary>
@@ -159,7 +159,7 @@ namespace DurableTask.Core
         public const int SessionMaxSizeInBytesDefault = 10 * 1024 * 1024;
 
         /// <summary>
-        /// The default batch flush interval in milli secs
+        /// The default batch flush interval in milliseconds seconds
         /// </summary>
         public const int BatchFlushIntervalInMilliSecs = 100;
     }

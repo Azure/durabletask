@@ -16,9 +16,8 @@ namespace DurableTask.ServiceBus
     using System;
     using System.Collections.Generic;
     using Microsoft.ServiceBus.Messaging;
-    using DurableTask.Core;
 
-    class ServiceBusOrchestrationSession
+    internal class ServiceBusOrchestrationSession
     {
         public MessageSession Session;
         public Dictionary<Guid, BrokeredMessage> LockTokens;

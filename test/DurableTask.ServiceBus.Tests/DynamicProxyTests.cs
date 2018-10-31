@@ -30,23 +30,23 @@ namespace DurableTask.ServiceBus.Tests
         [TestInitialize]
         public void TestInitialize()
         {
-            client = TestHelpers.CreateTaskHubClient();
+            this.client = TestHelpers.CreateTaskHubClient();
 
-            taskHub = TestHelpers.CreateTaskHub();
-            taskHub.orchestrationService.CreateAsync(true).Wait();
+            this.taskHub = TestHelpers.CreateTaskHub();
+            this.taskHub.orchestrationService.CreateAsync(true).Wait();
         }
 
         [TestCleanup]
         public void TestCleanup()
         {
-            taskHub.StopAsync(true).Wait();
-            taskHub.orchestrationService.DeleteAsync(true).Wait();
+            this.taskHub.StopAsync(true).Wait();
+            this.taskHub.orchestrationService.DeleteAsync(true).Wait();
         }
 
         #region Common TaskActivities
 
-        static readonly string SEND_GREETING_NAME = "SendGreeting";
-        static readonly string SEND_GREETING_VERSION = string.Empty;
+        static readonly string SendGreetingName = "SendGreeting";
+        static readonly string SendGreetingVersion = string.Empty;
 
         sealed class SendGreetingTask : TaskActivity<string, string>
         {
@@ -60,23 +60,23 @@ namespace DurableTask.ServiceBus.Tests
 
         #region Greetings Test
 
-        static readonly string GET_USER_NAME = "GetUser";
-        static readonly string GET_USER_VERSION = string.Empty;
+        static readonly string GetUserName = "GetUser";
+        static readonly string GetUserVersion = string.Empty;
 
         [TestMethod]
         public async Task GreetingsDynamicProxyTest()
         {
-            await taskHub.AddTaskOrchestrations(typeof (GreetingsOrchestration))
+            await this.taskHub.AddTaskOrchestrations(typeof(GreetingsOrchestration))
                 .AddTaskActivities(
-                    new NameValueObjectCreator<TaskActivity>(GET_USER_NAME, GET_USER_VERSION, new GetUserTask()),
-                    new NameValueObjectCreator<TaskActivity>(SEND_GREETING_NAME, SEND_GREETING_VERSION,
+                    new NameValueObjectCreator<TaskActivity>(GetUserName, GetUserVersion, new GetUserTask()),
+                    new NameValueObjectCreator<TaskActivity>(SendGreetingName, SendGreetingVersion,
                         new SendGreetingTask()))
                 .StartAsync();
 
-            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (GreetingsOrchestration), null);
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(GreetingsOrchestration), null);
 
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
             Assert.AreEqual("Greeting send to Gabbar", GreetingsOrchestration.Result, "Orchestration Result is wrong!!!");
         }
 
@@ -88,9 +88,10 @@ namespace DurableTask.ServiceBus.Tests
             }
         }
 
-        public interface GreetingsClient
+        public interface IGreetingsClient
         {
             Task<string> GetUser();
+
             Task<string> SendGreeting(string user);
         }
 
@@ -101,7 +102,7 @@ namespace DurableTask.ServiceBus.Tests
 
             public override async Task<string> RunTask(OrchestrationContext context, string input)
             {
-                var client = context.CreateClient<GreetingsClient>();
+                var client = context.CreateClient<IGreetingsClient>();
                 string user = await client.GetUser();
                 string greeting = await client.SendGreeting(user);
                 // This is a HACK to get unit test up and running.  Should never be done in actual code.
@@ -115,26 +116,26 @@ namespace DurableTask.ServiceBus.Tests
 
         #region AverageCalculator Test
 
-        static readonly string COMPUTE_SUM_NAME = "ComputeSum";
-        static readonly string COMPUTE_SUM_VERSION = string.Empty;
+        static readonly string ComputeSumName = "ComputeSum";
+        static readonly string ComputeSumVersion = string.Empty;
 
         [TestMethod]
         public async Task AverageCalculatorDynamicProxyTest()
         {
-            await taskHub.AddTaskOrchestrations(typeof (AverageCalculatorOrchestration))
-                .AddTaskActivities(new NameValueObjectCreator<TaskActivity>(COMPUTE_SUM_NAME, COMPUTE_SUM_VERSION,
+            await this.taskHub.AddTaskOrchestrations(typeof(AverageCalculatorOrchestration))
+                .AddTaskActivities(new NameValueObjectCreator<TaskActivity>(ComputeSumName, ComputeSumVersion,
                     new ComputeSumTask()))
                 .StartAsync();
 
-            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (AverageCalculatorOrchestration),
-                new[] {1, 50, 10});
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(AverageCalculatorOrchestration),
+                new[] { 1, 50, 10 });
 
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
-            Assert.AreEqual(25, AverageCalculatorOrchestration.Result, "Orchestration Result is wrong!!!");
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
+            Assert.AreEqual(25.5, AverageCalculatorOrchestration.Result, "Orchestration Result is wrong!!!");
         }
 
-        public interface AverageCalculatorClient
+        public interface IAverageCalculatorClient
         {
             Task<int> ComputeSum(int[] chunk);
         }
@@ -157,30 +158,29 @@ namespace DurableTask.ServiceBus.Tests
                 int total = end - start + 1;
 
                 var chunks = new List<Task<int>>();
-                int current;
                 while (start < end)
                 {
-                    current = start + step - 1;
+                    int current = start + step - 1;
                     if (current > end)
                     {
                         current = end;
                     }
 
-                    var client = context.CreateClient<AverageCalculatorClient>();
-                    Task<int> chunk = client.ComputeSum(new[] {start, current});
+                    var client = context.CreateClient<IAverageCalculatorClient>();
+                    Task<int> chunk = client.ComputeSum(new[] { start, current });
                     chunks.Add(chunk);
 
                     start = current + 1;
                 }
 
-                int sum = 0;
+                var sum = 0;
                 int[] allChunks = await Task.WhenAll(chunks.ToArray());
                 foreach (int result in allChunks)
                 {
                     sum += result;
                 }
 
-                double r = sum/total;
+                double r = sum / (double) total;
                 Result = r;
                 return r;
             }
@@ -196,7 +196,7 @@ namespace DurableTask.ServiceBus.Tests
                 }
 
                 Console.WriteLine("Compute Sum for " + chunk[0] + "," + chunk[1]);
-                int sum = 0;
+                var sum = 0;
                 int start = chunk[0];
                 int end = chunk[1];
                 for (int i = start; i <= end; i++)
@@ -223,16 +223,16 @@ namespace DurableTask.ServiceBus.Tests
             var retryOptions = new RetryOptions(TimeSpan.FromSeconds(3), 4);
             var retryTask = new RetryTask(3);
 
-            await taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
+            await this.taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
                 () => new RetryOrchestration(retryOptions)))
                 .AddTaskActivitiesFromInterface<IRetryTask>(retryTask)
                 .StartAsync();
 
             RetryOrchestration.Result = null;
-            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(RETRY_NAME, RETRY_VERSION, null);
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(RETRY_NAME, RETRY_VERSION, null);
 
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 120);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 120));
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 120);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 120));
             Assert.AreEqual("Attempts: 3", RetryOrchestration.Result, "Orchestration Result is wrong!!!");
         }
 
@@ -241,16 +241,16 @@ namespace DurableTask.ServiceBus.Tests
         {
             var retryOptions = new RetryOptions(TimeSpan.FromSeconds(3), 3);
             var retryTask = new RetryTask(3);
-            await taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
+            await this.taskHub.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(RETRY_NAME, RETRY_VERSION,
                 () => new RetryOrchestration(retryOptions)))
                 .AddTaskActivitiesFromInterface<IRetryTask>(retryTask)
                 .StartAsync();
 
             RetryOrchestration.Result = null;
-            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(RETRY_NAME, RETRY_VERSION, null);
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(RETRY_NAME, RETRY_VERSION, null);
 
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 120);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 120));
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 120);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 120));
             Assert.AreEqual("RetryCount is: 3", RetryOrchestration.Result, "Orchestration Result is wrong!!!");
         }
 
@@ -272,7 +272,7 @@ namespace DurableTask.ServiceBus.Tests
 
             public RetryOrchestration(RetryOptions retryOptions)
             {
-                retryPolicy = retryOptions;
+                this.retryPolicy = retryOptions;
             }
 
             public override async Task<string> RunTask(OrchestrationContext context, string input)
@@ -280,7 +280,7 @@ namespace DurableTask.ServiceBus.Tests
                 string result;
                 try
                 {
-                    var client = context.CreateRetryableClient<IRetryTaskClient>(retryPolicy);
+                    var client = context.CreateRetryableClient<IRetryTaskClient>(this.retryPolicy);
                     result = await client.DoWork();
                 }
                 catch (TaskFailedException e)
@@ -301,7 +301,10 @@ namespace DurableTask.ServiceBus.Tests
                 FailAttempts = failAttempts;
             }
 
+            // ReSharper disable once MemberCanBePrivate.Local
             public int RetryCount { get; set; }
+
+            // ReSharper disable once MemberCanBePrivate.Local
             public int FailAttempts { get; set; }
 
             public string DoWork()

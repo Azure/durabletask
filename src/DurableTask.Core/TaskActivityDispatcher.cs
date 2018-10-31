@@ -29,7 +29,7 @@ namespace DurableTask.Core
     public sealed class TaskActivityDispatcher
     {
         readonly INameVersionObjectManager<TaskActivity> objectManager;
-        readonly WorkItemDispatcher<TaskActivityWorkItem> dispatcher; 
+        readonly WorkItemDispatcher<TaskActivityWorkItem> dispatcher;
         readonly IOrchestrationService orchestrationService;
         readonly DispatchMiddlewarePipeline dispatchPipeline;
 
@@ -45,8 +45,8 @@ namespace DurableTask.Core
             this.dispatcher = new WorkItemDispatcher<TaskActivityWorkItem>(
                 "TaskActivityDispatcher",
                 item => item.Id,
-                this.OnFetchWorkItemAsync,
-                this.OnProcessWorkItemAsync)
+                OnFetchWorkItemAsync,
+                OnProcessWorkItemAsync)
             {
                 AbortWorkItem = orchestrationService.AbandonTaskActivityWorkItemAsync,
                 GetDelayInSecondsAfterOnFetchException = orchestrationService.GetDelayInSecondsAfterOnFetchException,
@@ -61,7 +61,7 @@ namespace DurableTask.Core
         /// </summary>
         public async Task StartAsync()
         {
-            await dispatcher.StartAsync();
+            await this.dispatcher.StartAsync();
         }
 
         /// <summary>
@@ -70,13 +70,13 @@ namespace DurableTask.Core
         /// <param name="forced">Flag indicating whether to stop gracefully or immediately</param>
         public async Task StopAsync(bool forced)
         {
-            await dispatcher.StopAsync(forced);
+            await this.dispatcher.StopAsync(forced);
         }
 
         /// <summary>
         /// Gets or sets flag whether to include additional details in error messages
         /// </summary>
-        public bool IncludeDetails { get; set;} 
+        public bool IncludeDetails { get; set; }
 
         Task<TaskActivityWorkItem> OnFetchWorkItemAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken)
         {
@@ -95,28 +95,29 @@ namespace DurableTask.Core
                 if (string.IsNullOrWhiteSpace(orchestrationInstance?.InstanceId))
                 {
                     throw TraceHelper.TraceException(
-                        TraceEventType.Error, 
+                        TraceEventType.Error,
                         "TaskActivityDispatcher-MissingOrchestrationInstance",
                         new InvalidOperationException("Message does not contain any OrchestrationInstance information"));
                 }
+
                 if (taskMessage.Event.EventType != EventType.TaskScheduled)
                 {
                     throw TraceHelper.TraceException(
-                        TraceEventType.Critical, 
+                        TraceEventType.Critical,
                         "TaskActivityDispatcher-UnsupportedEventType",
                         new NotSupportedException("Activity worker does not support event of type: " +
                                                   taskMessage.Event.EventType));
                 }
 
                 // call and get return message
-                var scheduledEvent = (TaskScheduledEvent) taskMessage.Event;
-                TaskActivity taskActivity = objectManager.GetObject(scheduledEvent.Name, scheduledEvent.Version);
+                var scheduledEvent = (TaskScheduledEvent)taskMessage.Event;
+                TaskActivity taskActivity = this.objectManager.GetObject(scheduledEvent.Name, scheduledEvent.Version);
                 if (taskActivity == null)
                 {
                     throw new TypeMissingException($"TaskActivity {scheduledEvent.Name} version {scheduledEvent.Version} was not found");
                 }
 
-                renewTask = Task.Factory.StartNew(() => RenewUntil(workItem, renewCancellationTokenSource.Token));
+                renewTask = Task.Factory.StartNew(() => RenewUntil(workItem, renewCancellationTokenSource.Token), renewCancellationTokenSource.Token);
 
                 // TODO : pass workflow instance data
                 var context = new TaskContext(taskMessage.OrchestrationInstance);
@@ -163,7 +164,7 @@ namespace DurableTask.Core
                 if (renewTask != null)
                 {
                     renewCancellationTokenSource.Cancel();
-                    renewTask.Wait();
+                    renewTask.Wait(renewCancellationTokenSource.Token);
                 }
             }
         }
@@ -187,7 +188,7 @@ namespace DurableTask.Core
 
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(5));
+                    await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
 
                     if (DateTime.UtcNow < renewAt)
                     {
@@ -196,23 +197,27 @@ namespace DurableTask.Core
 
                     try
                     {
-                        TraceHelper.Trace(TraceEventType.Information, "TaskActivityDispatcher-RenewLock", "Renewing lock for workitem id {0}", workItem.Id);
+                        TraceHelper.Trace(TraceEventType.Information, "TaskActivityDispatcher-RenewLock", "Renewing lock for work item id {0}", workItem.Id);
                         workItem = await this.orchestrationService.RenewTaskActivityWorkItemLockAsync(workItem);
                         renewAt = workItem.LockedUntilUtc.Subtract(TimeSpan.FromSeconds(30));
                         renewAt = AdjustRenewAt(renewAt);
-                        TraceHelper.Trace(TraceEventType.Information, "TaskActivityDispatcher-RenewLockAt", "Next renew for workitem id '{0}' at '{1}'", workItem.Id, renewAt);
+                        TraceHelper.Trace(TraceEventType.Information, "TaskActivityDispatcher-RenewLockAt", "Next renew for work item id '{0}' at '{1}'", workItem.Id, renewAt);
                     }
                     catch (Exception exception) when (!Utils.IsFatal(exception))
                     {
                         // might have been completed
-                        TraceHelper.TraceException(TraceEventType.Warning, "TaskActivityDispatcher-RenewLockFailure", exception, "Failed to renew lock for workitem {0}", workItem.Id);
+                        TraceHelper.TraceException(TraceEventType.Warning, "TaskActivityDispatcher-RenewLockFailure", exception, "Failed to renew lock for work item {0}", workItem.Id);
                         break;
                     }
                 }
             }
+            catch (OperationCanceledException)
+            {
+                // cancellation token was triggered
+            }
             catch (ObjectDisposedException)
             {
-                // brokeredmessage is already disposed probably through 
+                // brokered message is already disposed probably through 
                 // a complete call in the main dispatcher thread
             }
         }

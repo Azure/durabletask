@@ -30,7 +30,7 @@ namespace DurableTask.Core
         /// <param name="type">Type to use for the creator</param>
         public DefaultObjectCreator(Type type)
         {
-            prototype = type;
+            this.prototype = type;
             Initialize(type);
         }
 
@@ -50,12 +50,12 @@ namespace DurableTask.Core
         /// <returns>An instance of the type T</returns>
         public override T Create()
         {
-            if (prototype != null)
+            if (this.prototype != null)
             {
-                return (T) Activator.CreateInstance(prototype);
+                return (T)Activator.CreateInstance(this.prototype);
             }
 
-            return instance;
+            return this.instance;
         }
 
         void Initialize(object obj)

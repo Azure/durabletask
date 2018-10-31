@@ -46,7 +46,7 @@ namespace DurableTask.Core
         /// <summary>
         /// Orchestration state of abruptly shut down
         /// </summary>
-        Terminated, 
+        Terminated,
 
         /// <summary>
         /// Orchestration state of pending (not yet running)

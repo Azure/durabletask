@@ -50,7 +50,7 @@ namespace DurableTask.Core.Exceptions
         }
 
         /// <summary>
-        /// Initializes an new instance of the OrchestrationException class with a specified eventid and error message
+        /// Initializes an new instance of the OrchestrationException class with a specified event id and error message
         ///    and a reference to the inner exception that is the cause of this exception.
         /// </summary>
         /// <param name="eventId">EventId of the error.</param>
@@ -70,13 +70,14 @@ namespace DurableTask.Core.Exceptions
         protected OrchestrationException(SerializationInfo info, StreamingContext context)
             : base(info, context)
         {
+            EventId = info.GetInt32(nameof(EventId));
         }
 
         /// <inheritdoc />
         public override void GetObjectData(SerializationInfo info, StreamingContext context)
         {
             base.GetObjectData(info, context);
-            info.AddValue("EventId", this.EventId);
+            info.AddValue(nameof(EventId), EventId);
         }
 
         /// <summary>

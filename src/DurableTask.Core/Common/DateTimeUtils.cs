@@ -26,16 +26,11 @@ namespace DurableTask.Core.Common
         /// </summary>        
         public static bool IsSet(this DateTime dateTime)
         {
-            if (dateTime == null)
-            {
-                return false;
-            }
-
             return !(dateTime == DateTime.MinValue || dateTime == MinDateTime);
         }
 
         /// <summary>
-        /// Returns minimum allowable DateTime, allows overrdiing this for the storage emulator.
+        /// Returns minimum allowable DateTime, allows overriding this for the storage emulator.
         /// The Storage emulator supports a min datetime or DateTime.FromFileTimeUtc(0)
         /// </summary>  
         public static readonly DateTime MinDateTime = DateTime.MinValue;
@@ -47,7 +42,7 @@ namespace DurableTask.Core.Common
         {
             BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.Static;
             Type settingsType = typeof(DateTimeUtils);
-            FieldInfo field = settingsType.GetField(nameof(DateTimeUtils.MinDateTime), flags);
+            FieldInfo field = settingsType.GetField(nameof(MinDateTime), flags);
             field?.SetValue(settingsType, DateTime.FromFileTimeUtc(0));
         }
     }

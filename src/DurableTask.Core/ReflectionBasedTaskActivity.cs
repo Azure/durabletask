@@ -22,31 +22,31 @@ namespace DurableTask.Core
     using Newtonsoft.Json.Linq;
 
     /// <summary>
-    /// Relection based task activity for interface based task activities
+    /// Reflection based task activity for interface based task activities
     /// </summary>
     public class ReflectionBasedTaskActivity : TaskActivity
     {
         /// <summary>
-        /// Creates a new ReflectionBasedTaskActivity based on an acticity object and method info
+        /// Creates a new ReflectionBasedTaskActivity based on an activity object and method info
         /// </summary>
         /// <param name="activityObject">The activity object to invoke methods on</param>
         /// <param name="methodInfo">The Reflection.methodInfo for invoking the method on the activity object</param>
         public ReflectionBasedTaskActivity(object activityObject, MethodInfo methodInfo)
         {
             DataConverter = new JsonDataConverter();
-            this.activityObject = activityObject;
+            ActivityObject = activityObject;
             MethodInfo = methodInfo;
         }
 
         /// <summary>
-        /// The dataconverter to use for input and output serialization/deserialization
+        /// The DataConverter to use for input and output serialization/deserialization
         /// </summary>
         public DataConverter DataConverter { get; private set; }
 
         /// <summary>
         /// The activity object to invoke methods on
         /// </summary>
-        public object activityObject { get; private set; }
+        public object ActivityObject { get; private set; }
 
         /// <summary>
         /// The Reflection.methodInfo for invoking the method on the activity object
@@ -54,7 +54,7 @@ namespace DurableTask.Core
         public MethodInfo MethodInfo { get; private set; }
 
         /// <summary>
-        /// Syncronous execute method, blocked for AsyncTaskActivity
+        /// Synchronous execute method, blocked for AsyncTaskActivity
         /// </summary>
         /// <returns>string.Empty</returns>
         public override string Run(TaskContext context, string input)
@@ -64,7 +64,7 @@ namespace DurableTask.Core
         }
 
         /// <summary>
-        /// Method for executing a task activity asyncronously
+        /// Method for executing a task activity asynchronously
         /// </summary>
         /// <param name="context">The task context</param>
         /// <param name="input">The serialized input</param>
@@ -78,17 +78,17 @@ namespace DurableTask.Core
             {
                 throw new TaskFailureException(
                     "TaskActivity implementation cannot be invoked due to more than expected input parameters.  Signature mismatch.")
-                    .WithFailureSource(this.MethodInfoString());
+                    .WithFailureSource(MethodInfoString());
             }
+
             var inputParameters = new object[methodParameters.Length];
-            for (int i = 0; i < methodParameters.Length; i++)
+            for (var i = 0; i < methodParameters.Length; i++)
             {
                 Type parameterType = methodParameters[i].ParameterType;
                 if (i < parameterCount)
                 {
                     JToken jToken = jArray[i];
-                    var jValue = jToken as JValue;
-                    if (jValue != null)
+                    if (jToken is JValue jValue)
                     {
                         inputParameters[i] = jValue.ToObject(parameterType);
                     }
@@ -115,12 +115,11 @@ namespace DurableTask.Core
             try
             {
                 object invocationResult = InvokeActivity(inputParameters);
-                if (invocationResult is Task)
+                if (invocationResult is Task invocationTask)
                 {
-                    var invocationTask = invocationResult as Task;
                     if (MethodInfo.ReturnType.IsGenericType)
                     {
-                        serializedReturn = DataConverter.Serialize(await ((dynamic) invocationTask));
+                        serializedReturn = DataConverter.Serialize(await ((dynamic)invocationTask));
                     }
                     else
                     {
@@ -138,31 +137,31 @@ namespace DurableTask.Core
                 Exception realException = e.InnerException ?? e;
                 string details = Utils.SerializeCause(realException, DataConverter);
                 throw new TaskFailureException(realException.Message, details)
-                    .WithFailureSource(this.MethodInfoString());
+                    .WithFailureSource(MethodInfoString());
             }
             catch (Exception e) when (!Utils.IsFatal(e))
             {
                 string details = Utils.SerializeCause(e, DataConverter);
                 throw new TaskFailureException(e.Message, e, details)
-                    .WithFailureSource(this.MethodInfoString());
+                    .WithFailureSource(MethodInfoString());
             }
 
             return serializedReturn;
         }
 
         /// <summary>
-        /// Invokes the target method on the actiivity object with supplied parameters
+        /// Invokes the target method on the activity object with supplied parameters
         /// </summary>
         /// <param name="inputParameters"></param>
         /// <returns></returns>
         public virtual object InvokeActivity(object[] inputParameters)
         {
-            return MethodInfo.Invoke(activityObject, inputParameters);
+            return MethodInfo.Invoke(ActivityObject, inputParameters);
         }
 
         string MethodInfoString()
         {
-            return $"{this.MethodInfo.ReflectedType?.FullName}.{this.MethodInfo.Name}";
+            return $"{MethodInfo.ReflectedType?.FullName}.{MethodInfo.Name}";
         }
     }
 }

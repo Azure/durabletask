@@ -31,7 +31,7 @@ namespace DurableTask.Core
             if (firstRetryInterval <= TimeSpan.Zero)
             {
                 throw new ArgumentException("Invalid interval.  Specify a TimeSpan value greater then TimeSpan.Zero.",
-                    "firstRetryInterval");
+                    nameof(firstRetryInterval));
             }
 
             FirstRetryInterval = firstRetryInterval;
@@ -55,9 +55,10 @@ namespace DurableTask.Core
         public TimeSpan MaxRetryInterval { get; set; }
 
         /// <summary>
-        /// Gets or sets the backoff coefficient
-        /// defaults to 1, used to determine rate of increase of backoff
+        /// Gets or sets the back-off coefficient
+        /// defaults to 1, used to determine rate of increase of back-off
         /// </summary>
+        // ReSharper disable once IdentifierTypo (avoid breaking change)
         public double BackoffCoefficient { get; set; }
 
         /// <summary>

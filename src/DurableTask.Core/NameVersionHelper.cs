@@ -47,19 +47,19 @@ namespace DurableTask.Core
         /// Gets the default name of an Object instance using reflection
         /// </summary>
         /// <param name="obj">Object to get the name for</param>
-        /// <param name="useFullyQualifiedMethodNames">Boolean inficating whether to use fully qualified names or not</param>
+        /// <param name="useFullyQualifiedMethodNames">Boolean indicating whether to use fully qualified names or not</param>
         /// <returns>Name of the object instance's type</returns>
         public static string GetDefaultName(object obj, bool useFullyQualifiedMethodNames)
         {
             if (obj == null)
             {
-                throw new ArgumentNullException("obj");
+                throw new ArgumentNullException(nameof(obj));
             }
 
             string name;
-            Type type = null;
-            MethodInfo methodInfo = null;
-            InvokeMemberBinder binder = null;
+            Type type;
+            MethodInfo methodInfo;
+            InvokeMemberBinder binder;
             if ((type = obj as Type) != null)
             {
                 name = type.ToString();
@@ -92,10 +92,11 @@ namespace DurableTask.Core
 
         internal static string GetFullyQualifiedMethodName(string declaringType, string methodName)
         {
-            if (string.IsNullOrEmpty(declaringType))
+            if (string.IsNullOrWhiteSpace(declaringType))
             {
                 return methodName;
             }
+
             return declaringType + "." + methodName;
         }
     }

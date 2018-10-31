@@ -36,21 +36,21 @@ namespace DurableTask.ServiceBus.Tracking
         /// <summary>
         /// Creates a new AzureTableOrchestrationHistoryEventEntity with supplied parameters
         /// </summary>
-        /// <param name="instanceId">The orchestation instance id</param>
+        /// <param name="instanceId">The orchestration instance id</param>
         /// <param name="executionId">The orchestration execution id</param>
         /// <param name="sequenceNumber">Sequence number for ordering events</param>
         /// <param name="taskTimeStamp">Timestamp of history event</param>
         /// <param name="historyEvent">The history event details</param>
         public AzureTableOrchestrationHistoryEventEntity(
-            string instanceId, 
-            string executionId, 
+            string instanceId,
+            string executionId,
             long sequenceNumber,
-            DateTime taskTimeStamp, 
+            DateTime taskTimeStamp,
             HistoryEvent historyEvent)
         {
             InstanceId = instanceId;
             ExecutionId = executionId;
-            SequenceNumber = (int) sequenceNumber;
+            SequenceNumber = (int)sequenceNumber;
             TaskTimeStamp = taskTimeStamp;
             HistoryEvent = historyEvent;
 
@@ -91,7 +91,7 @@ namespace DurableTask.ServiceBus.Tracking
                             AzureTableConstants.JoinDelimiter +
                             ExecutionId + AzureTableConstants.JoinDelimiter + SequenceNumber;
 
-            return new AzureTableOrchestrationHistoryEventEntity[1] {entity};
+            return new[] { entity };
         }
 
         /// <summary>
@@ -110,7 +110,7 @@ namespace DurableTask.ServiceBus.Tracking
             // replace with a generic event with the truncated history so at least we have some record
             // note that this makes the history stored in the instance store unreplayable. so any replay logic
             // that we build will have to especially check for this event and flag the orchestration as unplayable if it sees this event
-            if (!string.IsNullOrEmpty(serializedHistoryEvent) &&
+            if (!string.IsNullOrWhiteSpace(serializedHistoryEvent) &&
                 serializedHistoryEvent.Length > ServiceBusConstants.MaxStringLengthForAzureTableColumn)
             {
                 serializedHistoryEvent = JsonConvert.SerializeObject(new GenericEvent(HistoryEvent.EventId,
@@ -122,14 +122,14 @@ namespace DurableTask.ServiceBus.Tracking
                     });
             }
 
-            var retVals = new Dictionary<string, EntityProperty>();
-            retVals.Add("InstanceId", new EntityProperty(InstanceId));
-            retVals.Add("ExecutionId", new EntityProperty(ExecutionId));
-            retVals.Add("TaskTimeStamp", new EntityProperty(TaskTimeStamp));
-            retVals.Add("SequenceNumber", new EntityProperty(SequenceNumber));
-            retVals.Add("HistoryEvent", new EntityProperty(serializedHistoryEvent));
+            var returnValues = new Dictionary<string, EntityProperty>();
+            returnValues.Add("InstanceId", new EntityProperty(InstanceId));
+            returnValues.Add("ExecutionId", new EntityProperty(ExecutionId));
+            returnValues.Add("TaskTimeStamp", new EntityProperty(TaskTimeStamp));
+            returnValues.Add("SequenceNumber", new EntityProperty(SequenceNumber));
+            returnValues.Add("HistoryEvent", new EntityProperty(serializedHistoryEvent));
 
-            return retVals;
+            return returnValues;
         }
 
         /// <summary>
@@ -150,7 +150,8 @@ namespace DurableTask.ServiceBus.Tracking
 
             string serializedHistoryEvent = GetValue("HistoryEvent", properties, property => property.StringValue);
             HistoryEvent = JsonConvert.DeserializeObject<HistoryEvent>(serializedHistoryEvent,
-                new JsonSerializerSettings {
+                new JsonSerializerSettings
+                {
                     TypeNameHandling = TypeNameHandling.Objects,
 #if NETSTANDARD2_0
                     SerializationBinder = new PackageUpgradeSerializationBinder()
@@ -168,8 +169,7 @@ namespace DurableTask.ServiceBus.Tracking
         /// </returns>
         public override string ToString()
         {
-            return string.Format("Instance Id: {0} Execution Id: {1} Seq: {2} Time: {3} HistoryEvent: {4}",
-                InstanceId, ExecutionId, SequenceNumber, TaskTimeStamp, HistoryEvent.EventType);
+            return $"Instance Id: {InstanceId} Execution Id: {ExecutionId} Seq: {SequenceNumber.ToString()} Time: {TaskTimeStamp} HistoryEvent: {HistoryEvent.EventType.ToString()}";
         }
     }
 }

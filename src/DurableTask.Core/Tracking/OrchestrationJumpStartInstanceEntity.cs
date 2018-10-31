@@ -16,7 +16,7 @@ namespace DurableTask.Core.Tracking
     using System;
 
     /// <summary>
-    /// History Entity for Orchestration Jumpstart state
+    /// History Entity for orchestration jump start state
     /// </summary>
     public class OrchestrationJumpStartInstanceEntity : InstanceEntityBase
     {

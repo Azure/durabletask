@@ -32,9 +32,9 @@
   <!-- Nuget Package Settings -->
   <PropertyGroup>
     <PackageOutputPath>..\..\build_output\packages</PackageOutputPath>
-    <AssemblyVersion>2.0.7</AssemblyVersion>
-    <FileVersion>2.0.7</FileVersion>
-    <Version>2.0.7</Version>
+    <AssemblyVersion>2.0.9</AssemblyVersion>
+    <FileVersion>2.0.9</FileVersion>
+    <Version>2.0.9</Version>
     <Company>Microsoft</Company>
     <Authors>Microsoft</Authors> 
     <Product>Durable Task Framework</Product>

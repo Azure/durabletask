@@ -38,7 +38,15 @@ namespace DurableTask.Core.Common
         public static readonly DateTime DateTimeSafeMaxValue =
             DateTime.MaxValue.Subtract(TimeSpan.FromDays(1)).ToUniversalTime();
 
-        static readonly byte[] GzipHeader = {0x1f, 0x8b};
+        static readonly byte[] GzipHeader = { 0x1f, 0x8b };
+
+        /// <summary>
+        /// NoOp utility method
+        /// </summary>
+        /// <param name="parameter">The parameter.</param>
+        public static void UnusedParameter(object parameter)
+        {
+        }
 
         /// <summary>
         /// Extension method to truncate a string to the supplied length
@@ -49,6 +57,7 @@ namespace DurableTask.Core.Common
             {
                 return input.Substring(0, maxLength);
             }
+
             return input;
         }
 
@@ -63,14 +72,14 @@ namespace DurableTask.Core.Common
             }
 
             byte[] serializedBytes = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(obj,
-                new JsonSerializerSettings {TypeNameHandling = TypeNameHandling.All}));
+                new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.All }));
 
             objectStream.Write(serializedBytes, 0, serializedBytes.Length);
             objectStream.Position = 0;
         }
 
         /// <summary>
-        /// Writes the supplied string input to a MemoryStream, optionaly compressing the string, returns the stream
+        /// Writes the supplied string input to a MemoryStream, optionally compressing the string, returns the stream
         /// </summary>
         public static Stream WriteStringToStream(string input, bool compress, out long originalStreamSize)
         {
@@ -84,7 +93,7 @@ namespace DurableTask.Core.Common
 
             if (compress)
             {
-                var compressedStream = GetCompressedStream(resultStream);
+                Stream compressedStream = GetCompressedStream(resultStream);
                 resultStream.Dispose();
                 resultStream = compressedStream;
             }
@@ -222,12 +231,13 @@ namespace DurableTask.Core.Common
         /// <summary>
         /// Returns true or false whether an exception is considered fatal
         /// </summary>
-        public static Boolean IsFatal(Exception exception)
+        public static bool IsFatal(Exception exception)
         {
             if (exception is OutOfMemoryException || exception is StackOverflowException)
             {
                 return true;
             }
+
             return false;
         }
 
@@ -237,33 +247,36 @@ namespace DurableTask.Core.Common
         public static async Task ExecuteWithRetries(Func<Task> retryAction, string sessionId, string operation,
             int numberOfAttempts, int delayInAttemptsSecs)
         {
+            if (numberOfAttempts == 0)
+            {
+                // No attempts are requested to execute the action
+                return;
+            }
+
             int retryCount = numberOfAttempts;
-            Exception lastException = null;
+            ExceptionDispatchInfo lastException = null;
             while (retryCount-- > 0)
             {
                 try
                 {
                     await retryAction();
-                    break;
+                    return;
                 }
-                catch (Exception exception) when (!Utils.IsFatal(exception))
+                catch (Exception exception) when (!IsFatal(exception))
                 {
                     TraceHelper.TraceSession(
-                        TraceEventType.Warning, 
-                        "ExecuteWithRetry-Failure", 
+                        TraceEventType.Warning,
+                        "ExecuteWithRetry-Failure",
                         sessionId,
                         $"Error attempting operation {operation}. Attempt count: {numberOfAttempts - retryCount}. Exception: {exception.Message}\n\t{exception.StackTrace}");
-                    lastException = exception;
+                    lastException = ExceptionDispatchInfo.Capture(exception);
                 }
 
                 await Task.Delay(TimeSpan.FromSeconds(delayInAttemptsSecs));
             }
 
-            if (retryCount <= 0 && lastException != null)
-            {
-                TraceHelper.Trace(TraceEventType.Error, "ExecuteWithRetry-RetriesExhausted", "Exhausted all retries for operation " + operation);
-                throw TraceHelper.TraceExceptionSession(TraceEventType.Error, "ExecuteWithRetryRetriesExhausted", sessionId, lastException);
-            }
+            TraceHelper.Trace(TraceEventType.Error, "ExecuteWithRetry-RetriesExhausted", "Exhausted all retries for operation " + operation);
+            TraceHelper.TraceExceptionSession(TraceEventType.Error, "ExecuteWithRetryRetriesExhausted", sessionId, lastException).Throw();
         }
 
         /// <summary>
@@ -272,39 +285,41 @@ namespace DurableTask.Core.Common
         public static async Task<T> ExecuteWithRetries<T>(Func<Task<T>> retryAction, string sessionId, string operation,
             int numberOfAttempts, int delayInAttemptsSecs)
         {
-            T retVal = default(T);
+            if (numberOfAttempts == 0)
+            {
+                // No attempts are requested to execute the action
+                return default(T);
+            }
+
             int retryCount = numberOfAttempts;
-            Exception lastException = null;
+            ExceptionDispatchInfo lastException = null;
             while (retryCount-- > 0)
             {
                 try
                 {
-                    retVal = await retryAction();
-                    break;
+                    return await retryAction();
                 }
-                catch (Exception exception) when (!Utils.IsFatal(exception))
+                catch (Exception exception) when (!IsFatal(exception))
                 {
                     TraceHelper.TraceSession(
-                        TraceEventType.Warning, 
-                        $"ExecuteWithRetry<{typeof(T)}>-Failure", 
+                        TraceEventType.Warning,
+                        $"ExecuteWithRetry<{typeof(T)}>-Failure",
                         sessionId,
                         $"Error attempting operation {operation}. Attempt count: {numberOfAttempts - retryCount}. Exception: {exception.Message}\n\t{exception.StackTrace}");
-                    lastException = exception;
+                    lastException = ExceptionDispatchInfo.Capture(exception);
                 }
 
                 await Task.Delay(TimeSpan.FromSeconds(delayInAttemptsSecs));
             }
 
-            if (retryCount <= 0 && lastException != null)
-            {
-                var eventType = $"ExecuteWithRetry<{typeof(T)}>-Failure";
-                TraceHelper.Trace(TraceEventType.Error, eventType, "Exhausted all retries for operation " + operation);
-                throw TraceHelper.TraceExceptionSession(TraceEventType.Error, eventType, sessionId, lastException);
-            }
+            string eventType = $"ExecuteWithRetry<{typeof(T)}>-Failure";
+            TraceHelper.Trace(TraceEventType.Error, eventType, "Exhausted all retries for operation " + operation);
 
-            return retVal;
+            TraceHelper.TraceExceptionSession(TraceEventType.Error, eventType, sessionId, lastException).Throw();
+
+            // This is a noop code since TraceExceptionSession above will rethrow the cached exception however the compiler doesn't see it
+            return default(T);
         }
-
 
         /// <summary>
         /// Serializes the supplied exception to a string
@@ -321,7 +336,7 @@ namespace DurableTask.Core.Common
                 throw new ArgumentNullException(nameof(converter));
             }
 
-            string details = null;
+            string details;
             try
             {
                 details = converter.Serialize(originalException);
@@ -354,7 +369,7 @@ namespace DurableTask.Core.Common
                     cause = converter.Deserialize<Exception>(details);
                 }
             }
-            catch (Exception converterException) when (!Utils.IsFatal(converterException))
+            catch (Exception converterException) when (!IsFatal(converterException))
             {
                 cause = new TaskFailedExceptionDeserializationException(details, converterException);
             }

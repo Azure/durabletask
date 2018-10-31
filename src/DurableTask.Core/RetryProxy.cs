@@ -15,6 +15,7 @@ namespace DurableTask.Core
 {
     using System;
     using System.Collections.Generic;
+    using System.Diagnostics;
     using System.Dynamic;
     using System.Linq;
     using System.Reflection;
@@ -34,7 +35,7 @@ namespace DurableTask.Core
             this.wrappedObject = wrappedObject;
 
             //If type can be determined by name
-            returnTypes = typeof (T).GetMethods()
+            this.returnTypes = typeof(T).GetMethods()
                 .Where(method => !method.IsSpecialName)
                 .GroupBy(method => method.Name)
                 .Where(group => group.Select(method => method.ReturnType).Distinct().Count() == 1)
@@ -48,13 +49,12 @@ namespace DurableTask.Core
 
         public override bool TryInvokeMember(InvokeMemberBinder binder, object[] args, out object result)
         {
-            Type returnType = null;
-            if (!returnTypes.TryGetValue(binder.Name, out returnType))
+            if (!this.returnTypes.TryGetValue(binder.Name, out Type returnType))
             {
                 throw new Exception("Method name '" + binder.Name + "' not known.");
             }
 
-            if (returnType.Equals(typeof (Task)))
+            if (returnType == typeof(Task))
             {
                 result = InvokeWithRetry<object>(binder.Name, args);
             }
@@ -71,28 +71,29 @@ namespace DurableTask.Core
                     throw new Exception("Generic Parameters are not equal to 1. Type Name: " + returnType.FullName);
                 }
 
-
                 MethodInfo invokeMethod = GetType().GetMethod("InvokeWithRetry");
-                MethodInfo genericInvokeMethod = invokeMethod.MakeGenericMethod(genericArguments[0]);
-                result = genericInvokeMethod.Invoke(this, new object[] {binder.Name, args});
-            }
 
+                Debug.Assert(invokeMethod != null);
+
+                MethodInfo genericInvokeMethod = invokeMethod.MakeGenericMethod(genericArguments[0]);
+                result = genericInvokeMethod.Invoke(this, new object[] { binder.Name, args });
+            }
 
             return true;
         }
 
-        public async Task<ReturnType> InvokeWithRetry<ReturnType>(string methodName, object[] args)
+        public async Task<TReturnType> InvokeWithRetry<TReturnType>(string methodName, object[] args)
         {
-            Func<Task<ReturnType>> retryCall = () => 
+            Task<TReturnType> RetryCall()
             {
 #if NETSTANDARD2_0
-                return Dynamitey.Dynamic.InvokeMember(wrappedObject, methodName, args);
+                return Dynamitey.Dynamic.InvokeMember(this.wrappedObject, methodName, args);
 #else
-                return ImpromptuInterface.Impromptu.InvokeMember(wrappedObject, methodName, args);
+                return ImpromptuInterface.Impromptu.InvokeMember(this.wrappedObject, methodName, args);
 #endif
-            };
+            }
 
-            var retryInterceptor = new RetryInterceptor<ReturnType>(context, retryOptions, retryCall);
+            var retryInterceptor = new RetryInterceptor<TReturnType>(this.context, this.retryOptions, RetryCall);
 
             return await retryInterceptor.Invoke();
         }

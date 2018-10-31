@@ -13,8 +13,6 @@
 
 namespace DurableTask.ServiceBus
 {
-    using System;
-
     internal class ServiceBusConstants
     {
         // name format constants

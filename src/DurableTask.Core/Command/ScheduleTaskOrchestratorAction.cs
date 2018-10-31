@@ -15,14 +15,14 @@ namespace DurableTask.Core.Command
 {
     internal class ScheduleTaskOrchestratorAction : OrchestratorAction
     {
-        public override OrchestratorActionType OrchestratorActionType
-        {
-            get { return OrchestratorActionType.ScheduleOrchestrator; }
-        }
+        public override OrchestratorActionType OrchestratorActionType => OrchestratorActionType.ScheduleOrchestrator;
 
         public string Name { get; set; }
+
         public string Version { get; set; }
+
         public string Input { get; set; }
+
         public string Tasklist { get; set; }
     }
 }

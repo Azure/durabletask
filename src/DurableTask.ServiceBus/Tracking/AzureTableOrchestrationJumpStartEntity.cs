@@ -26,7 +26,7 @@ namespace DurableTask.ServiceBus.Tracking
     public class AzureTableOrchestrationJumpStartEntity : AzureTableOrchestrationStateEntity
     {
         /// <summary>
-        /// Gets or sets the datetime for the jumpstart event
+        /// Gets or sets the date and time for the jump start event
         /// </summary>
         public DateTime JumpStartTime { get; set; }
 
@@ -34,44 +34,37 @@ namespace DurableTask.ServiceBus.Tracking
         /// Creates a new AzureTableOrchestrationJumpStartEntity
         /// </summary>
         public AzureTableOrchestrationJumpStartEntity()
-            : base()
         {
         }
 
         /// <summary>
-        /// Creates a new AzureTableOrchestrationJumpStartEntity with the jumpstart state and datetime
+        /// Creates a new AzureTableOrchestrationJumpStartEntity with the jump start state and datetime
         /// </summary>
         /// <param name="jumpStartEvent"></param>
         public AzureTableOrchestrationJumpStartEntity(OrchestrationJumpStartInstanceEntity jumpStartEvent)
             : base(jumpStartEvent.State)
         {
-            this.JumpStartTime = jumpStartEvent.JumpStartTime;
+            JumpStartTime = jumpStartEvent.JumpStartTime;
         }
 
         /// <summary>
         /// Gets a OrchestrationJumpStartInstanceEntity
         /// </summary>
-        public OrchestrationJumpStartInstanceEntity OrchestrationJumpStartInstanceEntity
+        public OrchestrationJumpStartInstanceEntity OrchestrationJumpStartInstanceEntity => new OrchestrationJumpStartInstanceEntity
         {
-            get
-            {
-                return new OrchestrationJumpStartInstanceEntity()
-                {
-                    State = this.State,
-                    JumpStartTime = this.JumpStartTime
-                };
-            }
-        }
+            State = State,
+            JumpStartTime = JumpStartTime
+        };
 
         internal override IEnumerable<ITableEntity> BuildDenormalizedEntities()
         {
-            var entity1 = new AzureTableOrchestrationJumpStartEntity(this.OrchestrationJumpStartInstanceEntity);
-            entity1.TaskTimeStamp = this.TaskTimeStamp;
+            var entity1 = new AzureTableOrchestrationJumpStartEntity(OrchestrationJumpStartInstanceEntity);
+            entity1.TaskTimeStamp = TaskTimeStamp;
             entity1.PartitionKey = GetPartitionKey(entity1.State.CreatedTime);
             entity1.RowKey = AzureTableConstants.InstanceStateExactRowPrefix +
                              AzureTableConstants.JoinDelimiter + State.OrchestrationInstance.InstanceId +
                              AzureTableConstants.JoinDelimiter + State.OrchestrationInstance.ExecutionId;
-            return new AzureTableOrchestrationJumpStartEntity[1] { entity1 };
+            return new [] { entity1 };
         }
 
         /// <summary>
@@ -80,9 +73,9 @@ namespace DurableTask.ServiceBus.Tracking
         /// <param name="operationContext">The operation context</param>
         public override IDictionary<string, EntityProperty> WriteEntity(OperationContext operationContext)
         {
-            IDictionary<string, EntityProperty> retVals = base.WriteEntity(operationContext);
-            retVals.Add("JumpStartTime", new EntityProperty(this.JumpStartTime));
-            return retVals;
+            IDictionary<string, EntityProperty> returnValues = base.WriteEntity(operationContext);
+            returnValues.Add("JumpStartTime", new EntityProperty(JumpStartTime));
+            return returnValues;
         }
 
         /// <summary>
@@ -94,7 +87,7 @@ namespace DurableTask.ServiceBus.Tracking
             OperationContext operationContext)
         {
             base.ReadEntity(properties, operationContext);
-            this.JumpStartTime =
+            JumpStartTime =
                 GetValue("JumpStartTime", properties, property => property.DateTimeOffsetValue)
                     .GetValueOrDefault()
                     .DateTime;

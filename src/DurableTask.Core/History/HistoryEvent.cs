@@ -20,29 +20,29 @@ namespace DurableTask.Core.History
     /// Base class for history events
     /// </summary>
     [DataContract]
-    [KnownType(typeof (ExecutionStartedEvent))]
-    [KnownType(typeof (ExecutionCompletedEvent))]
-    [KnownType(typeof (ExecutionTerminatedEvent))]
-    [KnownType(typeof (TaskCompletedEvent))]
-    [KnownType(typeof (TaskFailedEvent))]
-    [KnownType(typeof (TaskScheduledEvent))]
-    [KnownType(typeof (SubOrchestrationInstanceCreatedEvent))]
-    [KnownType(typeof (SubOrchestrationInstanceCompletedEvent))]
-    [KnownType(typeof (SubOrchestrationInstanceFailedEvent))]
-    [KnownType(typeof (TimerCreatedEvent))]
-    [KnownType(typeof (TimerFiredEvent))]
-    [KnownType(typeof (OrchestratorStartedEvent))]
-    [KnownType(typeof (OrchestratorCompletedEvent))]
-    [KnownType(typeof (EventRaisedEvent))]
-    [KnownType(typeof (ContinueAsNewEvent))]
-    [KnownType(typeof (HistoryStateEvent))]
+    [KnownType(typeof(ExecutionStartedEvent))]
+    [KnownType(typeof(ExecutionCompletedEvent))]
+    [KnownType(typeof(ExecutionTerminatedEvent))]
+    [KnownType(typeof(TaskCompletedEvent))]
+    [KnownType(typeof(TaskFailedEvent))]
+    [KnownType(typeof(TaskScheduledEvent))]
+    [KnownType(typeof(SubOrchestrationInstanceCreatedEvent))]
+    [KnownType(typeof(SubOrchestrationInstanceCompletedEvent))]
+    [KnownType(typeof(SubOrchestrationInstanceFailedEvent))]
+    [KnownType(typeof(TimerCreatedEvent))]
+    [KnownType(typeof(TimerFiredEvent))]
+    [KnownType(typeof(OrchestratorStartedEvent))]
+    [KnownType(typeof(OrchestratorCompletedEvent))]
+    [KnownType(typeof(EventRaisedEvent))]
+    [KnownType(typeof(ContinueAsNewEvent))]
+    [KnownType(typeof(HistoryStateEvent))]
     public abstract class HistoryEvent : IExtensibleDataObject
     {
         /// <summary>
-        /// Creates a new history event with the supplied eventid
+        /// Creates a new history event with the supplied event id
         /// </summary>
         /// <param name="eventId">The integer event id</param>
-        public HistoryEvent(int eventId)
+        protected HistoryEvent(int eventId)
         {
             EventId = eventId;
             IsPlayed = false;
@@ -56,7 +56,7 @@ namespace DurableTask.Core.History
         public int EventId { get; private set; }
 
         /// <summary>
-        /// Gets the isplayed status
+        /// Gets the IsPlayed status
         /// </summary>
         [DataMember]
         public bool IsPlayed { get; internal set; }

@@ -23,30 +23,30 @@ namespace DurableTask.Samples.SumOfSquares
     {
         public override async Task<int> RunTask(OrchestrationContext context, string input)
         {
-            if (string.IsNullOrEmpty(input))
+            if (string.IsNullOrWhiteSpace(input))
             {
                 throw new ArgumentException(nameof(input));
             }
 
-            int sum = 0;
+            var sum = 0;
             var chunks = new List<Task<int>>();
-            var resultChunks = new List<int>();
             JArray data = JArray.Parse(input);
+            ////var resultChunks = new List<int>();
 
-            foreach (var item in data)
+            foreach (JToken item in data)
             {
-                // use resultchunks for sync processing, chunks for async
+                // use resultChunks for sync processing, chunks for async
                 switch (item.Type)
                 {
                     case JTokenType.Array:
-                        var subOrchestration = context.CreateSubOrchestrationInstance<int>(typeof(SumOfSquaresOrchestration), item.ToString(Newtonsoft.Json.Formatting.None));
+                        Task<int> subOrchestration = context.CreateSubOrchestrationInstance<int>(typeof(SumOfSquaresOrchestration), item.ToString(Newtonsoft.Json.Formatting.None));
                         chunks.Add(subOrchestration);
-                        //resultChunks.Add(await context.CreateSubOrchestrationInstance<int>(typeof(SumOfSquaresOrchestration), item.ToString(Newtonsoft.Json.Formatting.None)));
+                        ////resultChunks.Add(await context.CreateSubOrchestrationInstance<int>(typeof(SumOfSquaresOrchestration), item.ToString(Newtonsoft.Json.Formatting.None)));
                         break;
                     case JTokenType.Integer:
-                        var activity = context.ScheduleTask<int>(typeof(SumOfSquaresTask), (int)item);
+                        Task<int> activity = context.ScheduleTask<int>(typeof(SumOfSquaresTask), (int)item);
                         chunks.Add(activity);
-                        //resultChunks.Add(await context.ScheduleTask<int>(typeof(SumOfSquaresTask), (int)item));
+                        ////resultChunks.Add(await context.ScheduleTask<int>(typeof(SumOfSquaresTask), (int)item));
                         break;
                     case JTokenType.Comment:
                         break;
@@ -57,22 +57,21 @@ namespace DurableTask.Samples.SumOfSquares
 
             if (chunks.Count > 0)
             {
-                var allChunks = await Task.WhenAll(chunks.ToArray());
+                int[] allChunks = await Task.WhenAll(chunks.ToArray());
                 foreach (int result in allChunks)
                 {
                     sum += result;
                 }
             }
 
-            foreach (int result in resultChunks)
-            {
-                sum += result;
-            }
+            ////foreach (int result in resultChunks)
+            ////{
+            ////    sum += result;
+            ////}
             
             Console.WriteLine($"Sum of Squares: {sum}");
 
             return sum;
         }
-
     }
 }

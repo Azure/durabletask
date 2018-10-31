@@ -14,6 +14,7 @@
 namespace DurableTask.ServiceBus.Tests
 {
     using System;
+    using System.Diagnostics.CodeAnalysis;
     using System.Text.RegularExpressions;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using DurableTask.ServiceBus.Tracking;
@@ -22,6 +23,7 @@ namespace DurableTask.ServiceBus.Tests
     public class BlobStorageClientHelperTest
     {
         [TestMethod]
+        [SuppressMessage("ReSharper", "StringLiteralTypo")]
         public void IsContainerExpiredTest()
         {
             Assert.AreEqual("ab-cd", BlobStorageClientHelper.BuildContainerName("ab", "cd"));
@@ -29,7 +31,7 @@ namespace DurableTask.ServiceBus.Tests
             Assert.IsTrue(BlobStorageClientHelper.IsContainerExpired("hubname-dtfx-message-20100101", DateTime.UtcNow));
             Assert.IsFalse(BlobStorageClientHelper.IsContainerExpired("hubname-dtfx-session-20990101", DateTime.UtcNow));
 
-            DateTime dateTime = new DateTime(2015, 05, 17);
+            var dateTime = new DateTime(2015, 05, 17);
             Assert.IsTrue(BlobStorageClientHelper.IsContainerExpired("hubname-dtfx-message-20150516", dateTime));
             Assert.IsFalse(BlobStorageClientHelper.IsContainerExpired("hubname-dtfx-message-20150517", dateTime));
             Assert.IsFalse(BlobStorageClientHelper.IsContainerExpired("hubname-dtfx-message-20150518", dateTime));
@@ -43,11 +45,11 @@ namespace DurableTask.ServiceBus.Tests
         [TestMethod]
         public void BuildMessageBlobKeyTest()
         {
-            string instanceId = "aa";
-            string executionId = "bb";
-            DateTime messageFireTime = new DateTime(2015, 05, 17);
+            var instanceId = "aa";
+            var executionId = "bb";
+            var messageFireTime = new DateTime(2015, 05, 17);
             string key = BlobStorageClientHelper.BuildMessageBlobKey(instanceId, executionId, messageFireTime);
-            Regex regex = new Regex(@"message-20150517|aa/bb/\w{32}$");
+            var regex = new Regex(@"message-20150517|aa/bb/\w{32}$");
             Assert.IsTrue(regex.Match(key).Success);
 
             key = BlobStorageClientHelper.BuildMessageBlobKey(instanceId, executionId, DateTime.MinValue);
@@ -58,16 +60,17 @@ namespace DurableTask.ServiceBus.Tests
         [TestMethod]
         public void BuildSessionBlobKeyTest()
         {
-            string sessionId = "abc";
+            var sessionId = "abc";
             string key = BlobStorageClientHelper.BuildSessionBlobKey(sessionId);
-            Regex regex = new Regex(@"^session-\d{8}|abc/\w{32}$");
+            var regex = new Regex(@"^session-\d{8}|abc/\w{32}$");
             Assert.IsTrue(regex.Match(key).Success);
         }
 
         [TestMethod]
+        [SuppressMessage("ReSharper", "StringLiteralTypo")]
         public void BuildContainerNamePrefixTest()
         {
-            string hubName = "HubName";
+            var hubName = "HubName";
             string containerNamePrefix = BlobStorageClientHelper.BuildContainerNamePrefix(hubName);
             Assert.AreEqual("hubname-dtfx", containerNamePrefix);
         }
@@ -75,10 +78,8 @@ namespace DurableTask.ServiceBus.Tests
         [TestMethod]
         public void ParseKeyTest()
         {
-            string key = "message-20100319|aa/bb/cc";
-            string containerSuffix;
-            string blobName;
-            BlobStorageClientHelper.ParseKey(key, out containerSuffix, out blobName);
+            var key = "message-20100319|aa/bb/cc";
+            BlobStorageClientHelper.ParseKey(key, out string containerSuffix, out string blobName);
 
             Assert.AreEqual("message-20100319", containerSuffix);
             Assert.AreEqual("aa/bb/cc", blobName);

@@ -27,12 +27,12 @@ namespace DurableTask.Core
         public string InstanceId;
 
         /// <summary>
-        /// The current runtimestate of this work item
+        /// The current runtime state of this work item
         /// </summary>
         public OrchestrationRuntimeState OrchestrationRuntimeState;
 
         /// <summary>
-        /// The datetime this orchestraion work item is locked until
+        /// The datetime this orchestration work item is locked until
         /// </summary>
         public DateTime LockedUntilUtc;
 

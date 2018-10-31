@@ -34,10 +34,7 @@ namespace DurableTask.Core.History
         /// <summary>
         /// Gets the event type
         /// </summary>
-        public override EventType EventType
-        {
-            get { return EventType.TimerCreated; }
-        }
+        public override EventType EventType => EventType.TimerCreated;
 
         /// <summary>
         /// Gets or sets the desired datetime to fire

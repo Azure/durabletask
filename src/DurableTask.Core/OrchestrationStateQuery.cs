@@ -83,6 +83,7 @@ namespace DurableTask.Core
                     }
                 }
             }
+
             return new Tuple<OrchestrationStateQueryFilter, IEnumerable<OrchestrationStateQueryFilter>>(
                 primaryFilter, secondaryFilters);
         }
@@ -96,7 +97,6 @@ namespace DurableTask.Core
 
             return FilterPrecedenceMap[filter.GetType()];
         }
-
 
         /// <summary>
         ///     Adds an exact match instance id filter on the returned orchestrations
@@ -116,12 +116,12 @@ namespace DurableTask.Core
         /// <returns></returns>
         public OrchestrationStateQuery AddInstanceFilter(string instanceId, string executionId)
         {
-            if (FilterMap.ContainsKey(typeof (OrchestrationStateInstanceFilter)))
+            if (FilterMap.ContainsKey(typeof(OrchestrationStateInstanceFilter)))
             {
                 throw new ArgumentException("Cannot add more than one instance filters");
             }
 
-            FilterMap.Add(typeof (OrchestrationStateInstanceFilter),
+            FilterMap.Add(typeof(OrchestrationStateInstanceFilter),
                 new OrchestrationStateInstanceFilter
                 {
                     InstanceId = instanceId,
@@ -140,13 +140,13 @@ namespace DurableTask.Core
         /// <returns></returns>
         public OrchestrationStateQuery AddInstanceFilter(string instanceId, bool startsWith)
         {
-            if (FilterMap.ContainsKey(typeof (OrchestrationStateInstanceFilter)))
+            if (FilterMap.ContainsKey(typeof(OrchestrationStateInstanceFilter)))
             {
                 throw new ArgumentException("Cannot add more than one instance filters");
             }
 
-            FilterMap.Add(typeof (OrchestrationStateInstanceFilter),
-                new OrchestrationStateInstanceFilter {InstanceId = instanceId, StartsWith = startsWith});
+            FilterMap.Add(typeof(OrchestrationStateInstanceFilter),
+                new OrchestrationStateInstanceFilter { InstanceId = instanceId, StartsWith = startsWith });
 
             return this;
         }
@@ -162,20 +162,20 @@ namespace DurableTask.Core
         }
 
         /// <summary>
-        ///     Adds a name/version filter on the returned orchestations
+        ///     Adds a name/version filter on the returned orchestrations
         /// </summary>
         /// <param name="name">The name of the orchestration to filter by</param>
         /// <param name="version">The version of the orchestration to filter by</param>
         /// <returns></returns>
         public OrchestrationStateQuery AddNameVersionFilter(string name, string version)
         {
-            if (FilterMap.ContainsKey(typeof (OrchestrationStateNameVersionFilter)))
+            if (FilterMap.ContainsKey(typeof(OrchestrationStateNameVersionFilter)))
             {
                 throw new ArgumentException("Cannot add more than one name/version filters");
             }
 
-            FilterMap.Add(typeof (OrchestrationStateNameVersionFilter),
-                new OrchestrationStateNameVersionFilter {Name = name, Version = version});
+            FilterMap.Add(typeof(OrchestrationStateNameVersionFilter),
+                new OrchestrationStateNameVersionFilter { Name = name, Version = version });
 
             return this;
         }
@@ -219,12 +219,12 @@ namespace DurableTask.Core
         public OrchestrationStateQuery AddTimeRangeFilter(DateTime startTime, DateTime endTime,
             OrchestrationStateTimeRangeFilterType filterType)
         {
-            if (FilterMap.ContainsKey(typeof (OrchestrationStateTimeRangeFilter)))
+            if (FilterMap.ContainsKey(typeof(OrchestrationStateTimeRangeFilter)))
             {
                 throw new ArgumentException("Cannot add more than one time range filters");
             }
 
-            FilterMap.Add(typeof (OrchestrationStateTimeRangeFilter),
+            FilterMap.Add(typeof(OrchestrationStateTimeRangeFilter),
                 new OrchestrationStateTimeRangeFilter
                 {
                     StartTime = startTime,

@@ -18,7 +18,7 @@ namespace DurableTask.Core
     using System.Threading;
     using System.Threading.Tasks;
 
-    // AFFANDAR : TODO : MASTER
+    // TODO : MASTER (AFFANDAR)
     //      + implement batched message receive
     //      + proper exception model for orchestration service providers
 
@@ -29,7 +29,7 @@ namespace DurableTask.Core
     public interface IOrchestrationService
     {
         // Service management and lifecycle operations
-        
+
         /// <summary>
         /// Starts the service initializing the required resources
         /// </summary>
@@ -46,17 +46,17 @@ namespace DurableTask.Core
         Task StopAsync(bool isForced);
 
         /// <summary>
-        /// Deletes and Creates the neccesary resources for the orchestration service and the instance store
+        /// Deletes and Creates the necessary resources for the orchestration service and the instance store
         /// </summary>
         Task CreateAsync();
 
         /// <summary>
-        /// Deletes and Creates the neccesary resources for the orchestration service and optionally the instance store
+        /// Deletes and Creates the necessary resources for the orchestration service and optionally the instance store
         /// </summary>
         Task CreateAsync(bool recreateInstanceStore);
 
         /// <summary>
-        /// Creates the neccesary resources for the orchestration service and the instance store
+        /// Creates the necessary resources for the orchestration service and the instance store
         /// </summary>
         Task CreateIfNotExistsAsync();
 
@@ -108,19 +108,19 @@ namespace DurableTask.Core
         Task RenewTaskOrchestrationWorkItemLockAsync(TaskOrchestrationWorkItem workItem);
 
         /// <summary>
-        ///     Complete an orchestation, send any outbound messages and completes the session for all current messages
+        ///     Complete an orchestration, send any outbound messages and completes the session for all current messages
         /// </summary>
         Task CompleteTaskOrchestrationWorkItemAsync(
             TaskOrchestrationWorkItem workItem,
-            OrchestrationRuntimeState newOrchestrationRuntimeState, 
-            IList<TaskMessage> outboundMessages, 
-            IList<TaskMessage> orchestratorMessages, 
+            OrchestrationRuntimeState newOrchestrationRuntimeState,
+            IList<TaskMessage> outboundMessages,
+            IList<TaskMessage> orchestratorMessages,
             IList<TaskMessage> timerMessages,
             TaskMessage continuedAsNewMessage,
             OrchestrationState orchestrationState);
 
         /// <summary>
-        ///     Abandon an orchestation, this abandons ownership/locking of all messages for an orchestation and it's session
+        ///     Abandon an orchestration, this abandons ownership/locking of all messages for an orchestration and it's session
         /// </summary>
         Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem);
 

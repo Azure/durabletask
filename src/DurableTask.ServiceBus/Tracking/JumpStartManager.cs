@@ -38,7 +38,7 @@ namespace DurableTask.ServiceBus.Tracking
             TimeSpan interval,
             TimeSpan ignoreWindow)
         {
-            isStarted = 0;
+            this.isStarted = 0;
             this.service = service;
             this.interval = interval;
             this.ignoreWindow = ignoreWindow;
@@ -46,7 +46,7 @@ namespace DurableTask.ServiceBus.Tracking
 
         public Task StartAsync()
         {
-            if (Interlocked.CompareExchange(ref isStarted, 1, 0) != 0)
+            if (Interlocked.CompareExchange(ref this.isStarted, 1, 0) != 0)
             {
                 throw TraceHelper.TraceException(
                     TraceEventType.Error,
@@ -60,34 +60,34 @@ namespace DurableTask.ServiceBus.Tracking
 
         public Task StopAsync()
         {
-            if (Interlocked.CompareExchange(ref isStarted, 0, 1) != 1)
+            if (Interlocked.CompareExchange(ref this.isStarted, 0, 1) != 1)
             {
                 // idempotent
                 return Task.FromResult(0);
             }
 
-            TraceHelper.Trace(TraceEventType.Information, "JumpStartManager-Stopped",  "Jump start manager stopped.");
+            TraceHelper.Trace(TraceEventType.Information, "JumpStartManager-Stopped", "Jump start manager stopped.");
 
             return Task.FromResult(0);
         }
 
         public async Task JumpStartAsync()
         {
-            while (isStarted == 1)
+            while (this.isStarted == 1)
             {
                 TimeSpan delay = this.interval;
                 try
                 {
-                    TraceHelper.Trace(TraceEventType.Information, "JumpStartManager-Fetch-Begin",  "Jump start starting fetch");
+                    TraceHelper.Trace(TraceEventType.Information, "JumpStartManager-Fetch-Begin", "Jump start starting fetch");
 
-                    // TODO: Query in batchces and change timeframe only after curent range is finished
-                    IEnumerable<OrchestrationJumpStartInstanceEntity> entities = await this.service.InstanceStore.GetJumpStartEntitiesAsync(1000);
+                    // TODO: Query in batches and change time frame only after current range is finished
+                    List<OrchestrationJumpStartInstanceEntity> entities = (await this.service.InstanceStore.GetJumpStartEntitiesAsync(1000)).ToList();
                     TraceHelper.Trace(
                         TraceEventType.Information,
                         "JumpStartManager-Fetch-End",
-                        $"JumpStartManager: Fetched state entities count: {entities.Count()}");
+                        $"JumpStartManager: Fetched state entities count: {entities.Count}");
                     var taskList = new List<Task>();
-                    entities.ToList().ForEach(e => taskList.Add(this.JumpStartOrchestrationAsync(e)));
+                    entities.ForEach(e => taskList.Add(JumpStartOrchestrationAsync(e)));
                     await Task.WhenAll(taskList);
                 }
                 catch (TimeoutException)
@@ -104,7 +104,7 @@ namespace DurableTask.ServiceBus.Tracking
                 }
                 catch (Exception exception) when (!Utils.IsFatal(exception))
                 {
-                    if (isStarted == 0)
+                    if (this.isStarted == 0)
                     {
                         TraceHelper.Trace(
                             TraceEventType.Information,
@@ -128,7 +128,7 @@ namespace DurableTask.ServiceBus.Tracking
 
         protected async Task JumpStartOrchestrationAsync(OrchestrationJumpStartInstanceEntity jumpStartEntity)
         {
-            var instance = jumpStartEntity.State.OrchestrationInstance;
+            OrchestrationInstance instance = jumpStartEntity.State.OrchestrationInstance;
             OrchestrationStateInstanceEntity stateEntity = (await this.service.InstanceStore.GetEntitiesAsync(instance.InstanceId, instance.ExecutionId))?.FirstOrDefault();
             if (stateEntity != null)
             {

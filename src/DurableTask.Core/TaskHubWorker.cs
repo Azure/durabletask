@@ -36,7 +36,8 @@ namespace DurableTask.Core
         /// <summary>
         /// Reference to the orchestration service used by the task hub worker
         /// </summary>
-        public readonly IOrchestrationService orchestrationService;
+        // ReSharper disable once InconsistentNaming (avoid breaking change)
+        public IOrchestrationService orchestrationService { get; }
 
         volatile bool isStarted;
 
@@ -46,7 +47,7 @@ namespace DurableTask.Core
         /// <summary>
         ///     Create a new TaskHubWorker with given OrchestrationService
         /// </summary>
-        /// <param name="orchestrationService">Reference the orchestration service implmentaion</param>
+        /// <param name="orchestrationService">Reference the orchestration service implementation</param>
         public TaskHubWorker(IOrchestrationService orchestrationService)
             : this(
                   orchestrationService,
@@ -58,7 +59,7 @@ namespace DurableTask.Core
         /// <summary>
         ///     Create a new TaskHubWorker with given OrchestrationService and name version managers
         /// </summary>
-        /// <param name="orchestrationService">Reference the orchestration service implmentaion</param>
+        /// <param name="orchestrationService">Reference the orchestration service implementation</param>
         /// <param name="orchestrationObjectManager">NameVersionObjectManager for Orchestrations</param>
         /// <param name="activityObjectManager">NameVersionObjectManager for Activities</param>
         public TaskHubWorker(
@@ -74,12 +75,12 @@ namespace DurableTask.Core
         /// <summary>
         /// Gets the orchestration dispatcher
         /// </summary>
-        public TaskOrchestrationDispatcher TaskOrchestrationDispatcher => orchestrationDispatcher;
+        public TaskOrchestrationDispatcher TaskOrchestrationDispatcher => this.orchestrationDispatcher;
 
         /// <summary>
         /// Gets the task activity dispatcher
         /// </summary>
-        public TaskActivityDispatcher TaskActivityDispatcher => activityDispatcher;
+        public TaskActivityDispatcher TaskActivityDispatcher => this.activityDispatcher;
 
         /// <summary>
         /// Adds a middleware delegate to the orchestration dispatch pipeline.
@@ -87,7 +88,7 @@ namespace DurableTask.Core
         /// <param name="middleware">Delegate to invoke whenever a message is dispatched to an orchestration.</param>
         public void AddOrchestrationDispatcherMiddleware(Func<DispatchMiddlewareContext, Func<Task>, Task> middleware)
         {
-            orchestrationDispatchPipeline.Add(middleware ?? throw new ArgumentNullException(nameof(middleware)));
+            this.orchestrationDispatchPipeline.Add(middleware ?? throw new ArgumentNullException(nameof(middleware)));
         }
 
         /// <summary>
@@ -96,7 +97,7 @@ namespace DurableTask.Core
         /// <param name="middleware">Delegate to invoke whenever a message is dispatched to an activity.</param>
         public void AddActivityDispatcherMiddleware(Func<DispatchMiddlewareContext, Func<Task>, Task> middleware)
         {
-            activityDispatchPipeline.Add(middleware ?? throw new ArgumentNullException(nameof(middleware)));
+            this.activityDispatchPipeline.Add(middleware ?? throw new ArgumentNullException(nameof(middleware)));
         }
 
         /// <summary>
@@ -105,32 +106,32 @@ namespace DurableTask.Core
         /// <returns></returns>
         public async Task<TaskHubWorker> StartAsync()
         {
-            await slimLock.WaitAsync();
+            await this.slimLock.WaitAsync();
             try
             {
-                if (isStarted)
+                if (this.isStarted)
                 {
                     throw new InvalidOperationException("Worker is already started");
                 }
 
-                orchestrationDispatcher = new TaskOrchestrationDispatcher(
+                this.orchestrationDispatcher = new TaskOrchestrationDispatcher(
                     orchestrationService,
-                    orchestrationManager,
-                    orchestrationDispatchPipeline);
-                activityDispatcher = new TaskActivityDispatcher(
+                    this.orchestrationManager,
+                    this.orchestrationDispatchPipeline);
+                this.activityDispatcher = new TaskActivityDispatcher(
                     orchestrationService,
-                    activityManager,
-                    activityDispatchPipeline);
+                    this.activityManager,
+                    this.activityDispatchPipeline);
 
                 await orchestrationService.StartAsync();
-                await orchestrationDispatcher.StartAsync();
-                await activityDispatcher.StartAsync();
+                await this.orchestrationDispatcher.StartAsync();
+                await this.activityDispatcher.StartAsync();
 
-                isStarted = true;
+                this.isStarted = true;
             }
             finally
             {
-                slimLock.Release();
+                this.slimLock.Release();
             }
 
             return this;
@@ -150,21 +151,21 @@ namespace DurableTask.Core
         /// <param name="isForced">True if forced shutdown, false if graceful shutdown</param>
         public async Task StopAsync(bool isForced)
         {
-            await slimLock.WaitAsync();
+            await this.slimLock.WaitAsync();
             try
             {
-                if (isStarted)
+                if (this.isStarted)
                 {
-                    await orchestrationDispatcher.StopAsync(isForced);
-                    await activityDispatcher.StopAsync(isForced);
+                    await this.orchestrationDispatcher.StopAsync(isForced);
+                    await this.activityDispatcher.StopAsync(isForced);
                     await orchestrationService.StopAsync(isForced);
 
-                    isStarted = false;
+                    this.isStarted = false;
                 }
             }
             finally
             {
-                slimLock.Release();
+                this.slimLock.Release();
             }
         }
 
@@ -178,7 +179,7 @@ namespace DurableTask.Core
             foreach (Type type in taskOrchestrationTypes)
             {
                 ObjectCreator<TaskOrchestration> creator = new DefaultObjectCreator<TaskOrchestration>(type);
-                orchestrationManager.Add(creator);
+                this.orchestrationManager.Add(creator);
             }
 
             return this;
@@ -193,9 +194,9 @@ namespace DurableTask.Core
         /// </param>
         public TaskHubWorker AddTaskOrchestrations(params ObjectCreator<TaskOrchestration>[] taskOrchestrationCreators)
         {
-            foreach (var creator in taskOrchestrationCreators)
+            foreach (ObjectCreator<TaskOrchestration> creator in taskOrchestrationCreators)
             {
-                orchestrationManager.Add(creator);
+                this.orchestrationManager.Add(creator);
             }
 
             return this;
@@ -210,7 +211,7 @@ namespace DurableTask.Core
             foreach (TaskActivity instance in taskActivityObjects)
             {
                 ObjectCreator<TaskActivity> creator = new DefaultObjectCreator<TaskActivity>(instance);
-                activityManager.Add(creator);
+                this.activityManager.Add(creator);
             }
 
             return this;
@@ -225,7 +226,7 @@ namespace DurableTask.Core
             foreach (Type type in taskActivityTypes)
             {
                 ObjectCreator<TaskActivity> creator = new DefaultObjectCreator<TaskActivity>(type);
-                activityManager.Add(creator);
+                this.activityManager.Add(creator);
             }
 
             return this;
@@ -240,9 +241,9 @@ namespace DurableTask.Core
         /// </param>
         public TaskHubWorker AddTaskActivities(params ObjectCreator<TaskActivity>[] taskActivityCreators)
         {
-            foreach (var creator in taskActivityCreators)
+            foreach (ObjectCreator<TaskActivity> creator in taskActivityCreators)
             {
-                activityManager.Add(creator);
+                this.activityManager.Add(creator);
             }
 
             return this;
@@ -275,7 +276,7 @@ namespace DurableTask.Core
         /// </param>
         public TaskHubWorker AddTaskActivitiesFromInterface<T>(T activities, bool useFullyQualifiedMethodNames)
         {
-            Type @interface = typeof (T);
+            Type @interface = typeof(T);
             if (!@interface.IsInterface)
             {
                 throw new Exception("Contract can only be an interface.");
@@ -288,15 +289,16 @@ namespace DurableTask.Core
                     new NameValueObjectCreator<TaskActivity>(
                         NameVersionHelper.GetDefaultName(methodInfo, useFullyQualifiedMethodNames),
                         NameVersionHelper.GetDefaultVersion(methodInfo), taskActivity);
-                activityManager.Add(creator);
+                this.activityManager.Add(creator);
             }
+
             return this;
         }
 
         /// <inheritdoc />
         public void Dispose()
         {
-            ((IDisposable)slimLock).Dispose();
+            ((IDisposable)this.slimLock).Dispose();
         }
     }
 }

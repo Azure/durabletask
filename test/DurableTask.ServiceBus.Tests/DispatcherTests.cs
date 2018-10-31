@@ -15,6 +15,7 @@ namespace DurableTask.ServiceBus.Tests
 {
     using System;
     using System.Collections.Generic;
+    using System.Diagnostics;
     using System.Linq;
     using System.Text;
     using System.Threading;
@@ -44,17 +45,17 @@ namespace DurableTask.ServiceBus.Tests
         {
             if (!TestContext.TestName.Contains("TestHost"))
             {
-                client = TestHelpers.CreateTaskHubClient();
+                this.client = TestHelpers.CreateTaskHubClient();
 
-                taskHub = TestHelpers.CreateTaskHub();
-                fakeTaskHub = TestHelpers.CreateTaskHub();
+                this.taskHub = TestHelpers.CreateTaskHub();
+                this.fakeTaskHub = TestHelpers.CreateTaskHub();
 
-                taskHubNoCompression = TestHelpers.CreateTaskHubNoCompression();
-                taskHubLegacyCompression = TestHelpers.CreateTaskHubLegacyCompression();
-                taskHubAlwaysCompression = TestHelpers.CreateTaskHubAlwaysCompression();
-                clientNoCompression = TestHelpers.CreateTaskHubClientNoCompression();
+                this.taskHubNoCompression = TestHelpers.CreateTaskHubNoCompression();
+                this.taskHubLegacyCompression = TestHelpers.CreateTaskHubLegacyCompression();
+                this.taskHubAlwaysCompression = TestHelpers.CreateTaskHubAlwaysCompression();
+                this.clientNoCompression = TestHelpers.CreateTaskHubClientNoCompression();
 
-                taskHub.orchestrationService.CreateAsync(true).Wait();
+                this.taskHub.orchestrationService.CreateAsync(true).Wait();
             }
         }
 
@@ -63,61 +64,61 @@ namespace DurableTask.ServiceBus.Tests
         {
             if (!TestContext.TestName.Contains("TestHost"))
             {
-                taskHub.StopAsync(true).Wait();
-                taskHubNoCompression.StopAsync(true).Wait();
-                taskHubAlwaysCompression.StopAsync(true).Wait();
-                taskHubLegacyCompression.StopAsync(true).Wait();
-                fakeTaskHub.StopAsync(true).Wait();
-                taskHub.orchestrationService.DeleteAsync(true).Wait();
+                this.taskHub.StopAsync(true).Wait();
+                this.taskHubNoCompression.StopAsync(true).Wait();
+                this.taskHubAlwaysCompression.StopAsync(true).Wait();
+                this.taskHubLegacyCompression.StopAsync(true).Wait();
+                this.fakeTaskHub.StopAsync(true).Wait();
+                this.taskHub.orchestrationService.DeleteAsync(true).Wait();
             }
         }
 
         [TestMethod]
         public async Task NoCompressionToCompressionCompatTest()
         {
-            await taskHubNoCompression.AddTaskOrchestrations(typeof (CompressionCompatTest))
+            await this.taskHubNoCompression.AddTaskOrchestrations(typeof (CompressionCompatTest))
                 .AddTaskActivities(typeof (SimpleTask))
                 .StartAsync();
 
-            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (CompressionCompatTest), null);
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof (CompressionCompatTest), null);
 
-            await TestHelpers.WaitForInstanceAsync(client, id, 60, false);
+            await TestHelpers.WaitForInstanceAsync(this.client, id, 60, false);
             await Task.Delay(5000);
 
-            await taskHubNoCompression.StopAsync(true);
+            await this.taskHubNoCompression.StopAsync(true);
 
-            await taskHub.AddTaskOrchestrations(typeof (CompressionCompatTest))
+            await this.taskHub.AddTaskOrchestrations(typeof (CompressionCompatTest))
                 .AddTaskActivities(typeof (SimpleTask))
                 .StartAsync();
 
-            var state = await client.WaitForOrchestrationAsync(id, TimeSpan.FromSeconds(60), CancellationToken.None);
+            OrchestrationState state = await this.client.WaitForOrchestrationAsync(id, TimeSpan.FromSeconds(60), CancellationToken.None);
 
-            Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
         }
 
         [TestMethod]
         public async Task MessageCompressionToNoCompressionTest()
         {
-            await taskHub.AddTaskOrchestrations(typeof (MessageCompressionCompatTest))
+            await this.taskHub.AddTaskOrchestrations(typeof (MessageCompressionCompatTest))
                 .AddTaskActivities(typeof (AlternatingPayloadTask))
                 .StartAsync();
 
             OrchestrationInstance id =
-                await clientNoCompression.CreateOrchestrationInstanceAsync(typeof (MessageCompressionCompatTest), null);
+                await this.clientNoCompression.CreateOrchestrationInstanceAsync(typeof (MessageCompressionCompatTest), null);
 
             await Task.Delay(2000);
 
-            await taskHub.StopAsync(true);
+            await this.taskHub.StopAsync(true);
 
-            await taskHubNoCompression.AddTaskOrchestrations(typeof (MessageCompressionCompatTest))
+            await this.taskHubNoCompression.AddTaskOrchestrations(typeof (MessageCompressionCompatTest))
                 .AddTaskActivities(typeof (AlternatingPayloadTask))
                 .StartAsync();
 
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
 
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
 
-            OrchestrationState state = await client.GetOrchestrationStateAsync(id);
+            OrchestrationState state = await this.client.GetOrchestrationStateAsync(id);
 
             Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
         }
@@ -125,25 +126,25 @@ namespace DurableTask.ServiceBus.Tests
         [TestMethod]
         public async Task MessageNoCompressionToCompressionTest()
         {
-            await taskHubNoCompression.AddTaskOrchestrations(typeof (MessageCompressionCompatTest))
+            await this.taskHubNoCompression.AddTaskOrchestrations(typeof (MessageCompressionCompatTest))
                 .AddTaskActivities(typeof (AlternatingPayloadTask))
                 .StartAsync();
 
-            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (MessageCompressionCompatTest), null);
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof (MessageCompressionCompatTest), null);
 
             await Task.Delay(2000);
 
-            await taskHubNoCompression.StopAsync(true);
+            await this.taskHubNoCompression.StopAsync(true);
 
-            await taskHub.AddTaskOrchestrations(typeof (MessageCompressionCompatTest))
+            await this.taskHub.AddTaskOrchestrations(typeof (MessageCompressionCompatTest))
                 .AddTaskActivities(typeof (AlternatingPayloadTask))
                 .StartAsync();
 
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
 
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
 
-            OrchestrationState state = await client.GetOrchestrationStateAsync(id);
+            OrchestrationState state = await this.client.GetOrchestrationStateAsync(id);
 
             Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
         }
@@ -151,25 +152,25 @@ namespace DurableTask.ServiceBus.Tests
         [TestMethod]
         public async Task MessageLegacyCompressToAlwaysCompressTest()
         {
-            await taskHubLegacyCompression.AddTaskOrchestrations(typeof (MessageCompressionCompatTest))
+            await this.taskHubLegacyCompression.AddTaskOrchestrations(typeof (MessageCompressionCompatTest))
                 .AddTaskActivities(typeof (AlternatingPayloadTask))
                 .StartAsync();
 
-            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (MessageCompressionCompatTest), null);
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof (MessageCompressionCompatTest), null);
 
             await Task.Delay(5000);
 
-            await taskHubLegacyCompression.StopAsync(true);
+            await this.taskHubLegacyCompression.StopAsync(true);
 
-            await taskHubAlwaysCompression.AddTaskOrchestrations(typeof (MessageCompressionCompatTest))
+            await this.taskHubAlwaysCompression.AddTaskOrchestrations(typeof (MessageCompressionCompatTest))
                 .AddTaskActivities(typeof (AlternatingPayloadTask))
                 .StartAsync();
 
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
 
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
 
-            OrchestrationState state = await client.GetOrchestrationStateAsync(id);
+            OrchestrationState state = await this.client.GetOrchestrationStateAsync(id);
 
             Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
         }
@@ -177,25 +178,25 @@ namespace DurableTask.ServiceBus.Tests
         [TestMethod]
         public async Task MessageAlwaysCompressToLegacyCompressTest()
         {
-            await taskHubAlwaysCompression.AddTaskOrchestrations(typeof (MessageCompressionCompatTest))
+            await this.taskHubAlwaysCompression.AddTaskOrchestrations(typeof (MessageCompressionCompatTest))
                 .AddTaskActivities(typeof (AlternatingPayloadTask))
                 .StartAsync();
 
-            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (MessageCompressionCompatTest), null);
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof (MessageCompressionCompatTest), null);
 
             await Task.Delay(5000);
 
-            await taskHubAlwaysCompression.StopAsync(true);
+            await this.taskHubAlwaysCompression.StopAsync(true);
 
-            await taskHubLegacyCompression.AddTaskOrchestrations(typeof (MessageCompressionCompatTest))
+            await this.taskHubLegacyCompression.AddTaskOrchestrations(typeof (MessageCompressionCompatTest))
                 .AddTaskActivities(typeof (AlternatingPayloadTask))
                 .StartAsync();
 
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
 
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
 
-            OrchestrationState state = await client.GetOrchestrationStateAsync(id);
+            OrchestrationState state = await this.client.GetOrchestrationStateAsync(id);
 
             Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
         }
@@ -205,37 +206,44 @@ namespace DurableTask.ServiceBus.Tests
         [TestMethod]
         public async Task NonDeterministicOrchestrationTest()
         {
-            await taskHub.AddTaskOrchestrations(typeof (NonDeterministicOrchestration))
+            await this.taskHub.AddTaskOrchestrations(typeof (NonDeterministicOrchestration))
                 .AddTaskActivities(typeof (FirstTask))
                 .StartAsync();
-            taskHub.TaskActivityDispatcher.IncludeDetails = true;
+            this.taskHub.TaskActivityDispatcher.IncludeDetails = true;
 
-            OrchestrationInstance instance = await client.CreateOrchestrationInstanceAsync(typeof (NonDeterministicOrchestration),
-                "FAILTIMER");
+            OrchestrationInstance instance = await this.client.CreateOrchestrationInstanceAsync(typeof (NonDeterministicOrchestration), "FAILTIMER");
 
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, instance, 60);
-            OrchestrationState state = await client.GetOrchestrationStateAsync(instance);
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, instance, 60);
+            Utils.UnusedParameter(isCompleted);
+
+            OrchestrationState state = await this.client.GetOrchestrationStateAsync(instance);
             Assert.AreEqual(OrchestrationStatus.Failed, state.OrchestrationStatus);
             Assert.IsTrue(state.Output.Contains("TimerCreatedEvent"));
 
-            instance = await client.CreateOrchestrationInstanceAsync(typeof (NonDeterministicOrchestration), "FAILTASK");
+            instance = await this.client.CreateOrchestrationInstanceAsync(typeof (NonDeterministicOrchestration), "FAILTASK");
 
-            isCompleted = await TestHelpers.WaitForInstanceAsync(client, instance, 60);
-            state = await client.GetOrchestrationStateAsync(instance);
+            isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, instance, 60);
+            Utils.UnusedParameter(isCompleted);
+
+            state = await this.client.GetOrchestrationStateAsync(instance);
             Assert.AreEqual(OrchestrationStatus.Failed, state.OrchestrationStatus);
             Assert.IsTrue(state.Output.Contains("TaskScheduledEvent"));
 
-            instance = await client.CreateOrchestrationInstanceAsync(typeof (NonDeterministicOrchestration), "FAILSUBORCH");
+            instance = await this.client.CreateOrchestrationInstanceAsync(typeof (NonDeterministicOrchestration), "FAILSUBORCH");
 
-            isCompleted = await TestHelpers.WaitForInstanceAsync(client, instance, 60);
-            state = await client.GetOrchestrationStateAsync(instance);
+            isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, instance, 60);
+            Utils.UnusedParameter(isCompleted);
+
+            state = await this.client.GetOrchestrationStateAsync(instance);
             Assert.AreEqual(OrchestrationStatus.Failed, state.OrchestrationStatus);
             Assert.IsTrue(state.Output.Contains("SubOrchestrationInstanceCreatedEvent"));
 
-            instance = await client.CreateOrchestrationInstanceAsync(typeof (NonDeterministicOrchestration), "PARENTORCH");
+            instance = await this.client.CreateOrchestrationInstanceAsync(typeof (NonDeterministicOrchestration), "PARENTORCH");
 
-            isCompleted = await TestHelpers.WaitForInstanceAsync(client, instance, 60);
-            state = await client.GetOrchestrationStateAsync(instance);
+            isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, instance, 60);
+            Utils.UnusedParameter(isCompleted);
+
+            state = await this.client.GetOrchestrationStateAsync(instance);
             Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
             Assert.IsTrue(state.Output.Contains("Non-Deterministic workflow detected"));
         }
@@ -257,6 +265,7 @@ namespace DurableTask.ServiceBus.Tests
                 {
                     return null;
                 }
+
                 if (input == "PARENTORCH")
                 {
                     try
@@ -289,6 +298,7 @@ namespace DurableTask.ServiceBus.Tests
                                 string.Empty);
                     }
                 }
+
                 return null;
             }
         }
@@ -300,21 +310,21 @@ namespace DurableTask.ServiceBus.Tests
         [TestMethod]
         public async Task TypeMissingTest()
         {
-            await fakeTaskHub.AddTaskOrchestrations(typeof (TypeMissingOrchestration))
+            await this.fakeTaskHub.AddTaskOrchestrations(typeof (TypeMissingOrchestration))
                 .AddTaskActivities(typeof (ComputeSumTask))
                 .StartAsync();
 
-            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (TypeMissingOrchestration), "test");
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 10);
-            Assert.IsFalse(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 10));
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof (TypeMissingOrchestration), "test");
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 10);
+            Assert.IsFalse(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 10));
             
             // Bring up the correct orchestration worker
-            await taskHub.AddTaskOrchestrations(typeof (TypeMissingOrchestration))
+            await this.taskHub.AddTaskOrchestrations(typeof (TypeMissingOrchestration))
                 .AddTaskActivities(typeof (TypeMissingTask))
                 .StartAsync();
 
-            isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 20);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 20);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
             Assert.AreEqual("done", TypeMissingOrchestration.Result, "Orchestration Result is wrong!!!");
         }
 
@@ -328,7 +338,8 @@ namespace DurableTask.ServiceBus.Tests
                 }
 
                 Console.WriteLine("Compute Sum for " + chunk[0] + "," + chunk[1]);
-                int sum = 0;
+
+                var sum = 0;
                 int start = chunk[0];
                 int end = chunk[1];
                 for (int i = start; i <= end; i++)
@@ -372,14 +383,14 @@ namespace DurableTask.ServiceBus.Tests
         [TestMethod]
         public async Task MaxMessagesLimitTest()
         {
-            await taskHub.AddTaskOrchestrations(typeof (MaxMessagesLimitOrchestration))
+            await this.taskHub.AddTaskOrchestrations(typeof (MaxMessagesLimitOrchestration))
                 .AddTaskActivities(new MaxMessagesLimitTask())
                 .StartAsync();
 
-            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (MaxMessagesLimitOrchestration), null);
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof (MaxMessagesLimitOrchestration), null);
 
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 120);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 120));
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 120);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 120));
 
             Assert.AreEqual(19900, MaxMessagesLimitOrchestration.Result, "Orchestration Result is wrong!!!");
         }
@@ -394,7 +405,8 @@ namespace DurableTask.ServiceBus.Tests
             {
                 Sum = 0;
                 var results = new List<Task<long>>();
-                for (int i = 0; i < 200; i++)
+
+                for (var i = 0; i < 200; i++)
                 {
                     Sum += Sum;
                     results.Add(context.ScheduleTask<long>(typeof (MaxMessagesLimitTask), i));
@@ -427,14 +439,14 @@ namespace DurableTask.ServiceBus.Tests
         {
             AsyncGreetingsOrchestration.Result = null;
 
-            await taskHub.AddTaskOrchestrations(typeof (AsyncGreetingsOrchestration))
+            await this.taskHub.AddTaskOrchestrations(typeof (AsyncGreetingsOrchestration))
                 .AddTaskActivities(typeof (AsyncGetUserTask), typeof (AsyncSendGreetingTask))
                 .StartAsync();
 
-            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (AsyncGreetingsOrchestration), null);
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof (AsyncGreetingsOrchestration), null);
 
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
             Assert.AreEqual("Greeting send to Gabbar", AsyncGreetingsOrchestration.Result,
                 "Orchestration Result is wrong!!!");
         }
@@ -489,16 +501,16 @@ namespace DurableTask.ServiceBus.Tests
             AsyncDynamicGreetingsOrchestration.Result = null;
             AsyncDynamicGreetingsOrchestration.Result2 = null;
 
-            await taskHub.AddTaskOrchestrations(typeof (AsyncDynamicGreetingsOrchestration))
+            await this.taskHub.AddTaskOrchestrations(typeof (AsyncDynamicGreetingsOrchestration))
                 .AddTaskActivitiesFromInterface<IGreetings>(new GreetingsManager(), true)
                 .AddTaskActivitiesFromInterface<IGreetings2>(new GreetingsManager2(), true)
                 .StartAsync();
 
-            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (AsyncDynamicGreetingsOrchestration),
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof (AsyncDynamicGreetingsOrchestration),
                 null);
 
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
             Assert.AreEqual("Greeting send to Gabbar", AsyncDynamicGreetingsOrchestration.Result,
                 "Orchestration Result is wrong!!!");
             Assert.AreEqual("Greeting NOT sent to Samba", AsyncDynamicGreetingsOrchestration.Result2,
@@ -582,13 +594,16 @@ namespace DurableTask.ServiceBus.Tests
         public interface IGreetings
         {
             Task<string> GetUserAsync(string input);
+
             Task<string> SendGreetingAsync(string input);
         }
 
         public interface IGreetings2
         {
             Task<string> GetUserAsync(string input);
+
             Task<string> SendGreetingAsync(string input);
+
             Task SendGreetingsAgainAsync(string input);
         }
 
@@ -599,7 +614,7 @@ namespace DurableTask.ServiceBus.Tests
         [TestMethod]
         public async Task SessionExceededLimitTest()
         {
-            await taskHub.AddTaskOrchestrations(typeof (LargeSessionOrchestration))
+            await this.taskHub.AddTaskOrchestrations(typeof (LargeSessionOrchestration))
                 .AddTaskActivities(typeof (LargeSessionTaskActivity))
                 .StartAsync();
 
@@ -613,12 +628,13 @@ namespace DurableTask.ServiceBus.Tests
         async Task SessionExceededLimitSubTestWithInputSize(int inputSize)
         {
             string input = TestUtils.GenerateRandomString(inputSize);
-            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof(LargeSessionOrchestration), new Tuple<string, int>(input, 2));
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(LargeSessionOrchestration), new Tuple<string, int>(input, 2));
 
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60, true);
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+            Utils.UnusedParameter(isCompleted);
             await Task.Delay(20000);
 
-            OrchestrationState state = await client.GetOrchestrationStateAsync(id);
+            OrchestrationState state = await this.client.GetOrchestrationStateAsync(id);
             Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
             Assert.AreEqual($"0:{input}-1:{input}-", LargeSessionOrchestration.Result);
         }
@@ -626,19 +642,19 @@ namespace DurableTask.ServiceBus.Tests
         [TestMethod]
         public async Task SessionNotExceededLimitTest()
         {
-            await taskHub.AddTaskOrchestrations(typeof (LargeSessionOrchestration))
+            await this.taskHub.AddTaskOrchestrations(typeof (LargeSessionOrchestration))
                 .AddTaskActivities(typeof (LargeSessionTaskActivity))
                 .StartAsync();
 
-            string input = "abc";
+            var input = "abc";
 
-            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (LargeSessionOrchestration), new Tuple<string, int>(input, 2));
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof (LargeSessionOrchestration), new Tuple<string, int>(input, 2));
 
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60, true);
-
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+            Utils.UnusedParameter(isCompleted);
             await Task.Delay(20000);
 
-            OrchestrationState state = await client.GetOrchestrationStateAsync(id);
+            OrchestrationState state = await this.client.GetOrchestrationStateAsync(id);
 
             Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
             Assert.AreEqual($"0:{input}-1:{input}-", LargeSessionOrchestration.Result);
@@ -649,22 +665,23 @@ namespace DurableTask.ServiceBus.Tests
         {
             string input = TestUtils.GenerateRandomString(150 * 1024);
 
-            ServiceBusOrchestrationService serviceBusOrchestrationService =
-                taskHub.orchestrationService as ServiceBusOrchestrationService;
-            serviceBusOrchestrationService.Settings.TaskOrchestrationDispatcherSettings.CompressOrchestrationState =
-                false;
+            var serviceBusOrchestrationService = this.taskHub.orchestrationService as ServiceBusOrchestrationService;
 
-            await taskHub.AddTaskOrchestrations(typeof (LargeSessionOrchestration))
+            Debug.Assert(serviceBusOrchestrationService != null);
+
+            serviceBusOrchestrationService.Settings.TaskOrchestrationDispatcherSettings.CompressOrchestrationState = false;
+
+            await this.taskHub.AddTaskOrchestrations(typeof (LargeSessionOrchestration))
                 .AddTaskActivities(typeof (LargeSessionTaskActivity))
                 .StartAsync();
 
-            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (LargeSessionOrchestration), new Tuple<string, int>(input, 2));
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof (LargeSessionOrchestration), new Tuple<string, int>(input, 2));
 
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60, true);
-
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+            Utils.UnusedParameter(isCompleted);
             await Task.Delay(20000);
 
-            OrchestrationState state = await client.GetOrchestrationStateAsync(id);
+            OrchestrationState state = await this.client.GetOrchestrationStateAsync(id);
 
             Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
             Assert.AreEqual($"0:{input}-1:{input}-", LargeSessionOrchestration.Result);
@@ -675,24 +692,27 @@ namespace DurableTask.ServiceBus.Tests
         {
             string input = TestUtils.GenerateRandomString(150 * 1024);
 
-            ServiceBusOrchestrationService serviceBusOrchestrationService = client.serviceClient as ServiceBusOrchestrationService;
+            var serviceBusOrchestrationService = this.client.ServiceClient as ServiceBusOrchestrationService;
+
+            Debug.Assert(serviceBusOrchestrationService != null);
+
             serviceBusOrchestrationService.Settings.MessageCompressionSettings = new CompressionSettings
             {
                 Style = CompressionStyle.Never,
                 ThresholdInBytes = 0
             };
 
-            await taskHub.AddTaskOrchestrations(typeof(LargeSessionOrchestration))
+            await this.taskHub.AddTaskOrchestrations(typeof(LargeSessionOrchestration))
                 .AddTaskActivities(typeof(LargeSessionTaskActivity))
                 .StartAsync();
 
-            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof(LargeSessionOrchestration), new Tuple<string, int>(input, 2));
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(LargeSessionOrchestration), new Tuple<string, int>(input, 2));
 
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60, true);
-
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+            Utils.UnusedParameter(isCompleted);
             await Task.Delay(20000);
 
-            OrchestrationState state = await client.GetOrchestrationStateAsync(id);
+            OrchestrationState state = await this.client.GetOrchestrationStateAsync(id);
 
             Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
             Assert.AreEqual($"0:{input}-1:{input}-", LargeSessionOrchestration.Result);
@@ -703,19 +723,22 @@ namespace DurableTask.ServiceBus.Tests
         {
             string input = TestUtils.GenerateRandomString(200 * 1024);
 
-            await taskHub.AddTaskOrchestrations(typeof(LargeSessionOrchestration))
+            await this.taskHub.AddTaskOrchestrations(typeof(LargeSessionOrchestration))
                 .AddTaskActivities(typeof(LargeSessionTaskActivity))
                 .StartAsync();
 
-            ServiceBusOrchestrationService serviceBusOrchestrationService =
-               taskHub.orchestrationService as ServiceBusOrchestrationService;
+            var serviceBusOrchestrationService = this.taskHub.orchestrationService as ServiceBusOrchestrationService;
+
+            Debug.Assert(serviceBusOrchestrationService != null);
+
             serviceBusOrchestrationService.Settings.SessionSettings = new ServiceBusSessionSettings(230 * 1024, 1024 * 1024);
 
-            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof(LargeSessionOrchestration), new Tuple<string, int>(input, 10));
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60, true);
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(LargeSessionOrchestration), new Tuple<string, int>(input, 10));
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+            Utils.UnusedParameter(isCompleted);
             await Task.Delay(20000);
 
-            OrchestrationState state = await client.GetOrchestrationStateAsync(id);
+            OrchestrationState state = await this.client.GetOrchestrationStateAsync(id);
             Assert.AreEqual(OrchestrationStatus.Terminated, state.OrchestrationStatus);
             Assert.IsTrue(state.Output.Contains("exceeded"));
         }
@@ -727,8 +750,8 @@ namespace DurableTask.ServiceBus.Tests
 
             public override async Task<string> RunTask(OrchestrationContext context, Tuple<string, int> input)
             {
-                StringBuilder sb = new StringBuilder();
-                for (int i = 0; i < input.Item2; i++)
+                var sb = new StringBuilder();
+                for (var i = 0; i < input.Item2; i++)
                 {
                     string outputI = await context.ScheduleTask<string>(typeof(LargeSessionTaskActivity), $"{i}:{input.Item1}");
                     sb.Append($"{outputI}-");
@@ -754,24 +777,24 @@ namespace DurableTask.ServiceBus.Tests
         [TestMethod]
         public async Task CompressionToNoCompressionCompatTest()
         {
-            await taskHub.AddTaskOrchestrations(typeof (CompressionCompatTest))
+            await this.taskHub.AddTaskOrchestrations(typeof (CompressionCompatTest))
                 .AddTaskActivities(typeof (SimpleTask))
                 .StartAsync();
 
-            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (CompressionCompatTest), null);
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof (CompressionCompatTest), null);
 
-            await TestHelpers.WaitForInstanceAsync(client, id, 60, false);
+            await TestHelpers.WaitForInstanceAsync(this.client, id, 60, false);
             await Task.Delay(5000);
 
-            await taskHub.StopAsync(true);
+            await this.taskHub.StopAsync(true);
 
-            await taskHubNoCompression.AddTaskOrchestrations(typeof (CompressionCompatTest))
+            await this.taskHubNoCompression.AddTaskOrchestrations(typeof (CompressionCompatTest))
                 .AddTaskActivities(typeof (SimpleTask))
                 .StartAsync();
 
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
 
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
         }
 
         public sealed class AlternatingPayloadTask : TaskActivity<bool, byte[]>
@@ -784,7 +807,7 @@ namespace DurableTask.ServiceBus.Tests
                 {
                     arr = new byte[1600];
 
-                    for (int i = 0; i < 100; i++)
+                    for (var i = 0; i < 100; i++)
                     {
                         Guid.NewGuid().ToByteArray().CopyTo(arr, i*16);
                     }
@@ -798,6 +821,7 @@ namespace DurableTask.ServiceBus.Tests
         {
             public override async Task<string> RunTask(OrchestrationContext context, string input)
             {
+                // ReSharper disable once RedundantAssignment
                 string output = await context.ScheduleTask<string>(typeof (SimpleTask), "test");
 
                 await context.CreateTimer(context.CurrentUtcDateTime.AddSeconds(10), "TimedOut");
@@ -814,7 +838,7 @@ namespace DurableTask.ServiceBus.Tests
         {
             public override async Task<string> RunTask(OrchestrationContext context, string input)
             {
-                for (int i = 0; i < 10; i++)
+                for (var i = 0; i < 10; i++)
                 {
                     await context.ScheduleTask<byte[]>(typeof (AlternatingPayloadTask), (i%2 == 0));
                 }

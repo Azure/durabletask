@@ -19,27 +19,28 @@ namespace DurableTask.Samples.Replat
     {
         public MigrateOrchestrationStatus()
         {
-            this.ApplicationsMigrated = new Collection<Application>();
-            this.ApplicationsFailed = new Collection<Application>();
+            ApplicationsMigrated = new Collection<Application>();
+            ApplicationsFailed = new Collection<Application>();
         }
 
         public bool TtlUpdated { get; set; }
+
         public bool TtlUpdateTimerFired { get; set; }
+
         public int TotalApplication { get; set; }
+
         public bool IsMigrated { get; set; }
+
         public bool IsFlipped { get; set; }
+
         public bool IsWhitelisted { get; set; }
+
         public bool IsCleaned { get; set; }
 
-        public bool IsSuccess
-        {
-            get
-            {
-                return this.IsMigrated && this.IsFlipped && this.IsWhitelisted;
-            }
-        }
+        public bool IsSuccess => IsMigrated && IsFlipped && IsWhitelisted;
 
         public Collection<Application> ApplicationsMigrated { get; private set; }
+
         public Collection<Application> ApplicationsFailed { get; private set; }
     }
 }

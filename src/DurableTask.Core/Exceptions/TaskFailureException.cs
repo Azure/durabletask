@@ -52,7 +52,7 @@ namespace DurableTask.Core.Exceptions
         public TaskFailureException(string reason, Exception innerException, string details)
             : base(reason, innerException)
         {
-            this.Details = details;
+            Details = details;
         }
 
         /// <summary>
@@ -61,12 +61,12 @@ namespace DurableTask.Core.Exceptions
         public TaskFailureException(string reason, string details)
             : base(reason)
         {
-            this.Details = details;
+            Details = details;
         }
 
         internal TaskFailureException WithFailureSource(string failureSource)
         {
-            this.FailureSource = failureSource;
+            FailureSource = failureSource;
             return this;
         }
 
@@ -76,8 +76,13 @@ namespace DurableTask.Core.Exceptions
         protected TaskFailureException(SerializationInfo info, StreamingContext context)
             : base(info, context)
         {
-            this.Details = info.GetString(nameof(Details));
-            this.FailureSource = info.GetString(nameof(FailureSource));
+            Details = info.GetString(nameof(Details));
+
+            if (ExistPropertyInfo(info, nameof(FailureSource)))
+            {
+                // FailureSource is an internal property, it may not be populated by the serialization engine
+                FailureSource = info.GetString(nameof(FailureSource));
+            }
         }
 
         /// <summary>
@@ -86,8 +91,8 @@ namespace DurableTask.Core.Exceptions
         public override void GetObjectData(SerializationInfo info, StreamingContext context)
         {
             base.GetObjectData(info, context);
-            info.AddValue(nameof(Details), this.Details);
-            info.AddValue(nameof(FailureSource), this.FailureSource);
+            info.AddValue(nameof(Details), Details);
+            info.AddValue(nameof(FailureSource), FailureSource);
         }
 
         /// <summary>
@@ -95,11 +100,11 @@ namespace DurableTask.Core.Exceptions
         /// </summary>
         public override string ToString()
         {
-            return string.Format("FailureSource: {1}{0}Details: {2}{0}Message: {3}{0}Exception: {4}", 
+            return string.Format("FailureSource: {1}{0}Details: {2}{0}Message: {3}{0}Exception: {4}",
                 Environment.NewLine,
-                this.FailureSource,
-                this.Details,
-                this.Message,
+                FailureSource,
+                Details,
+                Message,
                 base.ToString());
         }
 
@@ -109,5 +114,19 @@ namespace DurableTask.Core.Exceptions
         public string Details { get; set; }
 
         internal string FailureSource { get; set; }
+
+        bool ExistPropertyInfo(SerializationInfo info, string propertyName)
+        {
+            SerializationInfoEnumerator enumerator = info.GetEnumerator();
+            while (enumerator.MoveNext())
+            {
+                if (enumerator.Current.Name == propertyName)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
     }
 }

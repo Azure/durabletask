@@ -20,15 +20,14 @@ namespace DurableTask.Emulator
     using System.Threading;
     using System.Threading.Tasks;
 
-    internal class PeeklockQueue
+    internal class PeekLockQueue
     {
-        List<TaskMessage> messages;
-        HashSet<TaskMessage> lockTable;
+        readonly List<TaskMessage> messages;
+        readonly HashSet<TaskMessage> lockTable;
 
         readonly object thisLock = new object();
 
-
-        public PeeklockQueue()
+        public PeekLockQueue()
         {
             this.messages = new List<TaskMessage>();
             this.lockTable = new HashSet<TaskMessage>();
@@ -39,7 +38,7 @@ namespace DurableTask.Emulator
             Stopwatch timer = Stopwatch.StartNew();
             while (timer.Elapsed < receiveTimeout && !cancellationToken.IsCancellationRequested)
             {
-                lock(this.thisLock)
+                lock (this.thisLock)
                 {
                     foreach (TaskMessage tm in this.messages)
                     {
@@ -51,7 +50,7 @@ namespace DurableTask.Emulator
                     }
                 }
 
-                await Task.Delay(TimeSpan.FromMilliseconds(500));
+                await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken);
             }
 
             if (cancellationToken.IsCancellationRequested)
@@ -64,7 +63,7 @@ namespace DurableTask.Emulator
 
         public void SendMessageAsync(TaskMessage message)
         {
-            lock(this.thisLock)
+            lock (this.thisLock)
             {
                 this.messages.Add(message);
             }
@@ -72,9 +71,9 @@ namespace DurableTask.Emulator
 
         public void CompleteMessageAsync(TaskMessage message)
         {
-            lock(this.thisLock)
+            lock (this.thisLock)
             {
-                if(!this.lockTable.Contains(message))
+                if (!this.lockTable.Contains(message))
                 {
                     throw new InvalidOperationException("Message Lock Lost");
                 }

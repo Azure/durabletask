@@ -41,14 +41,14 @@ namespace DurableTask.ServiceBus.Tracking
         /// </summary>
         /// <param name="state">The orchestration state</param>
         public AzureTableOrchestrationStateEntity(OrchestrationState state)
-            :this()
+            : this()
         {
             State = state;
             TaskTimeStamp = state.CompletedTime;
         }
 
         /// <summary>
-        /// Gets or sets the orchestraion state for the entity
+        /// Gets or sets the orchestration state for the entity
         /// </summary>
         public OrchestrationState State { get; set; }
 
@@ -61,8 +61,7 @@ namespace DurableTask.ServiceBus.Tracking
                              AzureTableConstants.JoinDelimiter + State.OrchestrationInstance.InstanceId +
                              AzureTableConstants.JoinDelimiter + State.OrchestrationInstance.ExecutionId;
 
-            return new AzureTableOrchestrationStateEntity[1] {entity1};
-
+            return new [] { entity1 };
             // TODO : additional indexes for efficient querying in the future
         }
 
@@ -72,34 +71,32 @@ namespace DurableTask.ServiceBus.Tracking
         /// <param name="operationContext">The operation context</param>
         public override IDictionary<string, EntityProperty> WriteEntity(OperationContext operationContext)
         {
-            var retVals = new Dictionary<string, EntityProperty>();
+            var returnValues = new Dictionary<string, EntityProperty>();
 
-            retVals.Add("InstanceId", new EntityProperty(State.OrchestrationInstance.InstanceId));
-            retVals.Add("ExecutionId", new EntityProperty(State.OrchestrationInstance.ExecutionId));
+            returnValues.Add("InstanceId", new EntityProperty(State.OrchestrationInstance.InstanceId));
+            returnValues.Add("ExecutionId", new EntityProperty(State.OrchestrationInstance.ExecutionId));
 
             if (State.ParentInstance != null)
             {
-                retVals.Add("ParentInstanceId",
-                    new EntityProperty(State.ParentInstance.OrchestrationInstance.InstanceId));
-                retVals.Add("ParentExecutionId",
-                    new EntityProperty(State.ParentInstance.OrchestrationInstance.ExecutionId));
+                returnValues.Add("ParentInstanceId", new EntityProperty(State.ParentInstance.OrchestrationInstance.InstanceId));
+                returnValues.Add("ParentExecutionId", new EntityProperty(State.ParentInstance.OrchestrationInstance.ExecutionId));
             }
 
-            retVals.Add("TaskTimeStamp", new EntityProperty(TaskTimeStamp));
-            retVals.Add("Name", new EntityProperty(State.Name));
-            retVals.Add("Version", new EntityProperty(State.Version));
-            retVals.Add("Status", new EntityProperty(State.Status));
-            retVals.Add("Tags", new EntityProperty(State.Tags != null ? dataConverter.Serialize(State.Tags) : null));
-            retVals.Add("OrchestrationStatus", new EntityProperty(State.OrchestrationStatus.ToString()));
-            retVals.Add("CreatedTime", new EntityProperty(State.CreatedTime));
-            retVals.Add("CompletedTime", new EntityProperty(State.CompletedTime));
-            retVals.Add("LastUpdatedTime", new EntityProperty(State.LastUpdatedTime));
-            retVals.Add("Size", new EntityProperty(State.Size));
-            retVals.Add("CompressedSize", new EntityProperty(State.CompressedSize));
-            retVals.Add("Input", new EntityProperty(State.Input.Truncate(ServiceBusConstants.MaxStringLengthForAzureTableColumn)));
-            retVals.Add("Output", new EntityProperty(State.Output.Truncate(ServiceBusConstants.MaxStringLengthForAzureTableColumn)));
+            returnValues.Add("TaskTimeStamp", new EntityProperty(TaskTimeStamp));
+            returnValues.Add("Name", new EntityProperty(State.Name));
+            returnValues.Add("Version", new EntityProperty(State.Version));
+            returnValues.Add("Status", new EntityProperty(State.Status));
+            returnValues.Add("Tags", new EntityProperty(State.Tags != null ? this.dataConverter.Serialize(State.Tags) : null));
+            returnValues.Add("OrchestrationStatus", new EntityProperty(State.OrchestrationStatus.ToString()));
+            returnValues.Add("CreatedTime", new EntityProperty(State.CreatedTime));
+            returnValues.Add("CompletedTime", new EntityProperty(State.CompletedTime));
+            returnValues.Add("LastUpdatedTime", new EntityProperty(State.LastUpdatedTime));
+            returnValues.Add("Size", new EntityProperty(State.Size));
+            returnValues.Add("CompressedSize", new EntityProperty(State.CompressedSize));
+            returnValues.Add("Input", new EntityProperty(State.Input.Truncate(ServiceBusConstants.MaxStringLengthForAzureTableColumn)));
+            returnValues.Add("Output", new EntityProperty(State.Output.Truncate(ServiceBusConstants.MaxStringLengthForAzureTableColumn)));
 
-            return retVals;
+            return returnValues;
         }
 
         /// <summary>
@@ -166,12 +163,12 @@ namespace DurableTask.ServiceBus.Tracking
         private IDictionary<string, string> GetTagsFromString(IDictionary<string, EntityProperty> properties)
         {
             string strTags = GetValue("Tags", properties, property => property.StringValue);
-            if (string.IsNullOrEmpty(strTags))
+            if (string.IsNullOrWhiteSpace(strTags))
             {
                 return null;
             }
 
-            return dataConverter.Deserialize<IDictionary<string, string>>(strTags);
+            return this.dataConverter.Deserialize<IDictionary<string, string>>(strTags);
         }
 
         /// <summary>
@@ -183,6 +180,7 @@ namespace DurableTask.ServiceBus.Tracking
         /// <filterpriority>2</filterpriority>
         public override string ToString()
         {
+            // ReSharper disable once UseStringInterpolation
             return string.Format(
                 "Instance Id: {0} Execution Id: {1} Name: {2} Version: {3} CreatedTime: {4} CompletedTime: {5} LastUpdated: {6} Status: {7} User Status: {8} Input: {9} Output: {10} Size: {11} CompressedSize: {12}",
                 State.OrchestrationInstance.InstanceId, State.OrchestrationInstance.ExecutionId, State.Name,

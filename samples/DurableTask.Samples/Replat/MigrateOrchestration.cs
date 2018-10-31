@@ -23,10 +23,11 @@ namespace DurableTask.Samples.Replat
     /// </summary>
     public class MigrateOrchestration : TaskOrchestration<bool, MigrateOrchestrationData, string, MigrateOrchestrationStatus>
     {
-        private MigrateOrchestrationStatus status;
-        private IMigrationTasks antaresReplatMigrationTasks;
-        private IManagementSqlOrchestrationTasks managementDatabaseTasks;
-        private RetryOptions retryOptions = new RetryOptions(TimeSpan.FromSeconds(30), 5)
+        MigrateOrchestrationStatus status;
+        IMigrationTasks antaresReplatMigrationTasks;
+        IManagementSqlOrchestrationTasks managementDatabaseTasks;
+
+        readonly RetryOptions retryOptions = new RetryOptions(TimeSpan.FromSeconds(30), 5)
         {
             BackoffCoefficient = 1,
             MaxRetryInterval = TimeSpan.FromMinutes(5),
@@ -36,7 +37,7 @@ namespace DurableTask.Samples.Replat
 
         public override async Task<bool> RunTask(OrchestrationContext context, MigrateOrchestrationData input)
         {
-            this.Initialize(context);
+            Initialize(context);
 
             string subscriptionId = input.SubscriptionId;
             // Only update ttl for enabled subscription
@@ -47,10 +48,10 @@ namespace DurableTask.Samples.Replat
                 //    this.status.TtlUpdated.ToString()));
 
                 // Wait for 1 hour (after TTL update) before starting actual migration to guarantee zero downtime for website
-                this.status.TtlUpdateTimerFired = await this.Context.CreateTimer(this.Context.CurrentUtcDateTime.AddSeconds(10), true);
+                this.status.TtlUpdateTimerFired = await Context.CreateTimer(Context.CurrentUtcDateTime.AddSeconds(10), true);
             }
 
-            bool subscriptionLocked = await this.LockSubscription(input.SubscriptionId);
+            bool subscriptionLocked = await LockSubscription(input.SubscriptionId);
             //this.LogOrchestrationEvent(TraceEventType.Information, "Subscription '{0}' locked result: {1}".FormatInvariant(subscriptionId, subscriptionLocked.ToString()));
 
             Application[] apps = await this.managementDatabaseTasks.GetApplicationNames(subscriptionId);
@@ -71,7 +72,7 @@ namespace DurableTask.Samples.Replat
                         //this.LogOrchestrationEvent(TraceEventType.Information, "Subscription '{0}' validated for starting migration".FormatInvariant(subscriptionId));
 
                         this.status.TotalApplication = apps.Length;
-                        this.status.IsMigrated = await this.ApplyAction(apps, (id, app) => this.MigrateApplication(id, input.SubscriptionId, app));
+                        this.status.IsMigrated = await ApplyAction(apps, (id, app) => MigrateApplication(id, input.SubscriptionId, app));
                         //this.LogOrchestrationEvent(TraceEventType.Information, "Subscription '{0}' migration result: {1}".FormatInvariant(subscriptionId,
                         //    this.status.IsMigrated));
 
@@ -80,14 +81,14 @@ namespace DurableTask.Samples.Replat
                             this.status.ApplicationsMigrated.Clear();
 
                             // All Apps redeployed now switch DNS hostname
-                            this.status.IsFlipped = await this.ApplyAction(apps, (i, app) => this.antaresReplatMigrationTasks.UpdateWebSiteHostName(subscriptionId, app));
+                            this.status.IsFlipped = await ApplyAction(apps, (i, app) => this.antaresReplatMigrationTasks.UpdateWebSiteHostName(subscriptionId, app));
                             //this.LogOrchestrationEvent(TraceEventType.Information, "Subscription '{0}' flipped result: {1}".FormatInvariant(subscriptionId,
                             //    this.status.IsFlipped));
                         }
 
                         if (this.status.IsFlipped)
                         {
-                            this.status.IsWhitelisted = await SafeTaskInvoke<bool>(() => this.antaresReplatMigrationTasks.WhitelistSubscription(subscriptionId));
+                            this.status.IsWhitelisted = await SafeTaskInvoke(() => this.antaresReplatMigrationTasks.WhitelistSubscription(subscriptionId));
                             //this.LogOrchestrationEvent(TraceEventType.Information, "Subscription '{0}' IsWhitelisted result: {1}".FormatInvariant(subscriptionId,
                             //    this.status.IsWhitelisted));
                         }
@@ -121,9 +122,9 @@ namespace DurableTask.Samples.Replat
             if (this.status.IsSuccess)
             {
                 // wait 5 minutes before cleaning up private stamps
-                await this.Context.CreateTimer(this.Context.CurrentUtcDateTime.AddSeconds(5), true);
+                await Context.CreateTimer(Context.CurrentUtcDateTime.AddSeconds(5), true);
 
-                this.status.IsCleaned = await SafeTaskInvoke<bool>(() => this.antaresReplatMigrationTasks.CleanupPrivateStamp(subscriptionId));
+                this.status.IsCleaned = await SafeTaskInvoke(() => this.antaresReplatMigrationTasks.CleanupPrivateStamp(subscriptionId));
                 //this.LogOrchestrationEvent(TraceEventType.Information, "Private stamp cleaned for Subscription '{0}', Result: {1}".FormatInvariant(
                 //    subscriptionId, this.status.IsCleaned));
             }
@@ -133,26 +134,21 @@ namespace DurableTask.Samples.Replat
             return this.status.IsSuccess;
         }
 
-        public override void OnEvent(OrchestrationContext context, string name, string input)
-        {
-            base.OnEvent(context, name, input);
-        }
-
         public override MigrateOrchestrationStatus OnGetStatus()
         {
             return this.status;
         }
 
-        private void Initialize(OrchestrationContext context)
+        void Initialize(OrchestrationContext context)
         {
-            this.Context = context;
+            Context = context;
             this.status = new MigrateOrchestrationStatus();
             this.antaresReplatMigrationTasks = context.CreateRetryableClient<IMigrationTasks>(this.retryOptions);
             this.managementDatabaseTasks = context.CreateRetryableClient<IManagementSqlOrchestrationTasks>(this.retryOptions);
         }
 
         //private bool Validate(Application[] apps)
-        private static bool Validate()
+        static bool Validate()
         {
             // TODO: Validate if the entire subscription can be migrated
             //      1) No Apps are Kudu enabled
@@ -160,10 +156,10 @@ namespace DurableTask.Samples.Replat
             return true;
         }
 
-        private async Task<bool> LockSubscription(string subscriptionId)
+        async Task<bool> LockSubscription(string subscriptionId)
         {
-            bool subscriptionLocked = false;
-            bool error = false;
+            var subscriptionLocked = false;
+            var error = false;
             try
             {
                 subscriptionLocked = await this.managementDatabaseTasks.UpsertSubscriptionLock(subscriptionId, isLocked: true);
@@ -181,9 +177,9 @@ namespace DurableTask.Samples.Replat
             return subscriptionLocked;
         }
 
-        private async Task<bool> MigrateApplication(int id, string subscriptionId, Application application)
+        async Task<bool> MigrateApplication(int id, string subscriptionId, Application application)
         {
-            string migrateId = this.Context.OrchestrationInstance.InstanceId + "-" + id.ToString();
+            string migrateId = Context.OrchestrationInstance.InstanceId + "-" + id.ToString();
             bool isSuccess = await this.antaresReplatMigrationTasks.ExportSite(migrateId, subscriptionId, application);
             if (isSuccess)
             {
@@ -198,7 +194,7 @@ namespace DurableTask.Samples.Replat
             return isSuccess;
         }
 
-        private async Task<T> SafeTaskInvoke<T>(Func<Task<T>> task)
+        async Task<T> SafeTaskInvoke<T>(Func<Task<T>> task)
         {
             try
             {
@@ -212,14 +208,14 @@ namespace DurableTask.Samples.Replat
             return default(T);
         }
 
-        private async Task<bool> ApplyAction(Application[] apps, Func<int, Application, Task<bool>> action)
+        async Task<bool> ApplyAction(Application[] apps, Func<int, Application, Task<bool>> action)
         {
-            List<bool> actionResults = new List<bool>();
+            var actionResults = new List<bool>();
             int totalApplications = apps.Length;
-            for (int i = 0; i < totalApplications; i++)
+            for (var i = 0; i < totalApplications; i++)
             {
                 Application app = apps[i];
-                bool actionResult = await SafeTaskInvoke<bool>(() => action(i, app));
+                bool actionResult = await SafeTaskInvoke(() => action(i, app));
                 if (actionResult)
                 {
                     this.status.ApplicationsMigrated.Add(app);

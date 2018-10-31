@@ -22,14 +22,11 @@ namespace DurableTask.Core.Serializing
     /// </summary>
     internal abstract class JsonCreationConverter<T> : JsonConverter where T : class
     {
-        public override bool CanWrite
-        {
-            get { return false; }
-        }
+        public override bool CanWrite => false;
 
         public override bool CanConvert(Type objectType)
         {
-            return typeof (T).IsAssignableFrom(objectType);
+            return typeof(T).IsAssignableFrom(objectType);
         }
 
         public override object ReadJson(JsonReader reader, Type objectType, object existingValue,
@@ -52,12 +49,12 @@ namespace DurableTask.Core.Serializing
 
         public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
         {
-            throw new NotImplementedException();
+            throw new NotSupportedException();
         }
 
         /// <summary>
         ///     Create an instance of objectType, based properties in the JSON object
         /// </summary>
-        protected abstract T CreateObject(Type objectType, JObject jobject);
+        protected abstract T CreateObject(Type objectType, JObject jObject);
     }
 }

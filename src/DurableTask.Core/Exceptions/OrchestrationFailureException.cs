@@ -61,7 +61,7 @@ namespace DurableTask.Core.Exceptions
         protected OrchestrationFailureException(SerializationInfo info, StreamingContext context)
             : base(info, context)
         {
-            this.Details = info.GetString(nameof(Details));
+            Details = info.GetString(nameof(Details));
         }
 
         /// <summary>
@@ -75,7 +75,7 @@ namespace DurableTask.Core.Exceptions
         public override void GetObjectData(SerializationInfo info, StreamingContext context)
         {
             base.GetObjectData(info, context);
-            info.AddValue(nameof(Details), this.Details);
+            info.AddValue(nameof(Details), Details);
         }
     }
 }

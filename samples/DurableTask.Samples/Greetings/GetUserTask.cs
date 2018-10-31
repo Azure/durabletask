@@ -16,28 +16,25 @@ namespace DurableTask.Samples.Greetings
     using System;
     using System.Windows.Forms;
     using DurableTask.Core;
-    using DurableTaskSamples.Greetings;
 
     public sealed class GetUserTask : TaskActivity<string, string>
     {
-        public GetUserTask()
-        {
-        }
-
         protected override string Execute(DurableTask.Core.TaskContext context, string input)
         {
-            GetUserName userNamedialog = new GetUserName();
+            var userNameDialog = new GetUserName();
+
             Console.WriteLine("Waiting for user to enter name...");
-            string user = "";
-            DialogResult dialogResult = userNamedialog.ShowDialog();
+
+            var user = "";
+            DialogResult dialogResult = userNameDialog.ShowDialog();
             if (dialogResult == DialogResult.OK)
             {
-                user = userNamedialog.UserName;
+                user = userNameDialog.UserName;
             }
+
             Console.WriteLine("User Name Entered: " + user);
 
             return user;
         }
     }
-
 }

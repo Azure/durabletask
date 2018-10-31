@@ -33,7 +33,7 @@ namespace DurableTask.Core
         /// <summary>
         /// Creates a new instance of the RetryInterceptor with specified parameters
         /// </summary>
-        /// <param name="context">The orchestraion context of the function call</param>
+        /// <param name="context">The orchestration context of the function call</param>
         /// <param name="retryOptions">The options for performing retries</param>
         /// <param name="retryCall">The code to execute</param>
         public RetryInterceptor(OrchestrationContext context, RetryOptions retryOptions, Func<Task<T>> retryCall)
@@ -51,12 +51,13 @@ namespace DurableTask.Core
         public async Task<T> Invoke()
         {
             Exception lastException = null;
-            DateTime firstAttempt = context.CurrentUtcDateTime;
-            for (int retryCount = 0; retryCount < retryOptions.MaxNumberOfAttempts; retryCount++)
+            DateTime firstAttempt = this.context.CurrentUtcDateTime;
+
+            for (var retryCount = 0; retryCount < this.retryOptions.MaxNumberOfAttempts; retryCount++)
             {
                 try
                 {
-                    return await retryCall();
+                    return await this.retryCall();
                 }
                 catch (Exception e) when (!Utils.IsFatal(e))
                 {
@@ -64,9 +65,13 @@ namespace DurableTask.Core
                 }
 
                 TimeSpan nextDelay = ComputeNextDelay(retryCount, firstAttempt, lastException);
-                if (nextDelay == TimeSpan.Zero) break;
-                DateTime retryAt = context.CurrentUtcDateTime.Add(nextDelay);
-                await context.CreateTimer(retryAt, "Retry Attempt " + retryCount + 1);
+                if (nextDelay == TimeSpan.Zero)
+                {
+                    break;
+                }
+
+                DateTime retryAt = this.context.CurrentUtcDateTime.Add(nextDelay);
+                await this.context.CreateTimer(retryAt, "Retry Attempt " + retryCount + 1);
             }
 
             ExceptionDispatchInfo.Capture(lastException).Throw();
@@ -78,25 +83,25 @@ namespace DurableTask.Core
             TimeSpan nextDelay = TimeSpan.Zero;
             try
             {
-                if (retryOptions.Handle(failure))
+                if (this.retryOptions.Handle(failure))
                 {
-                    DateTime retryExpiration = (retryOptions.RetryTimeout != TimeSpan.MaxValue)
-                        ? firstAttempt.Add(retryOptions.RetryTimeout)
+                    DateTime retryExpiration = (this.retryOptions.RetryTimeout != TimeSpan.MaxValue)
+                        ? firstAttempt.Add(this.retryOptions.RetryTimeout)
                         : DateTime.MaxValue;
-                    if (context.CurrentUtcDateTime < retryExpiration)
+                    if (this.context.CurrentUtcDateTime < retryExpiration)
                     {
-                        double nextDelayInMilliSeconds = retryOptions.FirstRetryInterval.TotalMilliseconds*
-                                                         Math.Pow(retryOptions.BackoffCoefficient, attempt);
-                        nextDelay = (nextDelayInMilliSeconds < retryOptions.MaxRetryInterval.TotalMilliseconds)
-                            ? TimeSpan.FromMilliseconds(nextDelayInMilliSeconds)
-                            : retryOptions.MaxRetryInterval;
+                        double nextDelayInMilliseconds = this.retryOptions.FirstRetryInterval.TotalMilliseconds *
+                                                         Math.Pow(this.retryOptions.BackoffCoefficient, attempt);
+                        nextDelay = nextDelayInMilliseconds < this.retryOptions.MaxRetryInterval.TotalMilliseconds
+                            ? TimeSpan.FromMilliseconds(nextDelayInMilliseconds)
+                            : this.retryOptions.MaxRetryInterval;
                     }
                 }
             }
             catch (Exception e) when (!Utils.IsFatal(e))
             {
                 // Catch any exceptions during ComputeNextDelay so we don't override original error with new error
-                TraceHelper.TraceExceptionInstance(TraceEventType.Error, "RetryInterceptor-ComputeNextDelayException", context.OrchestrationInstance, e);
+                TraceHelper.TraceExceptionInstance(TraceEventType.Error, "RetryInterceptor-ComputeNextDelayException", this.context.OrchestrationInstance, e);
             }
 
             return nextDelay;

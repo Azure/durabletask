@@ -27,20 +27,20 @@ namespace DurableTask.Core
         /// <summary>
         /// List of all history events for this runtime state
         /// </summary>
-        public readonly IList<HistoryEvent> Events;
+        public IList<HistoryEvent> Events { get; }
 
         /// <summary>
         /// List of new events added during an execution to keep track of the new events that were added during a particular execution 
         /// should not be serialized
         /// </summary>
-        public readonly IList<HistoryEvent> NewEvents;
-        
+        public IList<HistoryEvent> NewEvents { get; }
+
         /// <summary>
         /// Compressed size of the serialized state
         /// </summary>
         public long CompressedSize;
 
-        ExecutionCompletedEvent ExecutionCompletedEvent;
+        ExecutionCompletedEvent ExecutionCompletedEvent { get; set; }
 
         /// <summary>
         /// Size of the serialized state (uncompressed)
@@ -68,6 +68,7 @@ namespace DurableTask.Core
         {
             Events = new List<HistoryEvent>();
             NewEvents = new List<HistoryEvent>();
+
             if (events != null && events.Count > 0)
             {
                 foreach (HistoryEvent ev in events)
@@ -100,15 +101,7 @@ namespace DurableTask.Core
         /// <summary>
         /// Gets the created time of the ExecutionCompletedEvent if completed else a safe (from timezone shift) max datetime
         /// </summary>
-        public DateTime CompletedTime
-        {
-            get
-            {
-                return ExecutionCompletedEvent == null
-                    ? Utils.DateTimeSafeMaxValue
-                    : ExecutionCompletedEvent.Timestamp;
-            }
-        }
+        public DateTime CompletedTime => ExecutionCompletedEvent?.Timestamp ?? Utils.DateTimeSafeMaxValue;
 
         /// <summary>
         /// Gets the serialized input of the ExecutionStartedEvent
@@ -123,12 +116,9 @@ namespace DurableTask.Core
         }
 
         /// <summary>
-        /// Gets the serialized output of the ExecutionCompletedEvent if compeleted else null
+        /// Gets the serialized output of the ExecutionCompletedEvent if completed else null
         /// </summary>
-        public String Output
-        {
-            get { return ExecutionCompletedEvent == null ? null : ExecutionCompletedEvent.Result; }
-        }
+        public string Output => ExecutionCompletedEvent?.Result;
 
         /// <summary>
         /// Gets the orchestration name of the ExecutionStartedEvent
@@ -143,7 +133,7 @@ namespace DurableTask.Core
         }
 
         /// <summary>
-        /// Gets the orchestraion version of the ExecutionStartedEvent
+        /// Gets the orchestration version of the ExecutionStartedEvent
         /// </summary>
         public string Version
         {
@@ -157,17 +147,11 @@ namespace DurableTask.Core
         /// <summary>
         /// Gets the tags from the ExecutionStartedEvent
         /// </summary>
-        public IDictionary<string, string> Tags
-        {
-            get
-            {
-                // This gets called by json.net for deserialization, we can't assert if there is no ExecutionStartedEvent
-                return ExecutionStartedEvent?.Tags;
-            }
-        }
+        // This gets called by json.net for deserialization, we can't assert if there is no ExecutionStartedEvent
+        public IDictionary<string, string> Tags => ExecutionStartedEvent?.Tags;
 
         /// <summary>
-        /// Gets the status of the orchestation
+        /// Gets the status of the orchestration
         /// If complete then the status from the ExecutionCompletedEvent else Running.
         /// </summary>
         public OrchestrationStatus OrchestrationStatus
@@ -188,18 +172,12 @@ namespace DurableTask.Core
         /// <summary>
         /// Gets the OrchestrationInstance of the ExecutionStartedEvent else null
         /// </summary>
-        public OrchestrationInstance OrchestrationInstance
-        {
-            get { return ExecutionStartedEvent == null ? null : ExecutionStartedEvent.OrchestrationInstance; }
-        }
+        public OrchestrationInstance OrchestrationInstance => ExecutionStartedEvent?.OrchestrationInstance;
 
         /// <summary>
         /// Gets the ParentInstance of the ExecutionStartedEvent else null
         /// </summary>
-        public ParentInstance ParentInstance
-        {
-            get { return ExecutionStartedEvent == null ? null : ExecutionStartedEvent.ParentInstance; }
-        }
+        public ParentInstance ParentInstance => ExecutionStartedEvent?.ParentInstance;
 
         /// <summary>
         /// Adds a new history event to the Events list and NewEvents list
@@ -222,28 +200,31 @@ namespace DurableTask.Core
             {
                 NewEvents.Add(historyEvent);
             }
+
             SetMarkerEvents(historyEvent);
         }
 
         void SetMarkerEvents(HistoryEvent historyEvent)
         {
-            if (historyEvent is ExecutionStartedEvent)
+            if (historyEvent is ExecutionStartedEvent startedEvent)
             {
                 if (ExecutionStartedEvent != null)
                 {
                     throw new InvalidOperationException(
                         "Multiple ExecutionStartedEvent found, potential corruption in state storage");
                 }
-                ExecutionStartedEvent = (ExecutionStartedEvent) historyEvent;
+
+                ExecutionStartedEvent = startedEvent;
             }
-            else if (historyEvent is ExecutionCompletedEvent)
+            else if (historyEvent is ExecutionCompletedEvent completedEvent)
             {
                 if (ExecutionCompletedEvent != null)
                 {
                     throw new InvalidOperationException(
                         "Multiple ExecutionCompletedEvent found, potential corruption in state storage");
                 }
-                ExecutionCompletedEvent = (ExecutionCompletedEvent) historyEvent;
+
+                ExecutionCompletedEvent = completedEvent;
             }
         }
 
@@ -278,95 +259,86 @@ namespace DurableTask.Core
         {
             HistoryEvent returnedEvent = evt;
 
-            if (evt is TaskScheduledEvent)
+            if (evt is TaskScheduledEvent taskScheduledEvent)
             {
-                var sourceEvent = (TaskScheduledEvent) evt;
-                returnedEvent = new TaskScheduledEvent(sourceEvent.EventId)
+                returnedEvent = new TaskScheduledEvent(taskScheduledEvent.EventId)
                 {
-                    Timestamp = sourceEvent.Timestamp,
-                    IsPlayed = sourceEvent.IsPlayed,
-                    Name = sourceEvent.Name,
-                    Version = sourceEvent.Version,
+                    Timestamp = taskScheduledEvent.Timestamp,
+                    IsPlayed = taskScheduledEvent.IsPlayed,
+                    Name = taskScheduledEvent.Name,
+                    Version = taskScheduledEvent.Version,
                     Input = "[..snipped..]",
                 };
             }
-            else if (evt is TaskCompletedEvent)
+            else if (evt is TaskCompletedEvent taskCompletedEvent)
             {
-                var sourceEvent = (TaskCompletedEvent) evt;
-                returnedEvent = new TaskCompletedEvent(sourceEvent.EventId, sourceEvent.TaskScheduledId, "[..snipped..]")
+                returnedEvent = new TaskCompletedEvent(taskCompletedEvent.EventId, taskCompletedEvent.TaskScheduledId, "[..snipped..]")
                 {
-                    Timestamp = sourceEvent.Timestamp,
-                    IsPlayed = sourceEvent.IsPlayed,
+                    Timestamp = taskCompletedEvent.Timestamp,
+                    IsPlayed = taskCompletedEvent.IsPlayed,
                 };
             }
-            else if (evt is SubOrchestrationInstanceCreatedEvent)
+            else if (evt is SubOrchestrationInstanceCreatedEvent subOrchestrationInstanceCreatedEvent)
             {
-                var sourceEvent = (SubOrchestrationInstanceCreatedEvent) evt;
-                returnedEvent = new SubOrchestrationInstanceCreatedEvent(sourceEvent.EventId)
+                returnedEvent = new SubOrchestrationInstanceCreatedEvent(subOrchestrationInstanceCreatedEvent.EventId)
                 {
-                    Timestamp = sourceEvent.Timestamp,
-                    IsPlayed = sourceEvent.IsPlayed,
-                    Name = sourceEvent.Name,
-                    Version = sourceEvent.Version,
+                    Timestamp = subOrchestrationInstanceCreatedEvent.Timestamp,
+                    IsPlayed = subOrchestrationInstanceCreatedEvent.IsPlayed,
+                    Name = subOrchestrationInstanceCreatedEvent.Name,
+                    Version = subOrchestrationInstanceCreatedEvent.Version,
                     Input = "[..snipped..]",
                 };
             }
-            else if (evt is SubOrchestrationInstanceCompletedEvent)
+            else if (evt is SubOrchestrationInstanceCompletedEvent subOrchestrationInstanceCompletedEvent)
             {
-                var sourceEvent = (SubOrchestrationInstanceCompletedEvent) evt;
-                returnedEvent = new SubOrchestrationInstanceCompletedEvent(sourceEvent.EventId,
-                    sourceEvent.TaskScheduledId, "[..snipped..]")
+                returnedEvent = new SubOrchestrationInstanceCompletedEvent(subOrchestrationInstanceCompletedEvent.EventId,
+                    subOrchestrationInstanceCompletedEvent.TaskScheduledId, "[..snipped..]")
                 {
-                    Timestamp = sourceEvent.Timestamp,
-                    IsPlayed = sourceEvent.IsPlayed,
+                    Timestamp = subOrchestrationInstanceCompletedEvent.Timestamp,
+                    IsPlayed = subOrchestrationInstanceCompletedEvent.IsPlayed,
                 };
             }
-            else if (evt is TaskFailedEvent)
+            else if (evt is TaskFailedEvent taskFailedEvent)
             {
-                var sourceEvent = (TaskFailedEvent) evt;
-                returnedEvent = new TaskFailedEvent(sourceEvent.EventId,
-                    sourceEvent.TaskScheduledId, sourceEvent.Reason, "[..snipped..]")
+                returnedEvent = new TaskFailedEvent(taskFailedEvent.EventId,
+                    taskFailedEvent.TaskScheduledId, taskFailedEvent.Reason, "[..snipped..]")
                 {
-                    Timestamp = sourceEvent.Timestamp,
-                    IsPlayed = sourceEvent.IsPlayed,
+                    Timestamp = taskFailedEvent.Timestamp,
+                    IsPlayed = taskFailedEvent.IsPlayed,
                 };
             }
-            else if (evt is SubOrchestrationInstanceFailedEvent)
+            else if (evt is SubOrchestrationInstanceFailedEvent subOrchestrationInstanceFailedEvent)
             {
-                var sourceEvent = (SubOrchestrationInstanceFailedEvent) evt;
-                returnedEvent = new SubOrchestrationInstanceFailedEvent(sourceEvent.EventId,
-                    sourceEvent.TaskScheduledId, sourceEvent.Reason, "[..snipped..]")
+                returnedEvent = new SubOrchestrationInstanceFailedEvent(subOrchestrationInstanceFailedEvent.EventId,
+                    subOrchestrationInstanceFailedEvent.TaskScheduledId, subOrchestrationInstanceFailedEvent.Reason, "[..snipped..]")
                 {
-                    Timestamp = sourceEvent.Timestamp,
-                    IsPlayed = sourceEvent.IsPlayed,
+                    Timestamp = subOrchestrationInstanceFailedEvent.Timestamp,
+                    IsPlayed = subOrchestrationInstanceFailedEvent.IsPlayed,
                 };
             }
-            else if (evt is ExecutionStartedEvent)
+            else if (evt is ExecutionStartedEvent executionStartedEvent)
             {
-                var sourceEvent = (ExecutionStartedEvent) evt;
-                returnedEvent = new ExecutionStartedEvent(sourceEvent.EventId, "[..snipped..]")
+                returnedEvent = new ExecutionStartedEvent(executionStartedEvent.EventId, "[..snipped..]")
                 {
-                    Timestamp = sourceEvent.Timestamp,
-                    IsPlayed = sourceEvent.IsPlayed,
+                    Timestamp = executionStartedEvent.Timestamp,
+                    IsPlayed = executionStartedEvent.IsPlayed,
                 };
             }
-            else if (evt is ExecutionCompletedEvent)
+            else if (evt is ExecutionCompletedEvent executionCompletedEvent)
             {
-                var sourceEvent = (ExecutionCompletedEvent) evt;
-                returnedEvent = new ExecutionCompletedEvent(sourceEvent.EventId, "[..snipped..]",
-                    sourceEvent.OrchestrationStatus)
+                returnedEvent = new ExecutionCompletedEvent(executionCompletedEvent.EventId, "[..snipped..]",
+                    executionCompletedEvent.OrchestrationStatus)
                 {
-                    Timestamp = sourceEvent.Timestamp,
-                    IsPlayed = sourceEvent.IsPlayed,
+                    Timestamp = executionCompletedEvent.Timestamp,
+                    IsPlayed = executionCompletedEvent.IsPlayed,
                 };
             }
-            else if (evt is ExecutionTerminatedEvent)
+            else if (evt is ExecutionTerminatedEvent executionTerminatedEvent)
             {
-                var sourceEvent = (ExecutionTerminatedEvent) evt;
-                returnedEvent = new ExecutionTerminatedEvent(sourceEvent.EventId, "[..snipped..]")
+                returnedEvent = new ExecutionTerminatedEvent(executionTerminatedEvent.EventId, "[..snipped..]")
                 {
-                    Timestamp = sourceEvent.Timestamp,
-                    IsPlayed = sourceEvent.IsPlayed,
+                    Timestamp = executionTerminatedEvent.Timestamp,
+                    IsPlayed = executionTerminatedEvent.IsPlayed,
                 };
             }
             // ContinueAsNewEvent is covered by the ExecutionCompletedEvent block

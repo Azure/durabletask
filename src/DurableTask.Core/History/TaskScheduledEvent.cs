@@ -33,10 +33,7 @@ namespace DurableTask.Core.History
         /// <summary>
         /// Gets the event type
         /// </summary>
-        public override EventType EventType
-        {
-            get { return EventType.TaskScheduled; }
-        }
+        public override EventType EventType => EventType.TaskScheduled;
 
         /// <summary>
         /// Gets or sets the orchestration Name

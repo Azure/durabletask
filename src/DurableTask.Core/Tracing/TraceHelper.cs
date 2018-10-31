@@ -16,6 +16,7 @@ namespace DurableTask.Core.Tracing
     using System;
     using System.Diagnostics;
     using System.Globalization;
+    using System.Runtime.ExceptionServices;
     using DurableTask.Core.Common;
 
     /// <summary>
@@ -107,7 +108,7 @@ namespace DurableTask.Core.Tracing
         ///     Trace an exception and message
         /// </summary>
         public static Exception TraceException(TraceEventType eventLevel, string eventType, Exception exception,
-            Func<String> generateMessage)
+            Func<string> generateMessage)
         {
             return TraceExceptionCore(eventLevel, eventType, string.Empty, string.Empty, exception, generateMessage);
         }
@@ -118,7 +119,7 @@ namespace DurableTask.Core.Tracing
         public static Exception TraceException(TraceEventType eventLevel, string eventType, Exception exception, string format,
             params object[] args)
         {
-            return TraceExceptionCore(eventLevel, eventType, string.Empty, string.Empty, exception, format, args);
+            return TraceExceptionCore(eventLevel, eventType, string.Empty, string.Empty, ExceptionDispatchInfo.Capture(exception), format, args).SourceException;
         }
 
         /// <summary>
@@ -128,7 +129,7 @@ namespace DurableTask.Core.Tracing
             OrchestrationInstance orchestrationInstance, Exception exception)
         {
             return TraceExceptionCore(eventLevel, eventType, orchestrationInstance.InstanceId, orchestrationInstance.ExecutionId,
-                exception, string.Empty);
+                ExceptionDispatchInfo.Capture(exception), string.Empty).SourceException;
         }
 
         /// <summary>
@@ -148,7 +149,7 @@ namespace DurableTask.Core.Tracing
             OrchestrationInstance orchestrationInstance, Exception exception, string format, params object[] args)
         {
             return TraceExceptionCore(eventLevel, eventType, orchestrationInstance.InstanceId, orchestrationInstance.ExecutionId,
-                exception, format, args);
+                ExceptionDispatchInfo.Capture(exception), format, args).SourceException;
         }
 
         /// <summary>
@@ -156,7 +157,15 @@ namespace DurableTask.Core.Tracing
         /// </summary>
         public static Exception TraceExceptionSession(TraceEventType eventLevel, string eventType, string sessionId, Exception exception)
         {
-            return TraceExceptionCore(eventLevel, eventType, sessionId, string.Empty, exception, string.Empty);
+            return TraceExceptionCore(eventLevel, eventType, sessionId, string.Empty, ExceptionDispatchInfo.Capture(exception), string.Empty).SourceException;
+        }
+
+        /// <summary>
+        ///     Trace a session exception without execution id
+        /// </summary>
+        public static ExceptionDispatchInfo TraceExceptionSession(TraceEventType eventLevel, string eventType, string sessionId, ExceptionDispatchInfo exceptionDispatchInfo)
+        {
+            return TraceExceptionCore(eventLevel, eventType, sessionId, string.Empty, exceptionDispatchInfo, string.Empty);
         }
 
         /// <summary>
@@ -174,13 +183,24 @@ namespace DurableTask.Core.Tracing
         public static Exception TraceExceptionSession(TraceEventType eventLevel, string eventType, string sessionId, Exception exception,
             string format, params object[] args)
         {
-            return TraceExceptionCore(eventLevel, eventType, sessionId, string.Empty, exception, format, args);
+            return TraceExceptionCore(eventLevel, eventType, sessionId, string.Empty, ExceptionDispatchInfo.Capture(exception), format, args).SourceException;
+        }
+
+        /// <summary>
+        ///     Trace a session exception and message without execution id
+        /// </summary>
+        public static ExceptionDispatchInfo TraceExceptionSession(TraceEventType eventLevel, string eventType, string sessionId, ExceptionDispatchInfo exceptionDispatchInfo,
+            string format, params object[] args)
+        {
+            return TraceExceptionCore(eventLevel, eventType, sessionId, string.Empty, exceptionDispatchInfo, format, args);
         }
 
         // helper methods
-        static Exception TraceExceptionCore(TraceEventType eventLevel, string eventType, string iid, string eid, Exception exception,
+        static ExceptionDispatchInfo TraceExceptionCore(TraceEventType eventLevel, string eventType, string iid, string eid, ExceptionDispatchInfo exceptionDispatchInfo,
             string format, params object[] args)
         {
+            Exception exception = exceptionDispatchInfo.SourceException;
+
             string newFormat = format + "\nException: " + exception.GetType() + " : " + exception.Message + "\n\t" +
                                exception.StackTrace + "\nInner Exception: " +
                                exception.InnerException?.ToString();
@@ -188,7 +208,7 @@ namespace DurableTask.Core.Tracing
             ExceptionHandlingWrapper(
                 () => DefaultEventSource.Log.TraceEvent(eventLevel, Source, iid, eid, string.Empty, FormatString(newFormat, args), eventType));
 
-            return exception;
+            return exceptionDispatchInfo;
         }
 
         static Exception TraceExceptionCore(TraceEventType eventLevel, string eventType, string iid, string eid, Exception exception,

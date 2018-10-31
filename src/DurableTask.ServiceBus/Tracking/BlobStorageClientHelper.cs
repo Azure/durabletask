@@ -29,7 +29,7 @@ namespace DurableTask.ServiceBus.Tracking
         static readonly char ContainerNameDelimiter = '-';
 
         /// <summary>
-        /// the blob storage accesss key is in the format of {DateTime}|{blobName}
+        /// the blob storage access key is in the format of {DateTime}|{blobName}
         /// </summary>
         public static readonly char KeyDelimiter = '|';
 
@@ -83,13 +83,7 @@ namespace DurableTask.ServiceBus.Tracking
         public static string BuildSessionBlobKey(string sessionId)
         {
             string id = Guid.NewGuid().ToString("N");
-            return string.Format(
-                "{0}{1}{2}{3}{4}",
-                BuildContainerNameSuffix("session", DateTimeUtils.MinDateTime),
-                KeyDelimiter,
-                sessionId,
-                BlobNameDelimiter,
-                id);
+            return $"{BuildContainerNameSuffix("session", DateTimeUtils.MinDateTime)}{KeyDelimiter}{sessionId}{BlobNameDelimiter}{id}";
         }
 
         // use the message fire time if it is set;
@@ -109,7 +103,7 @@ namespace DurableTask.ServiceBus.Tracking
         /// <param name="blobName">The parsed blob name as output</param>
         public static void ParseKey(string key, out string containerNameSuffix, out string blobName)
         {
-            string[] segments = key.Split(new[] {BlobStorageClientHelper.KeyDelimiter}, 2);
+            string[] segments = key.Split(new[] { KeyDelimiter }, 2);
             if (segments.Length < 2)
             {
                 throw new ArgumentException($"Blob key {key} does not contain required 2 or more segments: containerNameSuffix|blobName.", nameof(key));
@@ -135,7 +129,7 @@ namespace DurableTask.ServiceBus.Tracking
         /// <returns>True if the container name suffix is valid.</returns>
         static bool IsValidContainerNameSuffix(string containerNameSuffix)
         {
-            Regex regex = new Regex(@"^[a-z0-9\\-]+$");
+            var regex = new Regex(@"^[a-z0-9\\-]+$");
             return regex.Match(containerNameSuffix).Success;
         }
 
@@ -158,14 +152,13 @@ namespace DurableTask.ServiceBus.Tracking
                 return false;
             }
 
-            DateTime containerDateTime;
             string dateString = segments[segments.Length - 1];
             bool parseSucceeded = DateTime.TryParseExact(
                 dateString,
                 DateFormat,
                 System.Globalization.CultureInfo.InvariantCulture,
                 DateTimeStyles.None,
-                out containerDateTime);
+                out DateTime containerDateTime);
 
             if (!parseSucceeded)
             {

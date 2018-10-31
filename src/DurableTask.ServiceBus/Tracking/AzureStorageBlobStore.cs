@@ -66,7 +66,7 @@ namespace DurableTask.ServiceBus.Tracking
         }
 
         /// <summary>
-        /// Save the stream of the message or seesion using key.
+        /// Save the stream of the message or session using key.
         /// </summary>
         /// <param name="blobKey">The blob key.</param>
         /// <param name="stream">The stream of the message or session.</param>
@@ -77,7 +77,7 @@ namespace DurableTask.ServiceBus.Tracking
         }
 
         /// <summary>
-        /// Load the stream of message or seesion from storage using key.
+        /// Load the stream of message or session from storage using key.
         /// </summary>
         /// <param name="blobKey">The blob key.</param>
         /// <returns>The saved stream message or session.</returns>

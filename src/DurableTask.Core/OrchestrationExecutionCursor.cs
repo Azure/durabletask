@@ -16,7 +16,7 @@ namespace DurableTask.Core
     using System.Collections.Generic;
     using DurableTask.Core.Command;
 
-    class OrchestrationExecutionCursor
+    internal class OrchestrationExecutionCursor
     {
         public OrchestrationExecutionCursor(
             OrchestrationRuntimeState state,
@@ -24,15 +24,18 @@ namespace DurableTask.Core
             TaskOrchestrationExecutor executor,
             IEnumerable<OrchestratorAction> latestDecisions)
         {
-            this.RuntimeState = state;
-            this.TaskOrchestration = orchestration;
-            this.OrchestrationExecutor = executor;
-            this.LatestDecisions = latestDecisions;
+            RuntimeState = state;
+            TaskOrchestration = orchestration;
+            OrchestrationExecutor = executor;
+            LatestDecisions = latestDecisions;
         }
 
         public OrchestrationRuntimeState RuntimeState { get; }
+
         public TaskOrchestration TaskOrchestration { get; }
+
         public TaskOrchestrationExecutor OrchestrationExecutor { get; }
+
         public IEnumerable<OrchestratorAction> LatestDecisions { get; set; }
     }
 }

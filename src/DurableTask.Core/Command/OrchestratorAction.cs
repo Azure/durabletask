@@ -15,10 +15,11 @@ namespace DurableTask.Core.Command
 {
     using Newtonsoft.Json;
 
-    [JsonConverter(typeof (OrchestrationActionConverter))]
+    [JsonConverter(typeof(OrchestrationActionConverter))]
     internal abstract class OrchestratorAction
     {
         public int Id { get; set; }
+
         public abstract OrchestratorActionType OrchestratorActionType { get; }
     }
 }

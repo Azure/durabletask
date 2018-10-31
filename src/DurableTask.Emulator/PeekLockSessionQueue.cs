@@ -20,12 +20,12 @@ namespace DurableTask.Emulator
     using System.Threading;
     using System.Threading.Tasks;
 
-    class PeekLockSessionQueue
+    internal class PeekLockSessionQueue
     {
-        List<TaskSession> sessionQueue;
-        List<TaskSession> lockedSessionQueue;
+        readonly List<TaskSession> sessionQueue;
+        readonly List<TaskSession> lockedSessionQueue;
 
-        public object ThisLock = new object();
+        readonly object thisLock = new object();
 
         public PeekLockSessionQueue()
         {
@@ -35,7 +35,7 @@ namespace DurableTask.Emulator
 
         public void DropSession(string id)
         {
-            lock(this.ThisLock)
+            lock (this.thisLock)
             {
                 TaskSession taskSession = this.lockedSessionQueue.Find((ts) => string.Equals(ts.Id, id, StringComparison.InvariantCultureIgnoreCase));
 
@@ -57,11 +57,11 @@ namespace DurableTask.Emulator
 
         public void SendMessage(TaskMessage message)
         {
-            lock(this.ThisLock)
+            lock (this.thisLock)
             {
-                foreach(TaskSession ts in this.sessionQueue)
+                foreach (TaskSession ts in this.sessionQueue)
                 {
-                    if(ts.Id == message.OrchestrationInstance.InstanceId)
+                    if (ts.Id == message.OrchestrationInstance.InstanceId)
                     {
                         ts.Messages.Add(message);
                         return;
@@ -78,35 +78,35 @@ namespace DurableTask.Emulator
                 }
 
                 // create a new session
-                sessionQueue.Add(new TaskSession()
+                this.sessionQueue.Add(new TaskSession
                 {
                     Id = message.OrchestrationInstance.InstanceId,
                     SessionState = null,
-                    Messages = new List<TaskMessage>() {  message }
+                    Messages = new List<TaskMessage> { message }
                 });
             }
         }
 
         public void CompleteSession(
-            string id, 
-            byte[] newState, 
+            string id,
+            byte[] newState,
             IList<TaskMessage> newMessages,
             TaskMessage continuedAsNewMessage)
         {
-            lock (this.ThisLock)
+            lock (this.thisLock)
             {
                 TaskSession taskSession = this.lockedSessionQueue.Find((ts) => string.Equals(ts.Id, id, StringComparison.InvariantCultureIgnoreCase));
 
                 if (taskSession == null)
                 {
-                    // AFFANDAR : TODO : throw proper lock lost exception
+                    // TODO : throw proper lock lost exception (AFFANDAR)
                     throw new InvalidOperationException("Lock lost");
                 }
 
                 this.lockedSessionQueue.Remove(taskSession);
 
                 // make the required updates to the session
-                foreach(TaskMessage tm in taskSession.LockTable)
+                foreach (TaskMessage tm in taskSession.LockTable)
                 {
                     taskSession.Messages.Remove(tm);
                 }
@@ -122,37 +122,36 @@ namespace DurableTask.Emulator
 
                 foreach (TaskMessage m in newMessages)
                 {
-                    this.SendMessage(m);
+                    SendMessage(m);
                 }
 
                 if (continuedAsNewMessage != null)
                 {
-                    this.SendMessage(continuedAsNewMessage);
+                    SendMessage(continuedAsNewMessage);
                 }
             }
         }
 
         public void AbandonSession(string id)
         {
-            lock (this.ThisLock)
+            lock (this.thisLock)
             {
                 TaskSession taskSession = this.lockedSessionQueue.Find((ts) => string.Equals(ts.Id, id, StringComparison.InvariantCultureIgnoreCase));
 
                 if (taskSession == null)
                 {
-                    // AFFANDAR : TODO : throw proper lock lost exception
+                    // TODO : throw proper lock lost exception (AFFANDAR)
                     throw new InvalidOperationException("Lock lost");
                 }
 
                 this.lockedSessionQueue.Remove(taskSession);
 
-                // AFFANDAR : TODO : note that this we are adding to the tail of the queue rather than head, which is what sbus would actually do
-                //      doesnt really matter though in terms of semantics
+                // TODO : note that this we are adding to the tail of the queue rather than head, which is what sbus would actually do (AFFANDAR)
+                //      doesn't really matter though in terms of semantics
                 this.sessionQueue.Add(taskSession);
 
                 // unlock all messages
                 taskSession.LockTable.Clear();
-
             }
         }
 
@@ -161,8 +160,7 @@ namespace DurableTask.Emulator
             Stopwatch timer = Stopwatch.StartNew();
             while (timer.Elapsed < receiveTimeout && !cancellationToken.IsCancellationRequested)
             {
-
-                lock(this.ThisLock)
+                lock (this.thisLock)
                 {
                     foreach (TaskSession ts in this.sessionQueue)
                     {
@@ -182,10 +180,10 @@ namespace DurableTask.Emulator
                     }
                 }
 
-                await Task.Delay(TimeSpan.FromMilliseconds(500));
+                await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken);
             }
 
-            if(cancellationToken.IsCancellationRequested)
+            if (cancellationToken.IsCancellationRequested)
             {
                 throw new TaskCanceledException();
             }

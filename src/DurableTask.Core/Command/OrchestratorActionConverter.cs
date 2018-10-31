@@ -19,10 +19,9 @@ namespace DurableTask.Core.Command
 
     internal class OrchestrationActionConverter : JsonCreationConverter<OrchestratorAction>
     {
-        protected override OrchestratorAction CreateObject(Type objectType, JObject jobject)
+        protected override OrchestratorAction CreateObject(Type objectType, JObject jObject)
         {
-            JToken actionType;
-            if (jobject.TryGetValue("OrchestratorActionType", StringComparison.OrdinalIgnoreCase, out actionType))
+            if (jObject.TryGetValue("OrchestratorActionType", StringComparison.OrdinalIgnoreCase, out JToken actionType))
             {
                 var type = (OrchestratorActionType)int.Parse((string)actionType);
                 switch (type)
@@ -39,6 +38,7 @@ namespace DurableTask.Core.Command
                         throw new NotSupportedException("Unrecognized action type.");
                 }
             }
+
             throw new NotSupportedException("Action Type not provided.");
         }
     }

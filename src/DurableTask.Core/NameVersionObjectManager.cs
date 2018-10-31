@@ -23,22 +23,22 @@ namespace DurableTask.Core
 
         public NameVersionObjectManager()
         {
-            creators = new Dictionary<string, ObjectCreator<T>>();
+            this.creators = new Dictionary<string, ObjectCreator<T>>();
         }
 
         public void Add(ObjectCreator<T> creator)
         {
-            lock (thisLock)
+            lock (this.thisLock)
             {
                 string key = GetKey(creator.Name, creator.Version);
 
-                if (creators.ContainsKey(key))
+                if (this.creators.ContainsKey(key))
                 {
                     throw new InvalidOperationException("Duplicate entry detected: " + creator.Name + " " +
                                                         creator.Version);
                 }
 
-                creators.Add(key, creator);
+                this.creators.Add(key, creator);
             }
         }
 
@@ -46,10 +46,9 @@ namespace DurableTask.Core
         {
             string key = GetKey(name, version);
 
-            lock (thisLock)
+            lock (this.thisLock)
             {
-                ObjectCreator<T> creator = null;
-                if (creators.TryGetValue(key, out creator))
+                if (this.creators.TryGetValue(key, out ObjectCreator<T> creator))
                 {
                     return creator.Create();
                 }

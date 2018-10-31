@@ -28,7 +28,7 @@ namespace DurableTask.Core
     using DurableTask.Core.Tracing;
 
     /// <summary>
-    /// Dispatcher for orchestrations to handle processing and renewing, completetion of orchestration events
+    /// Dispatcher for orchestrations to handle processing and renewing, completion of orchestration events
     /// </summary>
     public class TaskOrchestrationDispatcher
     {
@@ -53,8 +53,8 @@ namespace DurableTask.Core
             this.dispatcher = new WorkItemDispatcher<TaskOrchestrationWorkItem>(
                 "TaskOrchestrationDispatcher",
                 item => item == null ? string.Empty : item.InstanceId,
-                this.OnFetchWorkItemAsync,
-                this.OnProcessWorkItemSessionAsync)
+                OnFetchWorkItemAsync,
+                OnProcessWorkItemSessionAsync)
             {
                 GetDelayInSecondsAfterOnFetchException = orchestrationService.GetDelayInSecondsAfterOnFetchException,
                 GetDelayInSecondsAfterOnProcessException = orchestrationService.GetDelayInSecondsAfterOnProcessException,
@@ -66,7 +66,7 @@ namespace DurableTask.Core
 
             // To avoid starvation, we only allow half of all concurrently execution orchestrations to
             // leverage extended sessions.
-            int maxConcurrentSessions = (int)Math.Ceiling(this.dispatcher.MaxConcurrentWorkItems / 2.0);
+            var maxConcurrentSessions = (int)Math.Ceiling(this.dispatcher.MaxConcurrentWorkItems / 2.0);
             this.concurrentSessionLock = new NonBlockingCountdownLock(maxConcurrentSessions);
         }
 
@@ -75,7 +75,7 @@ namespace DurableTask.Core
         /// </summary>
         public async Task StartAsync()
         {
-            await dispatcher.StartAsync();
+            await this.dispatcher.StartAsync();
         }
 
         /// <summary>
@@ -84,7 +84,7 @@ namespace DurableTask.Core
         /// <param name="forced">Flag indicating whether to stop gracefully or immediately</param>
         public async Task StopAsync(bool forced)
         {
-            await dispatcher.StopAsync(forced);
+            await this.dispatcher.StopAsync(forced);
         }
 
         /// <summary>
@@ -93,7 +93,7 @@ namespace DurableTask.Core
         public bool IncludeDetails { get; set; }
 
         /// <summary>
-        /// Gets or sets flag whether to pass orchestration input parameters to sub orchestations
+        /// Gets or sets flag whether to pass orchestration input parameters to sub orchestrations
         /// </summary>
         public bool IncludeParameters { get; set; }
 
@@ -113,21 +113,20 @@ namespace DurableTask.Core
             if (workItem.Session == null)
             {
                 // Legacy behavior
-                await this.OnProcessWorkItemAsync(workItem);
+                await OnProcessWorkItemAsync(workItem);
                 return;
             }
 
-            bool isExtendedSession = false;
-            int processCount = 0;
+            var isExtendedSession = false;
+            var processCount = 0;
             try
             {
-                bool isCompletedOrInterrupted = false;
                 while (true)
                 {
                     // If the provider provided work items, execute them.
                     if (workItem.NewMessages?.Count > 0)
                     {
-                        isCompletedOrInterrupted = await this.OnProcessWorkItemAsync(workItem);
+                        bool isCompletedOrInterrupted = await OnProcessWorkItemAsync(workItem);
                         if (isCompletedOrInterrupted)
                         {
                             break;
@@ -148,7 +147,7 @@ namespace DurableTask.Core
                     }
 
                     TraceHelper.Trace(TraceEventType.Verbose, "OnProcessWorkItemSession-StartFetch", "Starting fetch of existing session.");
-                    var timer = Stopwatch.StartNew();
+                    Stopwatch timer = Stopwatch.StartNew();
 
                     // Wait for new messages to arrive for the session. This call is expected to block (asynchronously)
                     // until either new messages are available or until a provider-specific timeout has expired.
@@ -187,9 +186,9 @@ namespace DurableTask.Core
             var messagesToSend = new List<TaskMessage>();
             var timerMessages = new List<TaskMessage>();
             var subOrchestrationMessages = new List<TaskMessage>();
-            bool isCompleted = false;
-            bool continuedAsNew = false;
-            bool isInterrupted = false;
+            var isCompleted = false;
+            var continuedAsNew = false;
+            var isInterrupted = false;
 
             ExecutionStartedEvent continueAsNewExecutionStarted = null;
             TaskMessage continuedAsNewMessage = null;
@@ -233,7 +232,7 @@ namespace DurableTask.Core
                     "TaskOrchestrationDispatcher-ExecuteUserOrchestration-End",
                     runtimeState.OrchestrationInstance,
                     "Executed user orchestration. Received {0} orchestrator actions: {1}",
-                    decisions.Count(),
+                    decisions.Count,
                     string.Join(", ", decisions.Select(d => d.Id + ":" + d.OrchestratorActionType)));
 
                 foreach (OrchestratorAction decision in decisions)
@@ -377,7 +376,7 @@ namespace DurableTask.Core
 
         async Task<OrchestrationExecutionCursor> ExecuteOrchestrationAsync(OrchestrationRuntimeState runtimeState)
         {
-            TaskOrchestration taskOrchestration = objectManager.GetObject(runtimeState.Name, runtimeState.Version);
+            TaskOrchestration taskOrchestration = this.objectManager.GetObject(runtimeState.Name, runtimeState.Version);
             if (taskOrchestration == null)
             {
                 throw TraceHelper.TraceExceptionInstance(

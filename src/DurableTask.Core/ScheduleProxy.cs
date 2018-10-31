@@ -23,6 +23,8 @@ namespace DurableTask.Core
     internal class ScheduleProxy : DynamicObject
     {
         readonly OrchestrationContext context;
+
+        // ReSharper disable once IdentifierTypo (intentional)
         readonly Type interfaze;
         readonly IDictionary<string, Type> returnTypes;
         readonly bool useFullyQualifiedMethodNames;
@@ -35,11 +37,11 @@ namespace DurableTask.Core
         public ScheduleProxy(OrchestrationContext context, Type @interface, bool useFullyQualifiedMethodNames)
         {
             this.context = context;
-            interfaze = @interface;
+            this.interfaze = @interface;
             this.useFullyQualifiedMethodNames = useFullyQualifiedMethodNames;
 
             //If type can be determined by name
-            returnTypes = interfaze.GetMethods()
+            this.returnTypes = this.interfaze.GetMethods()
                 .Where(method => !method.IsSpecialName)
                 .GroupBy(method => NameVersionHelper.GetDefaultName(method))
                 .Where(group => group.Select(method => method.ReturnType).Distinct().Count() == 1)
@@ -53,19 +55,18 @@ namespace DurableTask.Core
 
         public override bool TryInvokeMember(InvokeMemberBinder binder, object[] args, out object result)
         {
-            Type returnType = null;
-            if (!returnTypes.TryGetValue(binder.Name, out returnType))
+            if (!this.returnTypes.TryGetValue(binder.Name, out Type returnType))
             {
                 throw new Exception("Method name '" + binder.Name + "' not known.");
             }
 
-            string normalizedMethodName = useFullyQualifiedMethodNames
-                ? NameVersionHelper.GetFullyQualifiedMethodName(interfaze.Name, NameVersionHelper.GetDefaultName(binder))
+            string normalizedMethodName = this.useFullyQualifiedMethodNames
+                ? NameVersionHelper.GetFullyQualifiedMethodName(this.interfaze.Name, NameVersionHelper.GetDefaultName(binder))
                 : NameVersionHelper.GetDefaultName(binder);
 
-            if (returnType.Equals(typeof (Task)))
+            if (returnType == typeof(Task))
             {
-                result = context.ScheduleTask<object>(normalizedMethodName,
+                result = this.context.ScheduleTask<object>(normalizedMethodName,
                     NameVersionHelper.GetDefaultVersion(binder), args);
             }
             else
@@ -81,11 +82,16 @@ namespace DurableTask.Core
                     throw new Exception("Generic Parameters are not equal to 1. Type Name: " + returnType.FullName);
                 }
 
-                MethodInfo scheduleMethod = typeof (OrchestrationContext).GetMethod("ScheduleTask",
-                    new[] {typeof (string), typeof (string), typeof (object[])});
+                MethodInfo scheduleMethod = typeof(OrchestrationContext).GetMethod("ScheduleTask",
+                    new[] { typeof(string), typeof(string), typeof(object[]) });
+                if (scheduleMethod == null)
+                {
+                    throw new Exception($"Method 'ScheduleTask' not found. Type Name: {nameof(OrchestrationContext)}");
+                }
+
                 MethodInfo genericScheduleMethod = scheduleMethod.MakeGenericMethod(genericArguments[0]);
 
-                result = genericScheduleMethod.Invoke(context, new object[]
+                result = genericScheduleMethod.Invoke(this.context, new object[]
                 {
                     normalizedMethodName,
                     NameVersionHelper.GetDefaultVersion(binder), args

@@ -28,7 +28,7 @@ namespace DurableTask.Core
     public abstract class TaskActivity
     {
         /// <summary>
-        /// Abstract method for executing a task activity syncronously
+        /// Abstract method for executing a task activity synchronously
         /// </summary>
         /// <param name="context">The task context</param>
         /// <param name="input">The serialized input</param>
@@ -36,7 +36,7 @@ namespace DurableTask.Core
         public abstract string Run(TaskContext context, string input);
 
         /// <summary>
-        /// Virtual method for executing a task activity asyncronously
+        /// Virtual method for executing a task activity asynchronously
         /// </summary>
         /// <param name="context">The task context</param>
         /// <param name="input">The serialized input</param>
@@ -55,7 +55,7 @@ namespace DurableTask.Core
     public abstract class AsyncTaskActivity<TInput, TResult> : TaskActivity
     {
         /// <summary>
-        /// Creates a new AsyncTaskActivity with the default dataconverter
+        /// Creates a new AsyncTaskActivity with the default DataConverter
         /// </summary>
         protected AsyncTaskActivity()
         {
@@ -63,28 +63,21 @@ namespace DurableTask.Core
         }
 
         /// <summary>
-        /// Creates a new AsyncTaskActivity with the supplied dataconverter
+        /// Creates a new AsyncTaskActivity with the supplied DataConverter
         /// </summary>
         /// <param name="dataConverter"></param>
         protected AsyncTaskActivity(DataConverter dataConverter)
         {
-            if (dataConverter != null)
-            {
-                DataConverter = dataConverter;
-            }
-            else
-            {
-                DataConverter = new JsonDataConverter();
-            }
+            DataConverter = dataConverter ?? new JsonDataConverter();
         }
 
         /// <summary>
-        /// The dataconverter to use for input and output serialization/deserialization
+        /// The DataConverter to use for input and output serialization/deserialization
         /// </summary>
         public DataConverter DataConverter { get; protected set; }
 
         /// <summary>
-        /// Syncronous execute method, blocked for AsyncTaskActivity
+        /// Synchronous execute method, blocked for AsyncTaskActivity
         /// </summary>
         /// <returns>string.Empty</returns>
         public override string Run(TaskContext context, string input)
@@ -94,7 +87,7 @@ namespace DurableTask.Core
         }
 
         /// <summary>
-        /// Abstract method for executing a task activity asyncronously
+        /// Abstract method for executing a task activity asynchronously
         /// </summary>
         /// <param name="context">The task context</param>
         /// <param name="input">The typed input</param>
@@ -102,7 +95,7 @@ namespace DurableTask.Core
         protected abstract Task<TResult> ExecuteAsync(TaskContext context, TInput input);
 
         /// <summary>
-        /// Method for executing a task activity asyncronously
+        /// Method for executing a task activity asynchronously
         /// </summary>
         /// <param name="context">The task context</param>
         /// <param name="input">The serialized input</param>
@@ -123,8 +116,7 @@ namespace DurableTask.Core
                 if (parameterCount == 1)
                 {
                     JToken jToken = jArray[0];
-                    var jValue = jToken as JValue;
-                    if (jValue != null)
+                    if (jToken is JValue jValue)
                     {
                         parameter = jValue.ToObject<TInput>();
                     }
@@ -160,7 +152,7 @@ namespace DurableTask.Core
     public abstract class TaskActivity<TInput, TResult> : AsyncTaskActivity<TInput, TResult>
     {
         /// <summary>
-        /// Abstract method for executing a task activity syncronously
+        /// Abstract method for executing a task activity synchronously
         /// </summary>
         /// <param name="context">The task context</param>
         /// <param name="input">The typed input</param>
@@ -168,7 +160,7 @@ namespace DurableTask.Core
         protected abstract TResult Execute(TaskContext context, TInput input);
 
         /// <summary>
-        /// Method for executing a task activity asyncronously
+        /// Method for executing a task activity asynchronously
         /// </summary>
         /// <param name="context">The task context</param>
         /// <param name="input">The typed input</param>

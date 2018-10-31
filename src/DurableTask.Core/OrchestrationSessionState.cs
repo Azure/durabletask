@@ -24,7 +24,7 @@ namespace DurableTask.Core
     internal class OrchestrationSessionState
     {
         /// <summary>
-        /// A constructor for deserialzation.
+        /// A constructor for deserialization.
         /// </summary>
         public OrchestrationSessionState()
         {
@@ -36,7 +36,7 @@ namespace DurableTask.Core
         /// /// <param name="events">A list of history events.</param>
         public OrchestrationSessionState(IList<HistoryEvent> events)
         {
-            this.Events = events;
+            Events = events;
         }
 
         /// <summary>
@@ -45,7 +45,7 @@ namespace DurableTask.Core
         /// /// <param name="blobKey">The blob key to access the blob</param>
         public OrchestrationSessionState(string blobKey)
         {
-            this.BlobKey = blobKey;
+            BlobKey = blobKey;
         }
 
         /// <summary>

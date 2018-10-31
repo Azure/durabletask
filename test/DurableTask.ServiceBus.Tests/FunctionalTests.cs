@@ -16,12 +16,10 @@ namespace DurableTask.ServiceBus.Tests
     using System;
     using System.Collections.Generic;
     using System.Linq;
-    using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
-    using DurableTask.Core.Serializing;
     using DurableTask.ServiceBus.Settings;
     using DurableTask.Core.Tests;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -32,7 +30,6 @@ namespace DurableTask.ServiceBus.Tests
         TaskHubClient client;
         TaskHubWorker taskHub;
         TaskHubWorker taskHubNoCompression;
-        static readonly DataConverter DataConverter = new JsonDataConverter();
 
         public TestContext TestContext { get; set; }
 
@@ -41,10 +38,10 @@ namespace DurableTask.ServiceBus.Tests
         {
             if (!TestContext.TestName.Contains("TestHost"))
             {
-                client = TestHelpers.CreateTaskHubClient();
-                taskHub = TestHelpers.CreateTaskHub();
-                taskHubNoCompression = TestHelpers.CreateTaskHubNoCompression();
-                taskHub.orchestrationService.CreateAsync(true).Wait();
+                this.client = TestHelpers.CreateTaskHubClient();
+                this.taskHub = TestHelpers.CreateTaskHub();
+                this.taskHubNoCompression = TestHelpers.CreateTaskHubNoCompression();
+                this.taskHub.orchestrationService.CreateAsync(true).Wait();
             }
         }
 
@@ -53,9 +50,9 @@ namespace DurableTask.ServiceBus.Tests
         {
             if (!TestContext.TestName.Contains("TestHost"))
             {
-                taskHub.StopAsync(true).Wait();
-                taskHubNoCompression.StopAsync(true).Wait();
-                taskHub.orchestrationService.DeleteAsync(true).Wait();
+                this.taskHub.StopAsync(true).Wait();
+                this.taskHubNoCompression.StopAsync(true).Wait();
+                this.taskHub.orchestrationService.DeleteAsync(true).Wait();
             }
         }
 
@@ -67,14 +64,14 @@ namespace DurableTask.ServiceBus.Tests
             GenerationBasicOrchestration.Result = 0;
             GenerationBasicTask.GenerationCount = 0;
 
-            await taskHub.AddTaskOrchestrations(typeof (GenerationBasicOrchestration))
+            await this.taskHub.AddTaskOrchestrations(typeof (GenerationBasicOrchestration))
                 .AddTaskActivities(new GenerationBasicTask())
                 .StartAsync();
 
-            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (GenerationBasicOrchestration), 4);
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof (GenerationBasicOrchestration), 4);
 
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
             Assert.AreEqual(4, GenerationBasicOrchestration.Result, "Orchestration Result is wrong!!!");
         }
 
@@ -84,14 +81,14 @@ namespace DurableTask.ServiceBus.Tests
             GenerationBasicOrchestration.Result = 0;
             GenerationBasicTask.GenerationCount = 0;
 
-            await taskHub.AddTaskOrchestrations(typeof (GenerationBasicOrchestration))
+            await this.taskHub.AddTaskOrchestrations(typeof (GenerationBasicOrchestration))
                 .AddTaskActivities(new GenerationBasicTask())
                 .StartAsync();
 
-            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (GenerationBasicOrchestration), 4);
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof (GenerationBasicOrchestration), 4);
 
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
             Assert.AreEqual(4, GenerationBasicOrchestration.Result, "Orchestration Result is wrong!!!");
 
             Assert.AreEqual(0, TestHelpers.GetOrchestratorQueueMessageCount());
@@ -103,14 +100,14 @@ namespace DurableTask.ServiceBus.Tests
             GenerationBasicOrchestration.Result = 0;
             GenerationBasicTask.GenerationCount = 0;
 
-            await taskHubNoCompression.AddTaskOrchestrations(typeof (GenerationBasicOrchestration))
+            await this.taskHubNoCompression.AddTaskOrchestrations(typeof (GenerationBasicOrchestration))
                 .AddTaskActivities(new GenerationBasicTask())
                 .StartAsync();
 
-            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (GenerationBasicOrchestration), 4);
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof (GenerationBasicOrchestration), 4);
 
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
             Assert.AreEqual(4, GenerationBasicOrchestration.Result, "Orchestration Result is wrong!!!");
         }
 
@@ -137,7 +134,7 @@ namespace DurableTask.ServiceBus.Tests
         public sealed class GenerationBasicTask : TaskActivity<string, int>
         {
             // HACK: This is just a hack to communicate result of orchestration back to test
-            public static int GenerationCount = 0;
+            public static int GenerationCount;
 
             protected override int Execute(TaskContext context, string input)
             {
@@ -156,14 +153,14 @@ namespace DurableTask.ServiceBus.Tests
             GenerationParentOrchestration.Result = 0;
             GenerationSubTask.GenerationCount = 0;
 
-            await taskHub.AddTaskOrchestrations(typeof (GenerationParentOrchestration), typeof (GenerationChildOrchestration))
+            await this.taskHub.AddTaskOrchestrations(typeof (GenerationParentOrchestration), typeof (GenerationChildOrchestration))
                 .AddTaskActivities(new GenerationSubTask())
                 .StartAsync();
 
-            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (GenerationParentOrchestration), 4);
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof (GenerationParentOrchestration), 4);
 
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
             Assert.AreEqual(4, GenerationParentOrchestration.Result, "Orchestration Result is wrong!!!");
             Assert.AreEqual(4, GenerationSubTask.GenerationCount, "Orchestration Result is wrong!!!");
         }
@@ -174,15 +171,15 @@ namespace DurableTask.ServiceBus.Tests
             GenerationParentOrchestration.Result = 0;
             GenerationSubTask.GenerationCount = 0;
 
-            await taskHubNoCompression.AddTaskOrchestrations(typeof (GenerationParentOrchestration),
+            await this.taskHubNoCompression.AddTaskOrchestrations(typeof (GenerationParentOrchestration),
                 typeof (GenerationChildOrchestration))
                 .AddTaskActivities(new GenerationSubTask())
                 .StartAsync();
 
-            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (GenerationParentOrchestration), 4);
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof (GenerationParentOrchestration), 4);
 
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
             Assert.AreEqual(4, GenerationParentOrchestration.Result, "Orchestration Result is wrong!!!");
             Assert.AreEqual(4, GenerationSubTask.GenerationCount, "Orchestration Result is wrong!!!");
         }
@@ -223,7 +220,7 @@ namespace DurableTask.ServiceBus.Tests
         public sealed class GenerationSubTask : TaskActivity<string, int>
         {
             // HACK: This is just a hack to communicate result of orchestration back to test
-            public static int GenerationCount = 0;
+            public static int GenerationCount;
 
             protected override int Execute(TaskContext context, string input)
             {
@@ -239,29 +236,29 @@ namespace DurableTask.ServiceBus.Tests
         [TestMethod]
         public async Task GenerationSubFailedTest()
         {
-            await taskHub.AddTaskOrchestrations(typeof (GenerationSubFailedParentOrchestration),
+            await this.taskHub.AddTaskOrchestrations(typeof (GenerationSubFailedParentOrchestration),
                 typeof (GenerationSubFailedChildOrchestration))
                 .AddTaskActivities(new GenerationBasicTask())
                 .StartAsync();
-            taskHub.TaskOrchestrationDispatcher.IncludeDetails = true;
+            this.taskHub.TaskOrchestrationDispatcher.IncludeDetails = true;
 
             GenerationSubFailedChildOrchestration.Count = 0;
             GenerationSubFailedParentOrchestration.Result = null;
             OrchestrationInstance id =
-                await client.CreateOrchestrationInstanceAsync(typeof (GenerationSubFailedParentOrchestration), true);
+                await this.client.CreateOrchestrationInstanceAsync(typeof (GenerationSubFailedParentOrchestration), true);
 
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
 
             Assert.AreEqual("Test", GenerationSubFailedParentOrchestration.Result, "Orchestration Result is wrong!!!");
             Assert.AreEqual(1, GenerationSubFailedChildOrchestration.Count, "Child Workflow Count invalid.");
 
             GenerationSubFailedChildOrchestration.Count = 0;
             GenerationSubFailedParentOrchestration.Result = null;
-            id = await client.CreateOrchestrationInstanceAsync(typeof (GenerationSubFailedParentOrchestration), false);
+            id = await this.client.CreateOrchestrationInstanceAsync(typeof (GenerationSubFailedParentOrchestration), false);
 
-            isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
             Assert.AreEqual("Test", GenerationSubFailedParentOrchestration.Result, "Orchestration Result is wrong!!!");
             Assert.AreEqual(5, GenerationSubFailedChildOrchestration.Count, "Child Workflow Count invalid.");
         }
@@ -297,10 +294,10 @@ namespace DurableTask.ServiceBus.Tests
             public override async Task<string> RunTask(OrchestrationContext context, bool waitForCompletion)
             {
                 var results = new Task<string>[5];
-                int numberOfChildGenerations = 3;
+                var numberOfChildGenerations = 3;
                 try
                 {
-                    for (int i = 0; i < 5; i++)
+                    for (var i = 0; i < 5; i++)
                     {
                         Task<string> r =
                             context.CreateSubOrchestrationInstance<string>(
@@ -334,35 +331,35 @@ namespace DurableTask.ServiceBus.Tests
         [TestMethod]
         public async Task GenerationSignalOrchestrationTest()
         {
-            await taskHub.AddTaskOrchestrations(typeof (GenerationSignalOrchestration))
+            await this.taskHub.AddTaskOrchestrations(typeof (GenerationSignalOrchestration))
                 .StartAsync();
 
-            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof (GenerationSignalOrchestration), 5);
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof (GenerationSignalOrchestration), 5);
 
             var signalId = new OrchestrationInstance {InstanceId = id.InstanceId};
 
             await Task.Delay(2*1000);
-            await client.RaiseEventAsync(signalId, "Count", "1");
-            GenerationSignalOrchestration.signal.Set();
+            await this.client.RaiseEventAsync(signalId, "Count", "1");
+            GenerationSignalOrchestration.Signal.Set();
 
             await Task.Delay(2*1000);
-            GenerationSignalOrchestration.signal.Reset();
-            await client.RaiseEventAsync(signalId, "Count", "2");
+            GenerationSignalOrchestration.Signal.Reset();
+            await this.client.RaiseEventAsync(signalId, "Count", "2");
             await Task.Delay(2*1000);
-            await client.RaiseEventAsync(signalId, "Count", "3"); // will be recieved by next generation
-            GenerationSignalOrchestration.signal.Set();
+            await this.client.RaiseEventAsync(signalId, "Count", "3"); // will be received by next generation
+            GenerationSignalOrchestration.Signal.Set();
 
             await Task.Delay(2*1000);
-            GenerationSignalOrchestration.signal.Reset();
-            await client.RaiseEventAsync(signalId, "Count", "4");
+            GenerationSignalOrchestration.Signal.Reset();
+            await this.client.RaiseEventAsync(signalId, "Count", "4");
             await Task.Delay(2*1000);
-            await client.RaiseEventAsync(signalId, "Count", "5"); // will be recieved by next generation
-            await client.RaiseEventAsync(signalId, "Count", "6"); // lost
-            await client.RaiseEventAsync(signalId, "Count", "7"); // lost
-            GenerationSignalOrchestration.signal.Set();
+            await this.client.RaiseEventAsync(signalId, "Count", "5"); // will be received by next generation
+            await this.client.RaiseEventAsync(signalId, "Count", "6"); // lost
+            await this.client.RaiseEventAsync(signalId, "Count", "7"); // lost
+            GenerationSignalOrchestration.Signal.Set();
 
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, signalId, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, signalId, 60);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
             Assert.AreEqual("5", GenerationSignalOrchestration.Result, "Orchestration Result is wrong!!!");
         }
 
@@ -370,14 +367,14 @@ namespace DurableTask.ServiceBus.Tests
         {
             // HACK: This is just a hack to communicate result of orchestration back to test
             public static string Result;
-            public static ManualResetEvent signal = new ManualResetEvent(false);
+            public static ManualResetEvent Signal = new ManualResetEvent(false);
 
             TaskCompletionSource<string> resumeHandle;
 
             public override async Task<int> RunTask(OrchestrationContext context, int numberOfGenerations)
             {
                 int count = await WaitForSignal();
-                signal.WaitOne();
+                Signal.WaitOne();
                 numberOfGenerations--;
                 if (numberOfGenerations > 0)
                 {
@@ -391,19 +388,16 @@ namespace DurableTask.ServiceBus.Tests
 
             async Task<int> WaitForSignal()
             {
-                resumeHandle = new TaskCompletionSource<string>();
-                string data = await resumeHandle.Task;
-                resumeHandle = null;
+                this.resumeHandle = new TaskCompletionSource<string>();
+                string data = await this.resumeHandle.Task;
+                this.resumeHandle = null;
                 return int.Parse(data);
             }
 
             public override void OnEvent(OrchestrationContext context, string name, string input)
             {
-                Assert.AreEqual("Count", name, "Unknown signal recieved...");
-                if (resumeHandle != null)
-                {
-                    resumeHandle.SetResult(input);
-                }
+                Assert.AreEqual("Count", name, "Unknown signal received...");
+                this.resumeHandle?.SetResult(input);
             }
         }
 
@@ -423,13 +417,13 @@ namespace DurableTask.ServiceBus.Tests
             var c3 = new NameValueObjectCreator<TaskOrchestration>("GenerationOrchestration",
                 "V3", typeof (GenerationV3Orchestration));
 
-            await taskHub.AddTaskOrchestrations(c1, c2, c3)
+            await this.taskHub.AddTaskOrchestrations(c1, c2, c3)
                 .StartAsync();
 
-            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync("GenerationOrchestration", "V1", null);
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync("GenerationOrchestration", "V1", null);
 
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, id, 60));
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
             Assert.IsTrue(GenerationV1Orchestration.WasRun);
             Assert.IsTrue(GenerationV2Orchestration.WasRun);
             Assert.IsTrue(GenerationV3Orchestration.WasRun);
@@ -438,7 +432,7 @@ namespace DurableTask.ServiceBus.Tests
         public class GenerationV1Orchestration : TaskOrchestration<object, object>
         {
             // HACK: This is just a hack to communicate result of orchestration back to test
-            public static bool WasRun = false;
+            public static bool WasRun;
 
             public override Task<object> RunTask(OrchestrationContext context, object input)
             {
@@ -451,7 +445,7 @@ namespace DurableTask.ServiceBus.Tests
         public class GenerationV2Orchestration : TaskOrchestration<object, object>
         {
             // HACK: This is just a hack to communicate result of orchestration back to test
-            public static bool WasRun = false;
+            public static bool WasRun;
 
             public override Task<object> RunTask(OrchestrationContext context, object input)
             {
@@ -464,7 +458,7 @@ namespace DurableTask.ServiceBus.Tests
         public class GenerationV3Orchestration : TaskOrchestration<object, object>
         {
             // HACK: This is just a hack to communicate result of orchestration back to test
-            public static bool WasRun = false;
+            public static bool WasRun;
 
             public override Task<object> RunTask(OrchestrationContext context, object input)
             {
@@ -493,30 +487,31 @@ namespace DurableTask.ServiceBus.Tests
             var c3 = new NameValueObjectCreator<TaskOrchestration>("GenerationOrchestration",
                 "V3", typeof(GenerationV3Orchestration));
 
-            await taskHub.AddTaskOrchestrations(c1, c2, c3)
+            await this.taskHub.AddTaskOrchestrations(c1, c2, c3)
                 .StartAsync();
 
-            const string tagName = "versiontag";
-            const string tagValue = "sample_value";
+            // ReSharper disable once StringLiteralTypo
+            const string TagName = "versiontag";
+            const string TagValue = "sample_value";
 
-            OrchestrationInstance instance = await client.CreateOrchestrationInstanceAsync(
+            OrchestrationInstance instance = await this.client.CreateOrchestrationInstanceAsync(
                 "GenerationOrchestration",
                 "V1",
                 "TestInstance",
                 null,
-                new Dictionary<string, string>(1) { { tagName, tagValue } });
+                new Dictionary<string, string>(1) { { TagName, TagValue } });
 
-            OrchestrationState state = await client.WaitForOrchestrationAsync(instance, TimeSpan.FromMinutes(1), CancellationToken.None);
+            OrchestrationState state = await this.client.WaitForOrchestrationAsync(instance, TimeSpan.FromMinutes(1), CancellationToken.None);
 
             bool isCompleted = (state?.OrchestrationStatus == OrchestrationStatus.Completed);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, instance, 60));
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, instance, 60));
             Assert.IsTrue(GenerationV1Orchestration.WasRun);
             Assert.IsTrue(GenerationV2Orchestration.WasRun);
             Assert.IsTrue(GenerationV3Orchestration.WasRun);
             IDictionary<string, string> returnedTags = state.Tags;
-            string returnedValue;
-            Assert.IsTrue(returnedTags.TryGetValue(tagName, out returnedValue));
-            Assert.AreEqual(tagValue, returnedValue);
+
+            Assert.IsTrue(returnedTags.TryGetValue(TagName, out string returnedValue));
+            Assert.AreEqual(TagValue, returnedValue);
         }
 
         [TestMethod]
@@ -528,10 +523,10 @@ namespace DurableTask.ServiceBus.Tests
             var c2 = new NameValueObjectCreator<TaskOrchestration>("ChildWorkflow",
                 "V1", typeof(ChildWorkflow));
 
-            await taskHub.AddTaskOrchestrations(c1, c2)
+            await this.taskHub.AddTaskOrchestrations(c1, c2)
                 .StartAsync();
 
-            OrchestrationInstance instance = await client.CreateOrchestrationInstanceAsync(
+            OrchestrationInstance instance = await this.client.CreateOrchestrationInstanceAsync(
                 "ParentWorkflow",
                 "V1",
                 "TestInstance",
@@ -541,25 +536,25 @@ namespace DurableTask.ServiceBus.Tests
                     { ParentWorkflow.SharedTagName, ParentWorkflow.ParentTagValue }
                 });
 
-            OrchestrationState state = await client.WaitForOrchestrationAsync(instance, TimeSpan.FromMinutes(1), CancellationToken.None);
+            OrchestrationState state = await this.client.WaitForOrchestrationAsync(instance, TimeSpan.FromMinutes(1), CancellationToken.None);
 
             bool isCompleted = (state?.OrchestrationStatus == OrchestrationStatus.Completed);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, instance, 60));
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, instance, 60));
             Assert.AreEqual("Child completed.", ParentWorkflow.Result, "Orchestration Result is wrong!!!");
 
             IDictionary<string, string> returnedTags = state.Tags;
-            string returnedValue;
+
             // Check for parent tag untouched
-            Assert.IsTrue(returnedTags.TryGetValue(ParentWorkflow.ParentTagName, out returnedValue));
+            Assert.IsTrue(returnedTags.TryGetValue(ParentWorkflow.ParentTagName, out string returnedValue));
             Assert.AreEqual(ParentWorkflow.ParentTagValue, returnedValue);
             // Check for shared tag on parent with parent value
             Assert.IsTrue(returnedTags.TryGetValue(ParentWorkflow.SharedTagName, out returnedValue));
             Assert.AreEqual(ParentWorkflow.ParentTagValue, returnedValue);
             
             // Get child state and check completion
-            OrchestrationState childState = await client.GetOrchestrationStateAsync(ParentWorkflow.ChildWorkflowId);
+            OrchestrationState childState = await this.client.GetOrchestrationStateAsync(ParentWorkflow.ChildWorkflowId);
             isCompleted = (childState?.OrchestrationStatus == OrchestrationStatus.Completed);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, instance, 60));
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, instance, 60));
 
             returnedTags = childState.Tags;
             // Check for parent tag untouched
@@ -617,19 +612,19 @@ namespace DurableTask.ServiceBus.Tests
         public async Task MultipleConcurrentRoleStartsTestNoInitialHub()
         {
             // Make sure we cleanup we start from scratch
-            await taskHub.StopAsync(true);
-            await taskHub.orchestrationService.DeleteAsync();
+            await this.taskHub.StopAsync(true);
+            await this.taskHub.orchestrationService.DeleteAsync();
 
-            const int concurrentClientsAndHubs = 4;
+            const int ConcurrentClientsAndHubs = 4;
             var rnd = new Random();
              
-            var clients = new List<TaskHubClient>(concurrentClientsAndHubs);
-            var workers = new List<TaskHubWorker>(concurrentClientsAndHubs);
+            var clients = new List<TaskHubClient>(ConcurrentClientsAndHubs);
+            var workers = new List<TaskHubWorker>(ConcurrentClientsAndHubs);
             IList<Task> tasks = new List<Task>();
-            for (int i = 0; i < concurrentClientsAndHubs; i++)
+            for (var i = 0; i < ConcurrentClientsAndHubs; i++)
             {
                 clients.Add(TestHelpers.CreateTaskHubClient());
-                workers.Add(TestHelpers.CreateTaskHub(new ServiceBusOrchestrationServiceSettings()
+                workers.Add(TestHelpers.CreateTaskHub(new ServiceBusOrchestrationServiceSettings
                 {
                     TaskOrchestrationDispatcherSettings = { DispatcherCount = 4 },
                     TrackingDispatcherSettings = { DispatcherCount = 4 },
@@ -643,11 +638,12 @@ namespace DurableTask.ServiceBus.Tests
             GenerationBasicOrchestration.Result = 0;
             GenerationBasicTask.GenerationCount = 0;
 
-            TaskHubWorker selectedHub = workers[(rnd.Next(concurrentClientsAndHubs))];
-            TaskHubClient selectedClient = clients[(rnd.Next(concurrentClientsAndHubs))];
+            // ReSharper disable once UnusedVariable
+            TaskHubWorker selectedHub = workers[(rnd.Next(ConcurrentClientsAndHubs))];
+            TaskHubClient selectedClient = clients[(rnd.Next(ConcurrentClientsAndHubs))];
 
             tasks.Clear();
-            for (int i = 0; i < concurrentClientsAndHubs; i++)
+            for (var i = 0; i < ConcurrentClientsAndHubs; i++)
             {
                 tasks.Add(workers[i].AddTaskOrchestrations(typeof(GenerationBasicOrchestration))
                     .AddTaskActivities(new GenerationBasicTask())
@@ -658,9 +654,9 @@ namespace DurableTask.ServiceBus.Tests
 
             OrchestrationInstance instance = await selectedClient.CreateOrchestrationInstanceAsync(typeof(GenerationBasicOrchestration), 4);
 
-            var state = await selectedClient.WaitForOrchestrationAsync(instance, TimeSpan.FromSeconds(60), CancellationToken.None);
+            OrchestrationState state = await selectedClient.WaitForOrchestrationAsync(instance, TimeSpan.FromSeconds(60), CancellationToken.None);
             Assert.IsNotNull(state);
-            Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus, TestHelpers.GetInstanceNotCompletedMessage(client, instance, 60));
+            Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus, TestHelpers.GetInstanceNotCompletedMessage(this.client, instance, 60));
             Assert.AreEqual(4, GenerationBasicOrchestration.Result, "Orchestration Result is wrong!!!");
             await Task.WhenAll(workers.Select(worker => worker.StopAsync(true)));
         }
@@ -678,20 +674,20 @@ namespace DurableTask.ServiceBus.Tests
             var c2 = new NameValueObjectCreator<TaskOrchestration>("SleeperSubOrchestration",
                 "V1", typeof(SleeperSubOrchestration));
 
-            await taskHub.AddTaskOrchestrations(c1, c2)
+            await this.taskHub.AddTaskOrchestrations(c1, c2)
                 .StartAsync();
 
-            int numSubOrchestrations = 60;
+            var numSubOrchestrations = 60;
 
-            OrchestrationInstance instance = await client.CreateOrchestrationInstanceAsync(
+            OrchestrationInstance instance = await this.client.CreateOrchestrationInstanceAsync(
                 "UberOrchestration",
                 "V1",
                 "TestInstance",
                 new TestOrchestrationInput { Iterations = numSubOrchestrations, Payload = TestUtils.GenerateRandomString(90 * 1024) });
 
             // Waiting for 60 seconds guarantees that to pass the orchestrations must run in parallel
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(client, instance, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(client, instance, 60));
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, instance, 60);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, instance, 60));
             Assert.AreEqual(numSubOrchestrations, UberOrchestration.Result, "Orchestration Result is wrong!!!");
         }
 
@@ -701,15 +697,15 @@ namespace DurableTask.ServiceBus.Tests
             var c2 = new NameValueObjectCreator<TaskOrchestration>("SleeperSubOrchestration",
                 "V1", typeof(SleeperSubOrchestration));
 
-            await taskHub.AddTaskOrchestrations(c2)
+            await this.taskHub.AddTaskOrchestrations(c2)
                 .StartAsync();
 
-            int numSubOrchestrations = 60;
+            var numSubOrchestrations = 60;
 
             var orchestrations = new List<Task<OrchestrationInstance>>();
-            for (int i = 0; i < numSubOrchestrations; i++)
+            for (var i = 0; i < numSubOrchestrations; i++)
             {
-                orchestrations.Add(client.CreateOrchestrationInstanceAsync(
+                orchestrations.Add(this.client.CreateOrchestrationInstanceAsync(
                 "SleeperSubOrchestration",
                 "V1",
                 $"{UberOrchestration.ChildWorkflowIdBase}_{i}",
@@ -720,17 +716,19 @@ namespace DurableTask.ServiceBus.Tests
 
             IEnumerable<Task<OrchestrationState>> orchestrationResults = orchestrationInstances.Select(async instance =>
             {
-                OrchestrationState result = await client.WaitForOrchestrationAsync(instance, TimeSpan.FromSeconds(60));
+                OrchestrationState result = await this.client.WaitForOrchestrationAsync(instance, TimeSpan.FromSeconds(60));
                 return result;
             });
 
-            var finalResults = await Task.WhenAll(orchestrationResults);
+            OrchestrationState[] finalResults = await Task.WhenAll(orchestrationResults);
             Assert.AreEqual(numSubOrchestrations, finalResults.Count(status => status.OrchestrationStatus == OrchestrationStatus.Completed));
         }
 
         class TestOrchestrationInput
         {
             public int Iterations { get; set; }
+
+            // ReSharper disable once UnusedAutoPropertyAccessor.Local
             public string Payload { get; set; }
         }
 
@@ -738,7 +736,8 @@ namespace DurableTask.ServiceBus.Tests
         {
             public override async Task<int> RunTask(OrchestrationContext context, TestOrchestrationInput input)
             {
-                string retState = await context.CreateTimer<string>(context.CurrentUtcDateTime + TimeSpan.FromSeconds(30), $"state: {input.Iterations}");
+                // ReSharper disable once UnusedVariable
+                string retState = await context.CreateTimer(context.CurrentUtcDateTime + TimeSpan.FromSeconds(30), $"state: {input.Iterations}");
 
                 return 1;
             }
@@ -753,7 +752,7 @@ namespace DurableTask.ServiceBus.Tests
             public override async Task<int> RunTask(OrchestrationContext context, TestOrchestrationInput input)
             {
                 var tasks = new List<Task<int>>();
-                for (int i = 0; i < input.Iterations; i++)
+                for (var i = 0; i < input.Iterations; i++)
                 {
                     tasks.Add(context.CreateSubOrchestrationInstance<int>(
                         "SleeperSubOrchestration",

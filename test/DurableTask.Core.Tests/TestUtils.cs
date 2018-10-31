@@ -23,7 +23,7 @@ namespace DurableTask.Core.Tests
             var result = new StringBuilder(length);
             while (result.Length < length)
             {
-                // Use Guids so these don't compress well
+                // Use GUIDs so these don't compress well
                 result.Append(Guid.NewGuid().ToString("N"));
             }
 

@@ -22,16 +22,15 @@ namespace DurableTask.Test.Orchestrations.Stress
     {
         public override async Task<int> RunTask(OrchestrationContext context, DriverOrchestrationData data)
         {
-            int result = 0;
-            List<Task<int>> results = new List<Task<int>>();
-            int i = 0;
+            var results = new List<Task<int>>();
+            var i = 0;
             for (; i < data.NumberOfParallelTasks; i++)
             {
                 results.Add(context.CreateSubOrchestrationInstance<int>(typeof(TestOrchestration), data.SubOrchestrationData));
             }
 
             int[] counters = await Task.WhenAll(results.ToArray());
-            result = counters.Max();
+            int result = counters.Max();
 
             if (data.NumberOfIteration > 1)
             {

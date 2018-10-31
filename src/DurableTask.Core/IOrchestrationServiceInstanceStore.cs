@@ -24,7 +24,7 @@ namespace DurableTask.Core
     public interface IOrchestrationServiceInstanceStore
     {
         /// <summary>
-        /// Gets the maximum length a history entry can be so it can be truncated if neccesary
+        /// Gets the maximum length a history entry can be so it can be truncated if necessary
         /// </summary>
         /// <returns>The maximum length</returns>
         int MaxHistoryEntryLength { get; }
@@ -51,7 +51,7 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="instanceId">The instance id to return state for</param>
         /// <param name="executionId">The execution id to return state for</param>
-        /// <returns>The matching orchestation state or null if not found</returns>
+        /// <returns>The matching orchestration state or null if not found</returns>
         Task<IEnumerable<OrchestrationStateInstanceEntity>> GetEntitiesAsync(string instanceId, string executionId);
 
         /// <summary>
@@ -64,7 +64,7 @@ namespace DurableTask.Core
         /// Gets a list of orchestration states for a given instance
         /// </summary>
         /// <param name="instanceId">The instance id to return state for</param>
-        /// <param name="allInstances">Flag indiciation whether to get all history execution ids or just the most recent</param>
+        /// <param name="allInstances">Flag indication whether to get all history execution ids or just the most recent</param>
         /// <returns>List of matching orchestration states</returns>
         Task<IEnumerable<OrchestrationStateInstanceEntity>> GetOrchestrationStateAsync(string instanceId, bool allInstances);
 
@@ -73,7 +73,7 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="instanceId">The instance id to return state for</param>
         /// <param name="executionId">The execution id to return state for</param>
-        /// <returns>The matching orchestation state or null if not found</returns>
+        /// <returns>The matching orchestration state or null if not found</returns>
         Task<OrchestrationStateInstanceEntity> GetOrchestrationStateAsync(string instanceId, string executionId);
 
         /// <summary>

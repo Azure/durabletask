@@ -20,7 +20,7 @@ namespace DurableTask.Test.Orchestrations.Stress
 
     public sealed class TestTask : AsyncTaskActivity<TestTaskData, int>
     {
-        public int counter = 0;
+        public int Counter;
 
         public TestTask()
         {
@@ -28,18 +28,16 @@ namespace DurableTask.Test.Orchestrations.Stress
 
         protected override async Task<int> ExecuteAsync(TaskContext context, TestTaskData input)
         {
-            int c = Interlocked.Increment(ref this.counter);
+            int c = Interlocked.Increment(ref this.Counter);
             OrchestrationInstance instance = context.OrchestrationInstance;
-            Random random = new Random();
+            var random = new Random();
             int minutesToSleep = random.Next(0, input.MaxDelayInMinutes);
 
-            Console.WriteLine(string.Format("[InstanceId: {0}, ExecutionId: {1}, TaskId: {2}, Counter: {3}] ---> Sleeping for '{4}'", 
-                instance.InstanceId, instance.ExecutionId, input.TaskId, c, minutesToSleep));
+            Console.WriteLine($"[InstanceId: {instance.InstanceId}, ExecutionId: {instance.ExecutionId}, TaskId: {input.TaskId}, Counter: {c}] ---> Sleeping for '{minutesToSleep}'");
 
             await Task.Delay(TimeSpan.FromMinutes(minutesToSleep));
 
             return c;
         }
-
     }
 }

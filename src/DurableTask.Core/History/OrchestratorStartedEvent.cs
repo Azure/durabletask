@@ -23,9 +23,6 @@ namespace DurableTask.Core.History
         {
         }
 
-        public override EventType EventType
-        {
-            get { return EventType.OrchestratorStarted; }
-        }
+        public override EventType EventType => EventType.OrchestratorStarted;
     }
 }

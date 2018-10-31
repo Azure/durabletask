@@ -110,5 +110,6 @@ Global
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		EnterpriseLibraryConfigurationToolBinariesPath = packages\TransientFaultHandling.Core.5.1.1209.1\lib\NET4
+		SolutionGuid = {2D63A120-9394-48D9-8CA9-1184364FB854}
 	EndGlobalSection
 EndGlobal

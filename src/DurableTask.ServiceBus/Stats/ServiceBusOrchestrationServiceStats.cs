@@ -22,7 +22,7 @@ namespace DurableTask.ServiceBus.Stats
         // TODO: Add: 
         //      receive latency
         //      message/session throughput
-        //      average E2E latency(i.e.look at curenttimeutc -enqueuedtimeutc on the received message)
+        //      average E2E latency(i.e.look at curenttimeutc - enqueuedtimeutc on the received message)
         //      queue depths
 
         /// <summary>
@@ -30,9 +30,9 @@ namespace DurableTask.ServiceBus.Stats
         /// </summary>
         public ServiceBusOrchestrationServiceStats()
         {
-            this.OrchestrationDispatcherStats = new ServiceBusQueueStats();
-            this.ActivityDispatcherStats = new ServiceBusQueueStats();
-            this.TrackingDispatcherStats = new ServiceBusQueueStats();
+            OrchestrationDispatcherStats = new ServiceBusQueueStats();
+            ActivityDispatcherStats = new ServiceBusQueueStats();
+            TrackingDispatcherStats = new ServiceBusQueueStats();
         }
 
         /// <summary>
