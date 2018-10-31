@@ -600,8 +600,8 @@ namespace DurableTask.AzureStorage.Tracking
                     batch.Delete(itemForDeletion);
                 }
 
-                await this.messageManager.DeleteLargeMessagesContainer(orchestrationInstanceStatus.PartitionKey);
-                this.stats.StorageRequests.Increment();
+                int requests = await this.messageManager.DeleteLargeMessageBlobs(orchestrationInstanceStatus.PartitionKey);
+                this.stats.StorageRequests.Increment(requests);
                 await this.HistoryTable.ExecuteBatchAsync(batch);
                 this.stats.TableEntitiesWritten.Increment(batch.Count);
                 storageRequests++;
@@ -1043,14 +1043,12 @@ namespace DurableTask.AzureStorage.Tracking
             string propertyKey = this.GetLargeTableEntity(entity);
             if (propertyKey != null)
             {
-
-                string blobName = Guid.NewGuid().ToString();
-                string fullBlobName = this.messageManager.GetFullLargeMessageBlobName(entity.PartitionKey, blobName);
+                string blobName = this.messageManager.GetNewLargeMessageBlobName(entity.PartitionKey);
                 // e.g.InputBlobName, OutputBlobName, ResultBlobName
                 string blobNameKey = $"{propertyKey}{BlobNamePropertySuffix}";
                 byte[] messageBytes = this.GetPropertyMessageAsBytes(entity);
-                await this.messageManager.CompressAndUploadAsBytesAsync(messageBytes, entity.PartitionKey, blobName);
-                entity.Properties.Add(blobNameKey, new EntityProperty(fullBlobName));
+                await this.messageManager.CompressAndUploadAsBytesAsync(messageBytes, blobName);
+                entity.Properties.Add(blobNameKey, new EntityProperty(blobName));
                 this.SetPropertyMessageToEmptyString(entity);
             }
         }

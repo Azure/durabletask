@@ -196,7 +196,7 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual(1, orchestrationStateList.Count);
                 Assert.AreEqual(instanceId, orchestrationStateList.First().OrchestrationInstance.InstanceId);
 
-                int blobCount = await this.GetBlobCount($"largemessages-{instanceId}");
+                int blobCount = await this.GetBlobCount("test-largemessages", instanceId);
                 Assert.IsTrue(blobCount > 0);
 
                 IList<OrchestrationState> results = await host.GetAllOrchestrationInstancesAsync();
@@ -213,7 +213,7 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual(1, orchestrationStateList.Count);
                 Assert.IsNull(orchestrationStateList.First());
 
-                blobCount = await this.GetBlobCount($"largemessages-{instanceId}");
+                blobCount = await this.GetBlobCount("test-largemessages", instanceId);
                 Assert.AreEqual(0, blobCount);
 
                 await host.StopAsync();
@@ -278,7 +278,7 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual(1, fourthOrchestrationStateList.Count);
                 Assert.AreEqual(fourthInstanceId, fourthOrchestrationStateList.First().OrchestrationInstance.InstanceId);
 
-                int blobCount = await this.GetBlobCount($"largemessages-{fourthInstanceId}");
+                int blobCount = await this.GetBlobCount("test-largemessages", fourthInstanceId);
                 Assert.AreEqual(6, blobCount);
 
                 await client.PurgeInstanceHistoryByTimePeriod(
@@ -320,14 +320,14 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual(1, fourthOrchestrationStateList.Count);
                 Assert.IsNull(fourthOrchestrationStateList.First());
 
-                blobCount = await this.GetBlobCount($"largemessages-{fourthInstanceId}");
+                blobCount = await this.GetBlobCount("test-largemessages", fourthInstanceId);
                 Assert.AreEqual(0, blobCount);
 
                 await host.StopAsync();
             }
         }
 
-        private async Task<int> GetBlobCount(string containerName)
+        private async Task<int> GetBlobCount(string containerName, string directoryName)
         {
             string storageConnectionString = ConfigurationManager.AppSettings["StorageConnectionString"];
             CloudStorageAccount storageAccount;
@@ -340,12 +340,12 @@ namespace DurableTask.AzureStorage.Tests
 
             CloudBlobContainer cloudBlobContainer = cloudBlobClient.GetContainerReference(containerName);
             await cloudBlobContainer.CreateIfNotExistsAsync();
-
+            CloudBlobDirectory instanceDirectory = cloudBlobContainer.GetDirectoryReference(directoryName);
             int blobCount = 0;
             BlobContinuationToken blobContinuationToken = null;
             do
             {
-                BlobResultSegment results = await cloudBlobContainer.ListBlobsSegmentedAsync(null, blobContinuationToken);
+                BlobResultSegment results = await instanceDirectory.ListBlobsSegmentedAsync(blobContinuationToken);
                 blobContinuationToken = results.ContinuationToken;
                 blobCount += results.Results.Count();
             } while (blobContinuationToken != null);

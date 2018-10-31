@@ -107,7 +107,9 @@ namespace DurableTask.AzureStorage
             this.blobClient = account.CreateCloudBlobClient();
             this.blobClient.BufferManager = SimpleBufferManager.Shared;
 
-            this.messageManager = new MessageManager(this.blobClient);
+            string compressedMessageBlobContainerName = $"{settings.TaskHubName.ToLowerInvariant()}-largemessages";
+            NameValidator.ValidateContainerName(compressedMessageBlobContainerName);
+            this.messageManager = new MessageManager(this.blobClient, compressedMessageBlobContainerName);
 
             this.allControlQueues = new ConcurrentDictionary<string, ControlQueue>();
             for (int i = 0; i < this.settings.PartitionCount; i++)

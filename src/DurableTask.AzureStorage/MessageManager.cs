@@ -14,8 +14,10 @@
 namespace DurableTask.AzureStorage
 {
     using System;
+    using System.Collections.Generic;
     using System.IO;
     using System.IO.Compression;
+    using System.Linq;
     using System.Text;
     using System.Threading.Tasks;
     using Microsoft.WindowsAzure.Storage;
@@ -30,18 +32,21 @@ namespace DurableTask.AzureStorage
     {
         const int MaxStorageQueuePayloadSizeInBytes = 60 * 1024; // 60KB
         const int DefaultBufferSize = 64 * 2014; // 64KB
-        const string LargeMessagesContainerPrefix = "largemessages-";
-        const string LargeMessageBlobNameSeparator = "/";
 
-        readonly CloudBlobClient cloudBlobClient;
+        const string LargeMessageBlobNameSeparator = "/";
+        const string blobExtension = ".json.gz";
+
+        readonly string blobContainerName;
+        readonly CloudBlobContainer cloudBlobContainer;
         readonly JsonSerializerSettings taskMessageSerializerSettings;
 
         /// <summary>
         /// The message manager.
         /// </summary>
-        public MessageManager(CloudBlobClient cloudBlobClient)
+        public MessageManager(CloudBlobClient cloudBlobClient, string blobContainerName)
         {
-            this.cloudBlobClient = cloudBlobClient;
+            this.blobContainerName = blobContainerName;
+            this.cloudBlobContainer = cloudBlobClient.GetContainerReference(blobContainerName);
             this.taskMessageSerializerSettings = new JsonSerializerSettings
             {
                 TypeNameHandling = TypeNameHandling.Objects
@@ -65,15 +70,14 @@ namespace DurableTask.AzureStorage
                 byte[] messageBytes = Encoding.UTF8.GetBytes(rawContent);
 
                 // Get Compressed bytes
-                string blobName = Guid.NewGuid().ToString();
-                await this.CompressAndUploadAsBytesAsync(messageBytes, instanceId, blobName);
-                string fullBlobName = this.GetFullLargeMessageBlobName(instanceId, blobName);
+                string blobName = this.GetNewLargeMessageBlobName(instanceId);
+                await this.CompressAndUploadAsBytesAsync(messageBytes, blobName);
                 MessageData wrapperMessageData = new MessageData
                 {
-                    CompressedBlobName = fullBlobName
+                    CompressedBlobName = blobName
                 };
 
-                messageData.CompressedBlobName = fullBlobName;
+                messageData.CompressedBlobName = blobName;
 
                 return new Tuple<MessageData, string>(messageData, JsonConvert.SerializeObject(wrapperMessageData, this.taskMessageSerializerSettings));
             }
@@ -107,10 +111,10 @@ namespace DurableTask.AzureStorage
             return envelope;
         }
 
-        internal Task CompressAndUploadAsBytesAsync(byte[] payloadBuffer, string instanceId, string blobName)
+        internal Task CompressAndUploadAsBytesAsync(byte[] payloadBuffer, string blobName)
         {
             ArraySegment<byte> compressedSegment = this.Compress(payloadBuffer);
-            return this.UploadToBlobAsync(compressedSegment.Array, compressedSegment.Count, instanceId, blobName);
+            return this.UploadToBlobAsync(compressedSegment.Array, compressedSegment.Count, blobName);
         }
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:DoNotDisposeObjectsMultipleTimes", Justification = "This GZipStream will not dispose the MemoryStream.")]
@@ -144,20 +148,9 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        internal async Task<string> DownloadAndDecompressAsBytesAsync(string fullBlobName)
+        internal async Task<string> DownloadAndDecompressAsBytesAsync(string blobName)
         {
-            string[] blobNameParts = fullBlobName.Split(new[] { LargeMessageBlobNameSeparator }, StringSplitOptions.None);
-            if (blobNameParts.Length != 2)
-            {
-                return string.Empty;
-            }
-
-            string containerName = blobNameParts[0];
-            string blobName = blobNameParts[1];
-
-            CloudBlobContainer cloudBlobContainer =
-                this.cloudBlobClient.GetContainerReference(containerName);
-            CloudBlockBlob cloudBlockBlob = cloudBlobContainer.GetBlockBlobReference(blobName);
+            CloudBlockBlob cloudBlockBlob = this.cloudBlobContainer.GetBlockBlobReference(blobName);
             Stream downloadBlobAsStream = await cloudBlockBlob.OpenReadAsync();
             ArraySegment<byte> decompressedSegment = this.Decompress(downloadBlobAsStream);
             return Encoding.UTF8.GetString(decompressedSegment.Array, 0, decompressedSegment.Count);
@@ -203,36 +196,55 @@ namespace DurableTask.AzureStorage
         /// <summary>
         /// Uploads MessageData as bytes[] to blob container
         /// </summary>
-        internal async Task UploadToBlobAsync(byte[] data, int dataByteCount, string instanceId, string blobName)
+        internal async Task UploadToBlobAsync(byte[] data, int dataByteCount, string blobName)
         {
-            CloudBlobContainer cloudBlobContainer = this.GetLargeMessagesContainer(instanceId);
-            await cloudBlobContainer.CreateIfNotExistsAsync();
+            await this.cloudBlobContainer.CreateIfNotExistsAsync();
             CloudBlockBlob cloudBlockBlob = cloudBlobContainer.GetBlockBlobReference(blobName);
             await cloudBlockBlob.UploadFromByteArrayAsync(data, 0, dataByteCount);
         }
 
-        internal Task DeleteLargeMessagesContainer(string instanceId)
-        {
-            CloudBlobContainer cloudBlobContainer = this.GetLargeMessagesContainer(instanceId);
-            return cloudBlobContainer.DeleteIfExistsAsync();
-        }
-
-        private CloudBlobContainer GetLargeMessagesContainer(string instanceId)
-        {
-            var containerNameBuilder = new StringBuilder();
-            containerNameBuilder.Append(LargeMessagesContainerPrefix).Append(instanceId.ToLowerInvariant());
-            string compressedMessageBlobContainerName = containerNameBuilder.ToString();
-            NameValidator.ValidateContainerName(compressedMessageBlobContainerName);
-            CloudBlobContainer cloudBlobContainer = 
-                this.cloudBlobClient.GetContainerReference(compressedMessageBlobContainerName);
-            return cloudBlobContainer;
-        }
-
-        internal string GetFullLargeMessageBlobName(string instanceId, string blobName)
+        internal string GetNewLargeMessageBlobName(string instanceId)
         {
             var blobNameBuilder = new StringBuilder();
-            blobNameBuilder.Append(LargeMessagesContainerPrefix).Append(instanceId.ToLowerInvariant()).Append(LargeMessageBlobNameSeparator).Append(blobName);
+            blobNameBuilder.
+                Append(instanceId).
+                Append(LargeMessageBlobNameSeparator).
+                Append(Guid.NewGuid().ToString().
+                ToLowerInvariant()).
+                Append(blobExtension);
             return blobNameBuilder.ToString();
+        }
+
+        internal async Task<int> DeleteLargeMessageBlobs(string instanceId)
+        {
+            int storageRequests = 0;
+            List<Task> blobForDeletionTaskList = new List<Task>();
+            if (!await this.cloudBlobContainer.ExistsAsync())
+            {
+                return storageRequests;
+            }
+            CloudBlobDirectory instnaceDirectory = this.cloudBlobContainer.GetDirectoryReference(instanceId);
+            BlobContinuationToken blobContinuationToken = null;
+            while (true)
+            {
+                BlobResultSegment segment = await instnaceDirectory.ListBlobsSegmentedAsync(blobContinuationToken);
+                storageRequests++;
+                foreach (var blobListItem in segment.Results)
+                {
+                    var cloudBlockBlob = blobListItem as CloudBlockBlob;
+                    CloudBlockBlob blob = this.cloudBlobContainer.GetBlockBlobReference(cloudBlockBlob?.Name);
+                    blobForDeletionTaskList.Add(blob.DeleteIfExistsAsync());
+                }
+
+                await Task.WhenAll(blobForDeletionTaskList);
+                storageRequests += blobForDeletionTaskList.Count;
+                if (blobContinuationToken == null)
+                {
+                    break;
+                }
+            }
+
+            return storageRequests;
         }
     }
 }
