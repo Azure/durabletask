@@ -25,6 +25,7 @@ namespace DurableTask.AzureStorage.Tests
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
+    using ImpromptuInterface.InvokeExt;
     using Microsoft.Practices.EnterpriseLibrary.SemanticLogging.Utility;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Microsoft.WindowsAzure.Storage;
@@ -546,12 +547,63 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         /// <summary>
-        /// End-to-end test which validates the ContinueAsNew functionality by implementing a counter actor pattern.
+        /// End-to-end test which validates the ContinueAsNew functionality by implementing character counter actor pattern.
         /// </summary>
         [DataTestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task ActorOrchestrationForLargeInput(bool enableExtendedSessions)
+        {
+            await this.ValidateCharacterCounterIntegrationTest(enableExtendedSessions);
+        }
+
+        /// <summary>
+        /// End-to-end test which validates the ContinueAsNew functionality by implementing character counter actor pattern.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task ActorOrchestrationDeleteAllLargeMessageBlobs(bool enableExtendedSessions)
+        {
+            DateTime startDateTime = DateTime.UtcNow;
+
+            Tuple<string, TestOrchestrationClient> resultTuple = await this.ValidateCharacterCounterIntegrationTest(enableExtendedSessions);
+            string instanceId = resultTuple.Item1;
+            TestOrchestrationClient client = resultTuple.Item2;
+
+            List<HistoryStateEvent> historyEvents = await client.GetOrchestrationHistoryAsync(instanceId);
+            Assert.IsTrue(historyEvents.Count > 0);
+
+            IList<OrchestrationState> orchestrationStateList = await client.GetStateAsync(instanceId);
+            Assert.AreEqual(1, orchestrationStateList.Count);
+            Assert.AreEqual(instanceId, orchestrationStateList.First().OrchestrationInstance.InstanceId);
+
+            int blobCount = await this.GetBlobCount("test-largemessages", instanceId);
+            Assert.AreEqual(18, blobCount);
+
+            await client.PurgeInstanceHistoryByTimePeriod(
+                startDateTime,
+                DateTime.UtcNow,
+                new List<OrchestrationStatus>
+                {
+                    OrchestrationStatus.Completed,
+                    OrchestrationStatus.Terminated,
+                    OrchestrationStatus.Failed,
+                    OrchestrationStatus.Running
+                });
+
+            historyEvents = await client.GetOrchestrationHistoryAsync(instanceId);
+            Assert.AreEqual(0, historyEvents.Count);
+
+            orchestrationStateList = await client.GetStateAsync(instanceId);
+            Assert.AreEqual(1, orchestrationStateList.Count);
+            Assert.IsNull(orchestrationStateList.First());
+
+            blobCount = await this.GetBlobCount("test-largemessages", instanceId);
+            Assert.AreEqual(0, blobCount);
+        }
+
+        private async Task<Tuple<string, TestOrchestrationClient>> ValidateCharacterCounterIntegrationTest(bool enableExtendedSessions)
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
             {
@@ -560,12 +612,13 @@ namespace DurableTask.AzureStorage.Tests
                 string initialMessage = this.GenerateMendiumRandomStringPayload().ToString();
                 int counter = initialMessage.Length;
                 var initialValue = new Tuple<string, int>(initialMessage, counter);
-                TestOrchestrationClient client = 
+                TestOrchestrationClient client =
                     await host.StartOrchestrationAsync(typeof(Orchestrations.CharacterCounter), initialValue);
 
                 // Need to wait for the instance to start before sending events to it.
                 // TODO: This requirement may not be ideal and should be revisited.
-                await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
+                OrchestrationState orchestrationState = 
+                    await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
 
                 // Perform some operations
                 await client.RaiseEventAsync("operation", "double");
@@ -600,7 +653,7 @@ namespace DurableTask.AzureStorage.Tests
                 status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                var result = JsonConvert.DeserializeObject <Tuple<string, int>>(status?.Output);
+                var result = JsonConvert.DeserializeObject<Tuple<string, int>>(status?.Output);
                 Assert.IsNotNull(result);
                 Assert.AreEqual(counter, result.Item2);
 
@@ -608,8 +661,14 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreNotEqual(initialValue, JToken.Parse(status?.Input));
 
                 await host.StopAsync();
+
+                return new Tuple<string, TestOrchestrationClient>(
+                    orchestrationState.OrchestrationInstance.InstanceId,
+                    client);
             }
         }
+
+
 
         /// <summary>
         /// End-to-end test which validates the Terminate functionality.
