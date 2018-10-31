@@ -1011,24 +1011,6 @@ namespace DurableTask.AzureStorage.Tracking
             }
         }
 
-        async Task<bool> IsInputBlobNameAlreadySet(string instanceId)
-        {
-            TableQuery query = new TableQuery().Where(
-                TableQuery.CombineFilters(
-                    TableQuery.GenerateFilterCondition(PartitionKeyProperty, QueryComparisons.Equal, instanceId),
-                    TableOperators.And,
-                    TableQuery.GenerateFilterCondition(RowKeyProperty, QueryComparisons.Equal, string.Empty))).Select(
-                new []
-                {
-                    InputBlobNameProperty
-                });
-            var segment = await this.InstancesTable.ExecuteQuerySegmentedAsync(query, null);
-            return segment?.Results != null &&
-                segment.Results.Any() &&
-                segment.Results.First().Properties.TryGetValue(InputBlobNameProperty, out EntityProperty inputBlobNameProperty) &&
-                !string.IsNullOrEmpty(inputBlobNameProperty.StringValue);
-        }
-
         async Task CompressLargeMessageAsync(DynamicTableEntity entity, bool isInstancesTable)
         {
             if (isInstancesTable)

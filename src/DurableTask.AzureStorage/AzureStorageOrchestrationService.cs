@@ -767,7 +767,7 @@ namespace DurableTask.AzureStorage
             // First, add new messages into the queue. If a failure happens after this, duplicate messages will
             // be written after the retry, but the results of those messages are expected to be de-dup'd later.
             ControlQueue currentControlQueue = await this.GetControlQueueAsync(instanceId);
-            IList<MessageData> outboundQueueMessages = await this.CommitOutboundQueueMessages(
+            await this.CommitOutboundQueueMessages(
                 currentControlQueue,
                 session,
                 outboundMessages,
@@ -810,7 +810,7 @@ namespace DurableTask.AzureStorage
             await this.DeleteMessageBatchAsync(session, currentControlQueue);
         }
 
-        async Task<IList<MessageData>> CommitOutboundQueueMessages(
+        async Task CommitOutboundQueueMessages(
             ControlQueue currentControlQueue,
             OrchestrationSession session,
             IList<TaskMessage> outboundMessages,
@@ -859,7 +859,7 @@ namespace DurableTask.AzureStorage
                 }
             }
 
-            return await enqueueOperations.ParallelForEachAsync(
+            await enqueueOperations.ParallelForEachAsync(
                 this.settings.MaxStorageOperationConcurrency,
                 op => op.Queue.AddMessageAsync(op.Message, session));
         }

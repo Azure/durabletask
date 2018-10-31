@@ -59,7 +59,7 @@ namespace DurableTask.AzureStorage
         /// <param name="messageData">Instance of <see cref="MessageData"/></param>
         /// <param name="instanceId">Instance ID</param>
         /// <returns>Instance of Tuple mapping instance of <see cref="MessageData"/> and blob name</returns>
-        public async Task<Tuple<MessageData, string>> SerializeMessageDataAsync(MessageData messageData, string instanceId)
+        public async Task<string> SerializeMessageDataAsync(MessageData messageData, string instanceId)
         {
             string rawContent = JsonConvert.SerializeObject(messageData, this.taskMessageSerializerSettings);
             messageData.TotalMessageSizeBytes = Encoding.Unicode.GetByteCount(rawContent);
@@ -77,12 +77,10 @@ namespace DurableTask.AzureStorage
                     CompressedBlobName = blobName
                 };
 
-                messageData.CompressedBlobName = blobName;
-
-                return new Tuple<MessageData, string>(messageData, JsonConvert.SerializeObject(wrapperMessageData, this.taskMessageSerializerSettings));
+                return JsonConvert.SerializeObject(wrapperMessageData, this.taskMessageSerializerSettings);
             }
 
-            return new Tuple<MessageData, string>(messageData, JsonConvert.SerializeObject(messageData, this.taskMessageSerializerSettings));
+            return JsonConvert.SerializeObject(messageData, this.taskMessageSerializerSettings);
         }
 
         /// <summary>
@@ -96,13 +94,11 @@ namespace DurableTask.AzureStorage
 
             if (!string.IsNullOrEmpty(envelope.CompressedBlobName))
             {
-                var compressedBlobName = envelope.CompressedBlobName;
                 string decompressedMessage = await this.DownloadAndDecompressAsBytesAsync(envelope.CompressedBlobName);
                 envelope = JsonConvert.DeserializeObject<MessageData>(
                     decompressedMessage,
                     this.taskMessageSerializerSettings);
                 envelope.MessageFormat = MessageFormatFlags.StorageBlob;
-                envelope.CompressedBlobName = compressedBlobName;
             }
 
             envelope.OriginalQueueMessage = queueMessage;
@@ -218,7 +214,7 @@ namespace DurableTask.AzureStorage
         internal async Task<int> DeleteLargeMessageBlobs(string instanceId)
         {
             int storageRequests = 0;
-            List<Task> blobForDeletionTaskList = new List<Task>();
+            var blobForDeletionTaskList = new List<Task>();
             if (!await this.cloudBlobContainer.ExistsAsync())
             {
                 return storageRequests;
@@ -229,7 +225,7 @@ namespace DurableTask.AzureStorage
             {
                 BlobResultSegment segment = await instnaceDirectory.ListBlobsSegmentedAsync(blobContinuationToken);
                 storageRequests++;
-                foreach (var blobListItem in segment.Results)
+                foreach (IListBlobItem blobListItem in segment.Results)
                 {
                     var cloudBlockBlob = blobListItem as CloudBlockBlob;
                     CloudBlockBlob blob = this.cloudBlobContainer.GetBlockBlobReference(cloudBlockBlob?.Name);

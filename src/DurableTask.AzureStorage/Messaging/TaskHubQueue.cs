@@ -69,8 +69,8 @@ namespace DurableTask.AzureStorage.Messaging
         /// </summary>
         /// <param name="message">Instance of <see cref="TaskMessage"/></param>
         /// <param name="sourceSession">Instance of <see cref="SessionBase"/></param>
-        /// <returns>Instance of <see cref="MessageData"/></returns>
-        public Task<MessageData> AddMessageAsync(TaskMessage message, SessionBase sourceSession)
+        /// <returns></returns>
+        public Task AddMessageAsync(TaskMessage message, SessionBase sourceSession)
         {
             return this.AddMessageAsync(message, sourceSession.Instance, sourceSession);
         }
@@ -81,19 +81,16 @@ namespace DurableTask.AzureStorage.Messaging
         /// <param name="message">Instance of <see cref="TaskMessage"/></param>
         /// <param name="sourceInstance">Instnace of <see cref="OrchestrationInstance"/></param>
         /// <returns></returns>
-        public Task<MessageData> AddMessageAsync(TaskMessage message, OrchestrationInstance sourceInstance)
+        public Task AddMessageAsync(TaskMessage message, OrchestrationInstance sourceInstance)
         {
             return this.AddMessageAsync(message, sourceInstance, session: null);
         }
 
-        async Task<MessageData> AddMessageAsync(TaskMessage message, OrchestrationInstance sourceInstance, SessionBase session)
+        async Task AddMessageAsync(TaskMessage message, OrchestrationInstance sourceInstance, SessionBase session)
         {
             try
             {
-                Tuple<MessageData, CloudQueueMessage> tuple = await this.CreateOutboundQueueMessageAsync(sourceInstance, this.storageQueue.Name, message);
-                MessageData messageData = tuple.Item1;
-                CloudQueueMessage cloudQueueMessage = tuple.Item2;
-
+                CloudQueueMessage cloudQueueMessage = await this.CreateOutboundQueueMessageAsync(sourceInstance, this.storageQueue.Name, message);
                 await this.storageQueue.AddMessageAsync(
                     cloudQueueMessage,
                     null /* timeToLive */,
@@ -105,8 +102,6 @@ namespace DurableTask.AzureStorage.Messaging
 
                 // Wake up the queue polling thread
                 this.backoffHelper.Reset();
-
-                return messageData;
             }
             catch (StorageException e)
             {
@@ -288,7 +283,7 @@ namespace DurableTask.AzureStorage.Messaging
             }
         }
 
-        Task<Tuple<MessageData, CloudQueueMessage>> CreateOutboundQueueMessageAsync(
+        Task<CloudQueueMessage> CreateOutboundQueueMessageAsync(
             OrchestrationInstance sourceInstance,
             string queueName,
             TaskMessage taskMessage)
@@ -302,7 +297,7 @@ namespace DurableTask.AzureStorage.Messaging
                 taskMessage);
         }
 
-        static async Task<Tuple<MessageData, CloudQueueMessage>> CreateOutboundQueueMessageAsync(
+        static async Task<CloudQueueMessage> CreateOutboundQueueMessageAsync(
             MessageManager messageManager,
             OrchestrationInstance sourceInstance,
             string storageAccountName,
@@ -316,8 +311,7 @@ namespace DurableTask.AzureStorage.Messaging
             var data = new MessageData(taskMessage, outboundTraceActivityId, queueName);
             data.SequenceNumber = Interlocked.Increment(ref messageSequenceNumber);
 
-            Tuple<MessageData, string> tuple = await messageManager.SerializeMessageDataAsync(data, taskMessage.OrchestrationInstance.InstanceId);
-            string rawContent = tuple.Item2;
+            string rawContent = await messageManager.SerializeMessageDataAsync(data, taskMessage.OrchestrationInstance.InstanceId);
 
             AnalyticsEventSource.Log.SendingMessage(
                 outboundTraceActivityId,
@@ -333,7 +327,7 @@ namespace DurableTask.AzureStorage.Messaging
                 data.SequenceNumber,
                 Utils.ExtensionVersion);
 
-            return new Tuple<MessageData, CloudQueueMessage>(tuple.Item1, new CloudQueueMessage(rawContent));
+            return new CloudQueueMessage(rawContent);
         }
 
         public async Task CreateIfNotExistsAsync()
