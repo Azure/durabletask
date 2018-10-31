@@ -141,7 +141,7 @@ namespace DurableTask.AzureStorage.Tests
             Trace.TraceInformation($"Purging history for instance with id - {this.instanceId}");
 
             // The Purge Instance History API only exists in the service object
-            AzureStorageOrchestrationService service = (AzureStorageOrchestrationService)this.client.serviceClient;
+            AzureStorageOrchestrationService service = (AzureStorageOrchestrationService)this.client.ServiceClient;
             return service.PurgeInstanceHistoryAsync(this.instanceId);
         }
 
@@ -150,7 +150,7 @@ namespace DurableTask.AzureStorage.Tests
             Trace.TraceInformation($"Purging history from {createdTimeFrom} to {createdTimeTo}");
 
             // The Purge Instance History API only exists in the service object
-            AzureStorageOrchestrationService service = (AzureStorageOrchestrationService)this.client.serviceClient;
+            AzureStorageOrchestrationService service = (AzureStorageOrchestrationService)this.client.ServiceClient;
             return service.PurgeInstanceHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatus);
         }
 
@@ -160,7 +160,7 @@ namespace DurableTask.AzureStorage.Tests
 
             // GetOrchestrationHistoryAsync is exposed in the TaskHubClinet but requires execution id. 
             // However, we need to get all the history records for an instance id not for specific execution.
-            AzureStorageOrchestrationService service = (AzureStorageOrchestrationService)this.client.serviceClient;
+            AzureStorageOrchestrationService service = (AzureStorageOrchestrationService)this.client.ServiceClient;
             string historyString = await service.GetOrchestrationHistoryAsync(instanceId, null);
             return JsonConvert.DeserializeObject<List<HistoryStateEvent>>(historyString);
         }
@@ -169,7 +169,7 @@ namespace DurableTask.AzureStorage.Tests
         {
             Trace.TraceInformation($"Getting orchestration state with instance id - {this.instanceId}");
             // The GetStateAsync only exists in the service object
-            AzureStorageOrchestrationService service = (AzureStorageOrchestrationService)this.client.serviceClient;
+            AzureStorageOrchestrationService service = (AzureStorageOrchestrationService)this.client.ServiceClient;
             return await service.GetOrchestrationStateAsync(instanceId, true);
         }
 
