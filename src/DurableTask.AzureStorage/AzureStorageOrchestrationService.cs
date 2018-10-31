@@ -1389,14 +1389,21 @@ namespace DurableTask.AzureStorage
             uint partitionIndex = Fnv1aHashHelper.ComputeHash(instanceId) % (uint)this.settings.PartitionCount;
             CloudQueue storageQueue = GetControlQueue(this.queueClient, this.settings.TaskHubName, (int)partitionIndex);
 
-
             ControlQueue cachedQueue;
-            if (this.allControlQueues.TryGetValue(storageQueue.Name, out cachedQueue))
+            if (!this.allControlQueues.TryGetValue(storageQueue.Name, out cachedQueue))
             {
-                return cachedQueue;
-            }
-            else
-            {
+                // Lock ensures all callers asking for the same partition get the same queue reference back.
+                lock (this.allControlQueues)
+                {
+                    if (!this.allControlQueues.TryGetValue(storageQueue.Name, out cachedQueue))
+                    {
+                        cachedQueue = new ControlQueue(storageQueue, this.settings, this.stats, this.messageManager);
+                        this.allControlQueues.TryAdd(storageQueue.Name, cachedQueue);
+                    }
+                }
+
+                // Important to ensure the queue exists, whether the current thread initialized it or not.
+                // A slightly better design would be to use a semaphore to block non-initializing threads.
                 try
                 {
                     await storageQueue.CreateIfNotExistsAsync();
@@ -1405,11 +1412,10 @@ namespace DurableTask.AzureStorage
                 {
                     this.stats.StorageRequests.Increment();
                 }
-
-                var controlQueue = new ControlQueue(storageQueue, this.settings, this.stats, this.messageManager);
-                this.allControlQueues.TryAdd(storageQueue.Name, controlQueue);
-                return controlQueue;
             }
+
+            System.Diagnostics.Debug.Assert(cachedQueue != null);
+            return cachedQueue;
         }
 
         /// <summary>

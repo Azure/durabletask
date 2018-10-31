@@ -625,19 +625,19 @@ namespace DurableTask.AzureStorage.Tests
                 {
                     var timeout = TimeSpan.FromSeconds(10);
                     var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Approval), timeout);
-                    await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                    await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
 
                     // Don't send any notification - let the internal timeout expire
                 };
 
-                int iterations = 50;
+                int iterations = 10;
                 var tasks = new Task[iterations];
                 for (int i = 0; i < iterations; i++)
                 {
                     tasks[i] = orchestrationStarter();
                 }
 
-                // The 50 orchestrations above (which each delay for 10 seconds) should all complete in less than 60 seconds.
+                // The 10 orchestrations above (which each delay for 10 seconds) should all complete in less than 60 seconds.
                 Task parallelOrchestrations = Task.WhenAll(tasks);
                 Task timeoutTask = Task.Delay(TimeSpan.FromSeconds(60));
 
