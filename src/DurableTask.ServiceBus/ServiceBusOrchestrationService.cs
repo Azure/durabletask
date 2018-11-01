@@ -1175,7 +1175,7 @@ namespace DurableTask.ServiceBus
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions, bool ignoreInput)
         {
             ThrowIfInstanceStoreNotConfigured();
-            IEnumerable<OrchestrationStateInstanceEntity> states = await this.InstanceStore.GetOrchestrationStateAsync(instanceId, allExecutions, ignoreInput);
+            IEnumerable<OrchestrationStateInstanceEntity> states = await this.InstanceStore.GetOrchestrationStateAsync(instanceId, allExecutions);
             return states?.Select(s => s.State).ToList() ?? new List<OrchestrationState>();
         }
 
