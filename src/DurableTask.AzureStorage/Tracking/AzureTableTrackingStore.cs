@@ -651,8 +651,7 @@ namespace DurableTask.AzureStorage.Tracking
                     batch.Delete(itemForDeletion);
                 }
 
-                int requests = await this.messageManager.DeleteLargeMessageBlobs(orchestrationInstanceStatus.PartitionKey);
-                this.stats.StorageRequests.Increment(requests);
+                await this.messageManager.DeleteLargeMessageBlobs(orchestrationInstanceStatus.PartitionKey, this.stats);
                 await this.HistoryTable.ExecuteBatchAsync(batch);
                 this.stats.TableEntitiesWritten.Increment(batch.Count);
                 storageRequests++;

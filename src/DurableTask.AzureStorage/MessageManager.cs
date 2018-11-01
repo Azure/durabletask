@@ -17,10 +17,9 @@ namespace DurableTask.AzureStorage
     using System.Collections.Generic;
     using System.IO;
     using System.IO.Compression;
-    using System.Linq;
     using System.Text;
     using System.Threading.Tasks;
-    using Microsoft.WindowsAzure.Storage;
+    using DurableTask.AzureStorage.Monitoring;
     using Microsoft.WindowsAzure.Storage.Blob;
     using Microsoft.WindowsAzure.Storage.Queue;
     using Newtonsoft.Json;
@@ -214,20 +213,19 @@ namespace DurableTask.AzureStorage
             return blobNameBuilder.ToString();
         }
 
-        internal async Task<int> DeleteLargeMessageBlobs(string instanceId)
+        internal async Task DeleteLargeMessageBlobs(string instanceId, AzureStorageOrchestrationServiceStats stats)
         {
-            int storageRequests = 0;
             var blobForDeletionTaskList = new List<Task>();
             if (!await this.cloudBlobContainer.ExistsAsync())
             {
-                return storageRequests;
+                return;
             }
             CloudBlobDirectory instnaceDirectory = this.cloudBlobContainer.GetDirectoryReference(instanceId);
             BlobContinuationToken blobContinuationToken = null;
             while (true)
             {
                 BlobResultSegment segment = await instnaceDirectory.ListBlobsSegmentedAsync(blobContinuationToken);
-                storageRequests++;
+                stats.StorageRequests.Increment();
                 foreach (IListBlobItem blobListItem in segment.Results)
                 {
                     var cloudBlockBlob = blobListItem as CloudBlockBlob;
@@ -236,14 +234,12 @@ namespace DurableTask.AzureStorage
                 }
 
                 await Task.WhenAll(blobForDeletionTaskList);
-                storageRequests += blobForDeletionTaskList.Count;
+                stats.StorageRequests.Increment(blobForDeletionTaskList.Count);
                 if (blobContinuationToken == null)
                 {
                     break;
                 }
             }
-
-            return storageRequests;
         }
     }
 }
