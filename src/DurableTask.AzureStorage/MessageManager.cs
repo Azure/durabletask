@@ -57,9 +57,8 @@ namespace DurableTask.AzureStorage
         /// Serializes the MessageData object
         /// </summary>
         /// <param name="messageData">Instance of <see cref="MessageData"/></param>
-        /// <param name="instanceId">Instance ID</param>
         /// <returns>JSON for the <see cref="MessageData"/> object</returns>
-        public async Task<string> SerializeMessageDataAsync(MessageData messageData, string instanceId)
+        public async Task<string> SerializeMessageDataAsync(MessageData messageData)
         {
             string rawContent = JsonConvert.SerializeObject(messageData, this.taskMessageSerializerSettings);
             messageData.TotalMessageSizeBytes = Encoding.Unicode.GetByteCount(rawContent);
@@ -70,7 +69,7 @@ namespace DurableTask.AzureStorage
                 byte[] messageBytes = Encoding.UTF8.GetBytes(rawContent);
 
                 // Get Compressed bytes
-                string blobName = this.GetNewLargeMessageBlobName(instanceId);
+                string blobName = this.GetNewLargeMessageBlobName(messageData.TaskMessage.OrchestrationInstance.InstanceId);
                 await this.CompressAndUploadAsBytesAsync(messageBytes, blobName);
                 MessageData wrapperMessageData = new MessageData
                 {

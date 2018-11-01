@@ -311,7 +311,7 @@ namespace DurableTask.AzureStorage.Messaging
             var data = new MessageData(taskMessage, outboundTraceActivityId, queueName);
             data.SequenceNumber = Interlocked.Increment(ref messageSequenceNumber);
 
-            string rawContent = await messageManager.SerializeMessageDataAsync(data, taskMessage.OrchestrationInstance.InstanceId);
+            string rawContent = await messageManager.SerializeMessageDataAsync(data);
 
             AnalyticsEventSource.Log.SendingMessage(
                 outboundTraceActivityId,
