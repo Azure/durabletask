@@ -762,8 +762,6 @@ namespace DurableTask.AzureStorage
             string instanceId = workItem.InstanceId;
             string executionId = runtimeState.OrchestrationInstance.ExecutionId;
 
-            var outputBlobNames = new Dictionary<HistoryEvent, string>();
-
             // First, add new messages into the queue. If a failure happens after this, duplicate messages will
             // be written after the retry, but the results of those messages are expected to be de-dup'd later.
             ControlQueue currentControlQueue = await this.GetControlQueueAsync(instanceId);
