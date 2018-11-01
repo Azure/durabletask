@@ -58,7 +58,7 @@ namespace DurableTask.AzureStorage
         /// </summary>
         /// <param name="messageData">Instance of <see cref="MessageData"/></param>
         /// <param name="instanceId">Instance ID</param>
-        /// <returns>Instance of Tuple mapping instance of <see cref="MessageData"/> and blob name</returns>
+        /// <returns>JSON for the <see cref="MessageData"/> object</returns>
         public async Task<string> SerializeMessageDataAsync(MessageData messageData, string instanceId)
         {
             string rawContent = JsonConvert.SerializeObject(messageData, this.taskMessageSerializerSettings);
