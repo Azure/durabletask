@@ -195,7 +195,7 @@ namespace DurableTask.AzureStorage
         internal async Task UploadToBlobAsync(byte[] data, int dataByteCount, string blobName)
         {
             await this.cloudBlobContainer.CreateIfNotExistsAsync();
-            CloudBlockBlob cloudBlockBlob = cloudBlobContainer.GetBlockBlobReference(blobName);
+            CloudBlockBlob cloudBlockBlob = this.cloudBlobContainer.GetBlockBlobReference(blobName);
             await cloudBlockBlob.UploadFromByteArrayAsync(data, 0, dataByteCount);
         }
 
