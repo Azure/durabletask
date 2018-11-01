@@ -210,8 +210,7 @@ namespace DurableTask.AzureStorage
             blobNameBuilder.
                 Append(instanceId).
                 Append(LargeMessageBlobNameSeparator).
-                Append(Guid.NewGuid().ToString().
-                ToLowerInvariant()).
+                Append(Guid.NewGuid().ToString()).
                 Append(blobExtension);
             return blobNameBuilder.ToString();
         }
