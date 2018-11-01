@@ -1177,7 +1177,7 @@ namespace DurableTask.AzureStorage.Tracking
 
         async Task<string> GetOrchestrationOutputAsync(OrchestrationInstanceStatus orchestrationInstanceStatus)
         {
-            return await this.GetPropertyValue(
+            return await this.GetPropertyValueAsync(
                 orchestrationInstanceStatus.PartitionKey,
                 EventType.ExecutionCompleted, 
                 ResultProperty,
@@ -1186,14 +1186,14 @@ namespace DurableTask.AzureStorage.Tracking
 
         async Task<string> GetOrchestrationInputAsync(OrchestrationInstanceStatus orchestrationInstanceStatus)
         {
-            return await this.GetPropertyValue(
+            return await this.GetPropertyValueAsync(
                 orchestrationInstanceStatus.PartitionKey,
                 EventType.ExecutionStarted,
                 InputProperty,
                 InputBlobNameProperty);
         }
 
-        private async Task<string> GetPropertyValue(
+        private async Task<string> GetPropertyValueAsync(
             string instanceId, 
             EventType eventType,
             string propertyName,
