@@ -637,7 +637,6 @@ namespace DurableTask.AzureStorage.Tracking
                 {
                     RowKeyProperty
                 });
-
             storageRequests += historyEntitiesResponseInfo.RequestCount;
 
             int pageOffset = 0;
@@ -665,6 +664,7 @@ namespace DurableTask.AzureStorage.Tracking
                 ETag = "*"
             }));
             this.stats.TableEntitiesWritten.Increment();
+            this.stats.StorageRequests.Increment();
             storageRequests++;
 
             return storageRequests;
