@@ -47,7 +47,7 @@ namespace DurableTask.AzureStorage.Tracking
         const string EventTypeProperty = "EventType";
         const string SentinelRowKey = "sentinel";
         const char Quote = '\'';
-        const string InstnacesTableInformationMessageForLargeDataBlobs = "Too large to display. Please check History table for the actual data.";
+        const string InstancesTableInformationMessageForLargeDataBlobs = "Too large to display. Please check History table for the actual data.";
 
         const int MaxStorageQueuePayloadSizeInBytes = 60 * 1024; // 60KB
         const int GuidByteSize = 72;
@@ -1051,7 +1051,7 @@ namespace DurableTask.AzureStorage.Tracking
             // Check if the source property has a compressed blob and swap the source with the target property
             if (this.HasCompressedTableEntityByPropertyKey(entity, sourcePropertyKey, out blobNameKey))
             {
-                orchestrationInstanceUpdate.Properties[sourcePropertyKey] = new EntityProperty(InstnacesTableInformationMessageForLargeDataBlobs);
+                orchestrationInstanceUpdate.Properties[sourcePropertyKey] = new EntityProperty(InstancesTableInformationMessageForLargeDataBlobs);
             }
             else
             {
@@ -1065,7 +1065,7 @@ namespace DurableTask.AzureStorage.Tracking
             {
                 if (!string.IsNullOrEmpty(this.GetLargeTableEntityInternal(entity, InputProperty)))
                 {
-                    entity.Properties[InputProperty] = new EntityProperty(InstnacesTableInformationMessageForLargeDataBlobs);
+                    entity.Properties[InputProperty] = new EntityProperty(InstancesTableInformationMessageForLargeDataBlobs);
                     return;
                 }
             }
