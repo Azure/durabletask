@@ -1199,7 +1199,7 @@ namespace DurableTask.AzureStorage.Tracking
             string propertyName,
             string blobPropertyName)
         {
-            string result = string.Empty;
+            string result = null;
 
             var queryBuilder = new StringBuilder();
 
