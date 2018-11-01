@@ -689,6 +689,8 @@ namespace DurableTask.AzureStorage.Tracking
 
             TableQuerySegment<OrchestrationInstanceStatus> segment = 
                 await this.InstancesTable.ExecuteQuerySegmentedAsync(query, null);
+            this.stats.TableEntitiesRead.Increment();
+            this.stats.StorageRequests.Increment();
 
             OrchestrationInstanceStatus orchestrationInstanceStatus = segment?.Results?.FirstOrDefault();
 
