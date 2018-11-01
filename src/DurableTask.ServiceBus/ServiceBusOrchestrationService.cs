@@ -1005,7 +1005,7 @@ namespace DurableTask.ServiceBus
                 // to JumpStart table by JumpStart manager
                 // not thread safe in case multiple clients attempt to create an orchestration instance with the same id at the same time
 
-                OrchestrationState latestState = (await GetOrchestrationStateAsync(creationMessage.OrchestrationInstance.InstanceId, false)).FirstOrDefault();
+                OrchestrationState latestState = (await GetOrchestrationStateAsync(creationMessage.OrchestrationInstance.InstanceId, allExecutions: false, ignoreInput: false)).FirstOrDefault();
                 if (latestState != null && (dedupeStatuses == null || dedupeStatuses.Contains(latestState.OrchestrationStatus)))
                 {
                     // An orchestration with same instance id is already running
@@ -1148,7 +1148,7 @@ namespace DurableTask.ServiceBus
 
             while (!cancellationToken.IsCancellationRequested && timeoutSeconds > 0)
             {
-                OrchestrationState state = (await GetOrchestrationStateAsync(instanceId, false))?.FirstOrDefault();
+                OrchestrationState state = (await GetOrchestrationStateAsync(instanceId, allExecutions: false, ignoreInput: false))?.FirstOrDefault();
                 if (state == null
                     || (state.OrchestrationStatus == OrchestrationStatus.Running)
                     || (state.OrchestrationStatus == OrchestrationStatus.Pending))
@@ -1170,11 +1170,12 @@ namespace DurableTask.ServiceBus
         /// </summary>
         /// <param name="instanceId">Instance id</param>
         /// <param name="allExecutions">True if method should fetch all executions of the instance, false if the method should only fetch the most recent execution</param>
+        /// <param name="ignoreInput">Whether or not the Input property for the instance will be retrieved</param>
         /// <returns>List of OrchestrationState objects that represents the list of orchestrations in the instance store</returns>
-        public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
+        public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions, bool ignoreInput)
         {
             ThrowIfInstanceStoreNotConfigured();
-            IEnumerable<OrchestrationStateInstanceEntity> states = await this.InstanceStore.GetOrchestrationStateAsync(instanceId, allExecutions);
+            IEnumerable<OrchestrationStateInstanceEntity> states = await this.InstanceStore.GetOrchestrationStateAsync(instanceId, allExecutions, ignoreInput);
             return states?.Select(s => s.State).ToList() ?? new List<OrchestrationState>();
         }
 

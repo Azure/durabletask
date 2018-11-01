@@ -80,8 +80,9 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="instanceId">Instance id</param>
         /// <param name="allExecutions">True if method should fetch all executions of the instance, false if the method should only fetch the most recent execution</param>
+        /// <param name="ignoreInput">Whether or not the Input property for the instance will be retrieved</param>
         /// <returns>List of OrchestrationState objects that represents the list of orchestrations in the instance store</returns>
-        Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions);
+        Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions, bool ignoreInput);
 
         /// <summary>
         /// Get a list of orchestration states from the instance storage for the specified execution (generation) of the specified instance.

@@ -1151,12 +1151,13 @@ namespace DurableTask.AzureStorage
         /// </summary>
         /// <param name="instanceId">Instance ID of the orchestration.</param>
         /// <param name="allExecutions">This parameter is not used.</param>
+        /// <param name="ignoreInput">Whether or not the Input property for the instance will be retrieved</param>
         /// <returns>List of <see cref="OrchestrationState"/> objects that represent the list of orchestrations.</returns>
-        public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
+        public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions, bool ignoreInput = false)
         {
             // Client operations will auto-create the task hub if it doesn't already exist.
             await this.EnsureTaskHubAsync();
-            return await this.trackingStore.GetStateAsync(instanceId, allExecutions);
+            return await this.trackingStore.GetStateAsync(instanceId, allExecutions, ignoreInput);
         }
 
         /// <summary>
@@ -1169,7 +1170,7 @@ namespace DurableTask.AzureStorage
         {
             // Client operations will auto-create the task hub if it doesn't already exist.
             await this.EnsureTaskHubAsync();
-            return await this.trackingStore.GetStateAsync(instanceId, executionId);
+            return await this.trackingStore.GetStateAsync(instanceId, executionId, ignoreInput: false);
         }
 
         /// <summary>

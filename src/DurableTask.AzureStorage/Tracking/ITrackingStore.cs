@@ -75,14 +75,16 @@ namespace DurableTask.AzureStorage.Tracking
         /// </summary>
         /// <param name="instanceId">Instance Id</param>
         /// <param name="allExecutions">True if states for all executions are to be fetched otherwise only the state for the latest execution of the instance is fetched</param>
-        Task<IList<OrchestrationState>> GetStateAsync(string instanceId, bool allExecutions);
+        /// <param name="ignoreInput">Whether or not the Input property for the instance will be retrieved</param>
+        Task<IList<OrchestrationState>> GetStateAsync(string instanceId, bool allExecutions, bool ignoreInput);
 
         /// <summary>
         /// Get The Orchestration State for a particular orchestration instance execution
         /// </summary>
         /// <param name="instanceId">Instance Id</param>
         /// <param name="executionId">Execution Id</param>
-        Task<OrchestrationState> GetStateAsync(string instanceId, string executionId);
+        /// <param name="ignoreInput">Whether or not the Input property for the instance will be retrieved</param>
+        Task<OrchestrationState> GetStateAsync(string instanceId, string executionId, bool ignoreInput);
 
         /// <summary>
         /// Get The Orchestration State for querying all orchestration instances

@@ -336,7 +336,7 @@ namespace DurableTask.Emulator
         }
 
         /// <inheritdoc />
-        public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
+        public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions, bool retrieveInput)
         {
             IList<OrchestrationState> response;
 
@@ -345,6 +345,14 @@ namespace DurableTask.Emulator
                 if (this.instanceStore.TryGetValue(instanceId, out Dictionary<string, OrchestrationState> state))
                 {
                     response = state.Values.ToList();
+
+                    if (!retrieveInput)
+                    {
+                        foreach(var orchestrationState in response)
+                        {
+                            orchestrationState.Input = null;
+                        }
+                    }
                 }
                 else
                 {

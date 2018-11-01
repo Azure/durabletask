@@ -81,18 +81,18 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public override async Task<IList<OrchestrationState>> GetStateAsync(string instanceId, bool allExecutions)
+        public override async Task<IList<OrchestrationState>> GetStateAsync(string instanceId, bool allExecutions, bool ignoreInput = false)
         {
             IEnumerable<OrchestrationStateInstanceEntity> states = await instanceStore.GetOrchestrationStateAsync(instanceId, allExecutions);
             return states?.Select(s => s.State).ToList() ?? new List<OrchestrationState>();
         }
 
         /// <inheritdoc />
-        public override async Task<OrchestrationState> GetStateAsync(string instanceId, string executionId)
+        public override async Task<OrchestrationState> GetStateAsync(string instanceId, string executionId, bool ignoreInput = false)
         {
             if (executionId == null)
             {
-                return (await GetStateAsync(instanceId, false)).FirstOrDefault();
+                return (await GetStateAsync(instanceId, false, ignoreInput)).FirstOrDefault();
             }
             else
             {
