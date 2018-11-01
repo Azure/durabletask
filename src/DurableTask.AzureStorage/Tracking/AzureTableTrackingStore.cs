@@ -319,13 +319,15 @@ namespace DurableTask.AzureStorage.Tracking
                 }
             }
 
+            string executionId = entities.Count > 0 && entities.First().Properties.ContainsKey("ExecutionId") ?
+                entities[0].Properties["ExecutionId"].StringValue :
+                string.Empty;
+
             AnalyticsEventSource.Log.FetchedInstanceHistory(
                 this.storageAccountName,
                 this.taskHubName,
                 instanceId,
-                entities.Count > 0 && entities.First().Properties.ContainsKey("ExecutionId") ?
-                entities[0].Properties["ExecutionId"].StringValue :
-                string.Empty,
+                executionId,
                 entities.Count,
                 requestCount,
                 stopwatch.ElapsedMilliseconds,
