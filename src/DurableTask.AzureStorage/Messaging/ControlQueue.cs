@@ -89,6 +89,7 @@ namespace DurableTask.AzureStorage.Messaging
                         });
 
                         this.backoffHelper.Reset();
+                        
                         // Try to preserve insertion order when processing
                         IReadOnlyList<MessageData> sortedMessages = batchMessages.OrderBy(m => m, MessageOrderingComparer.Default).ToList();
                         foreach (MessageData message in sortedMessages)
