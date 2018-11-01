@@ -199,6 +199,11 @@ namespace DurableTask.AzureStorage
             await cloudBlockBlob.UploadFromByteArrayAsync(data, 0, dataByteCount);
         }
 
+        /// <summary>
+        /// Generates name for large message blob
+        /// </summary>
+        /// <param name="instanceId">Orchestration Instance ID</param>
+        /// <returns>Large message blob name in the format - '/{container}/{instance-id}/{blob-id}.json.gz' where container is '{taskhub}-largemessages'</returns>
         internal string GetNewLargeMessageBlobName(string instanceId)
         {
             var blobNameBuilder = new StringBuilder();
