@@ -14,7 +14,6 @@
 namespace DurableTask.ServiceFabric
 {
     using System;
-    using System.Runtime.Serialization;
 
     sealed class Message<TKey, TValue> where TKey : IComparable<TKey>, IEquatable<TKey>
     {

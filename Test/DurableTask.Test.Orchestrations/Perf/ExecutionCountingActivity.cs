@@ -11,13 +11,13 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-using System.Threading;
-using System.Threading.Tasks;
-using DurableTask.Core;
-
 namespace DurableTask.Test.Orchestrations.Perf
 {
+    using System;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using DurableTask.Core;
+
     public sealed class ExecutionCountingActivity : AsyncTaskActivity<int, int>
     {
         // This has to be reset before starting the orchestration and the orchestration

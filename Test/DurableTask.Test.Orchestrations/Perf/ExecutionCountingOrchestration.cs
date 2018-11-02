@@ -11,12 +11,12 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System.Collections.Generic;
-using System.Threading.Tasks;
-using DurableTask.Core;
-
 namespace DurableTask.Test.Orchestrations.Perf
 {
+    using System.Collections.Generic;
+    using System.Threading.Tasks;
+    using DurableTask.Core;
+
     public sealed class ExecutionCountingOrchestration : TaskOrchestration<int, int>
     {
         public override async Task<int> RunTask(OrchestrationContext context, int numberOfActivities)

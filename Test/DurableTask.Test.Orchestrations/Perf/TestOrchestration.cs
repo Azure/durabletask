@@ -11,15 +11,14 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System.Threading;
-
 namespace DurableTask.Test.Orchestrations.Perf
 {
+    using DurableTask.Core;
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using System.Threading;
     using System.Threading.Tasks;
-    using DurableTask.Core;
 
     public class TestOrchestration : TaskOrchestration<int, TestOrchestrationData>
     {

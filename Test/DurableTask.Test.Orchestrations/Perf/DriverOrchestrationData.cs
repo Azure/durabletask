@@ -11,10 +11,10 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System.Runtime.Serialization;
-
 namespace DurableTask.Test.Orchestrations.Perf
 {
+    using System.Runtime.Serialization;
+
     [DataContract]
     [KnownType(typeof(DriverOrchestrationData))]
     public class DriverOrchestrationData

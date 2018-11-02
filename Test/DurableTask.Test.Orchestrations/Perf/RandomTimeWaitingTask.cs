@@ -11,12 +11,12 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-using System.Threading.Tasks;
-using DurableTask.Core;
-
 namespace DurableTask.Test.Orchestrations.Perf
 {
+    using System;
+    using System.Threading.Tasks;
+    using DurableTask.Core;
+
     public sealed class RandomTimeWaitingTask : AsyncTaskActivity<RandomTimeWaitingTaskInput, int>
     {
         protected override async Task<int> ExecuteAsync(TaskContext context, RandomTimeWaitingTaskInput input)

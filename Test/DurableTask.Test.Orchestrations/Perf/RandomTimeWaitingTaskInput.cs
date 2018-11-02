@@ -11,10 +11,10 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-
 namespace DurableTask.Test.Orchestrations.Perf
 {
+    using System;
+
     public class RandomTimeWaitingTaskInput
     {
         public string TaskId { get; set; }
