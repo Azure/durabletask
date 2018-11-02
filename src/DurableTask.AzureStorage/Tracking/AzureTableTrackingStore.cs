@@ -486,10 +486,10 @@ namespace DurableTask.AzureStorage.Tracking
                 return null;
             }
 
-            return await this.ConvertFromAsync(orchestrationInstanceStatus, instanceId);
+            return this.ConvertFromAsync(orchestrationInstanceStatus, instanceId);
         }
 
-        private async Task<OrchestrationState> ConvertFromAsync(OrchestrationInstanceStatus orchestrationInstanceStatus, string instanceId)
+        private OrchestrationState ConvertFromAsync(OrchestrationInstanceStatus orchestrationInstanceStatus, string instanceId)
         {
             var orchestrationState = new OrchestrationState();
             if (!Enum.TryParse(orchestrationInstanceStatus.RuntimeStatus, out orchestrationState.OrchestrationStatus))
@@ -508,12 +508,8 @@ namespace DurableTask.AzureStorage.Tracking
             orchestrationState.Status = orchestrationInstanceStatus.CustomStatus;
             orchestrationState.CreatedTime = orchestrationInstanceStatus.CreatedTime;
             orchestrationState.LastUpdatedTime = orchestrationInstanceStatus.LastUpdatedTime;
-
-            string[] results = await Task.WhenAll(
-                this.GetOrchestrationInputAsync(orchestrationInstanceStatus),
-                this.GetOrchestrationOutputAsync(orchestrationInstanceStatus));
-            orchestrationState.Input = results[0];
-            orchestrationState.Output = results[1];
+            orchestrationState.Input = orchestrationInstanceStatus.Input;
+            orchestrationState.Output = orchestrationInstanceStatus.Output;
 
             return orchestrationState;
         }
@@ -554,8 +550,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             query.Take(top);
             var segment = await this.InstancesTable.ExecuteQuerySegmentedAsync(query, token);
-            var tasks = segment.Select(status => this.ConvertFromAsync(status, status.PartitionKey));
-            OrchestrationState[] result = await Task.WhenAll(tasks);
+            IEnumerable<OrchestrationState> result = segment.Select(status => this.ConvertFromAsync(status, status.PartitionKey));
             orchestrationStates.AddRange(result);
 
             this.stats.StorageRequests.Increment();
@@ -579,16 +574,15 @@ namespace DurableTask.AzureStorage.Tracking
                 TableQuerySegment<OrchestrationInstanceStatus> segment = await this.InstancesTable.ExecuteQuerySegmentedAsync(query, token);
 
                 int previousCount = orchestrationStates.Count;
-                IEnumerable<Task<OrchestrationState>> tasks = segment.Select(
-                    async status => await this.ConvertFromAsync(status, status.PartitionKey));
-                OrchestrationState[] result = await Task.WhenAll(tasks);
+                IEnumerable<OrchestrationState> result = segment.Select(
+                    status => this.ConvertFromAsync(status, status.PartitionKey));
                 orchestrationStates.AddRange(result);
 
                 this.stats.StorageRequests.Increment();
                 this.stats.TableEntitiesRead.Increment(orchestrationStates.Count - previousCount);
 
                 token = segment.ContinuationToken;
-                
+
                 if (token == null || cancellationToken.IsCancellationRequested)
                 {
                     break;
@@ -1051,10 +1045,10 @@ namespace DurableTask.AzureStorage.Tracking
         {
             string blobNameKey;
 
-            // Check if the source property has a compressed blob and swap the source with the target property
+            // Check if the source property has a compressed blob and set information message
             if (this.HasCompressedTableEntityByPropertyKey(entity, sourcePropertyKey, out blobNameKey))
             {
-                orchestrationInstanceUpdate.Properties[sourcePropertyKey] = new EntityProperty(InstancesTableInformationMessageForLargeDataBlobs);
+                orchestrationInstanceUpdate.Properties[targetPropertyKey] = new EntityProperty(InstancesTableInformationMessageForLargeDataBlobs);
             }
             else
             {
@@ -1173,63 +1167,6 @@ namespace DurableTask.AzureStorage.Tracking
                 Utils.ExtensionVersion);
 
             return newETagValue;
-        }
-
-        async Task<string> GetOrchestrationOutputAsync(OrchestrationInstanceStatus orchestrationInstanceStatus)
-        {
-            return await this.GetPropertyValueAsync(
-                orchestrationInstanceStatus.PartitionKey,
-                EventType.ExecutionCompleted, 
-                ResultProperty,
-                ResultBlobNameProperty);
-        }
-
-        async Task<string> GetOrchestrationInputAsync(OrchestrationInstanceStatus orchestrationInstanceStatus)
-        {
-            return await this.GetPropertyValueAsync(
-                orchestrationInstanceStatus.PartitionKey,
-                EventType.ExecutionStarted,
-                InputProperty,
-                InputBlobNameProperty);
-        }
-
-        private async Task<string> GetPropertyValueAsync(
-            string instanceId, 
-            EventType eventType,
-            string propertyName,
-            string blobPropertyName)
-        {
-            string result = null;
-
-            var queryBuilder = new StringBuilder();
-
-            queryBuilder.Append(PartitionKeyProperty).Append(" eq ").Append(Quote).Append(instanceId).Append(Quote);
-            queryBuilder.Append(" and ").Append(EventTypeProperty).Append(" eq ").Append(Quote).Append(eventType.ToString()).Append(Quote);
-
-            CancellationToken cancellationToken;
-            List<DynamicTableEntity> entitiesToCheck = await this.QueryHistoryAsync(
-                queryBuilder.ToString(), 
-                instanceId, 
-                cancellationToken);
-
-            if (!entitiesToCheck.Any())
-            {
-                return result;
-            }
-
-            if (entitiesToCheck.First().Properties.TryGetValue(blobPropertyName, out EntityProperty blobNameProperty) && 
-                !string.IsNullOrEmpty(blobNameProperty?.StringValue))
-            {
-                return await this.messageManager.DownloadAndDecompressAsBytesAsync(blobNameProperty.StringValue);
-            }
-
-            if (entitiesToCheck.First().Properties.TryGetValue(propertyName, out EntityProperty property) &&
-                !string.IsNullOrEmpty(property?.StringValue))
-            {
-                return property.StringValue;
-            }
-
-            return result;
         }
 
         async Task SetDecompressedTableEntityAsync(DynamicTableEntity dynamicTableEntity, string propertyKey, string blobNameKey)

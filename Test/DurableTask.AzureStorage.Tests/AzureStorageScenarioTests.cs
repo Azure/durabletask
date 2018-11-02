@@ -25,7 +25,6 @@ namespace DurableTask.AzureStorage.Tests
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
-    using ImpromptuInterface.InvokeExt;
     using Microsoft.Practices.EnterpriseLibrary.SemanticLogging.Utility;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Microsoft.WindowsAzure.Storage;
@@ -37,6 +36,8 @@ namespace DurableTask.AzureStorage.Tests
     [TestClass]
     public class AzureStorageScenarioTests
     {
+        const string InstancesTableInformationMessageForLargeDataBlobs = "Too large to display. Please check History table for the actual data.";
+
         /// <summary>
         /// End-to-end test which validates a simple orchestrator function which doesn't call any activity functions.
         /// </summary>
@@ -202,7 +203,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 IList<OrchestrationState> results = await host.GetAllOrchestrationInstancesAsync();
                 Assert.AreEqual(1, results.Count);
-                Assert.AreEqual(message, JToken.Parse(results.First(x => x.OrchestrationInstance.InstanceId == instanceId).Output));
+                Assert.AreEqual(InstancesTableInformationMessageForLargeDataBlobs, results.First(x => x.OrchestrationInstance.InstanceId == instanceId).Output);
 
                 await client.PurgeInstanceHistory();
 
@@ -249,7 +250,7 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual("\"Done\"", results.First(x => x.OrchestrationInstance.InstanceId == firstInstanceId).Output);
                 Assert.AreEqual("\"Done\"", results.First(x => x.OrchestrationInstance.InstanceId == secondInstanceId).Output);
                 Assert.AreEqual("\"Done\"", results.First(x => x.OrchestrationInstance.InstanceId == thirdInstanceId).Output);
-                Assert.AreEqual(message, JToken.Parse(results.First(x => x.OrchestrationInstance.InstanceId == fourthInstanceId).Output));
+                Assert.AreEqual(InstancesTableInformationMessageForLargeDataBlobs, results.First(x => x.OrchestrationInstance.InstanceId == fourthInstanceId).Output);
 
                 List<HistoryStateEvent> firstHistoryEvents = await client.GetOrchestrationHistoryAsync(firstInstanceId);
                 Assert.IsTrue(firstHistoryEvents.Count > 0);
@@ -1215,7 +1216,7 @@ namespace DurableTask.AzureStorage.Tests
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                Assert.AreEqual(message, JToken.Parse(status?.Output));
+                Assert.AreEqual(InstancesTableInformationMessageForLargeDataBlobs, status?.Output);
 
                 await host.StopAsync();
             }
