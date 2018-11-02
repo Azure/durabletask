@@ -1261,9 +1261,7 @@ namespace DurableTask.AzureStorage.Tests
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(1));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-
-                byte[] outputBytes = JToken.Parse(status?.Output).ToObject<byte[]>();
-                Assert.IsTrue(readBytes.SequenceEqual(outputBytes), "Original message byte array and returned messages byte array are not equal");
+                Assert.AreEqual(InstancesTableInformationMessageForLargeDataBlobs, status?.Output);
 
                 await host.StopAsync();
             }
@@ -1292,7 +1290,7 @@ namespace DurableTask.AzureStorage.Tests
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(1));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                Assert.AreEqual(message, JToken.Parse(status?.Output));
+                Assert.AreEqual(InstancesTableInformationMessageForLargeDataBlobs, status?.Output);
 
                 await host.StopAsync();
             }
