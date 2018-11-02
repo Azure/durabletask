@@ -40,10 +40,10 @@ namespace DurableTask.AzureStorage.Tracking
         public abstract Task<IList<string>> RewindHistoryAsync(string instanceId, IList<string> failedLeaves, CancellationToken cancellationToken);
 
         /// <inheritdoc />
-        public abstract Task<IList<OrchestrationState>> GetStateAsync(string instanceId, bool allExecutions);
+        public abstract Task<IList<OrchestrationState>> GetStateAsync(string instanceId, bool allExecutions, bool fetchInput);
         
         /// <inheritdoc />
-        public abstract Task<OrchestrationState> GetStateAsync(string instanceId, string executionId);
+        public abstract Task<OrchestrationState> GetStateAsync(string instanceId, string executionId, bool fetchInput);
 
         /// <inheritdoc />
         public abstract Task<IList<OrchestrationState>> GetStateAsync(CancellationToken cancellationToken = default(CancellationToken));

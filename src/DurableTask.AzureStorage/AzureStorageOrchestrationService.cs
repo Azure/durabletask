@@ -1156,7 +1156,7 @@ namespace DurableTask.AzureStorage
         {
             // Client operations will auto-create the task hub if it doesn't already exist.
             await this.EnsureTaskHubAsync();
-            return await this.trackingStore.GetStateAsync(instanceId, allExecutions);
+            return await this.trackingStore.GetStateAsync(instanceId, allExecutions, fetchInput: true);
         }
 
         /// <summary>
@@ -1169,7 +1169,22 @@ namespace DurableTask.AzureStorage
         {
             // Client operations will auto-create the task hub if it doesn't already exist.
             await this.EnsureTaskHubAsync();
-            return await this.trackingStore.GetStateAsync(instanceId, executionId);
+            return await this.trackingStore.GetStateAsync(instanceId, executionId, fetchInput: true);
+        }
+
+        /// <summary>
+        /// Get the most current execution (generation) of the specified instance.
+        /// This method is not part of the IOrchestrationServiceClient interface. 
+        /// </summary>
+        /// <param name="instanceId">Instance ID of the orchestration.</param>
+        /// <param name="allExecutions">This parameter is not used.</param>
+        /// <param name="fetchInput">If set, fetch and return the input for the orchestration instance.</param>
+        /// <returns>List of <see cref="OrchestrationState"/> objects that represent the list of orchestrations.</returns>
+        public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions, bool fetchInput = true)
+        {
+            // Client operations will auto-create the task hub if it doesn't already exist.
+            await this.EnsureTaskHubAsync();
+            return await this.trackingStore.GetStateAsync(instanceId, allExecutions, fetchInput);
         }
 
         /// <summary>

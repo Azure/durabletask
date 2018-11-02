@@ -427,21 +427,32 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public override async Task<IList<OrchestrationState>> GetStateAsync(string instanceId, bool allExecutions)
+        public override async Task<IList<OrchestrationState>> GetStateAsync(string instanceId, bool allExecutions, bool fetchInput)
         {
-            return new[] { await this.GetStateAsync(instanceId, executionId: null) };
+            return new[] { await this.GetStateAsync(instanceId, executionId: null, fetchInput: fetchInput) };
         }
 
         /// <inheritdoc />
-        public override async Task<OrchestrationState> GetStateAsync(string instanceId, string executionId)
+        public override async Task<OrchestrationState> GetStateAsync(string instanceId, string executionId, bool fetchInput)
         {
             if (instanceId == null)
             {
                 throw new ArgumentNullException(nameof(instanceId));
             }
 
+            List<string> columnsToRetrieve = null; // Default of null => retrieve all columns
+            if (!fetchInput)
+            {
+                columnsToRetrieve = typeof(OrchestrationInstanceStatus).GetProperties().Select(prop => prop.Name).ToList();
+                if (columnsToRetrieve.Contains(InputProperty))
+                {
+                    // Retrieve all columns except the input column
+                    columnsToRetrieve.Remove(InputProperty);
+                }            
+            }
+
             var stopwatch = new Stopwatch();
-            TableResult orchestration = await this.InstancesTable.ExecuteAsync(TableOperation.Retrieve<OrchestrationInstanceStatus>(instanceId, ""));
+            TableResult orchestration = await this.InstancesTable.ExecuteAsync(TableOperation.Retrieve<OrchestrationInstanceStatus>(instanceId, "", columnsToRetrieve));
             stopwatch.Stop();
             this.stats.StorageRequests.Increment();
             this.stats.TableEntitiesRead.Increment(1);
