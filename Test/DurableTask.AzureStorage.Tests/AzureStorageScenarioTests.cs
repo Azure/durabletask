@@ -654,12 +654,11 @@ namespace DurableTask.AzureStorage.Tests
                 status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                var result = JsonConvert.DeserializeObject<Tuple<string, int>>(status?.Output);
+                var result = status?.Output;
                 Assert.IsNotNull(result);
-                Assert.AreEqual(counter, result.Item2);
+                Assert.AreEqual(InstancesTableInformationMessageForLargeDataBlobs, result);
 
-                // When using ContinueAsNew, the original input is discarded and replaced with the most recent state.
-                Assert.AreNotEqual(initialValue, JToken.Parse(status?.Input));
+                Assert.AreEqual(InstancesTableInformationMessageForLargeDataBlobs, status?.Input);
 
                 await host.StopAsync();
 
