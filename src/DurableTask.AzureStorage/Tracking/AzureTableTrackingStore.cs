@@ -427,23 +427,28 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public override async Task<IList<OrchestrationState>> GetStateAsync(string instanceId, bool allExecutions, bool ignoreInput)
+        public override async Task<IList<OrchestrationState>> GetStateAsync(string instanceId, bool allExecutions, bool fetchInput)
         {
-            return new[] { await this.GetStateAsync(instanceId, executionId: null, ignoreInput: ignoreInput) };
+            return new[] { await this.GetStateAsync(instanceId, executionId: null, fetchInput: fetchInput) };
         }
 
         /// <inheritdoc />
-        public override async Task<OrchestrationState> GetStateAsync(string instanceId, string executionId, bool ignoreInput)
+        public override async Task<OrchestrationState> GetStateAsync(string instanceId, string executionId, bool fetchInput)
         {
             if (instanceId == null)
             {
                 throw new ArgumentNullException(nameof(instanceId));
             }
 
-            List<string> columnsToRetrieve = typeof(OrchestrationInstanceStatus).GetProperties().Select(prop => prop.Name).ToList();
-            if (ignoreInput && columnsToRetrieve.Contains(InputProperty))
+            List<string> columnsToRetrieve = null; // Default of null => retrieve all columns
+            if (!fetchInput)
             {
-                columnsToRetrieve.Remove(InputProperty);
+                columnsToRetrieve = typeof(OrchestrationInstanceStatus).GetProperties().Select(prop => prop.Name).ToList();
+                if (columnsToRetrieve.Contains(InputProperty))
+                {
+                    // Retrieve all columns except the input column
+                    columnsToRetrieve.Remove(InputProperty);
+                }            
             }
 
             var stopwatch = new Stopwatch();

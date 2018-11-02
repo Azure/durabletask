@@ -596,7 +596,7 @@ namespace DurableTask.Core
         /// <exception cref="InvalidOperationException">Thrown if instance store not configured</exception>
         public async Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId)
         {
-            IList<OrchestrationState> state = await GetOrchestrationStateAsync(instanceId, allExecutions: false, ignoreInput: false);
+            IList<OrchestrationState> state = await GetOrchestrationStateAsync(instanceId, allExecutions: false);
             return state?.FirstOrDefault();
         }
 
@@ -609,18 +609,14 @@ namespace DurableTask.Core
         ///     True if method should fetch all executions of the instance,
         ///     false if the method should only fetch the most recent execution
         /// </param>
-        /// <param name="ignoreInput">
-        ///     True if the method should ignore that column
-        ///     False if the method should return the input of the execution (default)
-        /// </param>
         /// <returns>
         ///     List of OrchestrationState objects that represents the list of
         ///     orchestrations in the instance store
         /// </returns>
         /// <exception cref="InvalidOperationException">Thrown if instance store not configured</exception>
-        public Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions, bool ignoreInput = false)
+        public Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
         {
-            return ServiceClient.GetOrchestrationStateAsync(instanceId, allExecutions, ignoreInput);
+            return ServiceClient.GetOrchestrationStateAsync(instanceId, allExecutions);
         }
 
         /// <summary>
