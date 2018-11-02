@@ -596,7 +596,7 @@ namespace DurableTask.Core
         /// <exception cref="InvalidOperationException">Thrown if instance store not configured</exception>
         public async Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId)
         {
-            IList<OrchestrationState> state = await GetOrchestrationStateAsync(instanceId, allExecutions: false);
+            IList<OrchestrationState> state = await GetOrchestrationStateAsync(instanceId, false);
             return state?.FirstOrDefault();
         }
 
