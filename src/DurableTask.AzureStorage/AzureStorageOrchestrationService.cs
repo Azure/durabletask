@@ -69,7 +69,6 @@ namespace DurableTask.AzureStorage
         readonly BlobLeaseManager leaseManager; 
         readonly PartitionManager<BlobLease> partitionManager;
         readonly OrchestrationSessionManager orchestrationSessionManager;
-
         readonly object hubCreationLock;
 
         bool isStarted;
@@ -766,7 +765,7 @@ namespace DurableTask.AzureStorage
             // First, add new messages into the queue. If a failure happens after this, duplicate messages will
             // be written after the retry, but the results of those messages are expected to be de-dup'd later.
             ControlQueue currentControlQueue = await this.GetControlQueueAsync(instanceId);
-            await CommitOutboundQueueMessages(
+            await this.CommitOutboundQueueMessages(
                 currentControlQueue,
                 session,
                 outboundMessages,
@@ -1283,6 +1282,26 @@ namespace DurableTask.AzureStorage
                 executionId,
                 CancellationToken.None);
             return JsonConvert.SerializeObject(history.Events);
+        }
+
+        /// <summary>
+        /// Purge history for an orchestration with a specified instance id.
+        /// </summary>
+        /// <param name="instanceId">Instance ID of the orchestration.</param>
+        public Task PurgeInstanceHistoryAsync(string instanceId)
+        {
+            return this.trackingStore.PurgeInstanceHistoryAsync(instanceId);
+        }
+
+        /// <summary>
+        /// Purge history for orchestrations that match the specified parameters.
+        /// </summary>
+        /// <param name="createdTimeFrom">CreatedTime of orchestrations. Purges history grater than this value.</param>
+        /// <param name="createdTimeTo">CreatedTime of orchestrations. Purges history less than this value.</param>
+        /// <param name="runtimeStatus">RuntimeStatus of orchestrations. You can specify several status.</param>
+        public Task PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
+        {
+            return this.trackingStore.PurgeInstanceHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatus);
         }
 
         /// <summary>

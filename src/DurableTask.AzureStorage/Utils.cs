@@ -16,11 +16,8 @@ namespace DurableTask.AzureStorage
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
-    using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
-    using DurableTask.Core;
-    using Microsoft.WindowsAzure.Storage.Queue;
 
     static class Utils
     {
@@ -50,7 +47,6 @@ namespace DurableTask.AzureStorage
                 {
                     tasks[i] = InvokeThrottledAction(items[i], action, semaphore);
                 }
-
                 await Task.WhenAll(tasks);
             }
         }

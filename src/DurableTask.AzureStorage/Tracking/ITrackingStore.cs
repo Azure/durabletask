@@ -132,5 +132,19 @@ namespace DurableTask.AzureStorage.Tracking
         /// <param name="thresholdDateTimeUtc">Timestamp threshold, data older than this will be removed</param>
         /// <param name="timeRangeFilterType">timeRangeFilterType governs the type of time stamp that will be used for decision making</param>
         Task PurgeHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType);
+
+        /// <summary>
+        /// Purge the history for a concrete instance 
+        /// </summary>
+        /// <param name="instanceId">Instance ID</param>
+        Task PurgeInstanceHistoryAsync(string instanceId);
+
+        /// <summary>
+        /// Purge the orchestration history for instances that match the conditions
+        /// </summary>
+        /// <param name="createdTimeFrom">Start creation time for querying instances for purging</param>
+        /// <param name="createdTimeTo">End creation time for querying instances for purging</param>
+        /// <param name="runtimeStatus">List of runtime status for querying instances for purging. Only Completed, Terminated, or Failed will be processed</param>
+        Task PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus);
     }
 }
