@@ -11,9 +11,11 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+#pragma warning disable 618
 namespace DurableTask.AzureStorage.Messaging
 {
     using System;
+    using System.Diagnostics;
     using System.Runtime.ExceptionServices;
     using System.Text;
     using System.Threading;
@@ -21,6 +23,8 @@ namespace DurableTask.AzureStorage.Messaging
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.Core;
     using DurableTask.Core.History;
+    using Microsoft.ApplicationInsights;
+    using Microsoft.ApplicationInsights.DataContracts;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Queue;
 
@@ -100,7 +104,31 @@ namespace DurableTask.AzureStorage.Messaging
                     session?.GetCurrentEpisode() ?? 0);
                 data.SequenceNumber = Interlocked.Increment(ref messageSequenceNumber);
 
-                string rawContent = await messageManager.SerializeMessageDataAsync(data);
+                // correlation
+                Activity current = Activity.Current;
+                var rawContent = "";
+                if (current != null) // Send a telemetry and a queue
+                {
+                    DependencyTelemetry dependencyTelemetry = current.CreateDependencyTelemetry();
+                    dependencyTelemetry.Start();
+
+                    TraceContext currentTraceContext = DependencyTraceContext.Current;
+
+                    currentTraceContext = currentTraceContext ?? current.CreateTraceContext();
+
+                    data.TraceContextStore = TraceContextStore.Create(currentTraceContext);
+                    rawContent = await messageManager.SerializeMessageDataAsync(data);
+
+                    dependencyTelemetry.Stop();
+                    if (!DependencyTraceContext.HasTracked)
+                        DependencyTraceClient.Track(dependencyTelemetry);
+                }
+                else // Send a queue only.
+                {
+                    data.TraceContextStore = TraceContextStore.Create(DependencyTraceContext.Current);
+                    rawContent = await messageManager.SerializeMessageDataAsync(data);
+                }
+
                 CloudQueueMessage queueMessage = new CloudQueueMessage(rawContent);
 
                 AnalyticsEventSource.Log.SendingMessage(

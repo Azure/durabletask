@@ -60,6 +60,12 @@ namespace DurableTask.Core
         {
         }
 
+
+        /// <summary>
+        /// For correlation experiment. This is used to pass the correlation from LockNext 
+        /// </summary>
+        public Activity CurrentActivity;
+
         /// <summary>
         /// Creates a new instance of the OrchestrationRuntimeState with the supplied events
         /// </summary>

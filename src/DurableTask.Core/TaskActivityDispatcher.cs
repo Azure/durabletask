@@ -15,6 +15,7 @@ namespace DurableTask.Core
 {
     using System;
     using System.Diagnostics;
+    using System.Reflection;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Core.Common;
@@ -108,6 +109,11 @@ namespace DurableTask.Core
                         new NotSupportedException("Activity worker does not support event of type: " +
                                                   taskMessage.Event.EventType));
                 }
+
+                // correlation TODO Need to consider the design
+                PropertyInfo property = typeof(Activity).GetProperty("Current", BindingFlags.Static | BindingFlags.Public);
+                property.SetValue(null, workItem.CurrentActivity);
+                Activity current = Activity.Current;
 
                 // call and get return message
                 var scheduledEvent = (TaskScheduledEvent)taskMessage.Event;

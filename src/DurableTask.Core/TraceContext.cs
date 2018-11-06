@@ -13,45 +13,44 @@
 
 namespace DurableTask.Core
 {
-    using System;
     using System.Collections.Generic;
 
     /// <summary>
-    /// An active instance / work item of an orchestration
+    /// TraceContext keep the correlation value.
     /// </summary>
-    public class TaskOrchestrationWorkItem
+    public class TraceContext
     {
         /// <summary>
-        /// The instance id of this orchestration
+        /// Default constructor 
         /// </summary>
-        public string InstanceId;
+        public TraceContext()
+        {
+            OrchestrationTraceContexts = new Stack<TraceContext>();
+        }
 
         /// <summary>
-        /// The current runtime state of this work item
+        /// ParentId for backward compatibility
         /// </summary>
-        public OrchestrationRuntimeState OrchestrationRuntimeState;
+        public string ParentId { get; set; }
 
         /// <summary>
-        /// The datetime this orchestration work item is locked until
+        /// W3C TraceContext: Traceparent
         /// </summary>
-        public DateTime LockedUntilUtc;
+        public string Traceparent { get; set; }
 
         /// <summary>
-        /// The list of new task messages associated with this work item instance
+        /// W3C TraceContext: Tracestate
         /// </summary>
-        public IList<TaskMessage> NewMessages;
+        public string Tracestate { get; set; }
 
         /// <summary>
-        /// The session provider for this work item. This is only required for
-        /// providers that intend to leverage extended sessions.
+        /// W3C TraceContext: ParentSpanId
         /// </summary>
-        public IOrchestrationSession Session;
+        public string ParentSpanId { get; set; }
 
         /// <summary>
-        /// TraceContext is a context of Correlation.
+        /// OrchestrationState save the state of the 
         /// </summary>
-        public TraceContext TraceContext;
-
-        internal OrchestrationExecutionCursor Cursor;
+        public Stack<TraceContext> OrchestrationTraceContexts { get; set; }
     }
 }

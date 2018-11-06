@@ -16,6 +16,7 @@ namespace DurableTask.AzureStorage
     using System;
     using System.Collections.Concurrent;
     using System.Collections.Generic;
+    using System.Diagnostics;
     using System.Linq;
     using System.Net;
     using System.Runtime.ExceptionServices;
@@ -28,6 +29,8 @@ namespace DurableTask.AzureStorage
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
     using DurableTask.Core.History;
+    using Microsoft.ApplicationInsights;
+    using Microsoft.ApplicationInsights.DataContracts;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Blob;
     using Microsoft.WindowsAzure.Storage.Queue;
@@ -45,6 +48,7 @@ namespace DurableTask.AzureStorage
         internal static readonly TimeSpan MaxQueuePollingDelay = TimeSpan.FromSeconds(30);
 
         static readonly HistoryEvent[] EmptyHistoryEventList = new HistoryEvent[0];
+
         static readonly OrchestrationInstance EmptySourceInstance = new OrchestrationInstance
         {
             InstanceId = string.Empty,
@@ -596,6 +600,7 @@ namespace DurableTask.AzureStorage
                     session.StartNewLogicalTraceScope();
 
                     List<MessageData> outOfOrderMessages = null;
+                    var current = Activity.Current;
                     foreach (MessageData message in session.CurrentMessageBatch)
                     {
                         if (session.IsOutOfOrderMessage(message))
@@ -639,6 +644,29 @@ namespace DurableTask.AzureStorage
                         return null;
                     }
 
+                    // Correlation TODO: Need to understand the actual behavior of the multiple message.
+                    var isReplaying = session.RuntimeState.ExecutionStartedEvent?.IsPlayed ?? false;
+
+                    var firstMessage = session.CurrentMessageBatch.FirstOrDefault();
+                    var parentTraceContext = firstMessage.TraceContextStore.Restore();
+
+                    TraceContext requestTraceContext = null;
+                    Activity requestActivity = null;
+                    if (!isReplaying)
+                    {
+                        var name = $"Orchestrator {firstMessage.SequenceNumber}";
+                        requestActivity = new Activity(name);
+
+                        requestActivity.SetParentAndStartActivity(parentTraceContext);
+                        requestTraceContext = requestActivity.CreateTraceContext(parentTraceContext);                       
+                        requestTraceContext.OrchestrationTraceContexts.Push(requestTraceContext);
+                    }
+                    else
+                    {
+                        // TODO this peek sometimes fail. Find out the root cause.
+                        requestTraceContext = parentTraceContext.OrchestrationTraceContexts.Peek(); 
+                    }
+               
                     orchestrationWorkItem = new TaskOrchestrationWorkItem
                     {
                         InstanceId = session.Instance.InstanceId,
@@ -646,7 +674,12 @@ namespace DurableTask.AzureStorage
                         NewMessages = session.CurrentMessageBatch.Select(m => m.TaskMessage).ToList(),
                         OrchestrationRuntimeState = session.RuntimeState,
                         Session = this.settings.ExtendedSessionsEnabled ? session : null,
+                        TraceContext = requestTraceContext,
                     };
+
+                    // Correlation Serialize the message data. 
+
+                    orchestrationWorkItem.OrchestrationRuntimeState.CurrentActivity = requestActivity;
 
                     if (!this.IsExecutableInstance(session.RuntimeState, orchestrationWorkItem.NewMessages, out string warningMessage))
                     {
@@ -815,20 +848,65 @@ namespace DurableTask.AzureStorage
             string instanceId = workItem.InstanceId;
             string executionId = runtimeState.OrchestrationInstance.ExecutionId;
 
-            // First, add new messages into the queue. If a failure happens after this, duplicate messages will
-            // be written after the retry, but the results of those messages are expected to be de-dup'd later.
-            // This provider needs to ensure that response messages are not processed until the history a few
-            // lines down has been successfully committed.
-            await this.CommitOutboundQueueMessages(
-                session,
-                outboundMessages,
-                orchestratorMessages,
-                timerMessages,
-                continuedAsNewMessage);
+            // Correlation
+
+            var current = Activity.Current;
+            DependencyTelemetry dependencyTelemetry = null;
+
+            if (orchestrationState.OrchestrationStatus == OrchestrationStatus.Completed)
+            {
+                var dependencyActivity = new Activity($"Orchestration Dependency {session.RuntimeState.ExecutionStartedEvent.Name}");
+                dependencyActivity.SetParentAndStartActivity(workItem.TraceContext);
+                if (outboundMessages.Count == 0) // TODO Track Telemetry when the orchestration finishes. Consider make it RequestTelemetry.
+                {
+                    dependencyTelemetry = dependencyActivity.CreateDependencyTelemetry();
+                    dependencyTelemetry.Start();
+                    DependencyTraceContext.HasTracked = true;
+                }
+
+                var dependencyTraceContext = dependencyActivity.CreateTraceContext(workItem.TraceContext);
+                dependencyTraceContext.OrchestrationTraceContexts.Pop(); // Remove the current OrchestrationState(TraceContext) from the stack.
+                DependencyTraceContext.Current = dependencyTraceContext;
+            }
+            else
+            {
+                DependencyTraceContext.Current = workItem.TraceContext;
+            }
+
+            try
+            {
+                // First, add new messages into the queue. If a failure happens after this, duplicate messages will
+                // be written after the retry, but the results of those messages are expected to be de-dup'd later.
+                // This provider needs to ensure that response messages are not processed until the history a few
+                // lines down has been successfully committed.
+
+                await CommitOutboundQueueMessages(
+                    session,
+                    outboundMessages,
+                    orchestratorMessages,
+                    timerMessages,
+                    continuedAsNewMessage);
+            }
+            catch (Exception e)
+            {
+                // correlation
+                if (orchestrationState.OrchestrationStatus == OrchestrationStatus.Completed)
+                    DependencyTraceClient.TrackException(e);
+                throw;
+            }
+            finally
+            {
+                // correlation
+                if (orchestrationState.OrchestrationStatus == OrchestrationStatus.Completed)
+                {
+                    dependencyTelemetry.Stop();
+                    DependencyTraceClient.Track(dependencyTelemetry);
+                }
+            }
 
             // Next, commit the orchestration history updates. This is the actual "checkpoint". Failures after this
-            // will result in a duplicate replay of the orchestration with no side-effects.
-            try
+                // will result in a duplicate replay of the orchestration with no side-effects.
+                try
             {
                 session.ETag = await this.trackingStore.UpdateStateAsync(runtimeState, instanceId, executionId, session.ETag);
             }
@@ -1018,9 +1096,17 @@ namespace DurableTask.AzureStorage
                     return null;
                 }
 
+
                 Guid traceActivityId = Guid.NewGuid();
                 var session = new ActivitySession(this.storageAccountName, this.settings.TaskHubName, message, traceActivityId);
                 session.StartNewLogicalTraceScope();
+
+                // correlation 
+                string name = $"Activity {session.MessageData.SequenceNumber}";
+                var requestActivity = new Activity(name);
+                TraceContext parentTraceContext = session.MessageData.TraceContextStore.Restore();
+                requestActivity.SetParentAndStartActivity(parentTraceContext);
+
                 TraceMessageReceived(session.MessageData, this.storageAccountName, this.settings.TaskHubName);
                 session.TraceProcessingMessage(message, isExtendedSession: false);
 
@@ -1043,6 +1129,8 @@ namespace DurableTask.AzureStorage
                     Id = message.Id,
                     TaskMessage = session.MessageData.TaskMessage,
                     LockedUntilUtc = message.OriginalQueueMessage.NextVisibleTime.Value.UtcDateTime,
+                    CurrentActivity = requestActivity,
+                    ParentTraceContext = parentTraceContext
                 };
             }
         }
@@ -1063,12 +1151,36 @@ namespace DurableTask.AzureStorage
             }
 
             session.StartNewLogicalTraceScope();
-            string instanceId = workItem.TaskMessage.OrchestrationInstance.InstanceId;
-            ControlQueue controlQueue = await this.GetControlQueueAsync(instanceId);
 
-            // First, send a response message back. If this fails, we'll try again later since we haven't deleted the
-            // work item message yet (that happens next).
-            await controlQueue.AddMessageAsync(responseTaskMessage, session);
+            // Correlation 
+            var dependencyActivity = new Activity($"Activity Dependency");
+            dependencyActivity.SetParentAndStartActivity(workItem.CurrentActivity);
+            TraceContext dependencyTraceContext = dependencyActivity.CreateTraceContext(workItem.ParentTraceContext);
+            DependencyTraceContext.Current = dependencyTraceContext;
+
+            DependencyTelemetry dependencyTelemetry = dependencyActivity.CreateDependencyTelemetry();
+            dependencyTelemetry.Start();
+            DependencyTraceContext.HasTracked = true;
+            try
+            {
+                string instanceId = workItem.TaskMessage.OrchestrationInstance.InstanceId;
+                ControlQueue controlQueue = await this.GetControlQueueAsync(instanceId);
+
+                // First, send a response message back. If this fails, we'll try again later since we haven't deleted the
+                // work item message yet (that happens next).
+                await controlQueue.AddMessageAsync(responseTaskMessage, session);
+            }
+            catch (Exception e)
+            {
+                DependencyTraceClient.TrackException(e);
+                throw;
+            }
+            finally
+            {
+                // Correlation
+                dependencyTelemetry.Stop();
+                DependencyTraceClient.Track(dependencyTelemetry);
+            }
 
             // Next, delete the work item queue message. This must come after enqueuing the response message.
             await this.workItemQueue.DeleteMessageAsync(session.MessageData, session);
@@ -1552,6 +1664,7 @@ namespace DurableTask.AzureStorage
             }
 
             public TaskHubQueue Queue { get; }
+
             public TaskMessage Message { get; }
         }
     }
