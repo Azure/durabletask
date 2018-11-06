@@ -11,34 +11,22 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
+namespace Correlation.Samples
 {
     using System;
-    using System.Diagnostics;
+    using System.Collections.Generic;
+    using System.Text;
+    using DurableTask.Core;
+    using Microsoft.ApplicationInsights.DataContracts;
 
-    /// <summary>
-    /// An active instance / work item of a task activity
-    /// </summary>
-    public class TaskActivityWorkItem
+    public static class CorrelatedExceptionExtensions
     {
-        /// <summary>
-        /// The Id of the work work item, likely related to the task message
-        /// </summary>
-        public string Id;
-
-        /// <summary>
-        /// The datetime this work item is locked until
-        /// </summary>
-        public DateTime LockedUntilUtc;
-
-        /// <summary>
-        /// The task message associated with this work item
-        /// </summary>
-        public TaskMessage TaskMessage;
-
-        /// <summary>
-        /// The TraceContext which is included on the queue.
-        /// </summary>
-        public TraceContextBase TraceContextBase;
+        public static ExceptionTelemetry CreateExceptionTelemetry(this CorrelatedException e)
+        {
+            var exceptionTelemetry = new ExceptionTelemetry(e.Exception);
+            exceptionTelemetry.Context.Operation.Id = e.OperationId;
+            exceptionTelemetry.Context.Operation.ParentId = e.ParentId;
+            return exceptionTelemetry;
+        }
     }
 }

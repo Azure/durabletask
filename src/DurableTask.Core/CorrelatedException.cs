@@ -15,44 +15,39 @@ namespace DurableTask.Core
 {
     using System;
     using System.Collections.Generic;
-    using System.Diagnostics;
+    using System.Text;
 
     /// <summary>
-    /// An active instance / work item of an orchestration
+    /// A class that includes an exception and correlation information for sending telemetry
     /// </summary>
-    public class TaskOrchestrationWorkItem
+    public class CorrelatedException
     {
         /// <summary>
-        /// The instance id of this orchestration
+        /// Exception that is sent to E2E tracing system
         /// </summary>
-        public string InstanceId;
+        public Exception Exception { get; set; }
 
         /// <summary>
-        /// The current runtime state of this work item
+        /// OperationId is uniq id of end to end tracing
         /// </summary>
-        public OrchestrationRuntimeState OrchestrationRuntimeState;
+        public string OperationId { get; set; }
 
         /// <summary>
-        /// The datetime this orchestration work item is locked until
+        /// ParentId is an id of an end to end tracing
         /// </summary>
-        public DateTime LockedUntilUtc;
+        public string ParentId { get; set; }
 
         /// <summary>
-        /// The list of new task messages associated with this work item instance
+        /// A constructor with mandatory parameters.
         /// </summary>
-        public IList<TaskMessage> NewMessages;
-
-        /// <summary>
-        /// The session provider for this work item. This is only required for
-        /// providers that intend to leverage extended sessions.
-        /// </summary>
-        public IOrchestrationSession Session;
-
-        /// <summary>
-        /// The trace context used for correlation.
-        /// </summary>
-        public TraceContextBase TraceContext;
-
-        internal OrchestrationExecutionCursor Cursor;
+        /// <param name="exception">Exception</param> 
+        /// <param name="operationId">OperationId</param>
+        /// <param name="parentId">ParentId</param>
+        public CorrelatedException(Exception exception, string operationId, string parentId)
+        {
+            this.Exception = exception;
+            this.ParentId = parentId;
+            this.OperationId = operationId;
+        }
     }
 }

@@ -11,9 +11,12 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+#pragma warning disable 618
 namespace DurableTask.AzureStorage.Messaging
 {
     using System;
+    using System.Diagnostics;
+    using System.Reflection;
     using System.Runtime.ExceptionServices;
     using System.Text;
     using System.Threading;
@@ -21,6 +24,8 @@ namespace DurableTask.AzureStorage.Messaging
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.Core;
     using DurableTask.Core.History;
+    using Microsoft.ApplicationInsights;
+    using Microsoft.ApplicationInsights.DataContracts;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Queue;
 
@@ -106,7 +111,12 @@ namespace DurableTask.AzureStorage.Messaging
                     sourceInstance);
                 data.SequenceNumber = Interlocked.Increment(ref messageSequenceNumber);
 
-                string rawContent = await this.messageManager.SerializeMessageDataAsync(data);
+                // Inject Correlation TraceContext on a queue.
+                CorrelationTraceClient.Propagate(
+                    () => { data.SerializableTraceContext = GetSerializableTraceContext(taskMessage); });
+                
+                string rawContent = await messageManager.SerializeMessageDataAsync(data);
+
                 CloudQueueMessage queueMessage = new CloudQueueMessage(rawContent);
 
                 AnalyticsEventSource.Log.SendingMessage(
@@ -158,6 +168,32 @@ namespace DurableTask.AzureStorage.Messaging
             }
 
             return data;
+        }
+
+        static string GetSerializableTraceContext(TaskMessage taskMessage)
+        {
+            TraceContextBase traceContext = CorrelationTraceContext.Current;
+            if (traceContext != null)
+            {
+                if (CorrelationTraceContext.GenerateDependencyTracking)
+                {
+                    PropertyInfo nameProperty = taskMessage.Event.GetType().GetProperty("Name");
+                    string name = (nameProperty == null) ? TraceConstants.DependencyDefault : (string)nameProperty.GetValue(taskMessage.Event);
+
+                    var dependencyTraceContext = TraceContextFactory.Create($"{TraceConstants.Orchestrator} {name}");
+                    dependencyTraceContext.TelemetryType = TelemetryType.Dependency;
+                    dependencyTraceContext.SetParentAndStart(traceContext);
+                    dependencyTraceContext.OrchestrationTraceContexts.Push(dependencyTraceContext);
+                    return dependencyTraceContext.SerializableTraceContext;
+                }
+                else
+                {
+                    return traceContext.SerializableTraceContext;
+                }
+            }
+
+            // TODO this might not happen, however, in case happen, introduce NullObjectTraceContext.
+            return null; 
         }
 
         static TimeSpan? GetVisibilityDelay(TaskMessage taskMessage)

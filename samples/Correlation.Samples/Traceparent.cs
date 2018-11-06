@@ -11,10 +11,16 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System.Runtime.CompilerServices;
+namespace Correlation.Samples
+{
+    public class TraceParent
+    {
+        public string Version { get; set; }
 
-#if !SIGN_ASSEMBLY
-[assembly: InternalsVisibleTo("DurableTask.Core.Tests")]
-[assembly: InternalsVisibleTo("DurableTask.Framework.Tests")]
-[assembly: InternalsVisibleTo("DurableTask.ServiceBus.Tests")]
-#endif
+        public string TraceId { get; set; }
+
+        public string SpanId { get; set; }
+
+        public string TraceFlags { get; set; }
+    }
+}

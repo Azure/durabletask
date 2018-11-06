@@ -11,34 +11,30 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
+namespace DurableTask.Core.Tests
 {
     using System;
-    using System.Diagnostics;
+    using System.Collections;
+    using System.Collections.Generic;
+    using System.Linq;
+    using System.Text;
+    using System.Threading.Tasks;
+    using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-    /// <summary>
-    /// An active instance / work item of a task activity
-    /// </summary>
-    public class TaskActivityWorkItem
+    [TestClass]
+    public class StackExtensionsTest
     {
-        /// <summary>
-        /// The Id of the work work item, likely related to the task message
-        /// </summary>
-        public string Id;
-
-        /// <summary>
-        /// The datetime this work item is locked until
-        /// </summary>
-        public DateTime LockedUntilUtc;
-
-        /// <summary>
-        /// The task message associated with this work item
-        /// </summary>
-        public TaskMessage TaskMessage;
-
-        /// <summary>
-        /// The TraceContext which is included on the queue.
-        /// </summary>
-        public TraceContextBase TraceContextBase;
+        [TestMethod]
+        public void CloneStack()
+        {
+            var input = new Stack<string>(); 
+            input.Push("1");
+            input.Push("2");
+            input.Push("3");
+            var result = input.Clone<string>();
+            Assert.AreEqual("3", result.Pop());
+            Assert.AreEqual("2", result.Pop());
+            Assert.AreEqual("1", result.Pop());
+        }
     }
 }
