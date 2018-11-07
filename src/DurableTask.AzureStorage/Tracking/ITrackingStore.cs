@@ -145,6 +145,7 @@ namespace DurableTask.AzureStorage.Tracking
         /// <param name="createdTimeFrom">Start creation time for querying instances for purging</param>
         /// <param name="createdTimeTo">End creation time for querying instances for purging</param>
         /// <param name="runtimeStatus">List of runtime status for querying instances for purging. Only Completed, Terminated, or Failed will be processed</param>
-        Task PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus);
+        /// <returns>Number of instances and rows deleted/purged</returns>
+        Task<(int instancesDeleted, int rowsDeleted)> PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus);
     }
 }
