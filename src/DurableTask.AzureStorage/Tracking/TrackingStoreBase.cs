@@ -61,7 +61,7 @@ namespace DurableTask.AzureStorage.Tracking
         public abstract Task PurgeInstanceHistoryAsync(string instanceId);
 
         /// <inheritdoc />
-        public abstract Task<(int instancesDeleted, int rowsDeleted)> PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus);
+        public abstract Task PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus);
 
         /// <inheritdoc />
         public abstract Task SetNewExecutionAsync(ExecutionStartedEvent executionStartedEvent);
