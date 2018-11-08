@@ -75,14 +75,16 @@ namespace DurableTask.AzureStorage.Tracking
         /// </summary>
         /// <param name="instanceId">Instance Id</param>
         /// <param name="allExecutions">True if states for all executions are to be fetched otherwise only the state for the latest execution of the instance is fetched</param>
-        Task<IList<OrchestrationState>> GetStateAsync(string instanceId, bool allExecutions);
+        /// <param name="fetchInput">If set, fetch and return the input for the orchestration instance.</param>
+        Task<IList<OrchestrationState>> GetStateAsync(string instanceId, bool allExecutions, bool fetchInput);
 
         /// <summary>
         /// Get The Orchestration State for a particular orchestration instance execution
         /// </summary>
         /// <param name="instanceId">Instance Id</param>
         /// <param name="executionId">Execution Id</param>
-        Task<OrchestrationState> GetStateAsync(string instanceId, string executionId);
+        /// <param name="fetchInput">If set, fetch and return the input for the orchestration instance.</param>
+        Task<OrchestrationState> GetStateAsync(string instanceId, string executionId, bool fetchInput);
 
         /// <summary>
         /// Get The Orchestration State for querying all orchestration instances
@@ -130,5 +132,19 @@ namespace DurableTask.AzureStorage.Tracking
         /// <param name="thresholdDateTimeUtc">Timestamp threshold, data older than this will be removed</param>
         /// <param name="timeRangeFilterType">timeRangeFilterType governs the type of time stamp that will be used for decision making</param>
         Task PurgeHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType);
+
+        /// <summary>
+        /// Purge the history for a concrete instance 
+        /// </summary>
+        /// <param name="instanceId">Instance ID</param>
+        Task PurgeInstanceHistoryAsync(string instanceId);
+
+        /// <summary>
+        /// Purge the orchestration history for instances that match the conditions
+        /// </summary>
+        /// <param name="createdTimeFrom">Start creation time for querying instances for purging</param>
+        /// <param name="createdTimeTo">End creation time for querying instances for purging</param>
+        /// <param name="runtimeStatus">List of runtime status for querying instances for purging. Only Completed, Terminated, or Failed will be processed</param>
+        Task PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus);
     }
 }

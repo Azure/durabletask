@@ -69,7 +69,6 @@ namespace DurableTask.AzureStorage
         readonly BlobLeaseManager leaseManager; 
         readonly PartitionManager<BlobLease> partitionManager;
         readonly OrchestrationSessionManager orchestrationSessionManager;
-
         readonly object hubCreationLock;
 
         bool isStarted;
@@ -841,7 +840,7 @@ namespace DurableTask.AzureStorage
             // be written after the retry, but the results of those messages are expected to be de-dup'd later.
             // This provider needs to ensure that response messages are not processed until the history a few
             // lines down has been successfully committed.
-            await CommitOutboundQueueMessages(
+            await this.CommitOutboundQueueMessages(
                 session,
                 outboundMessages,
                 orchestratorMessages,
@@ -1232,7 +1231,7 @@ namespace DurableTask.AzureStorage
         {
             // Client operations will auto-create the task hub if it doesn't already exist.
             await this.EnsureTaskHubAsync();
-            return await this.trackingStore.GetStateAsync(instanceId, allExecutions);
+            return await this.trackingStore.GetStateAsync(instanceId, allExecutions, fetchInput: true);
         }
 
         /// <summary>
@@ -1245,7 +1244,22 @@ namespace DurableTask.AzureStorage
         {
             // Client operations will auto-create the task hub if it doesn't already exist.
             await this.EnsureTaskHubAsync();
-            return await this.trackingStore.GetStateAsync(instanceId, executionId);
+            return await this.trackingStore.GetStateAsync(instanceId, executionId, fetchInput: true);
+        }
+
+        /// <summary>
+        /// Get the most current execution (generation) of the specified instance.
+        /// This method is not part of the IOrchestrationServiceClient interface. 
+        /// </summary>
+        /// <param name="instanceId">Instance ID of the orchestration.</param>
+        /// <param name="allExecutions">This parameter is not used.</param>
+        /// <param name="fetchInput">If set, fetch and return the input for the orchestration instance.</param>
+        /// <returns>List of <see cref="OrchestrationState"/> objects that represent the list of orchestrations.</returns>
+        public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions, bool fetchInput = true)
+        {
+            // Client operations will auto-create the task hub if it doesn't already exist.
+            await this.EnsureTaskHubAsync();
+            return await this.trackingStore.GetStateAsync(instanceId, allExecutions, fetchInput);
         }
 
         /// <summary>
@@ -1344,6 +1358,26 @@ namespace DurableTask.AzureStorage
                 executionId,
                 CancellationToken.None);
             return JsonConvert.SerializeObject(history.Events);
+        }
+
+        /// <summary>
+        /// Purge history for an orchestration with a specified instance id.
+        /// </summary>
+        /// <param name="instanceId">Instance ID of the orchestration.</param>
+        public Task PurgeInstanceHistoryAsync(string instanceId)
+        {
+            return this.trackingStore.PurgeInstanceHistoryAsync(instanceId);
+        }
+
+        /// <summary>
+        /// Purge history for orchestrations that match the specified parameters.
+        /// </summary>
+        /// <param name="createdTimeFrom">CreatedTime of orchestrations. Purges history grater than this value.</param>
+        /// <param name="createdTimeTo">CreatedTime of orchestrations. Purges history less than this value.</param>
+        /// <param name="runtimeStatus">RuntimeStatus of orchestrations. You can specify several status.</param>
+        public Task PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
+        {
+            return this.trackingStore.PurgeInstanceHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatus);
         }
 
         /// <summary>

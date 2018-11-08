@@ -25,9 +25,7 @@ namespace DurableTask.AzureStorage
         public string Name { get; set; }
         public string Version { get; set; }
         public string Input { get; set; }
-        public string InputBlobName { get; set; }
         public string Output { get; set; }
-        public string OutputBlobName { get; set; }
         public string CustomStatus { get; set; }
         public DateTime CreatedTime { get; set; }
         public DateTime LastUpdatedTime { get; set; }
