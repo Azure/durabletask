@@ -692,7 +692,7 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public override async Task PurgeInstanceHistoryAsync(string instanceId)
+        public override async Task<PurgeHistoryStats> PurgeInstanceHistoryAsync(string instanceId)
         {
             TableQuery<OrchestrationInstanceStatus> query = new TableQuery<OrchestrationInstanceStatus>().Where(
                 TableQuery.CombineFilters(
@@ -709,9 +709,15 @@ namespace DurableTask.AzureStorage.Tracking
 
             OrchestrationInstanceStatus orchestrationInstanceStatus = segment?.Results?.FirstOrDefault();
 
+            int rowsDeleted = 0;
+            int storageRequests = 0;
+            int instancesDeleted = 0;
+
             if (orchestrationInstanceStatus != null)
             {
-                (int storageRequests, int rowsDeleted) = await this.DeleteAllDataForOrchestrationInstance(orchestrationInstanceStatus);
+                (storageRequests, rowsDeleted) = await this.DeleteAllDataForOrchestrationInstance(orchestrationInstanceStatus);
+                instancesDeleted = 1;
+
                 AnalyticsEventSource.Log.PurgeInstanceHistory(
                     this.storageAccountName,
                     this.taskHubName,
@@ -723,10 +729,12 @@ namespace DurableTask.AzureStorage.Tracking
                     stopwatch.ElapsedMilliseconds,
                     Utils.ExtensionVersion);
             }
+
+            return new PurgeHistoryStats(storageRequests, instancesDeleted, rowsDeleted);
         }
 
         /// <inheritdoc />
-        public override async Task<(int instancesDeleted, int rowsDeleted)> PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
+        public override async Task<PurgeHistoryStats> PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
             List<OrchestrationStatus> runtimeStatusList =  runtimeStatus?.Where(
@@ -750,7 +758,7 @@ namespace DurableTask.AzureStorage.Tracking
                 stopwatch.ElapsedMilliseconds,
                 Utils.ExtensionVersion);
 
-            return (instancesDeleted, rowsDeleted);
+            return new PurgeHistoryStats(storageRequests, instancesDeleted, rowsDeleted);
         }
 
         /// <inheritdoc />

@@ -125,13 +125,13 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public override Task PurgeInstanceHistoryAsync(string instanceId)
+        public override Task<PurgeHistoryStats> PurgeInstanceHistoryAsync(string instanceId)
         {
             throw new NotImplementedException();
         }
 
         /// <inheritdoc />
-        public override Task<(int instancesDeleted, int rowsDeleted)> PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
+        public override Task<PurgeHistoryStats> PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
         {
             throw new NotImplementedException();
         }
