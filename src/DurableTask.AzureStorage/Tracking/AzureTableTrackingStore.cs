@@ -603,23 +603,31 @@ namespace DurableTask.AzureStorage.Tracking
             return orchestrationStates;
         }
 
-        private async Task<int> DeleteHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
+        private async Task<PurgeHistoryResult> DeleteHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
         {
             TableQuery<OrchestrationInstanceStatus> query = OrchestrationInstanceStatusQueryCondition.Parse(createdTimeFrom, createdTimeTo, runtimeStatus)
                 .ToTableQuery<OrchestrationInstanceStatus>();
 
             TableContinuationToken token = null;
             var orchestrationStates = new List<OrchestrationInstanceStatus>(100);
+
             int storageRequests = 0;
+            int rowsDeleted = 0;
+            int instancesDeleted = 0;
+
             while (true)
             {
                 TableQuerySegment<OrchestrationInstanceStatus> segment = await this.InstancesTable.ExecuteQuerySegmentedAsync(query, token);
                 storageRequests++;
                 this.stats.StorageRequests.Increment();
                 this.stats.TableEntitiesRead.Increment(segment.Results.Count);
+                instancesDeleted = segment.Results.Count;
+
                 foreach (OrchestrationInstanceStatus orchestrationInstanceStatus in segment.Results)
                 {
-                    storageRequests += await this.DeleteAllDataForOrchestrationInstance(orchestrationInstanceStatus);
+                    var statisticsFromDeletion = await this.DeleteAllDataForOrchestrationInstance(orchestrationInstanceStatus);
+                    storageRequests += statisticsFromDeletion.StorageRequests;
+                    rowsDeleted += statisticsFromDeletion.RowsDeleted;
                 }
                 orchestrationStates.AddRange(segment.Results);
                 token = segment.ContinuationToken;
@@ -629,12 +637,13 @@ namespace DurableTask.AzureStorage.Tracking
                 }
             }
 
-            return storageRequests;
+            return new PurgeHistoryResult(storageRequests, instancesDeleted, rowsDeleted);
         }
 
-        private async Task<int> DeleteAllDataForOrchestrationInstance(OrchestrationInstanceStatus orchestrationInstanceStatus)
+        private async Task<PurgeHistoryResult> DeleteAllDataForOrchestrationInstance(OrchestrationInstanceStatus orchestrationInstanceStatus)
         {
             int storageRequests = 0;
+            int rowsDeleted = 0;
             HistoryEntitiesResponseInfo historyEntitiesResponseInfo = await this.GetHistoryEntitiesResponseInfoAsync(
                 orchestrationInstanceStatus.PartitionKey,
                 null,
@@ -649,6 +658,7 @@ namespace DurableTask.AzureStorage.Tracking
             {
                 var batch = new TableBatchOperation();
                 List<DynamicTableEntity> batchForDeletion = historyEntitiesResponseInfo.HistoryEventEntities.Skip(pageOffset).Take(100).ToList();
+                rowsDeleted += batchForDeletion.Count;
 
                 foreach (DynamicTableEntity itemForDeletion in batchForDeletion)
                 {
@@ -672,7 +682,7 @@ namespace DurableTask.AzureStorage.Tracking
             this.stats.StorageRequests.Increment();
             storageRequests++;
 
-            return storageRequests;
+            return new PurgeHistoryResult(storageRequests, 1, rowsDeleted);
         }
 
         /// <inheritdoc />
@@ -682,7 +692,7 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public override async Task PurgeInstanceHistoryAsync(string instanceId)
+        public override async Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(string instanceId)
         {
             TableQuery<OrchestrationInstanceStatus> query = new TableQuery<OrchestrationInstanceStatus>().Where(
                 TableQuery.CombineFilters(
@@ -701,7 +711,8 @@ namespace DurableTask.AzureStorage.Tracking
 
             if (orchestrationInstanceStatus != null)
             {
-                int storageRequests = await this.DeleteAllDataForOrchestrationInstance(orchestrationInstanceStatus);
+                var deletionStats = await this.DeleteAllDataForOrchestrationInstance(orchestrationInstanceStatus);
+
                 AnalyticsEventSource.Log.PurgeInstanceHistory(
                     this.storageAccountName,
                     this.taskHubName,
@@ -709,14 +720,18 @@ namespace DurableTask.AzureStorage.Tracking
                     DateTime.MinValue.ToString(),
                     DateTime.MinValue.ToString(),
                     null,
-                    storageRequests,
+                    deletionStats.StorageRequests,
                     stopwatch.ElapsedMilliseconds,
                     Utils.ExtensionVersion);
+
+                return deletionStats;
             }
+
+            return new PurgeHistoryResult(0, 0, 0);
         }
 
         /// <inheritdoc />
-        public override  async Task PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
+        public override async Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
             List<OrchestrationStatus> runtimeStatusList =  runtimeStatus?.Where(
@@ -725,7 +740,7 @@ namespace DurableTask.AzureStorage.Tracking
                     x == OrchestrationStatus.Canceled ||
                     x == OrchestrationStatus.Failed).ToList();
 
-            int storageRequests = await this.DeleteHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatusList);
+            var stats = await this.DeleteHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatusList);
 
             AnalyticsEventSource.Log.PurgeInstanceHistory(
                 this.storageAccountName,
@@ -736,9 +751,11 @@ namespace DurableTask.AzureStorage.Tracking
                 runtimeStatus != null ?
                     string.Join(",", runtimeStatus.Select(x => x.ToString()).ToArray()) :
                     string.Empty,
-                storageRequests,
+                stats.StorageRequests,
                 stopwatch.ElapsedMilliseconds,
                 Utils.ExtensionVersion);
+
+            return stats;
         }
 
         /// <inheritdoc />
