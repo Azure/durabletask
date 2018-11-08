@@ -626,8 +626,8 @@ namespace DurableTask.AzureStorage.Tracking
                 foreach (OrchestrationInstanceStatus orchestrationInstanceStatus in segment.Results)
                 {
                     var statisticsFromDeletion = await this.DeleteAllDataForOrchestrationInstance(orchestrationInstanceStatus);
-                    storageRequests += statisticsFromDeletion.storageRequests;
-                    rowsDeleted += statisticsFromDeletion.rowsDeleted;
+                    storageRequests += statisticsFromDeletion.StorageRequests;
+                    rowsDeleted += statisticsFromDeletion.RowsDeleted;
                 }
                 orchestrationStates.AddRange(segment.Results);
                 token = segment.ContinuationToken;
@@ -720,7 +720,7 @@ namespace DurableTask.AzureStorage.Tracking
                     DateTime.MinValue.ToString(),
                     DateTime.MinValue.ToString(),
                     null,
-                    deletionStats.storageRequests,
+                    deletionStats.StorageRequests,
                     stopwatch.ElapsedMilliseconds,
                     Utils.ExtensionVersion);
 
@@ -751,7 +751,7 @@ namespace DurableTask.AzureStorage.Tracking
                 runtimeStatus != null ?
                     string.Join(",", runtimeStatus.Select(x => x.ToString()).ToArray()) :
                     string.Empty,
-                stats.storageRequests,
+                stats.StorageRequests,
                 stopwatch.ElapsedMilliseconds,
                 Utils.ExtensionVersion);
 

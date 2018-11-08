@@ -67,7 +67,6 @@ namespace DurableTask.AzureStorage
 
     /// <summary>
     /// Class to hold statistics about this execution of purge history
-    /// Implemented to avoid dependency on System.ValueTuple
     /// </summary>
     public class PurgeHistoryResult
     {
@@ -79,24 +78,24 @@ namespace DurableTask.AzureStorage
         /// <param name="rowsDeleted">Number of rows deleted</param>
         public PurgeHistoryResult(int storageRequests, int instancesDeleted, int rowsDeleted)
         {
-            this.storageRequests = storageRequests;
-            this.instancesDeleted = instancesDeleted;
-            this.rowsDeleted = rowsDeleted;
+            this.StorageRequests = storageRequests;
+            this.InstancesDeleted = instancesDeleted;
+            this.RowsDeleted = rowsDeleted;
         }
 
         /// <summary>
         /// Number of requests sent to Storage during this execution of purge history
         /// </summary>
-        public int storageRequests { get; }
+        public int StorageRequests { get; }
 
         /// <summary>
         /// Number of instances deleted during this execution of purge history
         /// </summary>
-        public int instancesDeleted { get; }
+        public int InstancesDeleted { get; }
 
         /// <summary>
         /// Number of rows deleted during this execution of purge history
         /// </summary>
-        public int rowsDeleted { get; }
+        public int RowsDeleted { get; }
     }
 }
