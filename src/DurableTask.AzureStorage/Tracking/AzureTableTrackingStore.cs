@@ -603,7 +603,7 @@ namespace DurableTask.AzureStorage.Tracking
             return orchestrationStates;
         }
 
-        private async Task<PurgeHistoryStats> DeleteHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
+        private async Task<PurgeHistoryResult> DeleteHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
         {
             TableQuery<OrchestrationInstanceStatus> query = OrchestrationInstanceStatusQueryCondition.Parse(createdTimeFrom, createdTimeTo, runtimeStatus)
                 .ToTableQuery<OrchestrationInstanceStatus>();
@@ -625,9 +625,9 @@ namespace DurableTask.AzureStorage.Tracking
 
                 foreach (OrchestrationInstanceStatus orchestrationInstanceStatus in segment.Results)
                 {
-                    var stats = await this.DeleteAllDataForOrchestrationInstance(orchestrationInstanceStatus);
-                    storageRequests += stats.storageRequests;
-                    rowsDeleted += stats.rowsDeleted;
+                    var statisticsFromDeletion = await this.DeleteAllDataForOrchestrationInstance(orchestrationInstanceStatus);
+                    storageRequests += statisticsFromDeletion.storageRequests;
+                    rowsDeleted += statisticsFromDeletion.rowsDeleted;
                 }
                 orchestrationStates.AddRange(segment.Results);
                 token = segment.ContinuationToken;
@@ -637,10 +637,10 @@ namespace DurableTask.AzureStorage.Tracking
                 }
             }
 
-            return new PurgeHistoryStats(storageRequests, instancesDeleted, rowsDeleted);
+            return new PurgeHistoryResult(storageRequests, instancesDeleted, rowsDeleted);
         }
 
-        private async Task<PurgeHistoryStats> DeleteAllDataForOrchestrationInstance(OrchestrationInstanceStatus orchestrationInstanceStatus)
+        private async Task<PurgeHistoryResult> DeleteAllDataForOrchestrationInstance(OrchestrationInstanceStatus orchestrationInstanceStatus)
         {
             int storageRequests = 0;
             int rowsDeleted = 0;
@@ -682,7 +682,7 @@ namespace DurableTask.AzureStorage.Tracking
             this.stats.StorageRequests.Increment();
             storageRequests++;
 
-            return new PurgeHistoryStats(storageRequests, 1, rowsDeleted);
+            return new PurgeHistoryResult(storageRequests, 1, rowsDeleted);
         }
 
         /// <inheritdoc />
@@ -692,7 +692,7 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public override async Task<PurgeHistoryStats> PurgeInstanceHistoryAsync(string instanceId)
+        public override async Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(string instanceId)
         {
             TableQuery<OrchestrationInstanceStatus> query = new TableQuery<OrchestrationInstanceStatus>().Where(
                 TableQuery.CombineFilters(
@@ -711,7 +711,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             if (orchestrationInstanceStatus != null)
             {
-                var stats = await this.DeleteAllDataForOrchestrationInstance(orchestrationInstanceStatus);
+                var deletionStats = await this.DeleteAllDataForOrchestrationInstance(orchestrationInstanceStatus);
 
                 AnalyticsEventSource.Log.PurgeInstanceHistory(
                     this.storageAccountName,
@@ -720,16 +720,18 @@ namespace DurableTask.AzureStorage.Tracking
                     DateTime.MinValue.ToString(),
                     DateTime.MinValue.ToString(),
                     null,
-                    stats.storageRequests,
+                    deletionStats.storageRequests,
                     stopwatch.ElapsedMilliseconds,
                     Utils.ExtensionVersion);
+
+                return deletionStats;
             }
 
-            return new PurgeHistoryStats(0, 0, 0);
+            return new PurgeHistoryResult(0, 0, 0);
         }
 
         /// <inheritdoc />
-        public override async Task<PurgeHistoryStats> PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
+        public override async Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
             List<OrchestrationStatus> runtimeStatusList =  runtimeStatus?.Where(
