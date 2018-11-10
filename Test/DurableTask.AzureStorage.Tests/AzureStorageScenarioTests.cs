@@ -128,6 +128,24 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
+        public async Task ParentOfSequentialOrchestration()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            {
+                await host.StartAsync();
+
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.ParentOfFactorial), 10);
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                Assert.AreEqual(10, JToken.Parse(status?.Input));
+                Assert.AreEqual(3628800, JToken.Parse(status?.Output));
+
+                await host.StopAsync();
+            }
+        }
+
+        [TestMethod]
         public async Task GetAllOrchestrationStatuses()
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
@@ -1839,7 +1857,6 @@ namespace DurableTask.AzureStorage.Tests
 
             internal class Counter : TaskOrchestration<int, int>
             {
-
                 TaskCompletionSource<string> waitForOperationHandle;
 
                 public override async Task<int> RunTask(OrchestrationContext context, int currentValue)
@@ -1889,7 +1906,6 @@ namespace DurableTask.AzureStorage.Tests
 
             internal class CharacterCounter : TaskOrchestration<Tuple<string, int>, Tuple<string, int>>
             {
-
                 TaskCompletionSource<string> waitForOperationHandle;
 
                 public override async Task<Tuple<string, int>> RunTask(OrchestrationContext context, Tuple<string, int> inputData)
@@ -2063,6 +2079,16 @@ namespace DurableTask.AzureStorage.Tests
                     await Task.WhenAll(tasks);
 
                     return await context.ScheduleTask<int>(typeof(Activities.CountTableRows), instanceId);
+                }
+            }
+
+            [KnownType(typeof(Factorial))]
+            [KnownType(typeof(Activities.Multiply))]
+            internal class ParentOfFactorial : TaskOrchestration<int, int>
+            {
+                public override Task<int> RunTask(OrchestrationContext context, int input)
+                {
+                    return context.CreateSubOrchestrationInstance<int>(typeof(Factorial), input);
                 }
             }
         }

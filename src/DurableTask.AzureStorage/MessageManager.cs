@@ -150,6 +150,11 @@ namespace DurableTask.AzureStorage
             return Encoding.UTF8.GetString(decompressedSegment.Array, 0, decompressedSegment.Count);
         }
 
+        internal string GetBlobUrl(string blobName)
+        {
+            return this.cloudBlobContainer.GetBlockBlobReference(blobName).Uri.AbsoluteUri;
+        }
+
         internal ArraySegment<byte> Decompress(Stream blobStream)
         {
             using (GZipStream gZipStream = new GZipStream(blobStream, CompressionMode.Decompress))

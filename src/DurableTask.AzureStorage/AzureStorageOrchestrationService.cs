@@ -594,10 +594,10 @@ namespace DurableTask.AzureStorage
                     session.StartNewLogicalTraceScope();
 
                     List<MessageData> outOfOrderMessages = null;
-                    int currentSessionEpisode = session.GetCurrentEpisode();
                     foreach (MessageData message in session.CurrentMessageBatch)
                     {
-                        if (IsOutOfOrderMessage(session, message))
+                        // TODO: How do we handle out-of-order messages for extended sessions?
+                        if (session.IsOutOfOrderMessage(message))
                         {
                             if (outOfOrderMessages == null)
                             {
@@ -627,12 +627,14 @@ namespace DurableTask.AzureStorage
 
                     if (outOfOrderMessages?.Count > 0)
                     {
-                        await this.AbandonMessages(session, outOfOrderMessages);
+                        // This will also remove the messages from the current batch.
+                        await this.AbandonMessagesAsync(session, outOfOrderMessages);
                     }
 
                     if (session.CurrentMessageBatch.Count == 0)
                     {
-                        await this.AbandonAndReleaseWorkItemAsync(orchestrationWorkItem);
+                        // All messages were removed. Release the work item.
+                        await this.AbandonAndReleaseSessionAsync(session);
                         return null;
                     }
 
@@ -674,10 +676,10 @@ namespace DurableTask.AzureStorage
                 }
                 catch (OperationCanceledException)
                 {
-                    // host is shutting down - release any queued messages
-                    if (orchestrationWorkItem != null)
+                    if (session != null)
                     {
-                        await this.AbandonAndReleaseWorkItemAsync(orchestrationWorkItem);
+                        // host is shutting down - release any queued messages
+                        await this.AbandonAndReleaseSessionAsync(session);
                     }
 
                     return null;
@@ -741,30 +743,6 @@ namespace DurableTask.AzureStorage
                 Utils.ExtensionVersion);
         }
 
-        static bool IsOutOfOrderMessage(OrchestrationSession session, MessageData message)
-        {
-            int currentSessionEpisode = session.GetCurrentEpisode();
-
-            // The opposite case (Episode > currentSessionEpisode) means we received a message
-            // sent to us from either an orchestration which hasn't yet checkpointed its state or
-            // from an orchestration which failed to checkpoint it's state.
-            if (message.Episode <= currentSessionEpisode)
-            {
-                return false;
-            }
-
-            // In the ContinueAsNew scenario, we'll receive an ExecutionStarted event for which corresponds to 
-            // a previous orchestration generation. That event will have a non-zero episode number but the new 
-            // session will have a episode number of 0. This is not an out-of-order error and can be ignored.
-            if (message.TaskMessage.Event.EventType == EventType.ExecutionStarted)
-            {
-                return false;
-            }
-
-            // The message is out of order and cannot be handled by the current session.
-            return true;
-        }
-
         bool IsExecutableInstance(OrchestrationRuntimeState runtimeState, IList<TaskMessage> newMessages, out string message)
         {
             if (runtimeState.ExecutionStartedEvent == null && !newMessages.Any(msg => msg.Event is ExecutionStartedEvent))
@@ -797,15 +775,15 @@ namespace DurableTask.AzureStorage
             return new OrchestrationRuntimeState(history.Events);
         }
 
-        async Task AbandonAndReleaseWorkItemAsync(TaskOrchestrationWorkItem orchestrationWorkItem)
+        async Task AbandonAndReleaseSessionAsync(OrchestrationSession session)
         {
             try
             {
-                await this.AbandonTaskOrchestrationWorkItemAsync(orchestrationWorkItem);
+                await this.AbandonSessionAsync(session);
             }
             finally
             {
-                await this.ReleaseTaskOrchestrationWorkItemAsync(orchestrationWorkItem);
+                this.ReleaseSession(session.Instance.InstanceId);
             }
         }
 
@@ -971,7 +949,7 @@ namespace DurableTask.AzureStorage
         }
 
         /// <inheritdoc />
-        public async Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
+        public Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
             OrchestrationSession session;
             if (!this.orchestrationSessionManager.TryGetExistingSession(workItem.InstanceId, out session))
@@ -981,18 +959,30 @@ namespace DurableTask.AzureStorage
                     this.settings.TaskHubName,
                     $"{nameof(AbandonTaskOrchestrationWorkItemAsync)}: Session for instance {workItem.InstanceId} was not found!",
                     Utils.ExtensionVersion);
-                return;
+                return Utils.CompletedTask;
             }
 
-            session.StartNewLogicalTraceScope();
-            await this.AbandonMessages(session, session.CurrentMessageBatch);
+            return this.AbandonSessionAsync(session);
         }
 
-        Task AbandonMessages(OrchestrationSession session, IReadOnlyList<MessageData> messages)
+        Task AbandonSessionAsync(OrchestrationSession session)
         {
-            return messages.ParallelForEachAsync(
+            session.StartNewLogicalTraceScope();
+            return this.AbandonMessagesAsync(session, session.CurrentMessageBatch);
+        }
+
+        async Task AbandonMessagesAsync(OrchestrationSession session, IList<MessageData> messages)
+        {
+            await messages.ParallelForEachAsync(
                 this.settings.MaxStorageOperationConcurrency,
                 message => session.ControlQueue.AbandonMessageAsync(message, session));
+
+            // Remove the messages from the current batch. The remaining messages
+            // may still be able to be processed
+            foreach (MessageData message in messages)
+            {
+                session.CurrentMessageBatch.Remove(message);
+            }
         }
 
         // Called after an orchestration completes an execution episode and after all messages have been enqueued.
@@ -1000,8 +990,13 @@ namespace DurableTask.AzureStorage
         /// <inheritdoc />
         public Task ReleaseTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
-            this.orchestrationSessionManager.ReleaseSession(workItem.InstanceId, this.shutdownSource.Token);
+            this.ReleaseSession(workItem.InstanceId);
             return Utils.CompletedTask;
+        }
+
+        void ReleaseSession(string instanceId)
+        {
+            this.orchestrationSessionManager.ReleaseSession(instanceId, this.shutdownSource.Token);
         }
         #endregion
 

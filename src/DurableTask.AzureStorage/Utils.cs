@@ -41,7 +41,7 @@ namespace DurableTask.AzureStorage
             await Task.WhenAll(tasks.ToArray());
         }
 
-        public static async Task ParallelForEachAsync<T>(this IReadOnlyList<T> items, int maxConcurrency, Func<T, Task> action)
+        public static async Task ParallelForEachAsync<T>(this IList<T> items, int maxConcurrency, Func<T, Task> action)
         {
             using (var semaphore = new SemaphoreSlim(maxConcurrency))
             {
