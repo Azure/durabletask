@@ -118,7 +118,8 @@ namespace DurableTask.AzureStorage.Tracking
         /// Used to set a state in the tracking store whenever a new execution is initiated from the client
         /// </summary>
         /// <param name="executionStartedEvent">The Execution Started Event being queued</param>
-        Task SetNewExecutionAsync(ExecutionStartedEvent executionStartedEvent);
+        /// <param name="blobName">The name of the blob if the content of the event is stored in blob storage.</param>
+        Task SetNewExecutionAsync(ExecutionStartedEvent executionStartedEvent, string blobName);
 
         /// <summary>
         /// Used to update a state in the tracking store to pending whenever a rewind is initiated from the client

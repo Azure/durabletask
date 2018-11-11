@@ -64,7 +64,7 @@ namespace DurableTask.AzureStorage.Tracking
         public abstract Task PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus);
 
         /// <inheritdoc />
-        public abstract Task SetNewExecutionAsync(ExecutionStartedEvent executionStartedEvent);
+        public abstract Task SetNewExecutionAsync(ExecutionStartedEvent executionStartedEvent, string blobName);
 
         /// <inheritdoc />
         public abstract Task UpdateStatusForRewindAsync(string instanceId);

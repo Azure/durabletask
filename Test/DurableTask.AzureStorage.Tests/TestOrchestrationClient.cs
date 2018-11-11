@@ -43,6 +43,8 @@ namespace DurableTask.AzureStorage.Tests
             this.instanceCreationTime = instanceCreationTime;
         }
 
+        public string InstanceId => this.instanceId;
+
         public async Task<OrchestrationState> WaitForCompletionAsync(TimeSpan timeout)
         {
             timeout = AdjustTimeout(timeout);

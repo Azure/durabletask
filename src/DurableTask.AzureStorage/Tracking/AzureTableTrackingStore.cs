@@ -732,13 +732,15 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public override async Task SetNewExecutionAsync(ExecutionStartedEvent executionStartedEvent)
+        public override async Task SetNewExecutionAsync(
+            ExecutionStartedEvent executionStartedEvent,
+            string blobName)
         {
             DynamicTableEntity entity = new DynamicTableEntity(executionStartedEvent.OrchestrationInstance.InstanceId, "")
             {
                 Properties =
                 {
-                    ["Input"] = new EntityProperty(executionStartedEvent.Input),
+                    ["Input"] = new EntityProperty(blobName ?? executionStartedEvent.Input),
                     ["CreatedTime"] = new EntityProperty(executionStartedEvent.Timestamp),
                     ["Name"] = new EntityProperty(executionStartedEvent.Name),
                     ["Version"] = new EntityProperty(executionStartedEvent.Version),
@@ -747,13 +749,10 @@ namespace DurableTask.AzureStorage.Tracking
                 }
             };
 
-            await this.CompressLargeMessageAsync(entity, true);
-
             Stopwatch stopwatch = Stopwatch.StartNew();
-            await this.InstancesTable.ExecuteAsync(
-                TableOperation.InsertOrReplace(entity));
+            await this.InstancesTable.ExecuteAsync(TableOperation.InsertOrReplace(entity));
             this.stats.StorageRequests.Increment();
-            this.stats.TableEntitiesWritten.Increment(1);
+            this.stats.TableEntitiesWritten.Increment();
 
             // Episode 0 means the orchestrator hasn't started yet.
             int currentEpisodeNumber = 0;
@@ -782,7 +781,6 @@ namespace DurableTask.AzureStorage.Tracking
                 }
             };
 
-            await this.CompressLargeMessageAsync(entity, false);
             Stopwatch stopwatch = Stopwatch.StartNew();
             await this.InstancesTable.ExecuteAsync(TableOperation.Merge(entity));
             this.stats.StorageRequests.Increment();
@@ -853,7 +851,7 @@ namespace DurableTask.AzureStorage.Tracking
                 historyEntity.RowKey = sequenceNumber.ToString("X16");
                 historyEntity.Properties["ExecutionId"] = new EntityProperty(executionId);
 
-                await this.CompressLargeMessageAsync(historyEntity, isInstancesTable: false);
+                await this.CompressLargeMessageAsync(historyEntity);
 
                 // Replacement can happen if the orchestration episode gets replayed due to a commit failure in one of the steps below.
                 historyEventBatch.InsertOrReplace(historyEntity);
@@ -1032,7 +1030,7 @@ namespace DurableTask.AzureStorage.Tracking
             }
         }
 
-        async Task CompressLargeMessageAsync(DynamicTableEntity entity, bool isInstancesTable)
+        async Task CompressLargeMessageAsync(DynamicTableEntity entity)
         {
             foreach (string propertyName in VariableSizeEntityProperties)
             {
@@ -1044,21 +1042,11 @@ namespace DurableTask.AzureStorage.Tracking
                     byte[] messageBytes = Encoding.UTF8.GetBytes(entity.Properties[propertyName].StringValue);
                     await this.messageManager.CompressAndUploadAsBytesAsync(messageBytes, blobName);
 
-                    if (isInstancesTable)
-                    {
-                        // The instances table is for display/debugging purposes so it's better to just
-                        // return the URL of the blob rather than the actual payload (which could be huge).
-                        string blobUrl = this.messageManager.GetBlobUrl(blobName);
-                        entity.Properties[propertyName].StringValue = blobUrl;
-                    }
-                    else
-                    {
-                        // Clear out the original property value and create a new "*BlobName"-suffixed property.
-                        // The runtime will look for the new "*BlobName"-suffixed column to know if a property is stored in a blob.
-                        string blobPropertyName = GetBlobPropertyName(propertyName);
-                        entity.Properties.Add(blobPropertyName, new EntityProperty(blobName));
-                        entity.Properties[propertyName].StringValue = string.Empty;
-                    }
+                    // Clear out the original property value and create a new "*BlobName"-suffixed property.
+                    // The runtime will look for the new "*BlobName"-suffixed column to know if a property is stored in a blob.
+                    string blobPropertyName = GetBlobPropertyName(propertyName);
+                    entity.Properties.Add(blobPropertyName, new EntityProperty(blobName));
+                    entity.Properties[propertyName].StringValue = string.Empty;
                 }
             }
         }
@@ -1090,18 +1078,8 @@ namespace DurableTask.AzureStorage.Tracking
             string instanceId = entity.PartitionKey;
             string sequenceNumber = entity.RowKey;
 
-            string blobName;
-            if (string.IsNullOrEmpty(sequenceNumber))
-            {
-                // Blobs for the Instances table have no sequence number or event type.
-                blobName = $"{instanceId}/{property}.json.gz";
-            }
-            else
-            {
-                // Blobs for the History table have more descriptive names.
-                string eventType = entity.Properties["EventType"].StringValue;
-                blobName = $"{instanceId}/{sequenceNumber}-{eventType}-{property}.json.gz";
-            }
+            string eventType = entity.Properties["EventType"].StringValue;
+            string blobName = $"{instanceId}/history-{sequenceNumber}-{eventType}-{property}.json.gz";
 
             return blobName.ToLowerInvariant();
         }

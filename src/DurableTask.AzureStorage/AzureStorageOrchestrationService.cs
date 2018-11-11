@@ -395,6 +395,8 @@ namespace DurableTask.AzureStorage
                 }
             }));
 
+            tasks.Add(this.messageManager.DeleteContainerAsync());
+
             await Task.WhenAll(tasks.ToArray());
             this.stats.StorageRequests.Increment(tasks.Count);
             this.taskHubCreator.Reset();
@@ -1197,7 +1199,10 @@ namespace DurableTask.AzureStorage
 
             ControlQueue controlQueue = await this.GetControlQueueAsync(message.OrchestrationInstance.InstanceId);
 
-            await this.SendTaskOrchestrationMessageInternalAsync(EmptySourceInstance, controlQueue, message);
+            MessageData internalMessage = await this.SendTaskOrchestrationMessageInternalAsync(
+                EmptySourceInstance,
+                controlQueue,
+                message);
 
             ExecutionStartedEvent executionStartedEvent = message.Event as ExecutionStartedEvent;
             if (executionStartedEvent == null)
@@ -1205,15 +1210,18 @@ namespace DurableTask.AzureStorage
                 return;
             }
 
-            await this.trackingStore.SetNewExecutionAsync(executionStartedEvent);
+            // CompressedBlobName either has a blob path for large messages or is null.
+            await this.trackingStore.SetNewExecutionAsync(
+                executionStartedEvent,
+                internalMessage.CompressedBlobName);
         }
 
-        async Task SendTaskOrchestrationMessageInternalAsync(
+        Task<MessageData> SendTaskOrchestrationMessageInternalAsync(
             OrchestrationInstance sourceInstance,
             ControlQueue controlQueue,
             TaskMessage message)
         {
-            await controlQueue.AddMessageAsync(message, sourceInstance);
+            return controlQueue.AddMessageAsync(message, sourceInstance);
         }
 
         /// <summary>

@@ -81,25 +81,47 @@ namespace DurableTask.AzureStorage.Messaging
         /// <param name="message">Instance of <see cref="TaskMessage"/></param>
         /// <param name="sourceInstance">Instnace of <see cref="OrchestrationInstance"/></param>
         /// <returns></returns>
-        public Task AddMessageAsync(TaskMessage message, OrchestrationInstance sourceInstance)
+        public Task<MessageData> AddMessageAsync(TaskMessage message, OrchestrationInstance sourceInstance)
         {
             return this.AddMessageAsync(message, sourceInstance, session: null);
         }
 
-        async Task AddMessageAsync(TaskMessage message, OrchestrationInstance sourceInstance, SessionBase session)
+        async Task<MessageData> AddMessageAsync(TaskMessage taskMessage, OrchestrationInstance sourceInstance, SessionBase session)
         {
+            MessageData data;
             try
             {
-                CloudQueueMessage queueMessage = await this.CreateOutboundQueueMessageAsync(
-                    sourceInstance,
+                // We transfer to a new trace activity ID every time a new outbound queue message is created.
+                Guid outboundTraceActivityId = Guid.NewGuid();
+                data = new MessageData(
+                    taskMessage,
+                    outboundTraceActivityId,
                     this.storageQueue.Name,
-                    message,
                     session?.GetCurrentEpisode() ?? 0);
+                data.SequenceNumber = Interlocked.Increment(ref messageSequenceNumber);
+
+                string rawContent = await messageManager.SerializeMessageDataAsync(data);
+                CloudQueueMessage queueMessage = new CloudQueueMessage(rawContent);
+
+                AnalyticsEventSource.Log.SendingMessage(
+                    outboundTraceActivityId,
+                    this.storageAccountName,
+                    this.settings.TaskHubName,
+                    taskMessage.Event.EventType.ToString(),
+                    sourceInstance.InstanceId,
+                    sourceInstance.ExecutionId,
+                    Encoding.Unicode.GetByteCount(rawContent),
+                    data.QueueName /* PartitionId */,
+                    taskMessage.OrchestrationInstance.InstanceId,
+                    taskMessage.OrchestrationInstance.ExecutionId,
+                    data.SequenceNumber,
+                    data.Episode,
+                    Utils.ExtensionVersion);
 
                 await this.storageQueue.AddMessageAsync(
                     queueMessage,
                     null /* timeToLive */,
-                    GetVisibilityDelay(message),
+                    GetVisibilityDelay(taskMessage),
                     this.QueueRequestOptions,
                     session?.StorageOperationContext);
 
@@ -125,6 +147,8 @@ namespace DurableTask.AzureStorage.Messaging
             {
                 this.stats.StorageRequests.Increment();
             }
+
+            return data;
         }
 
         static TimeSpan? GetVisibilityDelay(TaskMessage taskMessage)
@@ -286,57 +310,6 @@ namespace DurableTask.AzureStorage.Messaging
                 // Rethrow the original exception, preserving the callstack.
                 ExceptionDispatchInfo.Capture(e).Throw();
             }
-        }
-
-        Task<CloudQueueMessage> CreateOutboundQueueMessageAsync(
-            OrchestrationInstance sourceInstance,
-            string queueName,
-            TaskMessage taskMessage,
-            int orchestrationEpisode)
-        {
-            return CreateOutboundQueueMessageAsync(
-                this.messageManager,
-                sourceInstance,
-                this.storageAccountName,
-                this.settings.TaskHubName,
-                queueName,
-                taskMessage,
-                orchestrationEpisode);
-        }
-
-        static async Task<CloudQueueMessage> CreateOutboundQueueMessageAsync(
-            MessageManager messageManager,
-            OrchestrationInstance sourceInstance,
-            string storageAccountName,
-            string taskHub,
-            string queueName,
-            TaskMessage taskMessage,
-            int orchestrationEpisode)
-        {
-            // We transfer to a new trace activity ID every time a new outbound queue message is created.
-            Guid outboundTraceActivityId = Guid.NewGuid();
-
-            var data = new MessageData(taskMessage, outboundTraceActivityId, queueName, orchestrationEpisode);
-            data.SequenceNumber = Interlocked.Increment(ref messageSequenceNumber);
-
-            string rawContent = await messageManager.SerializeMessageDataAsync(data);
-
-            AnalyticsEventSource.Log.SendingMessage(
-                outboundTraceActivityId,
-                storageAccountName,
-                taskHub,
-                taskMessage.Event.EventType.ToString(),
-                sourceInstance.InstanceId,
-                sourceInstance.ExecutionId,
-                Encoding.Unicode.GetByteCount(rawContent),
-                data.QueueName /* PartitionId */,
-                taskMessage.OrchestrationInstance.InstanceId,
-                taskMessage.OrchestrationInstance.ExecutionId,
-                data.SequenceNumber,
-                data.Episode,
-                Utils.ExtensionVersion);
-
-            return new CloudQueueMessage(rawContent);
         }
 
         public async Task CreateIfNotExistsAsync()

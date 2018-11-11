@@ -24,18 +24,15 @@ namespace DurableTask.AzureStorage.Tests
         {
             string storageConnectionString = GetTestStorageAccountConnectionString();
 
-            var service = new AzureStorageOrchestrationService(
-                new AzureStorageOrchestrationServiceSettings
-                {
-                    StorageConnectionString = storageConnectionString,
-                    TaskHubName = ConfigurationManager.AppSettings.Get("TaskHubName"),
-                    ExtendedSessionsEnabled = enableExtendedSessions,
-                    ExtendedSessionIdleTimeout = TimeSpan.FromSeconds(extendedSessionTimeoutInSeconds),
-                });
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                StorageConnectionString = storageConnectionString,
+                TaskHubName = ConfigurationManager.AppSettings.Get("TaskHubName"),
+                ExtendedSessionsEnabled = enableExtendedSessions,
+                ExtendedSessionIdleTimeout = TimeSpan.FromSeconds(extendedSessionTimeoutInSeconds),
+            };
 
-            service.CreateAsync().GetAwaiter().GetResult();
-
-            return new TestOrchestrationHost(service);
+            return new TestOrchestrationHost(settings);
         }
 
         public static string GetTestStorageAccountConnectionString()

@@ -137,7 +137,9 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public override async Task SetNewExecutionAsync(ExecutionStartedEvent executionStartedEvent)
+        public override async Task SetNewExecutionAsync(
+            ExecutionStartedEvent executionStartedEvent,
+            string blobName)
         {
             var orchestrationState = new OrchestrationState()
             {
@@ -145,7 +147,7 @@ namespace DurableTask.AzureStorage.Tracking
                 Version = executionStartedEvent.Version,
                 OrchestrationInstance = executionStartedEvent.OrchestrationInstance,
                 OrchestrationStatus = OrchestrationStatus.Pending,
-                Input = executionStartedEvent.Input,
+                Input = blobName ?? executionStartedEvent.Input,
                 Tags = executionStartedEvent.Tags,
                 CreatedTime = executionStartedEvent.Timestamp,
                 LastUpdatedTime = DateTime.UtcNow,
