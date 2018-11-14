@@ -199,7 +199,7 @@ namespace DurableTask.AzureStorage
                 ExtensionVersion);
         }
 
-        [Event(105, Level = EventLevel.Warning, Message = "An unexpected condition was detected: {0}")]
+        [Event(105, Level = EventLevel.Warning, Message = "An unexpected condition was detected: {2}")]
         public void AssertFailure(
             string Account,
             string TaskHub,

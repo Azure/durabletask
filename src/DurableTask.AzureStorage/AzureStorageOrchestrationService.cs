@@ -1135,10 +1135,13 @@ namespace DurableTask.AzureStorage
         /// <inheritdoc />
         public bool IsMaxMessageCountExceeded(int currentMessageCount, OrchestrationRuntimeState runtimeState)
         {
-            // This orchestration service implementation will manage batch sizes by itself.
-            // We don't want to rely on the underlying framework's backoff mechanism because
-            // it would require us to implement some kind of duplicate message detection.
-            return false;
+            // We will process at most 500 events at a time. Any remaining events will be
+            // scheduled in a subsequent episode. We do this to ensure we don't exceed the
+            // orchestrator queue timeout while trying to checkpoint massive numbers of actions.
+            // It also reduces the amount of re-work that needs to be done if there is a failure
+            // in the middle of a checkpoint. Note that having a number too small could
+            // drastically increase the end-to-end processing time of an orchestration.
+            return runtimeState.NewEvents.Count >= 450;
         }
 
         /// <inheritdoc />

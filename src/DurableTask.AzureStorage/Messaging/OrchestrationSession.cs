@@ -149,7 +149,7 @@ namespace DurableTask.AzureStorage.Messaging
             // This message is a response to a task. Make sure the event ID matches the range of the previously known
             // scheduled events. We don't need to ensure the event types actually match because the core runtime
             // will do that anyways and fail the orchestration if there is a non-matching event type.
-            HistoryEvent mostRecentTaskEvent = this.RuntimeState.Events.LastOrDefault(e => e.EventId != -1);
+            HistoryEvent mostRecentTaskEvent = this.RuntimeState.Events.LastOrDefault(e => e.EventId >= 0);
             if (mostRecentTaskEvent != null && taskScheduledId <= mostRecentTaskEvent.EventId)
             {
                 return false;
