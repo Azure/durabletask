@@ -24,6 +24,7 @@ namespace DurableTask.Core.Common
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.Serializing;
     using Tracing;
+    using System.Threading;
 
     /// <summary>
     /// Utility Methods
@@ -412,6 +413,21 @@ namespace DurableTask.Core.Common
                 Input = runtimeState.Input,
                 Output = runtimeState.Output
             };
+        }
+
+        /// <summary>
+        /// Delay for a specified period of time with support for cancellation.
+        /// </summary>
+        /// <param name="timeout">The amount of time to delay.</param>
+        /// <param name="cancellationToken">Token for cancelling the delay.</param>
+        /// <returns>A task which completes when either the timeout expires or the cancellation token is triggered.</returns>
+        public static Task DelayWithCancellation(TimeSpan timeout, CancellationToken cancellationToken)
+        {
+            // This implementation avoids OperationCancelledException
+            // https://github.com/dotnet/corefx/issues/2704#issuecomment-131221355
+            var tcs = new TaskCompletionSource<bool>();
+            cancellationToken.Register(s => ((TaskCompletionSource<bool>)s).SetResult(true), tcs);
+            return Task.WhenAny(Task.Delay(timeout), tcs.Task);
         }
     }
 }

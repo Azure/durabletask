@@ -164,7 +164,14 @@ namespace DurableTask.Core
                 if (renewTask != null)
                 {
                     renewCancellationTokenSource.Cancel();
-                    renewTask.Wait(renewCancellationTokenSource.Token);
+                    try
+                    {
+                        await renewTask;
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // ignore
+                    }
                 }
             }
         }
@@ -188,9 +195,9 @@ namespace DurableTask.Core
 
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+                    await Utils.DelayWithCancellation(TimeSpan.FromSeconds(5), cancellationToken);
 
-                    if (DateTime.UtcNow < renewAt)
+                    if (DateTime.UtcNow < renewAt || cancellationToken.IsCancellationRequested)
                     {
                         continue;
                     }
@@ -213,7 +220,7 @@ namespace DurableTask.Core
             }
             catch (OperationCanceledException)
             {
-                // cancellation token was triggered
+                // cancellation was triggered
             }
             catch (ObjectDisposedException)
             {
