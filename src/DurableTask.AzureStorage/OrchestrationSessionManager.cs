@@ -207,6 +207,9 @@ namespace DurableTask.AzureStorage
                             this.storageAccountName,
                             this.settings.TaskHubName,
                             data.OriginalQueueMessage.Id,
+                            instanceId,
+                            executionId,
+                            controlQueue.Name,
                             data.OriginalQueueMessage.DequeueCount,
                             Utils.ExtensionVersion);
                     }
@@ -225,6 +228,9 @@ namespace DurableTask.AzureStorage
                             this.storageAccountName,
                             this.settings.TaskHubName,
                             replacementMessage.OriginalQueueMessage.Id,
+                            session.Instance.InstanceId,
+                            session.Instance.ExecutionId,
+                            controlQueue.Name,
                             replacementMessage.OriginalQueueMessage.DequeueCount,
                             Utils.ExtensionVersion);
                     }

@@ -598,7 +598,6 @@ namespace DurableTask.AzureStorage
                     List<MessageData> outOfOrderMessages = null;
                     foreach (MessageData message in session.CurrentMessageBatch)
                     {
-                        // TODO: How do we handle out-of-order messages for extended sessions?
                         if (session.IsOutOfOrderMessage(message))
                         {
                             if (outOfOrderMessages == null)

@@ -172,6 +172,24 @@ namespace DurableTask.AzureStorage.Messaging
             TaskMessage taskMessage = message.TaskMessage;
             OrchestrationInstance instance = taskMessage.OrchestrationInstance;
 
+            TimeSpan visibilityDelay = TimeSpan.Zero;
+            if (queueMessage.DequeueCount >= 100)
+            {
+                AnalyticsEventSource.Log.PoisonMessageDetected(
+                    this.storageAccountName,
+                    this.settings.TaskHubName,
+                    queueMessage.Id,
+                    instance.InstanceId,
+                    instance.ExecutionId,
+                    this.storageQueue.Name,
+                    queueMessage.DequeueCount,
+                    Utils.ExtensionVersion);
+
+                // The delay needs to be long enough to allow some progress to be made but
+                // short enough to allow for debugging.
+                visibilityDelay = TimeSpan.FromMinutes(10);
+            }
+
             AnalyticsEventSource.Log.AbandoningMessage(
                 this.storageAccountName,
                 this.settings.TaskHubName,
@@ -181,6 +199,7 @@ namespace DurableTask.AzureStorage.Messaging
                 instance.ExecutionId,
                 this.storageQueue.Name,
                 message.SequenceNumber,
+                (int)visibilityDelay.TotalSeconds,
                 Utils.ExtensionVersion);
 
             try
@@ -189,7 +208,7 @@ namespace DurableTask.AzureStorage.Messaging
                 // This allows it to be reprocessed on this node or another node.
                 await this.storageQueue.UpdateMessageAsync(
                     queueMessage,
-                    TimeSpan.Zero,
+                    visibilityDelay,
                     MessageUpdateFields.Visibility,
                     this.QueueRequestOptions,
                     session.StorageOperationContext);

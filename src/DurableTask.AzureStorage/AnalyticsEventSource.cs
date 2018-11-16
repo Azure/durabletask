@@ -173,7 +173,7 @@ namespace DurableTask.AzureStorage
                 ExtensionVersion);
         }
 
-        [Event(104, Level = EventLevel.Warning, Version = 3)]
+        [Event(104, Level = EventLevel.Warning, Version = 4)]
         public void AbandoningMessage(
             string Account,
             string TaskHub,
@@ -183,6 +183,7 @@ namespace DurableTask.AzureStorage
             string ExecutionId,
             string PartitionId,
             long SequenceNumber,
+            int VisibilityTimeoutSeconds,
             string ExtensionVersion)
         {
             EnsureLogicalTraceActivityId();
@@ -196,6 +197,7 @@ namespace DurableTask.AzureStorage
                 ExecutionId ?? string.Empty,
                 PartitionId,
                 SequenceNumber,
+                VisibilityTimeoutSeconds,
                 ExtensionVersion);
         }
 
@@ -241,16 +243,52 @@ namespace DurableTask.AzureStorage
             this.WriteEvent(107, Account, TaskHub, Details, ExtensionVersion);
         }
 
-        [Event(108, Level = EventLevel.Warning, Message = "A duplicate message was detected. This can indicate a potential performance problem. Message ID = '{2}'. DequeueCount = {3}.")]
+        [Event(108, Level = EventLevel.Warning, Version = 2, Message = "A duplicate message was detected. This can indicate a potential performance problem. Message ID = '{2}'. DequeueCount = {3}.")]
         public void DuplicateMessageDetected(
             string Account,
             string TaskHub,
             string MessageId,
+            string InstanceId,
+            string ExecutionId,
+            string PartitionId,
             int DequeueCount,
             string ExtensionVersion)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(108, Account, TaskHub, MessageId, DequeueCount, ExtensionVersion);
+            this.WriteEvent(
+                108,
+                Account,
+                TaskHub,
+                MessageId,
+                InstanceId,
+                ExecutionId ?? string.Empty,
+                PartitionId,
+                DequeueCount,
+                ExtensionVersion);
+        }
+
+        [Event(109, Level = EventLevel.Warning, Message = "A poison message was detected! Message ID = '{2}'. DequeueCount = {6}.")]
+        public void PoisonMessageDetected(
+            string Account,
+            string TaskHub,
+            string MessageId,
+            string InstanceId,
+            string ExecutionId,
+            string PartitionId,
+            int DequeueCount,
+            string ExtensionVersion)
+        {
+            EnsureLogicalTraceActivityId();
+            this.WriteEvent(
+                109,
+                Account,
+                TaskHub,
+                MessageId,
+                InstanceId,
+                ExecutionId ?? string.Empty,
+                PartitionId,
+                DequeueCount,
+                ExtensionVersion);
         }
 
         [Event(110, Level = EventLevel.Informational, Version = 2)]
