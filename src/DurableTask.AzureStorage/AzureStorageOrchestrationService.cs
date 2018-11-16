@@ -1174,9 +1174,47 @@ namespace DurableTask.AzureStorage
         /// </summary>
         /// <param name="creationMessage">Orchestration creation message</param>
         /// <param name="dedupeStatuses">States of previous orchestration executions to be considered while de-duping new orchestrations on the client</param>
-        public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses)
+        public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses)
         {
-            return this.SendTaskOrchestrationMessageAsync(creationMessage);
+            ExecutionStartedEvent executionStartedEvent = creationMessage.Event as ExecutionStartedEvent;
+            if (executionStartedEvent == null)
+            {
+                throw new ArgumentException($"Only {nameof(EventType.ExecutionStarted)} messages are supported.", nameof(creationMessage));
+            }
+
+            // Client operations will auto-create the task hub if it doesn't already exist.
+            await this.EnsureTaskHubAsync();
+
+            OrchestrationState existingInstance = await this.trackingStore.GetStateAsync(
+                creationMessage.OrchestrationInstance.InstanceId,
+                executionId: null,
+                fetchInput: false);
+
+            if (existingInstance != null && dedupeStatuses != null && dedupeStatuses.Contains(existingInstance.OrchestrationStatus))
+            {
+                // An instance in this state already exists.
+                return;
+            }
+
+            ControlQueue controlQueue = await this.GetControlQueueAsync(creationMessage.OrchestrationInstance.InstanceId);
+            MessageData internalMessage = await this.SendTaskOrchestrationMessageInternalAsync(
+                EmptySourceInstance,
+                controlQueue,
+                creationMessage);
+
+            // The start message gets enqueued before we write to the instances table. It's possible that the orchestration
+            // will start and update the instances status before this call can do so. To account for that race condition
+            // we ignore updating the instance status if none already exists. The case where one exists already is
+            // when an existing instance is being overwritten.
+            bool ignoreExistingInstances = (existingInstance == null);
+
+            // CompressedBlobName either has a blob path for large messages or is null.
+            string inputStatusOverride = internalMessage.CompressedBlobName;
+
+            await this.trackingStore.SetNewExecutionAsync(
+                executionStartedEvent,
+                ignoreExistingInstances,
+                inputStatusOverride);
         }
 
         /// <summary>
@@ -1199,24 +1237,8 @@ namespace DurableTask.AzureStorage
         {
             // Client operations will auto-create the task hub if it doesn't already exist.
             await this.EnsureTaskHubAsync();
-
             ControlQueue controlQueue = await this.GetControlQueueAsync(message.OrchestrationInstance.InstanceId);
-
-            MessageData internalMessage = await this.SendTaskOrchestrationMessageInternalAsync(
-                EmptySourceInstance,
-                controlQueue,
-                message);
-
-            ExecutionStartedEvent executionStartedEvent = message.Event as ExecutionStartedEvent;
-            if (executionStartedEvent == null)
-            {
-                return;
-            }
-
-            // CompressedBlobName either has a blob path for large messages or is null.
-            await this.trackingStore.SetNewExecutionAsync(
-                executionStartedEvent,
-                internalMessage.CompressedBlobName);
+            await this.SendTaskOrchestrationMessageInternalAsync(EmptySourceInstance, controlQueue, message);
         }
 
         Task<MessageData> SendTaskOrchestrationMessageInternalAsync(

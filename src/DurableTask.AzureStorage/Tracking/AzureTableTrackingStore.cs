@@ -749,15 +749,16 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public override async Task SetNewExecutionAsync(
+        public override async Task<bool> SetNewExecutionAsync(
             ExecutionStartedEvent executionStartedEvent,
-            string blobName)
+            bool ignoreExistingInstances,
+            string inputStatusOverride)
         {
             DynamicTableEntity entity = new DynamicTableEntity(executionStartedEvent.OrchestrationInstance.InstanceId, "")
             {
                 Properties =
                 {
-                    ["Input"] = new EntityProperty(blobName ?? executionStartedEvent.Input),
+                    ["Input"] = new EntityProperty(inputStatusOverride ?? executionStartedEvent.Input),
                     ["CreatedTime"] = new EntityProperty(executionStartedEvent.Timestamp),
                     ["Name"] = new EntityProperty(executionStartedEvent.Name),
                     ["Version"] = new EntityProperty(executionStartedEvent.Version),
@@ -767,8 +768,27 @@ namespace DurableTask.AzureStorage.Tracking
             };
 
             Stopwatch stopwatch = Stopwatch.StartNew();
-            await this.InstancesTable.ExecuteAsync(TableOperation.InsertOrReplace(entity));
-            this.stats.StorageRequests.Increment();
+            try
+            {
+                if (ignoreExistingInstances)
+                {
+                    await this.InstancesTable.ExecuteAsync(TableOperation.Insert(entity));
+                }
+                else
+                {
+                    await this.InstancesTable.ExecuteAsync(TableOperation.InsertOrReplace(entity));
+                }
+            }
+            catch (StorageException e) when (e.RequestInformation?.HttpStatusCode == 409)
+            {
+                // Ignore. The main scenario for this is handling race conditions in status update.
+                return false;
+            }
+            finally
+            {
+                this.stats.StorageRequests.Increment();
+            }
+
             this.stats.TableEntitiesWritten.Increment();
 
             // Episode 0 means the orchestrator hasn't started yet.
@@ -783,6 +803,8 @@ namespace DurableTask.AzureStorage.Tracking
                 currentEpisodeNumber,
                 stopwatch.ElapsedMilliseconds,
                 Utils.ExtensionVersion);
+
+            return true;
         }
 
         /// <inheritdoc />
