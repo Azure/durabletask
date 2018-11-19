@@ -93,6 +93,11 @@ namespace DurableTask.AzureStorage
         public int MaxStorageOperationConcurrency { get; set; } = Environment.ProcessorCount * 25;
 
         /// <summary>
+        /// Gets the maximum number of orchestrator actions to checkpoint at a time.
+        /// </summary>
+        public int MaxCheckpointBatchSize { get; set; }
+
+        /// <summary>
         /// Gets or sets the identifier for the current worker.
         /// </summary>
         public string WorkerId { get; set; } = Environment.MachineName;
