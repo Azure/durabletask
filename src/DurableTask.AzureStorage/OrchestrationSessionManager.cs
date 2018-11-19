@@ -111,7 +111,7 @@ namespace DurableTask.AzureStorage
                     IReadOnlyList<MessageData> messages = await controlQueue.GetMessagesAsync(cancellationToken);
                     if (messages.Count > 0)
                     {
-                        this.AddMessageToPendingOrchestration(messages, traceActivityId, cancellationToken);
+                        this.AddMessageToPendingOrchestration(controlQueue, messages, traceActivityId, cancellationToken);
                     }
                 }
             }
@@ -128,6 +128,7 @@ namespace DurableTask.AzureStorage
         }
 
         void AddMessageToPendingOrchestration(
+            ControlQueue controlQueue,
             IEnumerable<MessageData> queueMessages,
             Guid traceActivityId,
             CancellationToken cancellationToken)
@@ -185,7 +186,7 @@ namespace DurableTask.AzureStorage
 
                     if (targetBatch == null)
                     {
-                        targetBatch = new PendingMessageBatch(instanceId, executionId);
+                        targetBatch = new PendingMessageBatch(controlQueue, instanceId, executionId);
                         node = this.pendingOrchestrationMessageBatches.AddLast(targetBatch);
 
                         // Before the batch of messages can be processed, we need to download the latest execution state.
@@ -206,6 +207,9 @@ namespace DurableTask.AzureStorage
                             this.storageAccountName,
                             this.settings.TaskHubName,
                             data.OriginalQueueMessage.Id,
+                            instanceId,
+                            executionId,
+                            controlQueue.Name,
                             data.OriginalQueueMessage.DequeueCount,
                             Utils.ExtensionVersion);
                     }
@@ -224,6 +228,9 @@ namespace DurableTask.AzureStorage
                             this.storageAccountName,
                             this.settings.TaskHubName,
                             replacementMessage.OriginalQueueMessage.Id,
+                            session.Instance.InstanceId,
+                            session.Instance.ExecutionId,
+                            controlQueue.Name,
                             replacementMessage.OriginalQueueMessage.DequeueCount,
                             Utils.ExtensionVersion);
                     }
@@ -316,6 +323,7 @@ namespace DurableTask.AzureStorage
                             this.storageAccountName,
                             this.settings.TaskHubName,
                             instance,
+                            nextBatch.ControlQueue,
                             nextBatch.Messages,
                             nextBatch.OrchestrationState,
                             nextBatch.ETag,
@@ -376,7 +384,11 @@ namespace DurableTask.AzureStorage
                     this.activeOrchestrationSessions.Remove(instanceId))
                 {
                     // Put any unprocessed messages back into the pending buffer.
-                    this.AddMessageToPendingOrchestration(session.PendingMessages, session.TraceActivityId, cancellationToken);
+                    this.AddMessageToPendingOrchestration(
+                        session.ControlQueue,
+                        session.PendingMessages,
+                        session.TraceActivityId,
+                        cancellationToken);
                 }
                 else
                 {
@@ -410,12 +422,14 @@ namespace DurableTask.AzureStorage
 
         class PendingMessageBatch
         {
-            public PendingMessageBatch(string instanceId, string executionId)
+            public PendingMessageBatch(ControlQueue controlQueue, string instanceId, string executionId)
             {
+                this.ControlQueue = controlQueue ?? throw new ArgumentNullException(nameof(controlQueue));
                 this.OrchestrationInstanceId = instanceId ?? throw new ArgumentNullException(nameof(instanceId));
                 this.OrchestrationExecutionId = executionId; // null is expected in some cases
             }
 
+            public ControlQueue ControlQueue { get; }
             public string OrchestrationInstanceId { get; }
             public string OrchestrationExecutionId { get; }
             public MessageCollection Messages { get; } = new MessageCollection();

@@ -16,8 +16,11 @@ namespace DurableTask.AzureStorage
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
+    using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
+    using DurableTask.Core;
+    using DurableTask.Core.History;
 
     static class Utils
     {
@@ -38,7 +41,7 @@ namespace DurableTask.AzureStorage
             await Task.WhenAll(tasks.ToArray());
         }
 
-        public static async Task ParallelForEachAsync<T>(this IReadOnlyList<T> items, int maxConcurrency, Func<T, Task> action)
+        public static async Task ParallelForEachAsync<T>(this IList<T> items, int maxConcurrency, Func<T, Task> action)
         {
             using (var semaphore = new SemaphoreSlim(maxConcurrency))
             {
@@ -47,6 +50,7 @@ namespace DurableTask.AzureStorage
                 {
                     tasks[i] = InvokeThrottledAction(items[i], action, semaphore);
                 }
+
                 await Task.WhenAll(tasks);
             }
         }
@@ -62,6 +66,22 @@ namespace DurableTask.AzureStorage
             {
                 semaphore.Release();
             }
+        }
+
+        public static double Next(this Random random, double minValue, double maxValue)
+        {
+            return random.NextDouble() * (maxValue - minValue) + minValue;
+        }
+
+        public static int GetEpisodeNumber(OrchestrationRuntimeState runtimeState)
+        {
+            return GetEpisodeNumber(runtimeState.Events);
+        }
+
+        public static int GetEpisodeNumber(IEnumerable<HistoryEvent> historyEvents)
+        {
+            // DTFx core writes an "OrchestratorStarted" event at the start of each episode.
+            return historyEvents.Count(e => e.EventType == EventType.OrchestratorStarted);
         }
     }
 

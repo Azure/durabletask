@@ -31,13 +31,19 @@ namespace DurableTask.AzureStorage.Tracking
         public abstract Task DeleteAsync();
 
         /// <inheritdoc />
-        public abstract Task<bool> ExistsAsync();
+        public virtual Task<bool> ExistsAsync()
+        {
+            throw new NotSupportedException();
+        }
 
         /// <inheritdoc />
         public abstract Task<OrchestrationHistory> GetHistoryEventsAsync(string instanceId, string expectedExecutionId, CancellationToken cancellationToken = default(CancellationToken));
 
         /// <inheritdoc />
-        public abstract Task<IList<string>> RewindHistoryAsync(string instanceId, IList<string> failedLeaves, CancellationToken cancellationToken);
+        public virtual Task<IList<string>> RewindHistoryAsync(string instanceId, IList<string> failedLeaves, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
 
         /// <inheritdoc />
         public abstract Task<IList<OrchestrationState>> GetStateAsync(string instanceId, bool allExecutions, bool fetchInput);
@@ -46,28 +52,46 @@ namespace DurableTask.AzureStorage.Tracking
         public abstract Task<OrchestrationState> GetStateAsync(string instanceId, string executionId, bool fetchInput);
 
         /// <inheritdoc />
-        public abstract Task<IList<OrchestrationState>> GetStateAsync(CancellationToken cancellationToken = default(CancellationToken));
+        public virtual Task<IList<OrchestrationState>> GetStateAsync(CancellationToken cancellationToken = default(CancellationToken))
+        {
+            throw new NotSupportedException();
+        }
 
         /// <inheritdoc />
-        public abstract Task<IList<OrchestrationState>> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken = default(CancellationToken));
+        public virtual Task<IList<OrchestrationState>> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            throw new NotSupportedException();
+        }
 
         /// <inheritdoc />
-        public abstract Task<DurableStatusQueryResult> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, int top, string continuationToken, CancellationToken cancellationToken = default(CancellationToken));
+        public virtual Task<DurableStatusQueryResult> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, int top, string continuationToken, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            throw new NotSupportedException();
+        }
 
         /// <inheritdoc />
         public abstract Task PurgeHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType);
 
         /// <inheritdoc />
-        public abstract Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(string instanceId);
+        public virtual Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(string instanceId)
+        {
+            throw new NotSupportedException();
+        }
 
         /// <inheritdoc />
-        public abstract Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus);
+        public virtual Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
+        {
+            throw new NotSupportedException();
+        }
 
         /// <inheritdoc />
-        public abstract Task SetNewExecutionAsync(ExecutionStartedEvent executionStartedEvent);
+        public abstract Task<bool> SetNewExecutionAsync(ExecutionStartedEvent executionStartedEvent, bool ignoreExistingInstances, string inputStatusOverride);
 
         /// <inheritdoc />
-        public abstract Task UpdateStatusForRewindAsync(string instanceId);
+        public virtual Task UpdateStatusForRewindAsync(string instanceId)
+        {
+            throw new NotSupportedException();
+        }
 
         /// <inheritdoc />
         public abstract Task StartAsync();

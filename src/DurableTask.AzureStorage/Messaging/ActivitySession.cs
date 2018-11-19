@@ -17,6 +17,8 @@ namespace DurableTask.AzureStorage.Messaging
 
     class ActivitySession : SessionBase
     {
+        readonly int orchestrationEpisode;
+
         public ActivitySession(
             string storageAccountName,
             string taskHubName,
@@ -25,8 +27,14 @@ namespace DurableTask.AzureStorage.Messaging
             : base(storageAccountName, taskHubName, message.TaskMessage.OrchestrationInstance, traceActivityId)
         {
             this.MessageData = message ?? throw new ArgumentNullException(nameof(message));
+            this.orchestrationEpisode = message.Episode;
         }
 
         public MessageData MessageData { get; }
+
+        public override int GetCurrentEpisode()
+        {
+            return this.orchestrationEpisode;
+        }
     }
 }

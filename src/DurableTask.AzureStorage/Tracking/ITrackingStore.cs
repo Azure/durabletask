@@ -118,7 +118,10 @@ namespace DurableTask.AzureStorage.Tracking
         /// Used to set a state in the tracking store whenever a new execution is initiated from the client
         /// </summary>
         /// <param name="executionStartedEvent">The Execution Started Event being queued</param>
-        Task SetNewExecutionAsync(ExecutionStartedEvent executionStartedEvent);
+        /// <param name="ignoreExistingInstances">When <c>true</c>, this operation is a no-op if an execution with this ID already exists.</param>
+        /// <param name="inputStatusOverride">An override value to use for the Input column. If not specified, uses <see cref="ExecutionStartedEvent.Input"/>.</param>
+        /// <returns>Returns <c>true</c> if the record was created successfully; <c>false</c> otherwise.</returns>
+        Task<bool> SetNewExecutionAsync(ExecutionStartedEvent executionStartedEvent, bool ignoreExistingInstances, string inputStatusOverride);
 
         /// <summary>
         /// Used to update a state in the tracking store to pending whenever a rewind is initiated from the client
