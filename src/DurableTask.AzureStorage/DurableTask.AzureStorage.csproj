@@ -6,7 +6,7 @@
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <FileVersion>1.4.0</FileVersion>
     <AssemblyVersion>$(FileVersion)</AssemblyVersion>
-    <Version>$(FileVersion)-rc</Version>
+    <Version>$(FileVersion)</Version>
     <IncludeSymbols>true</IncludeSymbols>
     <Description>Azure Storage provider extension for the Durable Task Framework.</Description>
     <PackageTags>Azure Task Durable Orchestration Workflow Activity Reliable AzureStorage</PackageTags>
