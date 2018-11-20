@@ -69,7 +69,6 @@ namespace DurableTask.AzureStorage
         readonly BlobLeaseManager leaseManager; 
         readonly PartitionManager<BlobLease> partitionManager;
         readonly OrchestrationSessionManager orchestrationSessionManager;
-
         readonly object hubCreationLock;
 
         bool isStarted;
@@ -396,6 +395,8 @@ namespace DurableTask.AzureStorage
                 }
             }));
 
+            tasks.Add(this.messageManager.DeleteContainerAsync());
+
             await Task.WhenAll(tasks.ToArray());
             this.stats.StorageRequests.Increment(tasks.Count);
             this.taskHubCreator.Reset();
@@ -580,12 +581,12 @@ namespace DurableTask.AzureStorage
 
             using (var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, this.shutdownSource.Token))
             {
-                // This call will block until the next session is ready
                 OrchestrationSession session = null;
                 TaskOrchestrationWorkItem orchestrationWorkItem = null;
 
                 try
                 {
+                    // This call will block until the next session is ready
                     session = await this.orchestrationSessionManager.GetNextSessionAsync(linkedCts.Token);
                     if (session == null)
                     {
@@ -593,9 +594,49 @@ namespace DurableTask.AzureStorage
                     }
 
                     session.StartNewLogicalTraceScope();
+
+                    List<MessageData> outOfOrderMessages = null;
                     foreach (MessageData message in session.CurrentMessageBatch)
                     {
-                        session.TraceProcessingMessage(message, isExtendedSession: false);
+                        if (session.IsOutOfOrderMessage(message))
+                        {
+                            if (outOfOrderMessages == null)
+                            {
+                                outOfOrderMessages = new List<MessageData>();
+                            }
+
+                            // This can happen if a lease change occurs and a new node receives a message for an 
+                            // orchestration that has not yet checkpointed its history. We abandon such messages
+                            // so that they can be reprocessed after the history checkpoint has completed.
+                            AnalyticsEventSource.Log.ReceivedOutOfOrderMessage(
+                                this.storageAccountName,
+                                this.settings.TaskHubName,
+                                session.Instance.InstanceId,
+                                session.Instance.ExecutionId,
+                                session.ControlQueue.Name,
+                                message.TaskMessage.Event.EventType.ToString(),
+                                message.OriginalQueueMessage.Id,
+                                message.Episode,
+                                Utils.ExtensionVersion);
+                            outOfOrderMessages.Add(message);
+                        }
+                        else
+                        {
+                            session.TraceProcessingMessage(message, isExtendedSession: false);
+                        }
+                    }
+
+                    if (outOfOrderMessages?.Count > 0)
+                    {
+                        // This will also remove the messages from the current batch.
+                        await this.AbandonMessagesAsync(session, outOfOrderMessages);
+                    }
+
+                    if (session.CurrentMessageBatch.Count == 0)
+                    {
+                        // All messages were removed. Release the work item.
+                        await this.AbandonAndReleaseSessionAsync(session);
+                        return null;
                     }
 
                     orchestrationWorkItem = new TaskOrchestrationWorkItem
@@ -627,8 +668,7 @@ namespace DurableTask.AzureStorage
                             Utils.ExtensionVersion);
 
                         // The instance has already completed. Delete this message batch.
-                        ControlQueue controlQueue = await this.GetControlQueueAsync(session.Instance.InstanceId);
-                        await this.DeleteMessageBatchAsync(session, controlQueue);
+                        await this.DeleteMessageBatchAsync(session);
                         await this.ReleaseTaskOrchestrationWorkItemAsync(orchestrationWorkItem);
                         return null;
                     }
@@ -637,11 +677,10 @@ namespace DurableTask.AzureStorage
                 }
                 catch (OperationCanceledException)
                 {
-                    // host is shutting down - release any queued messages
-                    if (orchestrationWorkItem != null)
+                    if (session != null)
                     {
-                        await this.AbandonTaskOrchestrationWorkItemAsync(orchestrationWorkItem);
-                        await this.ReleaseTaskOrchestrationWorkItemAsync(orchestrationWorkItem);
+                        // host is shutting down - release any queued messages
+                        await this.AbandonAndReleaseSessionAsync(session);
                     }
 
                     return null;
@@ -701,6 +740,7 @@ namespace DurableTask.AzureStorage
                 data.TotalMessageSizeBytes,
                 data.QueueName /* PartitionId */,
                 data.SequenceNumber,
+                data.Episode,
                 Utils.ExtensionVersion);
         }
 
@@ -736,6 +776,18 @@ namespace DurableTask.AzureStorage
             return new OrchestrationRuntimeState(history.Events);
         }
 
+        async Task AbandonAndReleaseSessionAsync(OrchestrationSession session)
+        {
+            try
+            {
+                await this.AbandonSessionAsync(session);
+            }
+            finally
+            {
+                this.ReleaseSession(session.Instance.InstanceId);
+            }
+        }
+
         /// <inheritdoc />
         public async Task CompleteTaskOrchestrationWorkItemAsync(
             TaskOrchestrationWorkItem workItem,
@@ -765,9 +817,9 @@ namespace DurableTask.AzureStorage
 
             // First, add new messages into the queue. If a failure happens after this, duplicate messages will
             // be written after the retry, but the results of those messages are expected to be de-dup'd later.
-            ControlQueue currentControlQueue = await this.GetControlQueueAsync(instanceId);
-            await CommitOutboundQueueMessages(
-                currentControlQueue,
+            // This provider needs to ensure that response messages are not processed until the history a few
+            // lines down has been successfully committed.
+            await this.CommitOutboundQueueMessages(
                 session,
                 outboundMessages,
                 orchestratorMessages,
@@ -806,11 +858,10 @@ namespace DurableTask.AzureStorage
             }
 
             // Finally, delete the messages which triggered this orchestration execution. This is the final commit.
-            await this.DeleteMessageBatchAsync(session, currentControlQueue);
+            await this.DeleteMessageBatchAsync(session);
         }
 
         async Task CommitOutboundQueueMessages(
-            ControlQueue currentControlQueue,
             OrchestrationSession session,
             IList<TaskMessage> outboundMessages,
             IList<TaskMessage> orchestratorMessages,
@@ -841,13 +892,13 @@ namespace DurableTask.AzureStorage
             {
                 foreach (TaskMessage taskMessage in timerMessages)
                 {
-                    enqueueOperations.Add(new QueueMessage(currentControlQueue, taskMessage));
+                    enqueueOperations.Add(new QueueMessage(session.ControlQueue, taskMessage));
                 }
             }
 
             if (continuedAsNewMessage != null)
             {
-                enqueueOperations.Add(new QueueMessage(currentControlQueue, continuedAsNewMessage));
+                enqueueOperations.Add(new QueueMessage(session.ControlQueue, continuedAsNewMessage));
             }
 
             if (outboundMessages?.Count > 0)
@@ -863,11 +914,11 @@ namespace DurableTask.AzureStorage
                 op => op.Queue.AddMessageAsync(op.Message, session));
         }
 
-        async Task DeleteMessageBatchAsync(OrchestrationSession session, ControlQueue controlQueue)
+        async Task DeleteMessageBatchAsync(OrchestrationSession session)
         {
             await session.CurrentMessageBatch.ParallelForEachAsync(
                 this.settings.MaxStorageOperationConcurrency,
-                message => controlQueue.DeleteMessageAsync(message, session));
+                message => session.ControlQueue.DeleteMessageAsync(message, session));
         }
 
         // REVIEW: There doesn't seem to be any code which calls this method.
@@ -899,7 +950,7 @@ namespace DurableTask.AzureStorage
         }
 
         /// <inheritdoc />
-        public async Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
+        public Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
             OrchestrationSession session;
             if (!this.orchestrationSessionManager.TryGetExistingSession(workItem.InstanceId, out session))
@@ -909,15 +960,30 @@ namespace DurableTask.AzureStorage
                     this.settings.TaskHubName,
                     $"{nameof(AbandonTaskOrchestrationWorkItemAsync)}: Session for instance {workItem.InstanceId} was not found!",
                     Utils.ExtensionVersion);
-                return;
+                return Utils.CompletedTask;
             }
 
-            session.StartNewLogicalTraceScope();
-            ControlQueue controlQueue = await this.GetControlQueueAsync(workItem.InstanceId);
+            return this.AbandonSessionAsync(session);
+        }
 
-            await session.CurrentMessageBatch.ParallelForEachAsync(
+        Task AbandonSessionAsync(OrchestrationSession session)
+        {
+            session.StartNewLogicalTraceScope();
+            return this.AbandonMessagesAsync(session, session.CurrentMessageBatch);
+        }
+
+        async Task AbandonMessagesAsync(OrchestrationSession session, IList<MessageData> messages)
+        {
+            await messages.ParallelForEachAsync(
                 this.settings.MaxStorageOperationConcurrency,
-                message => controlQueue.AbandonMessageAsync(message, session));
+                message => session.ControlQueue.AbandonMessageAsync(message, session));
+
+            // Remove the messages from the current batch. The remaining messages
+            // may still be able to be processed
+            foreach (MessageData message in messages)
+            {
+                session.CurrentMessageBatch.Remove(message);
+            }
         }
 
         // Called after an orchestration completes an execution episode and after all messages have been enqueued.
@@ -925,8 +991,13 @@ namespace DurableTask.AzureStorage
         /// <inheritdoc />
         public Task ReleaseTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
-            this.orchestrationSessionManager.ReleaseSession(workItem.InstanceId, this.shutdownSource.Token);
+            this.ReleaseSession(workItem.InstanceId);
             return Utils.CompletedTask;
+        }
+
+        void ReleaseSession(string instanceId)
+        {
+            this.orchestrationSessionManager.ReleaseSession(instanceId, this.shutdownSource.Token);
         }
         #endregion
 
@@ -1063,10 +1134,18 @@ namespace DurableTask.AzureStorage
         /// <inheritdoc />
         public bool IsMaxMessageCountExceeded(int currentMessageCount, OrchestrationRuntimeState runtimeState)
         {
-            // This orchestration service implementation will manage batch sizes by itself.
-            // We don't want to rely on the underlying framework's backoff mechanism because
-            // it would require us to implement some kind of duplicate message detection.
-            return false;
+            if (this.settings.MaxCheckpointBatchSize <= 0)
+            {
+                return false;
+            }
+
+            // We will process at most N events at a time. Any remaining events will be
+            // scheduled in a subsequent episode. This is useful to ensure we don't exceed the
+            // orchestrator queue timeout while trying to checkpoint massive numbers of actions.
+            // It also reduces the amount of re-work that needs to be done if there is a failure
+            // in the middle of a checkpoint. Note that having a number too small could
+            // drastically increase the end-to-end processing time of an orchestration.
+            return runtimeState.NewEvents.Count > this.settings.MaxCheckpointBatchSize;
         }
 
         /// <inheritdoc />
@@ -1099,9 +1178,47 @@ namespace DurableTask.AzureStorage
         /// </summary>
         /// <param name="creationMessage">Orchestration creation message</param>
         /// <param name="dedupeStatuses">States of previous orchestration executions to be considered while de-duping new orchestrations on the client</param>
-        public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses)
+        public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses)
         {
-            return this.SendTaskOrchestrationMessageAsync(creationMessage);
+            ExecutionStartedEvent executionStartedEvent = creationMessage.Event as ExecutionStartedEvent;
+            if (executionStartedEvent == null)
+            {
+                throw new ArgumentException($"Only {nameof(EventType.ExecutionStarted)} messages are supported.", nameof(creationMessage));
+            }
+
+            // Client operations will auto-create the task hub if it doesn't already exist.
+            await this.EnsureTaskHubAsync();
+
+            OrchestrationState existingInstance = await this.trackingStore.GetStateAsync(
+                creationMessage.OrchestrationInstance.InstanceId,
+                executionId: null,
+                fetchInput: false);
+
+            if (existingInstance != null && dedupeStatuses != null && dedupeStatuses.Contains(existingInstance.OrchestrationStatus))
+            {
+                // An instance in this state already exists.
+                return;
+            }
+
+            ControlQueue controlQueue = await this.GetControlQueueAsync(creationMessage.OrchestrationInstance.InstanceId);
+            MessageData internalMessage = await this.SendTaskOrchestrationMessageInternalAsync(
+                EmptySourceInstance,
+                controlQueue,
+                creationMessage);
+
+            // The start message gets enqueued before we write to the instances table. It's possible that the orchestration
+            // will start and update the instances status before this call can do so. To account for that race condition
+            // we ignore updating the instance status if none already exists. The case where one exists already is
+            // when an existing instance is being overwritten.
+            bool ignoreExistingInstances = (existingInstance == null);
+
+            // CompressedBlobName either has a blob path for large messages or is null.
+            string inputStatusOverride = internalMessage.CompressedBlobName;
+
+            await this.trackingStore.SetNewExecutionAsync(
+                executionStartedEvent,
+                ignoreExistingInstances,
+                inputStatusOverride);
         }
 
         /// <summary>
@@ -1124,26 +1241,16 @@ namespace DurableTask.AzureStorage
         {
             // Client operations will auto-create the task hub if it doesn't already exist.
             await this.EnsureTaskHubAsync();
-
             ControlQueue controlQueue = await this.GetControlQueueAsync(message.OrchestrationInstance.InstanceId);
-
             await this.SendTaskOrchestrationMessageInternalAsync(EmptySourceInstance, controlQueue, message);
-
-            ExecutionStartedEvent executionStartedEvent = message.Event as ExecutionStartedEvent;
-            if (executionStartedEvent == null)
-            {
-                return;
-            }
-
-            await this.trackingStore.SetNewExecutionAsync(executionStartedEvent);
         }
 
-        async Task SendTaskOrchestrationMessageInternalAsync(
+        Task<MessageData> SendTaskOrchestrationMessageInternalAsync(
             OrchestrationInstance sourceInstance,
             ControlQueue controlQueue,
             TaskMessage message)
         {
-            await controlQueue.AddMessageAsync(message, sourceInstance);
+            return controlQueue.AddMessageAsync(message, sourceInstance);
         }
 
         /// <summary>
@@ -1286,6 +1393,28 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
+        /// Purge history for an orchestration with a specified instance id.
+        /// </summary>
+        /// <param name="instanceId">Instance ID of the orchestration.</param>
+        /// <returns>Class containing number of storage requests sent, along with instances and rows deleted/purged</returns>
+        public Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(string instanceId)
+        {
+            return this.trackingStore.PurgeInstanceHistoryAsync(instanceId);
+        }
+
+        /// <summary>
+        /// Purge history for orchestrations that match the specified parameters.
+        /// </summary>
+        /// <param name="createdTimeFrom">CreatedTime of orchestrations. Purges history grater than this value.</param>
+        /// <param name="createdTimeTo">CreatedTime of orchestrations. Purges history less than this value.</param>
+        /// <param name="runtimeStatus">RuntimeStatus of orchestrations. You can specify several status.</param>
+        /// <returns>Class containing number of storage requests sent, along with instances and rows deleted/purged</returns>
+        public Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
+        {
+            return this.trackingStore.PurgeInstanceHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatus);
+        }
+
+        /// <summary>
         /// Wait for an orchestration to reach any terminal state within the given timeout
         /// </summary>
         /// <param name="instanceId">The orchestration instance to wait for.</param>
@@ -1344,14 +1473,21 @@ namespace DurableTask.AzureStorage
             uint partitionIndex = Fnv1aHashHelper.ComputeHash(instanceId) % (uint)this.settings.PartitionCount;
             CloudQueue storageQueue = GetControlQueue(this.queueClient, this.settings.TaskHubName, (int)partitionIndex);
 
-
             ControlQueue cachedQueue;
-            if (this.allControlQueues.TryGetValue(storageQueue.Name, out cachedQueue))
+            if (!this.allControlQueues.TryGetValue(storageQueue.Name, out cachedQueue))
             {
-                return cachedQueue;
-            }
-            else
-            {
+                // Lock ensures all callers asking for the same partition get the same queue reference back.
+                lock (this.allControlQueues)
+                {
+                    if (!this.allControlQueues.TryGetValue(storageQueue.Name, out cachedQueue))
+                    {
+                        cachedQueue = new ControlQueue(storageQueue, this.settings, this.stats, this.messageManager);
+                        this.allControlQueues.TryAdd(storageQueue.Name, cachedQueue);
+                    }
+                }
+
+                // Important to ensure the queue exists, whether the current thread initialized it or not.
+                // A slightly better design would be to use a semaphore to block non-initializing threads.
                 try
                 {
                     await storageQueue.CreateIfNotExistsAsync();
@@ -1360,11 +1496,10 @@ namespace DurableTask.AzureStorage
                 {
                     this.stats.StorageRequests.Increment();
                 }
-
-                var controlQueue = new ControlQueue(storageQueue, this.settings, this.stats, this.messageManager);
-                this.allControlQueues.TryAdd(storageQueue.Name, controlQueue);
-                return controlQueue;
             }
+
+            System.Diagnostics.Debug.Assert(cachedQueue != null);
+            return cachedQueue;
         }
 
         /// <summary>

@@ -50,14 +50,30 @@ namespace DurableTask.AzureStorage.Messaging
         {
             using (var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(this.releaseCancellationToken, cancellationToken))
             {
+                bool pendingOrchestratorMessageLimitReached = false;
+                bool isWaitingForMoreMessages = false;
+
                 while (!linkedCts.IsCancellationRequested)
                 {
                     // Pause dequeuing if the total number of locked messages gets too high.
-                    if (this.stats.PendingOrchestratorMessages.Value >= this.settings.ControlQueueBufferThreshold)
+                    long pendingOrchestratorMessages = this.stats.PendingOrchestratorMessages.Value;
+                    if (pendingOrchestratorMessages >= this.settings.ControlQueueBufferThreshold)
                     {
+                        if (!pendingOrchestratorMessageLimitReached)
+                        {
+                            pendingOrchestratorMessageLimitReached = true;
+                            AnalyticsEventSource.Log.PendingOrchestratorMessageLimitReached(
+                                this.storageAccountName,
+                                this.settings.TaskHubName,
+                                pendingOrchestratorMessages,
+                                Utils.ExtensionVersion);
+                        }
+
                         await Task.Delay(TimeSpan.FromSeconds(1));
                         continue;
                     }
+
+                    pendingOrchestratorMessageLimitReached = false;
 
                     try
                     {
@@ -72,9 +88,21 @@ namespace DurableTask.AzureStorage.Messaging
 
                         if (!batch.Any())
                         {
+                            if (!isWaitingForMoreMessages)
+                            {
+                                isWaitingForMoreMessages = true;
+                                AnalyticsEventSource.Log.WaitingForMoreMessages(
+                                    this.storageAccountName,
+                                    this.settings.TaskHubName,
+                                    this.storageQueue.Name,
+                                    Utils.ExtensionVersion);
+                            }
+
                             await this.backoffHelper.WaitAsync(linkedCts.Token);
                             continue;
                         }
+
+                        isWaitingForMoreMessages = false;
 
                         var batchMessages = new ConcurrentBag<MessageData>();
                         await batch.ParallelForEachAsync(async delegate (CloudQueueMessage queueMessage)
@@ -89,7 +117,7 @@ namespace DurableTask.AzureStorage.Messaging
                         });
 
                         this.backoffHelper.Reset();
-
+                        
                         // Try to preserve insertion order when processing
                         IReadOnlyList<MessageData> sortedMessages = batchMessages.OrderBy(m => m, MessageOrderingComparer.Default).ToList();
                         foreach (MessageData message in sortedMessages)

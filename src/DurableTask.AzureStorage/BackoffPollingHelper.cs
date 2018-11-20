@@ -14,7 +14,6 @@
 namespace DurableTask.AzureStorage
 {
     using System;
-    using System.Diagnostics;
     using System.Threading;
     using System.Threading.Tasks;
 
@@ -23,75 +22,109 @@ namespace DurableTask.AzureStorage
     /// </summary>
     class BackoffPollingHelper
     {
-        readonly long maxDelayMs;
-        readonly long minDelayThreasholdMs;
-        readonly double sleepToWaitRatio;
-        readonly Stopwatch stopwatch;
+        readonly RandomizedExponentialBackoffStrategy backoffStrategy;
+        readonly AsyncAutoResetEvent resetEvent;
 
-        TimeSpan delayTimeout;
-        AsyncAutoResetEvent resetEvent;
-
-        public BackoffPollingHelper(TimeSpan maxDelay, TimeSpan minDelayThreshold)
-            : this(maxDelay, minDelayThreshold, sleepToWaitRatio: 0.1)
+        public BackoffPollingHelper(TimeSpan minimumInterval, TimeSpan maximumInterval)
         {
-        }
-
-        public BackoffPollingHelper(TimeSpan maxDelay, TimeSpan minDelayThreshold, double sleepToWaitRatio)
-        {
-            Debug.Assert(maxDelay >= TimeSpan.Zero);
-            Debug.Assert(sleepToWaitRatio > 0 && sleepToWaitRatio <= 1);
-
-            this.maxDelayMs = (long)maxDelay.TotalMilliseconds;
-            this.minDelayThreasholdMs = (long)minDelayThreshold.TotalMilliseconds;
-            this.sleepToWaitRatio = sleepToWaitRatio;
-            this.stopwatch = new Stopwatch();
+            this.backoffStrategy = new RandomizedExponentialBackoffStrategy(minimumInterval, maximumInterval);
             this.resetEvent = new AsyncAutoResetEvent(signaled: false);
-            this.delayTimeout = TimeSpan.Zero;
         }
 
         public void Reset()
         {
-            this.stopwatch.Reset();
             this.resetEvent.Set();
         }
 
         public async Task<bool> WaitAsync(CancellationToken hostCancellationToken)
         {
-            bool signaled = await this.resetEvent.WaitAsync(this.delayTimeout, hostCancellationToken);
-            if (!signaled)
-            {
-                this.IncreaseDelay();
-            }
-
+            bool signaled = await this.resetEvent.WaitAsync(this.backoffStrategy.CurrentInterval, hostCancellationToken);
+            this.backoffStrategy.UpdateDelay(signaled);
             return signaled;
         }
 
-        private void IncreaseDelay()
+        // Borrowed from https://raw.githubusercontent.com/Azure/azure-webjobs-sdk/b798412ad74ba97cf2d85487ae8479f277bdd85c/src/Microsoft.Azure.WebJobs.Host/Timers/RandomizedExponentialBackoffStrategy.cs
+        class RandomizedExponentialBackoffStrategy
         {
-            if (!this.stopwatch.IsRunning)
+            public const double RandomizationFactor = 0.2;
+
+            readonly TimeSpan minimumInterval;
+            readonly TimeSpan maximumInterval;
+            readonly TimeSpan deltaBackoff;
+
+            uint backoffExponent;
+            Random random;
+
+            public RandomizedExponentialBackoffStrategy(TimeSpan minimumInterval, TimeSpan maximumInterval)
+                : this(minimumInterval, maximumInterval, minimumInterval)
             {
-                this.stopwatch.Start();
             }
 
-            long elapsedMs = this.stopwatch.ElapsedMilliseconds;
-            double sleepDelayMs = elapsedMs * this.sleepToWaitRatio;
-
-            TimeSpan nextDelay;
-            if (sleepDelayMs < minDelayThreasholdMs)
+            public RandomizedExponentialBackoffStrategy(TimeSpan minimumInterval, TimeSpan maximumInterval,
+                TimeSpan deltaBackoff)
             {
-                nextDelay = TimeSpan.Zero;
-            }
-            else
-            {
-                if (sleepDelayMs > this.maxDelayMs)
+                if (minimumInterval.Ticks < 0)
                 {
-                    sleepDelayMs = this.maxDelayMs;
+                    throw new ArgumentOutOfRangeException(nameof(minimumInterval), "The TimeSpan must not be negative.");
                 }
 
-                nextDelay = TimeSpan.FromMilliseconds(sleepDelayMs);
+                if (maximumInterval.Ticks < 0)
+                {
+                    throw new ArgumentOutOfRangeException(nameof(maximumInterval), "The TimeSpan must not be negative.");
+                }
+
+                if (minimumInterval.Ticks > maximumInterval.Ticks)
+                {
+                    throw new ArgumentException(
+                        $"The {nameof(minimumInterval)} must not be greater than the {nameof(maximumInterval)}.",
+                        nameof(minimumInterval));
+                }
+
+                this.minimumInterval = minimumInterval;
+                this.maximumInterval = maximumInterval;
+                this.deltaBackoff = deltaBackoff;
             }
 
-            this.delayTimeout = nextDelay;
+            public TimeSpan CurrentInterval { get; private set; }
+
+            public TimeSpan UpdateDelay(bool executionSucceeded)
+            {
+                if (executionSucceeded)
+                {
+                    this.CurrentInterval = this.minimumInterval;
+                    this.backoffExponent = 1;
+                }
+                else if (this.CurrentInterval != this.maximumInterval)
+                {
+                    TimeSpan backoffInterval = this.minimumInterval;
+
+                    if (this.backoffExponent > 0)
+                    {
+                        if (this.random == null)
+                        {
+                            this.random = new Random();
+                        }
+
+                        double incrementMsec = 
+                            this.random.Next(1.0 - RandomizationFactor, 1.0 + RandomizationFactor) *
+                            Math.Pow(2.0, this.backoffExponent - 1) * this.deltaBackoff.TotalMilliseconds;
+                        backoffInterval += TimeSpan.FromMilliseconds(incrementMsec);
+                    }
+
+                    if (backoffInterval < this.maximumInterval)
+                    {
+                        this.CurrentInterval = backoffInterval;
+                        this.backoffExponent++;
+                    }
+                    else
+                    {
+                        this.CurrentInterval = this.maximumInterval;
+                    }
+                }
+                // else do nothing and keep current interval equal to max
+
+                return this.CurrentInterval;
+            }
         }
     }
 }

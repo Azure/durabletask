@@ -14,10 +14,15 @@
 namespace DurableTask.AzureStorage.Tests
 {
     using System;
+    using System.Collections.Generic;
     using System.Diagnostics;
+    using System.Threading;
     using System.Threading.Tasks;
+    using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
+    using DurableTask.Core.History;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
+    using Newtonsoft.Json;
 
     class TestOrchestrationClient
     {
@@ -37,6 +42,8 @@ namespace DurableTask.AzureStorage.Tests
             this.instanceId = instanceId;
             this.instanceCreationTime = instanceCreationTime;
         }
+
+        public string InstanceId => this.instanceId;
 
         public async Task<OrchestrationState> WaitForCompletionAsync(TimeSpan timeout)
         {
@@ -129,6 +136,43 @@ namespace DurableTask.AzureStorage.Tests
             // The Rewind API currently only exists in the service object
             AzureStorageOrchestrationService service = (AzureStorageOrchestrationService)this.client.ServiceClient;
             return service.RewindTaskOrchestrationAsync(this.instanceId, reason);
+        }
+
+        public Task PurgeInstanceHistory()
+        {
+            Trace.TraceInformation($"Purging history for instance with id - {this.instanceId}");
+
+            // The Purge Instance History API only exists in the service object
+            AzureStorageOrchestrationService service = (AzureStorageOrchestrationService)this.client.ServiceClient;
+            return service.PurgeInstanceHistoryAsync(this.instanceId);
+        }
+
+        public Task PurgeInstanceHistoryByTimePeriod(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
+        {
+            Trace.TraceInformation($"Purging history from {createdTimeFrom} to {createdTimeTo}");
+
+            // The Purge Instance History API only exists in the service object
+            AzureStorageOrchestrationService service = (AzureStorageOrchestrationService)this.client.ServiceClient;
+            return service.PurgeInstanceHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatus);
+        }
+
+        public async Task<List<HistoryStateEvent>> GetOrchestrationHistoryAsync(string instanceId)
+        {
+            Trace.TraceInformation($"Getting history for instance with id - {this.instanceId}");
+
+            // GetOrchestrationHistoryAsync is exposed in the TaskHubClinet but requires execution id. 
+            // However, we need to get all the history records for an instance id not for specific execution.
+            AzureStorageOrchestrationService service = (AzureStorageOrchestrationService)this.client.ServiceClient;
+            string historyString = await service.GetOrchestrationHistoryAsync(instanceId, null);
+            return JsonConvert.DeserializeObject<List<HistoryStateEvent>>(historyString);
+        }
+
+        public async Task<IList<OrchestrationState>> GetStateAsync(string instanceId)
+        {
+            Trace.TraceInformation($"Getting orchestration state with instance id - {this.instanceId}");
+            // The GetStateAsync only exists in the service object
+            AzureStorageOrchestrationService service = (AzureStorageOrchestrationService)this.client.ServiceClient;
+            return await service.GetOrchestrationStateAsync(instanceId, true);
         }
 
         static TimeSpan AdjustTimeout(TimeSpan requestedTimeout)

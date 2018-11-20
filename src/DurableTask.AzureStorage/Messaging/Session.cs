@@ -70,8 +70,11 @@ namespace DurableTask.AzureStorage.Messaging
                 queueMessage.Id,
                 Math.Max(0, (int)DateTimeOffset.UtcNow.Subtract(queueMessage.InsertionTime.Value).TotalMilliseconds),
                 data.SequenceNumber,
+                data.Episode,
                 isExtendedSession,
                 Utils.ExtensionVersion);
         }
+
+        public abstract int GetCurrentEpisode();
     }
 }

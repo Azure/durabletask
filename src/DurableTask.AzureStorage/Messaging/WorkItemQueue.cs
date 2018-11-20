@@ -61,7 +61,6 @@ namespace DurableTask.AzureStorage.Messaging
                         this.storageQueue.Name);
 
                     this.backoffHelper.Reset();
-
                     return data;
                 }
                 catch (Exception e)

@@ -13,18 +13,11 @@
 
 namespace DurableTask.AzureStorage.Messaging
 {
-    using System.Collections;
     using System.Collections.Generic;
     using Microsoft.WindowsAzure.Storage.Queue;
 
-    class MessageCollection : IReadOnlyList<MessageData>
+    class MessageCollection : List<MessageData>
     {
-        readonly List<MessageData> innerList = new List<MessageData>();
-
-        public MessageData this[int index] => this.innerList[index];
-
-        public int Count => this.innerList.Count;
-
         /// <summary>
         /// Adds or replaces a message in the list based on the message ID. Returns true for adds, false for replaces.
         /// </summary>
@@ -33,33 +26,18 @@ namespace DurableTask.AzureStorage.Messaging
             // If a message has been sitting in the buffer for too long, the invisibility timeout may expire and 
             // it may get dequeued a second time. In such cases, we should replace the existing copy of the message
             // with the newer copy to ensure it can be deleted successfully after being processed.
-            for (int i = 0; i < this.innerList.Count; i++)
+            for (int i = 0; i < this.Count; i++)
             {
-                CloudQueueMessage existingMessage = this.innerList[i].OriginalQueueMessage;
+                CloudQueueMessage existingMessage = this[i].OriginalQueueMessage;
                 if (existingMessage.Id == message.OriginalQueueMessage.Id)
                 {
-                    this.innerList[i] = message;
+                    this[i] = message;
                     return false;
                 }
             }
 
-            this.innerList.Add(message);
+            this.Add(message);
             return true;
-        }
-
-        public void Clear()
-        {
-            this.innerList.Clear();
-        }
-
-        public IEnumerator<MessageData> GetEnumerator()
-        {
-            return this.innerList.GetEnumerator();
-        }
-
-        IEnumerator IEnumerable.GetEnumerator()
-        {
-            return this.GetEnumerator();
         }
     }
 }
