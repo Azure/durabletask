@@ -13,18 +13,16 @@
 
 namespace DurableTask.AzureStorage.Tracking
 {
-    using DurableTask.Core;
-    using Microsoft.WindowsAzure.Storage.Table;
     using System;
     using System.Collections.Generic;
     using System.Linq;
-    using System.Text;
-    using System.Xml.Linq;
+    using DurableTask.Core;
+    using Microsoft.WindowsAzure.Storage.Table;
 
     /// <summary>
     /// OrchestrationInstanceStatusQueryBuilder is a builder to create a StorageTable Query
     /// </summary>
-    internal class OrchestrationInstanceStatusQueryCondition
+    class OrchestrationInstanceStatusQueryCondition
     {
         public IEnumerable<OrchestrationStatus> RuntimeStatus { get; set; }
 
@@ -45,7 +43,7 @@ namespace DurableTask.AzureStorage.Tracking
             return query;
         }
 
-        private string GetConditions()
+        string GetConditions()
         {
             var conditions = new List<string>();
 
@@ -72,7 +70,6 @@ namespace DurableTask.AzureStorage.Tracking
             return conditions.Count == 1 ? 
                 conditions[0] : 
                 conditions.Aggregate((a, b) => TableQuery.CombineFilters(a, TableOperators.And, b));
-
         }
 
         /// <summary>

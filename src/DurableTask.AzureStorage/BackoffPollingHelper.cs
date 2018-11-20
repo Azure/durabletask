@@ -48,12 +48,12 @@ namespace DurableTask.AzureStorage
         {
             public const double RandomizationFactor = 0.2;
 
-            private readonly TimeSpan minimumInterval;
-            private readonly TimeSpan maximumInterval;
-            private readonly TimeSpan deltaBackoff;
+            readonly TimeSpan minimumInterval;
+            readonly TimeSpan maximumInterval;
+            readonly TimeSpan deltaBackoff;
 
-            private uint backoffExponent;
-            private Random random;
+            uint backoffExponent;
+            Random random;
 
             public RandomizedExponentialBackoffStrategy(TimeSpan minimumInterval, TimeSpan maximumInterval)
                 : this(minimumInterval, maximumInterval, minimumInterval)

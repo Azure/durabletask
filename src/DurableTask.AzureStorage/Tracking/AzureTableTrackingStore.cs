@@ -31,7 +31,7 @@ namespace DurableTask.AzureStorage.Tracking
     using Newtonsoft.Json;
 
     /// <summary>
-    /// Tracking store for use with the AzureStorageOrxhestration Service. Uses azure table and blob storage to store runtime state.
+    /// Tracking store for use with <see cref="AzureStorageOrchestrationService"/>. Uses Azure Tables and Azure Blobs to store runtime state.
     /// </summary>
     class AzureTableTrackingStore : TrackingStoreBase
     {
@@ -269,7 +269,7 @@ namespace DurableTask.AzureStorage.Tracking
             };
         }
 
-        private async Task<List<DynamicTableEntity>> QueryHistoryAsync(string filterCondition, string instanceId, CancellationToken cancellationToken)
+        async Task<List<DynamicTableEntity>> QueryHistoryAsync(string filterCondition, string instanceId, CancellationToken cancellationToken)
         {
             TableQuery query = new TableQuery().Where(filterCondition.ToString());
 
@@ -490,7 +490,7 @@ namespace DurableTask.AzureStorage.Tracking
             return this.ConvertFromAsync(orchestrationInstanceStatus, instanceId);
         }
 
-        private OrchestrationState ConvertFromAsync(OrchestrationInstanceStatus orchestrationInstanceStatus, string instanceId)
+        OrchestrationState ConvertFromAsync(OrchestrationInstanceStatus orchestrationInstanceStatus, string instanceId)
         {
             var orchestrationState = new OrchestrationState();
             if (!Enum.TryParse(orchestrationInstanceStatus.RuntimeStatus, out orchestrationState.OrchestrationStatus))
@@ -539,7 +539,7 @@ namespace DurableTask.AzureStorage.Tracking
                 cancellationToken);
         }
 
-        private async Task<DurableStatusQueryResult> QueryStateAsync(TableQuery<OrchestrationInstanceStatus> query, int top, string continuationToken, CancellationToken cancellationToken)
+        async Task<DurableStatusQueryResult> QueryStateAsync(TableQuery<OrchestrationInstanceStatus> query, int top, string continuationToken, CancellationToken cancellationToken)
         {
             TableContinuationToken token = null;
             var orchestrationStates = new List<OrchestrationState>(top);
@@ -566,7 +566,7 @@ namespace DurableTask.AzureStorage.Tracking
             };
         }
 
-        private async Task<IList<OrchestrationState>> QueryStateAsync(TableQuery<OrchestrationInstanceStatus> query, CancellationToken cancellationToken)
+        async Task<IList<OrchestrationState>> QueryStateAsync(TableQuery<OrchestrationInstanceStatus> query, CancellationToken cancellationToken)
         {
             TableContinuationToken token = null;
             var orchestrationStates = new List<OrchestrationState>(100);
@@ -593,7 +593,7 @@ namespace DurableTask.AzureStorage.Tracking
             return orchestrationStates;
         }
 
-        private async Task<PurgeHistoryResult> DeleteHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
+        async Task<PurgeHistoryResult> DeleteHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
         {
             TableQuery<OrchestrationInstanceStatus> query = OrchestrationInstanceStatusQueryCondition.Parse(createdTimeFrom, createdTimeTo, runtimeStatus)
                 .ToTableQuery<OrchestrationInstanceStatus>();
@@ -630,7 +630,7 @@ namespace DurableTask.AzureStorage.Tracking
             return new PurgeHistoryResult(storageRequests, instancesDeleted, rowsDeleted);
         }
 
-        private async Task<PurgeHistoryResult> DeleteAllDataForOrchestrationInstance(OrchestrationInstanceStatus orchestrationInstanceStatus)
+        async Task<PurgeHistoryResult> DeleteAllDataForOrchestrationInstance(OrchestrationInstanceStatus orchestrationInstanceStatus)
         {
             int storageRequests = 0;
             int rowsDeleted = 0;
