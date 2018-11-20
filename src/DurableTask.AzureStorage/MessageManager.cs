@@ -17,12 +17,15 @@ namespace DurableTask.AzureStorage
     using System.Collections.Generic;
     using System.IO;
     using System.IO.Compression;
+    using System.Reflection;
+    using System.Runtime.Serialization;
     using System.Text;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Monitoring;
     using Microsoft.WindowsAzure.Storage.Blob;
     using Microsoft.WindowsAzure.Storage.Queue;
     using Newtonsoft.Json;
+    using Newtonsoft.Json.Serialization;
 
     /// <summary>
     /// The message manager for messages from MessageData, and DynamicTableEntities
@@ -50,7 +53,12 @@ namespace DurableTask.AzureStorage
             this.cloudBlobContainer = cloudBlobClient.GetContainerReference(blobContainerName);
             this.taskMessageSerializerSettings = new JsonSerializerSettings
             {
-                TypeNameHandling = TypeNameHandling.Objects
+                TypeNameHandling = TypeNameHandling.Objects,
+#if NETSTANDARD2_0
+                SerializationBinder = new TypeNameSerializationBinder(),
+#else
+                Binder = new TypeNameSerializationBinder(),
+#endif
             };
         }
 
@@ -263,6 +271,59 @@ namespace DurableTask.AzureStorage
                     break;
                 }
             }
+        }
+    }
+
+#if NETSTANDARD2_0
+    class TypeNameSerializationBinder : ISerializationBinder
+    {
+        public void BindToName(Type serializedType, out string assemblyName, out string typeName)
+        {
+            TypeNameSerializationHelper.BindToName(serializedType, out assemblyName, out typeName);
+        }
+
+        public Type BindToType(string assemblyName, string typeName)
+        {
+            return TypeNameSerializationHelper.BindToType(assemblyName, typeName);
+        }
+    }
+#else
+    class TypeNameSerializationBinder : SerializationBinder
+    {
+        public override void BindToName(Type serializedType, out string assemblyName, out string typeName)
+        {
+            TypeNameSerializationHelper.BindToName(serializedType, out assemblyName, out typeName);
+        }
+
+        public override Type BindToType(string assemblyName, string typeName)
+        {
+            return TypeNameSerializationHelper.BindToType(assemblyName, typeName);
+        }
+    }
+#endif
+    static class TypeNameSerializationHelper
+    {
+        static readonly Assembly DurableTaskCore = typeof(DurableTask.Core.TaskMessage).Assembly;
+        static readonly Assembly DurableTaskAzureStorage = typeof(AzureStorageOrchestrationService).Assembly;
+
+        public static void BindToName(Type serializedType, out string assemblyName, out string typeName)
+        {
+            assemblyName = null;
+            typeName = serializedType.FullName;
+        }
+
+        public static Type BindToType(string assemblyName, string typeName)
+        {
+            if (typeName.StartsWith("DurableTask.Core"))
+            {
+                return DurableTaskCore.GetType(typeName, throwOnError: true);
+            }
+            else if (typeName.StartsWith("DurableTask.AzureStorage"))
+            {
+                return DurableTaskAzureStorage.GetType(typeName, throwOnError: true);
+            }
+
+            return Type.GetType(typeName, throwOnError: true);
         }
     }
 }
