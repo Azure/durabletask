@@ -13,7 +13,7 @@
     <RunCodeAnalysis Condition=" '$(TargetFramework)' == 'netstandard2.0'">False</RunCodeAnalysis>
     <CodeAnalysisTreatWarningsAsErrors>True</CodeAnalysisTreatWarningsAsErrors>
     <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
-    <!-- SourseLink Settings-->
+    <!-- SourceLink Settings-->
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <DebugSymbols>true</DebugSymbols>
@@ -21,7 +21,7 @@
     <IncludeSymbols>false</IncludeSymbols>
   </PropertyGroup>
   
-  <!-- SourseLink Dependency for GitHub-->
+  <!-- SourceLink Dependency for GitHub-->
   <ItemGroup>
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.0-*" PrivateAssets="All" />
   </ItemGroup>
