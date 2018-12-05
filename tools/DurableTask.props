@@ -13,7 +13,18 @@
     <RunCodeAnalysis Condition=" '$(TargetFramework)' == 'netstandard2.0'">False</RunCodeAnalysis>
     <CodeAnalysisTreatWarningsAsErrors>True</CodeAnalysisTreatWarningsAsErrors>
     <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
+    <!-- SourceLink Settings-->
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>embedded</DebugType>
+    <IncludeSymbols>false</IncludeSymbols>
   </PropertyGroup>
+  
+  <!-- SourceLink Dependency for GitHub-->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.0-*" PrivateAssets="All" />
+  </ItemGroup>
 
   <!-- Sign assemblies if the snk file is present -->
   <PropertyGroup Condition="Exists('$(SolutionDir)\tools\sign.snk') And $(Configuration) == 'Release'">
