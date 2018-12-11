@@ -31,6 +31,12 @@
     <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
     <PackageReference Include="WindowsAzure.Storage" version="8.6.0" />
   </ItemGroup>
+  
+  <ItemGroup>
+    <PackageReference Include="Microsoft.ApplicationInsights.DependencyCollector" Version="2.8.0" />
+    <PackageReference Include="System.Diagnostics.DiagnosticSource" Version="4.5.0" />
+    <PackageReference Include="System.Reactive.Core" Version="3.1.1" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\DurableTask.Core\DurableTask.Core.csproj" />
