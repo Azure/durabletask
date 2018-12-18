@@ -26,7 +26,7 @@ namespace TestStatefulService
     using Microsoft.ServiceFabric.Services.Remoting.Runtime;
     using Microsoft.ServiceFabric.Services.Runtime;
     using TestApplication.Common;
-    using TestStatefulService.TestOrchestrations;
+    using TestOrchestrations;
 
     /// <summary>
     /// An instance of this class is created for each service replica by the Service Fabric runtime.
