@@ -119,38 +119,19 @@ namespace DurableTask.AzureStorage.Messaging
 
         internal bool IsOutOfOrderMessage(MessageData message)
         {
-            int taskScheduledId = -1;
-            HistoryEvent messageEvent = message.TaskMessage.Event;
-            switch (messageEvent.EventType)
-            {
-                case EventType.TaskCompleted:
-                    taskScheduledId = ((TaskCompletedEvent)messageEvent).TaskScheduledId;
-                    break;
-                case EventType.TaskFailed:
-                    taskScheduledId = ((TaskFailedEvent)messageEvent).TaskScheduledId;
-                    break;
-                case EventType.SubOrchestrationInstanceCompleted:
-                    taskScheduledId = ((SubOrchestrationInstanceCompletedEvent)messageEvent).TaskScheduledId;
-                    break;
-                case EventType.SubOrchestrationInstanceFailed:
-                    taskScheduledId = ((SubOrchestrationInstanceFailedEvent)messageEvent).TaskScheduledId;
-                    break;
-                case EventType.TimerFired:
-                    taskScheduledId = ((TimerFiredEvent)messageEvent).TimerId;
-                    break;
-            }
-
+            int taskScheduledId = Utils.GetTaskEventId(message.TaskMessage.Event);
             if (taskScheduledId < 0)
             {
                 // This message does not require ordering (RaiseEvent, ExecutionStarted, Terminate, etc.).
                 return false;
             }
 
-            // This message is a response to a task. Make sure the event ID matches the range of the previously known
-            // scheduled events. We don't need to ensure the event types actually match because the core runtime
-            // will do that anyways and fail the orchestration if there is a non-matching event type.
-            HistoryEvent mostRecentTaskEvent = this.RuntimeState.Events.LastOrDefault(e => e.EventId >= 0);
-            if (mostRecentTaskEvent != null && taskScheduledId <= mostRecentTaskEvent.EventId)
+            // This message is a response to a task. Search the history to make sure that we've recorded the fact that
+            // this task was scheduled. We don't have the luxery of transactions between queues and tables, so queue
+            // messages are always written before we update the history in table storage. This means that in some
+            // cases the response message could get picked up before we're ready for it.
+            HistoryEvent mostRecentTaskEvent = this.RuntimeState.Events.LastOrDefault(e => e.EventId == taskScheduledId);
+            if (mostRecentTaskEvent != null)
             {
                 return false;
             }

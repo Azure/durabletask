@@ -1546,6 +1546,27 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        /// <summary>
+        /// Tests an orchestration that does two consecutive fan-out, fan-ins.
+        /// This is a regression test for https://github.com/Azure/durabletask/issues/241.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task DoubleFanOut(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                await host.StartAsync();
+
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.DoubleFanOut), null);
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                await host.StopAsync();
+            }
+        }
+
         private static async Task ValidateBlobUrlAsync(string taskHubName, string instanceId, string value, int originalPayloadSize = 0)
         {
             CloudStorageAccount account = CloudStorageAccount.Parse(TestHelpers.GetTestStorageAccountConnectionString());
@@ -2134,6 +2155,34 @@ namespace DurableTask.AzureStorage.Tests
                 public override Task<int> RunTask(OrchestrationContext context, int input)
                 {
                     return context.CreateSubOrchestrationInstance<int>(typeof(Factorial), input);
+                }
+            }
+
+            [KnownType(typeof(Activities.Hello))]
+            internal class DoubleFanOut : TaskOrchestration<string, string>
+            {
+                public async override Task<string> RunTask(OrchestrationContext context, string input)
+                {
+                    Random r = new Random();
+                    var tasks = new Task<string>[5];
+                    for (int i = 0; i < 5; i++)
+                    {
+                        int x = r.Next(10000);
+                        tasks[i] = context.ScheduleTask<string>(typeof(Activities.Hello), i.ToString());
+                    }
+
+                    await Task.WhenAll(tasks);
+
+                    var tasks2 = new Task<string>[5];
+                    for (int i = 0; i < 5; i++)
+                    {
+                        int x = r.Next(10000);
+                        tasks2[i] = context.ScheduleTask<string>(typeof(Activities.Hello), (i + 10).ToString());
+                    }
+
+                    await Task.WhenAll(tasks2);
+
+                    return "OK";
                 }
             }
         }
