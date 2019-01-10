@@ -70,10 +70,12 @@ namespace DurableTask.AzureStorage.Messaging
                         AnalyticsEventSource.Log.MessageFailure(
                             this.storageAccountName,
                             this.settings.TaskHubName,
+                            string.Empty /* MessageId */,
                             string.Empty /* InstanceId */,
                             string.Empty /* ExecutionId */,
                             this.storageQueue.Name,
                             string.Empty /* EventType */,
+                            0 /* TaskEventId */,
                             e.ToString(),
                             Utils.ExtensionVersion);
 

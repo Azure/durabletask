@@ -119,27 +119,7 @@ namespace DurableTask.AzureStorage.Messaging
 
         internal bool IsOutOfOrderMessage(MessageData message)
         {
-            int taskScheduledId = -1;
-            HistoryEvent messageEvent = message.TaskMessage.Event;
-            switch (messageEvent.EventType)
-            {
-                case EventType.TaskCompleted:
-                    taskScheduledId = ((TaskCompletedEvent)messageEvent).TaskScheduledId;
-                    break;
-                case EventType.TaskFailed:
-                    taskScheduledId = ((TaskFailedEvent)messageEvent).TaskScheduledId;
-                    break;
-                case EventType.SubOrchestrationInstanceCompleted:
-                    taskScheduledId = ((SubOrchestrationInstanceCompletedEvent)messageEvent).TaskScheduledId;
-                    break;
-                case EventType.SubOrchestrationInstanceFailed:
-                    taskScheduledId = ((SubOrchestrationInstanceFailedEvent)messageEvent).TaskScheduledId;
-                    break;
-                case EventType.TimerFired:
-                    taskScheduledId = ((TimerFiredEvent)messageEvent).TimerId;
-                    break;
-            }
-
+            int taskScheduledId = Utils.GetTaskEventId(message.TaskMessage.Event);
             if (taskScheduledId < 0)
             {
                 // This message does not require ordering (RaiseEvent, ExecutionStarted, Terminate, etc.).

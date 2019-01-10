@@ -83,5 +83,24 @@ namespace DurableTask.AzureStorage
             // DTFx core writes an "OrchestratorStarted" event at the start of each episode.
             return historyEvents.Count(e => e.EventType == EventType.OrchestratorStarted);
         }
+
+        public static int GetTaskEventId(HistoryEvent historyEvent)
+        {
+            switch (historyEvent.EventType)
+            {
+                case EventType.TaskCompleted:
+                    return ((TaskCompletedEvent)historyEvent).TaskScheduledId;
+                case EventType.TaskFailed:
+                    return ((TaskFailedEvent)historyEvent).TaskScheduledId;
+                case EventType.SubOrchestrationInstanceCompleted:
+                    return ((SubOrchestrationInstanceCompletedEvent)historyEvent).TaskScheduledId;
+                case EventType.SubOrchestrationInstanceFailed:
+                    return ((SubOrchestrationInstanceFailedEvent)historyEvent).TaskScheduledId;
+                case EventType.TimerFired:
+                    return ((TimerFiredEvent)historyEvent).TimerId;
+                default:
+                    return historyEvent.EventId;
+            }
+        }
     }
 }
