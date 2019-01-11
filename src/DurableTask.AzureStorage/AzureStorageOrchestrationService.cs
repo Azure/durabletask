@@ -615,6 +615,7 @@ namespace DurableTask.AzureStorage
                                 session.Instance.ExecutionId,
                                 session.ControlQueue.Name,
                                 message.TaskMessage.Event.EventType.ToString(),
+                                Utils.GetTaskEventId(message.TaskMessage.Event),
                                 message.OriginalQueueMessage.Id,
                                 message.Episode,
                                 Utils.ExtensionVersion);
@@ -731,6 +732,7 @@ namespace DurableTask.AzureStorage
                 storageAccountName,
                 taskHubName,
                 taskMessage.Event.EventType.ToString(),
+                Utils.GetTaskEventId(taskMessage.Event),
                 taskMessage.OrchestrationInstance.InstanceId,
                 taskMessage.OrchestrationInstance.ExecutionId,
                 queueMessage.Id,

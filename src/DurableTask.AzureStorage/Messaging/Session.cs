@@ -65,6 +65,7 @@ namespace DurableTask.AzureStorage.Messaging
                 this.storageAccountName,
                 this.taskHubName,
                 taskMessage.Event.EventType.ToString(),
+                Utils.GetTaskEventId(taskMessage.Event),
                 taskMessage.OrchestrationInstance.InstanceId,
                 taskMessage.OrchestrationInstance.ExecutionId,
                 queueMessage.Id,

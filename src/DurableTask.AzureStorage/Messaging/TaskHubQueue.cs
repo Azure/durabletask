@@ -108,6 +108,7 @@ namespace DurableTask.AzureStorage.Messaging
                     this.storageAccountName,
                     this.settings.TaskHubName,
                     taskMessage.Event.EventType.ToString(),
+                    Utils.GetTaskEventId(taskMessage.Event),
                     sourceInstance.InstanceId,
                     sourceInstance.ExecutionId,
                     Encoding.Unicode.GetByteCount(rawContent),
@@ -135,10 +136,12 @@ namespace DurableTask.AzureStorage.Messaging
                 AnalyticsEventSource.Log.MessageFailure(
                     this.storageAccountName,
                     this.settings.TaskHubName,
-                    string.Empty,
+                    string.Empty /* MessageId */,
                     sourceInstance.InstanceId,
                     sourceInstance.ExecutionId,
                     this.storageQueue.Name,
+                    taskMessage.Event.EventType.ToString(),
+                    Utils.GetTaskEventId(taskMessage.Event),
                     e.ToString(),
                     Utils.ExtensionVersion);
                 throw;
@@ -194,6 +197,7 @@ namespace DurableTask.AzureStorage.Messaging
                 this.storageAccountName,
                 this.settings.TaskHubName,
                 taskMessage.Event.EventType.ToString(),
+                Utils.GetTaskEventId(taskMessage.Event),
                 queueMessage.Id,
                 instance.InstanceId,
                 instance.ExecutionId,
@@ -218,7 +222,7 @@ namespace DurableTask.AzureStorage.Messaging
             catch (Exception e)
             {
                 // Message may have been processed and deleted already.
-                this.HandleMessagingExceptions(e, queueMessage.Id, session.Instance, $"Caller: {nameof(AbandonMessageAsync)}");
+                this.HandleMessagingExceptions(e, message, $"Caller: {nameof(AbandonMessageAsync)}");
             }
             finally
             {
@@ -239,6 +243,7 @@ namespace DurableTask.AzureStorage.Messaging
                 instance.ExecutionId,
                 this.storageQueue.Name,
                 message.TaskMessage.Event.EventType.ToString(),
+                Utils.GetTaskEventId(message.TaskMessage.Event),
                 queueMessage.Id,
                 (int)this.MessageVisibilityTimeout.TotalSeconds,
                 Utils.ExtensionVersion);
@@ -257,7 +262,7 @@ namespace DurableTask.AzureStorage.Messaging
             catch (Exception e)
             {
                 // Message may have been processed and deleted already.
-                this.HandleMessagingExceptions(e, queueMessage.Id, session.Instance, $"Caller: {nameof(RenewMessageAsync)}");
+                this.HandleMessagingExceptions(e, message, $"Caller: {nameof(RenewMessageAsync)}");
             }
             finally
             {
@@ -274,6 +279,7 @@ namespace DurableTask.AzureStorage.Messaging
                 this.storageAccountName,
                 this.settings.TaskHubName,
                 taskMessage.Event.EventType.ToString(),
+                Utils.GetTaskEventId(taskMessage.Event),
                 queueMessage.Id,
                 session.Instance.InstanceId,
                 session.Instance.ExecutionId,
@@ -290,7 +296,7 @@ namespace DurableTask.AzureStorage.Messaging
             }
             catch (Exception e)
             {
-                this.HandleMessagingExceptions(e, queueMessage.Id, session.Instance, $"Caller: {nameof(DeleteMessageAsync)}");
+                this.HandleMessagingExceptions(e, message, $"Caller: {nameof(DeleteMessageAsync)}");
             }
             finally
             {
@@ -298,7 +304,7 @@ namespace DurableTask.AzureStorage.Messaging
             }
         }
 
-        void HandleMessagingExceptions(Exception e, string messageId, OrchestrationInstance instance, string details)
+        void HandleMessagingExceptions(Exception e, MessageData message, string details)
         {
             StorageException storageException = e as StorageException;
             if (storageException?.RequestInformation?.HttpStatusCode == 404)
@@ -307,10 +313,12 @@ namespace DurableTask.AzureStorage.Messaging
                 AnalyticsEventSource.Log.MessageGone(
                     this.storageAccountName,
                     this.settings.TaskHubName,
-                    messageId,
-                    instance.InstanceId,
-                    instance.ExecutionId,
+                    message.OriginalQueueMessage.Id,
+                    message.TaskMessage.OrchestrationInstance.InstanceId,
+                    message.TaskMessage.OrchestrationInstance.ExecutionId,
                     this.storageQueue.Name,
+                    message.TaskMessage.Event.EventType.ToString(),
+                    Utils.GetTaskEventId(message.TaskMessage.Event),
                     details,
                     Utils.ExtensionVersion);
             }
@@ -319,10 +327,12 @@ namespace DurableTask.AzureStorage.Messaging
                 AnalyticsEventSource.Log.MessageFailure(
                     this.storageAccountName,
                     this.settings.TaskHubName,
-                    messageId,
-                    instance.InstanceId,
-                    instance.ExecutionId,
+                    message.OriginalQueueMessage.Id,
+                    message.TaskMessage.OrchestrationInstance.InstanceId,
+                    message.TaskMessage.OrchestrationInstance.ExecutionId,
                     this.storageQueue.Name,
+                    message.TaskMessage.Event.EventType.ToString(),
+                    Utils.GetTaskEventId(message.TaskMessage.Event),
                     e.ToString(),
                     Utils.ExtensionVersion);
 
@@ -351,10 +361,12 @@ namespace DurableTask.AzureStorage.Messaging
                 AnalyticsEventSource.Log.MessageFailure(
                     this.storageAccountName,
                     this.settings.TaskHubName,
-                    string.Empty /* messageId */,
-                    string.Empty /* instanceId */,
-                    string.Empty /* executionId */,
+                    string.Empty /* MessageId */,
+                    string.Empty /* InstanceId */,
+                    string.Empty /* ExecutionId */,
                     this.storageQueue.Name,
+                    string.Empty /* EventType */,
+                    0 /* TaskEventId */,
                     e.ToString(),
                     Utils.ExtensionVersion);
                 throw;
@@ -385,10 +397,12 @@ namespace DurableTask.AzureStorage.Messaging
                 AnalyticsEventSource.Log.MessageFailure(
                     this.storageAccountName,
                     this.settings.TaskHubName,
-                    string.Empty /* messageId */,
-                    string.Empty /* instanceId */,
-                    string.Empty /* executionId */,
+                    string.Empty /* MessageId */,
+                    string.Empty /* InstanceId */,
+                    string.Empty /* ExecutionId */,
                     this.storageQueue.Name,
+                    string.Empty /* EventType */,
+                    0 /* TaskEventId */,
                     e.ToString(),
                     Utils.ExtensionVersion);
                 throw;
