@@ -61,6 +61,7 @@ namespace DurableTask.AzureStorage
         readonly WorkItemQueue workItemQueue;
         readonly ConcurrentDictionary<string, ActivitySession> activeActivitySessions;
         readonly MessageManager messageManager;
+        readonly StorageAccountDetails storageAccountDetails;
 
         readonly ITrackingStore trackingStore;
 
@@ -75,22 +76,13 @@ namespace DurableTask.AzureStorage
         bool isStarted;
         Task statsLoop;
         CancellationTokenSource shutdownSource;
-        
+
         /// <summary>
         /// Initializes a new instance of the <see cref="AzureStorageOrchestrationService"/> class.
         /// </summary>
         /// <param name="settings">The settings used to configure the orchestration service.</param>
         public AzureStorageOrchestrationService(AzureStorageOrchestrationServiceSettings settings)
-            : this(settings, customInstanceStore: null)
-        { }
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="AzureStorageOrchestrationService"/> class with a custom instance store.
-        /// </summary>
-        /// <param name="settings">The settings used to configure the orchestration service</param>
-        /// <param name="storageAccountDetails">The Azure storage account details</param>
-        public AzureStorageOrchestrationService(AzureStorageOrchestrationServiceSettings settings, StorageAccountDetails storageAccountDetails)
-            : this(settings, storageAccountDetails, null)
+            : this(settings, null)
         { }
 
         /// <summary>
@@ -99,20 +91,6 @@ namespace DurableTask.AzureStorage
         /// <param name="settings">The settings used to configure the orchestration service.</param>
         /// <param name="customInstanceStore">Custom UserDefined Instance store to be used with the AzureStorageOrchestrationService</param>
         public AzureStorageOrchestrationService(AzureStorageOrchestrationServiceSettings settings, IOrchestrationServiceInstanceStore customInstanceStore)
-            : this(settings, settings != null ? GetCloudStorageAccount(settings.StorageConnectionString) : null, customInstanceStore)
-        { }
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="AzureStorageOrchestrationService"/> class with a custom instance store.
-        /// </summary>
-        /// <param name="settings">The settings used to configure the orchestration service</param>
-        /// <param name="storageAccountDetails">The azure storage account details</param>
-        /// <param name="customInstanceStore">Custom UserDefined Instance store to be used with the AzureStorageOrchestrationService</param>
-        public AzureStorageOrchestrationService(AzureStorageOrchestrationServiceSettings settings, StorageAccountDetails storageAccountDetails, IOrchestrationServiceInstanceStore customInstanceStore)
-            : this(settings, GetCloudStorageAccount(storageAccountDetails), customInstanceStore)
-        { }
-
-        private AzureStorageOrchestrationService(AzureStorageOrchestrationServiceSettings settings, CloudStorageAccount account, IOrchestrationServiceInstanceStore customInstanceStore)
         {
             if (settings == null)
             {
@@ -123,6 +101,11 @@ namespace DurableTask.AzureStorage
 
             this.settings = settings;
             this.tableEntityConverter = new TableEntityConverter();
+            this.storageAccountDetails = settings.StorageAccountDetails;
+
+            CloudStorageAccount account = this.storageAccountDetails == null
+                ? CloudStorageAccount.Parse(settings.StorageConnectionString)
+                : new CloudStorageAccount(this.storageAccountDetails.StorageCredentials, this.storageAccountDetails.AccountName, this.storageAccountDetails.EndpointSuffix, true);
             this.storageAccountName = account.Credentials.AccountName;
             this.stats = new AzureStorageOrchestrationServiceStats();
             this.queueClient = account.CreateCloudQueueClient();
