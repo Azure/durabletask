@@ -170,16 +170,6 @@ namespace DurableTask.AzureStorage
                 this.trackingStore);
         }
 
-        private static CloudStorageAccount GetCloudStorageAccount(string storageConnectionString)
-        {
-            return CloudStorageAccount.Parse(storageConnectionString);
-        }
-
-        private static CloudStorageAccount GetCloudStorageAccount(StorageAccountDetails storageAccountDetails)
-        {
-            return storageAccountDetails != null ? new CloudStorageAccount(storageAccountDetails.StorageCredentials, storageAccountDetails.AccountName, storageAccountDetails.EndpointSuffix, true) : null;
-        }
-
         internal string WorkerId => this.settings.WorkerId;
 
         internal IEnumerable<ControlQueue> AllControlQueues => this.allControlQueues.Values;
