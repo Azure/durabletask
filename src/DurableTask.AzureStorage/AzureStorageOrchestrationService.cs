@@ -29,6 +29,7 @@ namespace DurableTask.AzureStorage
     using DurableTask.Core;
     using DurableTask.Core.History;
     using Microsoft.WindowsAzure.Storage;
+    using Microsoft.WindowsAzure.Storage.Auth;
     using Microsoft.WindowsAzure.Storage.Blob;
     using Microsoft.WindowsAzure.Storage.Queue;
     using Newtonsoft.Json;
@@ -80,7 +81,16 @@ namespace DurableTask.AzureStorage
         /// </summary>
         /// <param name="settings">The settings used to configure the orchestration service.</param>
         public AzureStorageOrchestrationService(AzureStorageOrchestrationServiceSettings settings)
-            : this(settings, null)
+            : this(settings, customInstanceStore: null)
+        { }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="AzureStorageOrchestrationService"/> class with a custom instance store.
+        /// </summary>
+        /// <param name="settings">The settings used to configure the orchestration service</param>
+        /// <param name="storageAccountDetails">The Azure storage account details</param>
+        public AzureStorageOrchestrationService(AzureStorageOrchestrationServiceSettings settings, StorageAccountDetails storageAccountDetails)
+            : this(settings, storageAccountDetails, null)
         { }
 
         /// <summary>
@@ -89,6 +99,20 @@ namespace DurableTask.AzureStorage
         /// <param name="settings">The settings used to configure the orchestration service.</param>
         /// <param name="customInstanceStore">Custom UserDefined Instance store to be used with the AzureStorageOrchestrationService</param>
         public AzureStorageOrchestrationService(AzureStorageOrchestrationServiceSettings settings, IOrchestrationServiceInstanceStore customInstanceStore)
+            : this(settings, settings != null ? GetCloudStorageAccount(settings.StorageConnectionString) : null, customInstanceStore)
+        { }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="AzureStorageOrchestrationService"/> class with a custom instance store.
+        /// </summary>
+        /// <param name="settings">The settings used to configure the orchestration service</param>
+        /// <param name="storageAccountDetails">The azure storage account details</param>
+        /// <param name="customInstanceStore">Custom UserDefined Instance store to be used with the AzureStorageOrchestrationService</param>
+        public AzureStorageOrchestrationService(AzureStorageOrchestrationServiceSettings settings, StorageAccountDetails storageAccountDetails, IOrchestrationServiceInstanceStore customInstanceStore)
+            : this(settings, GetCloudStorageAccount(storageAccountDetails), customInstanceStore)
+        { }
+
+        private AzureStorageOrchestrationService(AzureStorageOrchestrationServiceSettings settings, CloudStorageAccount account, IOrchestrationServiceInstanceStore customInstanceStore)
         {
             if (settings == null)
             {
@@ -99,7 +123,6 @@ namespace DurableTask.AzureStorage
 
             this.settings = settings;
             this.tableEntityConverter = new TableEntityConverter();
-            CloudStorageAccount account = CloudStorageAccount.Parse(settings.StorageConnectionString);
             this.storageAccountName = account.Credentials.AccountName;
             this.stats = new AzureStorageOrchestrationServiceStats();
             this.queueClient = account.CreateCloudQueueClient();
@@ -124,7 +147,7 @@ namespace DurableTask.AzureStorage
 
             if (customInstanceStore == null)
             {
-                this.trackingStore = new AzureTableTrackingStore(settings, this.messageManager, this.stats);
+                this.trackingStore = new AzureTableTrackingStore(settings, this.messageManager, this.stats, account);
             }
             else
             {
@@ -162,6 +185,16 @@ namespace DurableTask.AzureStorage
                 this.settings,
                 this.stats,
                 this.trackingStore);
+        }
+
+        private static CloudStorageAccount GetCloudStorageAccount(string storageConnectionString)
+        {
+            return CloudStorageAccount.Parse(storageConnectionString);
+        }
+
+        private static CloudStorageAccount GetCloudStorageAccount(StorageAccountDetails storageAccountDetails)
+        {
+            return storageAccountDetails != null ? new CloudStorageAccount(storageAccountDetails.StorageCredentials, storageAccountDetails.AccountName, storageAccountDetails.EndpointSuffix, true) : null;
         }
 
         internal string WorkerId => this.settings.WorkerId;
