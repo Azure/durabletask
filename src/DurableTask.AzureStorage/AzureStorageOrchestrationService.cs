@@ -971,7 +971,7 @@ namespace DurableTask.AzureStorage
         Task AbandonSessionAsync(OrchestrationSession session)
         {
             session.StartNewLogicalTraceScope();
-            return this.AbandonMessagesAsync(session, session.CurrentMessageBatch);
+            return this.AbandonMessagesAsync(session, session.CurrentMessageBatch.ToList());
         }
 
         async Task AbandonMessagesAsync(OrchestrationSession session, IList<MessageData> messages)
