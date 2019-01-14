@@ -61,7 +61,6 @@ namespace DurableTask.AzureStorage
         readonly WorkItemQueue workItemQueue;
         readonly ConcurrentDictionary<string, ActivitySession> activeActivitySessions;
         readonly MessageManager messageManager;
-        readonly StorageAccountDetails storageAccountDetails;
 
         readonly ITrackingStore trackingStore;
 
@@ -101,11 +100,10 @@ namespace DurableTask.AzureStorage
 
             this.settings = settings;
             this.tableEntityConverter = new TableEntityConverter();
-            this.storageAccountDetails = settings.StorageAccountDetails;
 
-            CloudStorageAccount account = this.storageAccountDetails == null
+            CloudStorageAccount account = settings.StorageAccountDetails == null
                 ? CloudStorageAccount.Parse(settings.StorageConnectionString)
-                : new CloudStorageAccount(this.storageAccountDetails.StorageCredentials, this.storageAccountDetails.AccountName, this.storageAccountDetails.EndpointSuffix, true);
+                : new CloudStorageAccount(settings.StorageAccountDetails.StorageCredentials, settings.StorageAccountDetails.AccountName, settings.StorageAccountDetails.EndpointSuffix, true);
             this.storageAccountName = account.Credentials.AccountName;
             this.stats = new AzureStorageOrchestrationServiceStats();
             this.queueClient = account.CreateCloudQueueClient();
