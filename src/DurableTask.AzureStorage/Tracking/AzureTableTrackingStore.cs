@@ -67,7 +67,8 @@ namespace DurableTask.AzureStorage.Tracking
         public AzureTableTrackingStore(
             AzureStorageOrchestrationServiceSettings settings,
             MessageManager messageManager,
-            AzureStorageOrchestrationServiceStats stats)
+            AzureStorageOrchestrationServiceStats stats,
+            CloudStorageAccount account)
         {
             this.settings = settings;
             this.messageManager = messageManager;
@@ -75,7 +76,6 @@ namespace DurableTask.AzureStorage.Tracking
             this.tableEntityConverter = new TableEntityConverter();
             this.taskHubName = settings.TaskHubName;
 
-            CloudStorageAccount account = CloudStorageAccount.Parse(settings.StorageConnectionString);
             this.storageAccountName = account.Credentials.AccountName;
 
             CloudTableClient tableClient = account.CreateCloudTableClient();

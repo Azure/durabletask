@@ -133,5 +133,11 @@ namespace DurableTask.AzureStorage
         /// interval, it will cause it to expire and ownership of the partition will move to another worker instance.
         /// </summary>
         public TimeSpan LeaseInterval { get; set; } = TimeSpan.FromSeconds(30);
+
+        /// <summary>
+        /// Gets or sets the Azure Storage Account details
+        /// If provided, this is used to connect to Azure Storage
+        /// </summary>
+        public StorageAccountDetails StorageAccountDetails { get; set; }
     }
 }

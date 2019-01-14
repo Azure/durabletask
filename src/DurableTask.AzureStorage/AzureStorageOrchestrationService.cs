@@ -29,6 +29,7 @@ namespace DurableTask.AzureStorage
     using DurableTask.Core;
     using DurableTask.Core.History;
     using Microsoft.WindowsAzure.Storage;
+    using Microsoft.WindowsAzure.Storage.Auth;
     using Microsoft.WindowsAzure.Storage.Blob;
     using Microsoft.WindowsAzure.Storage.Queue;
     using Newtonsoft.Json;
@@ -74,7 +75,7 @@ namespace DurableTask.AzureStorage
         bool isStarted;
         Task statsLoop;
         CancellationTokenSource shutdownSource;
-        
+
         /// <summary>
         /// Initializes a new instance of the <see cref="AzureStorageOrchestrationService"/> class.
         /// </summary>
@@ -99,7 +100,10 @@ namespace DurableTask.AzureStorage
 
             this.settings = settings;
             this.tableEntityConverter = new TableEntityConverter();
-            CloudStorageAccount account = CloudStorageAccount.Parse(settings.StorageConnectionString);
+
+            CloudStorageAccount account = settings.StorageAccountDetails == null
+                ? CloudStorageAccount.Parse(settings.StorageConnectionString)
+                : new CloudStorageAccount(settings.StorageAccountDetails.StorageCredentials, settings.StorageAccountDetails.AccountName, settings.StorageAccountDetails.EndpointSuffix, true);
             this.storageAccountName = account.Credentials.AccountName;
             this.stats = new AzureStorageOrchestrationServiceStats();
             this.queueClient = account.CreateCloudQueueClient();
@@ -124,7 +128,7 @@ namespace DurableTask.AzureStorage
 
             if (customInstanceStore == null)
             {
-                this.trackingStore = new AzureTableTrackingStore(settings, this.messageManager, this.stats);
+                this.trackingStore = new AzureTableTrackingStore(settings, this.messageManager, this.stats, account);
             }
             else
             {
