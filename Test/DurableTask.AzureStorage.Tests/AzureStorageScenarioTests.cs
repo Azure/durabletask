@@ -542,13 +542,9 @@ namespace DurableTask.AzureStorage.Tests
                 // TODO: Sleeping to avoid a race condition where multiple ContinueAsNew messages
                 //       are processed by the same instance at the same time, resulting in a corrupt
                 //       storage failure in DTFx.
-                await Task.Delay(2000);
                 await client.RaiseEventAsync("operation", "incr");
-                await Task.Delay(2000);
                 await client.RaiseEventAsync("operation", "incr");
-                await Task.Delay(2000);
                 await client.RaiseEventAsync("operation", "decr");
-                await Task.Delay(2000);
                 await client.RaiseEventAsync("operation", "incr");
                 await Task.Delay(2000);
 
@@ -609,7 +605,7 @@ namespace DurableTask.AzureStorage.Tests
 
             // Ideally there would only be three blobs at the end of the test.
             // TODO: https://github.com/Azure/azure-functions-durable-extension/issues/509
-            Assert.AreEqual(9, blobCount);
+            Assert.AreEqual(3, blobCount);
 
             await client.PurgeInstanceHistoryByTimePeriod(
                 startDateTime,
@@ -1963,7 +1959,7 @@ namespace DurableTask.AzureStorage.Tests
                 public override void OnEvent(OrchestrationContext context, string name, string input)
                 {
                     Assert.AreEqual("operation", name, true, "Unknown signal recieved...");
-                    if (this.waitForOperationHandle != null)
+                    if (this.waitForOperationHandle != null && !this.waitForOperationHandle.Task.IsCompleted)
                     {
                         this.waitForOperationHandle.SetResult(input);
                     }

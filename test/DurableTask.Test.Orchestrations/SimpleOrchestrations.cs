@@ -213,4 +213,52 @@ namespace DurableTask.Test.Orchestrations
             return GenerationCount;
         }
     }
+
+    public sealed class CounterOrchestration : TaskOrchestration<int, int>
+    {
+        TaskCompletionSource<string> waitForOperationHandle;
+
+        public override async Task<int> RunTask(OrchestrationContext context, int currentValue)
+        {
+            string operation = await this.WaitForOperation();
+
+            bool done = false;
+            switch (operation?.ToLowerInvariant())
+            {
+                case "incr":
+                    currentValue++;
+                    break;
+                case "decr":
+                    currentValue--;
+                    break;
+                case "end":
+                    done = true;
+                    break;
+            }
+
+            if (!done)
+            {
+                context.ContinueAsNew(currentValue);
+            }
+
+            return currentValue;
+
+        }
+
+        async Task<string> WaitForOperation()
+        {
+            this.waitForOperationHandle = new TaskCompletionSource<string>();
+            string operation = await this.waitForOperationHandle.Task;
+            this.waitForOperationHandle = null;
+            return operation;
+        }
+
+        public override void OnEvent(OrchestrationContext context, string name, string input)
+        {
+            if (this.waitForOperationHandle != null && !this.waitForOperationHandle.Task.IsCompleted)
+            {
+                this.waitForOperationHandle.SetResult(input);
+            }
+        }
+    }
 }

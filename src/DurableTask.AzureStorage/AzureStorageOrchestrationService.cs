@@ -274,6 +274,14 @@ namespace DurableTask.AzureStorage
             get { return this.settings.MaxConcurrentTaskActivityWorkItems; }
         }
 
+        /// <summary>
+        ///  Will not carry over unexecuted raised events to the next iteration of an orchestration on ContinueAsNew
+        /// </summary>
+        public bool SkipEventsOnContinuation
+        {
+            get { return this.settings.SkipEventsOnContinuation; }
+        }
+
         // We always leave the dispatcher counts at one unless we can find a customer workload that requires more.
         /// <inheritdoc />
         public int TaskActivityDispatcherCount { get; } = 1;
@@ -816,7 +824,7 @@ namespace DurableTask.AzureStorage
             }
 
             session.StartNewLogicalTraceScope();
-            OrchestrationRuntimeState runtimeState = workItem.OrchestrationRuntimeState;
+            OrchestrationRuntimeState runtimeState = newOrchestrationRuntimeState??workItem.OrchestrationRuntimeState;
 
             string instanceId = workItem.InstanceId;
             string executionId = runtimeState.OrchestrationInstance.ExecutionId;

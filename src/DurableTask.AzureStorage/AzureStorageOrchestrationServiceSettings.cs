@@ -139,5 +139,10 @@ namespace DurableTask.AzureStorage
         /// If provided, this is used to connect to Azure Storage
         /// </summary>
         public StorageAccountDetails StorageAccountDetails { get; set; }
+
+        /// <summary>
+        ///  Will not carry over unexecuted raised events to the next iteration of an orchestration on ContinueAsNew
+        /// </summary>
+        public bool SkipEventsOnContinuation { get; set; } = false;
     }
 }

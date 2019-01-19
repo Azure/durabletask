@@ -11,10 +11,17 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+using System.Collections.Generic;
+using DurableTask.Core.History;
+
 namespace DurableTask.Core.Command
 {
     internal class OrchestrationCompleteOrchestratorAction : OrchestratorAction
     {
+        public OrchestrationCompleteOrchestratorAction()
+        {
+            CarryOverEvents = new List<HistoryEvent>();
+        }
         public OrchestrationStatus OrchestrationStatus;
 
         public override OrchestratorActionType OrchestratorActionType => OrchestratorActionType.OrchestrationComplete;
@@ -24,5 +31,7 @@ namespace DurableTask.Core.Command
         public string Details { get; set; }
 
         public string NewVersion { get; set; }
+
+        public IList<HistoryEvent> CarryOverEvents { get; set; }
     }
 }
