@@ -379,7 +379,7 @@ namespace DurableTask.Core
 
                             TaskOrchestration orchestration = this.objectManager.GetObject(runtimeState.Name, continueAsNewExecutionStarted.Version);
                             
-                            workItem.Cursor = new OrchestrationExecutionCursor(runtimeState, orchestration, new TaskOrchestrationExecutor(runtimeState, workItem.Cursor.TaskOrchestration, false), null);
+                            workItem.Cursor = new OrchestrationExecutionCursor(runtimeState, orchestration, new TaskOrchestrationExecutor(runtimeState, workItem.Cursor.TaskOrchestration, orchestrationService.SkipEventsOnContinuation), null);
                             await orchestrationService.RenewTaskOrchestrationWorkItemLockAsync(workItem);
                         }
 
@@ -422,7 +422,7 @@ namespace DurableTask.Core
             dispatchContext.SetProperty(taskOrchestration);
             dispatchContext.SetProperty(runtimeState);
 
-            var executor = new TaskOrchestrationExecutor(runtimeState, taskOrchestration, false);
+            var executor = new TaskOrchestrationExecutor(runtimeState, taskOrchestration, orchestrationService.SkipEventsOnContinuation);
 
             IEnumerable<OrchestratorAction> decisions = null;
             await this.dispatchPipeline.RunAsync(dispatchContext, _ =>
