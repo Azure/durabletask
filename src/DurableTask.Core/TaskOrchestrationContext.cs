@@ -37,7 +37,8 @@ namespace DurableTask.Core
 
         public bool HasContinueAsNew => continueAsNew != null;
 
-        public void AddEventToNextIteration(HistoryEvent he){
+        public void AddEventToNextIteration(HistoryEvent he)
+        {
             continueAsNew.CarryOverEvents.Add(he);
         }
 

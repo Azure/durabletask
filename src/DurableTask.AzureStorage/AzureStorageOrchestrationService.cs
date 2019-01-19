@@ -67,7 +67,7 @@ namespace DurableTask.AzureStorage
         readonly TableEntityConverter tableEntityConverter;
 
         readonly ResettableLazy<Task> taskHubCreator;
-        readonly BlobLeaseManager leaseManager; 
+        readonly BlobLeaseManager leaseManager;
         readonly PartitionManager<BlobLease> partitionManager;
         readonly OrchestrationSessionManager orchestrationSessionManager;
         readonly object hubCreationLock;
@@ -363,9 +363,9 @@ namespace DurableTask.AzureStorage
         {
             if (recreateInstanceStore)
             {
-               await DeleteTrackingStore();
+                await DeleteTrackingStore();
 
-               this.taskHubCreator.Reset();
+                this.taskHubCreator.Reset();
             }
 
             await this.taskHubCreator.Value;
@@ -824,7 +824,7 @@ namespace DurableTask.AzureStorage
             }
 
             session.StartNewLogicalTraceScope();
-            OrchestrationRuntimeState runtimeState = newOrchestrationRuntimeState??workItem.OrchestrationRuntimeState;
+            OrchestrationRuntimeState runtimeState = newOrchestrationRuntimeState ?? workItem.OrchestrationRuntimeState;
 
             string instanceId = workItem.InstanceId;
             string executionId = runtimeState.OrchestrationInstance.ExecutionId;
@@ -1070,7 +1070,7 @@ namespace DurableTask.AzureStorage
                 // The context does not exist - possibly because it was already removed.
                 AnalyticsEventSource.Log.AssertFailure(
                     this.storageAccountName,
-                    this.settings.TaskHubName, 
+                    this.settings.TaskHubName,
                     $"Could not find context for work item with ID = {workItem.Id}.",
                     Utils.ExtensionVersion);
                 return;
@@ -1128,7 +1128,7 @@ namespace DurableTask.AzureStorage
                 // The context does not exist - possibly because it was already removed.
                 AnalyticsEventSource.Log.AssertFailure(
                     this.storageAccountName,
-                    this.settings.TaskHubName, 
+                    this.settings.TaskHubName,
                     $"Could not find context for work item with ID = {workItem.Id}.",
                     Utils.ExtensionVersion);
                 return;
@@ -1450,7 +1450,7 @@ namespace DurableTask.AzureStorage
             while (!cancellationToken.IsCancellationRequested && timeout > TimeSpan.Zero)
             {
                 OrchestrationState state = await this.GetOrchestrationStateAsync(instanceId, executionId);
-                if (state == null || 
+                if (state == null ||
                     state.OrchestrationStatus == OrchestrationStatus.Running ||
                     state.OrchestrationStatus == OrchestrationStatus.Pending ||
                     state.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew)

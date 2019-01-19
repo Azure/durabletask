@@ -153,7 +153,7 @@ namespace DurableTask.Core
                     this.context.HandleTimerFiredEvent((TimerFiredEvent)historyEvent);
                     break;
                 case EventType.EventRaised:
-                    if (this.skipCarryOverEvents||!this.context.HasContinueAsNew)
+                    if (this.skipCarryOverEvents || !this.context.HasContinueAsNew)
                     {
                         var eventRaisedEvent = (EventRaisedEvent)historyEvent;
                         this.taskOrchestration.RaiseEvent(this.context, eventRaisedEvent.Name, eventRaisedEvent.Input);

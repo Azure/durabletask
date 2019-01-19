@@ -364,9 +364,11 @@ namespace DurableTask.Core
                                 "TaskOrchestrationDispatcher-UpdatingStateForContinuation",
                                 workItem.InstanceId,
                                 "Updating state for continuation");
+
                             runtimeState = new OrchestrationRuntimeState();
                             runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
                             runtimeState.AddEvent(continueAsNewExecutionStarted);
+
                             if (carryOverEvents != null)
                             {
                                 foreach (var historyEvent in carryOverEvents)
@@ -374,19 +376,20 @@ namespace DurableTask.Core
                                     runtimeState.AddEvent(historyEvent);
                                 }
                             }
+
                             runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
                             workItem.OrchestrationRuntimeState = runtimeState;
 
                             TaskOrchestration orchestration = this.objectManager.GetObject(runtimeState.Name, continueAsNewExecutionStarted.Version);
-                            
+
                             workItem.Cursor = new OrchestrationExecutionCursor(runtimeState, orchestration, new TaskOrchestrationExecutor(runtimeState, workItem.Cursor.TaskOrchestration, orchestrationService.SkipEventsOnContinuation), null);
                             await orchestrationService.RenewTaskOrchestrationWorkItemLockAsync(workItem);
                         }
 
                         instanceState = Utils.BuildOrchestrationState(runtimeState);
                     }
-                }while (continuedAsNew);
-                
+                } while (continuedAsNew);
+
             }
 
             workItem.OrchestrationRuntimeState = oldOrchestrationRuntimeState;
@@ -402,7 +405,7 @@ namespace DurableTask.Core
 
             workItem.OrchestrationRuntimeState = runtimeState;
 
-            return isCompleted|| continuedAsNew || isInterrupted;
+            return isCompleted || continuedAsNew || isInterrupted;
         }
 
         async Task<OrchestrationExecutionCursor> ExecuteOrchestrationAsync(OrchestrationRuntimeState runtimeState)

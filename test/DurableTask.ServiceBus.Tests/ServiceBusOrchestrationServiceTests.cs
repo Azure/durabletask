@@ -91,10 +91,6 @@ namespace DurableTask.ServiceBus.Tests
             OrchestrationInstance temp = new OrchestrationInstance() { InstanceId = id.InstanceId };
             // Perform some operations
             await this.client.RaiseEventAsync(temp, "operation", "incr");
-
-            // TODO: Sleeping to avoid a race condition where multiple ContinueAsNew messages
-            //       are processed by the same instance at the same time, resulting in a corrupt
-            //       storage failure in DTFx.
             await this.client.RaiseEventAsync(temp, "operation", "incr");
             await this.client.RaiseEventAsync(temp, "operation", "decr");
             await this.client.RaiseEventAsync(temp, "operation", "incr");
