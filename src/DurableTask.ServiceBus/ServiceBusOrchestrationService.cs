@@ -762,10 +762,10 @@ namespace DurableTask.ServiceBus
                         {
                             trackingMessages = await CreateTrackingMessagesAsync(newOrchestrationRuntimeState, sessionState.SequenceNumber);
                             TraceHelper.TraceInstance(
-                            TraceEventType.Information,
-                            "ServiceBusOrchestrationService-CompleteTaskOrchestrationWorkItem-TrackingMessages",
-                            newOrchestrationRuntimeState.OrchestrationInstance,
-                            "Created {0} tracking messages", trackingMessages.Count);
+                                TraceEventType.Information,
+                                "ServiceBusOrchestrationService-CompleteTaskOrchestrationWorkItem-TrackingMessages",
+                                newOrchestrationRuntimeState.OrchestrationInstance,
+                                "Created {0} tracking messages", trackingMessages.Count);
 
                             if (trackingMessages.Count > 0)
                             {
