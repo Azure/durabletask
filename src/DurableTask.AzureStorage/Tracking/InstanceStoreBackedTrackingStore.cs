@@ -128,7 +128,18 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public override async Task<string> UpdateStateAsync(OrchestrationRuntimeState runtimeState, string instanceId, string executionId, string eTag)
+        public override async Task<string> UpdateStateAsync(OrchestrationRuntimeState runtimeState, OrchestrationRuntimeState oldRuntimeState, string instanceId, string executionId, string eTag)
+        {
+            if (runtimeState != oldRuntimeState)
+            {
+                eTag = await UpdateStateAsync(oldRuntimeState, instanceId, oldRuntimeState.OrchestrationInstance.ExecutionId, eTag);
+            }
+
+            return await UpdateStateAsync(runtimeState, instanceId, executionId, eTag);
+        }
+
+        /// <inheritdoc />
+        private async Task<string> UpdateStateAsync(OrchestrationRuntimeState runtimeState, string instanceId, string executionId, string eTag)
         {
             int oldEventsCount = (runtimeState.Events.Count - runtimeState.NewEvents.Count);
             await instanceStore.WriteEntitiesAsync(runtimeState.NewEvents.Select((x, i) =>

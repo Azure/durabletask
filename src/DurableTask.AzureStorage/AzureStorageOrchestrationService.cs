@@ -844,13 +844,7 @@ namespace DurableTask.AzureStorage
             // will result in a duplicate replay of the orchestration with no side-effects.
             try
             {
-                session.ETag = await this.trackingStore.UpdateStateAsync(runtimeState, instanceId, executionId, session.ETag);
-
-                if(this.trackingStore is InstanceStoreBackedTrackingStore && workItem.OrchestrationRuntimeState != runtimeState){
-
-                    session.ETag = await this.trackingStore.UpdateStateAsync(workItem.OrchestrationRuntimeState, instanceId, workItem.OrchestrationRuntimeState.OrchestrationInstance.ExecutionId, session.ETag);
-
-                }
+                session.ETag = await this.trackingStore.UpdateStateAsync(runtimeState, workItem.OrchestrationRuntimeState, instanceId, executionId, session.ETag);
             }
             catch (Exception e)
             {

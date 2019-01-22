@@ -852,6 +852,7 @@ namespace DurableTask.AzureStorage.Tracking
         /// <inheritdoc />
         public override async Task<string> UpdateStateAsync(
             OrchestrationRuntimeState runtimeState,
+            OrchestrationRuntimeState oldRuntimeState,
             string instanceId,
             string executionId,
             string eTagValue)
