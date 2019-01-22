@@ -845,6 +845,12 @@ namespace DurableTask.AzureStorage
             try
             {
                 session.ETag = await this.trackingStore.UpdateStateAsync(runtimeState, instanceId, executionId, session.ETag);
+
+                if(this.trackingStore is InstanceStoreBackedTrackingStore && workItem.OrchestrationRuntimeState != runtimeState){
+
+                    session.ETag = await this.trackingStore.UpdateStateAsync(workItem.OrchestrationRuntimeState, instanceId, workItem.OrchestrationRuntimeState.OrchestrationInstance.ExecutionId, session.ETag);
+
+                }
             }
             catch (Exception e)
             {
