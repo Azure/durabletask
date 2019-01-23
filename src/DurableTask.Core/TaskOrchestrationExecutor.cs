@@ -32,13 +32,13 @@ namespace DurableTask.Core
         Task<string> result;
 
         public TaskOrchestrationExecutor(OrchestrationRuntimeState orchestrationRuntimeState,
-            TaskOrchestration taskOrchestration, bool skipCarryOverEvents)
+            TaskOrchestration taskOrchestration, BehaviorOnContinueAsNew eventBehaviourForContinueAsNew)
         {
             this.decisionScheduler = new SynchronousTaskScheduler();
             this.context = new TaskOrchestrationContext(orchestrationRuntimeState.OrchestrationInstance, this.decisionScheduler);
             this.orchestrationRuntimeState = orchestrationRuntimeState;
             this.taskOrchestration = taskOrchestration;
-            this.skipCarryOverEvents = skipCarryOverEvents;
+            this.skipCarryOverEvents = eventBehaviourForContinueAsNew == BehaviorOnContinueAsNew.Ignore;
         }
 
         public bool IsCompleted => this.result != null && (this.result.IsCompleted || this.result.IsFaulted);

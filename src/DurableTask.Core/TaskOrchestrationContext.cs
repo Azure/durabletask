@@ -39,7 +39,7 @@ namespace DurableTask.Core
 
         public void AddEventToNextIteration(HistoryEvent he)
         {
-            continueAsNew.CarryOverEvents.Add(he);
+            continueAsNew.CarryoverEvents.Add(he);
         }
 
         public TaskOrchestrationContext(OrchestrationInstance orchestrationInstance, TaskScheduler taskScheduler)

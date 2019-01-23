@@ -198,7 +198,7 @@ namespace DurableTask.Core
 
             runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
 
-            OrchestrationRuntimeState oldOrchestrationRuntimeState = runtimeState;
+            OrchestrationRuntimeState originalOrchestrationRuntimeState = runtimeState;
 
             OrchestrationState instanceState = null;
 
@@ -220,11 +220,11 @@ namespace DurableTask.Core
                     continuedAsNewMessage = null;
 
                     TraceHelper.TraceInstance(
-                    TraceEventType.Verbose,
-                    "TaskOrchestrationDispatcher-ExecuteUserOrchestration-Begin",
-                    runtimeState.OrchestrationInstance,
-                    "Executing user orchestration: {0}",
-                    DataConverter.Serialize(runtimeState.GetOrchestrationRuntimeStateDump(), true));
+                        TraceEventType.Verbose,
+                        "TaskOrchestrationDispatcher-ExecuteUserOrchestration-Begin",
+                        runtimeState.OrchestrationInstance,
+                        "Executing user orchestration: {0}",
+                        DataConverter.Serialize(runtimeState.GetOrchestrationRuntimeStateDump(), true));
 
                     if (workItem.Cursor == null)
                     {
@@ -283,10 +283,10 @@ namespace DurableTask.Core
                                     {
                                         continuedAsNewMessage = workflowInstanceCompletedMessage;
                                         continueAsNewExecutionStarted = workflowInstanceCompletedMessage.Event as ExecutionStartedEvent;
-                                        if (completeDecision.CarryOverEvents.Any())
+                                        if (completeDecision.CarryoverEvents.Any())
                                         {
-                                            carryOverEvents = completeDecision.CarryOverEvents.ToList();
-                                            completeDecision.CarryOverEvents.Clear();
+                                            carryOverEvents = completeDecision.CarryoverEvents.ToList();
+                                            completeDecision.CarryoverEvents.Clear();
                                         }
                                     }
                                     else
@@ -382,7 +382,7 @@ namespace DurableTask.Core
 
                             TaskOrchestration orchestration = this.objectManager.GetObject(runtimeState.Name, continueAsNewExecutionStarted.Version);
 
-                            workItem.Cursor = new OrchestrationExecutionCursor(runtimeState, orchestration, new TaskOrchestrationExecutor(runtimeState, workItem.Cursor.TaskOrchestration, orchestrationService.SkipEventsOnContinuation), null);
+                            workItem.Cursor = new OrchestrationExecutionCursor(runtimeState, orchestration, new TaskOrchestrationExecutor(runtimeState, workItem.Cursor.TaskOrchestration, orchestrationService.EventBehaviourForContinueAsNew), null);
                             await orchestrationService.RenewTaskOrchestrationWorkItemLockAsync(workItem);
                         }
 
@@ -392,7 +392,7 @@ namespace DurableTask.Core
 
             }
 
-            workItem.OrchestrationRuntimeState = oldOrchestrationRuntimeState;
+            workItem.OrchestrationRuntimeState = originalOrchestrationRuntimeState;
 
             await this.orchestrationService.CompleteTaskOrchestrationWorkItemAsync(
                 workItem,
@@ -425,7 +425,7 @@ namespace DurableTask.Core
             dispatchContext.SetProperty(taskOrchestration);
             dispatchContext.SetProperty(runtimeState);
 
-            var executor = new TaskOrchestrationExecutor(runtimeState, taskOrchestration, orchestrationService.SkipEventsOnContinuation);
+            var executor = new TaskOrchestrationExecutor(runtimeState, taskOrchestration, orchestrationService.EventBehaviourForContinueAsNew);
 
             IEnumerable<OrchestratorAction> decisions = null;
             await this.dispatchPipeline.RunAsync(dispatchContext, _ =>

@@ -28,7 +28,7 @@ namespace DurableTask.Core.Settings
             DispatcherCount = FrameworkConstants.OrchestrationDefaultDispatcherCount;
             MaxConcurrentOrchestrations = FrameworkConstants.OrchestrationDefaultMaxConcurrentItems;
             CompressOrchestrationState = false;
-            SkipEventsOnContinuation = false;
+            EventBehaviourForContinueAsNew = BehaviorOnContinueAsNew.Carryover;
         }
 
         /// <summary>
@@ -57,9 +57,9 @@ namespace DurableTask.Core.Settings
         public bool CompressOrchestrationState { get; set; }
 
         /// <summary>
-        ///  Will not carry over unexecuted raised events to the next iteration of an orchestration on ContinueAsNew
+        ///  Should we carry over unexecuted raised events to the next iteration of an orchestration on ContinueAsNew
         /// </summary>
-        public bool SkipEventsOnContinuation { get; set; }
+        public BehaviorOnContinueAsNew EventBehaviourForContinueAsNew { get; set; }
 
         internal TaskOrchestrationDispatcherSettings Clone()
         {

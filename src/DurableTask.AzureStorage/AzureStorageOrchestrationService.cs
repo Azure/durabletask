@@ -275,11 +275,11 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
-        ///  Will not carry over unexecuted raised events to the next iteration of an orchestration on ContinueAsNew
+        ///  Should we carry over unexecuted raised events to the next iteration of an orchestration on ContinueAsNew
         /// </summary>
-        public bool SkipEventsOnContinuation
+        public BehaviorOnContinueAsNew EventBehaviourForContinueAsNew
         {
-            get { return this.settings.SkipEventsOnContinuation; }
+            get { return this.settings.EventBehaviourForContinueAsNew; }
         }
 
         // We always leave the dispatcher counts at one unless we can find a customer workload that requires more.

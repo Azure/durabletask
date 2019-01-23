@@ -456,9 +456,9 @@ namespace DurableTask.ServiceBus
         public int MaxConcurrentTaskOrchestrationWorkItems => this.Settings.TaskOrchestrationDispatcherSettings.MaxConcurrentOrchestrations;
 
         /// <summary>
-        ///  Will not carry over unexecuted raised events to the next iteration of an orchestration on ContinueAsNew
+        ///  Should we carry over unexecuted raised events to the next iteration of an orchestration on ContinueAsNew
         /// </summary>
-        public bool SkipEventsOnContinuation => this.Settings.TaskOrchestrationDispatcherSettings.SkipEventsOnContinuation;
+        public BehaviorOnContinueAsNew EventBehaviourForContinueAsNew => this.Settings.TaskOrchestrationDispatcherSettings.EventBehaviourForContinueAsNew;
 
         /// <summary>
         ///     Wait for the next orchestration work item and return the orchestration work item
