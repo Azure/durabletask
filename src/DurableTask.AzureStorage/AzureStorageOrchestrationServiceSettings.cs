@@ -14,6 +14,7 @@
 namespace DurableTask.AzureStorage
 {
     using System;
+    using DurableTask.Core;
     using Microsoft.WindowsAzure.Storage.Queue;
     using Microsoft.WindowsAzure.Storage.Table;
 
@@ -139,5 +140,10 @@ namespace DurableTask.AzureStorage
         /// If provided, this is used to connect to Azure Storage
         /// </summary>
         public StorageAccountDetails StorageAccountDetails { get; set; }
+
+        /// <summary>
+        ///  Should we carry over unexecuted raised events to the next iteration of an orchestration on ContinueAsNew
+        /// </summary>
+        public BehaviorOnContinueAsNew EventBehaviourForContinueAsNew { get; set; } = BehaviorOnContinueAsNew.Carryover;
     }
 }

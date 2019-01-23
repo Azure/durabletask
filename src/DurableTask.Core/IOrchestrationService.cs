@@ -98,6 +98,11 @@ namespace DurableTask.Core
         int MaxConcurrentTaskOrchestrationWorkItems { get; }
 
         /// <summary>
+        ///  Should we carry over unexecuted raised events to the next iteration of an orchestration on ContinueAsNew
+        /// </summary>
+        BehaviorOnContinueAsNew EventBehaviourForContinueAsNew { get; }
+
+        /// <summary>
         ///     Wait for the next orchestration work item and return the orchestration work item
         /// </summary>
         Task<TaskOrchestrationWorkItem> LockNextTaskOrchestrationWorkItemAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken);

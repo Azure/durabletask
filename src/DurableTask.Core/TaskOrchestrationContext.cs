@@ -35,6 +35,13 @@ namespace DurableTask.Core
         bool executionTerminated;
         int idCounter;
 
+        public bool HasContinueAsNew => continueAsNew != null;
+
+        public void AddEventToNextIteration(HistoryEvent he)
+        {
+            continueAsNew.CarryoverEvents.Add(he);
+        }
+
         public TaskOrchestrationContext(OrchestrationInstance orchestrationInstance, TaskScheduler taskScheduler)
         {
             Utils.UnusedParameter(taskScheduler);
@@ -54,6 +61,7 @@ namespace DurableTask.Core
         internal void ClearPendingActions()
         {
             this.orchestratorActionsMap.Clear();
+            continueAsNew = null;
         }
 
         public override async Task<TResult> ScheduleTask<TResult>(string name, string version,
