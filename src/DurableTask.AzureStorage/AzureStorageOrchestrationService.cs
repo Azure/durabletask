@@ -1345,6 +1345,20 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
+        /// Gets the state of all orchestration instances that match the specified parameters.
+        /// </summary>
+        /// <param name="condition">Query condition. <see cref="OrchestrationInstanceStatusQueryCondition"/></param>
+        /// <param name="top">Top is number of records per one request.</param>
+        /// <param name="continuationToken">ContinuationToken of the pager.</param>
+        /// <param name="cancellationToken">Cancellation Token</param>
+        /// <returns>List of <see cref="OrchestrationState"/></returns>
+        public async Task<DurableStatusQueryResult> GetOrchestrationStateAsync(OrchestrationInstanceStatusQueryCondition condition, int top, string continuationToken, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            await this.EnsureTaskHubAsync();
+            return await this.trackingStore.GetStateAsync(condition, top, continuationToken, cancellationToken);
+        }
+
+        /// <summary>
         /// Force terminates an orchestration by sending a execution terminated event
         /// </summary>
         /// <param name="instanceId">Instance ID of the orchestration to terminate.</param>

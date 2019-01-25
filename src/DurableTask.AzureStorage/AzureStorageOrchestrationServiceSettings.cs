@@ -73,6 +73,19 @@ namespace DurableTask.AzureStorage
         public string StorageConnectionString { get; set; }
 
         /// <summary>
+        /// Gets or sets the Instance/History Table Storage connection string.
+        /// In case of null, StorageConnectionString is applied.
+        /// </summary>
+        public string TrackingStoreConnectionString { get; set; }
+
+        /// <summary>
+        /// Gets or sets the prefix of the TrackingStore table name.
+        /// This property is only used when we have TrackingStoreConnectionString.
+        /// The default is "DurableTask"
+        /// </summary>
+        public string RemoteTrackingStoreNamePrefix { get; set; } = "DurableTask";
+
+        /// <summary>
         /// Gets or sets the name of the task hub. This value is used to group related storage resources.
         /// </summary>
         public string TaskHubName { get; set; }

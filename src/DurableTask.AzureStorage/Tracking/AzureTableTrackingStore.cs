@@ -58,6 +58,7 @@ namespace DurableTask.AzureStorage.Tracking
 
         readonly string storageAccountName;
         readonly string taskHubName;
+        readonly string remoteTrackingStoreNamePrefix;
         readonly AzureStorageOrchestrationServiceSettings settings;
         readonly AzureStorageOrchestrationServiceStats stats;
         readonly TableEntityConverter tableEntityConverter;
@@ -75,16 +76,19 @@ namespace DurableTask.AzureStorage.Tracking
             this.stats = stats;
             this.tableEntityConverter = new TableEntityConverter();
             this.taskHubName = settings.TaskHubName;
+            this.remoteTrackingStoreNamePrefix = settings.RemoteTrackingStoreNamePrefix;
 
-            this.storageAccountName = account.Credentials.AccountName;
+            CloudStorageAccount trackingStoreAccount = string.IsNullOrEmpty(settings.TrackingStoreConnectionString) ? account : CloudStorageAccount.Parse(settings.TrackingStoreConnectionString);
 
-            CloudTableClient tableClient = account.CreateCloudTableClient();
+            this.storageAccountName = trackingStoreAccount.Credentials.AccountName;
+
+            CloudTableClient tableClient = trackingStoreAccount.CreateCloudTableClient();
             tableClient.BufferManager = SimpleBufferManager.Shared;
 
-            string historyTableName = $"{taskHubName}History";
+            string historyTableName = (!string.IsNullOrEmpty(settings.TrackingStoreConnectionString)) ? $"{remoteTrackingStoreNamePrefix}History" : $"{taskHubName}History";
             NameValidator.ValidateTableName(historyTableName);
 
-            string instancesTableName = $"{taskHubName}Instances";
+            string instancesTableName = (!string.IsNullOrEmpty(settings.TrackingStoreConnectionString)) ? $"{remoteTrackingStoreNamePrefix}Instances" : $"{taskHubName}Instances";
             NameValidator.ValidateTableName(instancesTableName);
 
             this.HistoryTable = tableClient.GetTableReference(historyTableName);
@@ -539,6 +543,15 @@ namespace DurableTask.AzureStorage.Tracking
                 cancellationToken);
         }
 
+        public override Task<DurableStatusQueryResult> GetStateAsync(OrchestrationInstanceStatusQueryCondition condition, int top, string continuationToken, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            return this.QueryStateAsync(
+                condition.ToTableQuery<OrchestrationInstanceStatus>(),
+                top,
+                continuationToken,
+                cancellationToken);
+        }
+
         async Task<DurableStatusQueryResult> QueryStateAsync(TableQuery<OrchestrationInstanceStatus> query, int top, string continuationToken, CancellationToken cancellationToken)
         {
             TableContinuationToken token = null;
@@ -764,6 +777,7 @@ namespace DurableTask.AzureStorage.Tracking
                     ["Version"] = new EntityProperty(executionStartedEvent.Version),
                     ["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Pending.ToString()),
                     ["LastUpdatedTime"] = new EntityProperty(DateTime.UtcNow),
+                    ["TaskHubName"] = new EntityProperty(this.settings.TaskHubName)
                 }
             };
 
