@@ -167,6 +167,27 @@ namespace DurableTask.Core
             return this.dataConverter.Deserialize<T>(serializedResult);
         }
 
+        public override void CreateEvent(string instanceId, string eventName, object eventData)
+        {
+            if (string.IsNullOrWhiteSpace(instanceId))
+            {
+                throw new ArgumentException("instanceId");
+            }
+
+            int id = this.idCounter++;
+            string serializedEventData = this.dataConverter.Serialize(eventData);
+
+            var action = new CreateEventOrchestratorAction
+            {
+                Id = id,
+                InstanceId = instanceId,
+                EventName = eventName,
+                EventData = serializedEventData,
+            };
+
+            this.orchestratorActionsMap.Add(id, action);
+        }
+
         public override void ContinueAsNew(object input)
         {
             ContinueAsNew(null, input);
@@ -277,6 +298,21 @@ namespace DurableTask.Core
                         subOrchestrationCreateEvent.InstanceId));
             }
         }
+
+        public void HandleEventCreatedEvent(EventCreatedEvent eventCreatedEvent)
+        {
+            int taskId = eventCreatedEvent.EventId;
+            if (this.orchestratorActionsMap.ContainsKey(taskId))
+            {
+                this.orchestratorActionsMap.Remove(taskId);
+            }
+            else
+            {
+                throw new NonDeterministicOrchestrationException(eventCreatedEvent.EventId,
+                    $"EventCreatedEvent: {eventCreatedEvent.EventId} {eventCreatedEvent.EventType} {eventCreatedEvent.Name} {eventCreatedEvent.InstanceId}");
+            }
+        }
+
 
         public void HandleTaskCompletedEvent(TaskCompletedEvent completedEvent)
         {

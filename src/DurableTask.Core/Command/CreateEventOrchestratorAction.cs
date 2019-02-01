@@ -13,12 +13,16 @@
 
 namespace DurableTask.Core.Command
 {
-    internal enum OrchestratorActionType
+    using System;
+
+    internal class CreateEventOrchestratorAction : OrchestratorAction
     {
-        ScheduleOrchestrator,
-        CreateSubOrchestration,
-        CreateTimer,
-        CreateEvent,
-        OrchestrationComplete,
+        public override OrchestratorActionType OrchestratorActionType => OrchestratorActionType.CreateEvent;
+
+        public string InstanceId { get; set; }
+
+        public string EventName { get; set; }
+
+        public string EventData { get; set; }
     }
 }
