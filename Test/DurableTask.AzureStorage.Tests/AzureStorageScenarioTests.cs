@@ -18,6 +18,7 @@ namespace DurableTask.AzureStorage.Tests
     using System.Configuration;
     using System.IO;
     using System.Linq;
+    using System.Reflection;
     using System.Runtime.Serialization;
     using System.Text;
     using System.Threading;
@@ -163,6 +164,41 @@ namespace DurableTask.AzureStorage.Tests
                 await host.StopAsync();
             }
         }
+
+        [TestMethod]
+        public async Task EventConversation()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            {
+                await host.StartAsync();
+
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Greeter), "");
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                Assert.AreEqual("OK", JToken.Parse(status?.Output));
+
+                await host.StopAsync();
+            }
+        }
+
+        [TestMethod]
+        public async Task EventConversationNoReplay()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: true))
+            {
+                await host.StartAsync();
+
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Greeter), "");
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                Assert.AreEqual("OK", JToken.Parse(status?.Output));
+
+                await host.StopAsync();
+            }
+        }
+
 
         [TestMethod]
         public async Task PurgeInstanceHistoryForSingleInstanceWithoutLargeMessageBlobs()
@@ -1603,7 +1639,7 @@ namespace DurableTask.AzureStorage.Tests
             }
 
             [KnownType(typeof(Activities.HelloFailActivity))]
-            internal class SayHelloWithActivityFail: TaskOrchestration<string, string>
+            internal class SayHelloWithActivityFail : TaskOrchestration<string, string>
             {
                 public override Task<string> RunTask(OrchestrationContext context, string input)
                 {
@@ -2173,6 +2209,80 @@ namespace DurableTask.AzureStorage.Tests
                     await Task.WhenAll(tasks2);
 
                     return "OK";
+                }
+            }
+
+            [KnownType(typeof(Responder))]
+            internal class Greeter : TaskOrchestration<string, string>
+            {
+                private readonly TaskCompletionSource<string> tcs
+                    = new TaskCompletionSource<string>(TaskContinuationOptions.ExecuteSynchronously);
+
+                public async override Task<string> RunTask(OrchestrationContext context, string input)
+                {
+                    // start a responder orchestration
+                    var responderId = "responderId";
+                    var responderOrchestration = context.CreateSubOrchestrationInstance<string>(typeof(Responder), responderId, "Herkimer");
+
+                    // send the id of this orchestration to the responder
+                    context.CreateEvent(responderId, channelName, context.OrchestrationInstance.InstanceId);
+
+                    // wait for a response event 
+                    var message = await tcs.Task;
+                    Assert.AreEqual("hi from Herkimer", message);
+
+                    // tell the responder to stop listening, then wait for it to complete
+                    context.CreateEvent(responderId, channelName, "stop");
+                    var receiverResult = await responderOrchestration;
+
+                    Assert.AreEqual("Herkimer is done", receiverResult);
+
+                    return "OK";
+                }
+
+                public override void OnEvent(OrchestrationContext context, string name, string input)
+                {
+                    if (name == channelName)
+                    {
+                        tcs.TrySetResult(input);
+                    }
+                }
+            }
+
+            private const string channelName = "conversation";
+
+            internal class Responder : TaskOrchestration<string, string>
+            {
+                private readonly TaskCompletionSource<string> tcs
+                    = new TaskCompletionSource<string>(TaskContinuationOptions.ExecuteSynchronously);
+
+                public async override Task<string> RunTask(OrchestrationContext context, string input)
+                {
+                    var message = await tcs.Task;
+
+                    if (message == "stop")
+                    {
+                        return $"{input} is done";
+                    }
+                    else
+                    {
+                        // send a message back to the sender
+                        var senderInstanceId = message;
+                        context.CreateEvent(senderInstanceId, channelName, $"hi from {input}");
+
+                        // start over to wait for the next message
+                        context.ContinueAsNew(input);
+
+                        return "this value is meaningless";
+                    }
+                }
+
+                public override void OnEvent(OrchestrationContext context, string name, string input)
+                {
+                    if (name == channelName)
+                    {
+                        tcs.TrySetResult(input);
+                    }
                 }
             }
         }
