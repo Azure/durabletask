@@ -16,14 +16,14 @@ namespace DurableTask.Core.History
     using System.Runtime.Serialization;
 
     [DataContract]
-    internal class EventCreatedEvent : HistoryEvent
+    internal class EventSentEvent : HistoryEvent
     {
-        public EventCreatedEvent(int eventId)
+        public EventSentEvent(int eventId)
             : base(eventId)
         {
         }
 
-        public override EventType EventType => EventType.EventCreated;
+        public override EventType EventType => EventType.EventSent;
 
         [DataMember]
         public string InstanceId { get; set; }

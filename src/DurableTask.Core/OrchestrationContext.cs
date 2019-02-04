@@ -332,7 +332,7 @@ namespace DurableTask.Core
         /// <param name="instanceId">Id of the instance in which to raise the event</param>
         /// <param name="eventName">Name of the event</param>
         /// <param name="eventData">Data for the event</param>
-        public abstract void CreateEvent(string instanceId, string eventName, object eventData);
+        public abstract void SendEvent(string instanceId, string eventName, object eventData);
 
         /// <summary>
         ///     Checkpoint the orchestration instance by completing the current execution in the ContinueAsNew

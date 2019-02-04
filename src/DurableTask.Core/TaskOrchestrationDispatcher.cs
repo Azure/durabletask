@@ -270,10 +270,10 @@ namespace DurableTask.Core
                                     ProcessCreateSubOrchestrationInstanceDecision(createSubOrchestrationAction,
                                         runtimeState, IncludeParameters));
                                 break;
-                            case OrchestratorActionType.CreateEvent:
-                                var createEventAction = (CreateEventOrchestratorAction)decision;
+                            case OrchestratorActionType.SendEvent:
+                                var sendEventAction = (SendEventOrchestratorAction)decision;
                                 orchestratorMessages.Add(
-                                   ProcessCreateEventDecision(createEventAction, runtimeState));
+                                   ProcessSendEventDecision(sendEventAction, runtimeState));
                                 break;
                             case OrchestratorActionType.OrchestrationComplete:
                                 OrchestrationCompleteOrchestratorAction completeDecision = (OrchestrationCompleteOrchestratorAction)decision;
@@ -711,15 +711,15 @@ namespace DurableTask.Core
             return taskMessage;
         }
 
-        static TaskMessage ProcessCreateEventDecision(
-          CreateEventOrchestratorAction createEventAction,
+        static TaskMessage ProcessSendEventDecision(
+          SendEventOrchestratorAction sendEventAction,
           OrchestrationRuntimeState runtimeState)
         {
-            var historyEvent = new EventCreatedEvent(createEventAction.Id)
+            var historyEvent = new EventSentEvent(sendEventAction.Id)
             {
-                 InstanceId = createEventAction.InstanceId,
-                 Name = createEventAction.EventName,
-                 Input = createEventAction.EventData
+                 InstanceId = sendEventAction.InstanceId,
+                 Name = sendEventAction.EventName,
+                 Input = sendEventAction.EventData
             };
             
             runtimeState.AddEvent(historyEvent);
@@ -728,11 +728,11 @@ namespace DurableTask.Core
             {
                 OrchestrationInstance = new OrchestrationInstance
                 {
-                    InstanceId = createEventAction.InstanceId,
+                    InstanceId = sendEventAction.InstanceId,
                 },
-                Event = new EventRaisedEvent(-1, createEventAction.EventData)
+                Event = new EventRaisedEvent(-1, sendEventAction.EventData)
                 {
-                    Name = createEventAction.EventName
+                    Name = sendEventAction.EventName
                 }
             };
         }

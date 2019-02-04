@@ -167,7 +167,7 @@ namespace DurableTask.Core
             return this.dataConverter.Deserialize<T>(serializedResult);
         }
 
-        public override void CreateEvent(string instanceId, string eventName, object eventData)
+        public override void SendEvent(string instanceId, string eventName, object eventData)
         {
             if (string.IsNullOrWhiteSpace(instanceId))
             {
@@ -177,7 +177,7 @@ namespace DurableTask.Core
             int id = this.idCounter++;
             string serializedEventData = this.dataConverter.Serialize(eventData);
 
-            var action = new CreateEventOrchestratorAction
+            var action = new SendEventOrchestratorAction
             {
                 Id = id,
                 InstanceId = instanceId,
@@ -299,17 +299,17 @@ namespace DurableTask.Core
             }
         }
 
-        public void HandleEventCreatedEvent(EventCreatedEvent eventCreatedEvent)
+        public void HandleEventSentEvent(EventSentEvent eventSentEvent)
         {
-            int taskId = eventCreatedEvent.EventId;
+            int taskId = eventSentEvent.EventId;
             if (this.orchestratorActionsMap.ContainsKey(taskId))
             {
                 this.orchestratorActionsMap.Remove(taskId);
             }
             else
             {
-                throw new NonDeterministicOrchestrationException(eventCreatedEvent.EventId,
-                    $"EventCreatedEvent: {eventCreatedEvent.EventId} {eventCreatedEvent.EventType} {eventCreatedEvent.Name} {eventCreatedEvent.InstanceId}");
+                throw new NonDeterministicOrchestrationException(eventSentEvent.EventId,
+                    $"EventSentEvent: {eventSentEvent.EventId} {eventSentEvent.EventType} {eventSentEvent.Name} {eventSentEvent.InstanceId}");
             }
         }
 

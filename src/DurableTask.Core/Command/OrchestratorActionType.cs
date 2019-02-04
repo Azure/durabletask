@@ -18,7 +18,7 @@ namespace DurableTask.Core.Command
         ScheduleOrchestrator,
         CreateSubOrchestration,
         CreateTimer,
-        CreateEvent,
+        SendEvent,
         OrchestrationComplete,
     }
 }

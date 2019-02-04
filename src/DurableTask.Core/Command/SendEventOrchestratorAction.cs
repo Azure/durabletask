@@ -15,9 +15,9 @@ namespace DurableTask.Core.Command
 {
     using System;
 
-    internal class CreateEventOrchestratorAction : OrchestratorAction
+    internal class SendEventOrchestratorAction : OrchestratorAction
     {
-        public override OrchestratorActionType OrchestratorActionType => OrchestratorActionType.CreateEvent;
+        public override OrchestratorActionType OrchestratorActionType => OrchestratorActionType.SendEvent;
 
         public string InstanceId { get; set; }
 

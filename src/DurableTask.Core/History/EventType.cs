@@ -89,9 +89,9 @@ namespace DurableTask.Core.History
         OrchestratorCompleted,
 
         /// <summary>
-        /// Event was created by an orchestration
+        /// Event was sent by an orchestration
         /// </summary>
-        EventCreated,
+        EventSent,
 
         /// <summary>
         /// Event was raised to orchestration event

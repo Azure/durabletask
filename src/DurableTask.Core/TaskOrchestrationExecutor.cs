@@ -152,8 +152,8 @@ namespace DurableTask.Core
                 case EventType.TimerFired:
                     this.context.HandleTimerFiredEvent((TimerFiredEvent)historyEvent);
                     break;
-                case EventType.EventCreated:
-                    this.context.HandleEventCreatedEvent((EventCreatedEvent)historyEvent);
+                case EventType.EventSent:
+                    this.context.HandleEventSentEvent((EventSentEvent)historyEvent);
                     break;
                 case EventType.EventRaised:
                     if (this.skipCarryOverEvents || !this.context.HasContinueAsNew)
