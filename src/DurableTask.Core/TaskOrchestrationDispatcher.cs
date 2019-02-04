@@ -712,8 +712,8 @@ namespace DurableTask.Core
         }
 
         static TaskMessage ProcessSendEventDecision(
-          SendEventOrchestratorAction sendEventAction,
-          OrchestrationRuntimeState runtimeState)
+            SendEventOrchestratorAction sendEventAction,
+            OrchestrationRuntimeState runtimeState)
         {
             var historyEvent = new EventSentEvent(sendEventAction.Id)
             {
