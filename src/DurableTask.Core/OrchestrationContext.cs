@@ -329,10 +329,10 @@ namespace DurableTask.Core
         ///     Raises an event for the specified orchestration instance, which eventually causes the OnEvent() method in the
         ///     orchestration to fire.
         /// </summary>
-        /// <param name="instanceId">Id of the instance in which to raise the event</param>
+        /// <param name="orchestrationInstance">Instance in which to raise the event</param>
         /// <param name="eventName">Name of the event</param>
         /// <param name="eventData">Data for the event</param>
-        public abstract void SendEvent(string instanceId, string eventName, object eventData);
+        public abstract void SendEvent(OrchestrationInstance orchestrationInstance, string eventName, object eventData);
 
         /// <summary>
         ///     Checkpoint the orchestration instance by completing the current execution in the ContinueAsNew

@@ -19,7 +19,7 @@ namespace DurableTask.Core.Command
     {
         public override OrchestratorActionType OrchestratorActionType => OrchestratorActionType.SendEvent;
 
-        public string InstanceId { get; set; }
+        public OrchestrationInstance Instance { get; set; }
 
         public string EventName { get; set; }
 

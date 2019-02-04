@@ -717,7 +717,7 @@ namespace DurableTask.Core
         {
             var historyEvent = new EventSentEvent(sendEventAction.Id)
             {
-                 InstanceId = sendEventAction.InstanceId,
+                 InstanceId = sendEventAction.Instance.InstanceId,
                  Name = sendEventAction.EventName,
                  Input = sendEventAction.EventData
             };
@@ -726,10 +726,7 @@ namespace DurableTask.Core
 
             return new TaskMessage
             {
-                OrchestrationInstance = new OrchestrationInstance
-                {
-                    InstanceId = sendEventAction.InstanceId,
-                },
+                OrchestrationInstance = sendEventAction.Instance,
                 Event = new EventRaisedEvent(-1, sendEventAction.EventData)
                 {
                     Name = sendEventAction.EventName

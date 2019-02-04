@@ -2210,14 +2210,15 @@ namespace DurableTask.AzureStorage.Tests
                     var responderOrchestration = context.CreateSubOrchestrationInstance<string>(typeof(Responder), responderId, "Herkimer");
 
                     // send the id of this orchestration to the responder
-                    context.SendEvent(responderId, channelName, context.OrchestrationInstance.InstanceId);
+                    var responderInstance = new OrchestrationInstance() { InstanceId = responderId };
+                    context.SendEvent(responderInstance, channelName, context.OrchestrationInstance.InstanceId);
 
                     // wait for a response event 
                     var message = await tcs.Task;
                     Assert.AreEqual("hi from Herkimer", message);
 
                     // tell the responder to stop listening, then wait for it to complete
-                    context.SendEvent(responderId, channelName, "stop");
+                    context.SendEvent(responderInstance, channelName, "stop");
                     var receiverResult = await responderOrchestration;
 
                     Assert.AreEqual("Herkimer is done", receiverResult);
@@ -2252,8 +2253,8 @@ namespace DurableTask.AzureStorage.Tests
                     else
                     {
                         // send a message back to the sender
-                        var senderInstanceId = message;
-                        context.SendEvent(senderInstanceId, channelName, $"hi from {input}");
+                        var senderInstance = new OrchestrationInstance() { InstanceId = message };
+                        context.SendEvent(senderInstance, channelName, $"hi from {input}");
 
                         // start over to wait for the next message
                         context.ContinueAsNew(input);

@@ -504,7 +504,7 @@ namespace DurableTask.Core
         {
             if (string.IsNullOrWhiteSpace(orchestrationInstance?.InstanceId))
             {
-                throw new ArgumentException("orchestrationInstance");
+                throw new ArgumentException(nameof(orchestrationInstance));
             }
 
             string serializedInput = this.defaultConverter.Serialize(eventData);

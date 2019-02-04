@@ -167,11 +167,11 @@ namespace DurableTask.Core
             return this.dataConverter.Deserialize<T>(serializedResult);
         }
 
-        public override void SendEvent(string instanceId, string eventName, object eventData)
+        public override void SendEvent(OrchestrationInstance orchestrationInstance, string eventName, object eventData)
         {
-            if (string.IsNullOrWhiteSpace(instanceId))
+            if (string.IsNullOrWhiteSpace(orchestrationInstance?.InstanceId))
             {
-                throw new ArgumentException("instanceId");
+                throw new ArgumentException(nameof(orchestrationInstance));
             }
 
             int id = this.idCounter++;
@@ -180,7 +180,7 @@ namespace DurableTask.Core
             var action = new SendEventOrchestratorAction
             {
                 Id = id,
-                InstanceId = instanceId,
+                Instance = orchestrationInstance,
                 EventName = eventName,
                 EventData = serializedEventData,
             };
