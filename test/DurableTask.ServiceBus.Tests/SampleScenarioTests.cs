@@ -276,6 +276,24 @@ namespace DurableTask.ServiceBus.Tests
 
         #endregion
 
+        #region EventConversation
+
+        [TestMethod]
+        public async Task EventConversation()
+        {
+            await this.taskHub
+                .AddTaskOrchestrations(typeof(Test.Orchestrations.EventConversationOrchestration), 
+                                       typeof(Test.Orchestrations.EventConversationOrchestration.Responder))
+                .StartAsync();
+
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(Test.Orchestrations.EventConversationOrchestration), "");
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
+            Assert.IsTrue(Test.Orchestrations.EventConversationOrchestration.OkResult, "Orchestration did not finish ok!!!");
+        }
+
+        #endregion
+
         #region Message Overflow Test for Large Orchestration Input Output
 
         [TestMethod]
