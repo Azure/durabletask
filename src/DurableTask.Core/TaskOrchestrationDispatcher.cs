@@ -185,7 +185,7 @@ namespace DurableTask.Core
         {
             var messagesToSend = new List<TaskMessage>();
             var timerMessages = new List<TaskMessage>();
-            var subOrchestrationMessages = new List<TaskMessage>();
+            var orchestratorMessages = new List<TaskMessage>();
             var isCompleted = false;
             var continuedAsNew = false;
             var isInterrupted = false;
@@ -266,9 +266,14 @@ namespace DurableTask.Core
                                 break;
                             case OrchestratorActionType.CreateSubOrchestration:
                                 var createSubOrchestrationAction = (CreateSubOrchestrationAction)decision;
-                                subOrchestrationMessages.Add(
+                                orchestratorMessages.Add(
                                     ProcessCreateSubOrchestrationInstanceDecision(createSubOrchestrationAction,
                                         runtimeState, IncludeParameters));
+                                break;
+                            case OrchestratorActionType.SendEvent:
+                                var sendEventAction = (SendEventOrchestratorAction)decision;
+                                orchestratorMessages.Add(
+                                   ProcessSendEventDecision(sendEventAction, runtimeState));
                                 break;
                             case OrchestratorActionType.OrchestrationComplete:
                                 OrchestrationCompleteOrchestratorAction completeDecision = (OrchestrationCompleteOrchestratorAction)decision;
@@ -291,7 +296,7 @@ namespace DurableTask.Core
                                     }
                                     else
                                     {
-                                        subOrchestrationMessages.Add(workflowInstanceCompletedMessage);
+                                        orchestratorMessages.Add(workflowInstanceCompletedMessage);
                                     }
                                 }
 
@@ -309,7 +314,7 @@ namespace DurableTask.Core
                         // we keep on asking the provider if message count is ok and stop processing new decisions if not.
                         //
                         // We also put in a fake timer to force next orchestration task for remaining messages
-                        int totalMessages = messagesToSend.Count + subOrchestrationMessages.Count + timerMessages.Count;
+                        int totalMessages = messagesToSend.Count + orchestratorMessages.Count + timerMessages.Count;
                         if (this.orchestrationService.IsMaxMessageCountExceeded(totalMessages, runtimeState))
                         {
                             TraceHelper.TraceInstance(
@@ -398,7 +403,7 @@ namespace DurableTask.Core
                 workItem,
                 runtimeState,
                 continuedAsNew ? null : messagesToSend,
-                subOrchestrationMessages,
+                orchestratorMessages,
                 continuedAsNew ? null : timerMessages,
                 continuedAsNewMessage,
                 instanceState);
@@ -704,6 +709,29 @@ namespace DurableTask.Core
             taskMessage.Event = startedEvent;
 
             return taskMessage;
+        }
+
+        static TaskMessage ProcessSendEventDecision(
+            SendEventOrchestratorAction sendEventAction,
+            OrchestrationRuntimeState runtimeState)
+        {
+            var historyEvent = new EventSentEvent(sendEventAction.Id)
+            {
+                 InstanceId = sendEventAction.Instance.InstanceId,
+                 Name = sendEventAction.EventName,
+                 Input = sendEventAction.EventData
+            };
+            
+            runtimeState.AddEvent(historyEvent);
+
+            return new TaskMessage
+            {
+                OrchestrationInstance = sendEventAction.Instance,
+                Event = new EventRaisedEvent(-1, sendEventAction.EventData)
+                {
+                    Name = sendEventAction.EventName
+                }
+            };
         }
 
         static IDictionary<string, string> MergeTags(

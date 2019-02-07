@@ -18,6 +18,7 @@ namespace DurableTask.AzureStorage.Tests
     using System.Configuration;
     using System.IO;
     using System.Linq;
+    using System.Reflection;
     using System.Runtime.Serialization;
     using System.Text;
     using System.Threading;
@@ -163,6 +164,26 @@ namespace DurableTask.AzureStorage.Tests
                 await host.StopAsync();
             }
         }
+
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task EventConversation(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                await host.StartAsync();
+
+                var client = await host.StartOrchestrationAsync(typeof(Test.Orchestrations.EventConversationOrchestration), "");
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                Assert.AreEqual("OK", JToken.Parse(status?.Output));
+
+                await host.StopAsync();
+            }
+        }
+
 
         [TestMethod]
         public async Task PurgeInstanceHistoryForSingleInstanceWithoutLargeMessageBlobs()
@@ -1603,7 +1624,7 @@ namespace DurableTask.AzureStorage.Tests
             }
 
             [KnownType(typeof(Activities.HelloFailActivity))]
-            internal class SayHelloWithActivityFail: TaskOrchestration<string, string>
+            internal class SayHelloWithActivityFail : TaskOrchestration<string, string>
             {
                 public override Task<string> RunTask(OrchestrationContext context, string input)
                 {

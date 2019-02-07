@@ -89,7 +89,12 @@ namespace DurableTask.Core.History
         OrchestratorCompleted,
 
         /// <summary>
-        /// External Event raised to orchestration event
+        /// Event was sent by an orchestration
+        /// </summary>
+        EventSent,
+
+        /// <summary>
+        /// Event was raised to orchestration event
         /// </summary>
         EventRaised,
 

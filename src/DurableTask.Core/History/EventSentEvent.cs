@@ -11,14 +11,27 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Command
+namespace DurableTask.Core.History
 {
-    internal enum OrchestratorActionType
+    using System.Runtime.Serialization;
+
+    [DataContract]
+    internal class EventSentEvent : HistoryEvent
     {
-        ScheduleOrchestrator,
-        CreateSubOrchestration,
-        CreateTimer,
-        SendEvent,
-        OrchestrationComplete,
+        public EventSentEvent(int eventId)
+            : base(eventId)
+        {
+        }
+
+        public override EventType EventType => EventType.EventSent;
+
+        [DataMember]
+        public string InstanceId { get; set; }
+
+        [DataMember]
+        public string Name { get; set; }
+
+        [DataMember]
+        public string Input { get; set; }
     }
 }
