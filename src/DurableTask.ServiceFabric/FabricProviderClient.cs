@@ -36,13 +36,13 @@ namespace DurableTask.ServiceFabric
             this.orchestrationProvider = orchestrationProvider ?? throw new ArgumentNullException(nameof(orchestrationProvider));
         }
 
-        public async Task<IEnumerable<OrchestrationInstance>> GetRunningOrchestrations()
+        public async Task<IEnumerable<OrchestrationInstance>> GetRunningOrchestrationsAsync()
         {
             var sessions = await this.orchestrationProvider.GetSessions();
             return sessions.Select(s => s.SessionId);
         }
 
-        public async Task<string> GetOrchestrationRuntimeState(string instanceId)
+        public async Task<string> GetOrchestrationRuntimeStateAsync(string instanceId)
         {
             var session = await this.orchestrationProvider.GetSession(instanceId);
             if (session == null)

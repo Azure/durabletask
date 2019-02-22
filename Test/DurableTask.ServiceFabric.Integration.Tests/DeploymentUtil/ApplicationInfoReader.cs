@@ -87,10 +87,7 @@ namespace DurableTask.ServiceFabric.Integration.Tests.DeploymentUtil
             return parameters;
         }
 
-        public string ApplicationPackagePath
-        {
-            get { return this.applicationPackagePath; }
-        }
+        public string ApplicationPackagePath => this.applicationPackagePath;
 
         string GetSingleNodeAttributeValue(XmlElement root, XmlNamespaceManager namespaceManager, string queryPath, string attributeName)
         {

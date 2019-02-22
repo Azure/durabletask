@@ -15,6 +15,7 @@ namespace DurableTask.ServiceFabric
 {
     using System;
     using System.Collections.Generic;
+    using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
 
@@ -68,7 +69,7 @@ namespace DurableTask.ServiceFabric
 
             if (added)
             {
-                ProviderEventSource.Log.OrchestrationCreated(instance.InstanceId, instance.ExecutionId);
+                ProviderEventSource.Tracing.OrchestrationCreated(instance.InstanceId, instance.ExecutionId);
                 this.orchestrationProvider.TryEnqueueSession(creationMessage.OrchestrationInstance);
             }
             else
@@ -103,7 +104,7 @@ namespace DurableTask.ServiceFabric
 
         public async Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason)
         {
-            var latestExecutionId = await this.instanceStore.GetLatestExecutionId(instanceId);
+            var latestExecutionId = (await this.instanceStore.GetExecutionIds(instanceId)).Last();
 
             if (latestExecutionId == null)
             {
@@ -142,7 +143,10 @@ namespace DurableTask.ServiceFabric
 
         public Task<string> GetOrchestrationHistoryAsync(string instanceId, string executionId)
         {
-            throw new NotImplementedException();
+            // Other implementations returns full history for the execution.
+            // This implementation returns just the final history, i.e., state.
+            var result = Newtonsoft.Json.JsonConvert.SerializeObject(this.instanceStore.GetOrchestrationStateAsync(instanceId, executionId));
+            return Task.FromResult(result);
         }
 
         public Task PurgeOrchestrationHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType)

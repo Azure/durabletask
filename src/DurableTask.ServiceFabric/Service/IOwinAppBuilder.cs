@@ -11,25 +11,26 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceFabric
+namespace DurableTask.ServiceFabric.Service
 {
-    using System;
+    using Owin;
 
     /// <summary>
-    /// Provides partition related information.
+    /// Owin application startup interface.
     /// </summary>
-    public interface IPartitionProvider
+    public interface IOwinAppBuilder
     {
         /// <summary>
-        /// Gets end points for all the partitions.
+        /// Gets the listening Address.
         /// </summary>
-        /// <returns> All the end points. </returns>
-        Uri[] GetAllPartitions();
+        /// <returns></returns>
+        string GetListeningAddress();
+
 
         /// <summary>
-        /// Gets partition end point for given instanceId.
+        /// Starts up an Owin App.
         /// </summary>
-        /// <returns> Partition end point </returns>
-        Uri GetPartitionForInstance(string instanceId);
+        /// <param name="appBuilder">an instance of <see cref="IAppBuilder"/> </param>
+        void Startup(IAppBuilder appBuilder);
     }
 }

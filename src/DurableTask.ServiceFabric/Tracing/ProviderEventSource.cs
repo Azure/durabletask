@@ -26,7 +26,7 @@ namespace DurableTask.ServiceFabric.Tracing
         /// <summary>
         /// Singleton instance of the event source.
         /// </summary>
-        public static readonly ProviderEventSource Log = new ProviderEventSource();
+        public static readonly ProviderEventSource Tracing = new ProviderEventSource();
 
         static ProviderEventSource()
         {

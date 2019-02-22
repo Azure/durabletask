@@ -39,7 +39,7 @@ namespace DurableTask.ServiceFabric.TaskHelpers
                 {
                     await action();
                     timer.Stop();
-                    ProviderEventSource.Log.LogMeasurement($"{uniqueActionIdentifier}, Attempt Number : {attemptNumber}, Result : Success", timer.ElapsedMilliseconds);
+                    ProviderEventSource.Tracing.LogMeasurement($"{uniqueActionIdentifier}, Attempt Number : {attemptNumber}, Result : Success", timer.ElapsedMilliseconds);
                     return;
                 }
                 catch (Exception e)
@@ -49,7 +49,7 @@ namespace DurableTask.ServiceFabric.TaskHelpers
                     bool shouldRetry = ExceptionUtilities.IsRetryableFabricException(e);
 
                     ExceptionUtilities.LogReliableCollectionException(uniqueActionIdentifier, attemptNumber, e, shouldRetry);
-                    ProviderEventSource.Log.LogMeasurement($"{uniqueActionIdentifier}, Attempt Number : {attemptNumber}, ShouldRetry : {shouldRetry}", timer.ElapsedMilliseconds);
+                    ProviderEventSource.Tracing.LogMeasurement($"{uniqueActionIdentifier}, Attempt Number : {attemptNumber}, ShouldRetry : {shouldRetry}", timer.ElapsedMilliseconds);
 
                     if (shouldRetry)
                     {
@@ -83,7 +83,7 @@ namespace DurableTask.ServiceFabric.TaskHelpers
                 {
                     var result = await action();
                     timer.Stop();
-                    ProviderEventSource.Log.LogMeasurement($"{uniqueActionIdentifier}, Attempt Number : {attemptNumber}, Result : Success", timer.ElapsedMilliseconds);
+                    ProviderEventSource.Tracing.LogMeasurement($"{uniqueActionIdentifier}, Attempt Number : {attemptNumber}, Result : Success", timer.ElapsedMilliseconds);
                     return result;
                 }
                 catch (Exception e)
@@ -93,7 +93,7 @@ namespace DurableTask.ServiceFabric.TaskHelpers
                     bool shouldRetry = ExceptionUtilities.IsRetryableFabricException(e);
 
                     ExceptionUtilities.LogReliableCollectionException(uniqueActionIdentifier, attemptNumber, e, shouldRetry);
-                    ProviderEventSource.Log.LogMeasurement($"{uniqueActionIdentifier}, Attempt Number : {attemptNumber}, ShouldRetry : {shouldRetry}", timer.ElapsedMilliseconds);
+                    ProviderEventSource.Tracing.LogMeasurement($"{uniqueActionIdentifier}, Attempt Number : {attemptNumber}, ShouldRetry : {shouldRetry}", timer.ElapsedMilliseconds);
 
                     if (shouldRetry)
                     {

@@ -15,6 +15,8 @@ namespace DurableTask.ServiceFabric.Tests
 {
     using System;
     using System.Collections.Immutable;
+    using System.Linq;
+
     using DurableTask.Core;
     using DurableTask.Core.History;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -25,7 +27,7 @@ namespace DurableTask.ServiceFabric.Tests
         [TestMethod]
         public void Messages_With_Equal_FiredAt_Value_With_Different_Key_Are_Treated_Separate_And_Sorted_On_Key()
         {
-            ImmutableSortedSet<Message<string, TaskMessageItem>> timerMessages = ImmutableSortedSet<Message<string, TaskMessageItem>>.Empty.WithComparer(TimerFiredEventComparer.Instance);
+            ImmutableSortedSet<Message<Guid, TaskMessageItem>> timerMessages = ImmutableSortedSet<Message<Guid, TaskMessageItem>>.Empty.WithComparer(TimerFiredEventComparer.Instance);
 
             var instance = new OrchestrationInstance()
             {
@@ -36,10 +38,12 @@ namespace DurableTask.ServiceFabric.Tests
             var builder = timerMessages.ToBuilder();
             int numberOfMessages = 5;
 
+            var guids = Enumerable.Range(0, numberOfMessages).Select(x => Guid.NewGuid()).ToList();
+
             // Add them in reverse order to expected order just to make the test case more interesting.
-            for (int i = numberOfMessages; i >= 1; i--)
+            for (int i = numberOfMessages -1 ; i >= 0; i--)
             {
-                builder.Add(new Message<string, TaskMessageItem>($"Message{i}", new TaskMessageItem(new TaskMessage()
+                builder.Add(new Message<Guid, TaskMessageItem>(guids[i], new TaskMessageItem(new TaskMessage()
                 {
                     SequenceNumber = i,
                     OrchestrationInstance = instance,
@@ -51,12 +55,14 @@ namespace DurableTask.ServiceFabric.Tests
             timerMessages = builder.ToImmutableSortedSet(TimerFiredEventComparer.Instance);
             Assert.AreEqual(numberOfMessages, timerMessages.Count);
 
+            guids = guids.OrderBy(x => x).ToList();
+
             // Now enumerating the items should result in right order.
-            for (int i = 1; i <= numberOfMessages; i++)
+            for (int i = 0; i < numberOfMessages; i++)
             {
                 var min = timerMessages.Min;
                 timerMessages = timerMessages.Remove(min);
-                Assert.AreEqual($"Message{i}", min.Key, "Ordering seems to be broken");
+                Assert.AreEqual(guids[i], min.Key, "Ordering seems to be broken");
             }
 
             Assert.AreEqual(0, timerMessages.Count);
@@ -65,7 +71,7 @@ namespace DurableTask.ServiceFabric.Tests
         [TestMethod]
         public void Messages_With_Different_FiredAt_Value_Are_Sorted_Based_On_FiredAt()
         {
-            ImmutableSortedSet<Message<string, TaskMessageItem>> timerMessages = ImmutableSortedSet<Message<string, TaskMessageItem>>.Empty.WithComparer(TimerFiredEventComparer.Instance);
+            ImmutableSortedSet<Message<Guid, TaskMessageItem>> timerMessages = ImmutableSortedSet<Message<Guid, TaskMessageItem>>.Empty.WithComparer(TimerFiredEventComparer.Instance);
 
             var instance = new OrchestrationInstance()
             {
@@ -76,10 +82,12 @@ namespace DurableTask.ServiceFabric.Tests
             var builder = timerMessages.ToBuilder();
             int numberOfMessages = 5;
 
+            var guids = Enumerable.Range(0, numberOfMessages).Select(x => Guid.NewGuid()).ToList();
+
             // Add them in reverse order to expected order just to make the test case more interesting.
-            for (int i = numberOfMessages; i >= 1; i--)
+            for (int i = numberOfMessages -1 ; i >= 0; i--)
             {
-                builder.Add(new Message<string, TaskMessageItem>($"Message{6-i}", new TaskMessageItem(new TaskMessage() //Let the key values be in reverse order to fired at values again to make test more interesting.
+                builder.Add(new Message<Guid, TaskMessageItem>(guids[i], new TaskMessageItem(new TaskMessage() //Let the key values be in reverse order to fired at values again to make test more interesting.
                 {
                     SequenceNumber = i,
                     OrchestrationInstance = instance,
@@ -92,13 +100,13 @@ namespace DurableTask.ServiceFabric.Tests
             Assert.AreEqual(numberOfMessages, timerMessages.Count);
 
             // Now enumerating the items should result in right order.
-            for (int i = 1; i <= numberOfMessages; i++)
+            for (int i = 0; i < numberOfMessages; i++)
             {
                 var min = timerMessages.Min;
                 timerMessages = timerMessages.Remove(min);
                 var firedAt = (min.Value.TaskMessage.Event as TimerFiredEvent)?.FireAt;
                 Assert.AreEqual(currentTime + TimeSpan.FromSeconds(i), firedAt, "Ordering seems to be broken");
-                Assert.AreEqual($"Message{6 - i}", min.Key);
+                Assert.AreEqual(guids[i], min.Key);
             }
 
             Assert.AreEqual(0, timerMessages.Count);
@@ -107,7 +115,7 @@ namespace DurableTask.ServiceFabric.Tests
         [TestMethod]
         public void Messages_With_Equal_FiredAt_Value_With_Same_Key_Are_Treated_Equal()
         {
-            ImmutableSortedSet<Message<string, TaskMessageItem>> timerMessages = ImmutableSortedSet<Message<string, TaskMessageItem>>.Empty.WithComparer(TimerFiredEventComparer.Instance);
+            ImmutableSortedSet<Message<Guid, TaskMessageItem>> timerMessages = ImmutableSortedSet<Message<Guid, TaskMessageItem>>.Empty.WithComparer(TimerFiredEventComparer.Instance);
 
             var instance = new OrchestrationInstance()
             {
@@ -119,9 +127,10 @@ namespace DurableTask.ServiceFabric.Tests
             int numberOfMessages = 3;
 
             // Add them in reverse order to expected order just to make the test case more interesting.
+            var guid = Guid.NewGuid();
             for (int i = numberOfMessages; i >= 1; i--)
             {
-                builder.Add(new Message<string, TaskMessageItem>("Message", new TaskMessageItem(new TaskMessage()
+                builder.Add(new Message<Guid, TaskMessageItem>(guid, new TaskMessageItem(new TaskMessage()
                 {
                     SequenceNumber = i,
                     OrchestrationInstance = instance,

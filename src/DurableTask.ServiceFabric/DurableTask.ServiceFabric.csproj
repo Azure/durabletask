@@ -9,8 +9,13 @@
 
   <ItemGroup>
     <PackageReference Include="ImpromptuInterface" Version="6.2.2" />
+    <PackageReference Include="Microsoft.AspNet.WebApi.Client" Version="5.2.7" />
     <PackageReference Include="Microsoft.AspNet.WebApi.Core" Version="5.2.7" />
+    <PackageReference Include="Microsoft.AspNet.WebApi.Owin" Version="5.2.7" />
+    <PackageReference Include="Microsoft.AspNet.WebApi.OwinSelfHost" Version="5.2.7" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="2.2.0" />
     <PackageReference Include="Microsoft.ServiceFabric.Data" Version="3.3.617" />
+    <PackageReference Include="Microsoft.ServiceFabric.Services.Remoting" Version="3.3.617" />
     <PackageReference Include="Microsoft.ServiceFabric" Version="6.4.617" />
     <PackageReference Include="Newtonsoft.Json" Version="7.0.1" />
     <PackageReference Include="System.Collections.Immutable" Version="1.5.0" />

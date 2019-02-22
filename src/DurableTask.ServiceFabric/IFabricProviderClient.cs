@@ -22,13 +22,13 @@ namespace DurableTask.ServiceFabric
     /// <summary>
     /// Provides additional useful functionality which is not available through <see cref="TaskHubClient"/>.
     /// </summary>
-    public interface IFabricProviderClient
+    internal interface IFabricProviderClient
     {
         /// <summary>
         /// Gets all the orchestration instances which are currently running or pending.
         /// </summary>
         /// <returns></returns>
-        Task<IEnumerable<OrchestrationInstance>> GetRunningOrchestrations();
+        Task<IEnumerable<OrchestrationInstance>> GetRunningOrchestrationsAsync();
 
         /// <summary>
         /// Gets runtime state of a running or pending orchestration which includes the history events.
@@ -40,6 +40,6 @@ namespace DurableTask.ServiceFabric
         /// <remarks>The API is intended for diagnostics purpose, so current implementation returns 
         /// a formatted json serialized string which can be very large.</remarks>
         /// <exception cref="ArgumentException">When the orchestration already completed or was never started.</exception>
-        Task<string> GetOrchestrationRuntimeState(string instanceId);
+        Task<string> GetOrchestrationRuntimeStateAsync(string instanceId);
     }
 }

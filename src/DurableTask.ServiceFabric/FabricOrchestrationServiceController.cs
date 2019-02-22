@@ -50,7 +50,7 @@ namespace DurableTask.ServiceFabric
         [HttpPut]
         public async Task<IHttpActionResult> CreateTaskOrchestration([FromBody] CreateTaskOrchestrationParameters parameters)
         {
-            ProviderEventSource.Log.LogServingNetworkAction(nameof(CreateTaskOrchestration));
+            ProviderEventSource.Tracing.LogServingNetworkAction(nameof(CreateTaskOrchestration));
             try
             {
                 if (parameters.DedupeStatuses == null)
@@ -78,7 +78,7 @@ namespace DurableTask.ServiceFabric
         [HttpPost]
         public async Task<IHttpActionResult> SendTaskOrchestrationMessage([FromBody] TaskMessage message)
         {
-            ProviderEventSource.Log.LogServingNetworkAction(nameof(SendTaskOrchestrationMessage));
+            ProviderEventSource.Tracing.LogServingNetworkAction(nameof(SendTaskOrchestrationMessage));
             await this.orchestrationServiceClient.SendTaskOrchestrationMessageAsync(message);
             return new OkResult(this);
         }
@@ -91,7 +91,7 @@ namespace DurableTask.ServiceFabric
         [HttpPost]
         public async Task<IHttpActionResult> SendTaskOrchestrationMessageBatch([FromBody] TaskMessage[] messages)
         {
-            ProviderEventSource.Log.LogServingNetworkAction(nameof(SendTaskOrchestrationMessageBatch));
+            ProviderEventSource.Tracing.LogServingNetworkAction(nameof(SendTaskOrchestrationMessageBatch));
             await this.orchestrationServiceClient.SendTaskOrchestrationMessageBatchAsync(messages);
             return new OkResult(this);
         }
@@ -105,7 +105,7 @@ namespace DurableTask.ServiceFabric
         [HttpGet]
         public async Task<OrchestrationState> GetOrchestrationState(string instanceId, string executionId)
         {
-            ProviderEventSource.Log.LogServingNetworkAction(nameof(GetOrchestrationState));
+            ProviderEventSource.Tracing.LogServingNetworkAction(nameof(GetOrchestrationState));
             var state = await this.orchestrationServiceClient.GetOrchestrationStateAsync(instanceId, executionId);
             return state;
         }
@@ -119,7 +119,7 @@ namespace DurableTask.ServiceFabric
         [HttpGet]
         public async Task<IList<OrchestrationState>> GetOrchestrationState(string instanceId, bool allExecutions)
         {
-            ProviderEventSource.Log.LogServingNetworkAction(nameof(GetOrchestrationState));
+            ProviderEventSource.Tracing.LogServingNetworkAction(nameof(GetOrchestrationState));
             var state = await this.orchestrationServiceClient.GetOrchestrationStateAsync(instanceId, allExecutions);
             return state;
         }
@@ -133,7 +133,7 @@ namespace DurableTask.ServiceFabric
         [HttpDelete]
         public async Task<IHttpActionResult> ForceTerminateTaskOrchestration(string instanceId, string reason)
         {
-            ProviderEventSource.Log.LogServingNetworkAction(nameof(ForceTerminateTaskOrchestration));
+            ProviderEventSource.Tracing.LogServingNetworkAction(nameof(ForceTerminateTaskOrchestration));
             await this.orchestrationServiceClient.ForceTerminateTaskOrchestrationAsync(instanceId, reason);
             return new OkResult(this);
         }
@@ -147,7 +147,7 @@ namespace DurableTask.ServiceFabric
         [HttpGet]
         public async Task<string> GetOrchestrationHistory(string instanceId, string executionId)
         {
-            ProviderEventSource.Log.LogServingNetworkAction(nameof(GetOrchestrationHistory));
+            ProviderEventSource.Tracing.LogServingNetworkAction(nameof(GetOrchestrationHistory));
             var result = await this.orchestrationServiceClient.GetOrchestrationHistoryAsync(instanceId, executionId);
             return result;
         }
@@ -160,7 +160,7 @@ namespace DurableTask.ServiceFabric
         [HttpPost]
         public async Task<IHttpActionResult> PurgeOrchestrationHistory(PurgeOrchestrationHistoryParameters purgeParameters)
         {
-            ProviderEventSource.Log.LogServingNetworkAction(nameof(PurgeOrchestrationHistory));
+            ProviderEventSource.Tracing.LogServingNetworkAction(nameof(PurgeOrchestrationHistory));
             await this.orchestrationServiceClient.PurgeOrchestrationHistoryAsync(purgeParameters.ThresholdDateTimeUtc, purgeParameters.TimeRangeFilterType);
             return new OkResult(this);
         }

@@ -31,18 +31,21 @@ namespace DurableTask.ServiceFabric
     /// </summary>
     public class RemoteOrchestrationServiceClient : IOrchestrationServiceClient
     {
-        private readonly IPartitionProvider partitionProvider;
-        private readonly HttpClient httpClient;
+        private readonly IPartitionEndpointResolver partitionProvider;
         private readonly TimeSpan pollDelay = TimeSpan.FromSeconds(10);
 
         /// <summary>
         /// Creates a new instance.
         /// </summary>
-        public RemoteOrchestrationServiceClient(IPartitionProvider partitionProvider, HttpClient httpClient)
+        public RemoteOrchestrationServiceClient(IPartitionEndpointResolver partitionProvider)
         {
             this.partitionProvider = partitionProvider;
-            this.httpClient = httpClient;
         }
+
+        /// <summary>
+        /// HttpClient for making REST calls.
+        /// </summary>
+        public HttpClient HttpClient { get; set; } = new HttpClient();
 
         /// <summary>
         /// Creates a new orchestration
@@ -63,7 +66,7 @@ namespace DurableTask.ServiceFabric
                 SerializerSettings = new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.All }
             };
 
-            var result = await this.httpClient.PutAsync(uri, @object, mediaFormatter);
+            var result = await this.HttpClient.PutAsync(uri, @object, mediaFormatter);
             if (!result.IsSuccessStatusCode)
             {
                 throw new Exception("CreateTaskOrchestrationAsync failed");
@@ -92,7 +95,7 @@ namespace DurableTask.ServiceFabric
         {
             var uri = ConstructEndpointUri(instanceId, "ForceTerminateTaskOrchestration");
             var builder = new UriBuilder($"{uri}?instanceId={instanceId}&reason={HttpUtility.UrlEncode(reason)}");
-            var response = await this.httpClient.DeleteAsync(builder.Uri);
+            var response = await this.HttpClient.DeleteAsync(builder.Uri);
             if (!response.IsSuccessStatusCode)
             {
                 throw new Exception("Unable to terminate task instance");
@@ -109,7 +112,7 @@ namespace DurableTask.ServiceFabric
         {
             var uri = ConstructEndpointUri(instanceId, "GetOrchestrationHistory");
             var builder = new UriBuilder($"{uri}?instanceId={instanceId}&executionId={executionId}");
-            var history = await this.httpClient.GetStringAsync(builder.Uri);
+            var history = await this.HttpClient.GetStringAsync(builder.Uri);
             return history;
         }
 
@@ -123,7 +126,7 @@ namespace DurableTask.ServiceFabric
         {
             var uri = ConstructEndpointUri(instanceId, "GetOrchestrationState");
             var builder = new UriBuilder($"{uri}?instanceId={instanceId}&allExecutions={allExecutions}");
-            var stateString = await this.httpClient.GetStringAsync(builder.Uri);
+            var stateString = await this.HttpClient.GetStringAsync(builder.Uri);
             var states = JsonConvert.DeserializeObject<IList<OrchestrationState>>(stateString);
             return states;
         }
@@ -138,7 +141,7 @@ namespace DurableTask.ServiceFabric
         {
             var uri = ConstructEndpointUri(instanceId, "GetOrchestrationState");
             var builder = new UriBuilder($"{uri}?instanceId={instanceId}&executionId={executionId}");
-            var stateString = await this.httpClient.GetStringAsync(builder.Uri);
+            var stateString = await this.HttpClient.GetStringAsync(builder.Uri);
             var state = JsonConvert.DeserializeObject<OrchestrationState>(stateString);
             return state;
         }
@@ -152,10 +155,10 @@ namespace DurableTask.ServiceFabric
         public async Task PurgeOrchestrationHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType)
         {
             List<Task> allTasks = new List<Task>();
-            foreach(var endpoint in this.partitionProvider.GetAllPartitions())
+            foreach(var endpoint in await this.partitionProvider.GetPartitionEndpointsAsync())
             {
                 var uri = $"{endpoint.ToString()}/PurgeOrchestrationHistory";
-                var task = this.httpClient.PostAsJsonAsync(uri, new { thresholdDateTimeUtc, timeRangeFilterType });
+                var task = this.HttpClient.PostAsJsonAsync(uri, new { thresholdDateTimeUtc, timeRangeFilterType });
                 allTasks.Add(task);
             }
 
@@ -214,12 +217,12 @@ namespace DurableTask.ServiceFabric
 
         private Uri ConstructEndpointUri(OrchestrationInstance instance, string action)
         {
-            return new Uri($"{this.partitionProvider.GetPartitionForInstance(instance.InstanceId)}/{action}");
+            return new Uri($"{this.partitionProvider.GetParitionEndpointAsync(instance.InstanceId)}/{action}");
         }
 
         private Uri ConstructEndpointUri(string instanceId, string action)
         {
-            return new Uri($"{this.partitionProvider.GetPartitionForInstance(instanceId)}/{action}");
+            return new Uri($"{this.partitionProvider.GetParitionEndpointAsync(instanceId)}/{action}");
         }
     }
 }

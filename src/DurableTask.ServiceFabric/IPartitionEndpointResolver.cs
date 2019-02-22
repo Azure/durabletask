@@ -11,12 +11,27 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace TestApplication.StatefulService
+namespace DurableTask.ServiceFabric
 {
-    using Owin;
+    using System;
+    using System.Collections.Generic;
+    using System.Threading.Tasks;
 
-    public interface IOwinAppBuilder
+    /// <summary>
+    /// Provides partition related information.
+    /// </summary>
+    public interface IPartitionEndpointResolver
     {
-        void Configuration(IAppBuilder appBuilder);
+        /// <summary>
+        /// Gets end points for all the partitions.
+        /// </summary>
+        /// <returns> All the end points. </returns>
+        Task<IEnumerable<Uri>> GetPartitionEndpointsAsync();
+
+        /// <summary>
+        /// Gets partition end point for given instanceId.
+        /// </summary>
+        /// <returns> Partition end point </returns>
+        Task<Uri> GetParitionEndpointAsync(string instanceId);
     }
 }

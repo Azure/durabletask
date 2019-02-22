@@ -19,12 +19,7 @@ namespace DurableTask.ServiceFabric
 
     sealed class AsyncManualResetEvent
     {
-        TaskCompletionSource<bool> tcs;
-
-        public AsyncManualResetEvent()
-        {
-            this.tcs = new TaskCompletionSource<bool>();
-        }
+        TaskCompletionSource<bool> taskCompletionSource = new TaskCompletionSource<bool>();
 
         public async Task<bool> WaitAsync(TimeSpan timeout, CancellationToken cancellationToken)
         {
@@ -34,22 +29,22 @@ namespace DurableTask.ServiceFabric
             }
 
             var delayTask = Task.Delay(timeout, cancellationToken);
-            var resultTask = await Task.WhenAny(delayTask, this.tcs.Task);
+            var resultTask = await Task.WhenAny(delayTask, this.taskCompletionSource.Task);
             return delayTask != resultTask;
         }
 
         public void Set()
         {
-            this.tcs.TrySetResult(true);
+            this.taskCompletionSource.TrySetResult(true);
         }
 
         public void Reset()
         {
             while (true)
             {
-                var thisTcs = this.tcs;
+                var thisTcs = this.taskCompletionSource;
 
-                if (!thisTcs.Task.IsCompleted || Interlocked.CompareExchange(ref this.tcs, new TaskCompletionSource<bool>(), thisTcs) == thisTcs)
+                if (!thisTcs.Task.IsCompleted || Interlocked.CompareExchange(ref this.taskCompletionSource, new TaskCompletionSource<bool>(), thisTcs) == thisTcs)
                 {
                     return;
                 }

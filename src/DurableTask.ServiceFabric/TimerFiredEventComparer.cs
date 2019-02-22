@@ -17,11 +17,11 @@ namespace DurableTask.ServiceFabric
     using System.Collections.Generic;
     using DurableTask.Core.History;
 
-    sealed class TimerFiredEventComparer : IComparer<Message<string, TaskMessageItem>>
+    sealed class TimerFiredEventComparer : IComparer<Message<Guid, TaskMessageItem>>
     {
         public static readonly TimerFiredEventComparer Instance = new TimerFiredEventComparer();
 
-        public int Compare(Message<string, TaskMessageItem> first, Message<string, TaskMessageItem> second)
+        public int Compare(Message<Guid, TaskMessageItem> first, Message<Guid, TaskMessageItem> second)
         {
             if (first == null)
             {
@@ -51,7 +51,7 @@ namespace DurableTask.ServiceFabric
                 return firedAtCompareValue;
             }
 
-            return string.Compare(first.Key, second.Key, StringComparison.Ordinal);
+            return first.Key.CompareTo(second.Key);
         }
     }
 }

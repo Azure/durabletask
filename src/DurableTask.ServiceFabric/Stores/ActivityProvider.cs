@@ -17,30 +17,30 @@ namespace DurableTask.ServiceFabric.Stores
     using System.Collections.Concurrent;
     using System.Threading;
     using System.Threading.Tasks;
+
     using Microsoft.ServiceFabric.Data;
 
-    class ActivityProvider<TKey, TValue> : MessageProviderBase<TKey, TValue> where TKey : IComparable<TKey>, IEquatable<TKey>
+    class ActivityProvider : MessageProviderBase<string, TaskMessageItem>
     {
-        readonly ConcurrentQueue<TKey> inMemoryQueue = new ConcurrentQueue<TKey>();
+        readonly ConcurrentQueue<string> inMemoryQueue = new ConcurrentQueue<string>();
 
         public ActivityProvider(IReliableStateManager stateManager, string storeName, CancellationToken token) : base(stateManager, storeName, token)
         {
         }
 
-        protected override void AddItemInMemory(TKey key, TValue value)
+        protected override void AddItemInMemory(string key, TaskMessageItem value)
         {
             this.inMemoryQueue.Enqueue(key);
         }
 
-        public async Task<Message<TKey, TValue>> ReceiveAsync(TimeSpan receiveTimeout)
+        public async Task<Message<string, TaskMessageItem>> ReceiveAsync(TimeSpan receiveTimeout)
         {
             if (!IsStopped())
             {
-                TKey key;
                 bool newItemsBeforeTimeout = true;
                 while (newItemsBeforeTimeout)
                 {
-                    if (this.inMemoryQueue.TryDequeue(out key))
+                    if (this.inMemoryQueue.TryDequeue(out string key))
                     {
                         try
                         {
@@ -59,7 +59,7 @@ namespace DurableTask.ServiceFabric.Stores
             return null;
         }
 
-        public void Abandon(TKey key)
+        public void Abandon(string key)
         {
             this.inMemoryQueue.Enqueue(key);
             SetWaiterForNewItems();

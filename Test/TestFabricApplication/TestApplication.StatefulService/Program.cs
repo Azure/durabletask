@@ -16,6 +16,7 @@ namespace TestApplication.StatefulService
     using System;
     using System.Diagnostics;
     using System.Threading;
+    using DurableTask.ServiceFabric.Service;
     using Microsoft.ServiceFabric.Services.Runtime;
 
     internal static class Program
@@ -32,10 +33,16 @@ namespace TestApplication.StatefulService
                 // When Service Fabric creates an instance of this service type,
                 // an instance of the class is created in this host process.
 
-                ServiceRuntime.RegisterServiceAsync("StatefulServiceType",
-                    context => new TestStatefulService(context)).GetAwaiter().GetResult();
+                // ServiceRuntime.RegisterServiceAsync("StatefulServiceType", context => new TestStatefulService(context)).GetAwaiter().GetResult();
 
-                ServiceEventSource.Current.ServiceTypeRegistered(Process.GetCurrentProcess().Id, typeof(TestStatefulService).Name);
+                ServiceRuntime.RegisterServiceAsync("StatefulServiceType", context =>
+                {
+                    var settings = new TestFabricServiceSettings();
+                    var fabricService = new FabricService(context, settings);
+                    return fabricService;
+                }).GetAwaiter().GetResult();
+
+                // ServiceEventSource.Current.ServiceTypeRegistered(Process.GetCurrentProcess().Id, typeof(TestStatefulService).Name);
 
                 // Prevents this host process from terminating so services keep running.
                 Thread.Sleep(Timeout.Infinite);

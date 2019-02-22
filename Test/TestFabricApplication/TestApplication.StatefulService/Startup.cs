@@ -18,19 +18,36 @@ namespace TestApplication.StatefulService
 
     using DurableTask.Core;
     using DurableTask.ServiceFabric;
+    using DurableTask.ServiceFabric.Service;
     using Microsoft.Extensions.DependencyInjection;
     using Owin;
 
     class Startup : IOwinAppBuilder
     {
         FabricOrchestrationProvider fabricOrchestrationProvider;
+        string listeningAddress;
 
-        public Startup(FabricOrchestrationProvider fabricOrchestrationProvider)
+        public Startup(string listeningAddress, FabricOrchestrationProvider fabricOrchestrationProvider)
         {
+            this.listeningAddress = listeningAddress;
             this.fabricOrchestrationProvider = fabricOrchestrationProvider;
         }
 
-        public void Configuration(IAppBuilder appBuilder)
+        public string GetListeningAddress()
+        {
+            return this.listeningAddress;
+        }
+
+        private ServiceProvider GenerateServiceProvider()
+        {
+            var services = new ServiceCollection();
+            services.AddSingleton<IOrchestrationServiceClient>(this.fabricOrchestrationProvider.OrchestrationServiceClient);
+            services.AddTransient<FabricOrchestrationServiceController>();
+            var serviceProvider = services.BuildServiceProvider();
+            return serviceProvider;
+        }
+
+        void IOwinAppBuilder.Startup(IAppBuilder appBuilder)
         {
             ServicePointManager.DefaultConnectionLimit = 256;
             HttpConfiguration config = new HttpConfiguration();
@@ -44,15 +61,6 @@ namespace TestApplication.StatefulService
 
             config.Formatters.JsonFormatter.SerializerSettings.TypeNameHandling = Newtonsoft.Json.TypeNameHandling.All;
             appBuilder.UseWebApi(config);
-        }
-
-        private ServiceProvider GenerateServiceProvider()
-        {
-            var services = new ServiceCollection();
-            services.AddSingleton<IOrchestrationServiceClient>(this.fabricOrchestrationProvider.OrchestrationServiceClient);
-            services.AddTransient<FabricOrchestrationServiceController>();
-            var serviceProvider = services.BuildServiceProvider();
-            return serviceProvider;
         }
     }
 }

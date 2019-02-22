@@ -11,27 +11,25 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceFabric.Integration.Tests
+namespace DurableTask.ServiceFabric.Service
 {
     using System;
+    using System.Collections.Generic;
+    using System.Threading.Tasks;
 
-    class SimplePartitionProvider : IPartitionProvider
+    /// <inheritdoc/>
+    public class FabricPartitionEndpointResolver : IPartitionEndpointResolver
     {
-        Uri uri;
-
-        public SimplePartitionProvider(Uri uri)
+        /// <inheritdoc/>
+        public Task<Uri> GetParitionEndpointAsync(string instanceId)
         {
-            this.uri = uri;
+            throw new NotImplementedException();
         }
 
-        public Uri[] GetAllPartitions()
+        /// <inheritdoc/>
+        public Task<IEnumerable<Uri>> GetPartitionEndpointsAsync()
         {
-            return new Uri[] { this.uri };
-        }
-
-        public Uri GetPartitionForInstance(string instanceId)
-        {
-            return this.uri;
+            throw new NotImplementedException();
         }
     }
 }

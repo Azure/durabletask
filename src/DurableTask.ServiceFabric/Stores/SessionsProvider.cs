@@ -31,26 +31,26 @@ namespace DurableTask.ServiceFabric.Stores
     /// 'AcceptSession' : Intent is to fetch the next available session and hand it out to consumer.
     /// 'TryUnlockSession' : Intent is to indicate that the above consumer is done processing the session.
     /// 'TryEnqueueSession' : Intent is to make the session available for a consumer if needed.
-    /// 
+    ///
     /// 'AcceptSession'  should give a session to only one consumer at a time (strict requirement).
     /// We should also give out a session with messages in it but this is somewhat loose requirement because consumer
     /// can handle the scenario where there are no messages. But we don't want to keep making the session available
-    /// to pick up when there are no incoming messages. (So giving a session with no messages once or even twice is ok 
+    /// to pick up when there are no incoming messages. (So giving a session with no messages once or even twice is ok
     /// but that should not happening recurringly)
-    /// 
+    ///
     /// Incoming messages can come at anytime, before the session picked up,
     /// after 'AcceptSession' gave out a session but the consumer read messages in it, after consumer read messages in it, or
     /// after the session finished processing by consumer.
-    /// 
+    ///
     /// 'AcceptSession; will fetch from 'fetchQueue' and returns it (so 'fetchQueueu' should never have a given session twice in
     /// the queue otherwise 'one consumer at a time' is violated. Also, we should not keep adding to 'fetchQueue' unless the session
     /// is interesting i.e., it needs processing).
-    /// 
+    ///
     /// lockedSessions with 'LockState' is used to achieve the above.
-    /// 
+    ///
     /// 'AcceptSession' fetches from 'fetchQueue' and transitions the session from 'InFetchQueue' to 'Locked'.
     /// (The implementation contract is such that if an item is in 'fetchQueue', it should be in 'InFetchQueue' state in lockedSessions)
-    /// 
+    ///
     /// 'TryEnqueuSession' will try to add to lockedSessions with 'InFetchQueue' and only first such call after the session is unlocked will be
     /// able to add and that call will add the session back to 'fetchQueue'.
     /// If there is an entry in lockedSessions, 'TryEnqueuSession' does only one thing -
@@ -58,11 +58,11 @@ namespace DurableTask.ServiceFabric.Stores
     /// it will just transition the state to 'NewMessagesWhileLocked' (so that session could be enqueued back again as it gets unlocked).
     /// Note that once the session is in this state, subsequent calls to 'TryEnqueueSession' before unlock will keep it in this state.
     /// Also Note that if session is in 'InFetchQueue' state, TryEnqueuSession does not need to (and should not) change the state.
-    /// 
+    ///
     /// 'TryUnlockSession' first removes the session from lockedSessions [unlock complete at this point]
     /// but if the removed state is 'NewMessagesWhileLocked', it attempts to put it back on fetchQueue by calling 'TryEnqueueSession'.
     /// Note that at this point if another new incoming message calls 'TryEnqueueSession' only one of these should be able to add to 'fetchQueue'.
-    /// 
+    ///
     /// Note that if new messages were sent after 'AcceptSession' but before consumer reads messages from session, we
     /// will hand out those messages but still add the session to fetchQueue (as part of unlock) and so the next fetch sees the session but
     /// with no messages. Though this can be made perfect by introducing one more state to 'LockedState', since consumer
@@ -74,7 +74,8 @@ namespace DurableTask.ServiceFabric.Stores
         ConcurrentQueue<string> fetchQueue = new ConcurrentQueue<string>();
         ConcurrentDictionary<string, LockState> lockedSessions = new ConcurrentDictionary<string, LockState>();
 
-        ConcurrentDictionary<OrchestrationInstance, SessionMessagesProvider<Guid, TaskMessageItem>> sessionMessageProviders = new ConcurrentDictionary<OrchestrationInstance, SessionMessagesProvider<Guid, TaskMessageItem>>(OrchestrationInstanceComparer.Default);
+        ConcurrentDictionary<OrchestrationInstance, SessionMessagesProvider> sessionMessageProviders
+            = new ConcurrentDictionary<OrchestrationInstance, SessionMessagesProvider>(OrchestrationInstanceComparer.Default);
 
         public SessionsProvider(IReliableStateManager stateManager, CancellationToken token) : base(stateManager, Constants.OrchestrationDictionaryName, token)
         {
@@ -84,11 +85,10 @@ namespace DurableTask.ServiceFabric.Stores
         {
             if (!IsStopped())
             {
-                string returnInstanceId;
                 bool newItemsBeforeTimeout = true;
                 while (newItemsBeforeTimeout)
                 {
-                    if (this.fetchQueue.TryDequeue(out returnInstanceId))
+                    if (this.fetchQueue.TryDequeue(out string returnInstanceId))
                     {
                         try
                         {
@@ -102,20 +102,20 @@ namespace DurableTask.ServiceFabric.Stores
                                     {
                                         if (this.lockedSessions.TryUpdate(returnInstanceId, newValue: LockState.Locked, comparisonValue: LockState.InFetchQueue))
                                         {
-                                            ProviderEventSource.Log.TraceMessage(returnInstanceId, "Session Locked Accepted");
+                                            ProviderEventSource.Tracing.TraceMessage(returnInstanceId, "Session Locked Accepted");
                                             return existingValue.Value;
                                         }
                                         else
                                         {
                                             var errorMessage = $"Internal Server Error : Unexpected to dequeue the session {returnInstanceId} which was already locked before";
-                                            ProviderEventSource.Log.UnexpectedCodeCondition(errorMessage);
+                                            ProviderEventSource.Tracing.UnexpectedCodeCondition(errorMessage);
                                             throw new Exception(errorMessage);
                                         }
                                     }
                                     else
                                     {
                                         var errorMessage = $"Internal Server Error: Did not find the session object in reliable dictionary while having the session {returnInstanceId} in memory";
-                                        ProviderEventSource.Log.UnexpectedCodeCondition(errorMessage);
+                                        ProviderEventSource.Tracing.UnexpectedCodeCondition(errorMessage);
                                         throw new Exception(errorMessage);
                                     }
                                 }
@@ -143,21 +143,20 @@ namespace DurableTask.ServiceFabric.Stores
         {
             var sessionMessageProvider = await GetOrAddSessionMessagesInstance(session.SessionId);
             var messages = await sessionMessageProvider.ReceiveBatchAsync();
-            ProviderEventSource.Log.TraceMessage(session.SessionId.InstanceId, $"Number of received messages {messages.Count}");
+            ProviderEventSource.Tracing.TraceMessage(session.SessionId.InstanceId, $"Number of received messages {messages.Count}");
             return messages;
         }
 
         public async Task CompleteMessages(ITransaction transaction, OrchestrationInstance instance, List<Guid> lockTokens)
         {
-            SessionMessagesProvider<Guid, TaskMessageItem> sessionMessageProvider;
-            if (this.sessionMessageProviders.TryGetValue(instance, out sessionMessageProvider))
+            if (this.sessionMessageProviders.TryGetValue(instance, out SessionMessagesProvider sessionMessageProvider))
             {
-                ProviderEventSource.Log.TraceMessage(instance.InstanceId, $"Number of completed messages {lockTokens.Count}");
+                ProviderEventSource.Tracing.TraceMessage(instance.InstanceId, $"Number of completed messages {lockTokens.Count}");
                 await sessionMessageProvider.CompleteBatchAsync(transaction, lockTokens);
             }
             else
             {
-                ProviderEventSource.Log.UnexpectedCodeCondition($"{nameof(SessionsProvider)}.{nameof(CompleteMessages)} : Did not find session messages provider instance for session : {instance}.");
+                ProviderEventSource.Tracing.UnexpectedCodeCondition($"{nameof(SessionsProvider)}.{nameof(CompleteMessages)} : Did not find session messages provider instance for session : {instance}.");
             }
         }
 
@@ -246,12 +245,11 @@ namespace DurableTask.ServiceFabric.Stores
 
         public void TryUnlockSession(OrchestrationInstance instance, bool abandon = false, bool isComplete = false)
         {
-            ProviderEventSource.Log.TraceMessage(instance.InstanceId, $"Session Unlock Begin, Abandon = {abandon}");
-            LockState lockState;
-            if (!this.lockedSessions.TryRemove(instance.InstanceId, out lockState) || lockState == LockState.InFetchQueue)
+            ProviderEventSource.Tracing.TraceMessage(instance.InstanceId, $"Session Unlock Begin, Abandon = {abandon}");
+            if (!this.lockedSessions.TryRemove(instance.InstanceId, out LockState lockState) || lockState == LockState.InFetchQueue)
             {
                 var errorMessage = $"{nameof(SessionsProvider)}.{nameof(TryUnlockSession)} : Trying to unlock the session {instance.InstanceId} which was not locked.";
-                ProviderEventSource.Log.UnexpectedCodeCondition(errorMessage);
+                ProviderEventSource.Tracing.UnexpectedCodeCondition(errorMessage);
                 throw new Exception(errorMessage);
             }
 
@@ -259,7 +257,8 @@ namespace DurableTask.ServiceFabric.Stores
             {
                 this.TryEnqueueSession(instance);
             }
-            ProviderEventSource.Log.TraceMessage(instance.InstanceId, $"Session Unlock End, Abandon = {abandon}, removed lock state = {lockState}");
+
+            ProviderEventSource.Tracing.TraceMessage(instance.InstanceId, $"Session Unlock End, Abandon = {abandon}, removed lock state = {lockState}");
         }
 
         public async Task<bool> TryAddSession(ITransaction transaction, TaskMessageItem newMessage)
@@ -304,7 +303,7 @@ namespace DurableTask.ServiceFabric.Stores
         {
             if (this.lockedSessions.TryAdd(instanceId, LockState.InFetchQueue))
             {
-                ProviderEventSource.Log.TraceMessage(instanceId, "Session Getting Enqueued");
+                ProviderEventSource.Tracing.TraceMessage(instanceId, "Session Getting Enqueued");
                 this.fetchQueue.Enqueue(instanceId);
                 SetWaiterForNewItems();
             }
@@ -323,16 +322,15 @@ namespace DurableTask.ServiceFabric.Stores
 
             await this.Store.TryRemoveAsync(txn, instance.InstanceId);
 
-            SessionMessagesProvider<Guid, TaskMessageItem> sessionMessagesProvider;
-            this.sessionMessageProviders.TryRemove(instance, out sessionMessagesProvider);
+            this.sessionMessageProviders.TryRemove(instance, out SessionMessagesProvider _);
 
             var noWait = RetryHelper.ExecuteWithRetryOnTransient(() => this.StateManager.RemoveAsync(GetSessionMessagesDictionaryName(instance)),
                 uniqueActionIdentifier: $"Orchestration = '{instance}', Action = 'DropSessionMessagesDictionaryBackgroundTask'");
         }
 
-        async Task<SessionMessagesProvider<Guid, TaskMessageItem>> GetOrAddSessionMessagesInstance(OrchestrationInstance instance)
+        async Task<SessionMessagesProvider> GetOrAddSessionMessagesInstance(OrchestrationInstance instance)
         {
-            var newInstance = new SessionMessagesProvider<Guid, TaskMessageItem>(this.StateManager, GetSessionMessagesDictionaryName(instance), this.CancellationToken);
+            var newInstance = new SessionMessagesProvider(this.StateManager, GetSessionMessagesDictionaryName(instance), this.CancellationToken);
             var sessionMessageProvider = this.sessionMessageProviders.GetOrAdd(instance, newInstance);
             await sessionMessageProvider.EnsureStoreInitialized();
             return sessionMessageProvider;

@@ -11,46 +11,50 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace TestApplication.StatefulService
+namespace DurableTask.ServiceFabric.Service
 {
     using System;
     using System.Collections.Generic;
-    using System.Linq;
     using System.Web.Http.Dependencies;
 
     using Microsoft.Extensions.DependencyInjection;
 
-
+    /// <inheritdoc/>
     public class DefaultDependencyResolver : IDependencyResolver
     {
-        private readonly IServiceProvider provider;
+        private IServiceProvider provider;
 
+        /// <summary>
+        /// Creates an instance of <see cref="DefaultDependencyResolver"/>.
+        /// </summary>
+        /// <param name="provider">An instance of <see cref="IServiceProvider"/> </param>
         public DefaultDependencyResolver(IServiceProvider provider)
         {
-            this.provider = provider;
+            this.provider = provider ?? throw new ArgumentNullException(nameof(provider));
         }
 
+        /// <inheritdoc/>
         public object GetService(Type serviceType)
         {
-            var obj = provider.GetService(serviceType);
-            Console.WriteLine($"{serviceType.Name} and {obj?.GetType().Name}");
-            return obj;
+            return provider.GetService(serviceType);
         }
 
+        /// <inheritdoc/>
         public IEnumerable<object> GetServices(Type serviceType)
         {
-            var objs = provider.GetServices(serviceType);
-            Console.WriteLine($"{serviceType.Name} and {objs?.Count()}");
-            return objs;
+            return provider.GetServices(serviceType);
         }
 
+        /// <inheritdoc/>
         public IDependencyScope BeginScope()
         {
             return this;
         }
 
+        /// <inheritdoc/>
         public void Dispose()
         {
+            this.provider = null;
         }
     }
 }

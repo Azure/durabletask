@@ -29,11 +29,11 @@ namespace DurableTask.ServiceFabric
         {
             if (isTransient)
             {
-                ProviderEventSource.Log.RetryableFabricException(uniqueIdentifier, attemptNumber, e.ToString());
+                ProviderEventSource.Tracing.RetryableFabricException(uniqueIdentifier, attemptNumber, e.ToString());
             }
             else
             {
-                ProviderEventSource.Log.ExceptionInReliableCollectionOperations(uniqueIdentifier, e.ToString());
+                ProviderEventSource.Tracing.ExceptionInReliableCollectionOperations(uniqueIdentifier, e.ToString());
             }
         }
     }

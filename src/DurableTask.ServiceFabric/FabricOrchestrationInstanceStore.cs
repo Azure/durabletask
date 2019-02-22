@@ -18,6 +18,7 @@ namespace DurableTask.ServiceFabric
     using System.Collections.Generic;
     using System.Collections.Immutable;
     using System.Globalization;
+    using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
 
@@ -42,13 +43,15 @@ namespace DurableTask.ServiceFabric
         readonly ConcurrentDictionary<OrchestrationInstance, AsyncManualResetEvent> orchestrationWaiters = new ConcurrentDictionary<OrchestrationInstance, AsyncManualResetEvent>(OrchestrationInstanceComparer.Default);
 
         IReliableDictionary<string, OrchestrationState> instanceStore;
-        IReliableDictionary<string, string> executionIdStore;
+        IReliableDictionary<string, List<string>> executionIdStore;
 
         public FabricOrchestrationInstanceStore(IReliableStateManager stateManager, CancellationToken token)
         {
             this.stateManager = stateManager;
             this.cancellationToken = token;
         }
+
+        public int MaxExecutionIdsLength { get; set; } = 100;
 
         public Task InitializeStoreAsync(bool recreate)
         {
@@ -87,7 +90,18 @@ namespace DurableTask.ServiceFabric
                     {
                         if (state.State.OrchestrationStatus == OrchestrationStatus.Pending)
                         {
-                            await this.executionIdStore.AddOrUpdateAsync(transaction, instance.InstanceId, instance.ExecutionId, (k, old) => instance.ExecutionId);
+                            await this.executionIdStore.AddOrUpdateAsync(transaction, instance.InstanceId, new List<string> { instance.ExecutionId },
+                                (k, old) =>
+                                {
+                                    old.Add(instance.ExecutionId);
+                                    if (old.Count > this.MaxExecutionIdsLength)
+                                    {
+                                        int newLength = (int)(this.MaxExecutionIdsLength * 0.9);
+                                        old = old.Take(newLength).ToList();
+                                    }
+
+                                    return old;
+                                });
                         }
                         await this.instanceStore.AddOrUpdateAsync(transaction, key, state.State,
                             (k, oldValue) => state.State);
@@ -120,7 +134,7 @@ namespace DurableTask.ServiceFabric
 
             await EnsureStoreInitialized();
 
-            string latestExecutionId = await GetLatestExecutionId(instanceId);
+            string latestExecutionId = (await GetExecutionIds(instanceId))?.Last();
 
             if (latestExecutionId != null)
             {
@@ -134,9 +148,9 @@ namespace DurableTask.ServiceFabric
             return ImmutableList<OrchestrationStateInstanceEntity>.Empty;
         }
 
-        public async Task<string> GetLatestExecutionId(string instanceId)
+        public async Task<List<string>> GetExecutionIds(string instanceId)
         {
-            string latestExecutionId = null;
+            List<string> latestExecutionId = null;
 
             await RetryHelper.ExecuteWithRetryOnTransient(async () =>
             {
@@ -148,7 +162,7 @@ namespace DurableTask.ServiceFabric
                         latestExecutionId = executionIdValue.Value;
                     }
                 }
-            }, uniqueActionIdentifier: $"Orchestration Instance Id = {instanceId}, Action = {nameof(FabricOrchestrationInstanceStore)}.{nameof(GetLatestExecutionId)}");
+            }, uniqueActionIdentifier: $"Orchestration Instance Id = {instanceId}, Action = {nameof(FabricOrchestrationInstanceStore)}.{nameof(GetExecutionIds)}");
 
             return latestExecutionId;
         }
@@ -279,7 +293,8 @@ namespace DurableTask.ServiceFabric
                         if (storeName.StartsWith(InstanceStoreCollectionNamePrefix))
                         {
                             DateTime storeTime;
-                            if (DateTime.TryParseExact(storeName.Substring(InstanceStoreCollectionNamePrefix.Length), TimeFormatString, CultureInfo.InvariantCulture, DateTimeStyles.None, out storeTime)
+                            var stringDate = storeName.Substring(InstanceStoreCollectionNamePrefix.Length);
+                            if (DateTime.TryParseExact(stringDate, TimeFormatString, CultureInfo.InvariantCulture, DateTimeStyles.None, out storeTime)
                                 && (currentTime - storeTime > ttl))
                             {
                                 toDelete.Add(storeName);
@@ -290,10 +305,10 @@ namespace DurableTask.ServiceFabric
                         toKeep.Add(storeName);
                     }
                 });
-                ProviderEventSource.Log.LogTimeTaken($"Enumerating all reliable states (count: {toDelete.Count + toKeep.Count})", enumerationTime.TotalMilliseconds);
+                ProviderEventSource.Tracing.LogTimeTaken($"Enumerating all reliable states (count: {toDelete.Count + toKeep.Count})", enumerationTime.TotalMilliseconds);
 
-                ProviderEventSource.Log.ReliableStateManagement($"Deleting {toDelete.Count} stores", String.Join(",", toDelete));
-                ProviderEventSource.Log.ReliableStateManagement($"All remaining {toKeep.Count} stores", String.Join(",", toKeep));
+                ProviderEventSource.Tracing.ReliableStateManagement($"Deleting {toDelete.Count} stores", String.Join(",", toDelete));
+                ProviderEventSource.Tracing.ReliableStateManagement($"All remaining {toKeep.Count} stores", String.Join(",", toKeep));
 
                 foreach (var storeName in toDelete)
                 {
@@ -301,7 +316,7 @@ namespace DurableTask.ServiceFabric
                     {
                         await this.stateManager.RemoveAsync(storeName);
                     });
-                    ProviderEventSource.Log.LogTimeTaken($"Deleting reliable state {storeName}", deleteTime.TotalMilliseconds);
+                    ProviderEventSource.Tracing.LogTimeTaken($"Deleting reliable state {storeName}", deleteTime.TotalMilliseconds);
                 }
             }, initialDelay: TimeSpan.FromMinutes(5), delayOnSuccess: TimeSpan.FromHours(1), delayOnException: TimeSpan.FromMinutes(10), actionName: $"{nameof(CleanupOldDictionaries)}", token: this.cancellationToken);
         }
@@ -314,7 +329,7 @@ namespace DurableTask.ServiceFabric
             }
             if (this.executionIdStore == null)
             {
-                this.executionIdStore = await this.stateManager.GetOrAddAsync<IReliableDictionary<string, string>>(Constants.ExecutionStoreDictionaryName);
+                this.executionIdStore = await this.stateManager.GetOrAddAsync<IReliableDictionary<string, List<string>>>(Constants.ExecutionStoreDictionaryName);
             }
         }
 
@@ -352,8 +367,7 @@ namespace DurableTask.ServiceFabric
 
         public void OnOrchestrationCompleted(OrchestrationInstance instance)
         {
-            AsyncManualResetEvent resetEvent;
-            if (this.orchestrationWaiters.TryRemove(instance, out resetEvent))
+            if (this.orchestrationWaiters.TryRemove(instance, out AsyncManualResetEvent resetEvent))
             {
                 resetEvent.Set();
             }

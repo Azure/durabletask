@@ -18,15 +18,16 @@ namespace DurableTask.ServiceFabric.Integration.Tests
     using System.Net.Http;
     using System.Threading.Tasks;
     using DurableTask.Core;
+    using DurableTask.ServiceFabric.Service;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     public static class Utilities
     {
         public static TaskHubClient CreateTaskHubClient()
         {
-            var partitionProvider = new SimplePartitionProvider(new Uri("http://localhost:30303/api/dtfx/"));
+            var partitionProvider = new FabricPartitionEndpointResolver();
             var httpClient = new HttpClient();
-            return new TaskHubClient(new RemoteOrchestrationServiceClient(partitionProvider, httpClient));
+            return new TaskHubClient(new RemoteOrchestrationServiceClient(partitionProvider));
         }
 
         public static async Task ThrowsException<TException>(Func<Task> action, string expectedMessage) where TException : Exception

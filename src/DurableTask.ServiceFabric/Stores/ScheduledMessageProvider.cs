@@ -26,12 +26,12 @@ namespace DurableTask.ServiceFabric.Stores
     using DurableTask.ServiceFabric.Tracing;
     using Microsoft.ServiceFabric.Data;
 
-    class ScheduledMessageProvider : MessageProviderBase<string, TaskMessageItem>
+    class ScheduledMessageProvider : MessageProviderBase<Guid, TaskMessageItem>
     {
         readonly SessionsProvider sessionsProvider;
         readonly object @lock = new object();
 
-        ImmutableSortedSet<Message<string, TaskMessageItem>> inMemorySet = ImmutableSortedSet<Message<string, TaskMessageItem>>.Empty.WithComparer(TimerFiredEventComparer.Instance);
+        ImmutableSortedSet<Message<Guid, TaskMessageItem>> inMemorySet = ImmutableSortedSet<Message<Guid, TaskMessageItem>>.Empty.WithComparer(TimerFiredEventComparer.Instance);
         DateTime nextActivationCheck;
 
         public ScheduledMessageProvider(IReliableStateManager stateManager, string storeName, SessionsProvider sessionsProvider, CancellationToken token) : base(stateManager, storeName, token)
@@ -50,11 +50,11 @@ namespace DurableTask.ServiceFabric.Stores
                 var timerEvent = kvp.Value?.TaskMessage?.Event as TimerFiredEvent;
                 if (timerEvent == null)
                 {
-                    ProviderEventSource.Log.UnexpectedCodeCondition($"{nameof(ScheduledMessageProvider)}.{nameof(StartAsync)} : Seeing a non timer event in scheduled messages while filling the pending items collection in role start");
+                    ProviderEventSource.Tracing.UnexpectedCodeCondition($"{nameof(ScheduledMessageProvider)}.{nameof(StartAsync)} : Seeing a non timer event in scheduled messages while filling the pending items collection in role start");
                 }
                 else
                 {
-                    builder.Add(new Message<string, TaskMessageItem>(kvp.Key, kvp.Value));
+                    builder.Add(new Message<Guid, TaskMessageItem>(kvp.Key, kvp.Value));
                 }
             });
 
@@ -62,7 +62,7 @@ namespace DurableTask.ServiceFabric.Stores
             {
                 if (this.inMemorySet.Count > 0)
                 {
-                    ProviderEventSource.Log.UnexpectedCodeCondition($"{nameof(ScheduledMessageProvider)}.{nameof(StartAsync)} : Before we set the In memory set from the builder, there are items in it which should not happen.");
+                    ProviderEventSource.Tracing.UnexpectedCodeCondition($"{nameof(ScheduledMessageProvider)}.{nameof(StartAsync)} : Before we set the In memory set from the builder, there are items in it which should not happen.");
                 }
                 this.inMemorySet = builder.ToImmutableSortedSet(TimerFiredEventComparer.Instance);
             }
@@ -71,11 +71,11 @@ namespace DurableTask.ServiceFabric.Stores
             var nowait = ProcessScheduledMessages();
         }
 
-        protected override void AddItemInMemory(string key, TaskMessageItem value)
+        protected override void AddItemInMemory(Guid key, TaskMessageItem value)
         {
             lock (@lock)
             {
-                this.inMemorySet = this.inMemorySet.Add(new Message<string, TaskMessageItem>(key, value));
+                this.inMemorySet = this.inMemorySet.Add(new Message<Guid, TaskMessageItem>(key, value));
             }
 
             var timerEvent = value.TaskMessage.Event as TimerFiredEvent;
@@ -98,7 +98,7 @@ namespace DurableTask.ServiceFabric.Stores
                     var nextCheck = currentTime + TimeSpan.FromSeconds(1);
 
                     var builder = this.inMemorySet.ToBuilder();
-                    List<Message<string, TaskMessageItem>> activatedMessages = new List<Message<string, TaskMessageItem>>();
+                    List<Message<Guid, TaskMessageItem>> activatedMessages = new List<Message<Guid, TaskMessageItem>>();
 
                     while (builder.Count > 0)
                     {
@@ -163,7 +163,7 @@ namespace DurableTask.ServiceFabric.Stores
                 }
                 catch (Exception e)
                 {
-                    ProviderEventSource.Log.ExceptionWhileRunningBackgroundJob($"{nameof(ScheduledMessageProvider)}.{nameof(ProcessScheduledMessages)}", e.ToString());
+                    ProviderEventSource.Tracing.ExceptionWhileRunningBackgroundJob($"{nameof(ScheduledMessageProvider)}.{nameof(ProcessScheduledMessages)}", e.ToString());
                     await Task.Delay(TimeSpan.FromMilliseconds(100));
                 }
             }

@@ -82,6 +82,6 @@ namespace DurableTask.ServiceFabric
 
         Task<OrchestrationStateInstanceEntity> WaitForOrchestrationAsync(OrchestrationInstance instance, TimeSpan timeout);
 
-        Task<string> GetLatestExecutionId(string instanceId);
+        Task<List<string>> GetExecutionIds(string instanceId);
     }
 }
