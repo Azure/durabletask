@@ -14,22 +14,104 @@
 namespace DurableTask.ServiceFabric.Service
 {
     using System;
+    using System.Collections.Concurrent;
     using System.Collections.Generic;
+    using System.Fabric;
+    using System.Linq;
+    using System.Threading;
     using System.Threading.Tasks;
+
+    using Microsoft.ServiceFabric.Services.Client;
 
     /// <inheritdoc/>
     public class FabricPartitionEndpointResolver : IPartitionEndpointResolver
     {
-        /// <inheritdoc/>
-        public Task<Uri> GetParitionEndpointAsync(string instanceId)
+        readonly Uri service;
+        readonly FabricClient fabricClient;
+        Int64RangePartitionInformation[] partitionInfos;
+        ConcurrentDictionary<long, ResolvedServiceEndpoint> endPointsLookup;
+        ServicePartitionResolver partitionResolver;
+        IHasher<string> instanceIdHasher;
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="service"></param>
+        /// <param name="instanceIdHasher"></param>
+        public FabricPartitionEndpointResolver(Uri service, IHasher<string> instanceIdHasher)
         {
-            throw new NotImplementedException();
+            this.service = service ?? throw new ArgumentNullException(nameof(service));
+            this.instanceIdHasher = instanceIdHasher ?? throw new ArgumentNullException(nameof(instanceIdHasher));
+            this.fabricClient = new FabricClient();
+            this.endPointsLookup = new ConcurrentDictionary<long, ResolvedServiceEndpoint>();
+            this.partitionResolver = ServicePartitionResolver.GetDefault();
         }
 
         /// <inheritdoc/>
-        public Task<IEnumerable<Uri>> GetPartitionEndpointsAsync()
+        public async Task<Uri> GetParitionEndpointAsync(string instanceId)
         {
-            throw new NotImplementedException();
+            await BuildPartitionInfos(false);
+            var hash = this.instanceIdHasher.GetLongHashCode(instanceId);
+            var partition = this.BinarySearch(partitionInfos, hash);
+            return new Uri(endPointsLookup[partition.LowKey].Address);
+        }
+
+        /// <inheritdoc/>
+        public async Task<IEnumerable<Uri>> GetPartitionEndpointsAsync()
+        {
+            await BuildPartitionInfos(false);
+            return this.endPointsLookup.Values.Select(x => new Uri(x.Address));
+        }
+
+        private async Task BuildPartitionInfos(bool force)
+        {
+            if (force || this.partitionInfos == null)
+            {
+                CancellationToken cancellationToken = new CancellationToken();
+                var partitionList = await fabricClient.QueryManager.GetPartitionListAsync(this.service);
+                List<Int64RangePartitionInformation> partitions = new List<Int64RangePartitionInformation>();
+                foreach (var partition in partitionList)
+                {
+                    var info = (Int64RangePartitionInformation)partition.PartitionInformation;
+                    if (info == null)
+                    {
+                        throw new NotSupportedException($"{partition.PartitionInformation.Kind} is not supported");
+                    }
+
+                    partitions.Add(info);
+                    var resolvedServicePartition = await this.partitionResolver.ResolveAsync(this.service, new ServicePartitionKey(info.LowKey), cancellationToken);
+                    var endpoint = resolvedServicePartition.GetEndpoint();
+                    this.endPointsLookup.AddOrUpdate(info.LowKey, endpoint, (_, __) => endpoint);
+                }
+
+                this.partitionInfos = partitions.OrderBy(x => x.LowKey).ToArray();
+            }
+        }
+
+        private Int64RangePartitionInformation BinarySearch(Int64RangePartitionInformation[] array, long hash)
+        {
+            int start = 0, end = array.Length - 1;
+
+            do
+            {
+                int middle = (start + end) / 2;
+
+                if (hash >= array[middle].LowKey && hash <= array[middle].HighKey)
+                {
+                    return array[middle];
+                }
+
+                else if (hash < array[middle].LowKey)
+                {
+                    end = middle - 1;
+                }
+                else
+                {
+                    start = middle + 1;
+                }
+            } while (start > end);
+
+            throw new Exception($"{hash} is out of partition range");
         }
     }
 }

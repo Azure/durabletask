@@ -283,7 +283,7 @@ namespace DurableTask.ServiceFabric
                             // session as part of the next atomic transaction.
                             if (this.instanceStore != null && orchestrationState != null && !isComplete)
                             {
-                                await this.instanceStore.WriteEntitesAsync(txn, new InstanceEntityBase[]
+                                await this.instanceStore.WriteEntitiesAsync(txn, new InstanceEntityBase[]
                                 {
                                     new OrchestrationStateInstanceEntity()
                                     {
@@ -340,7 +340,7 @@ namespace DurableTask.ServiceFabric
             {
                 using (var txn = this.stateManager.CreateTransaction())
                 {
-                    await this.instanceStore.WriteEntitesAsync(txn, new InstanceEntityBase[]
+                    await this.instanceStore.WriteEntitiesAsync(txn, new InstanceEntityBase[]
                     {
                         new OrchestrationStateInstanceEntity()
                         {

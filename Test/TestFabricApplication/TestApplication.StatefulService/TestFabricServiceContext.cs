@@ -17,6 +17,8 @@ namespace TestApplication.StatefulService
     using System.Collections.Generic;
     using System.Fabric;
     using System.Globalization;
+    using System.Linq;
+    using System.Threading.Tasks;
 
     using DurableTask.Core;
     using DurableTask.ServiceFabric;
@@ -27,7 +29,7 @@ namespace TestApplication.StatefulService
 
 
     /// <inheritdoc/>
-    public class TestFabricServiceSettings : IFabricServiceSettings
+    public class TestFabricServiceContext : IFabricServiceContext
     {
 
         public FabricOrchestrationProvider FabricOrchestrationProvider { get; set; }
@@ -78,7 +80,8 @@ namespace TestApplication.StatefulService
         {
             yield return new ServiceReplicaListener(context =>
             {
-                var serviceEndpoint = context.CodePackageActivationContext.GetEndpoint("ServiceEndpoint");
+                var activationContext = FabricRuntime.GetActivationContext();
+                var serviceEndpoint = activationContext.GetEndpoint("ServiceEndpoint");
                 int port = serviceEndpoint.Port;
 
                 string listeningAddress = String.Format(CultureInfo.InvariantCulture, "http://+:{0}/", port)
@@ -91,6 +94,16 @@ namespace TestApplication.StatefulService
         public IEnumerable<KeyValuePair<string, TaskOrchestration>> GetTaskOrchestrations()
         {
             yield return new KeyValuePair<string, TaskOrchestration>(typeof(OrchestrationRunningIntoRetry).Name, new OrchestrationRunningIntoRetry());
+        }
+
+        public Task Register(TaskHubWorker taskHubWorker)
+        {
+            taskHubWorker
+                .AddTaskOrchestrations(this.GetOrchestrationTypes().ToArray())
+                .AddTaskOrchestrations(this.GetTaskOrchestrations().Select(instance => new DefaultObjectCreator<TaskOrchestration>(instance.Value)).ToArray())
+                .AddTaskActivities(GetActivityTypes().ToArray());
+
+            return Task.CompletedTask;
         }
     }
 }

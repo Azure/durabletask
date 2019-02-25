@@ -13,9 +13,8 @@
 
 namespace DurableTask.ServiceFabric.Service
 {
-    using System;
     using System.Collections.Generic;
-
+    using System.Threading.Tasks;
     using DurableTask.Core;
     using Microsoft.ServiceFabric.Services.Communication.Runtime;
 
@@ -23,26 +22,13 @@ namespace DurableTask.ServiceFabric.Service
     /// <summary>
     /// Fabric Service settings.
     /// </summary>
-    public interface IFabricServiceSettings
+    public interface IFabricServiceContext
     {
         /// <summary>
         /// 
         /// </summary>
         /// <returns></returns>
-        IEnumerable<Type> GetActivityTypes();
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        IEnumerable<KeyValuePair<string, TaskOrchestration>> GetTaskOrchestrations();
-
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        IEnumerable<Type> GetOrchestrationTypes();
+        Task Register(TaskHubWorker taskHubWorker);
 
         /// <summary>
         /// 

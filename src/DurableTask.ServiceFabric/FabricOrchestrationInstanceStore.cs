@@ -75,7 +75,7 @@ namespace DurableTask.ServiceFabric
             await this.stateManager.RemoveAsync(Constants.ExecutionStoreDictionaryName);
         }
 
-        public async Task WriteEntitesAsync(ITransaction transaction, IEnumerable<InstanceEntityBase> entities)
+        public async Task WriteEntitiesAsync(ITransaction transaction, IEnumerable<InstanceEntityBase> entities)
         {
             await EnsureStoreInitialized();
             foreach (var entity in entities)
@@ -150,21 +150,21 @@ namespace DurableTask.ServiceFabric
 
         public async Task<List<string>> GetExecutionIds(string instanceId)
         {
-            List<string> latestExecutionId = null;
+            List<string> executionIds = null;
 
             await RetryHelper.ExecuteWithRetryOnTransient(async () =>
             {
                 using (var tx = this.stateManager.CreateTransaction())
                 {
-                    var executionIdValue = await this.executionIdStore.TryGetValueAsync(tx, instanceId);
-                    if (executionIdValue.HasValue)
+                    var executionIdsValue = await this.executionIdStore.TryGetValueAsync(tx, instanceId);
+                    if (executionIdsValue.HasValue)
                     {
-                        latestExecutionId = executionIdValue.Value;
+                        executionIds = executionIdsValue.Value;
                     }
                 }
             }, uniqueActionIdentifier: $"Orchestration Instance Id = {instanceId}, Action = {nameof(FabricOrchestrationInstanceStore)}.{nameof(GetExecutionIds)}");
 
-            return latestExecutionId;
+            return executionIds;
         }
 
         public async Task<OrchestrationStateInstanceEntity> GetOrchestrationStateAsync(string instanceId, string executionId)
@@ -233,7 +233,7 @@ namespace DurableTask.ServiceFabric
             throw new NotImplementedException();
         }
 
-        // Todo: This is incomplete and inaccurate implemenation done for testing purposes.
+        // Todo: This is incomplete and inaccurate implementation done for testing purposes.
         // The method will cleanup state for every orchestration happening in the hour time window of given time,
         // for example, if the given time is 9.35, it will delete state for all orchestrations that
         // are completed between 9.00 to 9.59!!!

@@ -15,16 +15,10 @@ namespace DurableTask.ServiceFabric.Integration.Tests
 {
     using System;
     using System.Collections.Generic;
-    using System.Fabric;
-    using System.Linq;
-    using System.Net.Http;
     using System.Threading.Tasks;
     using DurableTask.Core;
     using DurableTask.Test.Orchestrations.Performance;
-    using Microsoft.ServiceFabric.Services.Client;
-    using Microsoft.ServiceFabric.Services.Remoting.Client;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
-    using TestApplication.Common;
     using TestApplication.Common.Orchestrations;
 
     [TestClass]

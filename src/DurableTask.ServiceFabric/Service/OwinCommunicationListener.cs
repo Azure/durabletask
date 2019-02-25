@@ -20,7 +20,6 @@ namespace DurableTask.ServiceFabric.Service
 
     using Microsoft.Owin.Hosting;
     using Microsoft.ServiceFabric.Services.Communication.Runtime;
-    using Owin;
 
     /// <summary>
     /// Provides <see cref="ICommunicationListener"/> with support for Owin.

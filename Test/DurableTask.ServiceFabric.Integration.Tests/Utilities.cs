@@ -18,6 +18,7 @@ namespace DurableTask.ServiceFabric.Integration.Tests
     using System.Net.Http;
     using System.Threading.Tasks;
     using DurableTask.Core;
+    using DurableTask.ServiceFabric.Remote;
     using DurableTask.ServiceFabric.Service;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -25,7 +26,7 @@ namespace DurableTask.ServiceFabric.Integration.Tests
     {
         public static TaskHubClient CreateTaskHubClient()
         {
-            var partitionProvider = new FabricPartitionEndpointResolver();
+            var partitionProvider = new FabricPartitionEndpointResolver(new Uri("fabric:/TestApplication/StatefulService"), new DefaultStringHasher());
             var httpClient = new HttpClient();
             return new TaskHubClient(new RemoteOrchestrationServiceClient(partitionProvider));
         }

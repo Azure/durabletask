@@ -16,7 +16,6 @@ namespace DurableTask.ServiceFabric.Service
     using System;
     using System.Collections.Generic;
     using System.Fabric;
-    using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
 
@@ -32,34 +31,30 @@ namespace DurableTask.ServiceFabric.Service
     public sealed class FabricService : StatefulService
     {
         readonly FabricOrchestrationProviderFactory fabricProviderFactory;
-        readonly Dictionary<string, Type> knownOrchestrationTypeNames
-            = new Dictionary<string, Type>(StringComparer.InvariantCultureIgnoreCase);
-        readonly Dictionary<string, TaskOrchestration> knownOrchestrationInstances
-            = new Dictionary<string, TaskOrchestration>(StringComparer.InvariantCultureIgnoreCase);
 
         /// <summary>
-        /// 
+        ///
         /// </summary>
         public FabricOrchestrationProvider FabricOrchestrationProvider { get; set; }
 
-        IFabricServiceSettings serviceSettings;
+        IFabricServiceContext serviceContext;
 
         TaskHubWorker worker;
         TaskHubClient client;
         ReplicaRole currentRole;
 
         /// <summary>
-        /// 
+        ///
         /// </summary>
         /// <param name="context"></param>
-        /// <param name="serviceSettings"></param>
-        public FabricService(StatefulServiceContext context, IFabricServiceSettings serviceSettings) : base(context)
+        /// <param name="serviceContext"></param>
+        public FabricService(StatefulServiceContext context, IFabricServiceContext serviceContext) : base(context)
         {
-            this.serviceSettings = serviceSettings ?? throw new ArgumentNullException(nameof(serviceSettings));
+            this.serviceContext = serviceContext ?? throw new ArgumentNullException(nameof(serviceContext));
 
             var providerSettings = new FabricOrchestrationProviderSettings();
-            providerSettings.TaskOrchestrationDispatcherSettings.DispatcherCount = this.serviceSettings.GetOrchestrationDispatcherCount();
-            providerSettings.TaskActivityDispatcherSettings.DispatcherCount = this.serviceSettings.GetOrchestrationDispatcherCount();
+            providerSettings.TaskOrchestrationDispatcherSettings.DispatcherCount = this.serviceContext.GetOrchestrationDispatcherCount();
+            providerSettings.TaskActivityDispatcherSettings.DispatcherCount = this.serviceContext.GetOrchestrationDispatcherCount();
 
             this.fabricProviderFactory = new FabricOrchestrationProviderFactory(this.StateManager, providerSettings);
             this.FabricOrchestrationProvider = this.fabricProviderFactory.CreateProvider();
@@ -75,7 +70,7 @@ namespace DurableTask.ServiceFabric.Service
         /// <returns>A collection of listeners.</returns>
         protected override IEnumerable<ServiceReplicaListener> CreateServiceReplicaListeners()
         {
-            return this.serviceSettings.GetServiceReplicaListeners();
+            return this.serviceContext.GetServiceReplicaListeners();
         }
 
         /// <summary>
@@ -91,33 +86,21 @@ namespace DurableTask.ServiceFabric.Service
                 this.client = new TaskHubClient(this.FabricOrchestrationProvider.OrchestrationServiceClient);
             }
 
-            foreach (var type in this.serviceSettings.GetOrchestrationTypes())
-            {
-                this.knownOrchestrationTypeNames.Add(type.FullName, type);
-            }
-
-            foreach (var keyValuePair in this.serviceSettings.GetTaskOrchestrations())
-            {
-                this.knownOrchestrationInstances.Add(keyValuePair.Key, keyValuePair.Value);
-            }
-
             this.worker = new TaskHubWorker(this.FabricOrchestrationProvider.OrchestrationService);
 
-            await this.worker
-                .AddTaskOrchestrations(this.knownOrchestrationInstances.Values.Select(instance => new DefaultObjectCreator<TaskOrchestration>(instance)).ToArray())
-                .AddTaskOrchestrations(this.knownOrchestrationTypeNames.Values.ToArray())
-                .AddTaskActivities(this.serviceSettings.GetActivityTypes().ToArray())
-                .StartAsync();
+            await this.serviceContext.Register(this.worker);
 
             this.worker.TaskActivityDispatcher.IncludeDetails = true;
         }
 
         /// <summary>
-        /// TODO: Add documentation.
+        /// Handles node's role change.
         /// </summary>
-        /// <param name="newRole"></param>
-        /// <param name="cancellationToken"></param>
-        /// <returns></returns>
+        /// <param name="newRole">New <see cref="ReplicaRole" /> for this service replica.</param>
+        /// <param name="cancellationToken">Cancellation token to monitor for cancellation requests.</param>
+        /// <returns>
+        /// A <see cref="Task" /> that represents outstanding operation.
+        /// </returns>
         protected override async Task OnChangeRoleAsync(ReplicaRole newRole, CancellationToken cancellationToken)
         {
             ServiceEventSource.Tracing.ServiceRequestStart($"Fabric On Change Role Async, current role = {this.currentRole}, new role = {newRole}");
@@ -130,10 +113,10 @@ namespace DurableTask.ServiceFabric.Service
         }
 
         /// <summary>
-        /// TODO: Add documentaiton.
+        /// Handles OnCloseAsync event, shuts down the service.
         /// </summary>
-        /// <param name="cancellationToken"></param>
-        /// <returns></returns>
+        /// <param name="cancellationToken">Cancellation token to monitor for cancellation requests.</param>
+        /// <returns> A <see cref="Task">Task</see> that represents outstanding operation. </returns>
         protected override async Task OnCloseAsync(CancellationToken cancellationToken)
         {
             ServiceEventSource.Tracing.ServiceMessage(this, "OnCloseAsync - will shutdown primary if not already done");
@@ -160,23 +143,6 @@ namespace DurableTask.ServiceFabric.Service
                 ServiceEventSource.Tracing.ServiceRequestFailed("Exception when Stopping Worker On Primary Stop", e.ToString());
                 throw;
             }
-        }
-
-        // TODO: Delete?
-        Type GetOrchestrationType(string typeName)
-        {
-            if (this.knownOrchestrationInstances.ContainsKey(typeName))
-            {
-                return this.knownOrchestrationInstances[typeName].GetType();
-            }
-
-            if (this.knownOrchestrationTypeNames.ContainsKey(typeName))
-            {
-                return this.knownOrchestrationTypeNames[typeName];
-                
-            }
-
-            throw new Exception($"Unknown Orchestration Type Name : {typeName}");
         }
     }
 }

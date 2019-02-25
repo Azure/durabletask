@@ -182,7 +182,7 @@ namespace DurableTask.ServiceFabric
                 LastUpdatedTime = createdTime
             };
 
-            return this.instanceStore.WriteEntitesAsync(tx, new InstanceEntityBase[]
+            return this.instanceStore.WriteEntitiesAsync(tx, new InstanceEntityBase[]
             {
                 new OrchestrationStateInstanceEntity()
                 {

@@ -18,7 +18,6 @@ namespace DurableTask.ServiceFabric.Stores
     using System.Threading;
     using System.Threading.Tasks;
     using Microsoft.ServiceFabric.Data;
-    using Microsoft.ServiceFabric.Data.Collections;
 
     class SessionMessagesProvider : MessageProviderBase<Guid, TaskMessageItem>
     {

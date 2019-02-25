@@ -16,12 +16,14 @@ namespace DurableTask.ServiceFabric
     using System;
     using System.Collections.Generic;
     using System.Threading.Tasks;
+
     using DurableTask.Core;
     using DurableTask.Core.Tracking;
     using Microsoft.ServiceFabric.Data;
 
-    // Todo: Figure out a way to not include internal XML documentation in the generated documentation file
-    // or change all the below comments to non-xml style.
+    /// <summary>
+    /// A store for supporting orchestration service in service fabric world.
+    /// </summary>
     internal interface IFabricOrchestrationServiceInstanceStore
     {
         /// <summary>
@@ -46,13 +48,13 @@ namespace DurableTask.ServiceFabric
         /// </summary>
         /// <param name="transaction">Service fabric transaction in which this operation is executed.</param>
         /// <param name="entities">List of history events to write</param>
-        Task WriteEntitesAsync(ITransaction transaction, IEnumerable<InstanceEntityBase> entities);
+        Task WriteEntitiesAsync(ITransaction transaction, IEnumerable<InstanceEntityBase> entities);
 
         /// <summary>
         /// Gets a list of orchestration states for a given instance
         /// </summary>
         /// <param name="instanceId">The instance id to return state for</param>
-        /// <param name="allInstances">Flag indiciation whether to get all history execution ids or just the most recent</param>
+        /// <param name="allInstances">Flag indication whether to get all history execution ids or just the most recent</param>
         /// <returns>List of matching orchestration states</returns>
         Task<IList<OrchestrationStateInstanceEntity>> GetOrchestrationStateAsync(string instanceId, bool allInstances);
 
