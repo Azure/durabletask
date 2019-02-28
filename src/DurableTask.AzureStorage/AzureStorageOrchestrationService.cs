@@ -29,6 +29,7 @@ namespace DurableTask.AzureStorage
     using DurableTask.Core;
     using DurableTask.Core.History;
     using Microsoft.WindowsAzure.Storage;
+    using Microsoft.WindowsAzure.Storage.Auth;
     using Microsoft.WindowsAzure.Storage.Blob;
     using Microsoft.WindowsAzure.Storage.Queue;
     using Newtonsoft.Json;
@@ -66,7 +67,7 @@ namespace DurableTask.AzureStorage
         readonly TableEntityConverter tableEntityConverter;
 
         readonly ResettableLazy<Task> taskHubCreator;
-        readonly BlobLeaseManager leaseManager; 
+        readonly BlobLeaseManager leaseManager;
         readonly PartitionManager<BlobLease> partitionManager;
         readonly OrchestrationSessionManager orchestrationSessionManager;
         readonly object hubCreationLock;
@@ -74,7 +75,7 @@ namespace DurableTask.AzureStorage
         bool isStarted;
         Task statsLoop;
         CancellationTokenSource shutdownSource;
-        
+
         /// <summary>
         /// Initializes a new instance of the <see cref="AzureStorageOrchestrationService"/> class.
         /// </summary>
@@ -99,7 +100,10 @@ namespace DurableTask.AzureStorage
 
             this.settings = settings;
             this.tableEntityConverter = new TableEntityConverter();
-            CloudStorageAccount account = CloudStorageAccount.Parse(settings.StorageConnectionString);
+
+            CloudStorageAccount account = settings.StorageAccountDetails == null
+                ? CloudStorageAccount.Parse(settings.StorageConnectionString)
+                : new CloudStorageAccount(settings.StorageAccountDetails.StorageCredentials, settings.StorageAccountDetails.AccountName, settings.StorageAccountDetails.EndpointSuffix, true);
             this.storageAccountName = account.Credentials.AccountName;
             this.stats = new AzureStorageOrchestrationServiceStats();
             this.queueClient = account.CreateCloudQueueClient();
@@ -124,7 +128,7 @@ namespace DurableTask.AzureStorage
 
             if (customInstanceStore == null)
             {
-                this.trackingStore = new AzureTableTrackingStore(settings, this.messageManager, this.stats);
+                this.trackingStore = new AzureTableTrackingStore(settings, this.messageManager, this.stats, account);
             }
             else
             {
@@ -270,6 +274,14 @@ namespace DurableTask.AzureStorage
             get { return this.settings.MaxConcurrentTaskActivityWorkItems; }
         }
 
+        /// <summary>
+        ///  Should we carry over unexecuted raised events to the next iteration of an orchestration on ContinueAsNew
+        /// </summary>
+        public BehaviorOnContinueAsNew EventBehaviourForContinueAsNew
+        {
+            get { return this.settings.EventBehaviourForContinueAsNew; }
+        }
+
         // We always leave the dispatcher counts at one unless we can find a customer workload that requires more.
         /// <inheritdoc />
         public int TaskActivityDispatcherCount { get; } = 1;
@@ -351,9 +363,9 @@ namespace DurableTask.AzureStorage
         {
             if (recreateInstanceStore)
             {
-               await DeleteTrackingStore();
+                await DeleteTrackingStore();
 
-               this.taskHubCreator.Reset();
+                this.taskHubCreator.Reset();
             }
 
             await this.taskHubCreator.Value;
@@ -811,7 +823,7 @@ namespace DurableTask.AzureStorage
             }
 
             session.StartNewLogicalTraceScope();
-            OrchestrationRuntimeState runtimeState = workItem.OrchestrationRuntimeState;
+            OrchestrationRuntimeState runtimeState = newOrchestrationRuntimeState ?? workItem.OrchestrationRuntimeState;
 
             string instanceId = workItem.InstanceId;
             string executionId = runtimeState.OrchestrationInstance.ExecutionId;
@@ -831,7 +843,7 @@ namespace DurableTask.AzureStorage
             // will result in a duplicate replay of the orchestration with no side-effects.
             try
             {
-                session.ETag = await this.trackingStore.UpdateStateAsync(runtimeState, instanceId, executionId, session.ETag);
+                session.ETag = await this.trackingStore.UpdateStateAsync(runtimeState, workItem.OrchestrationRuntimeState, instanceId, executionId, session.ETag);
             }
             catch (Exception e)
             {
@@ -1057,7 +1069,7 @@ namespace DurableTask.AzureStorage
                 // The context does not exist - possibly because it was already removed.
                 AnalyticsEventSource.Log.AssertFailure(
                     this.storageAccountName,
-                    this.settings.TaskHubName, 
+                    this.settings.TaskHubName,
                     $"Could not find context for work item with ID = {workItem.Id}.",
                     Utils.ExtensionVersion);
                 return;
@@ -1115,7 +1127,7 @@ namespace DurableTask.AzureStorage
                 // The context does not exist - possibly because it was already removed.
                 AnalyticsEventSource.Log.AssertFailure(
                     this.storageAccountName,
-                    this.settings.TaskHubName, 
+                    this.settings.TaskHubName,
                     $"Could not find context for work item with ID = {workItem.Id}.",
                     Utils.ExtensionVersion);
                 return;
@@ -1437,7 +1449,7 @@ namespace DurableTask.AzureStorage
             while (!cancellationToken.IsCancellationRequested && timeout > TimeSpan.Zero)
             {
                 OrchestrationState state = await this.GetOrchestrationStateAsync(instanceId, executionId);
-                if (state == null || 
+                if (state == null ||
                     state.OrchestrationStatus == OrchestrationStatus.Running ||
                     state.OrchestrationStatus == OrchestrationStatus.Pending ||
                     state.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew)

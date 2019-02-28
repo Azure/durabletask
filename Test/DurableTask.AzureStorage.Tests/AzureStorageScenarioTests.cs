@@ -18,6 +18,7 @@ namespace DurableTask.AzureStorage.Tests
     using System.Configuration;
     using System.IO;
     using System.Linq;
+    using System.Reflection;
     using System.Runtime.Serialization;
     using System.Text;
     using System.Threading;
@@ -164,6 +165,26 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task EventConversation(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                await host.StartAsync();
+
+                var client = await host.StartOrchestrationAsync(typeof(Test.Orchestrations.EventConversationOrchestration), "");
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                Assert.AreEqual("OK", JToken.Parse(status?.Output));
+
+                await host.StopAsync();
+            }
+        }
+
+
         [TestMethod]
         public async Task PurgeInstanceHistoryForSingleInstanceWithoutLargeMessageBlobs()
         {
@@ -173,7 +194,7 @@ namespace DurableTask.AzureStorage.Tests
                 await host.StartAsync();
                 TestOrchestrationClient client = await host.StartOrchestrationAsync(typeof(Orchestrations.Factorial), 110, instanceId);
                 await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
-                
+
                 List<HistoryStateEvent> historyEvents = await client.GetOrchestrationHistoryAsync(instanceId);
                 Assert.IsTrue(historyEvents.Count > 0);
 
@@ -538,17 +559,9 @@ namespace DurableTask.AzureStorage.Tests
 
                 // Perform some operations
                 await client.RaiseEventAsync("operation", "incr");
-
-                // TODO: Sleeping to avoid a race condition where multiple ContinueAsNew messages
-                //       are processed by the same instance at the same time, resulting in a corrupt
-                //       storage failure in DTFx.
-                await Task.Delay(2000);
                 await client.RaiseEventAsync("operation", "incr");
-                await Task.Delay(2000);
                 await client.RaiseEventAsync("operation", "incr");
-                await Task.Delay(2000);
                 await client.RaiseEventAsync("operation", "decr");
-                await Task.Delay(2000);
                 await client.RaiseEventAsync("operation", "incr");
                 await Task.Delay(2000);
 
@@ -607,9 +620,7 @@ namespace DurableTask.AzureStorage.Tests
 
             int blobCount = await this.GetBlobCount("test-largemessages", instanceId);
 
-            // Ideally there would only be three blobs at the end of the test.
-            // TODO: https://github.com/Azure/azure-functions-durable-extension/issues/509
-            Assert.AreEqual(9, blobCount);
+            Assert.AreEqual(3, blobCount);
 
             await client.PurgeInstanceHistoryByTimePeriod(
                 startDateTime,
@@ -647,7 +658,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 // Need to wait for the instance to start before sending events to it.
                 // TODO: This requirement may not be ideal and should be revisited.
-                OrchestrationState orchestrationState = 
+                OrchestrationState orchestrationState =
                     await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
 
                 // Perform some operations
@@ -745,7 +756,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 var client1 = await host.StartOrchestrationAsync(
                     typeof(Orchestrations.FactorialOrchestratorFail),
-                    input: 3, 
+                    input: 3,
                     instanceId: singletonInstanceId1);
 
                 var statusFail = await client1.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
@@ -759,7 +770,7 @@ namespace DurableTask.AzureStorage.Tests
                 input: "Catherine",
                 instanceId: singletonInstanceId2);
 
-                await client1.RewindAsync("Rewind failed orchestration only"); 
+                await client1.RewindAsync("Rewind failed orchestration only");
 
                 var statusRewind = await client1.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
@@ -1289,7 +1300,7 @@ namespace DurableTask.AzureStorage.Tests
                 string currentDirectory = Directory.GetCurrentDirectory();
                 string originalFilePath = Path.Combine(currentDirectory, originalFileName);
                 byte[] readBytes = File.ReadAllBytes(originalFilePath);
-                
+
                 var client = await host.StartOrchestrationAsync(typeof(Orchestrations.EchoBytes), readBytes);
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(1));
 
@@ -1613,7 +1624,7 @@ namespace DurableTask.AzureStorage.Tests
             }
 
             [KnownType(typeof(Activities.HelloFailActivity))]
-            internal class SayHelloWithActivityFail: TaskOrchestration<string, string>
+            internal class SayHelloWithActivityFail : TaskOrchestration<string, string>
             {
                 public override Task<string> RunTask(OrchestrationContext context, string input)
                 {
@@ -1949,7 +1960,7 @@ namespace DurableTask.AzureStorage.Tests
                     }
 
                     return currentValue;
-                    
+
                 }
 
                 async Task<string> WaitForOperation()
@@ -2228,7 +2239,7 @@ namespace DurableTask.AzureStorage.Tests
                 }
             }
 
-            internal class HelloFailMultipleActivity : TaskActivity<string, string> 
+            internal class HelloFailMultipleActivity : TaskActivity<string, string>
             {
                 public static bool ShouldFail1 = true;
                 public static bool ShouldFail2 = true;

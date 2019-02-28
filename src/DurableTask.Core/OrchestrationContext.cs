@@ -324,6 +324,16 @@ namespace DurableTask.Core
         public abstract Task<T> CreateSubOrchestrationInstance<T>(string name, string version, string instanceId,
             object input, IDictionary<string, string> tags);
 
+
+        /// <summary>
+        ///     Raises an event for the specified orchestration instance, which eventually causes the OnEvent() method in the
+        ///     orchestration to fire.
+        /// </summary>
+        /// <param name="orchestrationInstance">Instance in which to raise the event</param>
+        /// <param name="eventName">Name of the event</param>
+        /// <param name="eventData">Data for the event</param>
+        public abstract void SendEvent(OrchestrationInstance orchestrationInstance, string eventName, object eventData);
+
         /// <summary>
         ///     Checkpoint the orchestration instance by completing the current execution in the ContinueAsNew
         ///     state and creating a new execution of this instance with the specified input parameter.

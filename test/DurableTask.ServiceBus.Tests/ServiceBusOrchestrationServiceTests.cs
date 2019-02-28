@@ -20,6 +20,7 @@ namespace DurableTask.ServiceBus.Tests
     using DurableTask.Core.Exceptions;
     using DurableTask.Test.Orchestrations;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
+    using Newtonsoft.Json.Linq;
 
     [TestClass]
     public class ServiceBusOrchestrationServiceTests
@@ -68,6 +69,51 @@ namespace DurableTask.ServiceBus.Tests
             Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
             Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,
                 "Orchestration Result is wrong!!!");
+        }
+
+        [TestMethod]
+        public async Task ActorOrchestrationTest()
+        {
+            var sbService = (ServiceBusOrchestrationService)this.taskHub.orchestrationService;
+            string name = NameVersionHelper.GetDefaultName(typeof(CounterOrchestration));
+            string version = NameVersionHelper.GetDefaultVersion(typeof(CounterOrchestration));
+
+            await this.taskHub.AddTaskOrchestrations(typeof(CounterOrchestration))
+                .StartAsync();
+
+            int initialValue = 0;
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(CounterOrchestration), initialValue);
+
+            // Need to wait for the instance to start before sending events to it.
+            // TODO: This requirement may not be ideal and should be revisited.
+            await TestHelpers.WaitForInstanceAsync(this.client, id, 10, waitForCompletion: false);
+
+            OrchestrationInstance temp = new OrchestrationInstance() { InstanceId = id.InstanceId };
+            // Perform some operations
+            await this.client.RaiseEventAsync(temp, "operation", "incr");
+            await this.client.RaiseEventAsync(temp, "operation", "incr");
+            await this.client.RaiseEventAsync(temp, "operation", "decr");
+            await this.client.RaiseEventAsync(temp, "operation", "incr");
+            await this.client.RaiseEventAsync(temp, "operation", "incr");
+            await this.client.RaiseEventAsync(temp, "operation", "end");
+            await Task.Delay(4000);
+
+            // Make sure it's still running and didn't complete early (or fail).
+            var status = await client.GetOrchestrationStateAsync(id);
+            Assert.IsTrue(
+                status?.OrchestrationStatus == OrchestrationStatus.Running ||
+                status?.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew);
+
+            // The end message will cause the actor to complete itself.
+            await this.client.RaiseEventAsync(temp, "operation", "end");
+
+            status = await client.WaitForOrchestrationAsync(temp, TimeSpan.FromSeconds(10));
+
+            Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+            Assert.AreEqual(3, JToken.Parse(status?.Output));
+
+            // When using ContinueAsNew, the original input is discarded and replaced with the most recent state.
+            Assert.AreNotEqual(initialValue, JToken.Parse(status?.Input));
         }
 
         [TestMethod]

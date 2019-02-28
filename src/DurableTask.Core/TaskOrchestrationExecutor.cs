@@ -28,15 +28,17 @@ namespace DurableTask.Core
         readonly TaskScheduler decisionScheduler;
         readonly OrchestrationRuntimeState orchestrationRuntimeState;
         readonly TaskOrchestration taskOrchestration;
+        readonly bool skipCarryOverEvents;
         Task<string> result;
 
         public TaskOrchestrationExecutor(OrchestrationRuntimeState orchestrationRuntimeState,
-            TaskOrchestration taskOrchestration)
+            TaskOrchestration taskOrchestration, BehaviorOnContinueAsNew eventBehaviourForContinueAsNew)
         {
             this.decisionScheduler = new SynchronousTaskScheduler();
             this.context = new TaskOrchestrationContext(orchestrationRuntimeState.OrchestrationInstance, this.decisionScheduler);
             this.orchestrationRuntimeState = orchestrationRuntimeState;
             this.taskOrchestration = taskOrchestration;
+            this.skipCarryOverEvents = eventBehaviourForContinueAsNew == BehaviorOnContinueAsNew.Ignore;
         }
 
         public bool IsCompleted => this.result != null && (this.result.IsCompleted || this.result.IsFaulted);
@@ -150,9 +152,19 @@ namespace DurableTask.Core
                 case EventType.TimerFired:
                     this.context.HandleTimerFiredEvent((TimerFiredEvent)historyEvent);
                     break;
+                case EventType.EventSent:
+                    this.context.HandleEventSentEvent((EventSentEvent)historyEvent);
+                    break;
                 case EventType.EventRaised:
-                    var eventRaisedEvent = (EventRaisedEvent)historyEvent;
-                    this.taskOrchestration.RaiseEvent(this.context, eventRaisedEvent.Name, eventRaisedEvent.Input);
+                    if (this.skipCarryOverEvents || !this.context.HasContinueAsNew)
+                    {
+                        var eventRaisedEvent = (EventRaisedEvent)historyEvent;
+                        this.taskOrchestration.RaiseEvent(this.context, eventRaisedEvent.Name, eventRaisedEvent.Input);
+                    }
+                    else
+                    {
+                        this.context.AddEventToNextIteration(historyEvent);
+                    }
                     break;
             }
         }

@@ -33,6 +33,7 @@ namespace DurableTask.Core.History
     [KnownType(typeof(TimerFiredEvent))]
     [KnownType(typeof(OrchestratorStartedEvent))]
     [KnownType(typeof(OrchestratorCompletedEvent))]
+    [KnownType(typeof(EventSentEvent))]
     [KnownType(typeof(EventRaisedEvent))]
     [KnownType(typeof(ContinueAsNewEvent))]
     [KnownType(typeof(HistoryStateEvent))]

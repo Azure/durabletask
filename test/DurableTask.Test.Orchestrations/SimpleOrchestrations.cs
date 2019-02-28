@@ -14,6 +14,7 @@
 namespace DurableTask.Test.Orchestrations
 {
     using System;
+    using System.Runtime.Serialization;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Core;
@@ -213,4 +214,135 @@ namespace DurableTask.Test.Orchestrations
             return GenerationCount;
         }
     }
+
+    public sealed class CounterOrchestration : TaskOrchestration<int, int>
+    {
+        TaskCompletionSource<string> waitForOperationHandle;
+
+        public override async Task<int> RunTask(OrchestrationContext context, int currentValue)
+        {
+            string operation = await this.WaitForOperation();
+
+            bool done = false;
+            switch (operation?.ToLowerInvariant())
+            {
+                case "incr":
+                    currentValue++;
+                    break;
+                case "decr":
+                    currentValue--;
+                    break;
+                case "end":
+                    done = true;
+                    break;
+            }
+
+            if (!done)
+            {
+                context.ContinueAsNew(currentValue);
+            }
+
+            return currentValue;
+
+        }
+
+        async Task<string> WaitForOperation()
+        {
+            this.waitForOperationHandle = new TaskCompletionSource<string>();
+            string operation = await this.waitForOperationHandle.Task;
+            this.waitForOperationHandle = null;
+            return operation;
+        }
+
+        public override void OnEvent(OrchestrationContext context, string name, string input)
+        {
+            if (this.waitForOperationHandle != null && !this.waitForOperationHandle.Task.IsCompleted)
+            {
+                this.waitForOperationHandle.SetResult(input);
+            }
+        }
+    }
+
+    [KnownType(typeof(EventConversationOrchestration.Responder))]
+    public sealed class EventConversationOrchestration : TaskOrchestration<string, string>
+    {
+        private readonly TaskCompletionSource<string> tcs
+            = new TaskCompletionSource<string>(TaskContinuationOptions.ExecuteSynchronously);
+
+        // HACK: This is just a hack to communicate result of orchestration back to test
+        public static bool OkResult;
+
+        public async override Task<string> RunTask(OrchestrationContext context, string input)
+        {
+            // start a responder orchestration
+            var responderId = "responderId";
+            var responderOrchestration = context.CreateSubOrchestrationInstance<string>(typeof(Responder), responderId, "Herkimer");
+
+            // send the id of this orchestration to the responder
+            var responderInstance = new OrchestrationInstance() { InstanceId = responderId };
+            context.SendEvent(responderInstance, channelName, context.OrchestrationInstance.InstanceId);
+
+            // wait for a response event 
+            var message = await tcs.Task;
+            if (message != "hi from Herkimer")
+                throw new Exception("test failed");
+
+            // tell the responder to stop listening, then wait for it to complete
+            context.SendEvent(responderInstance, channelName, "stop");
+            var receiverResult = await responderOrchestration;
+
+            if (receiverResult != "Herkimer is done")
+                throw new Exception("test failed");
+
+            OkResult = true;
+
+            return "OK";
+        }
+
+        public override void OnEvent(OrchestrationContext context, string name, string input)
+        {
+            if (name == channelName)
+            {
+                tcs.TrySetResult(input);
+            }
+        }
+
+        private const string channelName = "conversation";
+
+        public class Responder : TaskOrchestration<string, string>
+        {
+            private readonly TaskCompletionSource<string> tcs
+                = new TaskCompletionSource<string>(TaskContinuationOptions.ExecuteSynchronously);
+
+            public async override Task<string> RunTask(OrchestrationContext context, string input)
+            {
+                var message = await tcs.Task;
+
+                if (message == "stop")
+                {
+                    return $"{input} is done";
+                }
+                else
+                {
+                    // send a message back to the sender
+                    var senderInstance = new OrchestrationInstance() { InstanceId = message };
+                    context.SendEvent(senderInstance, channelName, $"hi from {input}");
+
+                    // start over to wait for the next message
+                    context.ContinueAsNew(input);
+
+                    return "this value is meaningless";
+                }
+            }
+
+            public override void OnEvent(OrchestrationContext context, string name, string input)
+            {
+                if (name == channelName)
+                {
+                    tcs.TrySetResult(input);
+                }
+            }
+        }
+    }
+
 }

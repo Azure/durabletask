@@ -11,28 +11,21 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Command
+namespace DurableTask.Core
 {
-    using System.Collections.Generic;
-    using DurableTask.Core.History;
-
-    internal class OrchestrationCompleteOrchestratorAction : OrchestratorAction
+    /// <summary>
+    /// Specifies Behavior to be followed when dealing with unprocessed EventRaisedEvents when an orchestration continues as new
+    /// </summary>
+    public enum BehaviorOnContinueAsNew
     {
-        public OrchestrationCompleteOrchestratorAction()
-        {
-            CarryoverEvents = new List<HistoryEvent>();
-        }
+        /// <summary>
+        /// All pending EventRaisedEvents will be ignored
+        /// </summary>
+        Ignore,
 
-        public OrchestrationStatus OrchestrationStatus;
-
-        public override OrchestratorActionType OrchestratorActionType => OrchestratorActionType.OrchestrationComplete;
-
-        public string Result { get; set; }
-
-        public string Details { get; set; }
-
-        public string NewVersion { get; set; }
-
-        public IList<HistoryEvent> CarryoverEvents { get; }
+        /// <summary>
+        /// 
+        /// </summary>
+        Carryover,
     }
 }

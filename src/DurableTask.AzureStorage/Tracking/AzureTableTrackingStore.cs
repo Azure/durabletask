@@ -67,7 +67,8 @@ namespace DurableTask.AzureStorage.Tracking
         public AzureTableTrackingStore(
             AzureStorageOrchestrationServiceSettings settings,
             MessageManager messageManager,
-            AzureStorageOrchestrationServiceStats stats)
+            AzureStorageOrchestrationServiceStats stats,
+            CloudStorageAccount account)
         {
             this.settings = settings;
             this.messageManager = messageManager;
@@ -75,7 +76,6 @@ namespace DurableTask.AzureStorage.Tracking
             this.tableEntityConverter = new TableEntityConverter();
             this.taskHubName = settings.TaskHubName;
 
-            CloudStorageAccount account = CloudStorageAccount.Parse(settings.StorageConnectionString);
             this.storageAccountName = account.Credentials.AccountName;
 
             CloudTableClient tableClient = account.CreateCloudTableClient();
@@ -851,16 +851,17 @@ namespace DurableTask.AzureStorage.Tracking
 
         /// <inheritdoc />
         public override async Task<string> UpdateStateAsync(
-            OrchestrationRuntimeState runtimeState,
+            OrchestrationRuntimeState newRuntimeState,
+            OrchestrationRuntimeState oldRuntimeState,
             string instanceId,
             string executionId,
             string eTagValue)
         {
             int estimatedBytes = 0;
-            IList<HistoryEvent> newEvents = runtimeState.NewEvents;
-            IList<HistoryEvent> allEvents = runtimeState.Events;
+            IList<HistoryEvent> newEvents = newRuntimeState.NewEvents;
+            IList<HistoryEvent> allEvents = newRuntimeState.Events;
 
-            int episodeNumber = Utils.GetEpisodeNumber(runtimeState);
+            int episodeNumber = Utils.GetEpisodeNumber(newRuntimeState);
 
             var newEventListBuffer = new StringBuilder(4000);
             var historyEventBatch = new TableBatchOperation();
@@ -871,7 +872,7 @@ namespace DurableTask.AzureStorage.Tracking
             {
                 Properties =
                 {
-                    ["CustomStatus"] = new EntityProperty(runtimeState.Status),
+                    ["CustomStatus"] = new EntityProperty(newRuntimeState.Status),
                     ["ExecutionId"] = new EntityProperty(executionId),
                     ["LastUpdatedTime"] = new EntityProperty(newEvents.Last().Timestamp),
                 }

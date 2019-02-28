@@ -11,28 +11,28 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Command
+namespace DurableTask.AzureStorage
 {
-    using System.Collections.Generic;
-    using DurableTask.Core.History;
+    using Microsoft.WindowsAzure.Storage.Auth;
 
-    internal class OrchestrationCompleteOrchestratorAction : OrchestratorAction
+    /// <summary>
+    /// Connection details of the Azure Storage account
+    /// </summary>
+    public sealed class StorageAccountDetails
     {
-        public OrchestrationCompleteOrchestratorAction()
-        {
-            CarryoverEvents = new List<HistoryEvent>();
-        }
+        /// <summary>
+        /// The storage account credentials
+        /// </summary>
+        public StorageCredentials StorageCredentials { get; set; }
 
-        public OrchestrationStatus OrchestrationStatus;
+        /// <summary>
+        /// The storage account name
+        /// </summary>
+        public string AccountName { get; set; }
 
-        public override OrchestratorActionType OrchestratorActionType => OrchestratorActionType.OrchestrationComplete;
-
-        public string Result { get; set; }
-
-        public string Details { get; set; }
-
-        public string NewVersion { get; set; }
-
-        public IList<HistoryEvent> CarryoverEvents { get; }
+        /// <summary>
+        /// The storage account endpoint suffix
+        /// </summary>
+        public string EndpointSuffix { get; set; }
     }
 }

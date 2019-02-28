@@ -503,6 +503,11 @@ namespace DurableTask.Emulator
         /// <inheritdoc />
         public int TaskActivityDispatcherCount => 1;
 
+        /// <summary>
+        ///  Should we carry over unexecuted raised events to the next iteration of an orchestration on ContinueAsNew
+        /// </summary>
+        public BehaviorOnContinueAsNew EventBehaviourForContinueAsNew => BehaviorOnContinueAsNew.Carryover;
+
         /// <inheritdoc />
         public int MaxConcurrentTaskActivityWorkItems => this.MaxConcurrentWorkItems;
 

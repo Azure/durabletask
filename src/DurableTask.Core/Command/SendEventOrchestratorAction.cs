@@ -13,26 +13,16 @@
 
 namespace DurableTask.Core.Command
 {
-    using System.Collections.Generic;
-    using DurableTask.Core.History;
+    using System;
 
-    internal class OrchestrationCompleteOrchestratorAction : OrchestratorAction
+    internal class SendEventOrchestratorAction : OrchestratorAction
     {
-        public OrchestrationCompleteOrchestratorAction()
-        {
-            CarryoverEvents = new List<HistoryEvent>();
-        }
+        public override OrchestratorActionType OrchestratorActionType => OrchestratorActionType.SendEvent;
 
-        public OrchestrationStatus OrchestrationStatus;
+        public OrchestrationInstance Instance { get; set; }
 
-        public override OrchestratorActionType OrchestratorActionType => OrchestratorActionType.OrchestrationComplete;
+        public string EventName { get; set; }
 
-        public string Result { get; set; }
-
-        public string Details { get; set; }
-
-        public string NewVersion { get; set; }
-
-        public IList<HistoryEvent> CarryoverEvents { get; }
+        public string EventData { get; set; }
     }
 }

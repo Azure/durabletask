@@ -456,6 +456,11 @@ namespace DurableTask.ServiceBus
         public int MaxConcurrentTaskOrchestrationWorkItems => this.Settings.TaskOrchestrationDispatcherSettings.MaxConcurrentOrchestrations;
 
         /// <summary>
+        ///  Should we carry over unexecuted raised events to the next iteration of an orchestration on ContinueAsNew
+        /// </summary>
+        public BehaviorOnContinueAsNew EventBehaviourForContinueAsNew => this.Settings.TaskOrchestrationDispatcherSettings.EventBehaviourForContinueAsNew;
+
+        /// <summary>
         ///     Wait for the next orchestration work item and return the orchestration work item
         /// </summary>
         /// <param name="receiveTimeout">The timespan to wait for new messages before timing out</param>
@@ -739,7 +744,6 @@ namespace DurableTask.ServiceBus
                     if (this.InstanceStore != null)
                     {
                         List<MessageContainer> trackingMessages = await CreateTrackingMessagesAsync(runtimeState, sessionState.SequenceNumber);
-
                         TraceHelper.TraceInstance(
                             TraceEventType.Information,
                             "ServiceBusOrchestrationService-CompleteTaskOrchestrationWorkItem-TrackingMessages",
@@ -752,6 +756,24 @@ namespace DurableTask.ServiceBus
                             LogSentMessages(session, "Tracking messages", trackingMessages);
                             this.ServiceStats.TrackingDispatcherStats.MessageBatchesSent.Increment();
                             this.ServiceStats.TrackingDispatcherStats.MessagesSent.Increment(trackingMessages.Count);
+                        }
+
+                        if (newOrchestrationRuntimeState != null && runtimeState != newOrchestrationRuntimeState)
+                        {
+                            trackingMessages = await CreateTrackingMessagesAsync(newOrchestrationRuntimeState, sessionState.SequenceNumber);
+                            TraceHelper.TraceInstance(
+                                TraceEventType.Information,
+                                "ServiceBusOrchestrationService-CompleteTaskOrchestrationWorkItem-TrackingMessages",
+                                newOrchestrationRuntimeState.OrchestrationInstance,
+                                "Created {0} tracking messages", trackingMessages.Count);
+
+                            if (trackingMessages.Count > 0)
+                            {
+                                await this.trackingSender.SendBatchAsync(trackingMessages.Select(m => m.Message));
+                                LogSentMessages(session, "Tracking messages", trackingMessages);
+                                this.ServiceStats.TrackingDispatcherStats.MessageBatchesSent.Increment();
+                                this.ServiceStats.TrackingDispatcherStats.MessagesSent.Increment(trackingMessages.Count);
+                            }
                         }
                     }
                 }
@@ -1510,7 +1532,7 @@ namespace DurableTask.ServiceBus
 
             var isSessionSizeThresholdExceeded = false;
 
-            if (newOrchestrationRuntimeState == null)
+            if (newOrchestrationRuntimeState == null || newOrchestrationRuntimeState.OrchestrationStatus != OrchestrationStatus.Running)
             {
                 await session.SetStateAsync(null);
                 return true;
