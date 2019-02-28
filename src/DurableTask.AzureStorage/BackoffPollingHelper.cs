@@ -121,8 +121,8 @@ namespace DurableTask.AzureStorage
                         this.CurrentInterval = this.maximumInterval;
                     }
                 }
-                // else do nothing and keep current interval equal to max
 
+                // else do nothing and keep current interval equal to max
                 return this.CurrentInterval;
             }
         }
