@@ -98,6 +98,7 @@ namespace DurableTask.AzureStorage
             this.settings = settings;
             this.tableEntityConverter = new TableEntityConverter();
 
+            // TODO Once StorageConnectionString has been removed, Use StorageAccountDetails.GetCloudStorageAccount() method. 
             CloudStorageAccount account = settings.StorageAccountDetails == null
                 ? CloudStorageAccount.Parse(settings.StorageConnectionString)
                 : new CloudStorageAccount(settings.StorageAccountDetails.StorageCredentials, settings.StorageAccountDetails.AccountName, settings.StorageAccountDetails.EndpointSuffix, true);
@@ -125,7 +126,14 @@ namespace DurableTask.AzureStorage
 
             if (customInstanceStore == null)
             {
-                this.trackingStore = new AzureTableTrackingStore(settings, this.messageManager, this.stats, account);
+                if (settings.HasTrackingStoreStorageAccount)
+                {
+                    this.trackingStore = new AzureTableTrackingStore(settings, this.messageManager, this.stats, settings.TrackingStoreStorageAccountDetails.GetCloudStorageAccount());
+                }
+                else
+                {
+                    this.trackingStore = new AzureTableTrackingStore(settings, this.messageManager, this.stats, account);
+                }
             }
             else
             {

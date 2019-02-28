@@ -34,5 +34,10 @@ namespace DurableTask.AzureStorage
         /// The storage account endpoint suffix
         /// </summary>
         public string EndpointSuffix { get; set; }
+
+        /// <summary>
+        /// The storage account connection string
+        /// </summary>
+        public string StorageAccountConnectionString { get; set; }
     }
 }

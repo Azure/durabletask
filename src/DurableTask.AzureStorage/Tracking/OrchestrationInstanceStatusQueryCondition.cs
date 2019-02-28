@@ -90,11 +90,11 @@ namespace DurableTask.AzureStorage.Tracking
 
             if (this.TaskHubNames != null)
             {
-                string appIdCondition = this.TaskHubNames.Select(x => TableQuery.GenerateFilterCondition("TaskHubName", QueryComparisons.Equal, x.ToString()))
+                string taskHubCondition = this.TaskHubNames.Select(x => TableQuery.GenerateFilterCondition("TaskHubName", QueryComparisons.Equal, x.ToString()))
                     .Aggregate((a, b) => TableQuery.CombineFilters(a, TableOperators.Or, b));
-                if (appIdCondition.Count() != 0)
+                if (taskHubCondition.Count() != 0)
                 {
-                    conditions.Add(appIdCondition);
+                    conditions.Add(taskHubCondition);
                 }
             }
 

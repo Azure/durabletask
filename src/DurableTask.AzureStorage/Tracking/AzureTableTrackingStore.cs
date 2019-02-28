@@ -58,7 +58,6 @@ namespace DurableTask.AzureStorage.Tracking
 
         readonly string storageAccountName;
         readonly string taskHubName;
-        readonly string remoteTrackingStoreNamePrefix;
         readonly AzureStorageOrchestrationServiceSettings settings;
         readonly AzureStorageOrchestrationServiceStats stats;
         readonly TableEntityConverter tableEntityConverter;
@@ -76,19 +75,16 @@ namespace DurableTask.AzureStorage.Tracking
             this.stats = stats;
             this.tableEntityConverter = new TableEntityConverter();
             this.taskHubName = settings.TaskHubName;
-            this.remoteTrackingStoreNamePrefix = settings.RemoteTrackingStoreNamePrefix;
 
-            CloudStorageAccount trackingStoreAccount = string.IsNullOrEmpty(settings.TrackingStoreConnectionString) ? account : CloudStorageAccount.Parse(settings.TrackingStoreConnectionString);
+            this.storageAccountName = account.Credentials.AccountName;
 
-            this.storageAccountName = trackingStoreAccount.Credentials.AccountName;
-
-            CloudTableClient tableClient = trackingStoreAccount.CreateCloudTableClient();
+            CloudTableClient tableClient = account.CreateCloudTableClient();
             tableClient.BufferManager = SimpleBufferManager.Shared;
 
-            string historyTableName = (!string.IsNullOrEmpty(settings.TrackingStoreConnectionString)) ? $"{remoteTrackingStoreNamePrefix}History" : $"{taskHubName}History";
+            string historyTableName = settings.HistoryTableName;
             NameValidator.ValidateTableName(historyTableName);
 
-            string instancesTableName = (!string.IsNullOrEmpty(settings.TrackingStoreConnectionString)) ? $"{remoteTrackingStoreNamePrefix}Instances" : $"{taskHubName}Instances";
+            string instancesTableName = settings.InstanceTableName;
             NameValidator.ValidateTableName(instancesTableName);
 
             this.HistoryTable = tableClient.GetTableReference(historyTableName);
