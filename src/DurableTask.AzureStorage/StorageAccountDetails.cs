@@ -37,8 +37,11 @@ namespace DurableTask.AzureStorage
         public string EndpointSuffix { get; set; }
 
         /// <summary>
-        ///  CloudStorageAccount 
+        ///  Convert this to its equivalent CloudStorageAccount.
         /// </summary>
-        public CloudStorageAccount CloudStorageAccount => new CloudStorageAccount(this.StorageCredentials, this.AccountName, this.EndpointSuffix, true);
+        public CloudStorageAccount ToCloudStorageAccount()
+        {
+            return new CloudStorageAccount(this.StorageCredentials, this.AccountName, this.EndpointSuffix, true);
+        }
     }
 }

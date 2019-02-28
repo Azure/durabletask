@@ -100,7 +100,7 @@ namespace DurableTask.AzureStorage
  
             CloudStorageAccount account = settings.StorageAccountDetails == null
                 ? CloudStorageAccount.Parse(settings.StorageConnectionString)
-                : settings.StorageAccountDetails.CloudStorageAccount;
+                : settings.StorageAccountDetails.ToCloudStorageAccount();
 
             this.storageAccountName = account.Credentials.AccountName;
             this.stats = new AzureStorageOrchestrationServiceStats();
@@ -128,7 +128,7 @@ namespace DurableTask.AzureStorage
             {
                 if (settings.HasTrackingStoreStorageAccount)
                 {
-                    this.trackingStore = new AzureTableTrackingStore(settings, this.messageManager, this.stats, settings.TrackingStoreStorageAccountDetails.CloudStorageAccount);
+                    this.trackingStore = new AzureTableTrackingStore(settings, this.messageManager, this.stats, settings.TrackingStoreStorageAccountDetails.ToCloudStorageAccount());
                 }
                 else
                 {
