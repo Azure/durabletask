@@ -120,12 +120,25 @@ namespace DurableTask.AzureStorage.Tests
             {
                 RuntimeStatus = runtimeStatus,
                 CreatedTimeFrom = new DateTime(2018, 1, 10, 10, 10, 10, DateTimeKind.Utc),
-                CreatedTimeTo = new DateTime(2018, 1, 10, 10, 10, 50, DateTimeKind.Utc)
+                CreatedTimeTo = new DateTime(2018, 1, 10, 10, 10, 50, DateTimeKind.Utc),
+                TaskHubNames = new string[] {"FooProduction", "BarStaging"}
             };
 
             Assert.AreEqual(
-                "((CreatedTime ge datetime'2018-01-10T10:10:10.0000000Z') and (CreatedTime le datetime'2018-01-10T10:10:50.0000000Z')) and ((RuntimeStatus eq 'Running') or (RuntimeStatus eq 'Completed'))",
+                "(((CreatedTime ge datetime'2018-01-10T10:10:10.0000000Z') and (CreatedTime le datetime'2018-01-10T10:10:50.0000000Z')) and ((RuntimeStatus eq 'Running') or (RuntimeStatus eq 'Completed'))) and ((TaskHubName eq 'FooProduction') or (TaskHubName eq 'BarStaging'))",
                 condition.ToTableQuery<OrchestrationInstanceStatus>().FilterString);
+        }
+
+        [TestMethod]
+        public void OrchestrationInstanceQuery_WithAppId()
+        {
+            var condition = new OrchestrationInstanceStatusQueryCondition()
+            {
+                TaskHubNames = new string[] { "FooProduction" }
+            };
+            Assert.AreEqual("TaskHubName eq 'FooProduction'",
+                condition.ToTableQuery<OrchestrationInstanceStatus>().FilterString
+            );
         }
 
         [TestMethod]

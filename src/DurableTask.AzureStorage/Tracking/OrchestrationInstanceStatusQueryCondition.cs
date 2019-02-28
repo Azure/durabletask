@@ -22,24 +22,45 @@ namespace DurableTask.AzureStorage.Tracking
     /// <summary>
     /// OrchestrationInstanceStatusQueryBuilder is a builder to create a StorageTable Query
     /// </summary>
-    class OrchestrationInstanceStatusQueryCondition
+    public class OrchestrationInstanceStatusQueryCondition
     {
+        /// <summary>
+        /// RuntimeStatus
+        /// </summary>
         public IEnumerable<OrchestrationStatus> RuntimeStatus { get; set; }
 
+        /// <summary>
+        /// CreatedTimeFrom
+        /// </summary>
         public DateTime CreatedTimeFrom { get; set; }
 
+        /// <summary>
+        /// CreatedTimeTo
+        /// </summary>
         public DateTime CreatedTimeTo { get; set; }
 
+        /// <summary>
+        /// Collection of TaskHub name
+        /// </summary>
+        public IEnumerable<string> TaskHubNames { get; set; }
+
+        /// <summary>
+        /// Get the TableQuery object
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <returns></returns>
         public TableQuery<T> ToTableQuery<T>()
             where T : TableEntity, new()
         {
             var query = new TableQuery<T>();
             if (!((this.RuntimeStatus == null || (!this.RuntimeStatus.Any())) && 
                 this.CreatedTimeFrom == default(DateTime) && 
-                this.CreatedTimeTo == default(DateTime)))
+                this.CreatedTimeTo == default(DateTime) &&
+                this.TaskHubNames == null))
             {
                 query.Where(this.GetConditions());
             }
+
             return query;
         }
 
@@ -64,6 +85,16 @@ namespace DurableTask.AzureStorage.Tracking
                 if (runtimeCondition.Count() != 0)
                 {
                     conditions.Add(runtimeCondition);
+                }
+            }
+
+            if (this.TaskHubNames != null)
+            {
+                string taskHubCondition = this.TaskHubNames.Select(x => TableQuery.GenerateFilterCondition("TaskHubName", QueryComparisons.Equal, x.ToString()))
+                    .Aggregate((a, b) => TableQuery.CombineFilters(a, TableOperators.Or, b));
+                if (taskHubCondition.Count() != 0)
+                {
+                    conditions.Add(taskHubCondition);
                 }
             }
 

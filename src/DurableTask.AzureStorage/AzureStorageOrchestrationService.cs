@@ -97,10 +97,11 @@ namespace DurableTask.AzureStorage
 
             this.settings = settings;
             this.tableEntityConverter = new TableEntityConverter();
-
+ 
             CloudStorageAccount account = settings.StorageAccountDetails == null
                 ? CloudStorageAccount.Parse(settings.StorageConnectionString)
-                : new CloudStorageAccount(settings.StorageAccountDetails.StorageCredentials, settings.StorageAccountDetails.AccountName, settings.StorageAccountDetails.EndpointSuffix, true);
+                : settings.StorageAccountDetails.ToCloudStorageAccount();
+
             this.storageAccountName = account.Credentials.AccountName;
             this.stats = new AzureStorageOrchestrationServiceStats();
             this.queueClient = account.CreateCloudQueueClient();
@@ -125,7 +126,14 @@ namespace DurableTask.AzureStorage
 
             if (customInstanceStore == null)
             {
-                this.trackingStore = new AzureTableTrackingStore(settings, this.messageManager, this.stats, account);
+                if (settings.HasTrackingStoreStorageAccount)
+                {
+                    this.trackingStore = new AzureTableTrackingStore(settings, this.messageManager, this.stats, settings.TrackingStoreStorageAccountDetails.ToCloudStorageAccount());
+                }
+                else
+                {
+                    this.trackingStore = new AzureTableTrackingStore(settings, this.messageManager, this.stats, account);
+                }
             }
             else
             {
@@ -1342,6 +1350,20 @@ namespace DurableTask.AzureStorage
         {
             await this.EnsureTaskHubAsync();
             return await this.trackingStore.GetStateAsync(createdTimeFrom, createdTimeTo, runtimeStatus, top, continuationToken, cancellationToken);
+        }
+
+        /// <summary>
+        /// Gets the state of all orchestration instances that match the specified parameters.
+        /// </summary>
+        /// <param name="condition">Query condition. <see cref="OrchestrationInstanceStatusQueryCondition"/></param>
+        /// <param name="top">Top is number of records per one request.</param>
+        /// <param name="continuationToken">ContinuationToken of the pager.</param>
+        /// <param name="cancellationToken">Cancellation Token</param>
+        /// <returns>List of <see cref="OrchestrationState"/></returns>
+        public async Task<DurableStatusQueryResult> GetOrchestrationStateAsync(OrchestrationInstanceStatusQueryCondition condition, int top, string continuationToken, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            await this.EnsureTaskHubAsync();
+            return await this.trackingStore.GetStateAsync(condition, top, continuationToken, cancellationToken);
         }
 
         /// <summary>
