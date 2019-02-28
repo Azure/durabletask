@@ -40,7 +40,7 @@ namespace DurableTask.AzureStorage.Tests
             var settings = new AzureStorageOrchestrationServiceSettings()
             {
                 TaskHubName = "foo",
-                RemoteTrackingStoreNamePrefix = "bar",
+                TrackingStoreNamePrefix = "bar",
                 TrackingStoreStorageAccountDetails = new StorageAccountDetails()
             };
             Assert.AreEqual("barHistory", settings.HistoryTableName);

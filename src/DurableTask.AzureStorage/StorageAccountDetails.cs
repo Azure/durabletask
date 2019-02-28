@@ -13,6 +13,7 @@
 
 namespace DurableTask.AzureStorage
 {
+    using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Auth;
 
     /// <summary>
@@ -36,8 +37,8 @@ namespace DurableTask.AzureStorage
         public string EndpointSuffix { get; set; }
 
         /// <summary>
-        /// The storage account connection string
+        ///  CloudStorageAccount 
         /// </summary>
-        public string StorageAccountConnectionString { get; set; }
+        public CloudStorageAccount CloudStorageAccount => new CloudStorageAccount(this.StorageCredentials, this.AccountName, this.EndpointSuffix, true);
     }
 }

@@ -74,10 +74,10 @@ namespace DurableTask.AzureStorage
 
         /// <summary>
         /// Gets or sets the prefix of the TrackingStore table name.
-        /// This property is only used when we have TrackingStoreConnectionString.
+        /// This property is only used when we have TrackingStoreStorageAccountDetails.
         /// The default is "DurableTask"
         /// </summary>
-        public string RemoteTrackingStoreNamePrefix { get; set; } = "DurableTask";
+        public string TrackingStoreNamePrefix { get; set; } = "DurableTask";
 
         /// <summary>
         /// Gets or sets the name of the task hub. This value is used to group related storage resources.
@@ -171,8 +171,8 @@ namespace DurableTask.AzureStorage
         /// </summary>
         public  bool HasTrackingStoreStorageAccount => TrackingStoreStorageAccountDetails != null;
 
-        internal string HistoryTableName => this.HasTrackingStoreStorageAccount ? $"{this.RemoteTrackingStoreNamePrefix}History" : $"{this.TaskHubName}History";
+        internal string HistoryTableName => this.HasTrackingStoreStorageAccount ? $"{this.TrackingStoreNamePrefix}History" : $"{this.TaskHubName}History";
 
-        internal string InstanceTableName => this.HasTrackingStoreStorageAccount ? $"{this.RemoteTrackingStoreNamePrefix}Instances" : $"{this.TaskHubName}Instances";
+        internal string InstanceTableName => this.HasTrackingStoreStorageAccount ? $"{this.TrackingStoreNamePrefix}Instances" : $"{this.TaskHubName}Instances";
     }
 }
