@@ -25,6 +25,8 @@ namespace DurableTask.AzureStorage
     {
         internal const int DefaultPartitionCount = 4;
 
+        internal static readonly TimeSpan DefaultMaxQueuePollingInterval = TimeSpan.FromSeconds(30);
+
         /// <summary>
         /// Gets or sets the number of messages to pull from the control queue at a time. The default is 32.
         /// The maximum batch size supported by Azure Storage Queues is 32.
@@ -134,6 +136,11 @@ namespace DurableTask.AzureStorage
         /// interval, it will cause it to expire and ownership of the partition will move to another worker instance.
         /// </summary>
         public TimeSpan LeaseInterval { get; set; } = TimeSpan.FromSeconds(30);
+
+        /// <summary>
+        /// Maximum interval for polling control and work-item queues.
+        /// </summary>
+        public TimeSpan MaxQueuePollingInterval { get; set; } = DefaultMaxQueuePollingInterval;
 
         /// <summary>
         /// Gets or sets the Azure Storage Account details

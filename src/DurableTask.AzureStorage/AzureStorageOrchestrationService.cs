@@ -29,7 +29,6 @@ namespace DurableTask.AzureStorage
     using DurableTask.Core;
     using DurableTask.Core.History;
     using Microsoft.WindowsAzure.Storage;
-    using Microsoft.WindowsAzure.Storage.Auth;
     using Microsoft.WindowsAzure.Storage.Blob;
     using Microsoft.WindowsAzure.Storage.Queue;
     using Newtonsoft.Json;
@@ -43,8 +42,6 @@ namespace DurableTask.AzureStorage
         IPartitionObserver<BlobLease>,
         IDisposable
     {
-        internal static readonly TimeSpan MaxQueuePollingDelay = TimeSpan.FromSeconds(30);
-
         static readonly HistoryEvent[] EmptyHistoryEventList = new HistoryEvent[0];
         static readonly OrchestrationInstance EmptySourceInstance = new OrchestrationInstance
         {
