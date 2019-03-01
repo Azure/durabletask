@@ -11,27 +11,22 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceFabric
+namespace DurableTask.ServiceFabric.Exceptions
 {
     using System;
-    using System.Collections.Generic;
-    using System.Threading.Tasks;
 
     /// <summary>
-    /// Provides partition related information.
+    /// Exception representing that instanceId is not Valid.
     /// </summary>
-    public interface IPartitionEndpointResolver
+    public class InvalidInstanceIdException : Exception
     {
         /// <summary>
-        /// Gets end points for all the partitions.
+        /// Creates an instance of <see cref="InvalidInstanceIdException"/>
         /// </summary>
-        /// <returns> All the end points. </returns>
-        Task<IEnumerable<string>> GetPartitionEndpointsAsync();
-
-        /// <summary>
-        /// Gets partition end point for given instanceId.
-        /// </summary>
-        /// <returns> Partition end point </returns>
-        Task<string> GetParitionEndpointAsync(string instanceId);
+        /// <param name="instanceId">Orchestration instance id</param>
+        public InvalidInstanceIdException(string instanceId)
+            : base("Not a valid instanceId: " + instanceId)
+        {
+        }
     }
 }

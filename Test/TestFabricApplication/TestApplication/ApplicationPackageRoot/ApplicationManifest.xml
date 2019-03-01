@@ -8,6 +8,9 @@
   <ServiceManifestImport>
     <ServiceManifestRef ServiceManifestName="StatefulService" ServiceManifestVersion="1.0.0" />
     <ConfigOverrides />
+    <Policies>
+      <RunAsPolicy CodePackageRef="Code" UserRef="LocalSystem" />
+    </Policies>
   </ServiceManifestImport>
   <DefaultServices>
     <Service Name="TestStatefulService">
@@ -16,4 +19,9 @@
       </StatefulService>
     </Service>
   </DefaultServices>
+  <Principals>
+    <Users>
+      <User Name="LocalSystem" AccountType="LocalSystem" />
+    </Users>
+  </Principals>
 </ApplicationManifest>

@@ -15,8 +15,6 @@ namespace TestApplication.StatefulService
 {
     using System;
     using System.Collections.Generic;
-    using System.Fabric;
-    using System.Globalization;
     using System.Linq;
     using System.Threading.Tasks;
 
@@ -24,24 +22,38 @@ namespace TestApplication.StatefulService
     using DurableTask.ServiceFabric;
     using DurableTask.ServiceFabric.Service;
     using DurableTask.Test.Orchestrations.Performance;
-    using Microsoft.ServiceFabric.Services.Communication.Runtime;
+
     using TestApplication.Common.Orchestrations;
 
 
     /// <inheritdoc/>
-    public class TestFabricServiceContext : IFabricServiceContext
+    public class TestOrchestrationsProvider : IOrchestrationsProvider
     {
-
-        public FabricOrchestrationProvider FabricOrchestrationProvider { get; set; }
+        #region Implementation of IOrchestrationsProvider interface
 
         /// <inheritdoc/>
-        public int GetActivityDispatcherCount()
+        public FabricOrchestrationProviderSettings GetFabricOrchestrationProviderSettings()
         {
-            return 5;
+            var settings = new FabricOrchestrationProviderSettings();
+            settings.TaskOrchestrationDispatcherSettings.DispatcherCount = 5;
+            settings.TaskActivityDispatcherSettings.DispatcherCount = 5;
+            return settings;
         }
 
         /// <inheritdoc/>
-        public IEnumerable<Type> GetActivityTypes()
+        public Task RegisterOrchestrationArtifactsAsync(TaskHubWorker taskHubWorker)
+        {
+            taskHubWorker
+                .AddTaskOrchestrations(this.GetOrchestrationTypes().ToArray())
+                .AddTaskOrchestrations(this.GetTaskOrchestrations().Select(instance => new DefaultObjectCreator<TaskOrchestration>(instance.Value)).ToArray())
+                .AddTaskActivities(GetActivityTypes().ToArray());
+
+            return Task.CompletedTask;
+        }
+        #endregion Implementation of IOrchestrationsProvider interface
+
+        /// <inheritdoc/>
+        private IEnumerable<Type> GetActivityTypes()
         {
             return new Type[]
             {
@@ -55,13 +67,7 @@ namespace TestApplication.StatefulService
         }
 
         /// <inheritdoc/>
-        public int GetOrchestrationDispatcherCount()
-        {
-            return 5;
-        }
-
-        /// <inheritdoc/>
-        public IEnumerable<Type> GetOrchestrationTypes()
+        private IEnumerable<Type> GetOrchestrationTypes()
         {
             return new Type[]
             {
@@ -76,34 +82,9 @@ namespace TestApplication.StatefulService
         }
 
         /// <inheritdoc/>
-        public IEnumerable<ServiceReplicaListener> GetServiceReplicaListeners()
-        {
-            yield return new ServiceReplicaListener(context =>
-            {
-                var activationContext = FabricRuntime.GetActivationContext();
-                var serviceEndpoint = activationContext.GetEndpoint("ServiceEndpoint");
-                int port = serviceEndpoint.Port;
-
-                string listeningAddress = String.Format(CultureInfo.InvariantCulture, "http://+:{0}/", port)
-                                            .Replace("+", FabricRuntime.GetNodeContext().IPAddressOrFQDN);
-                return new OwinCommunicationListener(new Startup(listeningAddress, this.FabricOrchestrationProvider));
-            });
-        }
-
-        /// <inheritdoc/>
-        public IEnumerable<KeyValuePair<string, TaskOrchestration>> GetTaskOrchestrations()
+        private IEnumerable<KeyValuePair<string, TaskOrchestration>> GetTaskOrchestrations()
         {
             yield return new KeyValuePair<string, TaskOrchestration>(typeof(OrchestrationRunningIntoRetry).Name, new OrchestrationRunningIntoRetry());
-        }
-
-        public Task Register(TaskHubWorker taskHubWorker)
-        {
-            taskHubWorker
-                .AddTaskOrchestrations(this.GetOrchestrationTypes().ToArray())
-                .AddTaskOrchestrations(this.GetTaskOrchestrations().Select(instance => new DefaultObjectCreator<TaskOrchestration>(instance.Value)).ToArray())
-                .AddTaskActivities(GetActivityTypes().ToArray());
-
-            return Task.CompletedTask;
         }
     }
 }

@@ -42,14 +42,21 @@ namespace DurableTask.ServiceFabric
         /// <summary>
         /// Creates a task orchestration.
         /// </summary>
+        /// <param name="orchestrationId">Orchestration Id</param>
         /// <param name="parameters">Parameters for creating task orchestration.</param>
         /// <exception cref="OrchestrationAlreadyExistsException">Will throw an OrchestrationAlreadyExistsException exception
         /// If any orchestration with the same instance Id exists in the instance store and it has a status specified in dedupeStatuses.</exception>
         /// <returns> <see cref="IHttpActionResult"/> object. </returns>
         [HttpPut]
-        public async Task<IHttpActionResult> CreateTaskOrchestration([FromBody] CreateTaskOrchestrationParameters parameters)
+        [Route("orchestrations/{orchestrationId}")]
+        public async Task<IHttpActionResult> CreateTaskOrchestration([FromUri] string orchestrationId, [FromBody] CreateTaskOrchestrationParameters parameters)
         {
             ProviderEventSource.Tracing.LogServingNetworkAction(nameof(CreateTaskOrchestration));
+            parameters.TaskMessage.OrchestrationInstance.InstanceId.EnsureValidInstanceId();
+            if (!orchestrationId.Equals(parameters.TaskMessage.OrchestrationInstance.InstanceId))
+            {
+                return Conflict();
+            }
             try
             {
                 if (parameters.DedupeStatuses == null)
@@ -72,12 +79,20 @@ namespace DurableTask.ServiceFabric
         /// <summary>
         /// Sends an orchestration message to TaskHubClient.
         /// </summary>
+        /// <param name="messageId"></param>
         /// <param name="message">Message to send</param>
         /// <returns> <see cref="IHttpActionResult"/> object. </returns>
         [HttpPost]
-        public async Task<IHttpActionResult> SendTaskOrchestrationMessage([FromBody] TaskMessage message)
+        [Route("messages/{messageId}")]
+        public async Task<IHttpActionResult> SendTaskOrchestrationMessage([FromUri]long messageId,[FromBody] TaskMessage message)
         {
             ProviderEventSource.Tracing.LogServingNetworkAction(nameof(SendTaskOrchestrationMessage));
+            if (messageId != message.SequenceNumber)
+            {
+                return Conflict();
+            }
+
+            message.OrchestrationInstance.InstanceId.EnsureValidInstanceId();
             await this.orchestrationServiceClient.SendTaskOrchestrationMessageAsync(message);
             return new OkResult(this);
         }
@@ -88,6 +103,7 @@ namespace DurableTask.ServiceFabric
         /// <param name="messages">Message to send</param>
         /// <returns> <see cref="IHttpActionResult"/> object. </returns>
         [HttpPost]
+        [Route("messages")]
         public async Task<IHttpActionResult> SendTaskOrchestrationMessageBatch([FromBody] TaskMessage[] messages)
         {
             ProviderEventSource.Tracing.LogServingNetworkAction(nameof(SendTaskOrchestrationMessageBatch));
@@ -98,56 +114,64 @@ namespace DurableTask.ServiceFabric
         /// <summary>
         /// Gets the state of orchestration.
         /// </summary>
-        /// <param name="instanceId">Instance id of the orchestration</param>
+        /// <param name="orchestrationId">Instance id of the orchestration</param>
         /// <param name="executionId">Execution id of the orchestration</param>
         /// <returns> <see cref="OrchestrationState" /> object. </returns>
         [HttpGet]
-        public async Task<OrchestrationState> GetOrchestrationState(string instanceId, string executionId)
+        [Route("orchestrations/{orchestrationId}")]
+        public async Task<OrchestrationState> GetOrchestrationState([FromUri]string orchestrationId, string executionId)
         {
             ProviderEventSource.Tracing.LogServingNetworkAction(nameof(GetOrchestrationState));
-            var state = await this.orchestrationServiceClient.GetOrchestrationStateAsync(instanceId, executionId);
+            orchestrationId.EnsureValidInstanceId();
+            var state = await this.orchestrationServiceClient.GetOrchestrationStateAsync(orchestrationId, executionId);
             return state;
         }
 
         /// <summary>
         /// Gets the state of orchestration.
         /// </summary>
-        /// <param name="instanceId">Instance id of the orchestration</param>
+        /// <param name="orchestrationId">Instance id of the orchestration</param>
         /// <param name="allExecutions">True if method should fetch all executions of the instance, false if the method should only fetch the most recent execution</param>
         /// <returns>List of <see cref="OrchestrationState"/>. </returns>
         [HttpGet]
-        public async Task<IList<OrchestrationState>> GetOrchestrationState(string instanceId, bool allExecutions)
+        [Route("orchestrations/{orchestrationId}")]
+        public async Task<IList<OrchestrationState>> GetOrchestrationState([FromUri]string orchestrationId, bool allExecutions)
         {
             ProviderEventSource.Tracing.LogServingNetworkAction(nameof(GetOrchestrationState));
-            var state = await this.orchestrationServiceClient.GetOrchestrationStateAsync(instanceId, allExecutions);
+            orchestrationId.EnsureValidInstanceId();
+            var state = await this.orchestrationServiceClient.GetOrchestrationStateAsync(orchestrationId, allExecutions);
             return state;
         }
 
         /// <summary>
         /// Terminates an orchestration.
         /// </summary>
-        /// <param name="instanceId">Instance id of the orchestration</param>
+        /// <param name="orchestrationId">Instance id of the orchestration</param>
         /// <param name="reason">Execution id of the orchestration</param>
         /// <returns> <see cref="IHttpActionResult"/> object. </returns>
         [HttpDelete]
-        public async Task<IHttpActionResult> ForceTerminateTaskOrchestration(string instanceId, string reason)
+        [Route("orchestrations/{orchestrationId}")]
+        public async Task<IHttpActionResult> ForceTerminateTaskOrchestration([FromUri]string orchestrationId, string reason)
         {
             ProviderEventSource.Tracing.LogServingNetworkAction(nameof(ForceTerminateTaskOrchestration));
-            await this.orchestrationServiceClient.ForceTerminateTaskOrchestrationAsync(instanceId, reason);
+            orchestrationId.EnsureValidInstanceId();
+            await this.orchestrationServiceClient.ForceTerminateTaskOrchestrationAsync(orchestrationId, reason);
             return new OkResult(this);
         }
 
         /// <summary>
         /// Gets the history of orchestration.
         /// </summary>
-        /// <param name="instanceId">Instance id of the orchestration</param>
+        /// <param name="orchestrationId">Instance id of the orchestration</param>
         /// <param name="executionId">Execution id of the orchestration</param>
         /// <returns>Orchestration history</returns>
         [HttpGet]
-        public async Task<string> GetOrchestrationHistory(string instanceId, string executionId)
+        [Route("history/{orchestrationId}")]
+        public async Task<string> GetOrchestrationHistory([FromUri]string orchestrationId, string executionId)
         {
             ProviderEventSource.Tracing.LogServingNetworkAction(nameof(GetOrchestrationHistory));
-            var result = await this.orchestrationServiceClient.GetOrchestrationHistoryAsync(instanceId, executionId);
+            orchestrationId.EnsureValidInstanceId();
+            var result = await this.orchestrationServiceClient.GetOrchestrationHistoryAsync(orchestrationId, executionId);
             return result;
         }
 
@@ -157,7 +181,8 @@ namespace DurableTask.ServiceFabric
         /// <param name="purgeParameters">Purge history parameters</param>
         /// <returns> <see cref="IHttpActionResult"/> object. </returns>
         [HttpPost]
-        public async Task<IHttpActionResult> PurgeOrchestrationHistory(PurgeOrchestrationHistoryParameters purgeParameters)
+        [Route("history")]
+        public async Task<IHttpActionResult> PurgeOrchestrationHistory([FromBody]PurgeOrchestrationHistoryParameters purgeParameters)
         {
             ProviderEventSource.Tracing.LogServingNetworkAction(nameof(PurgeOrchestrationHistory));
             await this.orchestrationServiceClient.PurgeOrchestrationHistoryAsync(purgeParameters.ThresholdDateTimeUtc, purgeParameters.TimeRangeFilterType);

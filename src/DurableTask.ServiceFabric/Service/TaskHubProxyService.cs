@@ -16,6 +16,10 @@ namespace DurableTask.ServiceFabric.Service
     using System;
     using System.Collections.Generic;
     using System.Fabric;
+    using System.Globalization;
+    using System.Linq;
+    using System.Net;
+    using System.Net.Sockets;
     using System.Threading;
     using System.Threading.Tasks;
 
@@ -28,37 +32,26 @@ namespace DurableTask.ServiceFabric.Service
     /// <summary>
     /// An instance of this class is created for each service replica by the Service Fabric runtime.
     /// </summary>
-    public sealed class FabricService : StatefulService
+    public sealed class TaskHubProxyService : StatefulService
     {
         readonly FabricOrchestrationProviderFactory fabricProviderFactory;
-
-        /// <summary>
-        ///
-        /// </summary>
-        public FabricOrchestrationProvider FabricOrchestrationProvider { get; set; }
-
-        IFabricServiceContext serviceContext;
-
+        readonly IOrchestrationsProvider orchestrationsProvider;
+        FabricOrchestrationProvider fabricOrchestrationProvider;
         TaskHubWorker worker;
-        TaskHubClient client;
         ReplicaRole currentRole;
 
         /// <summary>
-        ///
+        /// Creates instance of <see cref="TaskHubProxyService"/>
         /// </summary>
-        /// <param name="context"></param>
-        /// <param name="serviceContext"></param>
-        public FabricService(StatefulServiceContext context, IFabricServiceContext serviceContext) : base(context)
+        /// <param name="context">stateful service context</param>
+        /// <param name="orchestrationsProvider">Orchestrations provider</param>
+        public TaskHubProxyService(StatefulServiceContext context, IOrchestrationsProvider orchestrationsProvider) : base(context)
         {
-            this.serviceContext = serviceContext ?? throw new ArgumentNullException(nameof(serviceContext));
+            this.orchestrationsProvider = orchestrationsProvider ?? throw new ArgumentNullException(nameof(orchestrationsProvider));
 
-            var providerSettings = new FabricOrchestrationProviderSettings();
-            providerSettings.TaskOrchestrationDispatcherSettings.DispatcherCount = this.serviceContext.GetOrchestrationDispatcherCount();
-            providerSettings.TaskActivityDispatcherSettings.DispatcherCount = this.serviceContext.GetOrchestrationDispatcherCount();
-
+            var providerSettings = this.orchestrationsProvider.GetFabricOrchestrationProviderSettings();
             this.fabricProviderFactory = new FabricOrchestrationProviderFactory(this.StateManager, providerSettings);
-            this.FabricOrchestrationProvider = this.fabricProviderFactory.CreateProvider();
-            this.client = new TaskHubClient(this.FabricOrchestrationProvider.OrchestrationServiceClient);
+            this.fabricOrchestrationProvider = this.fabricProviderFactory.CreateProvider();
         }
 
         /// <summary>
@@ -70,7 +63,22 @@ namespace DurableTask.ServiceFabric.Service
         /// <returns>A collection of listeners.</returns>
         protected override IEnumerable<ServiceReplicaListener> CreateServiceReplicaListeners()
         {
-            return this.serviceContext.GetServiceReplicaListeners();
+            yield return new ServiceReplicaListener(context =>
+            {
+                var serviceEndpoint = context.CodePackageActivationContext.GetEndpoint("ServiceEndpoint");
+                int port = serviceEndpoint.Port;
+
+                string ipAddress = context.NodeContext.IPAddressOrFQDN;
+#if DEBUG
+                IPHostEntry entry = Dns.GetHostEntry(ipAddress);
+                IPAddress ipv4Address = entry.AddressList.FirstOrDefault(
+                    address => (address.AddressFamily == AddressFamily.InterNetwork) && (!IPAddress.IsLoopback(address)));
+                ipAddress = ipv4Address.ToString();
+#endif
+
+                string listeningAddress = String.Format(CultureInfo.InvariantCulture, "http://{0}:{1}/", ipAddress, port);
+                return new OwinCommunicationListener(new Startup(listeningAddress, this.fabricOrchestrationProvider));
+            });
         }
 
         /// <summary>
@@ -80,15 +88,16 @@ namespace DurableTask.ServiceFabric.Service
         /// <param name="cancellationToken">Canceled when Service Fabric needs to shut down this service replica.</param>
         protected override async Task RunAsync(CancellationToken cancellationToken)
         {
-            if (this.FabricOrchestrationProvider == null)
+            if (this.fabricOrchestrationProvider == null)
             {
-                this.FabricOrchestrationProvider = this.fabricProviderFactory.CreateProvider();
-                this.client = new TaskHubClient(this.FabricOrchestrationProvider.OrchestrationServiceClient);
+                this.fabricOrchestrationProvider = this.fabricProviderFactory.CreateProvider();
             }
 
-            this.worker = new TaskHubWorker(this.FabricOrchestrationProvider.OrchestrationService);
+            this.worker = new TaskHubWorker(this.fabricOrchestrationProvider.OrchestrationService);
 
-            await this.serviceContext.Register(this.worker);
+            await this.orchestrationsProvider.RegisterOrchestrationArtifactsAsync(this.worker);
+
+            await this.worker.StartAsync();
 
             this.worker.TaskActivityDispatcher.IncludeDetails = true;
         }
@@ -103,13 +112,13 @@ namespace DurableTask.ServiceFabric.Service
         /// </returns>
         protected override async Task OnChangeRoleAsync(ReplicaRole newRole, CancellationToken cancellationToken)
         {
-            ServiceEventSource.Tracing.ServiceRequestStart($"Fabric On Change Role Async, current role = {this.currentRole}, new role = {newRole}");
+            ProviderEventSource.Tracing.FabricServiceRequestStart($"Fabric On Change Role Async, current role = {this.currentRole}, new role = {newRole}");
             if (newRole != ReplicaRole.Primary && this.currentRole == ReplicaRole.Primary)
             {
                 await ShutdownAsync();
             }
             this.currentRole = newRole;
-            ServiceEventSource.Tracing.ServiceRequestStop($"Fabric On Change Role Async, current role = {this.currentRole}");
+            ProviderEventSource.Tracing.FabricServiceRequestStop($"Fabric On Change Role Async, current role = {this.currentRole}");
         }
 
         /// <summary>
@@ -119,7 +128,7 @@ namespace DurableTask.ServiceFabric.Service
         /// <returns> A <see cref="Task">Task</see> that represents outstanding operation. </returns>
         protected override async Task OnCloseAsync(CancellationToken cancellationToken)
         {
-            ServiceEventSource.Tracing.ServiceMessage(this, "OnCloseAsync - will shutdown primary if not already done");
+            ProviderEventSource.Tracing.ServiceMessage(this, "OnCloseAsync - will shutdown primary if not already done");
             await ShutdownAsync();
         }
 
@@ -129,18 +138,18 @@ namespace DurableTask.ServiceFabric.Service
             {
                 if (this.worker != null)
                 {
-                    ServiceEventSource.Tracing.ServiceMessage(this, "Stopping Taskhub Worker");
+                    ProviderEventSource.Tracing.ServiceMessage(this, "Stopping Taskhub Worker");
                     await this.worker.StopAsync(isForced: true);
                     this.worker.Dispose();
-                    this.FabricOrchestrationProvider.Dispose();
-                    this.FabricOrchestrationProvider = null;
+                    this.fabricOrchestrationProvider.Dispose();
+                    this.fabricOrchestrationProvider = null;
                     this.worker = null;
-                    ServiceEventSource.Tracing.ServiceMessage(this, "Stopped Taskhub Worker");
+                    ProviderEventSource.Tracing.ServiceMessage(this, "Stopped Taskhub Worker");
                 }
             }
             catch (Exception e)
             {
-                ServiceEventSource.Tracing.ServiceRequestFailed("Exception when Stopping Worker On Primary Stop", e.ToString());
+                ProviderEventSource.Tracing.ServiceRequestFailed("Exception when Stopping Worker On Primary Stop", e.ToString());
                 throw;
             }
         }

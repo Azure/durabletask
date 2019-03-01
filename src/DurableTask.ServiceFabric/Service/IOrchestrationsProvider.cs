@@ -11,27 +11,29 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceFabric
+namespace DurableTask.ServiceFabric.Service
 {
-    using System;
-    using System.Collections.Generic;
     using System.Threading.Tasks;
 
+    using DurableTask.Core;
+
+
     /// <summary>
-    /// Provides partition related information.
+    /// Orchestrations provider.
     /// </summary>
-    public interface IPartitionEndpointResolver
+    public interface IOrchestrationsProvider
     {
         /// <summary>
-        /// Gets end points for all the partitions.
+        /// Register orchestration artifacts with taskHubWorker
         /// </summary>
-        /// <returns> All the end points. </returns>
-        Task<IEnumerable<string>> GetPartitionEndpointsAsync();
+        /// <param name="taskHubWorker">Instance of <see cref="TaskHubWorker"/></param>
+        /// <returns></returns>
+        Task RegisterOrchestrationArtifactsAsync(TaskHubWorker taskHubWorker);
 
         /// <summary>
-        /// Gets partition end point for given instanceId.
+        /// Gets fabric orchestration provider settings
         /// </summary>
-        /// <returns> Partition end point </returns>
-        Task<string> GetParitionEndpointAsync(string instanceId);
+        /// <returns>Fabric orchestration provider settings</returns>
+        FabricOrchestrationProviderSettings GetFabricOrchestrationProviderSettings();
     }
 }

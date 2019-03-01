@@ -16,6 +16,7 @@ namespace DurableTask.ServiceFabric.Service
     using System;
     using System.Security.Cryptography;
     using System.Text;
+    using System.Threading.Tasks;
 
     /// <summary>
     /// Implements <see cref="IHasher{T}"/> for string elements.
@@ -23,23 +24,25 @@ namespace DurableTask.ServiceFabric.Service
     public class DefaultStringHasher : IHasher<string>
     {
         /// <inheritdoc/>
-        public long GetLongHashCode(string input)
+        public Task<long> GenerateHashCode(string value)
         {
-            if (string.IsNullOrEmpty(input))
+            long hashCode = 0;
+            if (!string.IsNullOrEmpty(value))
             {
-                return 0;
-            }
-            using (var sha256 = SHA256Managed.Create())
-            {
-                var bytes = Encoding.UTF8.GetBytes(input);
-                var hash = sha256.ComputeHash(bytes);
-                var long1 = BitConverter.ToInt64(bytes, 0);
-                var long2 = BitConverter.ToInt64(bytes, 8);
-                var long3 = BitConverter.ToInt64(bytes, 16);
-                var long4 = BitConverter.ToInt64(bytes, 24);
+                using (var sha256 = SHA256Managed.Create())
+                {
+                    var bytes = Encoding.UTF8.GetBytes(value);
+                    var hash = sha256.ComputeHash(bytes);
+                    var long1 = BitConverter.ToInt64(hash, 0);
+                    var long2 = BitConverter.ToInt64(hash, 8);
+                    var long3 = BitConverter.ToInt64(hash, 16);
+                    var long4 = BitConverter.ToInt64(hash, 24);
 
-                return long1 ^ long2 ^ long3 ^ long4;
+                    hashCode = long1 ^ long2 ^ long3 ^ long4;
+                }
             }
+
+            return Task.FromResult(hashCode);
         }
     }
 }

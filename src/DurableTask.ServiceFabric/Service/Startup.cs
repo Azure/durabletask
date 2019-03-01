@@ -11,14 +11,14 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace TestApplication.StatefulService
+namespace DurableTask.ServiceFabric.Service
 {
     using System.Net;
     using System.Web.Http;
+    using System.Web.Http.ExceptionHandling;
 
     using DurableTask.Core;
     using DurableTask.ServiceFabric;
-    using DurableTask.ServiceFabric.Service;
     using Microsoft.Extensions.DependencyInjection;
     using Owin;
 
@@ -43,6 +43,7 @@ namespace TestApplication.StatefulService
             var services = new ServiceCollection();
             services.AddSingleton<IOrchestrationServiceClient>(this.fabricOrchestrationProvider.OrchestrationServiceClient);
             services.AddTransient<FabricOrchestrationServiceController>();
+            services.AddSingleton<IExceptionLogger, ApplicationExceptionsLogger>();
             var serviceProvider = services.BuildServiceProvider();
             return serviceProvider;
         }
@@ -51,14 +52,9 @@ namespace TestApplication.StatefulService
         {
             ServicePointManager.DefaultConnectionLimit = 256;
             HttpConfiguration config = new HttpConfiguration();
+            config.MapHttpAttributeRoutes();
             config.DependencyResolver = new DefaultDependencyResolver(GenerateServiceProvider());
-
-            config.Routes.MapHttpRoute(
-                name: "DurableTasks",
-                routeTemplate: "api/dtfx/{action}",
-                defaults: new { controller = "FabricOrchestrationService", id = RouteParameter.Optional }
-            );
-
+            config.IncludeErrorDetailPolicy = IncludeErrorDetailPolicy.Always;
             config.Formatters.JsonFormatter.SerializerSettings.TypeNameHandling = Newtonsoft.Json.TypeNameHandling.All;
             appBuilder.UseWebApi(config);
         }

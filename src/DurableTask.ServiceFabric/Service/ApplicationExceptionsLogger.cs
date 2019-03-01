@@ -13,39 +13,22 @@
 
 namespace DurableTask.ServiceFabric.Service
 {
-    using System.Collections.Generic;
+    using System.Threading;
     using System.Threading.Tasks;
-    using DurableTask.Core;
-    using Microsoft.ServiceFabric.Services.Communication.Runtime;
+    using System.Web.Http.ExceptionHandling;
 
+    using DurableTask.ServiceFabric.Tracing;
 
     /// <summary>
-    /// Fabric Service settings.
+    /// Traces application exceptions.
     /// </summary>
-    public interface IFabricServiceContext
+    public class ApplicationExceptionsLogger : IExceptionLogger
     {
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        Task Register(TaskHubWorker taskHubWorker);
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        int GetActivityDispatcherCount();
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        int GetOrchestrationDispatcherCount();
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        IEnumerable<ServiceReplicaListener> GetServiceReplicaListeners();
+        /// <inheritdoc />
+        public Task LogAsync(ExceptionLoggerContext context, CancellationToken cancellationToken)
+        {
+            ProviderEventSource.Tracing.ServiceRequestFailed(context.Request.RequestUri.AbsolutePath, context.Exception.ToString());
+            return Task.CompletedTask;
+        }
     }
 }

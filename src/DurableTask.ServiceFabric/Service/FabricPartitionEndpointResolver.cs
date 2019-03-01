@@ -21,70 +21,113 @@ namespace DurableTask.ServiceFabric.Service
     using System.Threading;
     using System.Threading.Tasks;
 
+    using DurableTask.ServiceFabric.Tracing;
     using Microsoft.ServiceFabric.Services.Client;
 
     /// <inheritdoc/>
     public class FabricPartitionEndpointResolver : IPartitionEndpointResolver
     {
         readonly Uri service;
-        readonly FabricClient fabricClient;
+        FabricClient fabricClient;
         Int64RangePartitionInformation[] partitionInfos;
         ConcurrentDictionary<long, ResolvedServiceEndpoint> endPointsLookup;
         ServicePartitionResolver partitionResolver;
         IHasher<string> instanceIdHasher;
+        SemaphoreSlim semaphoreSlim = new SemaphoreSlim(1, 1);
 
         /// <summary>
-        /// 
+        /// Creates instance of <see cref="FabricPartitionEndpointResolver"/>.
         /// </summary>
-        /// <param name="service"></param>
-        /// <param name="instanceIdHasher"></param>
+        /// <param name="service">Fabric service uri</param>
+        /// <param name="instanceIdHasher">Instance id hasher</param>
         public FabricPartitionEndpointResolver(Uri service, IHasher<string> instanceIdHasher)
         {
             this.service = service ?? throw new ArgumentNullException(nameof(service));
             this.instanceIdHasher = instanceIdHasher ?? throw new ArgumentNullException(nameof(instanceIdHasher));
-            this.fabricClient = new FabricClient();
             this.endPointsLookup = new ConcurrentDictionary<long, ResolvedServiceEndpoint>();
             this.partitionResolver = ServicePartitionResolver.GetDefault();
+
+            this.InitializeFabricClient();
+        }
+
+        private void InitializeFabricClient()
+        {
+            if (this.fabricClient != null)
+            {
+                // unregister events
+                this.fabricClient.ServiceManager.ServiceNotificationFilterMatched -= OnServiceNotificationFilterMatched;
+                this.fabricClient.ClientDisconnected -= OnClientDisconnected;
+            }
+
+            this.fabricClient = new FabricClient();
+            this.fabricClient.ServiceManager.ServiceNotificationFilterMatched += OnServiceNotificationFilterMatched;
+            this.fabricClient.ClientDisconnected += OnClientDisconnected;
+        }
+
+        private void OnServiceNotificationFilterMatched(object sender, EventArgs e)
+        {
+            // Currently, code rebuilds entire partition table.
+            BuildPartitionInfosAsync(true).ConfigureAwait(false);
+        }
+
+        private void OnClientDisconnected(object sender, EventArgs e)
+        {
+            // FabicClient is disconnected, recreate FabricClient.
+            InitializeFabricClient();
+            BuildPartitionInfosAsync(true).ConfigureAwait(false);
         }
 
         /// <inheritdoc/>
-        public async Task<Uri> GetParitionEndpointAsync(string instanceId)
+        public async Task<string> GetParitionEndpointAsync(string instanceId)
         {
-            await BuildPartitionInfos(false);
-            var hash = this.instanceIdHasher.GetLongHashCode(instanceId);
+            await BuildPartitionInfosAsync(false);
+            var hash = await this.instanceIdHasher.GenerateHashCode(instanceId);
             var partition = this.BinarySearch(partitionInfos, hash);
-            return new Uri(endPointsLookup[partition.LowKey].Address);
+            return endPointsLookup[partition.LowKey].Address;
         }
 
         /// <inheritdoc/>
-        public async Task<IEnumerable<Uri>> GetPartitionEndpointsAsync()
+        public async Task<IEnumerable<string>> GetPartitionEndpointsAsync()
         {
-            await BuildPartitionInfos(false);
-            return this.endPointsLookup.Values.Select(x => new Uri(x.Address));
+            await BuildPartitionInfosAsync(false);
+            return this.endPointsLookup.Values.Select(x => x.Address);
         }
 
-        private async Task BuildPartitionInfos(bool force)
+        private async Task BuildPartitionInfosAsync(bool force)
         {
             if (force || this.partitionInfos == null)
             {
-                CancellationToken cancellationToken = new CancellationToken();
-                var partitionList = await fabricClient.QueryManager.GetPartitionListAsync(this.service);
-                List<Int64RangePartitionInformation> partitions = new List<Int64RangePartitionInformation>();
-                foreach (var partition in partitionList)
+                await this.semaphoreSlim.WaitAsync();
+                try
                 {
-                    var info = (Int64RangePartitionInformation)partition.PartitionInformation;
-                    if (info == null)
+                    if (force || this.partitionInfos == null)
                     {
-                        throw new NotSupportedException($"{partition.PartitionInformation.Kind} is not supported");
+                        ProviderEventSource.Tracing.PartitionCacheBuildStart();
+                        CancellationToken cancellationToken = new CancellationToken();
+                        var partitionList = await fabricClient.QueryManager.GetPartitionListAsync(this.service);
+                        List<Int64RangePartitionInformation> partitions = new List<Int64RangePartitionInformation>();
+                        foreach (var partition in partitionList)
+                        {
+                            var info = partition.PartitionInformation as Int64RangePartitionInformation;
+                            if (info == null)
+                            {
+                                throw new NotSupportedException($"{partition.PartitionInformation.Kind} is not supported");
+                            }
+
+                            partitions.Add(info);
+                            var resolvedServicePartition = await this.partitionResolver.ResolveAsync(this.service, new ServicePartitionKey(info.LowKey), cancellationToken);
+                            var endpoint = resolvedServicePartition.GetEndpoint();
+                            this.endPointsLookup.AddOrUpdate(info.LowKey, endpoint, (_, __) => endpoint);
+                        }
+
+                        this.partitionInfos = partitions.OrderBy(x => x.LowKey).ToArray();
+                        ProviderEventSource.Tracing.PartitionCacheBuildComplete();
                     }
-
-                    partitions.Add(info);
-                    var resolvedServicePartition = await this.partitionResolver.ResolveAsync(this.service, new ServicePartitionKey(info.LowKey), cancellationToken);
-                    var endpoint = resolvedServicePartition.GetEndpoint();
-                    this.endPointsLookup.AddOrUpdate(info.LowKey, endpoint, (_, __) => endpoint);
                 }
-
-                this.partitionInfos = partitions.OrderBy(x => x.LowKey).ToArray();
+                finally
+                {
+                    this.semaphoreSlim.Release();
+                }
             }
         }
 

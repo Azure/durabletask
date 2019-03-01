@@ -96,15 +96,16 @@ namespace DurableTask.ServiceFabric
                                     old.Add(instance.ExecutionId);
                                     if (old.Count > this.MaxExecutionIdsLength)
                                     {
-                                        int newLength = (int)(this.MaxExecutionIdsLength * 0.9);
-                                        old = old.Take(newLength).ToList();
+                                        // Remove first 10% items.
+                                        int skipItemsLength = (int)(this.MaxExecutionIdsLength * 0.1);
+                                        old = old.Skip(skipItemsLength).ToList();
                                     }
 
                                     return old;
                                 });
                         }
-                        await this.instanceStore.AddOrUpdateAsync(transaction, key, state.State,
-                            (k, oldValue) => state.State);
+
+                        await this.instanceStore.AddOrUpdateAsync(transaction, key, state.State, (k, oldValue) => state.State);
                     }
                     else
                     {
@@ -113,8 +114,7 @@ namespace DurableTask.ServiceFabric
                         // see-what-you-commit-within-the-transaction rules. If we add it within the transaction and immediately
                         // try to AddOrUpdateAsync an entry in dictionary that doesn't work.
                         var backupDictionary = await this.stateManager.GetOrAddAsync<IReliableDictionary<string, OrchestrationState>>(backupDictionaryName);
-                        await backupDictionary.AddOrUpdateAsync(transaction, key, state.State,
-                            (k, oldValue) => state.State);
+                        await backupDictionary.AddOrUpdateAsync(transaction, key, state.State, (k, oldValue) => state.State);
                         await this.instanceStore.TryRemoveAsync(transaction, key);
                     }
                 }

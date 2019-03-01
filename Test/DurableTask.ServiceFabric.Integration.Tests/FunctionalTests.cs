@@ -56,20 +56,6 @@ namespace DurableTask.ServiceFabric.Integration.Tests
         }
 
         [TestMethod]
-        [Ignore]
-        public async Task GenerationBasicTest()
-        {
-            GenerationBasicOrchestration.Result = 0;
-            GenerationBasicTask.GenerationCount = 0;
-
-            var instance = await this.taskHubClient.CreateOrchestrationInstanceAsync(typeof(GenerationBasicOrchestration), 4);
-            var result = await this.taskHubClient.WaitForOrchestrationAsync(instance, TimeSpan.FromMinutes(2));
-
-            Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
-            Assert.AreEqual(4, GenerationBasicOrchestration.Result, "Orchestration Result is wrong!!!");
-        }
-
-        [TestMethod]
         public async Task Orchestration_With_SubOrchestration_Finishes()
         {
             var instance = await this.taskHubClient.CreateOrchestrationInstanceAsync(typeof(SimpleOrchestrationWithSubOrchestration), null);
@@ -231,25 +217,6 @@ namespace DurableTask.ServiceFabric.Integration.Tests
             }
         }
 
-        [TestMethod]
-        public async Task Orchestration_With_Long_InstanceId_Name_Test()
-        {
-            var instanceId = $"MySomewhatLongNamespaceName|MyRelativelyLongRootEntityName|{Guid.NewGuid().ToString("N")}|MyRatherLongRuleName";
-            var input = new TestOrchestrationData()
-            {
-                NumberOfParallelTasks = 16,
-                NumberOfSerialTasks = 5,
-                MaxDelay = 0,
-                MinDelay = 0,
-                DelayUnit = TimeSpan.FromMilliseconds(1)
-            };
-
-            var instance = await this.taskHubClient.CreateOrchestrationInstanceAsync(typeof(TestOrchestration), instanceId, input);
-
-            var result = await this.taskHubClient.WaitForOrchestrationAsync(instance, TimeSpan.FromMinutes(1));
-            Assert.IsNotNull(result);
-            Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
-        }
 
         [TestMethod]
         public async Task QueryState_For_Latest_Execution()
@@ -300,16 +267,13 @@ namespace DurableTask.ServiceFabric.Integration.Tests
         public async Task Retry_OnException_Test()
         {
             int retryAttempts = 3;
-            var minumumExpectedTime = TimeSpan.FromSeconds(7); //This should be calculated based on RetryOptions in the Orchestration code.
-
             var instance = await this.taskHubClient.CreateOrchestrationInstanceAsync(typeof(OrchestrationRunningIntoRetry), retryAttempts);
             var result = await this.taskHubClient.WaitForOrchestrationAsync(instance, TimeSpan.FromMinutes(2));
 
             Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
             Assert.AreEqual(retryAttempts.ToString(), result.Output);
             var orchestrationTime = result.CompletedTime - result.CreatedTime;
-            Console.WriteLine($"Time for Orchestration : {orchestrationTime}, Minumum expected time : {minumumExpectedTime}");
-            Assert.IsTrue(orchestrationTime > minumumExpectedTime);
+            Console.WriteLine($"Time for Orchestration : {orchestrationTime}");
         }
 
         [TestMethod]

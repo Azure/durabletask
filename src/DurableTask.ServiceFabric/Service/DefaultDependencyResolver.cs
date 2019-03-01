@@ -54,7 +54,6 @@ namespace DurableTask.ServiceFabric.Service
         /// <inheritdoc/>
         public void Dispose()
         {
-            this.provider = null;
         }
     }
 }

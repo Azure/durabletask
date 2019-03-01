@@ -22,7 +22,7 @@
 
   <Resources>
     <Endpoints>
-      <Endpoint Name="ServiceEndpoint" Type="Input" Protocol="http" Port="30303" />
+      <Endpoint Name="ServiceEndpoint" Type="Input" Protocol="tcp" />
       <Endpoint Name="ReplicatorEndpoint" />
     </Endpoints>
   </Resources>

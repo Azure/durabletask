@@ -16,11 +16,15 @@ namespace DurableTask.ServiceFabric.Tracing
     using System.Diagnostics.Tracing;
     using System.Threading.Tasks;
     using System;
+    using Microsoft.ServiceFabric.Services.Runtime;
+
 
     /// <summary>
     /// The event source which emits ETW events for service fabric based provider functionality.
     /// </summary>
-    [EventSource(Name = "DurableTask-ServiceFabricProvider", Guid = "9FF47541-6D50-4DDF-AF88-D9EF1807810C")]
+    [EventSource(
+        Name = "DurableTask-ServiceFabricProvider",
+        Guid = "9FF47541-6D50-4DDF-AF88-D9EF1807810C")]
     public sealed class ProviderEventSource : EventSource
     {
         /// <summary>
@@ -47,6 +51,8 @@ namespace DurableTask.ServiceFabric.Tracing
             public const EventKeywords Warning = (EventKeywords)0x8L;
             public const EventKeywords Error = (EventKeywords)0x10L;
             public const EventKeywords NetworkAction = (EventKeywords)0x20L;
+            public const EventKeywords Requests = (EventKeywords)0x40L;
+            public const EventKeywords ServiceInitialization = (EventKeywords)0x80L;
         }
 
         #region Informational 1-500
@@ -182,6 +188,79 @@ namespace DurableTask.ServiceFabric.Tracing
                 WriteEvent(503, uniqueObjectIdentifier, sizeInBytes);
             }
 #endif
+        }
+        #endregion
+
+        #region Proxy Service 2001-3000
+        [NonEvent]
+        internal void ServiceMessage(StatefulService service, string message, params object[] args)
+        {
+            if (this.IsEnabled())
+            {
+                string finalMessage = string.Format(message, args);
+                ServiceMessage(
+                    service.Context.ServiceName.ToString(),
+                    service.Context.ServiceTypeName,
+                    service.Context.ReplicaId,
+                    service.Context.PartitionId,
+                    service.Context.CodePackageActivationContext.ApplicationName,
+                    service.Context.CodePackageActivationContext.ApplicationTypeName,
+                    service.Context.NodeContext.NodeName,
+                    finalMessage);
+            }
+        }
+
+        [Event(2001,
+            Level = EventLevel.Informational,
+            Message = "Service request '{0}' started",
+            Opcode = EventOpcode.Start,
+            Keywords = Keywords.Requests)]
+        internal void FabricServiceRequestStart(string requestTypeName)
+        {
+            WriteEvent(2001, requestTypeName);
+        }
+
+        [Event(2002,
+            Level = EventLevel.Informational,
+            Message = "Service request '{0}' finished",
+            Opcode = EventOpcode.Stop,
+            Keywords = Keywords.Requests)]
+        internal void FabricServiceRequestStop(string requestTypeName)
+        {
+            WriteEvent(2002, requestTypeName);
+        }
+
+        [Event(2003, Level = EventLevel.Error, Message = "Service request '{0}' failed", Keywords = Keywords.Requests)]
+        internal void ServiceRequestFailed(string requestTypeName, string exception)
+        {
+            WriteEvent(2003, exception);
+        }
+
+
+        [Event(2004, Level = EventLevel.Error, Message = "Partition cache building is started", Keywords = Keywords.ServiceInitialization)]
+        internal void PartitionCacheBuildStart()
+        {
+            WriteEvent(2004, "Partition cache building is started");
+        }
+
+        [Event(2005, Level = EventLevel.Error, Message = "Partition cache building is completed", Keywords = Keywords.ServiceInitialization)]
+        internal void PartitionCacheBuildComplete()
+        {
+            WriteEvent(2005, "Partition cache building is completed");
+        }
+
+        [Event(2006, Level = EventLevel.Informational, Message = "{7}")]
+        private void ServiceMessage(
+            string serviceName,
+            string serviceTypeName,
+            long replicaOrInstanceId,
+            Guid partitionId,
+            string applicationName,
+            string applicationTypeName,
+            string nodeName,
+            string message)
+        {
+            WriteEvent(2006, serviceName, serviceTypeName, replicaOrInstanceId, partitionId, applicationName, applicationTypeName, nodeName, message);
         }
         #endregion
     }

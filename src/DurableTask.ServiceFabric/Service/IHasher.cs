@@ -13,6 +13,8 @@
 
 namespace DurableTask.ServiceFabric.Service
 {
+    using System.Threading.Tasks;
+
     /// <summary>
     /// <see cref="IHasher{T}"/> provides long hash code.
     /// </summary>
@@ -22,8 +24,8 @@ namespace DurableTask.ServiceFabric.Service
         /// <summary>
         /// Gets Long hash code.
         /// </summary>
-        /// <param name="input">Input element</param>
+        /// <param name="value">Input element</param>
         /// <returns>64 bit hash code</returns>
-        long GetLongHashCode(T @input);
+        Task<long> GenerateHashCode(T value);
     }
 }

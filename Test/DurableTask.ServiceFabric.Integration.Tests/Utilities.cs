@@ -26,7 +26,7 @@ namespace DurableTask.ServiceFabric.Integration.Tests
     {
         public static TaskHubClient CreateTaskHubClient()
         {
-            var partitionProvider = new FabricPartitionEndpointResolver(new Uri("fabric:/TestApplication/StatefulService"), new DefaultStringHasher());
+            var partitionProvider = new FabricPartitionEndpointResolver(new Uri("fabric:/TestFabricApplication/TestStatefulService"), new DefaultStringHasher());
             var httpClient = new HttpClient();
             return new TaskHubClient(new RemoteOrchestrationServiceClient(partitionProvider));
         }

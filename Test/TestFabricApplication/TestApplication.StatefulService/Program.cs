@@ -14,6 +14,7 @@
 namespace TestApplication.StatefulService
 {
     using System;
+    using System.Diagnostics;
     using System.Threading;
     using DurableTask.ServiceFabric.Service;
     using Microsoft.ServiceFabric.Services.Runtime;
@@ -33,7 +34,7 @@ namespace TestApplication.StatefulService
                 // an instance of the class is created in this host process.
                 ServiceRuntime.RegisterServiceAsync("StatefulServiceType", context =>
                 {
-                    return new FabricService(context, new TestFabricServiceContext());
+                    return new TaskHubProxyService(context, new TestOrchestrationsProvider());
                 }).GetAwaiter().GetResult();
 
                 // Prevents this host process from terminating so services keep running.
@@ -41,7 +42,7 @@ namespace TestApplication.StatefulService
             }
             catch (Exception e)
             {
-                ServiceEventSource.Current.ServiceHostInitializationFailed(e.ToString());
+                Trace.WriteLine(e);
                 throw;
             }
         }
