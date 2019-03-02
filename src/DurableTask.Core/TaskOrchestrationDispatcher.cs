@@ -193,6 +193,7 @@ namespace DurableTask.Core
             ExecutionStartedEvent continueAsNewExecutionStarted = null;
             TaskMessage continuedAsNewMessage = null;
             IList<HistoryEvent> carryOverEvents = null;
+            string carryOverStatus = null;
 
             OrchestrationRuntimeState runtimeState = workItem.OrchestrationRuntimeState;
 
@@ -346,7 +347,7 @@ namespace DurableTask.Core
                     }
 
                     // finish up processing of the work item
-                    if (!continuedAsNew)
+                    if (!continuedAsNew && runtimeState.Events.Last().EventType != EventType.OrchestratorCompleted)
                     {
                         runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
                     }
@@ -361,7 +362,6 @@ namespace DurableTask.Core
                     }
                     else
                     {
-
                         if (continuedAsNew)
                         {
                             TraceHelper.TraceSession(
@@ -374,6 +374,9 @@ namespace DurableTask.Core
                             runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
                             runtimeState.AddEvent(continueAsNewExecutionStarted);
 
+                            runtimeState.Status = workItem.OrchestrationRuntimeState.Status ?? carryOverStatus;
+                            carryOverStatus = workItem.OrchestrationRuntimeState.Status;
+
                             if (carryOverEvents != null)
                             {
                                 foreach (var historyEvent in carryOverEvents)
@@ -385,19 +388,33 @@ namespace DurableTask.Core
                             runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
                             workItem.OrchestrationRuntimeState = runtimeState;
 
-                            TaskOrchestration orchestration = this.objectManager.GetObject(runtimeState.Name, continueAsNewExecutionStarted.Version);
+                            TaskOrchestration orchestration = workItem.Cursor.TaskOrchestration;
+                            if (continueAsNewExecutionStarted.Version != runtimeState.Version)
+                            {
+                                orchestration = this.objectManager.GetObject(
+                                    runtimeState.Name,
+                                    continueAsNewExecutionStarted.Version);
+                            }
 
-                            workItem.Cursor = new OrchestrationExecutionCursor(runtimeState, orchestration, new TaskOrchestrationExecutor(runtimeState, workItem.Cursor.TaskOrchestration, orchestrationService.EventBehaviourForContinueAsNew), null);
+                            workItem.Cursor = new OrchestrationExecutionCursor(
+                                runtimeState,
+                                orchestration,
+                                new TaskOrchestrationExecutor(
+                                    runtimeState,
+                                    workItem.Cursor.TaskOrchestration,
+                                    orchestrationService.EventBehaviourForContinueAsNew),
+                                latestDecisions: null);
                             await orchestrationService.RenewTaskOrchestrationWorkItemLockAsync(workItem);
                         }
 
                         instanceState = Utils.BuildOrchestrationState(runtimeState);
                     }
                 } while (continuedAsNew);
-
             }
 
             workItem.OrchestrationRuntimeState = originalOrchestrationRuntimeState;
+
+            runtimeState.Status = runtimeState.Status ?? carryOverStatus;
 
             await this.orchestrationService.CompleteTaskOrchestrationWorkItemAsync(
                 workItem,
