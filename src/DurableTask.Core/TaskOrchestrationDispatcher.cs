@@ -373,7 +373,6 @@ namespace DurableTask.Core
                             runtimeState = new OrchestrationRuntimeState();
                             runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
                             runtimeState.AddEvent(continueAsNewExecutionStarted);
-
                             runtimeState.Status = workItem.OrchestrationRuntimeState.Status ?? carryOverStatus;
                             carryOverStatus = workItem.OrchestrationRuntimeState.Status;
 
@@ -388,23 +387,23 @@ namespace DurableTask.Core
                             runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
                             workItem.OrchestrationRuntimeState = runtimeState;
 
-                            TaskOrchestration orchestration = workItem.Cursor.TaskOrchestration;
-                            if (continueAsNewExecutionStarted.Version != runtimeState.Version)
-                            {
-                                orchestration = this.objectManager.GetObject(
-                                    runtimeState.Name,
-                                    continueAsNewExecutionStarted.Version);
-                            }
+                            TaskOrchestration newOrchestration = this.objectManager.GetObject(
+                                runtimeState.Name,
+                                continueAsNewExecutionStarted.Version);
 
                             workItem.Cursor = new OrchestrationExecutionCursor(
                                 runtimeState,
-                                orchestration,
+                                newOrchestration,
                                 new TaskOrchestrationExecutor(
                                     runtimeState,
-                                    workItem.Cursor.TaskOrchestration,
+                                    newOrchestration,
                                     orchestrationService.EventBehaviourForContinueAsNew),
                                 latestDecisions: null);
-                            await orchestrationService.RenewTaskOrchestrationWorkItemLockAsync(workItem);
+
+                            if (workItem.LockedUntilUtc < DateTime.UtcNow.AddMinutes(1))
+                            {
+                                await orchestrationService.RenewTaskOrchestrationWorkItemLockAsync(workItem);
+                            }
                         }
 
                         instanceState = Utils.BuildOrchestrationState(runtimeState);
