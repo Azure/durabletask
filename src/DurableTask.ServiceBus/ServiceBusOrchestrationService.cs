@@ -1532,7 +1532,7 @@ namespace DurableTask.ServiceBus
 
             var isSessionSizeThresholdExceeded = false;
 
-            if (newOrchestrationRuntimeState == null || 
+            if (newOrchestrationRuntimeState == null ||
                 newOrchestrationRuntimeState.ExecutionStartedEvent == null ||
                 newOrchestrationRuntimeState.OrchestrationStatus != OrchestrationStatus.Running)
             {
