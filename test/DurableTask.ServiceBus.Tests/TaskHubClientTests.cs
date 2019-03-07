@@ -25,6 +25,7 @@ namespace DurableTask.ServiceBus.Tests
         TaskHubClient client;
         TaskHubWorker taskHub;
 
+        [TestCategory("DisabledInCI")] // https://github.com/Azure/durabletask/issues/262
         [TestMethod]
         public async Task TestCreateIfNew()
         {
@@ -54,6 +55,7 @@ namespace DurableTask.ServiceBus.Tests
             await service.DeleteAsync();
         }
 
+        [TestCategory("DisabledInCI")] // https://github.com/Azure/durabletask/issues/262
         [TestMethod]
         public async Task TestMaxDeliveryCount()
         {
@@ -78,6 +80,7 @@ namespace DurableTask.ServiceBus.Tests
             await service.DeleteAsync();
         }
 
+        [TestCategory("DisabledInCI")] // https://github.com/Azure/durabletask/issues/262
         [TestMethod]
         public async Task TestMaxDeliveryCountIfNew()
         {
