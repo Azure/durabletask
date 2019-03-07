@@ -13,6 +13,7 @@
 
 namespace DurableTask.ServiceBus.Tests
 {
+    using System;
     using System.Collections.Generic;
     using System.Threading.Tasks;
     using DurableTask.Core;
@@ -34,6 +35,8 @@ namespace DurableTask.ServiceBus.Tests
 
             await service.CreateAsync();
             await service.CreateIfNotExistsAsync();
+            await Task.Delay(TimeSpan.FromSeconds(2));
+
             Assert.IsTrue(await service.HubExistsAsync());
             await service.DeleteAsync();
             Assert.IsFalse(await service.HubExistsAsync());
@@ -69,6 +72,8 @@ namespace DurableTask.ServiceBus.Tests
             Assert.IsNotNull(service);
             await service.CreateAsync();
 
+            await Task.Delay(TimeSpan.FromSeconds(2));
+
             Dictionary<string, int> retQueues = await service.GetHubQueueMaxDeliveryCountsAsync();
 
             Assert.AreEqual(settings.MaxTaskActivityDeliveryCount, retQueues["TaskOrchestration"]);
@@ -92,6 +97,8 @@ namespace DurableTask.ServiceBus.Tests
             var service = this.taskHub.orchestrationService as ServiceBusOrchestrationService;
             Assert.IsNotNull(service);
             await service.CreateIfNotExistsAsync();
+
+            await Task.Delay(TimeSpan.FromSeconds(2));
 
             Dictionary<string, int> retQueues = await service.GetHubQueueMaxDeliveryCountsAsync();
 

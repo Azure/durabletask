@@ -134,7 +134,7 @@ namespace DurableTask.ServiceBus.Tests
                     instanceId, "DONTTHROW");
             }
 
-            Thread.Sleep(TimeSpan.FromSeconds(30));
+            Thread.Sleep(TimeSpan.FromSeconds(60));
 
             var query = new OrchestrationStateQuery();
 
@@ -262,7 +262,7 @@ namespace DurableTask.ServiceBus.Tests
                     instanceId, "DONTTHROW");
             }
 
-            Thread.Sleep(TimeSpan.FromSeconds(30));
+            Thread.Sleep(TimeSpan.FromSeconds(60));
 
             var query = new OrchestrationStateQuery();
 
