@@ -118,6 +118,7 @@ namespace DurableTask.ServiceBus.Tests
             Assert.AreEqual(id4.InstanceId, systemAllResponse.ElementAt(1).OrchestrationInstance.InstanceId);
         }
 
+        [TestCategory("DisabledInCI")] // https://github.com/Azure/durabletask/issues/262
         [TestMethod]
         public async Task SegmentedQueryUnequalCountsTest()
         {
@@ -246,6 +247,7 @@ namespace DurableTask.ServiceBus.Tests
             Assert.AreEqual(0, states.Count());
         }
 
+        [TestCategory("DisabledInCI")] // https://github.com/Azure/durabletask/issues/262
         [TestMethod]
         public async Task SegmentedQueryTest()
         {
