@@ -37,11 +37,30 @@ namespace DurableTask.AzureStorage
         public string EndpointSuffix { get; set; }
 
         /// <summary>
+        /// The storage account connection string.
+        /// </summary>
+        /// <remarks>
+        /// If specified, this value overrides any other settings.
+        /// </remarks>
+        public string ConnectionString { get; set; }
+
+        /// <summary>
         ///  Convert this to its equivalent CloudStorageAccount.
         /// </summary>
         public CloudStorageAccount ToCloudStorageAccount()
         {
-            return new CloudStorageAccount(this.StorageCredentials, this.AccountName, this.EndpointSuffix, true);
+            if (!string.IsNullOrEmpty(this.ConnectionString))
+            {
+                return CloudStorageAccount.Parse(this.ConnectionString);
+            }
+            else
+            {
+                return new CloudStorageAccount(
+                    this.StorageCredentials,
+                    this.AccountName,
+                    this.EndpointSuffix,
+                    useHttps: true);
+            }
         }
     }
 }
