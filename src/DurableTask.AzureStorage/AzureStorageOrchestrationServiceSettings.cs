@@ -25,6 +25,8 @@ namespace DurableTask.AzureStorage
     {
         internal const int DefaultPartitionCount = 4;
 
+        internal static readonly TimeSpan DefaultMaxQueuePollingInterval = TimeSpan.FromSeconds(30);
+
         /// <summary>
         /// Gets or sets the number of messages to pull from the control queue at a time. The default is 32.
         /// The maximum batch size supported by Azure Storage Queues is 32.
@@ -69,6 +71,13 @@ namespace DurableTask.AzureStorage
         /// Gets or sets the Azure Storage connection string.
         /// </summary>
         public string StorageConnectionString { get; set; }
+
+        /// <summary>
+        /// Gets or sets the prefix of the TrackingStore table name.
+        /// This property is only used when we have TrackingStoreStorageAccountDetails.
+        /// The default is "DurableTask"
+        /// </summary>
+        public string TrackingStoreNamePrefix { get; set; } = "DurableTask";
 
         /// <summary>
         /// Gets or sets the name of the task hub. This value is used to group related storage resources.
@@ -136,14 +145,34 @@ namespace DurableTask.AzureStorage
         public TimeSpan LeaseInterval { get; set; } = TimeSpan.FromSeconds(30);
 
         /// <summary>
+        /// Maximum interval for polling control and work-item queues.
+        /// </summary>
+        public TimeSpan MaxQueuePollingInterval { get; set; } = DefaultMaxQueuePollingInterval;
+
+        /// <summary>
         /// Gets or sets the Azure Storage Account details
         /// If provided, this is used to connect to Azure Storage
         /// </summary>
         public StorageAccountDetails StorageAccountDetails { get; set; }
 
         /// <summary>
+        /// Gets or sets the Storage Account Details for Tracking Store.
+        /// In case of null, StorageAccountDetails is applied. 
+        /// </summary>
+        public StorageAccountDetails TrackingStoreStorageAccountDetails { get; set; }
+        
+        /// <summary>
         ///  Should we carry over unexecuted raised events to the next iteration of an orchestration on ContinueAsNew
         /// </summary>
         public BehaviorOnContinueAsNew EventBehaviourForContinueAsNew { get; set; } = BehaviorOnContinueAsNew.Carryover;
+
+        /// <summary>
+        /// Returns bool indicating is the TrackingStoreStorageAccount has been set.
+        /// </summary>
+        public  bool HasTrackingStoreStorageAccount => TrackingStoreStorageAccountDetails != null;
+
+        internal string HistoryTableName => this.HasTrackingStoreStorageAccount ? $"{this.TrackingStoreNamePrefix}History" : $"{this.TaskHubName}History";
+
+        internal string InstanceTableName => this.HasTrackingStoreStorageAccount ? $"{this.TrackingStoreNamePrefix}Instances" : $"{this.TaskHubName}Instances";
     }
 }

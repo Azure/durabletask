@@ -29,8 +29,6 @@ namespace DurableTask.AzureStorage.Monitoring
         internal const int QueueLengthSampleSize = 5;
         internal const int MaxMessagesPerWorkerRatio = 100;
 
-        static readonly int MaxPollingLatency = (int)AzureStorageOrchestrationService.MaxQueuePollingDelay.TotalMilliseconds;
-        static readonly int HighLatencyThreshold = Math.Min(MaxPollingLatency, 1000); // milliseconds
         static readonly int LowLatencyThreshold = 200; // milliseconds
         static readonly Random Random = new Random();
 
@@ -39,6 +37,8 @@ namespace DurableTask.AzureStorage.Monitoring
 
         readonly CloudStorageAccount storageAccount;
         readonly string taskHub;
+        readonly int maxPollingLatency;
+        readonly int highLatencyThreshold;
 
         int currentPartitionCount;
         int currentWorkItemQueueLength;
@@ -59,10 +59,18 @@ namespace DurableTask.AzureStorage.Monitoring
         /// </summary>
         /// <param name="storageAccount">The Azure Storage account to monitor.</param>
         /// <param name="taskHub">The name of the task hub within the specified storage account.</param>
-        public DisconnectedPerformanceMonitor(CloudStorageAccount storageAccount, string taskHub)
+        /// <param name="maxPollingIntervalMilliseconds">The maximum interval in milliseconds for polling control and work-item queues.</param>
+        public DisconnectedPerformanceMonitor(
+            CloudStorageAccount storageAccount,
+            string taskHub,
+            int? maxPollingIntervalMilliseconds = null)
         {
             this.storageAccount = storageAccount;
             this.taskHub = taskHub;
+            this.maxPollingLatency = 
+                maxPollingIntervalMilliseconds ?? 
+                (int)AzureStorageOrchestrationServiceSettings.DefaultMaxQueuePollingInterval.TotalMilliseconds;
+            this.highLatencyThreshold = Math.Min(this.maxPollingLatency, 1000);
         }
 
         internal virtual int PartitionCount => this.currentPartitionCount;
@@ -276,12 +284,12 @@ namespace DurableTask.AzureStorage.Monitoring
                     keepWorkersAlive: false,
                     reason: "Task hub is idle");
             }
-            else if (IsHighLatency(this.WorkItemQueueLatencies))
+            else if (this.IsHighLatency(this.WorkItemQueueLatencies))
             {
                 return new ScaleRecommendation(
                     ScaleAction.AddWorker,
                     keepWorkersAlive: true,
-                    reason: $"Work-item queue latency: {this.WorkItemQueueLatencies.Latest} > {HighLatencyThreshold}");
+                    reason: $"Work-item queue latency: {this.WorkItemQueueLatencies.Latest} > {this.highLatencyThreshold}");
             }
             else if (workerCount > this.PartitionCount && IsIdle(this.WorkItemQueueLatencies))
             {
@@ -292,14 +300,14 @@ namespace DurableTask.AzureStorage.Monitoring
             }
 
             // Control queues are partitioned; only scale-out if there are more partitions than workers.
-            if (workerCount < this.ControlQueueLatencies.Count(IsHighLatency))
+            if (workerCount < this.ControlQueueLatencies.Count(this.IsHighLatency))
             {
                 // Some control queues are busy, so scale out until workerCount == partitionCount.
-                QueueMetricHistory metric = this.ControlQueueLatencies.First(IsHighLatency);
+                QueueMetricHistory metric = this.ControlQueueLatencies.First(this.IsHighLatency);
                 return new ScaleRecommendation(
                     ScaleAction.AddWorker,
                     keepWorkersAlive: true,
-                    reason: $"High control queue latency: {metric.Latest} > {HighLatencyThreshold}");
+                    reason: $"High control queue latency: {metric.Latest} > {this.highLatencyThreshold}");
             }
             else if (workerCount > this.ControlQueueLatencies.Count(h => !IsIdle(h)) && IsIdle(this.WorkItemQueueLatencies))
             {
@@ -333,16 +341,16 @@ namespace DurableTask.AzureStorage.Monitoring
             return new ScaleRecommendation(ScaleAction.None, keepWorkersAlive: true, reason: $"Queue latencies are healthy");
         }
 
-        static bool IsHighLatency(QueueMetricHistory history)
+        bool IsHighLatency(QueueMetricHistory history)
         {
             if (history.Previous == 0)
             {
                 // If previous was zero, the queue may have been idle, which means
                 // backoff polling might have been the reason for the latency.
-                return history.Latest >= MaxPollingLatency;
+                return history.Latest >= this.maxPollingLatency;
             }
 
-            return history.Latest >= HighLatencyThreshold;
+            return history.Latest >= this.highLatencyThreshold;
         }
 
         static bool IsLowLatency(QueueMetricHistory history)

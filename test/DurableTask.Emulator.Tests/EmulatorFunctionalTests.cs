@@ -54,6 +54,7 @@ namespace DurableTask.Emulator.Tests
             await worker.StopAsync(true);
         }
 
+        [TestCategory("DisabledInCI")] // https://github.com/Azure/durabletask/issues/255
         [TestMethod]
         public async Task MockRecreateOrchestrationTest()
         {
@@ -142,6 +143,7 @@ namespace DurableTask.Emulator.Tests
             await worker.StopAsync(true);
         }
 
+        [TestCategory("DisabledInCI")] // https://github.com/Azure/durabletask/issues/255
         [TestMethod]
         public async Task MockGenerationTest()
         {

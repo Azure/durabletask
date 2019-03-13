@@ -193,7 +193,7 @@ namespace DurableTask.AzureStorage.Tests
                 string instanceId = Guid.NewGuid().ToString();
                 await host.StartAsync();
                 TestOrchestrationClient client = await host.StartOrchestrationAsync(typeof(Orchestrations.Factorial), 110, instanceId);
-                await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
 
                 List<HistoryStateEvent> historyEvents = await client.GetOrchestrationHistoryAsync(instanceId);
                 Assert.IsTrue(historyEvents.Count > 0);

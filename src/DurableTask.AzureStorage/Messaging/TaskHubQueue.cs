@@ -49,7 +49,12 @@ namespace DurableTask.AzureStorage.Messaging
             this.messageManager = messageManager;
 
             TimeSpan minPollingDelay = TimeSpan.FromMilliseconds(50);
-            TimeSpan maxPollingDelay = AzureStorageOrchestrationService.MaxQueuePollingDelay;
+            TimeSpan maxPollingDelay = settings.MaxQueuePollingInterval;
+            if (maxPollingDelay < minPollingDelay)
+            {
+                maxPollingDelay = minPollingDelay;
+            }
+
             this.backoffHelper = new BackoffPollingHelper(minPollingDelay, maxPollingDelay);
         }
 

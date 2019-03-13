@@ -116,6 +116,16 @@ namespace DurableTask.AzureStorage.Tracking
         Task<DurableStatusQueryResult> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, int top, string continuationToken, CancellationToken cancellationToken = default(CancellationToken));
 
         /// <summary>
+        /// Get The Orchestration State for querying orchestration instances by the condition
+        /// </summary>
+        /// <param name="condition">Condition</param>
+        /// <param name="top">Top</param>
+        /// <param name="continuationToken">ContinuationToken</param>
+        /// <param name="cancellationToken">CancellationToken</param>
+        /// <returns></returns>
+        Task<DurableStatusQueryResult> GetStateAsync(OrchestrationInstanceStatusQueryCondition condition, int top, string continuationToken, CancellationToken cancellationToken = default(CancellationToken));
+
+        /// <summary>
         /// Used to set a state in the tracking store whenever a new execution is initiated from the client
         /// </summary>
         /// <param name="executionStartedEvent">The Execution Started Event being queued</param>

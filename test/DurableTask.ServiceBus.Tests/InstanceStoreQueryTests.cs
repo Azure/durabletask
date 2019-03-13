@@ -118,6 +118,7 @@ namespace DurableTask.ServiceBus.Tests
             Assert.AreEqual(id4.InstanceId, systemAllResponse.ElementAt(1).OrchestrationInstance.InstanceId);
         }
 
+        [TestCategory("DisabledInCI")] // https://github.com/Azure/durabletask/issues/262
         [TestMethod]
         public async Task SegmentedQueryUnequalCountsTest()
         {
@@ -134,7 +135,7 @@ namespace DurableTask.ServiceBus.Tests
                     instanceId, "DONTTHROW");
             }
 
-            Thread.Sleep(TimeSpan.FromSeconds(30));
+            Thread.Sleep(TimeSpan.FromSeconds(60));
 
             var query = new OrchestrationStateQuery();
 
@@ -246,6 +247,7 @@ namespace DurableTask.ServiceBus.Tests
             Assert.AreEqual(0, states.Count());
         }
 
+        [TestCategory("DisabledInCI")] // https://github.com/Azure/durabletask/issues/262
         [TestMethod]
         public async Task SegmentedQueryTest()
         {
@@ -262,7 +264,7 @@ namespace DurableTask.ServiceBus.Tests
                     instanceId, "DONTTHROW");
             }
 
-            Thread.Sleep(TimeSpan.FromSeconds(30));
+            Thread.Sleep(TimeSpan.FromSeconds(60));
 
             var query = new OrchestrationStateQuery();
 
