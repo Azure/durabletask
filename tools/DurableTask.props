@@ -50,7 +50,7 @@
     <Authors>Microsoft</Authors> 
     <Product>Durable Task Framework</Product>
     <Description>This package provides a C# based durable task framework for writing long running applications.</Description>
-    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageLicenseUrl>http://www.apache.org/licenses/LICENSE-2.0</PackageLicenseUrl>
     <Copyright>© Microsoft Corporation. All rights reserved.</Copyright>
     <PackageProjectUrl>https://github.com/Azure/durabletask/</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Azure/durabletask/</RepositoryUrl>
