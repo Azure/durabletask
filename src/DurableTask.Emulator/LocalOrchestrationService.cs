@@ -455,12 +455,12 @@ namespace DurableTask.Emulator
                 if (workItem.OrchestrationRuntimeState != newOrchestrationRuntimeState)
                 {
                     var oldState = Utils.BuildOrchestrationState(workItem.OrchestrationRuntimeState);
-                    CommitState(workItem.OrchestrationRuntimeState, oldState).Wait();
+                    CommitState(workItem.OrchestrationRuntimeState, oldState).GetAwaiter().GetResult();
                 }
 
                 if (state != null)
                 {
-                    CommitState(newOrchestrationRuntimeState, state).Wait();
+                    CommitState(newOrchestrationRuntimeState, state).GetAwaiter().GetResult();
                 }
             }
 
