@@ -412,10 +412,22 @@ namespace DurableTask.Emulator
         {
             lock (this.thisLock)
             {
+                byte[] newSessionState;
+
+                if (newOrchestrationRuntimeState == null ||
+                newOrchestrationRuntimeState.ExecutionStartedEvent == null ||
+                newOrchestrationRuntimeState.OrchestrationStatus != OrchestrationStatus.Running)
+                {
+                    newSessionState = null;
+                }
+                else
+                {
+                    newSessionState = SerializeOrchestrationRuntimeState(newOrchestrationRuntimeState);
+                }
+
                 this.orchestratorQueue.CompleteSession(
                     workItem.InstanceId,
-                    newOrchestrationRuntimeState != null ?
-                    SerializeOrchestrationRuntimeState(newOrchestrationRuntimeState) : null,
+                    newSessionState,
                     orchestratorMessages,
                     continuedAsNewMessage
                     );
