@@ -1,0 +1,28 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <FileVersion>0.1.0</FileVersion>
+    <AssemblyVersion>$(FileVersion)</AssemblyVersion>
+    <Version>$(FileVersion)-alpha</Version>
+    <IncludeSymbols>true</IncludeSymbols>
+    <Description>Redis provider extension for the Durable Task Framework.</Description>
+    <PackageTags>Azure Task Durable Orchestration Workflow Activity Reliable Redis</PackageTags>
+    <PackageId>Microsoft.Azure.DurableTask.Redis</PackageId>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>embedded</DebugType>
+    <IncludeSymbols>false</IncludeSymbols>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="StackExchange.Redis" Version="2.0.571" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <ProjectReference Include="..\DurableTask.Core\DurableTask.Core.csproj" />
+  </ItemGroup>
+  
+</Project>
