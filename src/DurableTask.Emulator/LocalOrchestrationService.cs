@@ -467,7 +467,7 @@ namespace DurableTask.Emulator
             return Task.FromResult(0);
         }
 
-        private Task CommitState(OrchestrationRuntimeState runtimeState, OrchestrationState state)
+        Task CommitState(OrchestrationRuntimeState runtimeState, OrchestrationState state)
         {
             if (!this.instanceStore.TryGetValue(runtimeState.OrchestrationInstance.InstanceId, out Dictionary<string, OrchestrationState> mapState))
             {
