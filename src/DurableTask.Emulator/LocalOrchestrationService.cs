@@ -14,6 +14,7 @@
 namespace DurableTask.Emulator
 {
     using DurableTask.Core;
+    using DurableTask.Core.Common;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
     using Newtonsoft.Json;
@@ -411,10 +412,22 @@ namespace DurableTask.Emulator
         {
             lock (this.thisLock)
             {
+                byte[] newSessionState;
+
+                if (newOrchestrationRuntimeState == null ||
+                newOrchestrationRuntimeState.ExecutionStartedEvent == null ||
+                newOrchestrationRuntimeState.OrchestrationStatus != OrchestrationStatus.Running)
+                {
+                    newSessionState = null;
+                }
+                else
+                {
+                    newSessionState = SerializeOrchestrationRuntimeState(newOrchestrationRuntimeState);
+                }
+
                 this.orchestratorQueue.CompleteSession(
                     workItem.InstanceId,
-                    newOrchestrationRuntimeState != null ?
-                    SerializeOrchestrationRuntimeState(newOrchestrationRuntimeState) : null,
+                    newSessionState,
                     orchestratorMessages,
                     continuedAsNewMessage
                     );
@@ -439,49 +452,62 @@ namespace DurableTask.Emulator
                     }
                 }
 
+                if (workItem.OrchestrationRuntimeState != newOrchestrationRuntimeState)
+                {
+                    var oldState = Utils.BuildOrchestrationState(workItem.OrchestrationRuntimeState);
+                    CommitState(workItem.OrchestrationRuntimeState, oldState).GetAwaiter().GetResult();
+                }
+
                 if (state != null)
                 {
-                    if (!this.instanceStore.TryGetValue(workItem.InstanceId, out Dictionary<string, OrchestrationState> mapState))
-                    {
-                        mapState = new Dictionary<string, OrchestrationState>();
-                        this.instanceStore[workItem.InstanceId] = mapState;
-                    }
-
-                    mapState[workItem.OrchestrationRuntimeState.OrchestrationInstance.ExecutionId] = state;
-
-                    // signal any waiters waiting on instanceid_executionid or just the latest instanceid_
-
-                    if (state.OrchestrationStatus == OrchestrationStatus.Running
-                        || state.OrchestrationStatus == OrchestrationStatus.Pending)
-                    {
-                        return Task.FromResult(0);
-                    }
-
-                    string key = workItem.OrchestrationRuntimeState.OrchestrationInstance.InstanceId + "_" +
-                        workItem.OrchestrationRuntimeState.OrchestrationInstance.ExecutionId;
-
-                    string key1 = workItem.OrchestrationRuntimeState.OrchestrationInstance.InstanceId + "_";
-
-                    var tasks = new List<Task>();
-
-                    if (this.orchestrationWaiters.TryGetValue(key, out TaskCompletionSource<OrchestrationState> tcs))
-                    {
-                        tasks.Add(Task.Run(() => tcs.TrySetResult(state)));
-                    }
-
-                    // for instance id level waiters, we will not consider ContinueAsNew as a terminal state because
-                    // the high level orchestration is still ongoing
-                    if (state.OrchestrationStatus != OrchestrationStatus.ContinuedAsNew
-                        && this.orchestrationWaiters.TryGetValue(key1, out TaskCompletionSource<OrchestrationState> tcs1))
-                    {
-                        tasks.Add(Task.Run(() => tcs1.TrySetResult(state)));
-                    }
-
-                    if (tasks.Count > 0)
-                    {
-                        Task.WaitAll(tasks.ToArray());
-                    }
+                    CommitState(newOrchestrationRuntimeState, state).GetAwaiter().GetResult();
                 }
+            }
+
+            return Task.FromResult(0);
+        }
+
+        Task CommitState(OrchestrationRuntimeState runtimeState, OrchestrationState state)
+        {
+            if (!this.instanceStore.TryGetValue(runtimeState.OrchestrationInstance.InstanceId, out Dictionary<string, OrchestrationState> mapState))
+            {
+                mapState = new Dictionary<string, OrchestrationState>();
+                this.instanceStore[runtimeState.OrchestrationInstance.InstanceId] = mapState;
+            }
+
+            mapState[runtimeState.OrchestrationInstance.ExecutionId] = state;
+
+            // signal any waiters waiting on instanceid_executionid or just the latest instanceid_
+
+            if (state.OrchestrationStatus == OrchestrationStatus.Running
+                || state.OrchestrationStatus == OrchestrationStatus.Pending)
+            {
+                return Task.FromResult(0);
+            }
+
+            string key = runtimeState.OrchestrationInstance.InstanceId + "_" +
+                runtimeState.OrchestrationInstance.ExecutionId;
+
+            string key1 = runtimeState.OrchestrationInstance.InstanceId + "_";
+
+            var tasks = new List<Task>();
+
+            if (this.orchestrationWaiters.TryGetValue(key, out TaskCompletionSource<OrchestrationState> tcs))
+            {
+                tasks.Add(Task.Run(() => tcs.TrySetResult(state)));
+            }
+
+            // for instance id level waiters, we will not consider ContinueAsNew as a terminal state because
+            // the high level orchestration is still ongoing
+            if (state.OrchestrationStatus != OrchestrationStatus.ContinuedAsNew
+                && this.orchestrationWaiters.TryGetValue(key1, out TaskCompletionSource<OrchestrationState> tcs1))
+            {
+                tasks.Add(Task.Run(() => tcs1.TrySetResult(state)));
+            }
+
+            if (tasks.Count > 0)
+            {
+                Task.WaitAll(tasks.ToArray());
             }
 
             return Task.FromResult(0);
