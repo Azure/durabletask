@@ -766,8 +766,34 @@ namespace DurableTask.AzureStorage
         {
             if (runtimeState.ExecutionStartedEvent == null && !newMessages.Any(msg => msg.Event is ExecutionStartedEvent))
             {
-                message = runtimeState.Events.Count == 0 ? "No such instance" : "Instance is corrupted";
-                return false;
+                var instanceId = newMessages[0].OrchestrationInstance.InstanceId;
+
+                if (instanceId.StartsWith("@"))
+                {
+                    // automatically start this instance
+                    var orchestrationInstance = new OrchestrationInstance
+                    {
+                        InstanceId = instanceId,
+                        ExecutionId = Guid.NewGuid().ToString("N"),
+                    };
+                    var startedEvent = new ExecutionStartedEvent(-1, null)
+                    {
+                        Name = instanceId,
+                        Version = "",
+                        OrchestrationInstance = orchestrationInstance
+                    };
+                    var taskMessage = new TaskMessage()
+                    {
+                        OrchestrationInstance = orchestrationInstance,
+                        Event = startedEvent
+                    };
+                    newMessages.Insert(0, taskMessage);
+                }
+                else
+                {
+                    message = runtimeState.Events.Count == 0 ? "No such instance" : "Instance is corrupted";
+                    return false;
+                }
             }
 
             if (runtimeState.ExecutionStartedEvent != null &&
