@@ -100,6 +100,8 @@ namespace DurableTask.ServiceFabric.Service
             await this.worker.StartAsync();
 
             this.worker.TaskActivityDispatcher.IncludeDetails = true;
+
+            await Task.Delay(Timeout.Infinite, cancellationToken);
         }
 
         /// <summary>

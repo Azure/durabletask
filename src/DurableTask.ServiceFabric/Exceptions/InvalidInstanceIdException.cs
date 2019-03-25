@@ -18,6 +18,7 @@ namespace DurableTask.ServiceFabric.Exceptions
     /// <summary>
     /// Exception representing that instanceId is not Valid.
     /// </summary>
+    [Serializable]
     public class InvalidInstanceIdException : Exception
     {
         /// <summary>

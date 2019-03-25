@@ -17,34 +17,34 @@ namespace DurableTask.ServiceFabric.Service
     using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Fabric;
+    using System.Fabric.Description;
+    using System.Fabric.Query;
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
 
-    using DurableTask.ServiceFabric.Tracing;
     using Microsoft.ServiceFabric.Services.Client;
 
+
     /// <inheritdoc/>
-    public class FabricPartitionEndpointResolver : IPartitionEndpointResolver
+    public class FabricPartitionEndpointResolver : IPartitionEndpointResolver, IDisposable
     {
-        readonly Uri service;
-        FabricClient fabricClient;
-        Int64RangePartitionInformation[] partitionInfos;
-        ConcurrentDictionary<long, ResolvedServiceEndpoint> endPointsLookup;
-        ServicePartitionResolver partitionResolver;
-        IHasher<string> instanceIdHasher;
-        SemaphoreSlim semaphoreSlim = new SemaphoreSlim(1, 1);
+        private readonly Uri serviceUri;
+        private FabricClient fabricClient;
+        private Partition[] servicePartitions;
+        private ConcurrentDictionary<Guid, TaskCompletionSource<ResolvedServiceEndpoint>> endPointsLookup;
+        private readonly ServicePartitionResolver partitionResolver;
+        private readonly IHasher<string> instanceIdHasher;
 
         /// <summary>
         /// Creates instance of <see cref="FabricPartitionEndpointResolver"/>.
         /// </summary>
-        /// <param name="service">Fabric service uri</param>
+        /// <param name="serviceUri">Fabric service uri</param>
         /// <param name="instanceIdHasher">Instance id hasher</param>
-        public FabricPartitionEndpointResolver(Uri service, IHasher<string> instanceIdHasher)
+        public FabricPartitionEndpointResolver(Uri serviceUri, IHasher<string> instanceIdHasher)
         {
-            this.service = service ?? throw new ArgumentNullException(nameof(service));
+            this.serviceUri = serviceUri ?? throw new ArgumentNullException(nameof(serviceUri));
             this.instanceIdHasher = instanceIdHasher ?? throw new ArgumentNullException(nameof(instanceIdHasher));
-            this.endPointsLookup = new ConcurrentDictionary<long, ResolvedServiceEndpoint>();
             this.partitionResolver = ServicePartitionResolver.GetDefault();
 
             this.InitializeFabricClient();
@@ -59,92 +59,99 @@ namespace DurableTask.ServiceFabric.Service
                 this.fabricClient.ClientDisconnected -= OnClientDisconnected;
             }
 
+            this.endPointsLookup = new ConcurrentDictionary<Guid, TaskCompletionSource<ResolvedServiceEndpoint>>();
             this.fabricClient = new FabricClient();
             this.fabricClient.ServiceManager.ServiceNotificationFilterMatched += OnServiceNotificationFilterMatched;
             this.fabricClient.ClientDisconnected += OnClientDisconnected;
+            var serviceNotificationFilterDescription = new ServiceNotificationFilterDescription()
+            {
+                Name = this.serviceUri,
+                MatchNamePrefix = true,
+                MatchPrimaryChangeOnly = true
+            };
+
+            this.fabricClient.ServiceManager.RegisterServiceNotificationFilterAsync(serviceNotificationFilterDescription, TimeSpan.FromSeconds(10), CancellationToken.None);
+
+            this.BuildServicePartitions().GetAwaiter().GetResult();
+        }
+
+        private async Task BuildServicePartitions()
+        {
+            var concurrentDictionary = new ConcurrentDictionary<Partition, TaskCompletionSource<ResolvedServiceEndpoint>>();
+            var partitionList = await fabricClient.QueryManager.GetPartitionListAsync(this.serviceUri);
+            this.servicePartitions = partitionList.OrderBy(x => ((Int64RangePartitionInformation)x.PartitionInformation).LowKey).ToArray();
         }
 
         private void OnServiceNotificationFilterMatched(object sender, EventArgs e)
         {
-            // Currently, code rebuilds entire partition table.
-            BuildPartitionInfosAsync(true).ConfigureAwait(false);
+            var notification = ((FabricClient.ServiceManagementClient.ServiceNotificationEventArgs)e).Notification;
+            var partitionInformation = (Int64RangePartitionInformation)notification.PartitionInfo;
+
+            OnServiceNotificationFilterMatchedAsync(partitionInformation).GetAwaiter().GetResult();
+        }
+
+        private async Task OnServiceNotificationFilterMatchedAsync(Int64RangePartitionInformation partitionInformation)
+        {
+            var completionSource = new TaskCompletionSource<ResolvedServiceEndpoint>();
+            this.endPointsLookup.AddOrUpdate(partitionInformation.Id, completionSource, (_, __) => completionSource);
+
+            var endPoint = await this.partitionResolver.ResolveAsync(this.serviceUri, new ServicePartitionKey(partitionInformation.LowKey), CancellationToken.None);
+            completionSource.SetResult(endPoint.GetEndpoint());
         }
 
         private void OnClientDisconnected(object sender, EventArgs e)
         {
             // FabicClient is disconnected, recreate FabricClient.
             InitializeFabricClient();
-            BuildPartitionInfosAsync(true).ConfigureAwait(false);
         }
 
         /// <inheritdoc/>
-        public async Task<string> GetParitionEndpointAsync(string instanceId)
+        public async Task<string> GetPartitionEndPointAsync(string instanceId)
         {
-            await BuildPartitionInfosAsync(false);
             var hash = await this.instanceIdHasher.GenerateHashCode(instanceId);
-            var partition = this.BinarySearch(partitionInfos, hash);
-            return endPointsLookup[partition.LowKey].Address;
+            var partition = this.BinarySearch(this.servicePartitions, hash);
+            return await GetPartitionEndPointAsync(partition);
+        }
+
+        private async Task<string> GetPartitionEndPointAsync(Partition partition)
+        {
+            var newCompletionSource = new TaskCompletionSource<ResolvedServiceEndpoint>();
+            var completionSource = this.endPointsLookup.GetOrAdd(partition.PartitionInformation.Id, newCompletionSource);
+            if (completionSource == newCompletionSource)
+            {
+                var partitionInfo = (Int64RangePartitionInformation)partition.PartitionInformation;
+                var endPoint = await this.partitionResolver.ResolveAsync(this.serviceUri, new ServicePartitionKey(partitionInfo.LowKey), CancellationToken.None);
+                newCompletionSource.SetResult(endPoint.GetEndpoint());
+            }
+
+            return completionSource.Task.Result.Address;
         }
 
         /// <inheritdoc/>
         public async Task<IEnumerable<string>> GetPartitionEndpointsAsync()
         {
-            await BuildPartitionInfosAsync(false);
-            return this.endPointsLookup.Values.Select(x => x.Address);
-        }
-
-        private async Task BuildPartitionInfosAsync(bool force)
-        {
-            if (force || this.partitionInfos == null)
+            var endpoints = new List<string>();
+            foreach (var partition in this.servicePartitions)
             {
-                await this.semaphoreSlim.WaitAsync();
-                try
-                {
-                    if (force || this.partitionInfos == null)
-                    {
-                        ProviderEventSource.Tracing.PartitionCacheBuildStart();
-                        CancellationToken cancellationToken = new CancellationToken();
-                        var partitionList = await fabricClient.QueryManager.GetPartitionListAsync(this.service);
-                        List<Int64RangePartitionInformation> partitions = new List<Int64RangePartitionInformation>();
-                        foreach (var partition in partitionList)
-                        {
-                            var info = partition.PartitionInformation as Int64RangePartitionInformation;
-                            if (info == null)
-                            {
-                                throw new NotSupportedException($"{partition.PartitionInformation.Kind} is not supported");
-                            }
-
-                            partitions.Add(info);
-                            var resolvedServicePartition = await this.partitionResolver.ResolveAsync(this.service, new ServicePartitionKey(info.LowKey), cancellationToken);
-                            var endpoint = resolvedServicePartition.GetEndpoint();
-                            this.endPointsLookup.AddOrUpdate(info.LowKey, endpoint, (_, __) => endpoint);
-                        }
-
-                        this.partitionInfos = partitions.OrderBy(x => x.LowKey).ToArray();
-                        ProviderEventSource.Tracing.PartitionCacheBuildComplete();
-                    }
-                }
-                finally
-                {
-                    this.semaphoreSlim.Release();
-                }
+                endpoints.Add(await GetPartitionEndPointAsync(partition));
             }
+
+            return endpoints;
         }
 
-        private Int64RangePartitionInformation BinarySearch(Int64RangePartitionInformation[] array, long hash)
+        private Partition BinarySearch(Partition[] array, long hash)
         {
             int start = 0, end = array.Length - 1;
 
             do
             {
-                int middle = (start + end) / 2;
-
-                if (hash >= array[middle].LowKey && hash <= array[middle].HighKey)
+                var middle = (start + end) / 2;
+                var partitionInformation = (Int64RangePartitionInformation)array[middle].PartitionInformation;
+                if (hash >= partitionInformation.LowKey && hash <= partitionInformation.HighKey)
                 {
                     return array[middle];
                 }
-
-                else if (hash < array[middle].LowKey)
+                else if (hash < partitionInformation.LowKey)
                 {
                     end = middle - 1;
                 }
@@ -156,5 +163,33 @@ namespace DurableTask.ServiceFabric.Service
 
             throw new Exception($"{hash} is out of partition range");
         }
+
+        #region IDisposable Support
+
+        private bool disposedValue = false; // To detect redundant calls
+
+        /// <inheritdoc />
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    this.servicePartitions = null;
+                    this.endPointsLookup = null;
+                    this.fabricClient.Dispose();
+                }
+
+                disposedValue = true;
+            }
+        }
+
+        /// <inheritdoc />
+        public void Dispose()
+        {
+            Dispose(true);
+        }
+
+        #endregion IDisposable Support
     }
 }

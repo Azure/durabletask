@@ -32,6 +32,6 @@ namespace DurableTask.ServiceFabric
         /// Gets partition end point for given instanceId.
         /// </summary>
         /// <returns> Partition end point </returns>
-        Task<string> GetParitionEndpointAsync(string instanceId);
+        Task<string> GetPartitionEndPointAsync(string instanceId);
     }
 }

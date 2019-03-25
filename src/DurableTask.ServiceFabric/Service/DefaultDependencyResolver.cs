@@ -51,9 +51,28 @@ namespace DurableTask.ServiceFabric.Service
             return this;
         }
 
-        /// <inheritdoc/>
+        #region IDisposable Support
+        private bool disposedValue = false; // To detect redundant calls
+
+        /// <inheritdoc />
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    this.provider = null;
+                }
+
+                disposedValue = true;
+            }
+        }
+
+        /// <inheritdoc />
         public void Dispose()
         {
+            Dispose(true);
         }
+        #endregion
     }
 }

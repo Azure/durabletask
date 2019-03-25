@@ -25,7 +25,10 @@ namespace DurableTask.ServiceFabric
     using DurableTask.ServiceFabric.Stores;
     using DurableTask.ServiceFabric.TaskHelpers;
     using DurableTask.ServiceFabric.Tracing;
+
     using Microsoft.ServiceFabric.Data;
+
+    using Newtonsoft.Json;
 
     class FabricOrchestrationServiceClient : IOrchestrationServiceClient
     {
@@ -155,7 +158,7 @@ namespace DurableTask.ServiceFabric
 
             // Other implementations returns full history for the execution.
             // This implementation returns just the final history, i.e., state.
-            var result = Newtonsoft.Json.JsonConvert.SerializeObject(this.instanceStore.GetOrchestrationStateAsync(instanceId, executionId));
+            var result = JsonConvert.SerializeObject(this.instanceStore.GetOrchestrationStateAsync(instanceId, executionId));
             return Task.FromResult(result);
         }
 

@@ -31,10 +31,11 @@ namespace DurableTask.ServiceFabric.Remote
     /// <summary>
     /// Allows to interact with a remote IOrchestrationServiceClient
     /// </summary>
-    public class RemoteOrchestrationServiceClient : IOrchestrationServiceClient
+    public class RemoteOrchestrationServiceClient : IOrchestrationServiceClient, IDisposable
     {
         private readonly IPartitionEndpointResolver partitionProvider;
         private readonly TimeSpan pollDelay = TimeSpan.FromSeconds(10);
+        private HttpClient httpClient;
 
         /// <summary>
         /// Creates a new instance.
@@ -42,12 +43,23 @@ namespace DurableTask.ServiceFabric.Remote
         public RemoteOrchestrationServiceClient(IPartitionEndpointResolver partitionProvider)
         {
             this.partitionProvider = partitionProvider;
+            this.httpClient = new HttpClient();
         }
 
         /// <summary>
         /// HttpClient for making REST calls.
         /// </summary>
-        public HttpClient HttpClient { get; set; } = new HttpClient();
+        public HttpClient HttpClient
+        {
+            get
+            {
+                return this.httpClient;
+            }
+            set
+            {
+                this.httpClient = value;
+            }
+        }
 
         /// <summary>
         /// Creates a new orchestration
@@ -249,7 +261,7 @@ namespace DurableTask.ServiceFabric.Remote
         private async Task<Uri> ConstructEndpointUri(string instanceId, string fragment)
         {
             instanceId.EnsureValidInstanceId();
-            var endpoint = await this.partitionProvider.GetParitionEndpointAsync(instanceId);
+            var endpoint = await this.partitionProvider.GetPartitionEndPointAsync(instanceId);
             var defaultEndPoint = GetDefaultEndPoint(endpoint);
             return new Uri($"{defaultEndPoint}/{fragment}");
         }
@@ -266,5 +278,29 @@ namespace DurableTask.ServiceFabric.Remote
             var defaultEndPoint = jObject["Endpoints"][string.Empty].ToString();
             return defaultEndPoint;
         }
+
+        #region IDisposable Support
+        private bool disposedValue = false; // To detect redundant calls
+
+        /// <inheritdoc />
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    this.httpClient.Dispose();
+                }
+
+                disposedValue = true;
+            }
+        }
+
+        /// <inheritdoc />
+        public void Dispose()
+        {
+            Dispose(true);
+        }
+        #endregion
     }
 }
