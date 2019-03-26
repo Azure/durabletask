@@ -11,7 +11,6 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
 using System.Threading.Tasks;
 using StackExchange.Redis;
 using Xunit;
@@ -20,13 +19,6 @@ namespace DurableTask.Redis.Tests
 {
     public class EndToEndServiceScenarioTests
     {
-        [Fact]
-        public async Task UnstartedService_UsageThrowsException()
-        {
-            RedisOrchestrationService service = await TestHelpers.GetTestOrchestrationServiceAsync(startService: false);
-            await Assert.ThrowsAsync<InvalidOperationException>(() => service.DeleteAsync());
-        }
-
         [Fact]
         public async Task DeleteTaskHub_DeletesAllKeysInRelevantNamespace()
         {
@@ -68,18 +60,10 @@ namespace DurableTask.Redis.Tests
         }
 
         [Fact]
-        public async Task StoppedService_UsageThrowsException()
-        {
-            RedisOrchestrationService service = await TestHelpers.GetTestOrchestrationServiceAsync(startService: true);
-            await service.StopAsync();
-            await Assert.ThrowsAsync<InvalidOperationException>(() => service.DeleteAsync());
-        }
-
-        [Fact]
         public async Task StopAsync_IsIdempotent()
         {
             int numStops = 3;
-            RedisOrchestrationService service = await TestHelpers.GetTestOrchestrationServiceAsync(startService: true);
+            RedisOrchestrationService service = await TestHelpers.GetTestOrchestrationServiceAsync();
             for (int i =0; i < numStops; i++)
             {
                 await service.StopAsync();
@@ -89,7 +73,7 @@ namespace DurableTask.Redis.Tests
         [Fact]
         public async Task UnstartedService_CanBeSafelyStopped()
         {
-            RedisOrchestrationService service = await TestHelpers.GetTestOrchestrationServiceAsync(startService: false);
+            RedisOrchestrationService service = await TestHelpers.GetTestOrchestrationServiceAsync();
             await service.StopAsync();
         }
     }

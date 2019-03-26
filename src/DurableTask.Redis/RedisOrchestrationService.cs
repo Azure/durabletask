@@ -15,12 +15,12 @@ namespace DurableTask.Redis
 {
     using System;
     using System.Collections.Generic;
+    using System.Linq;
     using System.Net;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Core;
     using StackExchange.Redis;
-    using System.Linq;
 
     public class RedisOrchestrationService : IOrchestrationService, IOrchestrationServiceClient
     {
@@ -42,14 +42,13 @@ namespace DurableTask.Redis
 
         public int MaxConcurrentTaskActivityWorkItems => this.settings.MaxConcurrentTaskActivityWorkItems;
 
-
         private ConnectionMultiplexer RedisConnection
         {
             get
             {
                 if (this.internalRedisConnection == null)
                 {
-                    throw new InvalidOperationException("The orchestration service is not currently started.");
+                    this.internalRedisConnection = ConnectionMultiplexer.Connect(this.settings.RedisConnectionString);
                 }
                 return this.internalRedisConnection;
             }
@@ -161,27 +160,24 @@ namespace DurableTask.Redis
                     ?? throw new InvalidOperationException("None of the Redis servers are connected.");
             }
             // Grab all keys that have the task hub prefix
-            RedisKey[] keys = keyServer.Keys(pattern: $"{this.settings.TaskHubName}.*").ToArray();
-            await db.KeyDeleteAsync(keys);
+            RedisKey[] keysToDelete = keyServer.Keys(pattern: $"{this.settings.TaskHubName}.*").ToArray();
+            await db.KeyDeleteAsync(keysToDelete);
         }
 
-        public Task DeleteAsync(bool deleteInstanceStore)
+        public async Task DeleteAsync(bool deleteInstanceStore)
         {
-            throw new NotImplementedException();
+            await this.DeleteAsync();
         }
 
-        public async Task StartAsync()
+        public Task StartAsync()
         {
-            this.internalRedisConnection = await ConnectionMultiplexer.ConnectAsync(this.settings.RedisConnectionString);
+            // TODO: start listening on reliable queue for events
+            return Task.CompletedTask;
         }
 
         public async Task StopAsync()
         {
-            if (this.internalRedisConnection != null)
-            {
-                await this.internalRedisConnection.CloseAsync();
-                this.internalRedisConnection = null;
-            }
+            await this.RedisConnection.CloseAsync();
         }
 
         public async Task StopAsync(bool isForced)

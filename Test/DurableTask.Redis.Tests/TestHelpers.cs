@@ -21,7 +21,7 @@ namespace DurableTask.Redis.Tests
     {
         static RedisTestConfig config;
 
-        public static async Task<RedisOrchestrationService> GetTestOrchestrationServiceAsync(bool startService = true)
+        public static async Task<RedisOrchestrationService> GetTestOrchestrationServiceAsync()
         {
             RedisTestConfig testConfig = GetRedisTestConfig();
             var settings = new RedisOrchestrationServiceSettings
@@ -30,12 +30,7 @@ namespace DurableTask.Redis.Tests
                 TaskHubName = testConfig.TaskHubName
             };
 
-            var service = new RedisOrchestrationService(settings);
-            if (startService)
-            {
-                await service.StartAsync();
-            }
-            return service;
+            return new RedisOrchestrationService(settings);
         }
 
         public static async Task<ConnectionMultiplexer> GetRedisConnection()
