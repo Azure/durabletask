@@ -42,16 +42,13 @@ namespace DurableTask.Redis
 
         public int MaxConcurrentTaskActivityWorkItems => this.settings.MaxConcurrentTaskActivityWorkItems;
 
-        private ConnectionMultiplexer RedisConnection
+        private async Task<ConnectionMultiplexer> GetRedisConnection()
         {
-            get
+            if (this.internalRedisConnection == null)
             {
-                if (this.internalRedisConnection == null)
-                {
-                    this.internalRedisConnection = ConnectionMultiplexer.Connect(this.settings.RedisConnectionString);
-                }
-                return this.internalRedisConnection;
+                this.internalRedisConnection = await ConnectionMultiplexer.ConnectAsync(this.settings.RedisConnectionString);
             }
+            return this.internalRedisConnection;
         }
 
         #region Orchestration Methods
@@ -142,19 +139,20 @@ namespace DurableTask.Redis
 
         public async Task DeleteAsync()
         {
-            IDatabase db = this.RedisConnection.GetDatabase();
-            EndPoint[] endpoints = this.RedisConnection.GetEndPoints();
+            ConnectionMultiplexer redisConnection = await this.GetRedisConnection();
+            IDatabase db = redisConnection.GetDatabase();
+            EndPoint[] endpoints = redisConnection.GetEndPoints();
             IServer keyServer;
             if (endpoints.Length == 1)
             {
                 // Grab the keys from the only server
-                keyServer = this.RedisConnection.GetServer(endpoints[0]);
+                keyServer = redisConnection.GetServer(endpoints[0]);
             }
             else
             {
                 // Grab the keys from a slave endpoint to avoid hitting the master too hard with the
                 // expensive request. If no slaves are available, just grab the first available server
-                IServer[] servers = endpoints.Select(ep => this.RedisConnection.GetServer(ep)).ToArray();
+                IServer[] servers = endpoints.Select(ep => redisConnection.GetServer(ep)).ToArray();
                 keyServer = servers.FirstOrDefault(server => server.IsSlave && server.IsConnected)
                     ?? servers.FirstOrDefault(server => server.IsConnected)
                     ?? throw new InvalidOperationException("None of the Redis servers are connected.");
@@ -177,7 +175,8 @@ namespace DurableTask.Redis
 
         public async Task StopAsync()
         {
-            await this.RedisConnection.CloseAsync();
+            ConnectionMultiplexer redisConnection = await this.GetRedisConnection();
+            await redisConnection.CloseAsync();
         }
 
         public async Task StopAsync(bool isForced)
