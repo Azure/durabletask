@@ -21,7 +21,7 @@ namespace DurableTask.Redis.Tests
     {
         static RedisTestConfig config;
 
-        public static async Task<RedisOrchestrationService> GetTestOrchestrationServiceAsync()
+        public static RedisOrchestrationService GetTestOrchestrationService()
         {
             RedisTestConfig testConfig = GetRedisTestConfig();
             var settings = new RedisOrchestrationServiceSettings

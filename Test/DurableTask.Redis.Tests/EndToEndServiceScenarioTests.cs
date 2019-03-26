@@ -35,7 +35,7 @@ namespace DurableTask.Redis.Tests
                     database.StringSetAsync($"{otherTaskHub}.string", "string")
                 );
 
-                RedisOrchestrationService service = await TestHelpers.GetTestOrchestrationServiceAsync();
+                RedisOrchestrationService service = TestHelpers.GetTestOrchestrationService();
                 await service.DeleteAsync();
 
                 // Assert all task hub values were deleted
@@ -63,7 +63,7 @@ namespace DurableTask.Redis.Tests
         public async Task StopAsync_IsIdempotent()
         {
             int numStops = 3;
-            RedisOrchestrationService service = await TestHelpers.GetTestOrchestrationServiceAsync();
+            RedisOrchestrationService service = TestHelpers.GetTestOrchestrationService();
             for (int i =0; i < numStops; i++)
             {
                 await service.StopAsync();
@@ -73,7 +73,7 @@ namespace DurableTask.Redis.Tests
         [Fact]
         public async Task UnstartedService_CanBeSafelyStopped()
         {
-            RedisOrchestrationService service = await TestHelpers.GetTestOrchestrationServiceAsync();
+            RedisOrchestrationService service = TestHelpers.GetTestOrchestrationService();
             await service.StopAsync();
         }
     }
