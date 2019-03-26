@@ -15,13 +15,17 @@ namespace DurableTask.Redis
 {
     using System;
     using System.Collections.Generic;
+    using System.Linq;
+    using System.Net;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Core;
+    using StackExchange.Redis;
 
     public class RedisOrchestrationService : IOrchestrationService, IOrchestrationServiceClient
     {
-        readonly RedisOrchestrationServiceSettings settings;
+        private readonly RedisOrchestrationServiceSettings settings;
+        private ConnectionMultiplexer internalRedisConnection;
 
         public RedisOrchestrationService(RedisOrchestrationServiceSettings settings)
         {
@@ -38,6 +42,14 @@ namespace DurableTask.Redis
 
         public int MaxConcurrentTaskActivityWorkItems => this.settings.MaxConcurrentTaskActivityWorkItems;
 
+        private async Task<ConnectionMultiplexer> GetRedisConnectionAsync()
+        {
+            if (this.internalRedisConnection == null)
+            {
+                this.internalRedisConnection = await ConnectionMultiplexer.ConnectAsync(this.settings.RedisConnectionString);
+            }
+            return this.internalRedisConnection;
+        }
 
         #region Orchestration Methods
         public Task<TaskOrchestrationWorkItem> LockNextTaskOrchestrationWorkItemAsync(
@@ -109,42 +121,67 @@ namespace DurableTask.Redis
         #region Task Hub Methods
         public Task CreateAsync()
         {
-            throw new NotImplementedException();
+            // No operation needed, Redis objects are created on the fly if necessary.
+            return Task.CompletedTask;
         }
 
         public Task CreateAsync(bool recreateInstanceStore)
         {
-            throw new NotImplementedException();
+            // No operation needed, Redis objects are created on the fly if necessary.
+            return Task.CompletedTask;
         }
 
         public Task CreateIfNotExistsAsync()
         {
-            throw new NotImplementedException();
+            // No operation needed, Redis objects are created on the fly if necessary.
+            return Task.CompletedTask;
         }
 
-        public Task DeleteAsync()
+        public async Task DeleteAsync()
         {
-            throw new NotImplementedException();
+            ConnectionMultiplexer redisConnection = await this.GetRedisConnectionAsync();
+            IDatabase db = redisConnection.GetDatabase();
+            EndPoint[] endpoints = redisConnection.GetEndPoints();
+            IServer keyServer;
+            if (endpoints.Length == 1)
+            {
+                // Grab the keys from the only server
+                keyServer = redisConnection.GetServer(endpoints[0]);
+            }
+            else
+            {
+                // Grab the keys from a slave endpoint to avoid hitting the master too hard with the
+                // expensive request. If no slaves are available, just grab the first available server
+                IServer[] servers = endpoints.Select(ep => redisConnection.GetServer(ep)).ToArray();
+                keyServer = servers.FirstOrDefault(server => server.IsSlave && server.IsConnected)
+                    ?? servers.FirstOrDefault(server => server.IsConnected)
+                    ?? throw new InvalidOperationException("None of the Redis servers are connected.");
+            }
+            // Grab all keys that have the task hub prefix
+            RedisKey[] keysToDelete = keyServer.Keys(pattern: $"{this.settings.TaskHubName}.*").ToArray();
+            await db.KeyDeleteAsync(keysToDelete);
         }
 
-        public Task DeleteAsync(bool deleteInstanceStore)
+        public async Task DeleteAsync(bool deleteInstanceStore)
         {
-            throw new NotImplementedException();
+            await this.DeleteAsync();
         }
 
         public Task StartAsync()
         {
-            throw new NotImplementedException();
+            // TODO: start listening on reliable queue for events
+            return Task.CompletedTask;
         }
 
-        public Task StopAsync()
+        public async Task StopAsync()
         {
-            throw new NotImplementedException();
+            ConnectionMultiplexer redisConnection = await this.GetRedisConnectionAsync();
+            await redisConnection.CloseAsync();
         }
 
-        public Task StopAsync(bool isForced)
+        public async Task StopAsync(bool isForced)
         {
-            throw new NotImplementedException();
+            await this.StopAsync();
         }
         #endregion
 
