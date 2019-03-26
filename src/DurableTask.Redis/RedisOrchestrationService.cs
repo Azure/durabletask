@@ -42,7 +42,7 @@ namespace DurableTask.Redis
 
         public int MaxConcurrentTaskActivityWorkItems => this.settings.MaxConcurrentTaskActivityWorkItems;
 
-        private async Task<ConnectionMultiplexer> GetRedisConnection()
+        private async Task<ConnectionMultiplexer> GetRedisConnectionAsync()
         {
             if (this.internalRedisConnection == null)
             {
@@ -139,7 +139,7 @@ namespace DurableTask.Redis
 
         public async Task DeleteAsync()
         {
-            ConnectionMultiplexer redisConnection = await this.GetRedisConnection();
+            ConnectionMultiplexer redisConnection = await this.GetRedisConnectionAsync();
             IDatabase db = redisConnection.GetDatabase();
             EndPoint[] endpoints = redisConnection.GetEndPoints();
             IServer keyServer;
@@ -175,7 +175,7 @@ namespace DurableTask.Redis
 
         public async Task StopAsync()
         {
-            ConnectionMultiplexer redisConnection = await this.GetRedisConnection();
+            ConnectionMultiplexer redisConnection = await this.GetRedisConnectionAsync();
             await redisConnection.CloseAsync();
         }
 
