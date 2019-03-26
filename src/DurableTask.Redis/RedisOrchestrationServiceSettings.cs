@@ -21,6 +21,12 @@ namespace DurableTask.Redis
     public class RedisOrchestrationServiceSettings
     {
         /// <summary>
+        /// Gets or sets the name of the task hub. This value is used to group related resources.
+        /// All Redis Keys in this TaskHub will be prefixed with "{TaskHubName}."
+        /// </summary>
+        public string TaskHubName { get; set; }
+
+        /// <summary>
         /// Gets or sets a redis connection string.
         /// </summary>
         /// <remarks>

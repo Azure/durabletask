@@ -15,13 +15,17 @@ namespace DurableTask.Redis
 {
     using System;
     using System.Collections.Generic;
+    using System.Net;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Core;
+    using StackExchange.Redis;
+    using System.Linq;
 
     public class RedisOrchestrationService : IOrchestrationService, IOrchestrationServiceClient
     {
-        readonly RedisOrchestrationServiceSettings settings;
+        private readonly RedisOrchestrationServiceSettings settings;
+        private ConnectionMultiplexer internalRedisConnection;
 
         public RedisOrchestrationService(RedisOrchestrationServiceSettings settings)
         {
@@ -38,6 +42,18 @@ namespace DurableTask.Redis
 
         public int MaxConcurrentTaskActivityWorkItems => this.settings.MaxConcurrentTaskActivityWorkItems;
 
+
+        private ConnectionMultiplexer RedisConnection
+        {
+            get
+            {
+                if (this.internalRedisConnection == null)
+                {
+                    throw new InvalidOperationException("The orchestration service is not currently started.");
+                }
+                return this.internalRedisConnection;
+            }
+        }
 
         #region Orchestration Methods
         public Task<TaskOrchestrationWorkItem> LockNextTaskOrchestrationWorkItemAsync(
@@ -109,22 +125,44 @@ namespace DurableTask.Redis
         #region Task Hub Methods
         public Task CreateAsync()
         {
-            throw new NotImplementedException();
+            // No operation needed, Redis objects are created on the fly if necessary.
+            return Task.CompletedTask;
         }
 
         public Task CreateAsync(bool recreateInstanceStore)
         {
-            throw new NotImplementedException();
+            // No operation needed, Redis objects are created on the fly if necessary.
+            return Task.CompletedTask;
         }
 
         public Task CreateIfNotExistsAsync()
         {
-            throw new NotImplementedException();
+            // No operation needed, Redis objects are created on the fly if necessary.
+            return Task.CompletedTask;
         }
 
-        public Task DeleteAsync()
+        public async Task DeleteAsync()
         {
-            throw new NotImplementedException();
+            IDatabase db = this.RedisConnection.GetDatabase();
+            EndPoint[] endpoints = this.RedisConnection.GetEndPoints();
+            IServer keyServer;
+            if (endpoints.Length == 1)
+            {
+                // Grab the keys from the only server
+                keyServer = this.RedisConnection.GetServer(endpoints[0]);
+            }
+            else
+            {
+                // Grab the keys from a slave endpoint to avoid hitting the master too hard with the
+                // expensive request. If no slaves are available, just grab the first available server
+                IServer[] servers = endpoints.Select(ep => this.RedisConnection.GetServer(ep)).ToArray();
+                keyServer = servers.FirstOrDefault(server => server.IsSlave && server.IsConnected)
+                    ?? servers.FirstOrDefault(server => server.IsConnected)
+                    ?? throw new InvalidOperationException("None of the Redis servers are connected.");
+            }
+            // Grab all keys that have the task hub prefix
+            RedisKey[] keys = keyServer.Keys(pattern: $"{this.settings.TaskHubName}.*").ToArray();
+            await db.KeyDeleteAsync(keys);
         }
 
         public Task DeleteAsync(bool deleteInstanceStore)
@@ -132,19 +170,23 @@ namespace DurableTask.Redis
             throw new NotImplementedException();
         }
 
-        public Task StartAsync()
+        public async Task StartAsync()
         {
-            throw new NotImplementedException();
+            this.internalRedisConnection = await ConnectionMultiplexer.ConnectAsync(this.settings.RedisConnectionString);
         }
 
-        public Task StopAsync()
+        public async Task StopAsync()
         {
-            throw new NotImplementedException();
+            if (this.internalRedisConnection != null)
+            {
+                await this.internalRedisConnection.CloseAsync();
+                this.internalRedisConnection = null;
+            }
         }
 
-        public Task StopAsync(bool isForced)
+        public async Task StopAsync(bool isForced)
         {
-            throw new NotImplementedException();
+            await this.StopAsync();
         }
         #endregion
 
