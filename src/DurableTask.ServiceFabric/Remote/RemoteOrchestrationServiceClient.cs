@@ -24,7 +24,9 @@ namespace DurableTask.ServiceFabric.Remote
 
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
+    using DurableTask.ServiceFabric.Exceptions;
     using DurableTask.ServiceFabric.Models;
+
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
 
@@ -70,7 +72,7 @@ namespace DurableTask.ServiceFabric.Remote
         public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage)
         {
             creationMessage.OrchestrationInstance.InstanceId.EnsureValidInstanceId();
-            var uri = await ConstructEndpointUri(creationMessage.OrchestrationInstance.InstanceId, GetOrchestrationFragment());
+            var uri = await ConstructEndpointUriAsync(creationMessage.OrchestrationInstance.InstanceId, GetOrchestrationFragment(), CancellationToken.None);
             await this.PutJsonAsync(uri, new CreateTaskOrchestrationParameters() { TaskMessage = creationMessage });
         }
 
@@ -84,7 +86,7 @@ namespace DurableTask.ServiceFabric.Remote
         public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses)
         {
             creationMessage.OrchestrationInstance.InstanceId.EnsureValidInstanceId();
-            var uri = await ConstructEndpointUri(creationMessage.OrchestrationInstance.InstanceId, GetOrchestrationFragment(creationMessage.OrchestrationInstance.InstanceId));
+            var uri = await ConstructEndpointUriAsync(creationMessage.OrchestrationInstance.InstanceId, GetOrchestrationFragment(creationMessage.OrchestrationInstance.InstanceId), CancellationToken.None);
             await this.PutJsonAsync(uri, new CreateTaskOrchestrationParameters() { TaskMessage = creationMessage, DedupeStatuses = dedupeStatuses });
         }
 
@@ -96,12 +98,12 @@ namespace DurableTask.ServiceFabric.Remote
         public async Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason)
         {
             instanceId.EnsureValidInstanceId();
-            var uri = await ConstructEndpointUri(instanceId, GetOrchestrationFragment(instanceId));
+            var uri = await ConstructEndpointUriAsync(instanceId, GetOrchestrationFragment(instanceId), CancellationToken.None);
             var builder = new UriBuilder($"{uri}?reason={HttpUtility.UrlEncode(reason)}");
             var response = await this.HttpClient.DeleteAsync(builder.Uri);
             if (!response.IsSuccessStatusCode)
             {
-                throw new Exception("Unable to terminate task instance");
+                throw new RemoteServiceException("Unable to terminate task instance", response.StatusCode);
             }
         }
 
@@ -114,7 +116,7 @@ namespace DurableTask.ServiceFabric.Remote
         public async Task<string> GetOrchestrationHistoryAsync(string instanceId, string executionId)
         {
             instanceId.EnsureValidInstanceId();
-            var uri = await ConstructEndpointUri(instanceId, GetOrchestrationFragment(instanceId));
+            var uri = await ConstructEndpointUriAsync(instanceId, GetOrchestrationFragment(instanceId), CancellationToken.None);
             var builder = new UriBuilder($"{uri}?executionId={executionId}");
             var history = await this.HttpClient.GetStringAsync(builder.Uri);
             return history;
@@ -129,7 +131,7 @@ namespace DurableTask.ServiceFabric.Remote
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
         {
             instanceId.EnsureValidInstanceId();
-            var uri = await ConstructEndpointUri(instanceId, GetOrchestrationFragment(instanceId));
+            var uri = await ConstructEndpointUriAsync(instanceId, GetOrchestrationFragment(instanceId), CancellationToken.None);
             var builder = new UriBuilder($"{uri}?allExecutions={allExecutions}");
             var stateString = await this.HttpClient.GetStringAsync(builder.Uri);
             var states = JsonConvert.DeserializeObject<IList<OrchestrationState>>(stateString);
@@ -145,7 +147,7 @@ namespace DurableTask.ServiceFabric.Remote
         public async Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)
         {
             instanceId.EnsureValidInstanceId();
-            var uri = await ConstructEndpointUri(instanceId, GetOrchestrationFragment(instanceId));
+            var uri = await ConstructEndpointUriAsync(instanceId, GetOrchestrationFragment(instanceId), CancellationToken.None);
             var builder = new UriBuilder($"{uri}?executionId={executionId}");
             var stateString = await this.HttpClient.GetStringAsync(builder.Uri);
             var state = JsonConvert.DeserializeObject<OrchestrationState>(stateString);
@@ -161,7 +163,7 @@ namespace DurableTask.ServiceFabric.Remote
         public async Task PurgeOrchestrationHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType)
         {
             List<Task<HttpResponseMessage>> allTasks = new List<Task<HttpResponseMessage>>();
-            foreach (var endpoint in await this.GetAllEndpointsAsync())
+            foreach (var endpoint in await this.GetAllEndpointsAsync(CancellationToken.None))
             {
                 var uri = $"{endpoint.ToString()}/{GetHistoryFragment()}";
                 var task = this.HttpClient.PostAsJsonAsync(uri, new { thresholdDateTimeUtc, timeRangeFilterType });
@@ -183,7 +185,7 @@ namespace DurableTask.ServiceFabric.Remote
         public async Task SendTaskOrchestrationMessageAsync(TaskMessage message)
         {
             message.OrchestrationInstance.InstanceId.EnsureValidInstanceId();
-            var uri = await ConstructEndpointUri(message.OrchestrationInstance.InstanceId, GetMessageFragment(message.SequenceNumber));
+            var uri = await ConstructEndpointUriAsync(message.OrchestrationInstance.InstanceId, GetMessageFragment(message.SequenceNumber), CancellationToken.None);
             await this.PutJsonAsync(uri, message);
         }
 
@@ -251,29 +253,32 @@ namespace DurableTask.ServiceFabric.Remote
                 SerializerSettings = new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.All }
             };
 
-            var result = await this.HttpClient.PutAsync(uri, @object, mediaFormatter);
+            HttpResponseMessage result = await this.HttpClient.PutAsync(uri, @object, mediaFormatter);
             if (!result.IsSuccessStatusCode)
             {
-                throw new Exception("CreateTaskOrchestrationAsync failed");
+                throw new RemoteServiceException("CreateTaskOrchestrationAsync failed", result.StatusCode);
             }
         }
 
-        private async Task<Uri> ConstructEndpointUri(string instanceId, string fragment)
+        private async Task<Uri> ConstructEndpointUriAsync(string instanceId, string fragment, CancellationToken cancellationToken)
         {
             instanceId.EnsureValidInstanceId();
-            var endpoint = await this.partitionProvider.GetPartitionEndPointAsync(instanceId);
-            var defaultEndPoint = GetDefaultEndPoint(endpoint);
+            cancellationToken.ThrowIfCancellationRequested();
+            string endpoint = await this.partitionProvider.GetPartitionEndPointAsync(instanceId, cancellationToken);
+            string defaultEndPoint = GetDefaultEndPoint(endpoint);
             return new Uri($"{defaultEndPoint}/{fragment}");
         }
 
-        private async Task<IEnumerable<Uri>> GetAllEndpointsAsync()
+        private async Task<IEnumerable<Uri>> GetAllEndpointsAsync(CancellationToken cancellationToken)
         {
-            var endpoints = await this.partitionProvider.GetPartitionEndpointsAsync();
+            cancellationToken.ThrowIfCancellationRequested();
+            IEnumerable<string> endpoints = await this.partitionProvider.GetPartitionEndpointsAsync(cancellationToken);
             return endpoints.Select(GetDefaultEndPoint).Select(x => new Uri(x));
         }
 
         private string GetDefaultEndPoint(string endpoint)
         {
+            // sample endpoint - {"Endpoints":{"":"http:\/\/10.91.42.35:30001"}}
             var jObject = JObject.Parse(endpoint);
             var defaultEndPoint = jObject["Endpoints"][string.Empty].ToString();
             return defaultEndPoint;

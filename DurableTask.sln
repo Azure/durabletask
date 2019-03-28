@@ -44,6 +44,7 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.Redis", "src\DurableTask.Redis\DurableTask.Redis.csproj", "{BDA5B320-5282-49FE-B0A7-1F8A0F06862C}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.Redis.Tests", "Test\DurableTask.Redis.Tests\DurableTask.Redis.Tests.csproj", "{B1C3B554-A098-47F8-8FA9-C28B5BBF35B1}"
+EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.ServiceFabric", "src\DurableTask.ServiceFabric\DurableTask.ServiceFabric.csproj", "{3C10169F-4ACB-4FF6-A12B-B74569613E81}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.ServiceFabric.Tests", "Test\DurableTask.ServiceFabric.Tests\DurableTask.ServiceFabric.Tests.csproj", "{AA0BCA9D-03F7-4F33-BBD5-2D99181E1C2A}"

@@ -160,7 +160,7 @@ namespace DurableTask.ServiceFabric
                 {
                     if (currentRuntimeState.ExecutionStartedEvent == null)
                     {
-                        ProviderEventSource.Tracing.UnexpectedCodeCondition($"Orchestration with no execution started event found: {currentSession.SessionId}");
+                        ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition($"Orchestration with no execution started event found: {currentSession.SessionId}");
                         return null;
                     }
 
@@ -182,7 +182,7 @@ namespace DurableTask.ServiceFabric
 
                 if (!this.sessionInfos.TryAdd(workItem.InstanceId, sessionInfo))
                 {
-                    ProviderEventSource.Tracing.UnexpectedCodeCondition($"{nameof(FabricOrchestrationService)}.{nameof(LockNextTaskOrchestrationWorkItemAsync)} : Multiple receivers processing the same session : {currentSession.SessionId.InstanceId}?");
+                    ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition($"{nameof(FabricOrchestrationService)}.{nameof(LockNextTaskOrchestrationWorkItemAsync)} : Multiple receivers processing the same session : {currentSession.SessionId.InstanceId}?");
                 }
 
                 return workItem;
@@ -296,7 +296,7 @@ namespace DurableTask.ServiceFabric
                     }
                     catch (FabricReplicationOperationTooLargeException ex)
                     {
-                        ProviderEventSource.Tracing.ExceptionInReliableCollectionOperations($"OrchestrationInstance = {sessionInfo.Instance}, Action = {nameof(CompleteTaskOrchestrationWorkItemAsync)}", ex.ToString());
+                        ServiceFabricProviderEventSource.Tracing.ExceptionInReliableCollectionOperations($"OrchestrationInstance = {sessionInfo.Instance}, Action = {nameof(CompleteTaskOrchestrationWorkItemAsync)}", ex.ToString());
                         retryOnException = true;
                         newOrchestrationRuntimeState = null;
                         outboundMessages = null;
@@ -359,7 +359,7 @@ namespace DurableTask.ServiceFabric
 
             this.instanceStore.OnOrchestrationCompleted(workItem.OrchestrationRuntimeState.OrchestrationInstance);
 
-            ProviderEventSource.Tracing.OrchestrationFinished(workItem.InstanceId,
+            ServiceFabricProviderEventSource.Tracing.OrchestrationFinished(workItem.InstanceId,
                 workItem.OrchestrationRuntimeState.OrchestrationStatus.ToString(),
                 (workItem.OrchestrationRuntimeState.CompletedTime - workItem.OrchestrationRuntimeState.CreatedTime).TotalSeconds,
                 workItem.OrchestrationRuntimeState.Output,
@@ -371,7 +371,7 @@ namespace DurableTask.ServiceFabric
             SessionInformation sessionInfo = TryRemoveSessionInfo(workItem.InstanceId);
             if (sessionInfo == null)
             {
-                ProviderEventSource.Tracing.UnexpectedCodeCondition($"{nameof(AbandonTaskOrchestrationWorkItemAsync)} : Could not get a session info object while trying to abandon session {workItem.InstanceId}");
+                ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition($"{nameof(AbandonTaskOrchestrationWorkItemAsync)} : Could not get a session info object while trying to abandon session {workItem.InstanceId}");
             }
             else
             {
@@ -438,7 +438,7 @@ namespace DurableTask.ServiceFabric
                     }
                     catch (FabricReplicationOperationTooLargeException ex)
                     {
-                        ProviderEventSource.Tracing.ExceptionInReliableCollectionOperations($"OrchestrationInstance = {responseMessage.OrchestrationInstance}, ActivityId = {workItem.Id}, Action = {nameof(CompleteTaskActivityWorkItemAsync)}", ex.ToString());
+                        ServiceFabricProviderEventSource.Tracing.ExceptionInReliableCollectionOperations($"OrchestrationInstance = {responseMessage.OrchestrationInstance}, ActivityId = {workItem.Id}, Action = {nameof(CompleteTaskActivityWorkItemAsync)}", ex.ToString());
                         retryOnException = true;
                         var originalEvent = responseMessage.Event;
                         int taskScheduledId = GetTaskScheduledId(originalEvent);
@@ -500,11 +500,11 @@ namespace DurableTask.ServiceFabric
 
         SessionInformation GetSessionInfo(string sessionId)
         {
-            ProviderEventSource.Tracing.TraceMessage(sessionId, $"{nameof(GetSessionInfo)} - Getting session info");
+            ServiceFabricProviderEventSource.Tracing.TraceMessage(sessionId, $"{nameof(GetSessionInfo)} - Getting session info");
             if (!this.sessionInfos.TryGetValue(sessionId, out SessionInformation sessionInfo))
             {
                 var message = $"{nameof(GetSessionInfo)}. Trying to get a session that's not in locked sessions {sessionId}";
-                ProviderEventSource.Tracing.UnexpectedCodeCondition(message);
+                ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition(message);
                 throw new Exception(message);
             }
 
@@ -514,7 +514,7 @@ namespace DurableTask.ServiceFabric
         SessionInformation TryRemoveSessionInfo(string sessionId)
         {
             var removed = this.sessionInfos.TryRemove(sessionId, out SessionInformation sessionInfo);
-            ProviderEventSource.Tracing.TraceMessage(sessionId, $"{nameof(TryRemoveSessionInfo)}: Removed = {removed}");
+            ServiceFabricProviderEventSource.Tracing.TraceMessage(sessionId, $"{nameof(TryRemoveSessionInfo)}: Removed = {removed}");
             return sessionInfo;
         }
 

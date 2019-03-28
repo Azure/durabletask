@@ -13,19 +13,22 @@
 
 namespace DurableTask.ServiceFabric.Service
 {
+    using System.Threading;
     using System.Threading.Tasks;
+    using System.Web.Http.ExceptionHandling;
+
+    using DurableTask.ServiceFabric.Tracing;
 
     /// <summary>
-    /// <see cref="IHasher{T}"/> provides long hash code.
+    /// Traces application exceptions.
     /// </summary>
-    /// <typeparam name="T">Element type</typeparam>
-    public interface IHasher<in T>
+    public class ProxyServiceExceptionsLogger : ExceptionLogger
     {
-        /// <summary>
-        /// Gets Long hash code.
-        /// </summary>
-        /// <param name="value">Input element</param>
-        /// <returns>64 bit hash code</returns>
-        Task<long> GenerateHashCode(T value);
+        /// <inheritdoc />
+        public async override Task LogAsync(ExceptionLoggerContext context, CancellationToken cancellationToken)
+        {
+            ServiceFabricProviderEventSource.Tracing.LogProxyServiceError(context.Request.Method.ToString(), context.Request.RequestUri.AbsolutePath, context.Exception);
+            await base.LogAsync(context, cancellationToken);
+        }
     }
 }

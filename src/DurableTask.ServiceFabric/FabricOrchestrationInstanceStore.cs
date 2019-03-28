@@ -305,10 +305,10 @@ namespace DurableTask.ServiceFabric
                         toKeep.Add(storeName);
                     }
                 });
-                ProviderEventSource.Tracing.LogTimeTaken($"Enumerating all reliable states (count: {toDelete.Count + toKeep.Count})", enumerationTime.TotalMilliseconds);
+                ServiceFabricProviderEventSource.Tracing.LogTimeTaken($"Enumerating all reliable states (count: {toDelete.Count + toKeep.Count})", enumerationTime.TotalMilliseconds);
 
-                ProviderEventSource.Tracing.ReliableStateManagement($"Deleting {toDelete.Count} stores", String.Join(",", toDelete));
-                ProviderEventSource.Tracing.ReliableStateManagement($"All remaining {toKeep.Count} stores", String.Join(",", toKeep));
+                ServiceFabricProviderEventSource.Tracing.ReliableStateManagement($"Deleting {toDelete.Count} stores", String.Join(",", toDelete));
+                ServiceFabricProviderEventSource.Tracing.ReliableStateManagement($"All remaining {toKeep.Count} stores", String.Join(",", toKeep));
 
                 foreach (var storeName in toDelete)
                 {
@@ -316,7 +316,7 @@ namespace DurableTask.ServiceFabric
                     {
                         await this.stateManager.RemoveAsync(storeName);
                     });
-                    ProviderEventSource.Tracing.LogTimeTaken($"Deleting reliable state {storeName}", deleteTime.TotalMilliseconds);
+                    ServiceFabricProviderEventSource.Tracing.LogTimeTaken($"Deleting reliable state {storeName}", deleteTime.TotalMilliseconds);
                 }
             }, initialDelay: TimeSpan.FromMinutes(5), delayOnSuccess: TimeSpan.FromHours(1), delayOnException: TimeSpan.FromMinutes(10), actionName: $"{nameof(CleanupOldDictionaries)}", token: this.cancellationToken);
         }

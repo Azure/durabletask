@@ -14,9 +14,10 @@
 namespace DurableTask.ServiceFabric.Service
 {
     using System;
-    using System.Diagnostics;
     using System.Threading;
     using System.Threading.Tasks;
+
+    using DurableTask.ServiceFabric.Tracing;
 
     using Microsoft.Owin.Hosting;
     using Microsoft.ServiceFabric.Services.Communication.Runtime;
@@ -49,19 +50,17 @@ namespace DurableTask.ServiceFabric.Service
         /// <returns></returns>
         public Task<string> OpenAsync(CancellationToken cancellationToken)
         {
-            Trace.WriteLine("Initialize");
             var listeningAddress = this.owinAppBuilder.GetListeningAddress();
-            Trace.WriteLine(String.Format("Opening on {0}", listeningAddress));
+            ServiceFabricProviderEventSource.Tracing.TraceMessage(nameof(OwinCommunicationListener), $"Opening on {listeningAddress}");
 
             try
             {
-                Trace.WriteLine(String.Format("Starting web server on {0}", listeningAddress));
                 this.serverHandle = WebApp.Start(listeningAddress, appBuilder => this.owinAppBuilder.Startup(appBuilder));
                 return Task.FromResult(listeningAddress);
             }
             catch (Exception ex)
             {
-                Trace.WriteLine(ex);
+                ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition($"{ex.Message} {ex.StackTrace} {ex.InnerException}");
                 this.StopWebServer();
                 throw;
             }
@@ -74,7 +73,7 @@ namespace DurableTask.ServiceFabric.Service
         /// <returns></returns>
         public Task CloseAsync(CancellationToken cancellationToken)
         {
-            Trace.WriteLine("Close");
+            ServiceFabricProviderEventSource.Tracing.TraceMessage(nameof(OwinCommunicationListener), "Listener is closing");
             this.StopWebServer();
             return Task.CompletedTask;
         }
@@ -84,7 +83,7 @@ namespace DurableTask.ServiceFabric.Service
         /// </summary>
         public void Abort()
         {
-            Trace.WriteLine("Abort");
+            ServiceFabricProviderEventSource.Tracing.TraceMessage(nameof(OwinCommunicationListener), "Listener is aborting");
             this.StopWebServer();
         }
 

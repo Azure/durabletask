@@ -11,30 +11,34 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceFabric
+namespace DurableTask.ServiceFabric.Exceptions
 {
-    using System.Collections.Generic;
-    using System.Threading;
-    using System.Threading.Tasks;
+    using System;
+    using System.Net;
+
+    using DurableTask.ServiceFabric.Remote;
+
 
     /// <summary>
-    /// Provides partition related information.
+    /// The exception that is thrown by <see cref="RemoteOrchestrationServiceClient"/> when proxy service returns non successful message.
     /// </summary>
-    public interface IPartitionEndpointResolver
+    public class RemoteServiceException : Exception
     {
-        /// <summary>
-        /// Gets end points for all the partitions.
-        /// </summary>
-        /// <param name="cancellationToken">Token to inform when a task is cancelled.</param>
-        /// <returns> All the end points. </returns>
-        Task<IEnumerable<string>> GetPartitionEndpointsAsync(CancellationToken cancellationToken);
+        private HttpStatusCode statusCode;
 
         /// <summary>
-        /// Gets partition end point for given instanceId.
+        /// Creates an instance of <see cref="RemoteServiceException"/>.
         /// </summary>
-        /// <param name="instanceId">InstanceId of orchestration</param>
-        /// <param name="cancellationToken">Token to inform when a task is cancelled.</param>
-        /// <returns> Partition end point </returns>
-        Task<string> GetPartitionEndPointAsync(string instanceId, CancellationToken cancellationToken);
+        /// <param name="message">Exception message.</param>
+        /// <param name="statusCode">Http response message</param>
+        public RemoteServiceException(string message, HttpStatusCode statusCode) : base(message)
+        {
+            this.statusCode = statusCode;
+        }
+
+        /// <summary>
+        /// Instace of <see cref="HttpStatusCode"/> sent by proxy service.
+        /// </summary>
+        public HttpStatusCode HttpStatusCode => this.statusCode;
     }
 }

@@ -22,7 +22,7 @@
 
   <Resources>
     <Endpoints>
-      <Endpoint Name="ServiceEndpoint" Type="Input" Protocol="tcp" />
+      <Endpoint Name="DtfxServiceEndpoint" Type="Input" Protocol="tcp" />
       <Endpoint Name="ReplicatorEndpoint" />
     </Endpoints>
   </Resources>

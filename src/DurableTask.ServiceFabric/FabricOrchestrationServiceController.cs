@@ -51,7 +51,6 @@ namespace DurableTask.ServiceFabric
         [Route("orchestrations/{orchestrationId}")]
         public async Task<IHttpActionResult> CreateTaskOrchestration([FromUri] string orchestrationId, [FromBody] CreateTaskOrchestrationParameters parameters)
         {
-            ProviderEventSource.Tracing.LogServingNetworkAction(nameof(CreateTaskOrchestration));
             parameters.TaskMessage.OrchestrationInstance.InstanceId.EnsureValidInstanceId();
             if (!orchestrationId.Equals(parameters.TaskMessage.OrchestrationInstance.InstanceId))
             {
@@ -86,7 +85,6 @@ namespace DurableTask.ServiceFabric
         [Route("messages/{messageId}")]
         public async Task<IHttpActionResult> SendTaskOrchestrationMessage([FromUri]long messageId,[FromBody] TaskMessage message)
         {
-            ProviderEventSource.Tracing.LogServingNetworkAction(nameof(SendTaskOrchestrationMessage));
             if (messageId != message.SequenceNumber)
             {
                 return Conflict();
@@ -106,7 +104,6 @@ namespace DurableTask.ServiceFabric
         [Route("messages")]
         public async Task<IHttpActionResult> SendTaskOrchestrationMessageBatch([FromBody] TaskMessage[] messages)
         {
-            ProviderEventSource.Tracing.LogServingNetworkAction(nameof(SendTaskOrchestrationMessageBatch));
             await this.orchestrationServiceClient.SendTaskOrchestrationMessageBatchAsync(messages);
             return new OkResult(this);
         }
@@ -121,7 +118,6 @@ namespace DurableTask.ServiceFabric
         [Route("orchestrations/{orchestrationId}")]
         public async Task<OrchestrationState> GetOrchestrationState([FromUri]string orchestrationId, string executionId)
         {
-            ProviderEventSource.Tracing.LogServingNetworkAction(nameof(GetOrchestrationState));
             orchestrationId.EnsureValidInstanceId();
             var state = await this.orchestrationServiceClient.GetOrchestrationStateAsync(orchestrationId, executionId);
             return state;
@@ -137,7 +133,6 @@ namespace DurableTask.ServiceFabric
         [Route("orchestrations/{orchestrationId}")]
         public async Task<IList<OrchestrationState>> GetOrchestrationState([FromUri]string orchestrationId, bool allExecutions)
         {
-            ProviderEventSource.Tracing.LogServingNetworkAction(nameof(GetOrchestrationState));
             orchestrationId.EnsureValidInstanceId();
             var state = await this.orchestrationServiceClient.GetOrchestrationStateAsync(orchestrationId, allExecutions);
             return state;
@@ -153,7 +148,6 @@ namespace DurableTask.ServiceFabric
         [Route("orchestrations/{orchestrationId}")]
         public async Task<IHttpActionResult> ForceTerminateTaskOrchestration([FromUri]string orchestrationId, string reason)
         {
-            ProviderEventSource.Tracing.LogServingNetworkAction(nameof(ForceTerminateTaskOrchestration));
             orchestrationId.EnsureValidInstanceId();
             await this.orchestrationServiceClient.ForceTerminateTaskOrchestrationAsync(orchestrationId, reason);
             return new OkResult(this);
@@ -169,7 +163,6 @@ namespace DurableTask.ServiceFabric
         [Route("history/{orchestrationId}")]
         public async Task<string> GetOrchestrationHistory([FromUri]string orchestrationId, string executionId)
         {
-            ProviderEventSource.Tracing.LogServingNetworkAction(nameof(GetOrchestrationHistory));
             orchestrationId.EnsureValidInstanceId();
             var result = await this.orchestrationServiceClient.GetOrchestrationHistoryAsync(orchestrationId, executionId);
             return result;
@@ -184,7 +177,6 @@ namespace DurableTask.ServiceFabric
         [Route("history")]
         public async Task<IHttpActionResult> PurgeOrchestrationHistory([FromBody]PurgeOrchestrationHistoryParameters purgeParameters)
         {
-            ProviderEventSource.Tracing.LogServingNetworkAction(nameof(PurgeOrchestrationHistory));
             await this.orchestrationServiceClient.PurgeOrchestrationHistoryAsync(purgeParameters.ThresholdDateTimeUtc, purgeParameters.TimeRangeFilterType);
             return new OkResult(this);
         }

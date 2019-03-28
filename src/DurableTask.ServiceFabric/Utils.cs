@@ -79,7 +79,7 @@ namespace DurableTask.ServiceFabric
                 }
                 catch(Exception e)
                 {
-                    ProviderEventSource.Tracing.ExceptionWhileRunningBackgroundJob(actionName, e.ToString());
+                    ServiceFabricProviderEventSource.Tracing.ExceptionWhileRunningBackgroundJob(actionName, e.ToString());
                     await Task.Delay(delayOnException).ConfigureAwait(false);
                 }
             }

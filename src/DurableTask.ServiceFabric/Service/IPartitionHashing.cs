@@ -11,11 +11,23 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
+namespace DurableTask.ServiceFabric.Service
+{
+    using System.Threading;
+    using System.Threading.Tasks;
 
-[assembly: ComVisible(false)]
-[assembly: System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2237:MarkISerializableTypesWithSerializable", Scope = "type", Target = "DurableTask.ServiceFabric.Exceptions.RemoteServiceException")]
-#if !SIGN_ASSEMBLY
-[assembly: InternalsVisibleTo("DurableTask.ServiceFabric.Tests")]
-#endif
+    /// <summary>
+    /// <see cref="IPartitionHashing{T}"/> provides long hash code to identify which partition value belongs to.
+    /// </summary>
+    /// <typeparam name="T">Element type</typeparam>
+    public interface IPartitionHashing<in T>
+    {
+        /// <summary>
+        /// Gets Long hash code.
+        /// </summary>
+        /// <param name="value">Input element</param>
+        /// <param name="cancellationToken">Token to inform when a task is cancelled.</param>
+        /// <returns>64 bit hash code</returns>
+        Task<long> GeneratePartitionHashCode(T value, CancellationToken cancellationToken);
+    }
+}

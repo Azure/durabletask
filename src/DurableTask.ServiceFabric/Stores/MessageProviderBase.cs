@@ -116,7 +116,7 @@ namespace DurableTask.ServiceFabric.Stores
                         return new Message<TKey, TValue>(key, result.Value);
                     }
                     var errorMessage = $"Internal Server Error: Did not find an item in reliable dictionary while having the item key {key} in memory";
-                    ProviderEventSource.Tracing.UnexpectedCodeCondition(errorMessage);
+                    ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition(errorMessage);
                     throw new Exception(errorMessage);
                 }
             }, uniqueActionIdentifier: $"Key = {key}, Action = MessageProviderBase.GetValueAsync, StoreName : {this.storeName}");
@@ -183,7 +183,7 @@ namespace DurableTask.ServiceFabric.Stores
                     count = await this.Store.GetCountAsync(tx);
                 }
 
-                ProviderEventSource.Tracing.LogStoreCount(this.storeName, count);
+                ServiceFabricProviderEventSource.Tracing.LogStoreCount(this.storeName, count);
             }, initialDelay: metricsInterval, delayOnSuccess: metricsInterval, delayOnException: metricsInterval, actionName: $"Log Store Count of {this.storeName}", token: this.CancellationToken);
         }
     }

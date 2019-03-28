@@ -20,7 +20,7 @@ namespace DurableTask.ServiceFabric.Service
     using Microsoft.Extensions.DependencyInjection;
 
     /// <inheritdoc/>
-    public class DefaultDependencyResolver : IDependencyResolver
+    public sealed class DefaultDependencyResolver : IDependencyResolver
     {
         private IServiceProvider provider;
 
@@ -52,26 +52,10 @@ namespace DurableTask.ServiceFabric.Service
         }
 
         #region IDisposable Support
-        private bool disposedValue = false; // To detect redundant calls
-
-        /// <inheritdoc />
-        protected virtual void Dispose(bool disposing)
-        {
-            if (!disposedValue)
-            {
-                if (disposing)
-                {
-                    this.provider = null;
-                }
-
-                disposedValue = true;
-            }
-        }
-
         /// <inheritdoc />
         public void Dispose()
         {
-            Dispose(true);
+            // no-op
         }
         #endregion
     }

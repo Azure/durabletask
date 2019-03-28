@@ -102,20 +102,20 @@ namespace DurableTask.ServiceFabric.Stores
                                     {
                                         if (this.lockedSessions.TryUpdate(returnInstanceId, newValue: LockState.Locked, comparisonValue: LockState.InFetchQueue))
                                         {
-                                            ProviderEventSource.Tracing.TraceMessage(returnInstanceId, "Session Locked Accepted");
+                                            ServiceFabricProviderEventSource.Tracing.TraceMessage(returnInstanceId, "Session Locked Accepted");
                                             return existingValue.Value;
                                         }
                                         else
                                         {
                                             var errorMessage = $"Internal Server Error : Unexpected to dequeue the session {returnInstanceId} which was already locked before";
-                                            ProviderEventSource.Tracing.UnexpectedCodeCondition(errorMessage);
+                                            ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition(errorMessage);
                                             throw new Exception(errorMessage);
                                         }
                                     }
                                     else
                                     {
                                         var errorMessage = $"Internal Server Error: Did not find the session object in reliable dictionary while having the session {returnInstanceId} in memory";
-                                        ProviderEventSource.Tracing.UnexpectedCodeCondition(errorMessage);
+                                        ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition(errorMessage);
                                         throw new Exception(errorMessage);
                                     }
                                 }
@@ -143,7 +143,7 @@ namespace DurableTask.ServiceFabric.Stores
         {
             var sessionMessageProvider = await GetOrAddSessionMessagesInstance(session.SessionId);
             var messages = await sessionMessageProvider.ReceiveBatchAsync();
-            ProviderEventSource.Tracing.TraceMessage(session.SessionId.InstanceId, $"Number of received messages {messages.Count}");
+            ServiceFabricProviderEventSource.Tracing.TraceMessage(session.SessionId.InstanceId, $"Number of received messages {messages.Count}");
             return messages;
         }
 
@@ -151,12 +151,12 @@ namespace DurableTask.ServiceFabric.Stores
         {
             if (this.sessionMessageProviders.TryGetValue(instance, out SessionMessagesProvider sessionMessageProvider))
             {
-                ProviderEventSource.Tracing.TraceMessage(instance.InstanceId, $"Number of completed messages {lockTokens.Count}");
+                ServiceFabricProviderEventSource.Tracing.TraceMessage(instance.InstanceId, $"Number of completed messages {lockTokens.Count}");
                 await sessionMessageProvider.CompleteBatchAsync(transaction, lockTokens);
             }
             else
             {
-                ProviderEventSource.Tracing.UnexpectedCodeCondition($"{nameof(SessionsProvider)}.{nameof(CompleteMessages)} : Did not find session messages provider instance for session : {instance}.");
+                ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition($"{nameof(SessionsProvider)}.{nameof(CompleteMessages)} : Did not find session messages provider instance for session : {instance}.");
             }
         }
 
@@ -245,11 +245,11 @@ namespace DurableTask.ServiceFabric.Stores
 
         public void TryUnlockSession(OrchestrationInstance instance, bool abandon = false, bool isComplete = false)
         {
-            ProviderEventSource.Tracing.TraceMessage(instance.InstanceId, $"Session Unlock Begin, Abandon = {abandon}");
+            ServiceFabricProviderEventSource.Tracing.TraceMessage(instance.InstanceId, $"Session Unlock Begin, Abandon = {abandon}");
             if (!this.lockedSessions.TryRemove(instance.InstanceId, out LockState lockState) || lockState == LockState.InFetchQueue)
             {
                 var errorMessage = $"{nameof(SessionsProvider)}.{nameof(TryUnlockSession)} : Trying to unlock the session {instance.InstanceId} which was not locked.";
-                ProviderEventSource.Tracing.UnexpectedCodeCondition(errorMessage);
+                ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition(errorMessage);
                 throw new Exception(errorMessage);
             }
 
@@ -258,7 +258,7 @@ namespace DurableTask.ServiceFabric.Stores
                 this.TryEnqueueSession(instance);
             }
 
-            ProviderEventSource.Tracing.TraceMessage(instance.InstanceId, $"Session Unlock End, Abandon = {abandon}, removed lock state = {lockState}");
+            ServiceFabricProviderEventSource.Tracing.TraceMessage(instance.InstanceId, $"Session Unlock End, Abandon = {abandon}, removed lock state = {lockState}");
         }
 
         public async Task<bool> TryAddSession(ITransaction transaction, TaskMessageItem newMessage)
@@ -303,7 +303,7 @@ namespace DurableTask.ServiceFabric.Stores
         {
             if (this.lockedSessions.TryAdd(instanceId, LockState.InFetchQueue))
             {
-                ProviderEventSource.Tracing.TraceMessage(instanceId, "Session Getting Enqueued");
+                ServiceFabricProviderEventSource.Tracing.TraceMessage(instanceId, "Session Getting Enqueued");
                 this.fetchQueue.Enqueue(instanceId);
                 SetWaiterForNewItems();
             }

@@ -16,16 +16,18 @@ namespace DurableTask.ServiceFabric.Service
     using System;
     using System.Security.Cryptography;
     using System.Text;
+    using System.Threading;
     using System.Threading.Tasks;
 
     /// <summary>
-    /// Implements <see cref="IHasher{T}"/> for string elements.
+    /// Implements <see cref="IPartitionHashing{T}"/> for string elements.
     /// </summary>
-    public class DefaultStringHasher : IHasher<string>
+    public class DefaultStringPartitionHashing : IPartitionHashing<string>
     {
         /// <inheritdoc/>
-        public Task<long> GenerateHashCode(string value)
+        public Task<long> GeneratePartitionHashCode(string value, CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             long hashCode = 0;
             if (!string.IsNullOrEmpty(value))
             {

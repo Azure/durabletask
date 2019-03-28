@@ -73,7 +73,7 @@ namespace DurableTask.ServiceFabric
 
             if (added)
             {
-                ProviderEventSource.Tracing.OrchestrationCreated(instance.InstanceId, instance.ExecutionId);
+                ServiceFabricProviderEventSource.Tracing.OrchestrationCreated(instance.InstanceId, instance.ExecutionId);
                 this.orchestrationProvider.TryEnqueueSession(creationMessage.OrchestrationInstance);
             }
             else

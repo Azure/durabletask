@@ -50,7 +50,7 @@ namespace DurableTask.ServiceFabric.Stores
                 var timerEvent = kvp.Value?.TaskMessage?.Event as TimerFiredEvent;
                 if (timerEvent == null)
                 {
-                    ProviderEventSource.Tracing.UnexpectedCodeCondition($"{nameof(ScheduledMessageProvider)}.{nameof(StartAsync)} : Seeing a non timer event in scheduled messages while filling the pending items collection in role start");
+                    ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition($"{nameof(ScheduledMessageProvider)}.{nameof(StartAsync)} : Seeing a non timer event in scheduled messages while filling the pending items collection in role start");
                 }
                 else
                 {
@@ -62,7 +62,7 @@ namespace DurableTask.ServiceFabric.Stores
             {
                 if (this.inMemorySet.Count > 0)
                 {
-                    ProviderEventSource.Tracing.UnexpectedCodeCondition($"{nameof(ScheduledMessageProvider)}.{nameof(StartAsync)} : Before we set the In memory set from the builder, there are items in it which should not happen.");
+                    ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition($"{nameof(ScheduledMessageProvider)}.{nameof(StartAsync)} : Before we set the In memory set from the builder, there are items in it which should not happen.");
                 }
                 this.inMemorySet = builder.ToImmutableSortedSet(TimerFiredEventComparer.Instance);
             }
@@ -163,7 +163,7 @@ namespace DurableTask.ServiceFabric.Stores
                 }
                 catch (Exception e)
                 {
-                    ProviderEventSource.Tracing.ExceptionWhileRunningBackgroundJob($"{nameof(ScheduledMessageProvider)}.{nameof(ProcessScheduledMessages)}", e.ToString());
+                    ServiceFabricProviderEventSource.Tracing.ExceptionWhileRunningBackgroundJob($"{nameof(ScheduledMessageProvider)}.{nameof(ProcessScheduledMessages)}", e.ToString());
                     await Task.Delay(TimeSpan.FromMilliseconds(100));
                 }
             }

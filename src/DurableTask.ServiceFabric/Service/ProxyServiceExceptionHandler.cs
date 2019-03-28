@@ -13,22 +13,23 @@
 
 namespace DurableTask.ServiceFabric.Service
 {
-    using System.Threading;
-    using System.Threading.Tasks;
+    using System.Net;
+    using System.Net.Http;
     using System.Web.Http.ExceptionHandling;
+    using System.Web.Http.Results;
 
     using DurableTask.ServiceFabric.Tracing;
 
-    /// <summary>
-    /// Traces application exceptions.
-    /// </summary>
-    public class ApplicationExceptionsLogger : IExceptionLogger
+    internal class ProxyServiceExceptionHandler : ExceptionHandler
     {
-        /// <inheritdoc />
-        public Task LogAsync(ExceptionLoggerContext context, CancellationToken cancellationToken)
+        public override void Handle(ExceptionHandlerContext context)
         {
-            ProviderEventSource.Tracing.ServiceRequestFailed(context.Request.RequestUri.AbsolutePath, context.Exception.ToString());
-            return Task.CompletedTask;
+            ServiceFabricProviderEventSource.Tracing.LogProxyServiceError(context.Request.Method.ToString(),
+                                                                          context.Request.RequestUri.AbsolutePath,
+                                                                          context.Exception);
+
+            HttpResponseMessage response = context.Request.CreateResponse(HttpStatusCode.InternalServerError, context.Exception);
+            context.Result = new ResponseMessageResult(response);
         }
     }
 }

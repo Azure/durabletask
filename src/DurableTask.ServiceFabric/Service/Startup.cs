@@ -13,6 +13,7 @@
 
 namespace DurableTask.ServiceFabric.Service
 {
+    using System;
     using System.Net;
     using System.Web.Http;
     using System.Web.Http.ExceptionHandling;
@@ -29,8 +30,8 @@ namespace DurableTask.ServiceFabric.Service
 
         public Startup(string listeningAddress, FabricOrchestrationProvider fabricOrchestrationProvider)
         {
-            this.listeningAddress = listeningAddress;
-            this.fabricOrchestrationProvider = fabricOrchestrationProvider;
+            this.listeningAddress = listeningAddress ?? throw new ArgumentNullException(nameof(listeningAddress));
+            this.fabricOrchestrationProvider = fabricOrchestrationProvider ?? throw new ArgumentNullException(nameof(fabricOrchestrationProvider));
         }
 
         public string GetListeningAddress()
@@ -43,7 +44,8 @@ namespace DurableTask.ServiceFabric.Service
             var services = new ServiceCollection();
             services.AddSingleton<IOrchestrationServiceClient>(this.fabricOrchestrationProvider.OrchestrationServiceClient);
             services.AddTransient<FabricOrchestrationServiceController>();
-            services.AddSingleton<IExceptionLogger, ApplicationExceptionsLogger>();
+            services.AddSingleton<IExceptionLogger, ProxyServiceExceptionsLogger>();
+            services.AddSingleton<IExceptionHandler, ProxyServiceExceptionHandler>();
             var serviceProvider = services.BuildServiceProvider();
             return serviceProvider;
         }
