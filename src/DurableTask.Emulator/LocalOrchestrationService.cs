@@ -206,6 +206,7 @@ namespace DurableTask.Emulator
                         ExecutionId = creationMessage.OrchestrationInstance.ExecutionId,
                     },
                     CreatedTime = DateTime.UtcNow,
+                    LastUpdatedTime = DateTime.UtcNow,
                     OrchestrationStatus = OrchestrationStatus.Pending,
                     Version = ee.Version,
                     Name = ee.Name,
