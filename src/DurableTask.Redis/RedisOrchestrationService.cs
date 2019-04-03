@@ -20,12 +20,22 @@ namespace DurableTask.Redis
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Core;
+    using DurableTask.Core.History;
     using StackExchange.Redis;
 
     public class RedisOrchestrationService : IOrchestrationService, IOrchestrationServiceClient
     {
+        private readonly SemaphoreSlim startLock = new SemaphoreSlim(1);
+
         private readonly RedisOrchestrationServiceSettings settings;
-        private ConnectionMultiplexer internalRedisConnection;
+
+        // Initialized in StartAsync()
+        private ConnectionMultiplexer redisConnection;
+        private OrchestrationSessionPartitionHandler partitionOrchestrationManager;
+        private ActivityTaskHandler activityTaskManager;
+        private WorkerRecycler workerRecycler;
+        private RedisLogger logger;
+        private string workerGuid;
 
         public RedisOrchestrationService(RedisOrchestrationServiceSettings settings)
         {
@@ -42,29 +52,25 @@ namespace DurableTask.Redis
 
         public int MaxConcurrentTaskActivityWorkItems => this.settings.MaxConcurrentTaskActivityWorkItems;
 
-        private async Task<ConnectionMultiplexer> GetRedisConnectionAsync()
-        {
-            if (this.internalRedisConnection == null)
-            {
-                this.internalRedisConnection = await ConnectionMultiplexer.ConnectAsync(this.settings.RedisConnectionString);
-            }
-            return this.internalRedisConnection;
-        }
 
         #region Orchestration Methods
-        public Task<TaskOrchestrationWorkItem> LockNextTaskOrchestrationWorkItemAsync(
+        public async Task<TaskOrchestrationWorkItem> LockNextTaskOrchestrationWorkItemAsync(
             TimeSpan receiveTimeout,
             CancellationToken cancellationToken)
         {
-            throw new NotImplementedException();
+            if (this.partitionOrchestrationManager == null)
+            {
+                await StartAsync();
+            }
+            return await this.partitionOrchestrationManager.GetSingleOrchestrationSessionAsync(receiveTimeout, cancellationToken);
         }
 
         public bool IsMaxMessageCountExceeded(int currentMessageCount, OrchestrationRuntimeState runtimeState)
         {
-            return false;
+            return currentMessageCount > MaxConcurrentTaskOrchestrationWorkItems;
         }
 
-        public Task CompleteTaskOrchestrationWorkItemAsync(
+        public async Task CompleteTaskOrchestrationWorkItemAsync(
             TaskOrchestrationWorkItem workItem,
             OrchestrationRuntimeState newOrchestrationRuntimeState,
             IList<TaskMessage> outboundMessages,
@@ -73,48 +79,139 @@ namespace DurableTask.Redis
             TaskMessage continuedAsNewMessage,
             OrchestrationState orchestrationState)
         {
-            throw new NotImplementedException();
+            if (this.partitionOrchestrationManager == null || this.redisConnection == null)
+            {
+                await StartAsync();
+            }
+            string orchestrationId = workItem.InstanceId;
+            RedisTransactionBuilder transaction = this.partitionOrchestrationManager.CreateExistingOrchestrationTransaction(orchestrationId);
+
+            List<string> events = newOrchestrationRuntimeState.Events.Select(histEvent => histEvent as TaskCompletedEvent)
+                .Where(taskCompletedEvent => taskCompletedEvent != null)
+                .OrderBy(task => task.TaskScheduledId)
+                .Select(TaskCompletedEvent => $"{{\"id\": {TaskCompletedEvent.TaskScheduledId}, \"Result\": {TaskCompletedEvent.Result}}}")
+                .ToList();
+            string logMessage = "Current events processed: " + string.Join(",", events);
+            await this.logger.LogAsync(logMessage);
+
+            transaction.SetOrchestrationRuntimeState(orchestrationId, newOrchestrationRuntimeState);
+
+            foreach (TaskMessage outboundMessage in outboundMessages)
+            {
+                transaction.SendActivityMessage(outboundMessage);
+            }
+
+            foreach(TaskMessage message in orchestratorMessages)
+            {
+                transaction.SendControlQueueMessage(message);
+            }
+
+            if (continuedAsNewMessage != null)
+            {
+                transaction.SendControlQueueMessage(continuedAsNewMessage);
+            } 
+
+            // TODO send timer messages in transaction
+
+            transaction.AddOrchestrationStateToHistory(orchestrationId: orchestrationId,
+                state: orchestrationState);
+
+            transaction.RemoveItemsFromOrchestrationQueue(orchestrationId, workItem.NewMessages.Count);
+
+            bool transactionSucceeded = await transaction.CommitTransactionAsync();
+
+            if (transactionSucceeded)
+            {
+                logMessage = $"Succeeded in transaction of finishing task orchestration item: execution id={workItem.OrchestrationRuntimeState.OrchestrationInstance.ExecutionId}, numMessagesProcessed: {workItem.NewMessages.Count}, numOutBoundMessages: {outboundMessages.Count}, numOrchMessages: {orchestratorMessages.Count}";
+            }
+            else
+            {
+                logMessage = $"Failed in transaction of finishing task orchestration item: execution id={workItem.OrchestrationRuntimeState.OrchestrationInstance.ExecutionId}, numMessagesProcessed: {workItem.NewMessages.Count}, numOutBoundMessages: {outboundMessages.Count}, numOrchMessages: {orchestratorMessages.Count}";
+            }
+            await this.logger.LogAsync(logMessage);
         }
 
         public Task RenewTaskOrchestrationWorkItemLockAsync(TaskOrchestrationWorkItem workItem)
         {
-            throw new NotImplementedException();
+            // No need to renew, as current lock implementation lasts as long as process holds it.
+            return Task.CompletedTask;
         }
 
-        public Task ReleaseTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
+        public async Task ReleaseTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
-            throw new NotImplementedException();
+            if (this.partitionOrchestrationManager == null || this.redisConnection == null)
+            {
+                await StartAsync();
+            }
+            await this.logger.LogAsync($"Releasing lock on orchestration {workItem.InstanceId}");
+            this.partitionOrchestrationManager.ReleaseOrchestration(workItem.InstanceId);
         }
 
-        public Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
+        public async Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
-            throw new NotImplementedException();
+            if (this.partitionOrchestrationManager == null || this.redisConnection == null)
+            {
+                await StartAsync();
+            }
+            // TODO: Handle differently then just releasing?
+            await ReleaseTaskOrchestrationWorkItemAsync(workItem);
         }
         #endregion
 
         #region Activity Methods
-        public Task<TaskActivityWorkItem> LockNextTaskActivityWorkItem(
+        public async Task<TaskActivityWorkItem> LockNextTaskActivityWorkItem(
             TimeSpan receiveTimeout,
             CancellationToken cancellationToken)
         {
-            throw new NotImplementedException();
+            if (this.activityTaskManager == null)
+            {
+                await StartAsync();
+            }
+            return await this.activityTaskManager.GetSingleTaskItem(receiveTimeout, cancellationToken);
         }
 
-        public Task CompleteTaskActivityWorkItemAsync(
+        public async Task CompleteTaskActivityWorkItemAsync(
             TaskActivityWorkItem workItem,
             TaskMessage responseMessage)
         {
-            throw new NotImplementedException();
+            if (this.activityTaskManager == null || this.partitionOrchestrationManager == null)
+            {
+                await StartAsync();
+            }
+            RedisTransactionBuilder transactionBuilder = this.partitionOrchestrationManager.CreateExistingOrchestrationTransaction(responseMessage.OrchestrationInstance.InstanceId)
+                .SendControlQueueMessage(responseMessage)
+                .RemoveTaskMessageFromActivityQueue(workItem.TaskMessage, this.workerGuid);
+
+            bool transactionSucceeded = await transactionBuilder.CommitTransactionAsync();
+
+            string logMessage;
+            if (transactionSucceeded)
+            {
+                logMessage = $"Succeeded in transaction of finishing task activity item: activity event id={workItem.TaskMessage.Event.EventId}, orchestration event id: {responseMessage.Event.EventId}";
+            }
+            else
+            {
+                logMessage = $"Failed in transaction of finishing task activity item: activity event id={workItem.TaskMessage.Event.EventId}, orchestration event id: {responseMessage.Event.EventId}";
+            }
+            await this.logger.LogAsync(logMessage);
         }
 
         public Task<TaskActivityWorkItem> RenewTaskActivityWorkItemLockAsync(TaskActivityWorkItem workItem)
         {
-            throw new NotImplementedException();
+            // TODO: At this time this is sufficient, as locks last indefinitely
+            return Task.FromResult(workItem);
         }
 
-        public Task AbandonTaskActivityWorkItemAsync(TaskActivityWorkItem workItem)
+        public async Task AbandonTaskActivityWorkItemAsync(TaskActivityWorkItem workItem)
         {
-            throw new NotImplementedException();
+            if (this.activityTaskManager == null)
+            {
+                await StartAsync();
+            }
+            IDatabase redisDb = this.redisConnection.GetDatabase();
+            string activityProcessingQueueKey = RedisKeyNameResolver.GetTaskActivityProcessingQueueKey(this.settings.TaskHubName, this.workerGuid);
+            string messageJson = RedisSerializer.SerializeObject(workItem.TaskMessage);
+            await redisDb.ListRemoveAsync(activityProcessingQueueKey, messageJson);
         }
         #endregion
 
@@ -139,20 +236,23 @@ namespace DurableTask.Redis
 
         public async Task DeleteAsync()
         {
-            ConnectionMultiplexer redisConnection = await this.GetRedisConnectionAsync();
-            IDatabase db = redisConnection.GetDatabase();
-            EndPoint[] endpoints = redisConnection.GetEndPoints();
+            if (this.redisConnection == null || !this.redisConnection.IsConnected)
+            {
+                this.redisConnection = await ConnectionMultiplexer.ConnectAsync(this.settings.RedisConnectionString);
+            }
+            IDatabase db = this.redisConnection.GetDatabase();
+            EndPoint[] endpoints = this.redisConnection.GetEndPoints();
             IServer keyServer;
             if (endpoints.Length == 1)
             {
                 // Grab the keys from the only server
-                keyServer = redisConnection.GetServer(endpoints[0]);
+                keyServer = this.redisConnection.GetServer(endpoints[0]);
             }
             else
             {
                 // Grab the keys from a slave endpoint to avoid hitting the master too hard with the
                 // expensive request. If no slaves are available, just grab the first available server
-                IServer[] servers = endpoints.Select(ep => redisConnection.GetServer(ep)).ToArray();
+                IServer[] servers = endpoints.Select(ep => this.redisConnection.GetServer(ep)).ToArray();
                 keyServer = servers.FirstOrDefault(server => server.IsSlave && server.IsConnected)
                     ?? servers.FirstOrDefault(server => server.IsConnected)
                     ?? throw new InvalidOperationException("None of the Redis servers are connected.");
@@ -167,16 +267,40 @@ namespace DurableTask.Redis
             await this.DeleteAsync();
         }
 
-        public Task StartAsync()
+        public async Task StartAsync()
         {
-            // TODO: start listening on reliable queue for events
-            return Task.CompletedTask;
+            await this.startLock.WaitAsync();
+
+            if (this.workerGuid == null)
+            {
+                this.redisConnection = await ConnectionMultiplexer.ConnectAsync(this.settings.RedisConnectionString);
+                this.workerRecycler = new WorkerRecycler(this.settings.TaskHubName, this.redisConnection);
+                await this.workerRecycler.CleanupWorkersAsync();
+                this.workerGuid = Guid.NewGuid().ToString();
+                RegisterWorker();
+                this.partitionOrchestrationManager = await OrchestrationSessionPartitionHandler.GetOrchestrationSessionManagerAsync(this.redisConnection, this.settings.TaskHubName);
+                this.activityTaskManager = new ActivityTaskHandler(taskHub: this.settings.TaskHubName, workerId: this.workerGuid, connection: this.redisConnection);
+                this.logger = new RedisLogger(this.redisConnection, this.settings.TaskHubName);
+            }
+
+            this.startLock.Release();
+        }
+
+        private void RegisterWorker()
+        {
+            IDatabase database = this.redisConnection.GetDatabase();
+            string workerSetKey = RedisKeyNameResolver.GetWorkerSetKey(this.settings.TaskHubName);
+            database.SetAdd(workerSetKey, this.workerGuid);
+
+            // TODO: Set up ping background job for multi-worker scenario
         }
 
         public async Task StopAsync()
         {
-            ConnectionMultiplexer redisConnection = await this.GetRedisConnectionAsync();
-            await redisConnection.CloseAsync();
+            if (this.redisConnection != null)
+            {
+                await this.redisConnection.CloseAsync();
+            }
         }
 
         public async Task StopAsync(bool isForced)
@@ -188,43 +312,90 @@ namespace DurableTask.Redis
         #region Dispatcher Methods
         public int GetDelayInSecondsAfterOnFetchException(Exception exception)
         {
-            throw new NotImplementedException();
+            return 0;
         }
 
         public int GetDelayInSecondsAfterOnProcessException(Exception exception)
         {
-            throw new NotImplementedException();
+            return 0;
         }
         #endregion
 
         #region Client Methods
-        public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage)
+        public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage)
         {
-            throw new NotImplementedException();
+            if (this.partitionOrchestrationManager == null)
+            {
+                await StartAsync();
+            }
+            await this.partitionOrchestrationManager.CreateTaskOrchestration(creationMessage, null);
         }
 
-        public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses)
+        public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses)
         {
-            throw new NotImplementedException();
+            if (this.partitionOrchestrationManager == null)
+            {
+                await StartAsync();
+            }
+            await this.partitionOrchestrationManager.CreateTaskOrchestration(creationMessage, dedupeStatuses);
         }
 
-        public Task SendTaskOrchestrationMessageAsync(TaskMessage message)
+        public async Task SendTaskOrchestrationMessageAsync(TaskMessage message)
         {
-            throw new NotImplementedException();
+            if (this.partitionOrchestrationManager == null)
+            {
+                await StartAsync();
+            }
+            await SendTaskOrchestrationMessageBatchAsync(message);
         }
 
-        public Task SendTaskOrchestrationMessageBatchAsync(params TaskMessage[] messages)
+        public async Task SendTaskOrchestrationMessageBatchAsync(params TaskMessage[] messages)
         {
-            throw new NotImplementedException();
+            if (this.partitionOrchestrationManager == null)
+            {
+                await StartAsync();
+            }
+            await this.partitionOrchestrationManager.SendOrchestrationMessages(messages);
         }
 
-        public Task<OrchestrationState> WaitForOrchestrationAsync(
+        public async Task<OrchestrationState> WaitForOrchestrationAsync(
             string instanceId,
             string executionId,
             TimeSpan timeout,
             CancellationToken cancellationToken)
         {
-            throw new NotImplementedException();
+            if (this.partitionOrchestrationManager == null)
+            {
+                await StartAsync();
+            }
+
+            if (string.IsNullOrWhiteSpace(instanceId))
+            {
+                throw new ArgumentException(nameof(instanceId));
+            }
+
+            var timeoutCancellationSource = new CancellationTokenSource(timeout);
+            var globalCancellationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCancellationSource.Token);
+            var globalCancellationToken = globalCancellationSource.Token;
+
+            TimeSpan statusPollingInterval = TimeSpan.FromMilliseconds(250);
+            while (!globalCancellationToken.IsCancellationRequested)
+            {
+                OrchestrationState state = await this.GetOrchestrationStateAsync(instanceId, executionId);
+                if (state == null ||
+                    state.OrchestrationStatus == OrchestrationStatus.Running ||
+                    state.OrchestrationStatus == OrchestrationStatus.Pending ||
+                    state.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew)
+                {
+                    await Task.Delay(statusPollingInterval, globalCancellationToken);
+                }
+                else
+                {
+                    return state;
+                }
+            }
+
+            return null;
         }
 
         public Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason)
@@ -232,14 +403,18 @@ namespace DurableTask.Redis
             throw new NotImplementedException();
         }
 
-        public Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
+        public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
         {
-            throw new NotImplementedException();
+            return new OrchestrationState[] { await this.GetOrchestrationStateAsync(instanceId, "") };
         }
 
-        public Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)
+        public async Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)
         {
-            throw new NotImplementedException();
+            if (this.partitionOrchestrationManager == null)
+            {
+                await StartAsync();
+            }
+            return await this.partitionOrchestrationManager.GetOrchestrationState(instanceId);
         }
 
         public Task<string> GetOrchestrationHistoryAsync(string instanceId, string executionId)
