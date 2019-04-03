@@ -21,13 +21,13 @@ namespace DurableTask.Redis.Tests
     {
         static RedisTestConfig config;
 
-        public static RedisOrchestrationService GetTestOrchestrationService()
+        public static RedisOrchestrationService GetTestOrchestrationService(string taskHub = null)
         {
             RedisTestConfig testConfig = GetRedisTestConfig();
             var settings = new RedisOrchestrationServiceSettings
             {
                 RedisConnectionString = testConfig.RedisConnectionString,
-                TaskHubName = testConfig.TaskHubName
+                TaskHubName = taskHub ?? "TaskHub"
             };
 
             return new RedisOrchestrationService(settings);
@@ -37,12 +37,6 @@ namespace DurableTask.Redis.Tests
         {
             RedisTestConfig testConfig = GetRedisTestConfig();
             return await ConnectionMultiplexer.ConnectAsync(testConfig.RedisConnectionString);
-        }
-
-        public static string GetTaskHubName()
-        {
-            RedisTestConfig testConfig = GetRedisTestConfig();
-            return testConfig.TaskHubName;
         }
 
         private static RedisTestConfig GetRedisTestConfig()
@@ -61,7 +55,6 @@ namespace DurableTask.Redis.Tests
 
         public class RedisTestConfig
         {
-            public string TaskHubName { get; set; }
             public string RedisConnectionString { get; set; }
         }
     }
