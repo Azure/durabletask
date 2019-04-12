@@ -4,7 +4,7 @@
   <PropertyGroup>
     <TargetFrameworks>netstandard2.0;net451</TargetFrameworks>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
-    <FileVersion>1.5.0</FileVersion>
+    <FileVersion>1.6.0</FileVersion>
     <AssemblyVersion>$(FileVersion)</AssemblyVersion>
     <Version>$(FileVersion)</Version>
     <IncludeSymbols>true</IncludeSymbols>
