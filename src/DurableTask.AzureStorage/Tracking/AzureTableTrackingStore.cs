@@ -495,7 +495,8 @@ namespace DurableTask.AzureStorage.Tracking
             var orchestrationState = new OrchestrationState();
             if (!Enum.TryParse(orchestrationInstanceStatus.RuntimeStatus, out orchestrationState.OrchestrationStatus))
             {
-                throw new ArgumentException($"{orchestrationInstanceStatus.RuntimeStatus} is not a valid OrchestrationStatus value.");
+                // This is not expected, but could happen if there is invalid data in the Instances table.
+                orchestrationState.OrchestrationStatus = (OrchestrationStatus)(-1);
             }
 
             orchestrationState.OrchestrationInstance = new OrchestrationInstance

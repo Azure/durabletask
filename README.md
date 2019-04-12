@@ -44,6 +44,10 @@ https://www.nuget.org/packages/DurableTask
 
 To run unit tests, you must specify your Service Bus connection string for the tests to use. You can do this via the **ServiceBusConnectionString** app.config value in the test project, or by defining a **DurableTaskTestServiceBusConnectionString** environment variable. The benefit of the environment variable is that no temporary source changes are required. 
 
+Unit tests also require [Azure Storage Emulator](https://docs.microsoft.com/en-us/azure/storage/common/storage-use-emulator), so make sure it's installed and running. 
+
+> Note: While it's possible to use in tests a real Azure Storage account it is highly not recomended to do so because many tests will fail with a 409 Conflict error. This is because tests delete and quickly recreate the same storage tables, and Azure Storage doesn't do well in these conditions. If you really want to change Azure Storage connection string you can do so via the **StorageConnectionString** app.config value in the test project, or by defining a **DurableTaskTestStorageConnectionString** environment variable. 
+
 The associated wiki contains more details about the framework:
 https://github.com/Azure/durabletask/wiki
 
