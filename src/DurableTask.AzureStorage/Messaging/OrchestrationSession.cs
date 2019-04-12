@@ -119,6 +119,13 @@ namespace DurableTask.AzureStorage.Messaging
 
         internal bool IsOutOfOrderMessage(MessageData message)
         {
+            if (this.RuntimeState.Events.Count == 0 ||
+                this.RuntimeState.ExecutionStartedEvent == null)
+            {
+                // This message is for an instance which doesn't exist.
+                return false;
+            }
+
             int taskScheduledId = Utils.GetTaskEventId(message.TaskMessage.Event);
             if (taskScheduledId < 0)
             {
