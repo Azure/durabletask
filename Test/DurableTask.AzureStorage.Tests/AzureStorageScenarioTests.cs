@@ -185,6 +185,27 @@ namespace DurableTask.AzureStorage.Tests
         }
 
 
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task AutoStart(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                await host.StartAsync();
+
+                host.AddAutoStartOrchestrator(typeof(Orchestrations.AutoStartOrchestration.Responder));
+
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.AutoStartOrchestration), "");
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                Assert.AreEqual("OK", JToken.Parse(status?.Output));
+
+                await host.StopAsync();
+            }
+        }
+
         [TestMethod]
         public async Task PurgeInstanceHistoryForSingleInstanceWithoutLargeMessageBlobs()
         {
@@ -2194,6 +2215,78 @@ namespace DurableTask.AzureStorage.Tests
                     await Task.WhenAll(tasks2);
 
                     return "OK";
+                }
+            }
+
+            [KnownType(typeof(AutoStartOrchestration.Responder))]
+            internal class AutoStartOrchestration : TaskOrchestration<string, string>
+            {
+                private readonly TaskCompletionSource<string> tcs
+                    = new TaskCompletionSource<string>(TaskContinuationOptions.ExecuteSynchronously);
+
+                // HACK: This is just a hack to communicate result of orchestration back to test
+                public static bool OkResult;
+
+                private const string ChannelName = "conversation";
+
+                public async override Task<string> RunTask(OrchestrationContext context, string input)
+                {
+                    var responderId = $"@{typeof(Responder).FullName}";
+                    var responderInstance = new OrchestrationInstance() { InstanceId = responderId };
+
+                    // send the id of this orchestration to a not-yet-started orchestration
+                    context.SendEvent(responderInstance, ChannelName, context.OrchestrationInstance.InstanceId);
+
+                    // wait for a response event 
+                    var message = await tcs.Task;
+                    if (message != "hello from autostarted orchestration")
+                        throw new Exception("test failed");
+
+                    OkResult = true;
+
+                    return "OK";
+                }
+
+                public override void OnEvent(OrchestrationContext context, string name, string input)
+                {
+                    if (name == ChannelName)
+                    {
+                        tcs.TrySetResult(input);
+                    }
+                }
+
+                public class Responder : TaskOrchestration<string, string>
+                {
+                    private readonly TaskCompletionSource<string> tcs
+                        = new TaskCompletionSource<string>(TaskContinuationOptions.ExecuteSynchronously);
+
+                    public async override Task<string> RunTask(OrchestrationContext context, string input)
+                    {
+                        var message = await tcs.Task;
+                        string responseString;
+
+                        // send a message back to the sender
+                        if (input != null)
+                        {
+                            responseString = "expected null input for autostarted orchestration";
+                        }
+                        else
+                        {
+                            responseString = "hello from autostarted orchestration";
+                        }
+                        var senderInstance = new OrchestrationInstance() { InstanceId = message };
+                        context.SendEvent(senderInstance, ChannelName, responseString);
+
+                        return "this return value is not observed by anyone";
+                    }
+
+                    public override void OnEvent(OrchestrationContext context, string name, string input)
+                    {
+                        if (name == ChannelName)
+                        {
+                            tcs.TrySetResult(input);
+                        }
+                    }
                 }
             }
         }

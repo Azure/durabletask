@@ -58,6 +58,12 @@ namespace DurableTask.AzureStorage.Tests
             return this.worker.StopAsync(isForced: true);
         }
 
+        public void AddAutoStartOrchestrator(Type type)
+        {
+            this.worker.AddTaskOrchestrations(new AutoStartOrchestrationCreator(type));
+            this.addedOrchestrationTypes.Add(type);
+        }
+
         public async Task<TestOrchestrationClient> StartOrchestrationAsync(
             Type orchestrationType,
             object input,
