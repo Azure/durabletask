@@ -1522,6 +1522,17 @@ namespace DurableTask.AzureStorage
             return this.trackingStore.PurgeHistoryAsync(thresholdDateTimeUtc, timeRangeFilterType);
         }
 
+        /// <summary>
+        /// Download status fields whose content was too large to be stored in the orchestration status,
+        /// such as the input or output, and for which the blob URI was stored instead.
+        /// </summary>
+        /// <param name="blobUri"></param>
+        /// <returns></returns>
+        public Task<string> DownloadLargeStatusField(string blobUri)
+        {
+            return this.messageManager.DownloadAndDecompressAsBytesAsync(new Uri(blobUri));
+        }
+
         #endregion
 
         // TODO: Change this to a sticky assignment so that partition count changes can
