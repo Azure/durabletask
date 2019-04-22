@@ -27,7 +27,7 @@
   </ItemGroup>
 
   <!-- Sign assemblies if the snk file is present -->
-  <PropertyGroup Condition="Exists('$(SolutionDir)\tools\sign.snk')">
+  <PropertyGroup Condition="Exists('$(SolutionDir)\tools\sign.snk') And $(Configuration) == 'Release'">
     <SignAssembly>true</SignAssembly>
     <AssemblyOriginatorKeyFile>$(SolutionDir)\tools\sign.snk</AssemblyOriginatorKeyFile>
     <DefineConstants>$(DefineConstants);SIGN_ASSEMBLY</DefineConstants>
