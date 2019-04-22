@@ -15,22 +15,41 @@ namespace DurableTask.Core.History
 {
     using System.Runtime.Serialization;
 
+    /// <summary>
+    /// A history event for event sent
+    /// </summary>
     [DataContract]
-    internal class EventSentEvent : HistoryEvent
+    public class EventSentEvent : HistoryEvent
     {
+        /// <summary>
+        /// Creates a new <see cref="EventSentEvent"/> with the supplied event id.
+        /// </summary>
+        /// <param name="eventId">The ID of the event.</param>
         public EventSentEvent(int eventId)
             : base(eventId)
         {
         }
 
+        /// <summary>
+        /// Gets the event type
+        /// </summary>
         public override EventType EventType => EventType.EventSent;
 
+        /// <summary>
+        /// The orchestration instance ID for this event
+        /// </summary>
         [DataMember]
         public string InstanceId { get; set; }
 
+        /// <summary>
+        /// Gets or sets the orchestration name
+        /// </summary>
         [DataMember]
         public string Name { get; set; }
 
+        /// <summary>
+        /// Gets or sets the serialized payload of the event
+        /// </summary>
         [DataMember]
         public string Input { get; set; }
     }
