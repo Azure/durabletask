@@ -1523,12 +1523,11 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
-        /// Download status fields whose content was too large to be stored in the orchestration status,
-        /// such as the input or output, and for which the blob URI was stored instead.
+        /// Download content that was too large to be stored in table storage,
+        /// such as the input or output status fields, and for which the blob URI was stored instead.
         /// </summary>
-        /// <param name="blobUri"></param>
-        /// <returns></returns>
-        public Task<string> DownloadLargeStatusField(string blobUri)
+        /// <param name="blobUri">The URI of the blob.</param>
+        public Task<string> DownloadBlobAsync(string blobUri)
         {
             return this.messageManager.DownloadAndDecompressAsBytesAsync(new Uri(blobUri));
         }
