@@ -15,20 +15,37 @@ namespace DurableTask.Core.History
 {
     using System.Runtime.Serialization;
 
+    /// <summary>
+    /// A history event for event raised
+    /// </summary>
     [DataContract]
-    internal class EventRaisedEvent : HistoryEvent
+    public class EventRaisedEvent : HistoryEvent
     {
+        /// <summary>
+        /// Creates a new <see cref="EventRaisedEvent"/> with the supplied event id and input.
+        /// </summary>
+        /// <param name="eventId">The ID of the event.</param>
+        /// <param name="input">The serialized event payload.</param>
         public EventRaisedEvent(int eventId, string input)
             : base(eventId)
         {
             Input = input;
         }
 
+        /// <summary>
+        /// Gets the event type
+        /// </summary>
         public override EventType EventType => EventType.EventRaised;
 
+        /// <summary>
+        /// Gets or sets the orchestration name
+        /// </summary>
         [DataMember]
         public string Name { get; set; }
 
+        /// <summary>
+        /// Gets or sets the serialized payload of the event
+        /// </summary>
         [DataMember]
         public string Input { get; set; }
     }

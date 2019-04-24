@@ -448,7 +448,7 @@ namespace DurableTask.Core
 
             var executor = new TaskOrchestrationExecutor(runtimeState, taskOrchestration, orchestrationService.EventBehaviourForContinueAsNew);
 
-            IEnumerable<OrchestratorAction> decisions = null;
+            IEnumerable<OrchestratorAction> decisions = Enumerable.Empty<OrchestratorAction>();
             await this.dispatchPipeline.RunAsync(dispatchContext, _ =>
             {
                 decisions = executor.Execute();
@@ -465,6 +465,7 @@ namespace DurableTask.Core
             dispatchContext.SetProperty(cursor.TaskOrchestration);
             dispatchContext.SetProperty(cursor.RuntimeState);
 
+            cursor.LatestDecisions = Enumerable.Empty<OrchestratorAction>();
             return this.dispatchPipeline.RunAsync(dispatchContext, _ =>
             {
                 cursor.LatestDecisions = cursor.OrchestrationExecutor.ExecuteNewEvents();
