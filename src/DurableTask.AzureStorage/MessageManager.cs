@@ -175,6 +175,17 @@ namespace DurableTask.AzureStorage
             await this.EnsureContainerAsync();
 
             CloudBlockBlob cloudBlockBlob = this.cloudBlobContainer.GetBlockBlobReference(blobName);
+            return await DownloadAndDecompressAsBytesAsync(cloudBlockBlob);
+        }
+
+        internal Task<string> DownloadAndDecompressAsBytesAsync(Uri blobUri)
+        {
+            CloudBlockBlob cloudBlockBlob = new CloudBlockBlob(blobUri, this.cloudBlobContainer.ServiceClient.Credentials);
+            return DownloadAndDecompressAsBytesAsync(cloudBlockBlob);
+        }
+
+        private async Task<string> DownloadAndDecompressAsBytesAsync(CloudBlockBlob cloudBlockBlob)
+        {
             Stream downloadBlobAsStream = await cloudBlockBlob.OpenReadAsync();
             ArraySegment<byte> decompressedSegment = this.Decompress(downloadBlobAsStream);
             return Encoding.UTF8.GetString(decompressedSegment.Array, 0, decompressedSegment.Count);
