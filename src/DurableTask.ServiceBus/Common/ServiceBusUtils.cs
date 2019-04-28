@@ -11,7 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceBus.Common
+namespace DurableTask.ServiceBus.Common.Abstraction
 {
     using System;
     using System.Collections.Generic;
@@ -27,9 +27,10 @@ namespace DurableTask.ServiceBus.Common
     using DurableTask.Core.Tracing;
     using DurableTask.Core.Tracking;
     using DurableTask.ServiceBus.Settings;
-    using Microsoft.Azure.ServiceBus;
-    using Microsoft.Azure.ServiceBus.InteropExtensions;
     using Newtonsoft.Json;
+#if NETSTANDARD2_0
+    using Microsoft.Azure.ServiceBus.InteropExtensions;
+#endif
 
     internal static class ServiceBusUtils
     {
@@ -56,6 +57,7 @@ namespace DurableTask.ServiceBus.Common
 
             if (compressionSettings.Style == CompressionStyle.Legacy)
             {
+#if NETSTANDARD2_0
                 using (var ms = new MemoryStream())
                 {
                     var serialiser = (XmlObjectSerializer)typeof(DataContractBinarySerializer<>)
@@ -65,6 +67,9 @@ namespace DurableTask.ServiceBus.Common
                     serialiser?.WriteObject(ms,serializableObject);
                     return new Message(ms.ToArray()) { SessionId = instance?.InstanceId };
                 }
+#else
+                return new Message(serializableObject) { SessionId = instance?.InstanceId};
+#endif
             }
 
             if (messageSettings == null)
@@ -135,14 +140,19 @@ namespace DurableTask.ServiceBus.Common
 
         static Message GenerateBrokeredMessageWithCompressionTypeProperty(Stream stream, string compressionType)
         {
+#if NETSTANDARD2_0
+            Message brokeredMessage;
             using (var ms = new MemoryStream())
             {
                 stream.CopyTo(ms);
-                var brokeredMessage = new Message(ms.ToArray());
-                brokeredMessage.UserProperties[FrameworkConstants.CompressionTypePropertyName] = compressionType;
-
-                return brokeredMessage;
+                brokeredMessage = new Message(ms.ToArray());
             }
+#else
+            var brokeredMessage = new Message(stream);
+#endif
+            brokeredMessage.UserProperties[FrameworkConstants.CompressionTypePropertyName] = compressionType;
+
+            return brokeredMessage;
         }
 
         static async Task<Message> GenerateBrokeredMessageWithBlobKeyPropertyAsync(
@@ -205,8 +215,12 @@ namespace DurableTask.ServiceBus.Common
             if (string.IsNullOrWhiteSpace(compressionType))
             {
                 // no compression, legacy style
+#if NETSTANDARD2_0
                 using (var ms = new MemoryStream(message.Body))
                     deserializedObject = (T)DataContractBinarySerializer<T>.Instance.ReadObject(ms);
+#else
+                deserializedObject = message.GetBody<T>();
+#endif
             }
             else if (string.Equals(compressionType, FrameworkConstants.CompressionTypeGzipPropertyValue,
                 StringComparison.OrdinalIgnoreCase))
@@ -288,7 +302,11 @@ namespace DurableTask.ServiceBus.Common
             {
                 // load the stream from the message directly if the blob key property is not set,
                 // i.e., it is not stored externally
+#if NETSTANDARD2_0
                 return Task.Run(() => new System.IO.MemoryStream(message.Body) as Stream);
+#else
+                return Task.Run(() => message.GetBody<Stream>());
+#endif
             }
 
             // if the blob key is set in the message property,

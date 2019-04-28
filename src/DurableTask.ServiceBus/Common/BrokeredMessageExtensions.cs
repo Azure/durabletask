@@ -11,11 +11,10 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceBus.Common
+namespace DurableTask.ServiceBus.Common.Abstraction
 {
     using System;
     using DurableTask.Core.Common;
-    using Microsoft.Azure.ServiceBus;
 
     /// <summary>
     /// Extension methods for BrokeredMessage

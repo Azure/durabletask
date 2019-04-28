@@ -16,7 +16,7 @@ namespace DurableTask.ServiceBus
     using System;
     using System.Collections.Generic;
     using DurableTask.Core;
-    using Microsoft.Azure.ServiceBus;
+    using DurableTask.ServiceBus.Common.Abstraction;
 
     internal class ServiceBusOrchestrationSession
     {
