@@ -21,7 +21,7 @@ namespace DurableTask.Redis
     /// <summary>
     /// Allows chaining Redis commands into a single transaction.
     /// </summary>
-    public class RedisTransactionBuilder
+    internal class RedisTransactionBuilder
     {
         private readonly string taskHub;
         private readonly string partition;

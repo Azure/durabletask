@@ -30,7 +30,7 @@ namespace DurableTask.Redis
     /// there is only one orchestration partition due to only one worker existing at a time, but in the future
     /// partition management and assigning these partitions to workers will be required.
     /// </summary>
-    public class OrchestrationSessionPartitionHandler
+    internal class OrchestrationSessionPartitionHandler
     {
         // TODO: Don't need to be redis locks since only one worker can have a partition at a time. However,
         // will need a single redis lock to enforce only one worker having access to a partition.

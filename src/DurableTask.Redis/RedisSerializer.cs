@@ -22,7 +22,7 @@ namespace DurableTask.Redis
     /// <summary>
     /// Serializes objects in a consistent matter so data can be stored and retrieved from Redis
     /// </summary>
-    public class RedisSerializer
+    internal class RedisSerializer
     {
         private static readonly JsonSerializerSettings serializerSettings = new JsonSerializerSettings
         {
