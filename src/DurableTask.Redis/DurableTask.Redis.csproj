@@ -1,7 +1,9 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
+  <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
+    <RunCodeAnalysis>false</RunCodeAnalysis>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <FileVersion>0.1.0</FileVersion>
     <AssemblyVersion>$(FileVersion)</AssemblyVersion>
@@ -20,6 +22,10 @@
 
   <ItemGroup>
     <PackageReference Include="StackExchange.Redis" Version="2.0.571" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.0-*" PrivateAssets="All" />
   </ItemGroup>
   
   <ItemGroup>
