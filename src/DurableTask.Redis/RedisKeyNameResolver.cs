@@ -17,7 +17,7 @@ namespace DurableTask.Redis
     /// Helper methods to make getting the corresponding Redis Key for the various Redis data 
     /// structures easier.
     /// </summary>
-    public static class RedisKeyNameResolver
+    internal static class RedisKeyNameResolver
     {
         public static string GetPartitionControlQueueKey(string taskHubName, string partition)
         {

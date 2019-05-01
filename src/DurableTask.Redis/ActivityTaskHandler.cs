@@ -25,7 +25,7 @@ namespace DurableTask.Redis
     /// Right now only one is alive, but when multiple are alive, they will have to have a background task to constantly
     /// add some Redis state to prove they are still alive
     /// </summary>
-    public class ActivityTaskHandler
+    internal class ActivityTaskHandler
     {
         //TODO: Eventually these will need to be Redis locks once we have a multiple worker scenario
         private readonly SemaphoreSlim incomingQueueLock = new SemaphoreSlim(1);

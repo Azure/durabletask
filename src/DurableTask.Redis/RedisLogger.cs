@@ -17,7 +17,7 @@ using StackExchange.Redis;
 
 namespace DurableTask.Redis
 {
-    public class RedisLogger
+    internal class RedisLogger
     {
         private readonly ConnectionMultiplexer redisConnection;
         private readonly string logKey;
