@@ -35,6 +35,8 @@ namespace DurableTask.Core
         /// </summary>
         public IList<HistoryEvent> NewEvents { get; }
 
+        private ISet<int> SuccessfulEventIds { get; }
+
         /// <summary>
         /// Compressed size of the serialized state
         /// </summary>
@@ -68,6 +70,7 @@ namespace DurableTask.Core
         {
             Events = new List<HistoryEvent>();
             NewEvents = new List<HistoryEvent>();
+            SuccessfulEventIds = new HashSet<int>();
 
             if (events != null && events.Count > 0)
             {
@@ -195,10 +198,24 @@ namespace DurableTask.Core
         /// <param name="isNewEvent">Flag indicating whether this is a new event or not</param>
         void AddEvent(HistoryEvent historyEvent, bool isNewEvent)
         {
-            Events.Add(historyEvent);
+            
             if (isNewEvent)
             {
-                NewEvents.Add(historyEvent);
+                if (historyEvent.EventId == -1 || // Common ID is -1
+                     !SuccessfulEventIds.Contains(historyEvent.EventId) // It shares an ID with a successfully completed event
+                )
+                {
+                    NewEvents.Add(historyEvent);
+                    Events.Add(historyEvent);
+                }
+            }
+            else
+            {
+                Events.Add(historyEvent);
+                if (historyEvent.EventType == EventType.TaskCompleted)
+                {
+                    SuccessfulEventIds.Add(historyEvent.EventId);
+                }
             }
 
             SetMarkerEvents(historyEvent);
