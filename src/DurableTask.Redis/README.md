@@ -16,7 +16,7 @@
 Redis provides an excellent [quick start guide](https://redis.io/topics/quickstart) that walks through how to install and run Redis on a Linux device. For Windows machines, it is highly recommended to install the [Windows Subsystem for Linux](https://docs.microsoft.com/en-us/windows/wsl/faq) and to follow the Redis quickstart guide on your Linux subsystem.
 
 ## Sample code
-```
+```csharp
 var settings = new RedisOrchestrationServiceSettings
 {
     RedisConnectionString = "localhost:6379",
