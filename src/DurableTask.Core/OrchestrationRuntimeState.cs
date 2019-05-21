@@ -18,6 +18,7 @@ namespace DurableTask.Core
     using System.Diagnostics;
     using DurableTask.Core.Common;
     using DurableTask.Core.History;
+    using DurableTask.Core.Tracing;
 
     /// <summary>
     /// Represents the runtime state of an orchestration
@@ -35,7 +36,7 @@ namespace DurableTask.Core
         /// </summary>
         public IList<HistoryEvent> NewEvents { get; }
 
-        private ISet<int> SuccessfulEventIds { get; }
+        private readonly ISet<int> completedEventIds;
 
         /// <summary>
         /// Compressed size of the serialized state
@@ -70,7 +71,7 @@ namespace DurableTask.Core
         {
             Events = new List<HistoryEvent>();
             NewEvents = new List<HistoryEvent>();
-            SuccessfulEventIds = new HashSet<int>();
+            completedEventIds = new HashSet<int>();
 
             if (events != null && events.Count > 0)
             {
@@ -198,27 +199,35 @@ namespace DurableTask.Core
         /// <param name="isNewEvent">Flag indicating whether this is a new event or not</param>
         void AddEvent(HistoryEvent historyEvent, bool isNewEvent)
         {
-            
+            if (IsDuplicateEvent(historyEvent))
+            {
+                return;
+            }
+
+            Events.Add(historyEvent);
+
             if (isNewEvent)
             {
-                if (historyEvent.EventId == -1 || // Common ID is -1
-                     !SuccessfulEventIds.Contains(historyEvent.EventId) // It shares an ID with a successfully completed event
-                )
-                {
-                    NewEvents.Add(historyEvent);
-                    Events.Add(historyEvent);
-                }
-            }
-            else
-            {
-                Events.Add(historyEvent);
-                if (historyEvent.EventType == EventType.TaskCompleted)
-                {
-                    SuccessfulEventIds.Add(historyEvent.EventId);
-                }
+                NewEvents.Add(historyEvent);
             }
 
             SetMarkerEvents(historyEvent);
+        }
+
+        private bool IsDuplicateEvent(HistoryEvent historyEvent)
+        {
+            if (historyEvent.EventId >= 0 &&
+                historyEvent.EventType == EventType.TaskCompleted &&
+                !completedEventIds.Add(historyEvent.EventId))
+            {
+                TraceHelper.Trace(TraceEventType.Warning, 
+                    "AddEvent-DuplicateEvent", 
+                    "The orchestration {0} has already have seen a completed task with id {1}.",
+                    this.OrchestrationInstance.InstanceId,
+                    historyEvent.EventId);
+                return true;
+            }
+            return false;
         }
 
         void SetMarkerEvents(HistoryEvent historyEvent)
