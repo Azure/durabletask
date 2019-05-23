@@ -18,6 +18,7 @@ namespace DurableTask.Core
     using System.Diagnostics;
     using DurableTask.Core.Common;
     using DurableTask.Core.History;
+    using DurableTask.Core.Tracing;
 
     /// <summary>
     /// Represents the runtime state of an orchestration
@@ -34,6 +35,8 @@ namespace DurableTask.Core
         /// should not be serialized
         /// </summary>
         public IList<HistoryEvent> NewEvents { get; }
+
+        readonly ISet<int> completedEventIds;
 
         /// <summary>
         /// Compressed size of the serialized state
@@ -68,6 +71,7 @@ namespace DurableTask.Core
         {
             Events = new List<HistoryEvent>();
             NewEvents = new List<HistoryEvent>();
+            completedEventIds = new HashSet<int>();
 
             if (events != null && events.Count > 0)
             {
@@ -195,13 +199,35 @@ namespace DurableTask.Core
         /// <param name="isNewEvent">Flag indicating whether this is a new event or not</param>
         void AddEvent(HistoryEvent historyEvent, bool isNewEvent)
         {
+            if (IsDuplicateEvent(historyEvent))
+            {
+                return;
+            }
+
             Events.Add(historyEvent);
+
             if (isNewEvent)
             {
                 NewEvents.Add(historyEvent);
             }
 
             SetMarkerEvents(historyEvent);
+        }
+
+        bool IsDuplicateEvent(HistoryEvent historyEvent)
+        {
+            if (historyEvent.EventId >= 0 &&
+                historyEvent.EventType == EventType.TaskCompleted &&
+                !completedEventIds.Add(historyEvent.EventId))
+            {
+                TraceHelper.Trace(TraceEventType.Warning, 
+                    "OrchestrationRuntimeState-DuplicateEvent", 
+                    "The orchestration {0} has already seen a completed task with id {1}.",
+                    this.OrchestrationInstance.InstanceId,
+                    historyEvent.EventId);
+                return true;
+            }
+            return false;
         }
 
         void SetMarkerEvents(HistoryEvent historyEvent)
