@@ -36,7 +36,7 @@ namespace DurableTask.Core
         /// </summary>
         public IList<HistoryEvent> NewEvents { get; }
 
-        private readonly ISet<int> completedEventIds;
+        readonly ISet<int> completedEventIds;
 
         /// <summary>
         /// Compressed size of the serialized state
@@ -214,15 +214,15 @@ namespace DurableTask.Core
             SetMarkerEvents(historyEvent);
         }
 
-        private bool IsDuplicateEvent(HistoryEvent historyEvent)
+        bool IsDuplicateEvent(HistoryEvent historyEvent)
         {
             if (historyEvent.EventId >= 0 &&
                 historyEvent.EventType == EventType.TaskCompleted &&
                 !completedEventIds.Add(historyEvent.EventId))
             {
                 TraceHelper.Trace(TraceEventType.Warning, 
-                    "AddEvent-DuplicateEvent", 
-                    "The orchestration {0} has already have seen a completed task with id {1}.",
+                    "OrchestrationRuntimeState-DuplicateEvent", 
+                    "The orchestration {0} has already seen a completed task with id {1}.",
                     this.OrchestrationInstance.InstanceId,
                     historyEvent.EventId);
                 return true;
