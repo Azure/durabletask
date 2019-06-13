@@ -150,7 +150,7 @@ namespace DurableTask.AzureStorage.Messaging
             return true;
         }
 
-        internal bool IsNonexistantInstance()
+        bool IsNonexistantInstance()
         {
             return this.RuntimeState.Events.Count == 0 || this.RuntimeState.ExecutionStartedEvent == null;
         }
