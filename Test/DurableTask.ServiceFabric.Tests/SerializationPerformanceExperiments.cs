@@ -16,6 +16,7 @@ namespace DurableTask.ServiceFabric.Tests
     using System;
     using System.Collections.Generic;
     using System.Runtime.Serialization;
+
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]

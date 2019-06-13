@@ -16,8 +16,10 @@ namespace DurableTask.ServiceFabric.Tests
     using System;
     using System.Collections.Generic;
     using System.Collections.Immutable;
+
     using DurableTask.Core;
     using DurableTask.Core.History;
+
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]

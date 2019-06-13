@@ -54,7 +54,7 @@ namespace DurableTask.ServiceFabric
             parameters.TaskMessage.OrchestrationInstance.InstanceId.EnsureValidInstanceId();
             if (!orchestrationId.Equals(parameters.TaskMessage.OrchestrationInstance.InstanceId))
             {
-                return Conflict();
+                return BadRequest($"OrchestrationId from Uri {orchestrationId} doesn't match with the one from body {parameters.TaskMessage.OrchestrationInstance.InstanceId}");
             }
             try
             {
@@ -69,9 +69,9 @@ namespace DurableTask.ServiceFabric
 
                 return new OkResult(this);
             }
-            catch (OrchestrationAlreadyExistsException exception)
+            catch (OrchestrationAlreadyExistsException)
             {
-                return new ExceptionResult(exception, this);
+                return Conflict();
             }
         }
 

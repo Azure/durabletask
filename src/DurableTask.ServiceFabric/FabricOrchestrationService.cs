@@ -359,11 +359,15 @@ namespace DurableTask.ServiceFabric
 
             this.instanceStore.OnOrchestrationCompleted(workItem.OrchestrationRuntimeState.OrchestrationInstance);
 
-            ServiceFabricProviderEventSource.Tracing.OrchestrationFinished(workItem.InstanceId,
+            string message = string.Format("Orchestration with instanceId : '{0}' and executionId : '{1}' Finished with the status {2} and result {3} in {4} seconds.",
+                workItem.InstanceId,
+                workItem.OrchestrationRuntimeState.OrchestrationInstance.ExecutionId,
                 workItem.OrchestrationRuntimeState.OrchestrationStatus.ToString(),
-                (workItem.OrchestrationRuntimeState.CompletedTime - workItem.OrchestrationRuntimeState.CreatedTime).TotalSeconds,
                 workItem.OrchestrationRuntimeState.Output,
-                workItem.OrchestrationRuntimeState.OrchestrationInstance.ExecutionId);
+                (workItem.OrchestrationRuntimeState.CompletedTime - workItem.OrchestrationRuntimeState.CreatedTime).TotalSeconds);
+            ServiceFabricProviderEventSource.Tracing.LogOrchestrationInformation(workItem.InstanceId,
+                workItem.OrchestrationRuntimeState.OrchestrationInstance.ExecutionId,
+                message);
         }
 
         public Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)

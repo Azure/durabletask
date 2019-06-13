@@ -15,7 +15,9 @@ namespace DurableTask.ServiceFabric.Integration.Tests
 {
     using System;
     using System.IO;
+
     using DurableTask.ServiceFabric.Integration.Tests.DeploymentUtil;
+
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]

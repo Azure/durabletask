@@ -27,17 +27,17 @@ namespace DurableTask.ServiceFabric.Service
         {
             string requestMethod = request.Method.ToString();
             string requestUri = request.RequestUri.AbsolutePath;
-            ServiceFabricProviderEventSource.Tracing.LogProxyServiceRequest(requestMethod, requestUri);
+            ServiceFabricProviderEventSource.Tracing.LogProxyServiceRequestInformation($"Proxy service incoming request {requestUri} with method {requestMethod}");
             HttpResponseMessage response = null;
             try
             {
                 response = await base.SendAsync(request, cancellationToken);
-                ServiceFabricProviderEventSource.Tracing.LogProxyServiceResponse(requestMethod, requestUri);
+                ServiceFabricProviderEventSource.Tracing.LogProxyServiceRequestInformation($"Proxy service responding request {requestUri} with method {requestMethod}");
             }
             catch (Exception exception)
             {
-                ServiceFabricProviderEventSource.Tracing.LogProxyServiceError(requestMethod, requestUri, exception);
-                response = request.CreateErrorResponse(HttpStatusCode.InternalServerError, exception);
+                ServiceFabricProviderEventSource.Tracing.LogProxyServiceError(requestUri, requestMethod, exception);
+                response = request.CreateErrorResponse(HttpStatusCode.InternalServerError, exception.Message);
             }
 
             return response;

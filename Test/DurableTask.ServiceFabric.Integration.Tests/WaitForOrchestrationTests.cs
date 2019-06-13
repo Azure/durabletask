@@ -15,8 +15,10 @@ namespace DurableTask.ServiceFabric.Integration.Tests
 {
     using System;
     using System.Threading.Tasks;
+
     using DurableTask.Core;
     using DurableTask.Test.Orchestrations.Performance;
+
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]

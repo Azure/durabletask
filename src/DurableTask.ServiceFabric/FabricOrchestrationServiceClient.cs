@@ -20,6 +20,7 @@ namespace DurableTask.ServiceFabric
     using System.Threading.Tasks;
 
     using DurableTask.Core;
+    using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
     using DurableTask.Core.Tracking;
     using DurableTask.ServiceFabric.Stores;
@@ -73,12 +74,13 @@ namespace DurableTask.ServiceFabric
 
             if (added)
             {
-                ServiceFabricProviderEventSource.Tracing.OrchestrationCreated(instance.InstanceId, instance.ExecutionId);
+                string message = string.Format("Orchestration with instanceId : '{0}' and executionId : '{1}' is Created.", instance.InstanceId, instance.ExecutionId);
+                ServiceFabricProviderEventSource.Tracing.LogOrchestrationInformation(instance.InstanceId, instance.ExecutionId, message);
                 this.orchestrationProvider.TryEnqueueSession(creationMessage.OrchestrationInstance);
             }
             else
             {
-                throw new InvalidOperationException($"An orchestration with id '{creationMessage.OrchestrationInstance.InstanceId}' is already running.");
+                throw new OrchestrationAlreadyExistsException($"An orchestration with id '{creationMessage.OrchestrationInstance.InstanceId}' is already running.");
             }
         }
 

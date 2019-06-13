@@ -14,6 +14,7 @@
 namespace DurableTask.ServiceFabric.Tests
 {
     using DurableTask.Core;
+
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]

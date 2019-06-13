@@ -254,6 +254,11 @@ namespace DurableTask.ServiceFabric.Remote
             };
 
             HttpResponseMessage result = await this.HttpClient.PutAsync(uri, @object, mediaFormatter);
+            if (result.StatusCode == System.Net.HttpStatusCode.Conflict)
+            {
+                throw new OrchestrationAlreadyExistsException("Orchestration already exists");
+            }
+
             if (!result.IsSuccessStatusCode)
             {
                 throw new RemoteServiceException("CreateTaskOrchestrationAsync failed", result.StatusCode);
@@ -280,7 +285,7 @@ namespace DurableTask.ServiceFabric.Remote
         {
             // sample endpoint - {"Endpoints":{"":"http:\/\/10.91.42.35:30001"}}
             var jObject = JObject.Parse(endpoint);
-            var defaultEndPoint = jObject["Endpoints"][string.Empty].ToString();
+            var defaultEndPoint = jObject["Endpoints"][Constants.TaskHubProxyServiceName].ToString();
             return defaultEndPoint;
         }
 

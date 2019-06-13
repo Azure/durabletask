@@ -113,47 +113,18 @@ namespace DurableTask.ServiceFabric.Tracing
             }
 #endif
         }
-
-        [Event(3,
-            Keywords = Keywords.Common,
-            Level = EventLevel.Verbose,
-            Message = "Size of {0} : {1} bytes.")]
-        internal void LogSizeMeasure(string uniqueObjectIdentifier, long sizeInBytes)
-        {
-#if DEBUG
-            if (this.IsEnabled(EventLevel.Verbose, Keywords.Common))
-            {
-                this.WriteEvent(3, uniqueObjectIdentifier, sizeInBytes);
-            }
-#endif
-        }
-
         #endregion
-
 
         #region Informational 501-1000
 
         [Event(501,
             Keywords = Keywords.Orchestration,
-            Level = EventLevel.Informational,
-            Message = "Orchestration with instanceId : '{0}' and executionId : '{1}' is Created.")]
-        internal void OrchestrationCreated(string instanceId, string executionId)
+            Level = EventLevel.Informational)]
+        internal void LogOrchestrationInformation(string instanceId, string executionId, string message)
         {
             if (this.IsEnabled(EventLevel.Informational, Keywords.Orchestration))
             {
-                this.WriteEvent(501, instanceId, executionId);
-            }
-        }
-
-        [Event(502,
-            Keywords = Keywords.Orchestration,
-            Level = EventLevel.Informational,
-            Message = "Orchestration with instanceId : '{0}' and executionId : '{4}' Finished with the status {1} and result {3} in {2} seconds.")]
-        internal void OrchestrationFinished(string instanceId, string terminalStatus, double runningTimeInSeconds, string result, string executionId)
-        {
-            if (this.IsEnabled(EventLevel.Informational, Keywords.Orchestration))
-            {
-                this.WriteEvent(502, instanceId, terminalStatus, runningTimeInSeconds, result, executionId);
+                this.WriteEvent(501, instanceId, executionId, message);
             }
         }
 
@@ -195,57 +166,20 @@ namespace DurableTask.ServiceFabric.Tracing
 
         [Event(506,
             Keywords = Keywords.ProxyService,
-            Level = EventLevel.Informational,
-            Message = "Proxy service incoming request {1} with method {0}")]
-        internal void LogProxyServiceRequest(string method, string uri)
+            Level = EventLevel.Informational)]
+        internal void LogProxyServiceRequestInformation(string message)
         {
             if (this.IsEnabled(EventLevel.Informational, Keywords.ProxyService))
             {
-                this.WriteEvent(506, method, uri);
-            }
-        }
-
-        [Event(507,
-            Keywords = Keywords.ProxyService,
-            Level = EventLevel.Informational,
-            Message = "Proxy service responding request {1} with method {0}")]
-        internal void LogProxyServiceResponse(string method, string uri)
-        {
-            if (this.IsEnabled(EventLevel.Informational, Keywords.ProxyService))
-            {
-                this.WriteEvent(507, method, uri);
-            }
-        }
-
-        [Event(508,
-            Keywords = Keywords.FabricService,
-            Level = EventLevel.Informational,
-            Message = "Partition cache building is started")]
-        internal void PartitionCacheBuildStart()
-        {
-            if (this.IsEnabled(EventLevel.Informational, Keywords.FabricService))
-            {
-                this.WriteEvent(508, "Partition cache building is started");
-            }
-        }
-
-        [Event(509,
-            Keywords = Keywords.FabricService,
-            Level = EventLevel.Informational,
-            Message = "Partition cache building is completed")]
-        internal void PartitionCacheBuildComplete()
-        {
-            if (this.IsEnabled(EventLevel.Informational, Keywords.FabricService))
-            {
-                this.WriteEvent(509, "Partition cache building is completed");
+                this.WriteEvent(506, message);
             }
         }
 
         [Event(510,
-            Keywords = Keywords.Common,
+            Keywords = Keywords.FabricService,
             Level = EventLevel.Informational,
             Message = "{7}")]
-        private void ServiceMessage(
+        internal void LogFabricServiceInformation(
             string serviceName,
             string serviceTypeName,
             long replicaOrInstanceId,
@@ -255,39 +189,11 @@ namespace DurableTask.ServiceFabric.Tracing
             string nodeName,
             string message)
         {
-            if (this.IsEnabled(EventLevel.Informational, Keywords.Common))
+            if (this.IsEnabled(EventLevel.Informational, Keywords.FabricService))
             {
                 this.WriteEvent(510, serviceName, serviceTypeName, replicaOrInstanceId, partitionId, applicationName, applicationTypeName, nodeName, message);
             }
         }
-
-
-        [Event(511,
-            Level = EventLevel.Informational,
-            Message = "Service request '{0}' started",
-            Opcode = EventOpcode.Start,
-            Keywords = Keywords.FabricService)]
-        internal void FabricServiceRequestStart(string requestTypeName)
-        {
-            if (this.IsEnabled(EventLevel.Informational, Keywords.FabricService))
-            {
-                this.WriteEvent(511, requestTypeName);
-            }
-        }
-
-        [Event(512,
-            Level = EventLevel.Informational,
-            Message = "Service request '{0}' finished",
-            Opcode = EventOpcode.Stop,
-            Keywords = Keywords.FabricService)]
-        internal void FabricServiceRequestStop(string requestTypeName)
-        {
-            if (this.IsEnabled(EventLevel.Informational, Keywords.FabricService))
-            {
-                this.WriteEvent(512, requestTypeName);
-            }
-        }
-
         #endregion
 
         #region Warnings 1001-1500
@@ -346,29 +252,14 @@ namespace DurableTask.ServiceFabric.Tracing
             }
         }
 
-        [NonEvent]
-        internal void LogProxyServiceError(string method, string uri, Exception exception)
-        {
-            if (exception == null)
-            {
-                LogProxyServiceError(method, uri, "with null exception");
-            }
-            else
-            {
-                var message = $"with message {exception.Message}\n stacktrace {exception.StackTrace}\n innerexception {exception.InnerException}";
-                LogProxyServiceError(method, uri, message);
-            }
-        }
-
         [Event(1503,
             Keywords = Keywords.ProxyService,
-            Level = EventLevel.Error,
-            Message = "Proxy service request {1} with method {0} resulted in error {2}")]
-        internal void LogProxyServiceError(string method, string uri, string exception)
+            Level = EventLevel.Error)]
+        internal void LogProxyServiceError(string message)
         {
             if (this.IsEnabled(EventLevel.Error, Keywords.ProxyService))
             {
-                this.WriteEvent(1503, method, uri, exception);
+                this.WriteEvent(1503, message);
             }
         }
 
@@ -381,26 +272,6 @@ namespace DurableTask.ServiceFabric.Tracing
             if (this.IsEnabled(EventLevel.Error, Keywords.FabricService))
             {
                 this.WriteEvent(1504, exception);
-            }
-        }
-        #endregion
-
-        #region Non Events
-        [NonEvent]
-        internal void ServiceMessage(StatefulService service, string message, params object[] args)
-        {
-            if (this.IsEnabled())
-            {
-                string finalMessage = string.Format(message, args);
-                this.ServiceMessage(
-                    service.Context.ServiceName.ToString(),
-                    service.Context.ServiceTypeName,
-                    service.Context.ReplicaId,
-                    service.Context.PartitionId,
-                    service.Context.CodePackageActivationContext.ApplicationName,
-                    service.Context.CodePackageActivationContext.ApplicationTypeName,
-                    service.Context.NodeContext.NodeName,
-                    finalMessage);
             }
         }
         #endregion
