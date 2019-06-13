@@ -119,10 +119,13 @@ namespace DurableTask.AzureStorage.Messaging
 
         internal bool IsOutOfOrderMessage(MessageData message)
         {
-            if (this.RuntimeState.Events.Count == 0 ||
-                this.RuntimeState.ExecutionStartedEvent == null)
+            if (this.IsNonexistantInstance() && message.OriginalQueueMessage.DequeueCount > 3)
             {
-                // This message is for an instance which doesn't exist.
+                // The first three times a message for a nonexistant instance is dequeued, give the message the benefit
+                // of the doubt and assume that the instance hasn't had its history table populated yet. After the 
+                // third execution, the most likely scenario is that this is a zombie event for a previous iteration of 
+                // an orchestration that called ContinueAsNew(). Return false to let the zombie message continue on to be
+                // discarded so that we don't end up processing it indefinitely.
                 return false;
             }
 
@@ -145,6 +148,11 @@ namespace DurableTask.AzureStorage.Messaging
 
             // The message is out of order and cannot be handled by the current session.
             return true;
+        }
+
+        bool IsNonexistantInstance()
+        {
+            return this.RuntimeState.Events.Count == 0 || this.RuntimeState.ExecutionStartedEvent == null;
         }
     }
 }
