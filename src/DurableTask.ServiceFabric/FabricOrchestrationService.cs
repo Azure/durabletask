@@ -206,11 +206,6 @@ namespace DurableTask.ServiceFabric
         {
             SessionInformation sessionInfo = GetSessionInfo(workItem.InstanceId);
 
-            if (continuedAsNewMessage != null)
-            {
-                throw new Exception("ContinueAsNew is not supported yet");
-            }
-
             bool isComplete = workItem.OrchestrationRuntimeState.OrchestrationStatus.IsTerminalState();
 
             IList<OrchestrationInstance> sessionsToEnqueue = null;
@@ -254,6 +249,12 @@ namespace DurableTask.ServiceFabric
                                     await this.orchestrationProvider.AppendMessageBatchAsync(txn, orchestratorMessages.Select(tm => new TaskMessageItem(tm)));
                                     sessionsToEnqueue = orchestratorMessages.Select(m => m.OrchestrationInstance).ToList();
                                 }
+                            }
+
+                            if (continuedAsNewMessage != null)
+                            {
+                                await this.orchestrationProvider.AppendMessageAsync(txn, new TaskMessageItem(continuedAsNewMessage));
+                                sessionsToEnqueue = new List<OrchestrationInstance>() { continuedAsNewMessage.OrchestrationInstance };
                             }
 
                             await this.orchestrationProvider.CompleteMessages(txn, sessionInfo.Instance, sessionInfo.LockTokens);

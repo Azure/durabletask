@@ -59,16 +59,16 @@ namespace DurableTask.ServiceFabric.Test
         }
 
         [TestMethod]
-        [Ignore]
         public async Task GenerationBasicTest()
         {
+            int generationsToRun = 2;
             GenerationBasicOrchestration.Result = 0;
             GenerationBasicTask.GenerationCount = 0;
 
-            var result = await this.serviceClient.RunOrchestrationAsync(typeof(GenerationBasicOrchestration).Name, 4, TimeSpan.FromMinutes(2));
+            var result = await this.serviceClient.RunOrchestrationAsync(typeof(GenerationBasicOrchestration).Name, generationsToRun, TimeSpan.FromMinutes(30));
 
             Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
-            Assert.AreEqual(4, GenerationBasicOrchestration.Result, "Orchestration Result is wrong!!!");
+            Assert.AreEqual(generationsToRun, GenerationBasicOrchestration.Result, "Orchestration Result is wrong!!!");
         }
 
         [TestMethod]
