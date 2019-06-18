@@ -360,8 +360,8 @@ namespace DurableTask.AzureStorage.Tracking
             rowsToUpdateFilterCondition.Append(PartitionKeyProperty).Append(" eq ").Append(Quote).Append(instanceId).Append(Quote);
             rowsToUpdateFilterCondition.Append(" and ExecutionId eq ").Append(Quote).Append(executionId).Append(Quote);
             rowsToUpdateFilterCondition.Append(" and (OrchestrationStatus eq ").Append(Quote).Append("Failed").Append(Quote);
-            rowsToUpdateFilterCondition.Append(" or EventType eq").Append(Quote).Append("TaskFailed").Append(Quote);
-            rowsToUpdateFilterCondition.Append(" or EventType eq").Append(Quote).Append("SubOrchestrationInstanceFailed").Append(Quote).Append(")");
+            rowsToUpdateFilterCondition.Append(" or EventType eq ").Append(Quote).Append("TaskFailed").Append(Quote);
+            rowsToUpdateFilterCondition.Append(" or EventType eq ").Append(Quote).Append("SubOrchestrationInstanceFailed").Append(Quote).Append(")");
 
             var entitiesToClear = await this.QueryHistoryAsync(rowsToUpdateFilterCondition.ToString(), instanceId, cancellationToken);
 
