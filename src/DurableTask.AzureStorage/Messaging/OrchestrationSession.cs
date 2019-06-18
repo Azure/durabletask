@@ -55,7 +55,7 @@ namespace DurableTask.AzureStorage.Messaging
 
         public IList<MessageData> CurrentMessageBatch { get; private set; }
 
-        public OrchestrationRuntimeState RuntimeState { get; }
+        public OrchestrationRuntimeState RuntimeState { get; private set; }
 
         public string ETag { get; set; }
 
@@ -115,6 +115,12 @@ namespace DurableTask.AzureStorage.Messaging
             }
 
             return messages;
+        }
+
+        public void UpdateRuntimeState(OrchestrationRuntimeState runtimeState)
+        {
+            this.RuntimeState = runtimeState;
+            this.Instance = runtimeState.OrchestrationInstance;
         }
 
         internal bool IsOutOfOrderMessage(MessageData message)
