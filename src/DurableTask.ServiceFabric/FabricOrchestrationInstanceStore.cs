@@ -82,10 +82,7 @@ namespace DurableTask.ServiceFabric
 
                     if (state.State.OrchestrationStatus.IsRunningOrPending())
                     {
-                        if (state.State.OrchestrationStatus == OrchestrationStatus.Pending)
-                        {
-                            await this.executionIdStore.AddOrUpdateAsync(transaction, instance.InstanceId, instance.ExecutionId, (k, old) => instance.ExecutionId);
-                        }
+                        await this.executionIdStore.AddOrUpdateAsync(transaction, instance.InstanceId, instance.ExecutionId, (k, old) => instance.ExecutionId);
                         await this.instanceStore.AddOrUpdateAsync(transaction, key, state.State,
                             (k, oldValue) => state.State);
                     }
