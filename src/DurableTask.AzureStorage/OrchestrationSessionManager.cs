@@ -306,7 +306,7 @@ namespace DurableTask.AzureStorage
                     PendingMessageBatch nextBatch = node.Value;
                     this.pendingOrchestrationMessageBatches.Remove(node);
 
-                    if (!this.activeOrchestrationSessions.ContainsKey(nextBatch.OrchestrationInstanceId))
+                    if (!this.activeOrchestrationSessions.TryGetValue(nextBatch.OrchestrationInstanceId, out var existingSession))
                     {
                         OrchestrationInstance instance = nextBatch.OrchestrationState.OrchestrationInstance ??
                             new OrchestrationInstance
@@ -333,6 +333,24 @@ namespace DurableTask.AzureStorage
                         this.activeOrchestrationSessions.Add(instance.InstanceId, session);
 
                         return session;
+                    }
+                    else if (nextBatch.OrchestrationExecutionId == existingSession.Instance.ExecutionId)
+                    {
+                        // there is already an active session with the same execution id.
+                        // The session might be waiting for more messages. If it is, signal them.
+                        IEnumerable<MessageData> replacements = existingSession.AddOrReplaceMessages(node.Value.Messages);
+                        foreach (MessageData replacementMessage in replacements)
+                        {
+                            AnalyticsEventSource.Log.DuplicateMessageDetected(
+                                this.storageAccountName,
+                                this.settings.TaskHubName,
+                                replacementMessage.OriginalQueueMessage.Id,
+                                existingSession.Instance.InstanceId,
+                                existingSession.Instance.ExecutionId,
+                                node.Value.ControlQueue.Name,
+                                replacementMessage.OriginalQueueMessage.DequeueCount,
+                                Utils.ExtensionVersion);
+                        }
                     }
                     else
                     {
