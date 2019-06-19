@@ -18,6 +18,7 @@ namespace DurableTask.ServiceFabric
     using System.Collections.Generic;
     using System.Collections.Immutable;
     using System.Globalization;
+    using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Core;
@@ -36,7 +37,7 @@ namespace DurableTask.ServiceFabric
         const string TimeFormatStringPrefix = "yyyy-MM-dd-";
         readonly IReliableStateManager stateManager;
         readonly CancellationToken cancellationToken;
-        readonly ConcurrentDictionary<OrchestrationInstance, AsyncManualResetEvent> orchestrationWaiters = new ConcurrentDictionary<OrchestrationInstance, AsyncManualResetEvent>(OrchestrationInstanceComparer.Default);
+        readonly ConcurrentDictionary<string, AsyncManualResetEvent> orchestrationWaiters = new ConcurrentDictionary<string, AsyncManualResetEvent>(StringComparer.Ordinal);
 
         IReliableDictionary<string, OrchestrationState> instanceStore;
         IReliableDictionary<string, string> executionIdStore;
@@ -130,8 +131,9 @@ namespace DurableTask.ServiceFabric
 
         public async Task<string> GetLatestExecutionId(string instanceId)
         {
-            string latestExecutionId = null;
+            await this.EnsureStoreInitialized();
 
+            string latestExecutionId = null;
             await RetryHelper.ExecuteWithRetryOnTransient(async () =>
             {
                 using (var tx = this.stateManager.CreateTransaction())
@@ -312,9 +314,15 @@ namespace DurableTask.ServiceFabric
             }
         }
 
-        public async Task<OrchestrationStateInstanceEntity> WaitForOrchestrationAsync(OrchestrationInstance instance, TimeSpan timeout)
+        public async Task<OrchestrationStateInstanceEntity> WaitForOrchestrationAsync(string instanceId, TimeSpan timeout)
         {
-            var currentState = await this.GetOrchestrationStateAsync(instance.InstanceId, instance.ExecutionId);
+            var executionId = await this.GetLatestExecutionId(instanceId);
+            if (executionId == null)
+            {
+                return null;
+            }
+
+            var currentState = await this.GetOrchestrationStateAsync(instanceId, executionId);
 
             // If querying state for an orchestration that's not started or completed and state cleaned up, we will immediately return null.
             if (currentState?.State == null)
@@ -327,15 +335,16 @@ namespace DurableTask.ServiceFabric
                 return currentState;
             }
 
-            var waiter = this.orchestrationWaiters.GetOrAdd(instance, new AsyncManualResetEvent());
+            var waiter = this.orchestrationWaiters.GetOrAdd(instanceId, new AsyncManualResetEvent());
             bool completed = await waiter.WaitAsync(timeout, this.cancellationToken);
 
             if (!completed)
             {
-                this.orchestrationWaiters.TryRemove(instance, out waiter);
+                this.orchestrationWaiters.TryRemove(instanceId, out waiter);
             }
 
-            currentState = await this.GetOrchestrationStateAsync(instance.InstanceId, instance.ExecutionId);
+            var latestStates = await this.GetOrchestrationStateAsync(instanceId, allInstances: false);
+            currentState = latestStates.FirstOrDefault();
             if (currentState?.State != null && currentState.State.OrchestrationStatus.IsTerminalState())
             {
                 return currentState;
@@ -347,7 +356,7 @@ namespace DurableTask.ServiceFabric
         public void OnOrchestrationCompleted(OrchestrationInstance instance)
         {
             AsyncManualResetEvent resetEvent;
-            if (this.orchestrationWaiters.TryRemove(instance, out resetEvent))
+            if (this.orchestrationWaiters.TryRemove(instance.InstanceId, out resetEvent))
             {
                 resetEvent.Set();
             }
