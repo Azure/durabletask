@@ -63,7 +63,7 @@ namespace DurableTask.ServiceFabric.Test
         {
             int generationsToRun = 2;
 
-            var result = await this.serviceClient.RunOrchestrationAsync(typeof(GenerationBasicOrchestration).Name, generationsToRun, TimeSpan.FromMinutes(10));
+            var result = await this.serviceClient.RunOrchestrationAsync(typeof(GenerationBasicOrchestration).Name, generationsToRun, TimeSpan.FromMinutes(2));
 
             Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
             Assert.AreEqual(generationsToRun.ToString(), result.Output, "Orchestration Result is wrong!!!");
