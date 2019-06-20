@@ -23,5 +23,6 @@ namespace DurableTask.ServiceFabric
         internal const string ExecutionStoreDictionaryName = CollectionNameUniquenessPrefix + "ExecutionIdStore";
         internal const string ScheduledMessagesDictionaryName = CollectionNameUniquenessPrefix + "ScheduledMessages";
         internal const string TaskHubProxyServiceName = "DurableTask-TaskHubProxyService";
+        internal const string TaskHubProxyListenerEndpointName = "DtfxServiceEndpoint";
     }
 }

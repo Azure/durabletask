@@ -34,7 +34,8 @@ namespace TestApplication.StatefulService
                 // an instance of the class is created in this host process.
                 ServiceRuntime.RegisterServiceAsync("StatefulServiceType", context =>
                 {
-                    return new TaskHubProxyService(context, new TestOrchestrationsProvider());
+                    var listener = new TaskHubProxyListener(context, new TestOrchestrationsProvider());
+                    return new TaskHubStatefulService(context, new[] { listener });
                 }).GetAwaiter().GetResult();
 
                 // Prevents this host process from terminating so services keep running.

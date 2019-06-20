@@ -16,15 +16,10 @@ namespace DurableTask.ServiceFabric.Service
     using System;
     using System.Collections.Generic;
     using System.Fabric;
-    using System.Globalization;
     using System.Linq;
-    using System.Net;
-    using System.Net.Sockets;
     using System.Threading;
     using System.Threading.Tasks;
 
-    using DurableTask.Core;
-    using DurableTask.ServiceFabric;
     using DurableTask.ServiceFabric.Tracing;
 
     using Microsoft.ServiceFabric.Services.Communication.Runtime;
@@ -33,26 +28,28 @@ namespace DurableTask.ServiceFabric.Service
     /// <summary>
     /// An instance of this class is created for each service replica by the Service Fabric runtime.
     /// </summary>
-    public sealed class TaskHubProxyService : StatefulService
+    public sealed class TaskHubStatefulService : StatefulService
     {
-        readonly FabricOrchestrationProviderFactory fabricProviderFactory;
-        readonly IOrchestrationsProvider orchestrationsProvider;
-        FabricOrchestrationProvider fabricOrchestrationProvider;
-        TaskHubWorker worker;
+        readonly IList<IServiceListener> serviceListeners;
         ReplicaRole currentRole;
 
         /// <summary>
-        /// Creates instance of <see cref="TaskHubProxyService"/>
+        /// Creates instance of <see cref="TaskHubProxyListener"/>
         /// </summary>
         /// <param name="context">stateful service context</param>
-        /// <param name="orchestrationsProvider">Orchestrations provider</param>
-        public TaskHubProxyService(StatefulServiceContext context, IOrchestrationsProvider orchestrationsProvider) : base(context)
+        /// <param name="serviceListeners">List of <see cref="IServiceListener"/></param>
+        public TaskHubStatefulService(StatefulServiceContext context, IList<IServiceListener> serviceListeners) : base(context)
         {
-            this.orchestrationsProvider = orchestrationsProvider ?? throw new ArgumentNullException(nameof(orchestrationsProvider));
+            this.serviceListeners = serviceListeners ?? throw new ArgumentNullException(nameof(serviceListeners));
+            if (this.serviceListeners.Count < 1)
+            {
+                throw new ArgumentOutOfRangeException(nameof(serviceListeners), "At least one service should be present");
+            }
 
-            var providerSettings = this.orchestrationsProvider.GetFabricOrchestrationProviderSettings();
-            this.fabricProviderFactory = new FabricOrchestrationProviderFactory(this.StateManager, providerSettings);
-            this.fabricOrchestrationProvider = this.fabricProviderFactory.CreateProvider();
+            foreach (var listener in this.serviceListeners)
+            {
+                listener.Initialize(this);
+            }
         }
 
         /// <summary>
@@ -64,31 +61,7 @@ namespace DurableTask.ServiceFabric.Service
         /// <returns>A collection of listeners.</returns>
         protected override IEnumerable<ServiceReplicaListener> CreateServiceReplicaListeners()
         {
-            yield return new ServiceReplicaListener(context =>
-            {
-                var serviceEndpoint = context.CodePackageActivationContext.GetEndpoint("DtfxServiceEndpoint");
-                int port = serviceEndpoint.Port;
-
-                string ipAddress = context.NodeContext.IPAddressOrFQDN;
-#if DEBUG
-                IPHostEntry entry = Dns.GetHostEntry(ipAddress);
-                IPAddress ipv4Address = entry.AddressList.FirstOrDefault(
-                    address => (address.AddressFamily == AddressFamily.InterNetwork) && (!IPAddress.IsLoopback(address)));
-                ipAddress = ipv4Address.ToString();
-#endif
-
-                EnsureFabricOrchestrationProvider();
-                string listeningAddress = String.Format(CultureInfo.InvariantCulture, "http://{0}:{1}/{2}/", ipAddress, port, context.PartitionId);
-                return new OwinCommunicationListener(new Startup(listeningAddress, this.fabricOrchestrationProvider));
-            }, Constants.TaskHubProxyServiceName);
-        }
-
-        private void EnsureFabricOrchestrationProvider()
-        {
-            if (this.fabricOrchestrationProvider == null)
-            {
-                this.fabricOrchestrationProvider = this.fabricProviderFactory.CreateProvider();
-            }
+            return serviceListeners.Select(listener => listener.CreateServiceReplicaListener());
         }
 
         /// <summary>
@@ -100,15 +73,10 @@ namespace DurableTask.ServiceFabric.Service
         {
             try
             {
-                EnsureFabricOrchestrationProvider();
-
-                this.worker = new TaskHubWorker(this.fabricOrchestrationProvider.OrchestrationService);
-
-                await this.orchestrationsProvider.RegisterOrchestrationArtifactsAsync(this.worker);
-
-                await this.worker.StartAsync();
-
-                this.worker.TaskActivityDispatcher.IncludeDetails = true;
+                foreach(var listener in this.serviceListeners)
+                {
+                    await listener.OnRunAsync(cancellationToken);
+                }
 
                 while (!cancellationToken.IsCancellationRequested)
                 {
@@ -132,9 +100,9 @@ namespace DurableTask.ServiceFabric.Service
         protected override async Task OnChangeRoleAsync(ReplicaRole newRole, CancellationToken cancellationToken)
         {
             ServiceFabricProviderEventSource.Tracing.LogFabricServiceInformation(this, $"Fabric On Change Role Async, current role = {this.currentRole}, new role = {newRole}");
-            if (newRole != ReplicaRole.Primary && this.currentRole == ReplicaRole.Primary)
+            foreach (var listener in this.serviceListeners)
             {
-                await ShutdownAsync();
+                await listener.OnChangeRoleAsync(newRole, cancellationToken);
             }
             this.currentRole = newRole;
             ServiceFabricProviderEventSource.Tracing.LogFabricServiceInformation(this, $"Fabric On Change Role Async, current role = {this.currentRole}");
@@ -148,28 +116,9 @@ namespace DurableTask.ServiceFabric.Service
         protected override async Task OnCloseAsync(CancellationToken cancellationToken)
         {
             ServiceFabricProviderEventSource.Tracing.LogFabricServiceInformation(this, "OnCloseAsync - will shutdown primary if not already done");
-            await ShutdownAsync();
-        }
-
-        async Task ShutdownAsync()
-        {
-            try
+            foreach (var listener in this.serviceListeners)
             {
-                if (this.worker != null)
-                {
-                    ServiceFabricProviderEventSource.Tracing.LogFabricServiceInformation(this, "Stopping Taskhub Worker");
-                    await this.worker.StopAsync(isForced: true);
-                    this.worker.Dispose();
-                    this.worker = null;
-                    this.fabricOrchestrationProvider.Dispose();
-                    this.fabricOrchestrationProvider = null;
-                    ServiceFabricProviderEventSource.Tracing.LogFabricServiceInformation(this, "Stopped Taskhub Worker");
-                }
-            }
-            catch (Exception e)
-            {
-                ServiceFabricProviderEventSource.Tracing.ServiceRequestFailed("Exception when Stopping Worker On Primary Stop", e.ToString());
-                throw;
+                await listener.OnCloseAsync(cancellationToken);
             }
         }
     }
