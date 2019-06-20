@@ -110,6 +110,12 @@ namespace TestStatefulService
 
         public async Task<OrchestrationState> RunOrchestrationAsync(string orchestrationTypeName, object input, TimeSpan waitTimeout)
         {
+            OrchestrationInstance instance = await StartOrchestrationAsync(orchestrationTypeName, input);
+            return await client.WaitForOrchestrationAsync(instance, waitTimeout);
+        }
+
+        public async Task<OrchestrationInstance> StartOrchestrationAsync(string orchestrationTypeName, object input)
+        {
             if (orchestrationTypeName == typeof(ExecutionCountingOrchestration).Name)
             {
                 // See ExecutionCountingActivity notes on why we do this.
@@ -117,7 +123,7 @@ namespace TestStatefulService
             }
 
             var instance = await client.CreateOrchestrationInstanceAsync(GetOrchestrationType(orchestrationTypeName), input);
-            return await client.WaitForOrchestrationAsync(instance, waitTimeout);
+            return instance;
         }
 
         public async Task<OrchestrationState> RunDriverOrchestrationAsync(DriverOrchestrationData input, TimeSpan waitTimeout)

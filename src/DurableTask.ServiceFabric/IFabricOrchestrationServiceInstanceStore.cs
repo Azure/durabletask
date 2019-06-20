@@ -80,7 +80,7 @@ namespace DurableTask.ServiceFabric
 
         void OnOrchestrationCompleted(OrchestrationInstance instance);
 
-        Task<OrchestrationStateInstanceEntity> WaitForOrchestrationAsync(OrchestrationInstance instance, TimeSpan timeout);
+        Task<OrchestrationStateInstanceEntity> WaitForOrchestrationAsync(string instanceId, TimeSpan timeout);
 
         Task<string> GetLatestExecutionId(string instanceId);
     }

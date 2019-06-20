@@ -151,10 +151,26 @@ namespace DurableTask.ServiceFabric
             return this.instanceStore.PurgeOrchestrationHistoryEventsAsync(thresholdDateTimeUtc);
         }
 
+        /// <summary>
+        /// Wait till the specified time span for the latest orchestration execution to complete.
+        /// The service bus client implementation of this API ignores the input executionId parameter and
+        /// only returns if the latest execution of a given orchestration instance is completed before
+        /// the specified time out. Perhaps there is a good reason - for an orchestration which uses ContinueAsNew,
+        /// the orchestration is not really complete though one execution may have been completed (typically with
+        /// ContinueAsNew status), the user of this API would most likely want to return from this
+        /// method only if the latest execution of such an orchestration is completed instead of a given
+        /// iteration. Hence, we match the service fabric provider functionality to be the same.
+        /// </summary>
+        /// <param name="instanceId">The instanceId of an orchestation to wait to complete.</param>
+        /// <param name="executionId">Ignored and instead the latest execution of Orchestration is considered.</param>
+        /// <param name="timeout">Timespan of wait. If the orchestration completes before the specified
+        /// time span, the API immediately returns with the state of Orchestration. Otherwise, the API
+        /// waits till the time span and returns the state of Orchestration at that time.</param>
+        /// <param name="cancellationToken">Cancellation token for preempting the waiting before the timeout.</param>
+        /// <returns>The state of orchestration with the given instanceId if it completes before the timespace. Otherwise null.</returns>
         public async Task<OrchestrationState> WaitForOrchestrationAsync(string instanceId, string executionId, TimeSpan timeout, CancellationToken cancellationToken)
         {
-            var instance = new OrchestrationInstance() { InstanceId = instanceId, ExecutionId = executionId };
-            var state = await this.instanceStore.WaitForOrchestrationAsync(instance, timeout);
+            var state = await this.instanceStore.WaitForOrchestrationAsync(instanceId, timeout);
             return state?.State;
         }
         #endregion

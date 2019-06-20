@@ -160,7 +160,7 @@ namespace DurableTask.ServiceFabric
                         return null;
                     }
 
-                    bool isComplete = currentRuntimeState.OrchestrationStatus.IsTerminalState();
+                    bool isComplete = this.IsOrchestrationComplete(currentRuntimeState.OrchestrationStatus);
                     if (isComplete)
                     {
                         await this.HandleCompletedOrchestration(workItem);
@@ -206,12 +206,7 @@ namespace DurableTask.ServiceFabric
         {
             SessionInformation sessionInfo = GetSessionInfo(workItem.InstanceId);
 
-            if (continuedAsNewMessage != null)
-            {
-                throw new Exception("ContinueAsNew is not supported yet");
-            }
-
-            bool isComplete = workItem.OrchestrationRuntimeState.OrchestrationStatus.IsTerminalState();
+            bool isComplete = this.IsOrchestrationComplete(workItem.OrchestrationRuntimeState.OrchestrationStatus);
 
             IList<OrchestrationInstance> sessionsToEnqueue = null;
             List<Message<string, TaskMessageItem>> scheduledMessages = null;
@@ -256,6 +251,12 @@ namespace DurableTask.ServiceFabric
                                 }
                             }
 
+                            if (continuedAsNewMessage != null)
+                            {
+                                await this.orchestrationProvider.AppendMessageAsync(txn, new TaskMessageItem(continuedAsNewMessage));
+                                sessionsToEnqueue = new List<OrchestrationInstance>() { continuedAsNewMessage.OrchestrationInstance };
+                            }
+
                             await this.orchestrationProvider.CompleteMessages(txn, sessionInfo.Instance, sessionInfo.LockTokens);
 
                             // When an orchestration is completed, we need to drop the session which involves 2 steps (1) Removing the row from sessions
@@ -271,7 +272,8 @@ namespace DurableTask.ServiceFabric
                             // mark it as complete even if it is. So we use the work item's runtime state when 'newOrchestrationRuntimeState' is null
                             // so that the latest state is what is stored for the session.
                             // As part of next transaction, we are going to remove the row anyway for the session and it doesn't matter to update it to 'null'.
-                            await this.orchestrationProvider.UpdateSessionState(txn, sessionInfo.Instance, newOrchestrationRuntimeState ?? workItem.OrchestrationRuntimeState);
+                            var newInstance = continuedAsNewMessage != null ? continuedAsNewMessage.OrchestrationInstance : sessionInfo.Instance;
+                            await this.orchestrationProvider.UpdateSessionState(txn, newInstance, newOrchestrationRuntimeState ?? workItem.OrchestrationRuntimeState);
 
                             // We skip writing to instanceStore when orchestration reached terminal state to avoid a minor timing issue that
                             // wait for an orchestration completes but another orchestration with the same name cannot be started immediately
@@ -378,7 +380,7 @@ namespace DurableTask.ServiceFabric
 
         public Task ReleaseTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
-            bool isComplete = workItem.OrchestrationRuntimeState.OrchestrationStatus.IsTerminalState();
+            bool isComplete = this.IsOrchestrationComplete(workItem.OrchestrationRuntimeState.OrchestrationStatus);
 
             SessionInformation sessionInfo = TryRemoveSessionInfo(workItem.InstanceId);
             if (sessionInfo != null)
@@ -490,6 +492,11 @@ namespace DurableTask.ServiceFabric
             }
 
             return 0;
+        }
+
+        bool IsOrchestrationComplete(OrchestrationStatus status)
+        {
+            return !(status.IsRunningOrPending() || status == OrchestrationStatus.ContinuedAsNew);
         }
 
         SessionInformation GetSessionInfo(string sessionId)
