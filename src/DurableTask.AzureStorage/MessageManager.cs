@@ -22,6 +22,7 @@ namespace DurableTask.AzureStorage
     using System.Text;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Monitoring;
+    using DurableTask.Core;
     using Microsoft.WindowsAzure.Storage.Blob;
     using Microsoft.WindowsAzure.Storage.Queue;
     using Newtonsoft.Json;
@@ -107,6 +108,24 @@ namespace DurableTask.AzureStorage
             }
 
             return JsonConvert.SerializeObject(messageData, this.taskMessageSerializerSettings);
+        }
+
+        /// <summary>
+        /// If the "message" of an orchestration state is actually a URI retrieves actual message from blob storage.
+        /// Otherwise returns the message as is.
+        /// </summary>
+        /// <param name="message">The message to be fetched if it is a url.</param>
+        /// <returns>Actual string representation of message.</returns>
+        public async Task<string> FetchLargeMessageIfNecessary(string message)
+        {
+            if (Uri.IsWellFormedUriString(message, UriKind.Absolute))
+            {
+                return await this.DownloadAndDecompressAsBytesAsync(new Uri(message));
+            }
+            else
+            {
+                return message;
+            }
         }
 
         /// <summary>

@@ -20,7 +20,8 @@ namespace DurableTask.AzureStorage.Tests
     {
         public static TestOrchestrationHost GetTestOrchestrationHost(
             bool enableExtendedSessions,
-            int extendedSessionTimeoutInSeconds = 30)
+            int extendedSessionTimeoutInSeconds = 30,
+            bool fetchLargeMessages = true)
         {
             string storageConnectionString = GetTestStorageAccountConnectionString();
 
@@ -30,6 +31,7 @@ namespace DurableTask.AzureStorage.Tests
                 TaskHubName = ConfigurationManager.AppSettings.Get("TaskHubName"),
                 ExtendedSessionsEnabled = enableExtendedSessions,
                 ExtendedSessionIdleTimeout = TimeSpan.FromSeconds(extendedSessionTimeoutInSeconds),
+                FetchLargeMessageDataEnabled = fetchLargeMessages,
             };
 
             return new TestOrchestrationHost(settings);

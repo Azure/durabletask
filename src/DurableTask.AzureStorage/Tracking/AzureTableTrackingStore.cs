@@ -487,10 +487,10 @@ namespace DurableTask.AzureStorage.Tracking
                 return null;
             }
 
-            return this.ConvertFromAsync(orchestrationInstanceStatus, instanceId);
+            return await this.ConvertFromAsync(orchestrationInstanceStatus, instanceId);
         }
 
-        OrchestrationState ConvertFromAsync(OrchestrationInstanceStatus orchestrationInstanceStatus, string instanceId)
+        async Task<OrchestrationState> ConvertFromAsync(OrchestrationInstanceStatus orchestrationInstanceStatus, string instanceId)
         {
             var orchestrationState = new OrchestrationState();
             if (!Enum.TryParse(orchestrationInstanceStatus.RuntimeStatus, out orchestrationState.OrchestrationStatus))
@@ -512,6 +512,12 @@ namespace DurableTask.AzureStorage.Tracking
             orchestrationState.LastUpdatedTime = orchestrationInstanceStatus.LastUpdatedTime;
             orchestrationState.Input = orchestrationInstanceStatus.Input;
             orchestrationState.Output = orchestrationInstanceStatus.Output;
+
+            if (this.settings.FetchLargeMessageDataEnabled)
+            {
+                orchestrationState.Input = await this.messageManager.FetchLargeMessageIfNecessary(orchestrationState.Input);
+                orchestrationState.Output = await this.messageManager.FetchLargeMessageIfNecessary(orchestrationState.Output);
+            }
 
             return orchestrationState;
         }
@@ -561,7 +567,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             query.Take(top);
             var segment = await this.InstancesTable.ExecuteQuerySegmentedAsync(query, token);
-            IEnumerable<OrchestrationState> result = segment.Select(status => this.ConvertFromAsync(status, status.PartitionKey));
+            IEnumerable<OrchestrationState> result = await Task.WhenAll(segment.Select( status => this.ConvertFromAsync(status, status.PartitionKey)));
             orchestrationStates.AddRange(result);
 
             this.stats.StorageRequests.Increment();
@@ -585,8 +591,8 @@ namespace DurableTask.AzureStorage.Tracking
                 TableQuerySegment<OrchestrationInstanceStatus> segment = await this.InstancesTable.ExecuteQuerySegmentedAsync(query, token);
 
                 int previousCount = orchestrationStates.Count;
-                IEnumerable<OrchestrationState> result = segment.Select(
-                    status => this.ConvertFromAsync(status, status.PartitionKey));
+                IEnumerable<OrchestrationState> result = await Task.WhenAll(segment.Select(
+                    status => this.ConvertFromAsync(status, status.PartitionKey)));
                 orchestrationStates.AddRange(result);
 
                 this.stats.StorageRequests.Increment();

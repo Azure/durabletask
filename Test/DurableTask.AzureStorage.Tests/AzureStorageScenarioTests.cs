@@ -1265,9 +1265,9 @@ namespace DurableTask.AzureStorage.Tests
         [DataTestMethod]
         [DataRow(true)]
         [DataRow(false)]
-        public async Task LargeTextMessagePayloads(bool enableExtendedSessions)
+        public async Task LargeTextMessagePayloads_BlobUrl(bool enableExtendedSessions)
         {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions, fetchLargeMessages: false))
             {
                 await host.StartAsync();
 
@@ -1279,8 +1279,64 @@ namespace DurableTask.AzureStorage.Tests
                 await ValidateBlobUrlAsync(
                     host.TaskHub,
                     client.InstanceId,
+                    status?.Input,
+                    Encoding.UTF8.GetByteCount(message));
+                await ValidateBlobUrlAsync(
+                    host.TaskHub,
+                    client.InstanceId,
                     status?.Output,
                     Encoding.UTF8.GetByteCount(message));
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// End-to-end test which validates that orchestrations with > 60KB text message sizes can run successfully.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task LargeTextMessagePayloads_FetchLargeMessages(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions, fetchLargeMessages: true))
+            {
+                await host.StartAsync();
+
+                string message = this.GenerateMediumRandomStringPayload().ToString();
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), message);
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                Assert.AreEqual(message, JToken.Parse(status?.Input));
+                Assert.AreEqual(message, JToken.Parse(status?.Output));
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// End-to-end test which validates that orchestrations with > 60KB text message sizes can run successfully.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task LargeTextMessagePayloads_FetchLargeMessages_QueryState(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions, fetchLargeMessages: true))
+            {
+                await host.StartAsync();
+
+                string message = this.GenerateMediumRandomStringPayload().ToString();
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), message);
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
+
+                //Ensure that orchestration state querying also retrieves messages 
+                status = (await client.GetStateAsync(status.OrchestrationInstance.InstanceId)).First();
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                Assert.AreEqual(message, JToken.Parse(status?.Input));
+                Assert.AreEqual(message, JToken.Parse(status?.Output));
 
                 await host.StopAsync();
             }

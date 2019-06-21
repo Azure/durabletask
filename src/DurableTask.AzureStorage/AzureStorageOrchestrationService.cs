@@ -1504,6 +1504,11 @@ namespace DurableTask.AzureStorage
                 }
                 else
                 {
+                    if (this.settings.FetchLargeMessageDataEnabled)
+                    {
+                        state.Input = await this.messageManager.FetchLargeMessageIfNecessary(state.Input);
+                        state.Output = await this.messageManager.FetchLargeMessageIfNecessary(state.Output);
+                    }
                     return state;
                 }
             }
