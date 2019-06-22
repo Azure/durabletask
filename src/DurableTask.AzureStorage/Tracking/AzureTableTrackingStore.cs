@@ -111,6 +111,7 @@ namespace DurableTask.AzureStorage.Tracking
         {
             this.stats = stats;
             this.InstancesTable = instancesTable;
+            this.settings = new AzureStorageOrchestrationServiceSettings();
         }
 
         /// <summary>
