@@ -196,6 +196,9 @@ namespace DurableTask.AzureStorage.Messaging
                 // The delay needs to be long enough to allow some progress to be made but
                 // short enough to allow for debugging.
                 visibilityDelay = TimeSpan.FromMinutes(10);
+            } else
+            {
+                visibilityDelay = TimeSpan.FromSeconds(queueMessage.DequeueCount+1);
             }
 
             AnalyticsEventSource.Log.AbandoningMessage(
@@ -213,7 +216,7 @@ namespace DurableTask.AzureStorage.Messaging
 
             try
             {
-                // We "abandon" the message by settings its visibility timeout to zero.
+                // We "abandon" the message by settings its visibility timeout to it's dequeue count + 1 seconds.
                 // This allows it to be reprocessed on this node or another node.
                 await this.storageQueue.UpdateMessageAsync(
                     queueMessage,
