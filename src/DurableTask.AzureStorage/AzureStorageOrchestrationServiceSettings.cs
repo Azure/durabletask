@@ -126,7 +126,7 @@ namespace DurableTask.AzureStorage
         /// Gets or sets a flag indicating whether to automatically fetch large orchestration input and outputs
         /// when it is stored in a compressed blob when retrieving orchestration state.
         /// </summary>
-        public bool FetchLargeMessageDataEnabled { get; set; } = false;
+        public bool FetchLargeMessageDataEnabled { get; set; } = true;
 
         /// <summary>
         /// Gets or sets the number of seconds before an idle session times out.
