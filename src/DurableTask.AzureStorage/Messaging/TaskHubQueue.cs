@@ -216,7 +216,7 @@ namespace DurableTask.AzureStorage.Messaging
 
             try
             {
-                // We "abandon" the message by settings its visibility timeout to it's dequeue count + 1 seconds.
+                // We "abandon" the message by settings its visibility timeout to its dequeue count + 1 seconds.
                 // This allows it to be reprocessed on this node or another node.
                 await this.storageQueue.UpdateMessageAsync(
                     queueMessage,
