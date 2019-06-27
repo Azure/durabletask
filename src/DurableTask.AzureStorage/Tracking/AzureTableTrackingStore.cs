@@ -112,6 +112,9 @@ namespace DurableTask.AzureStorage.Tracking
             this.stats = stats;
             this.InstancesTable = instancesTable;
             this.settings = new AzureStorageOrchestrationServiceSettings();
+            // Have to set FetchLargeMessageDataEnabled to false, as no MessageManager is 
+            // instantiated for this test.
+            this.settings.FetchLargeMessageDataEnabled = false;
         }
 
         /// <summary>
