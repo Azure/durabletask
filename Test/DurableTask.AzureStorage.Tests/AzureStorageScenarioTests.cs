@@ -281,11 +281,8 @@ namespace DurableTask.AzureStorage.Tests
                 IList<OrchestrationState> results = await host.GetAllOrchestrationInstancesAsync();
                 Assert.AreEqual(1, results.Count);
 
-                await ValidateBlobUrlAsync(
-                    host.TaskHub,
-                    instanceId,
-                    results.First(x => x.OrchestrationInstance.InstanceId == instanceId).Output,
-                    Encoding.UTF8.GetByteCount(message));
+                string result = JToken.Parse(results.First(x => x.OrchestrationInstance.InstanceId == instanceId).Output).ToString();
+                Assert.AreEqual(message, result);
 
                 await client.PurgeInstanceHistory();
 
@@ -332,12 +329,8 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual("\"Done\"", results.First(x => x.OrchestrationInstance.InstanceId == firstInstanceId).Output);
                 Assert.AreEqual("\"Done\"", results.First(x => x.OrchestrationInstance.InstanceId == secondInstanceId).Output);
                 Assert.AreEqual("\"Done\"", results.First(x => x.OrchestrationInstance.InstanceId == thirdInstanceId).Output);
-
-                await ValidateBlobUrlAsync(
-                    host.TaskHub,
-                    fourthInstanceId,
-                    results.First(x => x.OrchestrationInstance.InstanceId == fourthInstanceId).Output,
-                    Encoding.UTF8.GetByteCount(message));
+                string result = JToken.Parse(results.First(x => x.OrchestrationInstance.InstanceId == fourthInstanceId).Output).ToString();
+                Assert.AreEqual(message, result);
 
                 List<HistoryStateEvent> firstHistoryEvents = await client.GetOrchestrationHistoryAsync(firstInstanceId);
                 Assert.IsTrue(firstHistoryEvents.Count > 0);
@@ -691,6 +684,7 @@ namespace DurableTask.AzureStorage.Tests
                 await host.StartAsync();
 
                 string initialMessage = this.GenerateMediumRandomStringPayload().ToString();
+                string finalMessage = initialMessage;
                 int counter = initialMessage.Length;
                 var initialValue = new Tuple<string, int>(initialMessage, counter);
                 TestOrchestrationClient client =
@@ -703,6 +697,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 // Perform some operations
                 await client.RaiseEventAsync("operation", "double");
+                finalMessage = finalMessage + new string(finalMessage.Reverse().ToArray());
                 counter *= 2;
 
                 // TODO: Sleeping to avoid a race condition where multiple ContinueAsNew messages
@@ -710,15 +705,11 @@ namespace DurableTask.AzureStorage.Tests
                 //       storage failure in DTFx.
                 await Task.Delay(10000);
                 await client.RaiseEventAsync("operation", "double");
+                finalMessage = finalMessage + new string(finalMessage.Reverse().ToArray());
                 counter *= 2;
                 await Task.Delay(10000);
                 await client.RaiseEventAsync("operation", "double");
-                counter *= 2;
-                await Task.Delay(10000);
-                await client.RaiseEventAsync("operation", "double");
-                counter *= 2;
-                await Task.Delay(10000);
-                await client.RaiseEventAsync("operation", "double");
+                finalMessage = finalMessage + new string(finalMessage.Reverse().ToArray());
                 counter *= 2;
                 await Task.Delay(10000);
 
@@ -734,11 +725,14 @@ namespace DurableTask.AzureStorage.Tests
                 status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                var result = status?.Output;
+                var result = JObject.Parse(status?.Output);
                 Assert.IsNotNull(result);
 
-                await ValidateBlobUrlAsync(host.TaskHub, client.InstanceId, result);
-                await ValidateBlobUrlAsync(host.TaskHub, client.InstanceId, status?.Input);
+                var input = JObject.Parse(status?.Input);
+                Assert.AreEqual(finalMessage, input["Item1"].Value<string>());
+                Assert.AreEqual(finalMessage.Length, input["Item2"].Value<int>());
+                Assert.AreEqual(finalMessage, result["Item1"].Value<string>());
+                Assert.AreEqual(counter, result["Item2"].Value<int>());
 
                 await host.StopAsync();
 
@@ -1284,9 +1278,9 @@ namespace DurableTask.AzureStorage.Tests
         [DataTestMethod]
         [DataRow(true)]
         [DataRow(false)]
-        public async Task LargeTextMessagePayloads(bool enableExtendedSessions)
+        public async Task LargeTextMessagePayloads_BlobUrl(bool enableExtendedSessions)
         {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions, fetchLargeMessages: false))
             {
                 await host.StartAsync();
 
@@ -1298,8 +1292,88 @@ namespace DurableTask.AzureStorage.Tests
                 await ValidateBlobUrlAsync(
                     host.TaskHub,
                     client.InstanceId,
+                    status?.Input,
+                    Encoding.UTF8.GetByteCount(message));
+                await ValidateBlobUrlAsync(
+                    host.TaskHub,
+                    client.InstanceId,
                     status?.Output,
                     Encoding.UTF8.GetByteCount(message));
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// End-to-end test which validates that orchestrations with > 60KB text message sizes can run successfully.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task LargeTextMessagePayloads_FetchLargeMessages(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions, fetchLargeMessages: true))
+            {
+                await host.StartAsync();
+
+                string message = this.GenerateMediumRandomStringPayload().ToString();
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), message);
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                Assert.AreEqual(message, JToken.Parse(status?.Input));
+                Assert.AreEqual(message, JToken.Parse(status?.Output));
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// End-to-end test which validates that orchestrations with > 60KB text message sizes can run successfully.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task NonBlobUriPayload_FetchLargeMessages_RetainsOriginalPayload(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions, fetchLargeMessages: true))
+            {
+                await host.StartAsync();
+
+                string message = "https://anygivenurl.azurewebsites.net";
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), message);
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                Assert.AreEqual(message, JToken.Parse(status?.Input));
+                Assert.AreEqual(message, JToken.Parse(status?.Output));
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// End-to-end test which validates that orchestrations with > 60KB text message sizes can run successfully.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task LargeTextMessagePayloads_FetchLargeMessages_QueryState(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions, fetchLargeMessages: true))
+            {
+                await host.StartAsync();
+
+                string message = this.GenerateMediumRandomStringPayload().ToString();
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), message);
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
+
+                //Ensure that orchestration state querying also retrieves messages 
+                status = (await client.GetStateAsync(status.OrchestrationInstance.InstanceId)).First();
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                Assert.AreEqual(message, JToken.Parse(status?.Input));
+                Assert.AreEqual(message, JToken.Parse(status?.Output));
 
                 await host.StopAsync();
             }
@@ -1346,8 +1420,8 @@ namespace DurableTask.AzureStorage.Tests
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
 
-                // Large message payloads may actually get bigger when stored in blob storage.
-                await ValidateBlobUrlAsync(host.TaskHub, client.InstanceId, status?.Output, (int)(readBytes.Length * 1.3));
+                byte[] resultBytes = JObject.Parse(status?.Output).ToObject<byte[]>();
+                Assert.IsTrue(readBytes.SequenceEqual(resultBytes));
 
                 await host.StopAsync();
             }
@@ -1378,7 +1452,8 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
 
                 // Large message payloads may actually get bigger when stored in blob storage.
-                await ValidateBlobUrlAsync(host.TaskHub, client.InstanceId, status?.Output, (int)(readBytes.Length * 1.3));
+                string result = JToken.Parse(status?.Output).ToString();
+                Assert.AreEqual(message, result);
 
                 await host.StopAsync();
             }
@@ -2033,7 +2108,7 @@ namespace DurableTask.AzureStorage.Tests
                     {
                         case "double":
                             inputData = new Tuple<string, int>(
-                                $"{inputData.Item1}{inputData.Item1.Reverse()}",
+                                $"{inputData.Item1}{new string(inputData.Item1.Reverse().ToArray())}",
                                 inputData.Item2 * 2);
                             break;
                         case "end":
