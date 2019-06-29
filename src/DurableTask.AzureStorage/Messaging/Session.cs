@@ -36,7 +36,7 @@ namespace DurableTask.AzureStorage.Messaging
             };
         }
 
-        public OrchestrationInstance Instance { get; }
+        public OrchestrationInstance Instance { get; protected set; }
 
         public OperationContext StorageOperationContext { get; }
 

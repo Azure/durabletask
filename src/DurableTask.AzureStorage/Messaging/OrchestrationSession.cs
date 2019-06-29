@@ -55,7 +55,7 @@ namespace DurableTask.AzureStorage.Messaging
 
         public IList<MessageData> CurrentMessageBatch { get; private set; }
 
-        public OrchestrationRuntimeState RuntimeState { get; }
+        public OrchestrationRuntimeState RuntimeState { get; private set; }
 
         public string ETag { get; set; }
 
@@ -117,15 +117,21 @@ namespace DurableTask.AzureStorage.Messaging
             return messages;
         }
 
+        public void UpdateRuntimeState(OrchestrationRuntimeState runtimeState)
+        {
+            this.RuntimeState = runtimeState;
+            this.Instance = runtimeState.OrchestrationInstance;
+        }
+
         internal bool IsOutOfOrderMessage(MessageData message)
         {
-            if (this.IsNonexistantInstance() && message.OriginalQueueMessage.DequeueCount > 3)
+            if (this.IsNonexistantInstance() && message.OriginalQueueMessage.DequeueCount > 5)
             {
-                // The first three times a message for a nonexistant instance is dequeued, give the message the benefit
+                // The first five times a message for a nonexistant instance is dequeued, give the message the benefit
                 // of the doubt and assume that the instance hasn't had its history table populated yet. After the 
-                // third execution, the most likely scenario is that this is a zombie event for a previous iteration of 
-                // an orchestration that called ContinueAsNew(). Return false to let the zombie message continue on to be
-                // discarded so that we don't end up processing it indefinitely.
+                // fifth execution, ~30 seconds have passed and the most likely scenario is that this is a zombie event. 
+                // This means the history table for the message's orchestration no longer exists, either due to an explicit 
+                // PurgeHistory request or due to a ContinueAsNew call cleaning the old execution's history.
                 return false;
             }
 

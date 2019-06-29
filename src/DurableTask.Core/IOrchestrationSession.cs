@@ -30,5 +30,10 @@ namespace DurableTask.Core
         /// and the dispatcher will shut down the session.
         /// </remarks>
         Task<IList<TaskMessage>> FetchNewOrchestrationMessagesAsync(TaskOrchestrationWorkItem workItem);
+
+        /// <summary>
+        /// Updates the in-memory session info.
+        /// </summary>
+        void UpdateRuntimeState(OrchestrationRuntimeState runtimeState);
     }
 }

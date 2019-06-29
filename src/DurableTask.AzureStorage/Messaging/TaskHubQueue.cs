@@ -180,8 +180,11 @@ namespace DurableTask.AzureStorage.Messaging
             TaskMessage taskMessage = message.TaskMessage;
             OrchestrationInstance instance = taskMessage.OrchestrationInstance;
 
-            TimeSpan visibilityDelay = TimeSpan.Zero;
-            if (queueMessage.DequeueCount >= 100)
+            // Exponentially backoff a given queue message until a maximum visibility delay of 10 minutes.
+            // Once it hits the maximum, log the message as a poison message.
+            const int maxSecondsToWait = 600;
+            int numSecondsToWait = Math.Min((int) Math.Pow(2, queueMessage.DequeueCount), maxSecondsToWait);
+            if (numSecondsToWait == maxSecondsToWait)
             {
                 AnalyticsEventSource.Log.PoisonMessageDetected(
                     this.storageAccountName,
@@ -192,11 +195,8 @@ namespace DurableTask.AzureStorage.Messaging
                     this.storageQueue.Name,
                     queueMessage.DequeueCount,
                     Utils.ExtensionVersion);
-
-                // The delay needs to be long enough to allow some progress to be made but
-                // short enough to allow for debugging.
-                visibilityDelay = TimeSpan.FromMinutes(10);
             }
+            TimeSpan visibilityDelay = TimeSpan.FromSeconds(numSecondsToWait);
 
             AnalyticsEventSource.Log.AbandoningMessage(
                 this.storageAccountName,
@@ -213,8 +213,8 @@ namespace DurableTask.AzureStorage.Messaging
 
             try
             {
-                // We "abandon" the message by settings its visibility timeout to zero.
-                // This allows it to be reprocessed on this node or another node.
+                // We "abandon" the message by settings its visibility timeout using an exponential backoff algorithm.
+                // This allows it to be reprocessed on this node or another node at a later time, hopefully successfully.
                 await this.storageQueue.UpdateMessageAsync(
                     queueMessage,
                     visibilityDelay,

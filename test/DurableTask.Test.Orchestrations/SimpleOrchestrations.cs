@@ -263,6 +263,29 @@ namespace DurableTask.Test.Orchestrations
         }
     }
 
+    public sealed class ContinueAsNewThenTimerOrchestration : TaskOrchestration<string,int>
+    {
+        public override async Task<string> RunTask(OrchestrationContext context, int input)
+        {
+            if (input == 0)
+            {
+                context.ContinueAsNew(1);
+
+                return "continue as new";
+            }
+            else if (input == 1)
+            {
+                await context.CreateTimer(context.CurrentUtcDateTime, 0);
+
+                return "OK";
+            }
+            else
+            {
+                throw new InvalidOperationException();
+            }
+        }
+    }
+
     [KnownType(typeof(EventConversationOrchestration.Responder))]
     public sealed class EventConversationOrchestration : TaskOrchestration<string, string>
     {
