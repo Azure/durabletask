@@ -27,10 +27,8 @@ namespace TestApplication.StatefulService
 
 
     /// <inheritdoc/>
-    public class TestOrchestrationsProvider : IOrchestrationsProvider
+    public class TestOrchestrationsProvider
     {
-        #region Implementation of IOrchestrationsProvider interface
-
         /// <inheritdoc/>
         public FabricOrchestrationProviderSettings GetFabricOrchestrationProviderSettings()
         {
@@ -41,16 +39,13 @@ namespace TestApplication.StatefulService
         }
 
         /// <inheritdoc/>
-        public Task RegisterOrchestrationArtifactsAsync(TaskHubWorker taskHubWorker)
+        public void RegisterOrchestrations(TaskHubWorker taskHubWorker)
         {
             taskHubWorker
                 .AddTaskOrchestrations(this.GetOrchestrationTypes().ToArray())
                 .AddTaskOrchestrations(this.GetTaskOrchestrations().Select(instance => new DefaultObjectCreator<TaskOrchestration>(instance.Value)).ToArray())
                 .AddTaskActivities(GetActivityTypes().ToArray());
-
-            return Task.CompletedTask;
         }
-        #endregion Implementation of IOrchestrationsProvider interface
 
         /// <inheritdoc/>
         private IEnumerable<Type> GetActivityTypes()

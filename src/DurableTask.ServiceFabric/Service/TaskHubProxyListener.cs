@@ -30,12 +30,18 @@ namespace DurableTask.ServiceFabric.Service
     using Microsoft.ServiceFabric.Services.Runtime;
 
     /// <summary>
+    /// Delegate invoked before starting the worker to register orchestrations.
+    /// </summary>
+    /// <param name="taskHubWorker">Instance of <see cref="TaskHubWorker"/></param>
+    public delegate void RegisterOrchestrations(TaskHubWorker taskHubWorker);
+
+    /// <summary>
     /// An instance of this class is created for each service replica by the Service Fabric runtime.
     /// </summary>
     public sealed class TaskHubProxyListener : IServiceListener
     {
-        readonly IOrchestrationsProvider orchestrationsProvider;
-
+        readonly RegisterOrchestrations registerOrchestrations;
+        readonly FabricOrchestrationProviderSettings fabricOrchestrationProviderSettings;
         FabricOrchestrationProviderFactory fabricProviderFactory;
         FabricOrchestrationProvider fabricOrchestrationProvider;
         TaskHubWorker worker;
@@ -46,10 +52,14 @@ namespace DurableTask.ServiceFabric.Service
         /// Creates instance of <see cref="TaskHubProxyListener"/>
         /// </summary>
         /// <param name="context">stateful service context</param>
-        /// <param name="orchestrationsProvider">Orchestrations provider</param>
-        public TaskHubProxyListener(StatefulServiceContext context, IOrchestrationsProvider orchestrationsProvider)
+        /// <param name="fabricOrchestrationProviderSettings">instance of <see cref="FabricOrchestrationProviderSettings"/></param>
+        /// <param name="registerOrchestrations">Delegate invoked before starting the worker.</param>
+        public TaskHubProxyListener(StatefulServiceContext context,
+                FabricOrchestrationProviderSettings fabricOrchestrationProviderSettings,
+                RegisterOrchestrations registerOrchestrations)
         {
-            this.orchestrationsProvider = orchestrationsProvider ?? throw new ArgumentNullException(nameof(orchestrationsProvider));
+            this.fabricOrchestrationProviderSettings = fabricOrchestrationProviderSettings ?? throw new ArgumentNullException(nameof(fabricOrchestrationProviderSettings));
+            this.registerOrchestrations = registerOrchestrations ?? throw new ArgumentNullException(nameof(registerOrchestrations));
         }
 
         private void EnsureFabricOrchestrationProvider()
@@ -115,8 +125,7 @@ namespace DurableTask.ServiceFabric.Service
         /// <inheritdoc />
         public ServiceReplicaListener CreateServiceReplicaListener()
         {
-            var providerSettings = this.orchestrationsProvider.GetFabricOrchestrationProviderSettings();
-            this.fabricProviderFactory = new FabricOrchestrationProviderFactory(statefulService.StateManager, providerSettings);
+            this.fabricProviderFactory = new FabricOrchestrationProviderFactory(statefulService.StateManager, this.fabricOrchestrationProviderSettings);
             this.fabricOrchestrationProvider = this.fabricProviderFactory.CreateProvider();
 
             return new ServiceReplicaListener(context =>
@@ -147,7 +156,7 @@ namespace DurableTask.ServiceFabric.Service
 
                 this.worker = new TaskHubWorker(this.fabricOrchestrationProvider.OrchestrationService);
 
-                await this.orchestrationsProvider.RegisterOrchestrationArtifactsAsync(this.worker);
+                this.registerOrchestrations(this.worker);
 
                 await this.worker.StartAsync();
 
@@ -163,6 +172,12 @@ namespace DurableTask.ServiceFabric.Service
         public void Initialize(StatefulService statefulService)
         {
             this.statefulService = statefulService;
+        }
+
+        /// <inheritdoc />
+        public Task OnOpenAsync(ReplicaOpenMode openMode, CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
         }
     }
 }

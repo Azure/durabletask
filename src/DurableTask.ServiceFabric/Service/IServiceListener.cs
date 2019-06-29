@@ -32,6 +32,15 @@ namespace DurableTask.ServiceFabric.Service
         void Initialize(StatefulService statefulService);
 
         /// <summary>
+        /// This method is called when the replica is being opened and it is the final step of opening the service.
+        /// Override this method to be notified that Open has completed for this replica's internal components.
+        /// </summary>
+        /// <param name="openMode"><see cref="T:System.Fabric.ReplicaOpenMode" /> for this service replica.</param>
+        /// <param name="cancellationToken">Cancellation token to monitor for cancellation requests.</param>
+        /// <returns> </returns>
+        Task OnOpenAsync(ReplicaOpenMode openMode, CancellationToken cancellationToken);
+
+        /// <summary>
         /// Creates an instance of <see cref="ServiceReplicaListener"/>.
         /// </summary>
         /// <returns>instance of <see cref="ServiceReplicaListener"/> </returns>

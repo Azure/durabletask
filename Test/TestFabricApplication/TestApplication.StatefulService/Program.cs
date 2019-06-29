@@ -16,7 +16,9 @@ namespace TestApplication.StatefulService
     using System;
     using System.Diagnostics;
     using System.Threading;
+
     using DurableTask.ServiceFabric.Service;
+
     using Microsoft.ServiceFabric.Services.Runtime;
 
     internal static class Program
@@ -34,7 +36,8 @@ namespace TestApplication.StatefulService
                 // an instance of the class is created in this host process.
                 ServiceRuntime.RegisterServiceAsync("StatefulServiceType", context =>
                 {
-                    var listener = new TaskHubProxyListener(context, new TestOrchestrationsProvider());
+                    var testProvider = new TestOrchestrationsProvider();
+                    var listener = new TaskHubProxyListener(context, testProvider.GetFabricOrchestrationProviderSettings(), testProvider.RegisterOrchestrations);
                     return new TaskHubStatefulService(context, new[] { listener });
                 }).GetAwaiter().GetResult();
 

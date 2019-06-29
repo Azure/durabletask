@@ -53,6 +53,21 @@ namespace DurableTask.ServiceFabric.Service
         }
 
         /// <summary>
+        /// This method is called when the replica is being opened and it is the final step of opening the service.
+        /// Override this method to be notified that Open has completed for this replica's internal components.
+        /// </summary>
+        /// <param name="openMode"><see cref="T:System.Fabric.ReplicaOpenMode" /> for this service replica.</param>
+        /// <param name="cancellationToken">Cancellation token to monitor for cancellation requests.</param>
+        /// <returns> </returns>
+        protected override async Task OnOpenAsync(ReplicaOpenMode openMode, CancellationToken cancellationToken)
+        {
+            foreach (var listener in this.serviceListeners)
+            {
+                await listener.OnOpenAsync(openMode, cancellationToken);
+            }
+        }
+
+        /// <summary>
         /// Optional override to create listeners (e.g., HTTP, Service Remoting, WCF, etc.) for this service replica to handle client or user requests.
         /// </summary>
         /// <remarks>
@@ -61,7 +76,7 @@ namespace DurableTask.ServiceFabric.Service
         /// <returns>A collection of listeners.</returns>
         protected override IEnumerable<ServiceReplicaListener> CreateServiceReplicaListeners()
         {
-            return serviceListeners.Select(listener => listener.CreateServiceReplicaListener());
+            return serviceListeners.Select(listener => listener.CreateServiceReplicaListener()).Where(listener => listener != null);
         }
 
         /// <summary>
