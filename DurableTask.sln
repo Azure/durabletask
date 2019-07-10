@@ -45,11 +45,11 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.Redis", "src\Du
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.Redis.Tests", "Test\DurableTask.Redis.Tests\DurableTask.Redis.Tests.csproj", "{B1C3B554-A098-47F8-8FA9-C28B5BBF35B1}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.ServiceFabric", "src\DurableTask.ServiceFabric\DurableTask.ServiceFabric.csproj", "{3C10169F-4ACB-4FF6-A12B-B74569613E81}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.AzureServiceFabric", "src\DurableTask.AzureServiceFabric\DurableTask.AzureServiceFabric.csproj", "{3C10169F-4ACB-4FF6-A12B-B74569613E81}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.ServiceFabric.Tests", "Test\DurableTask.ServiceFabric.Tests\DurableTask.ServiceFabric.Tests.csproj", "{AA0BCA9D-03F7-4F33-BBD5-2D99181E1C2A}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.AzureServiceFabric.Tests", "Test\DurableTask.AzureServiceFabric.Tests\DurableTask.AzureServiceFabric.Tests.csproj", "{AA0BCA9D-03F7-4F33-BBD5-2D99181E1C2A}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.ServiceFabric.Integration.Tests", "Test\DurableTask.ServiceFabric.Integration.Tests\DurableTask.ServiceFabric.Integration.Tests.csproj", "{8C3D4CA2-4158-4631-BD5E-F5D066962FAF}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.AzureServiceFabric.Integration.Tests", "Test\DurableTask.AzureServiceFabric.Integration.Tests\DurableTask.AzureServiceFabric.Integration.Tests.csproj", "{8C3D4CA2-4158-4631-BD5E-F5D066962FAF}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "TestFabricApplication", "TestFabricApplication", "{C53918E6-667A-4930-837C-0018C5D6E374}"
 EndProject
