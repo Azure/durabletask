@@ -101,6 +101,7 @@ namespace DurableTask.AzureServiceFabric.Service
             catch (Exception exception)
             {
                 ServiceFabricProviderEventSource.Tracing.ServiceRequestFailed("RunAsync failed", $"Exception Details Type: {exception.GetType()}, Message: {exception.Message}, StackTrace: {exception.StackTrace}");
+                throw new FabricException("Exception in RunAsync", exception);
             }
         }
 

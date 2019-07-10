@@ -40,11 +40,11 @@ namespace DurableTask.AzureServiceFabric
         internal FabricOrchestrationProvider(IReliableStateManager stateManager, FabricOrchestrationProviderSettings settings)
         {
             this.cancellationTokenSource = new CancellationTokenSource();
-            var sessionsProvider = new SessionsProvider(stateManager, cancellationTokenSource.Token);
+            var sessionProvider = new SessionProvider(stateManager, cancellationTokenSource.Token);
             var instanceStore = new FabricOrchestrationInstanceStore(stateManager, cancellationTokenSource.Token);
-            this.orchestrationService = new FabricOrchestrationService(stateManager, sessionsProvider, instanceStore, settings, cancellationTokenSource);
-            this.orchestrationClient = new FabricOrchestrationServiceClient(stateManager, sessionsProvider, instanceStore);
-            this.fabricProviderClient = new FabricProviderClient(stateManager, sessionsProvider);
+            this.orchestrationService = new FabricOrchestrationService(stateManager, sessionProvider, instanceStore, settings, cancellationTokenSource);
+            this.orchestrationClient = new FabricOrchestrationServiceClient(stateManager, sessionProvider, instanceStore);
+            this.fabricProviderClient = new FabricProviderClient(stateManager, sessionProvider);
         }
 
         /// <summary>

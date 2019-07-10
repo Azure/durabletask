@@ -37,6 +37,7 @@ namespace DurableTask.AzureServiceFabric.Service
 
     /// <summary>
     /// An instance of this class is created for each service replica by the Service Fabric runtime.
+    /// Listening on HTTP port will expose security risk, use this listener at your own discretation.
     /// </summary>
     public sealed class TaskHubProxyListener : IServiceListener
     {
@@ -62,14 +63,6 @@ namespace DurableTask.AzureServiceFabric.Service
             this.registerOrchestrations = registerOrchestrations ?? throw new ArgumentNullException(nameof(registerOrchestrations));
         }
 
-        private void EnsureFabricOrchestrationProvider()
-        {
-            if (this.fabricOrchestrationProvider == null)
-            {
-                this.fabricOrchestrationProvider = this.fabricProviderFactory.CreateProvider();
-            }
-        }
-
         /// <summary>
         /// Handles node's role change.
         /// </summary>
@@ -83,7 +76,7 @@ namespace DurableTask.AzureServiceFabric.Service
             ServiceFabricProviderEventSource.Tracing.LogFabricServiceInformation(this.statefulService, $"Fabric On Change Role Async, current role = {this.currentRole}, new role = {newRole}");
             if (newRole != ReplicaRole.Primary && this.currentRole == ReplicaRole.Primary)
             {
-                await ShutdownAsync();
+                await StopAsync();
             }
             this.currentRole = newRole;
             ServiceFabricProviderEventSource.Tracing.LogFabricServiceInformation(this.statefulService, $"Fabric On Change Role Async, current role = {this.currentRole}");
@@ -97,10 +90,72 @@ namespace DurableTask.AzureServiceFabric.Service
         public async Task OnCloseAsync(CancellationToken cancellationToken)
         {
             ServiceFabricProviderEventSource.Tracing.LogFabricServiceInformation(this.statefulService, "OnCloseAsync - will shutdown primary if not already done");
-            await ShutdownAsync();
+            await StopAsync();
         }
 
-        async Task ShutdownAsync()
+        /// <inheritdoc />
+        public ServiceReplicaListener CreateServiceReplicaListener()
+        {
+            return new ServiceReplicaListener(context =>
+            {
+                var serviceEndpoint = context.CodePackageActivationContext.GetEndpoint(Constants.TaskHubProxyListenerEndpointName);
+                int port = serviceEndpoint.Port;
+
+                string ipAddress = context.NodeContext.IPAddressOrFQDN;
+#if DEBUG
+                IPHostEntry entry = Dns.GetHostEntry(ipAddress);
+                IPAddress ipv4Address = entry.AddressList.FirstOrDefault(
+                    address => (address.AddressFamily == AddressFamily.InterNetwork) && (!IPAddress.IsLoopback(address)));
+                ipAddress = ipv4Address.ToString();
+#endif
+
+                EnsureFabricOrchestrationProviderIsInitialized();
+                string listeningAddress = String.Format(CultureInfo.InvariantCulture, "http://{0}:{1}/{2}/dtfx/", ipAddress, port, context.PartitionId);
+                return new OwinCommunicationListener(new Startup(listeningAddress, this.fabricOrchestrationProvider));
+            }, Constants.TaskHubProxyServiceName);
+        }
+
+        /// <inheritdoc />
+        public async Task OnRunAsync(CancellationToken cancellationToken)
+        {
+            await StartAsync();
+        }
+
+        /// <inheritdoc />
+        public void Initialize(StatefulService statefulService)
+        {
+            this.statefulService = statefulService;
+        }
+
+        /// <inheritdoc />
+        public Task OnOpenAsync(ReplicaOpenMode openMode, CancellationToken cancellationToken)
+        {
+            this.fabricProviderFactory = new FabricOrchestrationProviderFactory(statefulService.StateManager, this.fabricOrchestrationProviderSettings);
+            return Task.CompletedTask;
+        }
+
+        async Task StartAsync()
+        {
+            try
+            {
+                EnsureFabricOrchestrationProviderIsInitialized();
+
+                this.worker = new TaskHubWorker(this.fabricOrchestrationProvider.OrchestrationService);
+
+                this.registerOrchestrations(this.worker);
+
+                await this.worker.StartAsync();
+
+                this.worker.TaskActivityDispatcher.IncludeDetails = true;
+            }
+            catch (Exception exception)
+            {
+                ServiceFabricProviderEventSource.Tracing.ServiceRequestFailed("RunAsync failed", $"Exception Details Type: {exception.GetType()}, Message: {exception.Message}, StackTrace: {exception.StackTrace}");
+                throw;
+            }
+        }
+
+        async Task StopAsync()
         {
             try
             {
@@ -122,62 +177,12 @@ namespace DurableTask.AzureServiceFabric.Service
             }
         }
 
-        /// <inheritdoc />
-        public ServiceReplicaListener CreateServiceReplicaListener()
+        private void EnsureFabricOrchestrationProviderIsInitialized()
         {
-            this.fabricProviderFactory = new FabricOrchestrationProviderFactory(statefulService.StateManager, this.fabricOrchestrationProviderSettings);
-            this.fabricOrchestrationProvider = this.fabricProviderFactory.CreateProvider();
-
-            return new ServiceReplicaListener(context =>
+            if (this.fabricOrchestrationProvider == null)
             {
-                var serviceEndpoint = context.CodePackageActivationContext.GetEndpoint(Constants.TaskHubProxyListenerEndpointName);
-                int port = serviceEndpoint.Port;
-
-                string ipAddress = context.NodeContext.IPAddressOrFQDN;
-#if DEBUG
-                IPHostEntry entry = Dns.GetHostEntry(ipAddress);
-                IPAddress ipv4Address = entry.AddressList.FirstOrDefault(
-                    address => (address.AddressFamily == AddressFamily.InterNetwork) && (!IPAddress.IsLoopback(address)));
-                ipAddress = ipv4Address.ToString();
-#endif
-
-                EnsureFabricOrchestrationProvider();
-                string listeningAddress = String.Format(CultureInfo.InvariantCulture, "http://{0}:{1}/{2}/dtfx/", ipAddress, port, context.PartitionId);
-                return new OwinCommunicationListener(new Startup(listeningAddress, this.fabricOrchestrationProvider));
-            }, Constants.TaskHubProxyServiceName);
-        }
-
-        /// <inheritdoc />
-        public async Task OnRunAsync(CancellationToken cancellationToken)
-        {
-            try
-            {
-                EnsureFabricOrchestrationProvider();
-
-                this.worker = new TaskHubWorker(this.fabricOrchestrationProvider.OrchestrationService);
-
-                this.registerOrchestrations(this.worker);
-
-                await this.worker.StartAsync();
-
-                this.worker.TaskActivityDispatcher.IncludeDetails = true;
+                this.fabricOrchestrationProvider = this.fabricProviderFactory.CreateProvider();
             }
-            catch (Exception exception)
-            {
-                ServiceFabricProviderEventSource.Tracing.ServiceRequestFailed("RunAsync failed", $"Exception Details Type: {exception.GetType()}, Message: {exception.Message}, StackTrace: {exception.StackTrace}");
-            }
-        }
-
-        /// <inheritdoc />
-        public void Initialize(StatefulService statefulService)
-        {
-            this.statefulService = statefulService;
-        }
-
-        /// <inheritdoc />
-        public Task OnOpenAsync(ReplicaOpenMode openMode, CancellationToken cancellationToken)
-        {
-            return Task.CompletedTask;
         }
     }
 }

@@ -42,3 +42,9 @@ There are pre-requisites for setting up this project for developing or making co
 * There are 2 manual steps that must be done before running tests:
   * A 5 node local cluster must be setup using Service Fabric Local Cluster Manager (installed by SDK).
   * After the solution is built, the "TestFabricApplication" must be packaged using the context menu. (The packaged application will be deployed to local cluster as part of test setup)
+  
+## Main Contributors
+
+* Pradeep Kadubandi
+* Shankar Reddy Sama
+* Kameswara Rao Tanneru

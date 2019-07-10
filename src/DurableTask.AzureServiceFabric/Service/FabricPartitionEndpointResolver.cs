@@ -49,7 +49,7 @@ namespace DurableTask.AzureServiceFabric.Service
         public async Task<string> GetPartitionEndPointAsync(string instanceId, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            long hash = await this.instanceIdHasher.GeneratePartitionHashCode(instanceId, cancellationToken);
+            long hash = await this.instanceIdHasher.GeneratePartitionHashCodeAsync(instanceId, cancellationToken);
             ResolvedServicePartition partition = await this.partitionResolver.ResolveAsync(this.serviceUri, new ServicePartitionKey(hash), cancellationToken);
             return partition.GetEndpoint().Address;
         }

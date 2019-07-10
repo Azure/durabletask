@@ -24,6 +24,7 @@ namespace DurableTask.AzureServiceFabric.Stores
     using DurableTask.Core;
     using DurableTask.AzureServiceFabric.TaskHelpers;
     using DurableTask.AzureServiceFabric.Tracing;
+
     using Microsoft.ServiceFabric.Data;
 
     /// <summary>
@@ -69,15 +70,15 @@ namespace DurableTask.AzureServiceFabric.Stores
     /// can handle no messages scenario, it's simpler to ignore the difference between the above and new messages being sent
     /// after consumer reads messages but before the session is unlocked.
     /// </summary>
-    class SessionsProvider : MessageProviderBase<string, PersistentSession>
+    class SessionProvider : MessageProviderBase<string, PersistentSession>
     {
         ConcurrentQueue<string> fetchQueue = new ConcurrentQueue<string>();
         ConcurrentDictionary<string, LockState> lockedSessions = new ConcurrentDictionary<string, LockState>();
 
-        ConcurrentDictionary<OrchestrationInstance, SessionMessagesProvider> sessionMessageProviders
-            = new ConcurrentDictionary<OrchestrationInstance, SessionMessagesProvider>(OrchestrationInstanceComparer.Default);
+        ConcurrentDictionary<OrchestrationInstance, SessionMessageProvider> sessionMessageProviders
+            = new ConcurrentDictionary<OrchestrationInstance, SessionMessageProvider>(OrchestrationInstanceComparer.Default);
 
-        public SessionsProvider(IReliableStateManager stateManager, CancellationToken token) : base(stateManager, Constants.OrchestrationDictionaryName, token)
+        public SessionProvider(IReliableStateManager stateManager, CancellationToken token) : base(stateManager, Constants.OrchestrationDictionaryName, token)
         {
         }
 
@@ -119,7 +120,7 @@ namespace DurableTask.AzureServiceFabric.Stores
                                         throw new Exception(errorMessage);
                                     }
                                 }
-                            }, uniqueActionIdentifier: $"{nameof(SessionsProvider)}.{nameof(AcceptSessionAsync)}, SessionId : {returnInstanceId}");
+                            }, uniqueActionIdentifier: $"{nameof(SessionProvider)}.{nameof(AcceptSessionAsync)}, SessionId : {returnInstanceId}");
                         }
                         catch (Exception)
                         {
@@ -149,14 +150,14 @@ namespace DurableTask.AzureServiceFabric.Stores
 
         public async Task CompleteMessages(ITransaction transaction, OrchestrationInstance instance, List<Guid> lockTokens)
         {
-            if (this.sessionMessageProviders.TryGetValue(instance, out SessionMessagesProvider sessionMessageProvider))
+            if (this.sessionMessageProviders.TryGetValue(instance, out SessionMessageProvider sessionMessageProvider))
             {
                 ServiceFabricProviderEventSource.Tracing.TraceMessage(instance.InstanceId, $"Number of completed messages {lockTokens.Count}");
                 await sessionMessageProvider.CompleteBatchAsync(transaction, lockTokens);
             }
             else
             {
-                ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition($"{nameof(SessionsProvider)}.{nameof(CompleteMessages)} : Did not find session messages provider instance for session : {instance}.");
+                ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition($"{nameof(SessionProvider)}.{nameof(CompleteMessages)} : Did not find session messages provider instance for session : {instance}.");
             }
         }
 
@@ -176,7 +177,7 @@ namespace DurableTask.AzureServiceFabric.Stores
                     await this.AppendMessageAsync(txn, newMessage);
                     await txn.CommitAsync();
                 }
-            }, uniqueActionIdentifier: $"Orchestration = '{newMessage.TaskMessage.OrchestrationInstance}', Action = '{nameof(SessionsProvider)}.{nameof(AppendMessageAsync)}'");
+            }, uniqueActionIdentifier: $"Orchestration = '{newMessage.TaskMessage.OrchestrationInstance}', Action = '{nameof(SessionProvider)}.{nameof(AppendMessageAsync)}'");
 
             this.TryEnqueueSession(newMessage.TaskMessage.OrchestrationInstance);
         }
@@ -248,7 +249,7 @@ namespace DurableTask.AzureServiceFabric.Stores
             ServiceFabricProviderEventSource.Tracing.TraceMessage(instance.InstanceId, $"Session Unlock Begin, Abandon = {abandon}");
             if (!this.lockedSessions.TryRemove(instance.InstanceId, out LockState lockState) || lockState == LockState.InFetchQueue)
             {
-                var errorMessage = $"{nameof(SessionsProvider)}.{nameof(TryUnlockSession)} : Trying to unlock the session {instance.InstanceId} which was not locked.";
+                var errorMessage = $"{nameof(SessionProvider)}.{nameof(TryUnlockSession)} : Trying to unlock the session {instance.InstanceId} which was not locked.";
                 ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition(errorMessage);
                 throw new Exception(errorMessage);
             }
@@ -291,7 +292,7 @@ namespace DurableTask.AzureServiceFabric.Stores
                     }
                 }
                 return null;
-            }, uniqueActionIdentifier: $"Orchestration InstanceId = {instanceId}, Action = {nameof(SessionsProvider)}.{nameof(GetSession)}");
+            }, uniqueActionIdentifier: $"Orchestration InstanceId = {instanceId}, Action = {nameof(SessionProvider)}.{nameof(GetSession)}");
         }
 
         public void TryEnqueueSession(OrchestrationInstance instance)
@@ -322,15 +323,15 @@ namespace DurableTask.AzureServiceFabric.Stores
 
             await this.Store.TryRemoveAsync(txn, instance.InstanceId);
 
-            this.sessionMessageProviders.TryRemove(instance, out SessionMessagesProvider _);
+            this.sessionMessageProviders.TryRemove(instance, out SessionMessageProvider _);
 
             var noWait = RetryHelper.ExecuteWithRetryOnTransient(() => this.StateManager.RemoveAsync(GetSessionMessagesDictionaryName(instance)),
                 uniqueActionIdentifier: $"Orchestration = '{instance}', Action = 'DropSessionMessagesDictionaryBackgroundTask'");
         }
 
-        async Task<SessionMessagesProvider> GetOrAddSessionMessagesInstance(OrchestrationInstance instance)
+        async Task<SessionMessageProvider> GetOrAddSessionMessagesInstance(OrchestrationInstance instance)
         {
-            var newInstance = new SessionMessagesProvider(this.StateManager, GetSessionMessagesDictionaryName(instance), this.CancellationToken);
+            var newInstance = new SessionMessageProvider(this.StateManager, GetSessionMessagesDictionaryName(instance), this.CancellationToken);
             var sessionMessageProvider = this.sessionMessageProviders.GetOrAdd(instance, newInstance);
             await sessionMessageProvider.EnsureStoreInitialized();
             return sessionMessageProvider;

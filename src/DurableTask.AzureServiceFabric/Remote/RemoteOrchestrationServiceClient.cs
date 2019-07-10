@@ -166,7 +166,7 @@ namespace DurableTask.AzureServiceFabric.Remote
             foreach (var endpoint in await this.GetAllEndpointsAsync(CancellationToken.None))
             {
                 var uri = $"{endpoint.ToString()}/{GetHistoryFragment()}";
-                var task = this.HttpClient.PostAsJsonAsync(uri, new { thresholdDateTimeUtc, timeRangeFilterType });
+                var task = this.HttpClient.PostAsJsonAsync(uri, new PurgeOrchestrationHistoryParameters { ThresholdDateTimeUtc = thresholdDateTimeUtc, TimeRangeFilterType = timeRangeFilterType });
                 allTasks.Add(task);
             }
 

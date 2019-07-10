@@ -25,7 +25,7 @@ namespace DurableTask.AzureServiceFabric.Service
     public class DefaultStringPartitionHashing : IPartitionHashing<string>
     {
         /// <inheritdoc/>
-        public Task<long> GeneratePartitionHashCode(string value, CancellationToken cancellationToken)
+        public Task<long> GeneratePartitionHashCodeAsync(string value, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             long hashCode = 0;

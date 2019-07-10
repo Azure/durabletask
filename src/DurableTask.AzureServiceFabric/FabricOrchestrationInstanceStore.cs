@@ -65,8 +65,8 @@ namespace DurableTask.AzureServiceFabric
 
         public async Task StartAsync()
         {
-            await EnsureStoreInitialized();
-            var nowait = CleanupOldDictionaries();
+            await EnsureStoreInitializedAsync();
+            var nowait = CleanupOldDictionariesAsync();
         }
 
         public async Task DeleteStoreAsync()
@@ -77,7 +77,7 @@ namespace DurableTask.AzureServiceFabric
 
         public async Task WriteEntitiesAsync(ITransaction transaction, IEnumerable<InstanceEntityBase> entities)
         {
-            await EnsureStoreInitialized();
+            await EnsureStoreInitializedAsync();
             foreach (var entity in entities)
             {
                 var state = entity as OrchestrationStateInstanceEntity;
@@ -132,7 +132,7 @@ namespace DurableTask.AzureServiceFabric
                 throw new NotImplementedException("Querying for state across all executions for an orchestration is not supported, only the latest execution can be queried");
             }
 
-            await EnsureStoreInitialized();
+            await EnsureStoreInitializedAsync();
 
             string latestExecutionId = (await GetExecutionIds(instanceId))?.Last();
 
@@ -169,7 +169,7 @@ namespace DurableTask.AzureServiceFabric
 
         public async Task<OrchestrationStateInstanceEntity> GetOrchestrationStateAsync(string instanceId, string executionId)
         {
-            await EnsureStoreInitialized();
+            await EnsureStoreInitializedAsync();
             var queryKey = this.GetKey(instanceId, executionId);
             var result = await RetryHelper.ExecuteWithRetryOnTransient(async () =>
             {
@@ -237,9 +237,16 @@ namespace DurableTask.AzureServiceFabric
         // The method will cleanup state for every orchestration happening in the hour time window of given time,
         // for example, if the given time is 9.35, it will delete state for all orchestrations that
         // are completed between 9.00 to 9.59!!!
-        public Task PurgeOrchestrationHistoryEventsAsync(DateTime threshholdHourlyDateTimeUtc)
+        public async Task PurgeOrchestrationHistoryEventsAsync(DateTime threshholdHourlyDateTimeUtc)
         {
-            return this.stateManager.RemoveAsync(GetDictionaryKeyFromTimeFormat(threshholdHourlyDateTimeUtc));
+            try
+            {
+                await this.stateManager.RemoveAsync(GetDictionaryKeyFromTimeFormat(threshholdHourlyDateTimeUtc));
+            }
+            catch (Exception e)
+            {
+                ServiceFabricProviderEventSource.Tracing.LogProxyServiceError($"PurgeOrchestrationHistoryEventsAsync failed with exception {e.ToString()}");
+            }
         }
 
         string GetKey(string instanceId, string executionId)
@@ -262,7 +269,7 @@ namespace DurableTask.AzureServiceFabric
             return InstanceStoreCollectionNamePrefix + time.ToString(formatString);
         }
 
-        Task CleanupDayOldDictionaries()
+        Task CleanupDayOldDictionariesAsync()
         {
             return Utils.RunBackgroundJob(async () =>
             {
@@ -272,10 +279,10 @@ namespace DurableTask.AzureServiceFabric
                 {
                     await this.stateManager.RemoveAsync($"{purgeTime}{i:D2}");
                 }
-            }, initialDelay: TimeSpan.FromMinutes(5), delayOnSuccess: TimeSpan.FromHours(12), delayOnException: TimeSpan.FromHours(1), actionName: $"{nameof(CleanupDayOldDictionaries)}", token: this.cancellationToken);
+            }, initialDelay: TimeSpan.FromMinutes(5), delayOnSuccess: TimeSpan.FromHours(12), delayOnException: TimeSpan.FromHours(1), actionName: $"{nameof(CleanupDayOldDictionariesAsync)}", token: this.cancellationToken);
         }
 
-        Task CleanupOldDictionaries()
+        Task CleanupOldDictionariesAsync()
         {
             return Utils.RunBackgroundJob(async () =>
             {
@@ -318,10 +325,10 @@ namespace DurableTask.AzureServiceFabric
                     });
                     ServiceFabricProviderEventSource.Tracing.LogTimeTaken($"Deleting reliable state {storeName}", deleteTime.TotalMilliseconds);
                 }
-            }, initialDelay: TimeSpan.FromMinutes(5), delayOnSuccess: TimeSpan.FromHours(1), delayOnException: TimeSpan.FromMinutes(10), actionName: $"{nameof(CleanupOldDictionaries)}", token: this.cancellationToken);
+            }, initialDelay: TimeSpan.FromMinutes(5), delayOnSuccess: TimeSpan.FromHours(1), delayOnException: TimeSpan.FromMinutes(10), actionName: $"{nameof(CleanupOldDictionariesAsync)}", token: this.cancellationToken);
         }
 
-        async Task EnsureStoreInitialized()
+        async Task EnsureStoreInitializedAsync()
         {
             if (this.instanceStore == null)
             {

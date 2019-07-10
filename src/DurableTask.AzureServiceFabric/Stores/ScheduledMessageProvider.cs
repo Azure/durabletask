@@ -28,15 +28,15 @@ namespace DurableTask.AzureServiceFabric.Stores
 
     class ScheduledMessageProvider : MessageProviderBase<Guid, TaskMessageItem>
     {
-        readonly SessionsProvider sessionsProvider;
+        readonly SessionProvider sessionProvider;
         readonly object @lock = new object();
 
         ImmutableSortedSet<Message<Guid, TaskMessageItem>> inMemorySet = ImmutableSortedSet<Message<Guid, TaskMessageItem>>.Empty.WithComparer(TimerFiredEventComparer.Instance);
         DateTime nextActivationCheck;
 
-        public ScheduledMessageProvider(IReliableStateManager stateManager, string storeName, SessionsProvider sessionsProvider, CancellationToken token) : base(stateManager, storeName, token)
+        public ScheduledMessageProvider(IReliableStateManager stateManager, string storeName, SessionProvider sessionProvider, CancellationToken token) : base(stateManager, storeName, token)
         {
-            this.sessionsProvider = sessionsProvider;
+            this.sessionProvider = sessionProvider;
         }
 
         public override async Task StartAsync()
@@ -138,7 +138,7 @@ namespace DurableTask.AzureServiceFabric.Stores
                         {
                             using (var tx = this.StateManager.CreateTransaction())
                             {
-                                modifiedSessions = await this.sessionsProvider.TryAppendMessageBatchAsync(tx, values);
+                                modifiedSessions = await this.sessionProvider.TryAppendMessageBatchAsync(tx, values);
                                 await this.CompleteBatchAsync(tx, keys);
                                 await tx.CommitAsync();
                             }
@@ -153,7 +153,7 @@ namespace DurableTask.AzureServiceFabric.Stores
                         {
                             foreach (var sessionId in modifiedSessions)
                             {
-                                this.sessionsProvider.TryEnqueueSession(sessionId);
+                                this.sessionProvider.TryEnqueueSession(sessionId);
                             }
                         }
                     }

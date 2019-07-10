@@ -33,7 +33,7 @@ namespace DurableTask.AzureServiceFabric
     {
         readonly IReliableStateManager stateManager;
         readonly IFabricOrchestrationServiceInstanceStore instanceStore;
-        readonly SessionsProvider orchestrationProvider;
+        readonly SessionProvider orchestrationProvider;
         readonly ActivityProvider activitiesProvider;
         readonly ScheduledMessageProvider scheduledMessagesProvider;
         readonly FabricOrchestrationProviderSettings settings;
@@ -42,7 +42,7 @@ namespace DurableTask.AzureServiceFabric
         ConcurrentDictionary<string, SessionInformation> sessionInfos = new ConcurrentDictionary<string, SessionInformation>();
 
         public FabricOrchestrationService(IReliableStateManager stateManager,
-            SessionsProvider orchestrationProvider,
+            SessionProvider orchestrationProvider,
             IFabricOrchestrationServiceInstanceStore instanceStore,
             FabricOrchestrationProviderSettings settings,
             CancellationTokenSource cancellationTokenSource)

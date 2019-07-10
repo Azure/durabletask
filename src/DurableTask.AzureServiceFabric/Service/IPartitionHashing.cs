@@ -28,6 +28,6 @@ namespace DurableTask.AzureServiceFabric.Service
         /// <param name="value">Input element</param>
         /// <param name="cancellationToken">Token to inform when a task is cancelled.</param>
         /// <returns>64 bit hash code</returns>
-        Task<long> GeneratePartitionHashCode(T value, CancellationToken cancellationToken);
+        Task<long> GeneratePartitionHashCodeAsync(T value, CancellationToken cancellationToken);
     }
 }

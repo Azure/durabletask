@@ -22,7 +22,7 @@ namespace DurableTask.AzureServiceFabric.Service
     /// <summary>
     /// Traces application exceptions.
     /// </summary>
-    public class ProxyServiceExceptionsLogger : ExceptionLogger
+    public class ProxyServiceExceptionLogger : ExceptionLogger
     {
         /// <inheritdoc />
         public async override Task LogAsync(ExceptionLoggerContext context, CancellationToken cancellationToken)

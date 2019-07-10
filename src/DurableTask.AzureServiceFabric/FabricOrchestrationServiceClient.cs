@@ -35,9 +35,9 @@ namespace DurableTask.AzureServiceFabric
     {
         readonly IReliableStateManager stateManager;
         readonly IFabricOrchestrationServiceInstanceStore instanceStore;
-        readonly SessionsProvider orchestrationProvider;
+        readonly SessionProvider orchestrationProvider;
 
-        public FabricOrchestrationServiceClient(IReliableStateManager stateManager, SessionsProvider orchestrationProvider, IFabricOrchestrationServiceInstanceStore instanceStore)
+        public FabricOrchestrationServiceClient(IReliableStateManager stateManager, SessionProvider orchestrationProvider, IFabricOrchestrationServiceInstanceStore instanceStore)
         {
             this.stateManager = stateManager ?? throw new ArgumentNullException(nameof(stateManager));
             this.orchestrationProvider = orchestrationProvider ?? throw new ArgumentNullException(nameof(orchestrationProvider));

@@ -19,9 +19,9 @@ namespace DurableTask.AzureServiceFabric.Stores
     using System.Threading.Tasks;
     using Microsoft.ServiceFabric.Data;
 
-    class SessionMessagesProvider : MessageProviderBase<Guid, TaskMessageItem>
+    class SessionMessageProvider : MessageProviderBase<Guid, TaskMessageItem>
     {
-        public SessionMessagesProvider(IReliableStateManager stateManager, string storeName, CancellationToken token)
+        public SessionMessageProvider(IReliableStateManager stateManager, string storeName, CancellationToken token)
             : base(stateManager, storeName, token)
         {
         }

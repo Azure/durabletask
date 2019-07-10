@@ -24,7 +24,7 @@ namespace DurableTask.AzureServiceFabric.Tracing
     /// </summary>
     [EventSource(
         Guid = "9FF47541-6D50-4DDF-AF88-D9EF1807810C",
-        Name = "DurableTask-ServiceFabricProvider-V2")]
+        Name = "DurableTask-AzureServiceFabricProvider")]
     public sealed class ServiceFabricProviderEventSource : EventSource
     {
         /// <summary>

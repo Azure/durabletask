@@ -16,10 +16,13 @@ namespace DurableTask.AzureServiceFabric.Stores
     using System;
     using System.Collections.Generic;
     using System.Diagnostics.CodeAnalysis;
+    using System.Fabric;
     using System.Threading;
     using System.Threading.Tasks;
+
     using DurableTask.AzureServiceFabric.TaskHelpers;
     using DurableTask.AzureServiceFabric.Tracing;
+
     using Microsoft.ServiceFabric.Data;
     using Microsoft.ServiceFabric.Data.Collections;
 
@@ -45,9 +48,9 @@ namespace DurableTask.AzureServiceFabric.Stores
 
         public virtual async Task StartAsync()
         {
-            await InitializeStore();
-            await EnumerateItems(kvp => AddItemInMemory(kvp.Key, kvp.Value));
-            var nowait = LogMetrics();
+            await this.InitializeStore();
+            await this.EnumerateItems(kvp => this.AddItemInMemory(kvp.Key, kvp.Value));
+            Task nowait = this.LogMetrics();
         }
 
         protected async Task InitializeStore()
@@ -62,7 +65,7 @@ namespace DurableTask.AzureServiceFabric.Stores
 
         public async Task CompleteBatchAsync(ITransaction tx, IEnumerable<TKey> keys)
         {
-            foreach (var key in keys)
+            foreach (TKey key in keys)
             {
                 await this.Store.TryRemoveAsync(tx, key);
             }
@@ -79,7 +82,7 @@ namespace DurableTask.AzureServiceFabric.Stores
 
         public void SendComplete(Message<TKey, TValue> item)
         {
-            AddItemInMemory(item.Key, item.Value);
+            this.AddItemInMemory(item.Key, item.Value);
             this.waitEvent.Set();
         }
 
@@ -89,7 +92,7 @@ namespace DurableTask.AzureServiceFabric.Stores
         /// </summary>
         public async Task SendBatchBeginAsync(ITransaction tx, IEnumerable<Message<TKey, TValue>> items)
         {
-            foreach (var item in items)
+            foreach (Message<TKey, TValue> item in items)
             {
                 await this.Store.TryAddAsync(tx, item.Key, item.Value);
             }
@@ -97,9 +100,9 @@ namespace DurableTask.AzureServiceFabric.Stores
 
         public void SendBatchComplete(IEnumerable<Message<TKey, TValue>> items)
         {
-            foreach (var item in items)
+            foreach (Message<TKey, TValue> item in items)
             {
-                AddItemInMemory(item.Key, item.Value);
+                this.AddItemInMemory(item.Key, item.Value);
             }
             this.waitEvent.Set();
         }
@@ -149,7 +152,7 @@ namespace DurableTask.AzureServiceFabric.Stores
         {
             if (this.Store == null)
             {
-                return InitializeStore();
+                return this.InitializeStore();
             }
 
             return Task.CompletedTask;
@@ -177,14 +180,19 @@ namespace DurableTask.AzureServiceFabric.Stores
         {
             return Utils.RunBackgroundJob(async () =>
             {
-                long count = 0;
-                using (var tx = this.StateManager.CreateTransaction())
+                try
                 {
-                    count = await this.Store.GetCountAsync(tx);
+                    using (ITransaction tx = this.StateManager.CreateTransaction())
+                    {
+                        long count = await this.Store.GetCountAsync(tx);
+                        ServiceFabricProviderEventSource.Tracing.LogStoreCount(this.storeName, count);
+                    }
                 }
-
-                ServiceFabricProviderEventSource.Tracing.LogStoreCount(this.storeName, count);
-            }, initialDelay: metricsInterval, delayOnSuccess: metricsInterval, delayOnException: metricsInterval, actionName: $"Log Store Count of {this.storeName}", token: this.CancellationToken);
+                catch (FabricObjectClosedException)
+                {
+                    ServiceFabricProviderEventSource.Tracing.ExceptionWhileRunningBackgroundJob("LogMetrics", "Fabric object is closed while running the loop action");
+                }
+            }, initialDelay: this.metricsInterval, delayOnSuccess: this.metricsInterval, delayOnException: this.metricsInterval, actionName: $"Log Store Count of {this.storeName}", token: this.CancellationToken);
         }
     }
 }

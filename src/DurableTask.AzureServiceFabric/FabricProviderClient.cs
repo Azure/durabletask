@@ -27,10 +27,10 @@ namespace DurableTask.AzureServiceFabric
     internal class FabricProviderClient : IFabricProviderClient
     {
         readonly IReliableStateManager stateManager;
-        readonly SessionsProvider orchestrationProvider;
+        readonly SessionProvider orchestrationProvider;
         readonly JsonDataConverter FormattingConverter = new JsonDataConverter(new JsonSerializerSettings() { Formatting = Formatting.Indented });
 
-        public FabricProviderClient(IReliableStateManager stateManager, SessionsProvider orchestrationProvider)
+        public FabricProviderClient(IReliableStateManager stateManager, SessionProvider orchestrationProvider)
         {
             this.stateManager = stateManager ?? throw new ArgumentNullException(nameof(stateManager));
             this.orchestrationProvider = orchestrationProvider ?? throw new ArgumentNullException(nameof(orchestrationProvider));

@@ -44,7 +44,7 @@ namespace DurableTask.AzureServiceFabric.Service
             var services = new ServiceCollection();
             services.AddSingleton<IOrchestrationServiceClient>(this.fabricOrchestrationProvider.OrchestrationServiceClient);
             services.AddTransient<FabricOrchestrationServiceController>();
-            services.AddSingleton<IExceptionLogger, ProxyServiceExceptionsLogger>();
+            services.AddSingleton<IExceptionLogger, ProxyServiceExceptionLogger>();
             services.AddSingleton<IExceptionHandler, ProxyServiceExceptionHandler>();
             var serviceProvider = services.BuildServiceProvider();
             return serviceProvider;
