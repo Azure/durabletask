@@ -11,7 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceFabric
+namespace DurableTask.AzureServiceFabric
 {
     static class Constants
     {

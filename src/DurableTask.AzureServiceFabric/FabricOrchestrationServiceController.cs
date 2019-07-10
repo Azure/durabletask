@@ -11,7 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceFabric
+namespace DurableTask.AzureServiceFabric
 {
     using System.Collections.Generic;
     using System.Threading.Tasks;
@@ -20,8 +20,8 @@ namespace DurableTask.ServiceFabric
 
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
-    using DurableTask.ServiceFabric.Models;
-    using DurableTask.ServiceFabric.Tracing;
+    using DurableTask.AzureServiceFabric.Models;
+    using DurableTask.AzureServiceFabric.Tracing;
 
     /// <summary>
     /// A Web Api controller that provides TaskHubClient operations.

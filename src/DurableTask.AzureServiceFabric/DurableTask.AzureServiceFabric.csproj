@@ -4,7 +4,7 @@
   <PropertyGroup>
     <TargetFrameworks>net461;net472</TargetFrameworks>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <PackageId>Microsoft.Azure.DurableTask.ServiceFabric</PackageId>
+    <PackageId>Microsoft.Azure.DurableTask.AzureServiceFabric</PackageId>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net461'">

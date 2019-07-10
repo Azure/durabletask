@@ -11,7 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceFabric.Stores
+namespace DurableTask.AzureServiceFabric.Stores
 {
     using System;
     using System.Collections.Generic;

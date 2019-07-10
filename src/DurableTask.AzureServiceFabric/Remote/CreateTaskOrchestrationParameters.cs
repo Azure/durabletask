@@ -11,7 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceFabric.Models
+namespace DurableTask.AzureServiceFabric.Models
 {
     using DurableTask.Core;
 

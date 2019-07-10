@@ -11,12 +11,12 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceFabric.Exceptions
+namespace DurableTask.AzureServiceFabric.Exceptions
 {
     using System;
     using System.Net;
 
-    using DurableTask.ServiceFabric.Remote;
+    using DurableTask.AzureServiceFabric.Remote;
 
 
     /// <summary>

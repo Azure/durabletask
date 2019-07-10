@@ -11,7 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceFabric.Remote
+namespace DurableTask.AzureServiceFabric.Remote
 {
     using System;
     using System.Collections.Generic;
@@ -24,8 +24,8 @@ namespace DurableTask.ServiceFabric.Remote
 
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
-    using DurableTask.ServiceFabric.Exceptions;
-    using DurableTask.ServiceFabric.Models;
+    using DurableTask.AzureServiceFabric.Exceptions;
+    using DurableTask.AzureServiceFabric.Models;
 
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;

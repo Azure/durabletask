@@ -11,7 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceFabric.Stores
+namespace DurableTask.AzureServiceFabric.Stores
 {
     using System;
     using System.Collections.Concurrent;
@@ -22,8 +22,8 @@ namespace DurableTask.ServiceFabric.Stores
     using System.Threading.Tasks;
 
     using DurableTask.Core;
-    using DurableTask.ServiceFabric.TaskHelpers;
-    using DurableTask.ServiceFabric.Tracing;
+    using DurableTask.AzureServiceFabric.TaskHelpers;
+    using DurableTask.AzureServiceFabric.Tracing;
     using Microsoft.ServiceFabric.Data;
 
     /// <summary>

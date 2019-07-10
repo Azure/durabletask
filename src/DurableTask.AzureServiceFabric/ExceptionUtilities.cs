@@ -11,12 +11,12 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceFabric
+namespace DurableTask.AzureServiceFabric
 {
     using System;
     using System.Fabric;
 
-    using DurableTask.ServiceFabric.Tracing;
+    using DurableTask.AzureServiceFabric.Tracing;
 
     static class ExceptionUtilities
     {

@@ -11,11 +11,11 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceFabric.Tests
+namespace DurableTask.AzureServiceFabric.Tests
 {
     using System;
 
-    using DurableTask.ServiceFabric.TaskHelpers;
+    using DurableTask.AzureServiceFabric.TaskHelpers;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]

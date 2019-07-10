@@ -11,7 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceFabric.Tracing
+namespace DurableTask.AzureServiceFabric.Tracing
 {
     using System;
     using System.Diagnostics.Tracing;

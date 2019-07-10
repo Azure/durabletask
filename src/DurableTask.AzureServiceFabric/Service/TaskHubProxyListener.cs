@@ -11,7 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceFabric.Service
+namespace DurableTask.AzureServiceFabric.Service
 {
     using System;
     using System.Fabric;
@@ -23,8 +23,8 @@ namespace DurableTask.ServiceFabric.Service
     using System.Threading.Tasks;
 
     using DurableTask.Core;
-    using DurableTask.ServiceFabric;
-    using DurableTask.ServiceFabric.Tracing;
+    using DurableTask.AzureServiceFabric;
+    using DurableTask.AzureServiceFabric.Tracing;
 
     using Microsoft.ServiceFabric.Services.Communication.Runtime;
     using Microsoft.ServiceFabric.Services.Runtime;

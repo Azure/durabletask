@@ -17,7 +17,7 @@ namespace TestApplication.StatefulService
     using System.Diagnostics;
     using System.Threading;
 
-    using DurableTask.ServiceFabric.Service;
+    using DurableTask.AzureServiceFabric.Service;
 
     using Microsoft.ServiceFabric.Services.Runtime;
 

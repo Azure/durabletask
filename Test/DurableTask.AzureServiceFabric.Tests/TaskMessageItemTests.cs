@@ -11,7 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceFabric.Tests
+namespace DurableTask.AzureServiceFabric.Tests
 {
     using DurableTask.Core;
     using DurableTask.Core.History;

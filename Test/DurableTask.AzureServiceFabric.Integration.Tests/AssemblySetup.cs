@@ -11,12 +11,12 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceFabric.Integration.Tests
+namespace DurableTask.AzureServiceFabric.Integration.Tests
 {
     using System;
     using System.IO;
 
-    using DurableTask.ServiceFabric.Integration.Tests.DeploymentUtil;
+    using DurableTask.AzureServiceFabric.Integration.Tests.DeploymentUtil;
 
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 

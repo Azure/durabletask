@@ -11,13 +11,13 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceFabric
+namespace DurableTask.AzureServiceFabric
 {
     using System;
     using System.Threading;
 
     using DurableTask.Core;
-    using DurableTask.ServiceFabric.Stores;
+    using DurableTask.AzureServiceFabric.Stores;
     using Microsoft.ServiceFabric.Data;
 
     /// <summary>

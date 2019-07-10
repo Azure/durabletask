@@ -11,13 +11,13 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceFabric.Service
+namespace DurableTask.AzureServiceFabric.Service
 {
     using System;
     using System.Threading;
     using System.Threading.Tasks;
 
-    using DurableTask.ServiceFabric.Tracing;
+    using DurableTask.AzureServiceFabric.Tracing;
 
     using Microsoft.Owin.Hosting;
     using Microsoft.ServiceFabric.Services.Communication.Runtime;
@@ -35,7 +35,7 @@ namespace DurableTask.ServiceFabric.Service
         private IOwinAppBuilder owinAppBuilder;
 
         /// <summary>
-        /// 
+        ///
         /// </summary>
         /// <param name="owinAppBuilder">Owin Application builder</param>
         public OwinCommunicationListener(IOwinAppBuilder owinAppBuilder)
@@ -44,7 +44,7 @@ namespace DurableTask.ServiceFabric.Service
         }
 
         /// <summary>
-        /// 
+        ///
         /// </summary>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>

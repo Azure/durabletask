@@ -11,7 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceFabric
+namespace DurableTask.AzureServiceFabric
 {
     using System;
     using System.Collections.Generic;
@@ -35,9 +35,9 @@ namespace DurableTask.ServiceFabric
         /// </summary>
         /// <param name="instanceId">The <see cref="OrchestrationInstance.InstanceId"/>
         /// of the orchestration.</param>
-        /// <returns>Returns serialized runtime state which includes all the history events if the 
+        /// <returns>Returns serialized runtime state which includes all the history events if the
         /// orchestration is running or pending.</returns>
-        /// <remarks>The API is intended for diagnostics purpose, so current implementation returns 
+        /// <remarks>The API is intended for diagnostics purpose, so current implementation returns
         /// a formatted json serialized string which can be very large.</remarks>
         /// <exception cref="ArgumentException">When the orchestration already completed or was never started.</exception>
         Task<string> GetOrchestrationRuntimeStateAsync(string instanceId);

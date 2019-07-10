@@ -19,8 +19,8 @@ namespace TestApplication.StatefulService
     using System.Threading.Tasks;
 
     using DurableTask.Core;
-    using DurableTask.ServiceFabric;
-    using DurableTask.ServiceFabric.Service;
+    using DurableTask.AzureServiceFabric;
+    using DurableTask.AzureServiceFabric.Service;
     using DurableTask.Test.Orchestrations.Performance;
 
     using TestApplication.Common.Orchestrations;

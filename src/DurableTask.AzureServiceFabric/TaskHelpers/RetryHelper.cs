@@ -11,13 +11,13 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceFabric.TaskHelpers
+namespace DurableTask.AzureServiceFabric.TaskHelpers
 {
     using System;
     using System.Diagnostics;
     using System.Threading.Tasks;
 
-    using DurableTask.ServiceFabric.Tracing;
+    using DurableTask.AzureServiceFabric.Tracing;
 
     static class RetryHelper
     {

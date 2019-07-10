@@ -15,7 +15,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 [assembly: ComVisible(false)]
-[assembly: System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2237:MarkISerializableTypesWithSerializable", Scope = "type", Target = "DurableTask.ServiceFabric.Exceptions.RemoteServiceException")]
+[assembly: System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2237:MarkISerializableTypesWithSerializable", Scope = "type", Target = "DurableTask.AzureServiceFabric.Exceptions.RemoteServiceException")]
 #if !SIGN_ASSEMBLY
 [assembly: InternalsVisibleTo("DurableTask.AzureServiceFabric.Tests")]
 #endif

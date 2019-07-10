@@ -11,14 +11,14 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceFabric.Service
+namespace DurableTask.AzureServiceFabric.Service
 {
     using System.Net;
     using System.Net.Http;
     using System.Web.Http.ExceptionHandling;
     using System.Web.Http.Results;
 
-    using DurableTask.ServiceFabric.Tracing;
+    using DurableTask.AzureServiceFabric.Tracing;
 
     internal class ProxyServiceExceptionHandler : ExceptionHandler
     {

@@ -11,7 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceFabric.Integration.Tests
+namespace DurableTask.AzureServiceFabric.Integration.Tests
 {
     static class Constants
     {

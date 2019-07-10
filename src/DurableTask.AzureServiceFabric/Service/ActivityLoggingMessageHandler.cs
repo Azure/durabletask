@@ -11,7 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceFabric.Service
+namespace DurableTask.AzureServiceFabric.Service
 {
     using System;
     using System.Net;
@@ -19,7 +19,7 @@ namespace DurableTask.ServiceFabric.Service
     using System.Threading;
     using System.Threading.Tasks;
 
-    using DurableTask.ServiceFabric.Tracing;
+    using DurableTask.AzureServiceFabric.Tracing;
 
     internal class ActivityLoggingMessageHandler : DelegatingHandler
     {

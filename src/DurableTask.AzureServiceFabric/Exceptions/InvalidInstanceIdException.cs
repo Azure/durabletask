@@ -11,7 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceFabric.Exceptions
+namespace DurableTask.AzureServiceFabric.Exceptions
 {
     using System;
 

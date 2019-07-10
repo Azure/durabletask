@@ -11,7 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceFabric
+namespace DurableTask.AzureServiceFabric
 {
     using System;
     using System.Collections.Generic;
@@ -20,7 +20,7 @@ namespace DurableTask.ServiceFabric
 
     using DurableTask.Core;
     using DurableTask.Core.Serializing;
-    using DurableTask.ServiceFabric.Stores;
+    using DurableTask.AzureServiceFabric.Stores;
     using Microsoft.ServiceFabric.Data;
     using Newtonsoft.Json;
 

@@ -11,12 +11,12 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceFabric
+namespace DurableTask.AzureServiceFabric
 {
     using System;
     using System.Web;
 
-    using DurableTask.ServiceFabric.Exceptions;
+    using DurableTask.AzureServiceFabric.Exceptions;
 
     /// <summary>
     /// Defines extensions methods.

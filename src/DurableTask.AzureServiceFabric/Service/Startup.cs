@@ -11,7 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceFabric.Service
+namespace DurableTask.AzureServiceFabric.Service
 {
     using System;
     using System.Net;
@@ -19,7 +19,7 @@ namespace DurableTask.ServiceFabric.Service
     using System.Web.Http.ExceptionHandling;
 
     using DurableTask.Core;
-    using DurableTask.ServiceFabric;
+    using DurableTask.AzureServiceFabric;
     using Microsoft.Extensions.DependencyInjection;
     using Owin;
 
