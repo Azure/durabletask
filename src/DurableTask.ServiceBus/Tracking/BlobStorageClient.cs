@@ -105,10 +105,20 @@ namespace DurableTask.ServiceBus.Tracking
         /// List all containers of the blob storage, whose prefix is containerNamePrefix, i.e., {hubName}-dtfx.
         /// </summary>
         /// <returns>A list of Azure blob containers</returns>
-        public IEnumerable<CloudBlobContainer> ListContainers()
+        public async Task<IEnumerable<CloudBlobContainer>> ListContainers()
         {
-            return this.blobClient.ListContainers(this.containerNamePrefix);
+            BlobContinuationToken continuationToken = null;
+            List<CloudBlobContainer> results = new List<CloudBlobContainer>();
+            do
+            {
+                var response = await this.blobClient.ListContainersSegmentedAsync(this.containerNamePrefix,continuationToken);
+                continuationToken = response.ContinuationToken;
+                results.AddRange(response.Results);
+            }
+            while (continuationToken != null);
+            return results;
         }
+        
 
         /// <summary>
         /// Delete all containers that are older than the input threshold date.
@@ -117,11 +127,8 @@ namespace DurableTask.ServiceBus.Tracking
         /// <returns></returns>
         public async Task DeleteExpiredContainersAsync(DateTime thresholdDateTimeUtc)
         {
-            IEnumerable<CloudBlobContainer> containers = ListContainers();
-            IEnumerable<Task<bool>> tasks = containers
-                .Where(container => BlobStorageClientHelper.IsContainerExpired(container.Name, thresholdDateTimeUtc))
-                .ToList()
-                .Select(container => container.DeleteIfExistsAsync());
+            IEnumerable<CloudBlobContainer> containers = await ListContainers();
+            var tasks = containers.Where(container => BlobStorageClientHelper.IsContainerExpired(container.Name, thresholdDateTimeUtc)).ToList().Select(container => container.DeleteIfExistsAsync());
             await Task.WhenAll(tasks);
         }
 
@@ -131,10 +138,8 @@ namespace DurableTask.ServiceBus.Tracking
         /// <returns></returns>
         public async Task DeleteBlobStoreContainersAsync()
         {
-            IEnumerable<CloudBlobContainer> containers = ListContainers();
-            IEnumerable<Task<bool>> tasks = containers
-                .ToList()
-                .Select(container => container.DeleteIfExistsAsync());
+            IEnumerable<CloudBlobContainer> containers = await this.ListContainers();
+            var tasks = containers.ToList().Select(container => container.DeleteIfExistsAsync());
             await Task.WhenAll(tasks);
         }
     }

@@ -25,10 +25,9 @@ namespace DurableTask.ServiceBus.Tests
     using DurableTask.ServiceBus;
     using DurableTask.ServiceBus.Settings;
     using DurableTask.ServiceBus.Tracking;
-    using Microsoft.ServiceBus;
-    using Microsoft.ServiceBus.Messaging;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Microsoft.Practices.EnterpriseLibrary.SemanticLogging;
+    using ManagementClient = DurableTask.ServiceBus.Common.Abstraction.ManagementClient;
 
     public static class TestHelpers
     {
@@ -53,7 +52,7 @@ namespace DurableTask.ServiceBus.Tests
                 throw new ArgumentException("A Storage connection string must be defined in either an environment variable or in configuration.");
             }
 
-            TaskHubName = ConfigurationManager.AppSettings.Get("TaskHubName");
+            TaskHubName = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None).AppSettings.Settings["TaskHubName"].Value;
 
             EventListener = new ObservableEventListener();
             EventListener.LogToConsole();
@@ -162,18 +161,18 @@ namespace DurableTask.ServiceBus.Tests
             return new TaskHubWorker(CreateOrchestrationServiceWorker(settings, TimeSpan.FromMinutes(10)));
         }
 
-        public static long GetOrchestratorQueueSizeInBytes()
+        public static async Task<long> GetOrchestratorQueueSizeInBytes()
         {
-            NamespaceManager nsManager = NamespaceManager.CreateFromConnectionString(ServiceBusConnectionString);
-            QueueDescription queueDesc = nsManager.GetQueue(TaskHubName + "/orchestrator");
+            ManagementClient nsManager = new ManagementClient(ServiceBusConnectionString);
+            var queueDesc = await nsManager.GetQueueRuntimeInfoAsync(TaskHubName + "/orchestrator");
 
             return queueDesc.SizeInBytes;
         }
 
-        public static long GetOrchestratorQueueMessageCount()
+        public static async Task<long> GetOrchestratorQueueMessageCount()
         {
-            NamespaceManager nsManager = NamespaceManager.CreateFromConnectionString(ServiceBusConnectionString);
-            QueueDescription queueDesc = nsManager.GetQueue(TaskHubName + "/orchestrator");
+            ManagementClient nsManager = new ManagementClient(ServiceBusConnectionString);
+            var queueDesc = await nsManager.GetQueueRuntimeInfoAsync(TaskHubName + "/orchestrator");
 
             return queueDesc.MessageCount;
         }
@@ -250,7 +249,7 @@ namespace DurableTask.ServiceBus.Tests
             string value = Environment.GetEnvironmentVariable("DurableTaskTest" + name);
             if (string.IsNullOrWhiteSpace(value))
             {
-                value = ConfigurationManager.AppSettings.Get(name);
+                value = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None).AppSettings.Settings[name].Value;
             }
 
             return value;

@@ -2,11 +2,11 @@
 
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
   <PropertyGroup>
-    <TargetFramework>net451</TargetFramework>
+    <TargetFrameworks>netstandard2.0;net451</TargetFrameworks>
     <PackageId>Microsoft.Azure.DurableTask.ServiceBus</PackageId>
   </PropertyGroup>
 
-  <ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net451'">
     <PackageReference Include="ImpromptuInterface" version="6.2.2" />
     <PackageReference Include="Microsoft.Azure.KeyVault.Core" version="1.0.0" />
     <PackageReference Include="Microsoft.Data.Edm" version="5.6.4" />
@@ -17,14 +17,15 @@
     <PackageReference Include="System.Spatial" version="5.6.4" />
     <PackageReference Include="WindowsAzure.ServiceBus" version="4.1.3" />
     <PackageReference Include="WindowsAzure.Storage" version="7.0.0" />
+    <Reference Include="System.Transactions" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <PackageReference Include="Microsoft.Azure.ServiceBus" Version="3.3.0" />
+    <PackageReference Include="WindowsAzure.Storage" Version="9.3.3" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\DurableTask.Core\DurableTask.Core.csproj" />
   </ItemGroup>
-
-  <ItemGroup>
-    <Reference Include="System.Transactions" />
-  </ItemGroup>
-
 </Project>

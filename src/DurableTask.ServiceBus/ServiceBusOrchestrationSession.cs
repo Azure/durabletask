@@ -15,12 +15,13 @@ namespace DurableTask.ServiceBus
 {
     using System;
     using System.Collections.Generic;
-    using Microsoft.ServiceBus.Messaging;
+    using DurableTask.Core;
+    using DurableTask.ServiceBus.Common.Abstraction;
 
     internal class ServiceBusOrchestrationSession
     {
-        public MessageSession Session;
-        public Dictionary<Guid, BrokeredMessage> LockTokens;
+        public IMessageSession Session;
+        public Dictionary<string, Message> LockTokens;
         public long SequenceNumber;
     }
 }
