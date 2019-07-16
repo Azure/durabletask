@@ -481,11 +481,6 @@ namespace DurableTask.ServiceBus.Common.Abstraction
         {
         }
 
-        public ServiceBusConnection(string namespaceConnectionString, TimeSpan operationTimeout, Microsoft.Azure.ServiceBus.RetryPolicy retryPolicy = null)
-            : base(namespaceConnectionString, operationTimeout, retryPolicy)
-        {
-        }
-
         public ServiceBusConnection(string endpoint, Microsoft.Azure.ServiceBus.TransportType transportType, Microsoft.Azure.ServiceBus.RetryPolicy retryPolicy = null)
             : base(endpoint, transportType, retryPolicy)
         {
