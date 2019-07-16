@@ -42,7 +42,7 @@
 
   <ItemGroup>
     <None Update="large.jpeg">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="testhost.dll.config" Condition="'$(TargetFramework)' == 'netcoreapp2.1'">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
