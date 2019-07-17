@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.26403.7
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.28917.181
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.ServiceBus", "src\DurableTask.ServiceBus\DurableTask.ServiceBus.csproj", "{6F5D2EAD-726D-4FE5-A575-AEB96D1CCE37}"
 EndProject
@@ -41,9 +41,13 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.AzureStorage", 
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.AzureStorage.Tests", "Test\DurableTask.AzureStorage.Tests\DurableTask.AzureStorage.Tests.csproj", "{7CD147F9-1BB9-41FD-A310-BCA07447A6B9}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.Redis", "src\DurableTask.Redis\DurableTask.Redis.csproj", "{BDA5B320-5282-49FE-B0A7-1F8A0F06862C}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.Redis", "src\DurableTask.Redis\DurableTask.Redis.csproj", "{BDA5B320-5282-49FE-B0A7-1F8A0F06862C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.Redis.Tests", "Test\DurableTask.Redis.Tests\DurableTask.Redis.Tests.csproj", "{B1C3B554-A098-47F8-8FA9-C28B5BBF35B1}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.Redis.Tests", "Test\DurableTask.Redis.Tests\DurableTask.Redis.Tests.csproj", "{B1C3B554-A098-47F8-8FA9-C28B5BBF35B1}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.EventHubs", "src\DurableTask.EventHubs\DurableTask.EventHubs.csproj", "{D7649337-8E3D-4C43-9397-5FDBE7BC4973}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.EventHubs.Tests", "Test\DurableTask.EventHubs.Tests\DurableTask.EventHubs.Tests.csproj", "{38B99A7B-D61C-4F03-82EA-ACF3EDDD63A8}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -103,6 +107,14 @@ Global
 		{B1C3B554-A098-47F8-8FA9-C28B5BBF35B1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B1C3B554-A098-47F8-8FA9-C28B5BBF35B1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B1C3B554-A098-47F8-8FA9-C28B5BBF35B1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D7649337-8E3D-4C43-9397-5FDBE7BC4973}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D7649337-8E3D-4C43-9397-5FDBE7BC4973}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D7649337-8E3D-4C43-9397-5FDBE7BC4973}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D7649337-8E3D-4C43-9397-5FDBE7BC4973}.Release|Any CPU.Build.0 = Release|Any CPU
+		{38B99A7B-D61C-4F03-82EA-ACF3EDDD63A8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{38B99A7B-D61C-4F03-82EA-ACF3EDDD63A8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{38B99A7B-D61C-4F03-82EA-ACF3EDDD63A8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{38B99A7B-D61C-4F03-82EA-ACF3EDDD63A8}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -121,6 +133,8 @@ Global
 		{7CD147F9-1BB9-41FD-A310-BCA07447A6B9} = {95C69A06-7F62-4652-A480-207B614C2869}
 		{BDA5B320-5282-49FE-B0A7-1F8A0F06862C} = {DBCD161C-D409-48E5-924E-9B7FA1C36B84}
 		{B1C3B554-A098-47F8-8FA9-C28B5BBF35B1} = {95C69A06-7F62-4652-A480-207B614C2869}
+		{D7649337-8E3D-4C43-9397-5FDBE7BC4973} = {DBCD161C-D409-48E5-924E-9B7FA1C36B84}
+		{38B99A7B-D61C-4F03-82EA-ACF3EDDD63A8} = {95C69A06-7F62-4652-A480-207B614C2869}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {2D63A120-9394-48D9-8CA9-1184364FB854}

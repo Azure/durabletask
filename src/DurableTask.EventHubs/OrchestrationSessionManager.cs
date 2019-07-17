@@ -11,16 +11,16 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureStorage
+namespace DurableTask.EventHubs
 {
     using System;
     using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
-    using DurableTask.AzureStorage.Messaging;
-    using DurableTask.AzureStorage.Monitoring;
-    using DurableTask.AzureStorage.Tracking;
+    using DurableTask.EventHubs.Messaging;
+    using DurableTask.EventHubs.Monitoring;
+    using DurableTask.EventHubs.Tracking;
     using DurableTask.Core;
 
     class OrchestrationSessionManager : IDisposable
@@ -32,14 +32,14 @@ namespace DurableTask.AzureStorage
         readonly object messageAndSessionLock = new object();
 
         readonly string storageAccountName;
-        readonly AzureStorageOrchestrationServiceSettings settings;
+        readonly EventHubsOrchestrationServiceSettings settings;
         readonly AzureStorageOrchestrationServiceStats stats;
         readonly ITrackingStore trackingStore;
         readonly DispatchQueue fetchRuntimeStateQueue;
 
         public OrchestrationSessionManager(
             string storageAccountName,
-            AzureStorageOrchestrationServiceSettings settings,
+            EventHubsOrchestrationServiceSettings settings,
             AzureStorageOrchestrationServiceStats stats,
             ITrackingStore trackingStore)
         {
@@ -61,7 +61,7 @@ namespace DurableTask.AzureStorage
             }
             else
             {
-                AnalyticsEventSource.Log.PartitionManagerWarning(
+                EtwEventSource.Log.PartitionManagerWarning(
                     this.storageAccountName,
                     this.settings.TaskHubName,
                     this.settings.WorkerId,
@@ -79,7 +79,7 @@ namespace DurableTask.AzureStorage
             }
             else
             {
-                AnalyticsEventSource.Log.PartitionManagerWarning(
+                EtwEventSource.Log.PartitionManagerWarning(
                     this.storageAccountName,
                     this.settings.TaskHubName,
                     this.settings.WorkerId,
@@ -91,7 +91,7 @@ namespace DurableTask.AzureStorage
 
         async void DequeueLoop(string partitionId, ControlQueue controlQueue, CancellationToken cancellationToken)
         {
-            AnalyticsEventSource.Log.PartitionManagerInfo(
+            EtwEventSource.Log.PartitionManagerInfo(
                 this.storageAccountName,
                 this.settings.TaskHubName,
                 this.settings.WorkerId,
@@ -105,7 +105,7 @@ namespace DurableTask.AzureStorage
                 {
                     // Every dequeue operation has a common trace ID so that batches of dequeued messages can be correlated together.
                     // Both the dequeue traces and the processing traces will share the same "related" trace activity ID.
-                    Guid traceActivityId = AzureStorageOrchestrationService.StartNewLogicalTraceScope();
+                    Guid traceActivityId = EventHubsOrchestrationService.StartNewLogicalTraceScope();
 
                     // This will block until either new messages arrive or the queue is released.
                     IReadOnlyList<MessageData> messages = await controlQueue.GetMessagesAsync(cancellationToken);
@@ -117,7 +117,7 @@ namespace DurableTask.AzureStorage
             }
             finally
             {
-                AnalyticsEventSource.Log.PartitionManagerInfo(
+                EtwEventSource.Log.PartitionManagerInfo(
                     this.storageAccountName,
                     this.settings.TaskHubName,
                     this.settings.WorkerId,
@@ -203,7 +203,7 @@ namespace DurableTask.AzureStorage
                     {
                         // Replaced. This happens if the visibility timeout of a message expires while it
                         // is still sitting here in memory.
-                        AnalyticsEventSource.Log.DuplicateMessageDetected(
+                        EtwEventSource.Log.DuplicateMessageDetected(
                             this.storageAccountName,
                             this.settings.TaskHubName,
                             data.OriginalQueueMessage.Id,
@@ -224,7 +224,7 @@ namespace DurableTask.AzureStorage
                     IEnumerable<MessageData> replacements = session.AddOrReplaceMessages(newMessages);
                     foreach (MessageData replacementMessage in replacements)
                     {
-                        AnalyticsEventSource.Log.DuplicateMessageDetected(
+                        EtwEventSource.Log.DuplicateMessageDetected(
                             this.storageAccountName,
                             this.settings.TaskHubName,
                             replacementMessage.OriginalQueueMessage.Id,
@@ -250,7 +250,7 @@ namespace DurableTask.AzureStorage
             // Do the fetch in a background thread
             this.fetchRuntimeStateQueue.EnqueueAndDispatch(async delegate
             {
-                AnalyticsEventSource.SetLogicalTraceActivityId(traceActivityId);
+                EtwEventSource.SetLogicalTraceActivityId(traceActivityId);
 
                 try
                 {
@@ -274,7 +274,7 @@ namespace DurableTask.AzureStorage
                 }
                 catch (Exception e)
                 {
-                    AnalyticsEventSource.Log.OrchestrationProcessingFailure(
+                    EtwEventSource.Log.OrchestrationProcessingFailure(
                         this.storageAccountName,
                         this.settings.TaskHubName,
                         batch.OrchestrationInstanceId,
@@ -317,7 +317,7 @@ namespace DurableTask.AzureStorage
 
                         this.stats.PendingOrchestratorMessages.Increment(-nextBatch.Messages.Count);
 
-                        Guid traceActivityId = AzureStorageOrchestrationService.StartNewLogicalTraceScope();
+                        Guid traceActivityId = EventHubsOrchestrationService.StartNewLogicalTraceScope();
 
                         OrchestrationSession session = new OrchestrationSession(
                             this.storageAccountName,
@@ -391,7 +391,7 @@ namespace DurableTask.AzureStorage
                 }
                 else
                 {
-                    AnalyticsEventSource.Log.AssertFailure(
+                    EtwEventSource.Log.AssertFailure(
                         this.storageAccountName,
                         this.settings.TaskHubName,
                         $"{nameof(ReleaseSession)}: Session for instance {instanceId} was not found!",

@@ -1,0 +1,31 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <FileVersion>0.1.0</FileVersion>
+    <AssemblyVersion>$(FileVersion)</AssemblyVersion>
+    <Version>$(FileVersion)-preview</Version>
+    <IncludeSymbols>true</IncludeSymbols>
+    <Description>Azure Event Hubs provider extension for the Durable Task Framework.</Description>
+    <PackageTags>Azure;Durable Task Framework;Workflow;EventHubs</PackageTags>
+    <PackageId>Microsoft.Azure.DurableTask.EventHubs</PackageId>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl> 
+    <EmbedUntrackedSources>true</EmbedUntrackedSources> 
+    <DebugSymbols>true</DebugSymbols> 
+    <DebugType>embedded</DebugType> 
+    <IncludeSymbols>false</IncludeSymbols> 
+  </PropertyGroup>
+  
+  <ItemGroup> 
+    <PackageReference Include="Microsoft.Azure.EventHubs" Version="3.0.0" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.0-*" PrivateAssets="All" /> 
+    <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
+    <PackageReference Include="WindowsAzure.Storage" version="9.3.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DurableTask.Core\DurableTask.Core.csproj" />
+  </ItemGroup>
+</Project>
