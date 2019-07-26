@@ -41,9 +41,13 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.AzureStorage", 
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.AzureStorage.Tests", "Test\DurableTask.AzureStorage.Tests\DurableTask.AzureStorage.Tests.csproj", "{7CD147F9-1BB9-41FD-A310-BCA07447A6B9}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.Redis", "src\DurableTask.Redis\DurableTask.Redis.csproj", "{BDA5B320-5282-49FE-B0A7-1F8A0F06862C}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.Redis", "src\DurableTask.Redis\DurableTask.Redis.csproj", "{BDA5B320-5282-49FE-B0A7-1F8A0F06862C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.Redis.Tests", "Test\DurableTask.Redis.Tests\DurableTask.Redis.Tests.csproj", "{B1C3B554-A098-47F8-8FA9-C28B5BBF35B1}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.Redis.Tests", "Test\DurableTask.Redis.Tests\DurableTask.Redis.Tests.csproj", "{B1C3B554-A098-47F8-8FA9-C28B5BBF35B1}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.EventHubs", "src\DurableTask.EventHubs\DurableTask.EventHubs.csproj", "{0639A2EE-4719-4264-AEA1-C20C325C02EE}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.EventHubs.Tests", "Test\DurableTask.EventHubs.Tests\DurableTask.EventHubs.Tests.csproj", "{F8CD3BD2-09CE-4778-94CC-581B57F46E9C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -103,6 +107,14 @@ Global
 		{B1C3B554-A098-47F8-8FA9-C28B5BBF35B1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B1C3B554-A098-47F8-8FA9-C28B5BBF35B1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B1C3B554-A098-47F8-8FA9-C28B5BBF35B1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0639A2EE-4719-4264-AEA1-C20C325C02EE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0639A2EE-4719-4264-AEA1-C20C325C02EE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0639A2EE-4719-4264-AEA1-C20C325C02EE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0639A2EE-4719-4264-AEA1-C20C325C02EE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F8CD3BD2-09CE-4778-94CC-581B57F46E9C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F8CD3BD2-09CE-4778-94CC-581B57F46E9C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F8CD3BD2-09CE-4778-94CC-581B57F46E9C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F8CD3BD2-09CE-4778-94CC-581B57F46E9C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -121,9 +133,11 @@ Global
 		{7CD147F9-1BB9-41FD-A310-BCA07447A6B9} = {95C69A06-7F62-4652-A480-207B614C2869}
 		{BDA5B320-5282-49FE-B0A7-1F8A0F06862C} = {DBCD161C-D409-48E5-924E-9B7FA1C36B84}
 		{B1C3B554-A098-47F8-8FA9-C28B5BBF35B1} = {95C69A06-7F62-4652-A480-207B614C2869}
+		{0639A2EE-4719-4264-AEA1-C20C325C02EE} = {DBCD161C-D409-48E5-924E-9B7FA1C36B84}
+		{F8CD3BD2-09CE-4778-94CC-581B57F46E9C} = {95C69A06-7F62-4652-A480-207B614C2869}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {2D63A120-9394-48D9-8CA9-1184364FB854}
 		EnterpriseLibraryConfigurationToolBinariesPath = packages\TransientFaultHandling.Core.5.1.1209.1\lib\NET4
+		SolutionGuid = {2D63A120-9394-48D9-8CA9-1184364FB854}
 	EndGlobalSection
 EndGlobal
