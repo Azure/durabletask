@@ -31,6 +31,7 @@ namespace DurableTask.EventHubs
     [KnownType(typeof(BatchProcessed))]
     [KnownType(typeof(SentMessagesAcked))]
     [KnownType(typeof(TimerFired))]
+    [KnownType(typeof(TaskhubCreated))]
     [KnownType(typeof(TaskMessageReceived))]
     internal abstract class Event
     {

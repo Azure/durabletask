@@ -9,23 +9,24 @@ using System.Text;
 
 namespace DurableTask.EventHubs
 {
-    internal class Serializer
+    internal static class Serializer
     {
-        private readonly DataContractSerializer eventSerializer;
-
-        public Serializer()
-        {
-            eventSerializer = new DataContractSerializer(typeof(Event));
-        }
-
-        public byte[] SerializeEvent(Event e)
+        private static DataContractSerializer eventSerializer 
+            = new DataContractSerializer(typeof(Event));
+        
+        public static byte[] SerializeEvent(Event e)
         {
             var stream = new MemoryStream();
             eventSerializer.WriteObject(stream, e);
             return stream.ToArray();
         }
 
-        public Event DeserializeEvent(ArraySegment<byte> bytes)
+        public static void SerializeEvent(Event e, Stream s)
+        {
+            eventSerializer.WriteObject(s, e);
+        }
+
+        public static Event DeserializeEvent(ArraySegment<byte> bytes)
         {
             var stream = new MemoryStream(bytes.Array, bytes.Offset, bytes.Count);
             return (Event) eventSerializer.ReadObject(stream);

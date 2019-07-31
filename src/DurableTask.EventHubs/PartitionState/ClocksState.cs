@@ -49,6 +49,12 @@ namespace DurableTask.EventHubs
             // TODO update clocks
         }
 
+        // TaskhubCreated is always the first event, it currently has no effect other than priming the event processor
+
+        public void Scope(TaskhubCreated evt, List<TrackedObject> scope, List<TrackedObject> apply)
+        {
+        }
+
         // TaskMessageReceived goes to session
 
         public void Scope(TaskMessageReceived evt, List<TrackedObject> scope, List<TrackedObject> apply)
@@ -103,6 +109,7 @@ namespace DurableTask.EventHubs
                 apply.Add(this);
             }
         }
+
 
     }
 }

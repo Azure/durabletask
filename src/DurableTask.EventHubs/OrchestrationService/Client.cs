@@ -14,10 +14,9 @@ namespace DurableTask.EventHubs
     {
         private readonly CancellationToken shutdownToken; 
         private static TimeSpan DefaultTimeout = TimeSpan.FromMinutes(5);
-        private static readonly Task completedTask = Task.FromResult<object>(null);
 
         public Guid ClientId { get; private set; }
-        public Backend.ISender<PartitionEvent> BatchSender { get; private set; }
+        public Backend.ISender BatchSender { get; private set; }
 
 
         private long SequenceNumber; // for numbering requests that enter on this client
@@ -25,7 +24,7 @@ namespace DurableTask.EventHubs
         private BatchTimer<ResponseWaiter> ResponseTimeouts;
         private ConcurrentDictionary<long, ResponseWaiter> ResponseWaiters;
 
-        public Client(Guid clientId, Backend.ISender<PartitionEvent> batchSender, CancellationToken shutdownToken)
+        public Client(Guid clientId, Backend.ISender batchSender, CancellationToken shutdownToken)
         {
             this.ClientId = clientId;
             this.BatchSender = batchSender;
@@ -52,17 +51,6 @@ namespace DurableTask.EventHubs
             System.Diagnostics.Trace.TraceInformation($"Client.{m.QueuePosition:D7} Processing {m}");
         }
 
-        public void ConfirmDurablySent(IEnumerable<PartitionEvent> sent)
-        {
-            foreach (var partitionEvent in sent)
-            {
-                if (partitionEvent is ClientTaskMessagesReceived x)
-                {
-                    x.AckWaiter.TryFulfill(null);
-                }
-            }
-        }
-
         private static void Timeout<T>(IEnumerable<CancellableCompletionSource<T>> promises) where T : class
         {
             foreach (var promise in promises)
@@ -71,22 +59,18 @@ namespace DurableTask.EventHubs
             }
         }
 
-        private Task<ClientEvent> PerformRequestWithTimeoutAndCancellation(CancellationToken token, ClientRequestEvent request)
+        private Task<ClientEvent> PerformRequestWithTimeoutAndCancellation(CancellationToken token, ClientRequestEvent request, bool doneWhenSent)
         {
             var waiter = new ResponseWaiter(this.shutdownToken, request.RequestId, this);
             this.ResponseWaiters.TryAdd(request.RequestId, waiter);
             this.ResponseTimeouts.Schedule(DateTime.UtcNow + request.Timeout, waiter);
-            this.BatchSender.Submit(request);
 
-            if (request is ClientTaskMessagesReceived x)
-            {
-                x.AckWaiter = waiter;
-            }
+            this.BatchSender.Submit(request, doneWhenSent ? waiter : null);
 
             return waiter.Task;
         }
 
-        internal class ResponseWaiter : CancellableCompletionSource<ClientEvent>
+        internal class ResponseWaiter : CancellableCompletionSource<ClientEvent>, Backend.ISendConfirmationListener
         {
             private long id;
             private Client client;
@@ -95,6 +79,11 @@ namespace DurableTask.EventHubs
             {
                 this.id = id;
                 this.client = client;
+            }
+
+            public void ConfirmDurablySent(Event evt)
+            {
+                this.TrySetResult(null); // task finishes when the send has been confirmed, no result is returned
             }
 
             protected override void Cleanup()
@@ -121,7 +110,7 @@ namespace DurableTask.EventHubs
                 Timeout = DefaultTimeout,
             };
 
-            return PerformRequestWithTimeoutAndCancellation(CancellationToken.None, request);
+            return PerformRequestWithTimeoutAndCancellation(CancellationToken.None, request, false);
         }
 
         public Task SendTaskOrchestrationMessageBatchAsync(uint partitionId, IEnumerable<TaskMessage> messages)
@@ -135,7 +124,7 @@ namespace DurableTask.EventHubs
                 Timeout = DefaultTimeout,
             };
 
-            return PerformRequestWithTimeoutAndCancellation(CancellationToken.None, request);
+            return PerformRequestWithTimeoutAndCancellation(CancellationToken.None, request, true);
         }
 
         public async Task<OrchestrationState> WaitForOrchestrationAsync(
@@ -160,7 +149,7 @@ namespace DurableTask.EventHubs
                 Timeout = timeout,         
             };
 
-            var response = await PerformRequestWithTimeoutAndCancellation(cancellationToken, request);            
+            var response = await PerformRequestWithTimeoutAndCancellation(cancellationToken, request, false);            
             return ((WaitResponseReceived)response)?.OrchestrationState;
         }
 
@@ -180,7 +169,7 @@ namespace DurableTask.EventHubs
                 Timeout = DefaultTimeout,
             };
 
-            var response = await PerformRequestWithTimeoutAndCancellation(CancellationToken.None, request);
+            var response = await PerformRequestWithTimeoutAndCancellation(CancellationToken.None, request, false);
             return ((StateResponseReceived)response)?.OrchestrationState;
         }
 
@@ -201,7 +190,7 @@ namespace DurableTask.EventHubs
                 Timeout = DefaultTimeout,
             };
 
-            return PerformRequestWithTimeoutAndCancellation(CancellationToken.None, request);
+            return PerformRequestWithTimeoutAndCancellation(CancellationToken.None, request, true);
         }
 
         public Task<string> GetOrchestrationHistoryAsync(uint partitionId, string instanceId, string executionId)

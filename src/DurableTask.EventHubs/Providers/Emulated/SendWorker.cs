@@ -20,20 +20,22 @@ using System.Threading.Tasks;
 
 namespace DurableTask.EventHubs
 {
-    internal class BatchWorker<T> : Backend.ISender<T>
+    internal class SendWorker : Backend.ISender
     {
         private readonly object thisLock = new object();
         private readonly CancellationToken cancellationToken;
-        private Func<List<T>, Task> handler;
-        private List<T> work;
+        private Func<List<Event>, Task> handler;
+        private List<Event> work;
+        private List<Backend.ISendConfirmationListener> listeners;
 
-        public Action<T> SubmitTracer { get; set; }
+        public Action<Event> SubmitTracer { get; set; }
 
-        public BatchWorker(CancellationToken token, Func<List<T>, Task> handler = null)
+        public SendWorker(CancellationToken token, Func<List<Event>, Task> handler = null)
         {
             this.cancellationToken = token;
             this.handler = handler;
-            this.work = new List<T>();
+            this.work = new List<Event>();
+            this.listeners = new List<Backend.ISendConfirmationListener>();
             this.thisLock = new object();
 
             if (handler != null)
@@ -52,7 +54,7 @@ namespace DurableTask.EventHubs
             }
         }
 
-        public void SetHandler(Func<List<T>, Task> handler)
+        public void SetHandler(Func<List<Event>, Task> handler)
         {
             if (this.handler != null)
             {
@@ -62,7 +64,7 @@ namespace DurableTask.EventHubs
             new Thread(WorkLoop).Start();
         }
 
-        public void Submit(T what)
+        void Backend.ISender.Submit(Event element, Backend.ISendConfirmationListener confirmationListener)
         {
             lock (this.thisLock)
             {
@@ -71,32 +73,17 @@ namespace DurableTask.EventHubs
                     Monitor.Pulse(this.thisLock);
                 }
 
-                this.work.Add(what);
+                this.work.Add(element);
+                this.listeners.Add(confirmationListener);
 
-                this.SubmitTracer?.Invoke(what);
-            }
-        }
-
-        public void Submit(IEnumerable<T> what)
-        {
-            lock (this.thisLock)
-            {
-                if (this.work.Count == 0)
-                {
-                    Monitor.Pulse(this.thisLock);
-                }
-
-                foreach (var element in what)
-                {
-                    this.work.Add(element);
-                    this.SubmitTracer?.Invoke(element);
-                }
+                this.SubmitTracer?.Invoke(element);
             }
         }
 
         private void WorkLoop()
         {
-            List<T> batch = new List<T>();
+            List<Event> batch = new List<Event>();
+            List<Backend.ISendConfirmationListener> listeners = new List<Backend.ISendConfirmationListener>();
 
             while (!cancellationToken.IsCancellationRequested)
             {
@@ -110,6 +97,10 @@ namespace DurableTask.EventHubs
                     var temp = this.work;
                     this.work = batch;
                     batch = temp;
+
+                    var temp2 = this.listeners;
+                    this.listeners = listeners;
+                    listeners = temp2;
                 }
 
                 if (batch.Count > 0)
@@ -123,7 +114,13 @@ namespace DurableTask.EventHubs
                         System.Diagnostics.Trace.TraceError($"exception in send worker: {e}", e);
                     }
 
+                    for (int i = 0; i < batch.Count; i++)
+                    {
+                        listeners[i]?.ConfirmDurablySent(batch[i]);
+                    }
+
                     batch.Clear();
+                    listeners.Clear();
                 }
             }
         }

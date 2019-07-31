@@ -19,71 +19,58 @@ namespace DurableTask.EventHubs.Tests
 
     internal static class TestHelpers
     {
-        static EventHubsTestConfig config;
-
         public static EventHubsOrchestrationService GetTestOrchestrationService(string taskHub = null)
         {
-            EventHubsTestConfig testConfig = GetEventHubsTestConfig();
             var settings = new EventHubsOrchestrationServiceSettings
             {
-                EventHubName = eventHubName,
-                NumberPartitions = 32,
-                TaskHubName = taskHub,
+                EventHubsConnectionString = GetEventHubsConnectionString(),
+                StorageConnectionString = GetStorageConnectionString(),
+                TaskHubName = taskHub ?? "taskhub",
             };
-
             return new EventHubsOrchestrationService(settings);
         }
 
-        private static string eventHubName = null;
 
         public static TestOrchestrationHost GetTestOrchestrationHost(
             bool enableExtendedSessions,
             int extendedSessionTimeoutInSeconds = 30)
         {
-
             var settings = new EventHubsOrchestrationServiceSettings
             {
-                EventHubName = eventHubName,
-                NumberPartitions = 32,
+                EventHubsConnectionString = GetEventHubsConnectionString(),
+                StorageConnectionString = GetStorageConnectionString(),
+                TaskHubName = "taskhub",
             };
-
             return new TestOrchestrationHost(settings);
         }
 
+        public const string DurabeTaskTestPrefix = "DurableTaskTest";
 
-        private static EventHubsTestConfig GetEventHubsTestConfig()
+        public static string GetStorageConnectionString()
         {
-            if (config == null)
+            return GetTestSetting("StorageConnectionString", true);
+        }
+
+        public static string GetEventHubsConnectionString()
+        {
+            //return "Emulator:1";
+            // return "Emulator:4";
+            //return "Emulator:32";
+            return GetTestSetting("EventHubsConnectionString", false);
+        }
+
+        static string GetTestSetting(string name, bool require)
+        {
+            var setting =  Environment.GetEnvironmentVariable(DurabeTaskTestPrefix + name);
+
+            if (require && string.IsNullOrEmpty(setting))
             {
-                config = new EventHubsTestConfig();
-                IConfigurationRoot root = new ConfigurationBuilder()
-                    .SetBasePath(System.IO.Directory.GetCurrentDirectory())
-                    .AddJsonFile("appsettings.json", optional: true)
-                    .Build();
-                root.Bind(config);
-            }
-            return config;
-        }
-
-        public static string GetTestStorageAccountConnectionString()
-        {
-            string storageConnectionString = GetTestSetting("StorageConnectionString");
-            if (string.IsNullOrEmpty(storageConnectionString))
-            {
-                throw new ArgumentNullException("A Storage connection string must be defined in either an environment variable or in configuration.");
+                throw new ArgumentNullException("The environment variable {DurabeTaskTestPrefix + name} must be defined for the tests to run");
             }
 
-            return storageConnectionString;
+            return setting;
         }
 
-        static string GetTestSetting(string name)
-        {
-            return Environment.GetEnvironmentVariable("DurableTaskTest" + name);
-        }
-
-        public class EventHubsTestConfig
-        {
-            public string RedisConnectionString { get; set; }
-        }
+     
     }
 }

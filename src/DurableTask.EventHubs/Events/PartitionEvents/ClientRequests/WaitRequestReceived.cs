@@ -23,5 +23,11 @@ namespace DurableTask.EventHubs
 
         [DataMember]
         public string ExecutionId { get; set; }
+
+        protected override void AddExtraInformation(StringBuilder s)
+        {
+            s.Append(' ');
+            s.Append(this.InstanceId);
+        }
     }
 }

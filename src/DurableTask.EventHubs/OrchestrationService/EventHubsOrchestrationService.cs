@@ -45,6 +45,9 @@ namespace DurableTask.EventHubs
         //internal Dictionary<uint, Partition> Partitions { get; private set; }
         internal Client Client { get; private set; }
 
+        internal uint NumberPartitions { get; private set; }
+        uint Backend.IHost.NumberPartitions { set => this.NumberPartitions = value; }
+
         internal WorkQueue<TaskActivityWorkItem> ActivityWorkItemQueue { get; private set; }
         internal WorkQueue<TaskOrchestrationWorkItem> OrchestrationWorkItemQueue { get; private set; }
 
@@ -59,10 +62,10 @@ namespace DurableTask.EventHubs
             {
                 this.taskHub = new EmulatedBackend(this, settings);
             }
-            //else
-            //{
-            //    this.taskHub = new EventHubsTransport(PartitionNumber);
-            //}
+            else
+            {
+                this.taskHub = new EventHubsBackend(this, settings);
+            }
         }
 
         /******************************/
@@ -71,11 +74,8 @@ namespace DurableTask.EventHubs
 
         async Task IOrchestrationService.CreateAsync()
         {
-            if (await this.taskHub.ExistsAsync())
-            {
-                await this.taskHub.DeleteAsync();
-            }
-            await this.taskHub.CreateAsync();
+  
+            await ((IOrchestrationService)this).CreateAsync(true);
         }
 
         async Task IOrchestrationService.CreateAsync(bool recreateInstanceStore)
@@ -97,10 +97,7 @@ namespace DurableTask.EventHubs
 
         async Task IOrchestrationService.CreateIfNotExistsAsync()
         {
-            if (!await this.taskHub.ExistsAsync())
-            {
-                await this.taskHub.CreateAsync();
-            }
+            await ((IOrchestrationService)this).CreateAsync(false);
         }
 
         async Task IOrchestrationService.DeleteAsync()
@@ -165,11 +162,21 @@ namespace DurableTask.EventHubs
             }
         }
 
+        /// <summary>
+        /// Computes the partition for the given instance.
+        /// </summary>
+        /// <param name="instanceId">The instance id.</param>
+        /// <returns>The partition id.</returns>
+        public uint GetPartitionId(string instanceId)
+        {
+            return Fnv1aHashHelper.ComputeHash(instanceId) % this.NumberPartitions;
+        }
+
         /******************************/
         // host methods
         /******************************/
 
-        Backend.IClient Backend.IHost.AddClient(Guid clientId, Backend.ISender<PartitionEvent> batchSender)
+        Backend.IClient Backend.IHost.AddClient(Guid clientId, Backend.ISender batchSender)
         {
             System.Diagnostics.Debug.Assert(this.Client == null, "Backend should create only 1 client");
 
@@ -178,9 +185,9 @@ namespace DurableTask.EventHubs
             return this.Client;
         }
 
-        Backend.IPartition Backend.IHost.AddPartition(uint partitionId, Backend.ISender<Event> batchSender)
+        Backend.IPartition Backend.IHost.AddPartition(uint partitionId, Backend.ISender batchSender)
         {
-            var partition = new Partition(partitionId, batchSender, this.settings, this.ActivityWorkItemQueue, this.OrchestrationWorkItemQueue, this.serviceShutdownSource.Token);
+            var partition = new Partition(partitionId, this.GetPartitionId, batchSender, this.settings, this.ActivityWorkItemQueue, this.OrchestrationWorkItemQueue, this.serviceShutdownSource.Token);
 
             return partition;
         }
@@ -192,7 +199,7 @@ namespace DurableTask.EventHubs
         Task IOrchestrationServiceClient.CreateTaskOrchestrationAsync(TaskMessage creationMessage)
         {
             return Client.CreateTaskOrchestrationAsync(
-                this.settings.GetPartitionId(creationMessage.OrchestrationInstance.InstanceId),
+                this.GetPartitionId(creationMessage.OrchestrationInstance.InstanceId),
                 creationMessage, 
                 null);
         }
@@ -200,7 +207,7 @@ namespace DurableTask.EventHubs
         Task IOrchestrationServiceClient.CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses)
         {
             return Client.CreateTaskOrchestrationAsync(
-                this.settings.GetPartitionId(creationMessage.OrchestrationInstance.InstanceId),
+                this.GetPartitionId(creationMessage.OrchestrationInstance.InstanceId),
                 creationMessage, 
                 dedupeStatuses);
         }
@@ -208,7 +215,7 @@ namespace DurableTask.EventHubs
         Task IOrchestrationServiceClient.SendTaskOrchestrationMessageAsync(TaskMessage message)
         {
             return Client.SendTaskOrchestrationMessageBatchAsync(
-                this.settings.GetPartitionId(message.OrchestrationInstance.InstanceId), 
+                this.GetPartitionId(message.OrchestrationInstance.InstanceId), 
                 new[] { message });
         }
 
@@ -221,7 +228,7 @@ namespace DurableTask.EventHubs
             else
             {
                 return Task.WhenAll(messages
-                    .GroupBy(tm => this.settings.GetPartitionId(tm.OrchestrationInstance.InstanceId))
+                    .GroupBy(tm => this.GetPartitionId(tm.OrchestrationInstance.InstanceId))
                     .Select(group => Client.SendTaskOrchestrationMessageBatchAsync(group.Key, group)));
             }
         }
@@ -233,7 +240,7 @@ namespace DurableTask.EventHubs
             CancellationToken cancellationToken)
         {
             return Client.WaitForOrchestrationAsync(
-                this.settings.GetPartitionId(instanceId),
+                this.GetPartitionId(instanceId),
                 instanceId, 
                 executionId, 
                 timeout, 
@@ -244,7 +251,7 @@ namespace DurableTask.EventHubs
             string instanceId, 
             string executionId)
         {
-            var partitionId = this.settings.GetPartitionId(instanceId);
+            var partitionId = this.GetPartitionId(instanceId);
             var state = await Client.GetOrchestrationStateAsync(partitionId, instanceId);
 
             if (state != null &&
@@ -262,7 +269,7 @@ namespace DurableTask.EventHubs
             string instanceId, 
             bool allExecutions)
         {
-            var partitionId = this.settings.GetPartitionId(instanceId);
+            var partitionId = this.GetPartitionId(instanceId);
             var state = await Client.GetOrchestrationStateAsync(partitionId, instanceId);
 
             if (state != null)
@@ -279,7 +286,7 @@ namespace DurableTask.EventHubs
             string instanceId, 
             string message)
         {
-            var partitionId = this.settings.GetPartitionId(instanceId);
+            var partitionId = this.GetPartitionId(instanceId);
             return this.Client.ForceTerminateTaskOrchestrationAsync(partitionId, instanceId, message);
         }
 
@@ -416,5 +423,6 @@ namespace DurableTask.EventHubs
         int IOrchestrationService.MaxConcurrentTaskActivityWorkItems => MaxConcurrentWorkItems;
 
         int IOrchestrationService.TaskActivityDispatcherCount => 1;
+
     }
 }

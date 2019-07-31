@@ -21,10 +21,22 @@ using DurableTask.Core.History;
 
 namespace DurableTask.EventHubs
 {
+    /// <summary>
+    /// Is the first event processed by a partition. Contains creation parameters.
+    /// </summary>
     [DataContract]
-    internal class ClientTaskMessagesReceived : ClientRequestEvent
+    internal class TaskhubCreated : PartitionEvent
     {
         [DataMember]
-        public TaskMessage[] TaskMessages { get; set; }
+        public DateTime CreationTimestamp { get; set; }
+
+        [DataMember]
+        public long[] StartPositions { get; set; }
+
+        public override TrackedObject GetTarget(Storage.IPartitionState state)
+        {
+            return state.Clocks;
+        }
     }
+
 }

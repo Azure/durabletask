@@ -21,7 +21,7 @@ using DurableTask.Core;
 namespace DurableTask.EventHubs
 {
     [DataContract]
-    internal class OutboxState : TrackedObject
+    internal class OutboxState : TrackedObject, Backend.ISendConfirmationListener
     {
         [DataMember]
         public SortedList<long, List<TaskMessage>> Outbox { get; private set; } = new SortedList<long, List<TaskMessage>>();
@@ -31,9 +31,6 @@ namespace DurableTask.EventHubs
 
         [IgnoreDataMember]
         public override string Key => "Outbox";
-
-        [IgnoreDataMember]
-        private readonly List<Event> outlist = new List<Event>();
 
         public long GetLastAckedQueuePosition() { return LastAckedQueuePosition; }
 
@@ -50,19 +47,30 @@ namespace DurableTask.EventHubs
             foreach (var message in messages)
             {
                 var instanceId = message.OrchestrationInstance.InstanceId;
-                var partitionId = this.Partition.Settings.GetPartitionId(instanceId);
+                var partitionId = this.Partition.PartitionFunction(instanceId);
 
-                outlist.Add(new TaskMessageReceived()
+                var outmessage = new TaskMessageReceived()
                 {
                     PartitionId = partitionId,
                     TaskMessage = message,
                     QueuePosition = queuePosition,
+                };
+
+                Partition.BatchSender.Submit(outmessage, this);
+            }
+        }
+
+        public void ConfirmDurablySent(Event evt)
+        {
+            // TODO apply batching optimization
+            if (evt is TaskMessageReceived y && y.QueuePosition > -1)
+            {
+                this.Partition.BatchSender.Submit(new SentMessagesAcked()
+                {
+                    PartitionId = this.Partition.PartitionId,
+                    LastAckedQueuePosition = y.QueuePosition,
                 });
             }
-
-            Partition.BatchSender.Submit(outlist);
-
-            outlist.Clear();
         }
 
         // BatchProcessed

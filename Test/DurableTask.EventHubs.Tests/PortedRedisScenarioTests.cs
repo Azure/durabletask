@@ -21,6 +21,7 @@ using Xunit;
 
 namespace DurableTask.EventHubs.Tests
 {
+    [Collection("EventHubsTests")]
     public class PortedRedisScenarioTests
     {
        
@@ -63,44 +64,6 @@ namespace DurableTask.EventHubs.Tests
                 Assert.Equal(OrchestrationStatus.Completed, result.OrchestrationStatus);
 
                 Assert.Equal("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result);
-            }
-            finally
-            {
-                await worker.StopAsync(true);
-                await ((IOrchestrationService)orchestrationService).DeleteAsync();
-            }
-        }
-
-        [Fact]
-        public async Task SimpleFanOutOrchestration()
-        {
-            // Using 1 more than the maximum concurrent count.
-            int numToIterateTo = 101;
-            var orchestrationService = TestHelpers.GetTestOrchestrationService(nameof(SimpleFanOutOrchestration));
-            await ((IOrchestrationService)orchestrationService).CreateIfNotExistsAsync();
-            var worker = new TaskHubWorker(orchestrationService);
-
-            try
-            {
-                await worker.AddTaskOrchestrations(typeof(FanOutOrchestration))
-                    .AddTaskActivities(typeof(SquareIntTask), typeof(SumIntTask))
-                    .StartAsync();
-
-                var client = new TaskHubClient(orchestrationService);
-
-                int[] numsToSum = new int[numToIterateTo];
-                for(int i = 0; i < numToIterateTo; i++)
-                {
-                    numsToSum[i] = i + 1;
-                }
-                OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof(FanOutOrchestration), numsToSum);
-
-                OrchestrationState result = await client.WaitForOrchestrationAsync(id, TimeSpan.FromSeconds(Debugger.IsAttached ? 20 : 20), new CancellationToken());
-                Assert.Equal(OrchestrationStatus.Completed, result.OrchestrationStatus);
-
-                // Sum of square numbers 1 to n = n * (n+1) * (2n+1) / 6
-                int expectedResult = (numToIterateTo * (numToIterateTo + 1) * (2 * numToIterateTo + 1)) / 6;
-                Assert.Equal(expectedResult, FanOutOrchestration.Result);
             }
             finally
             {

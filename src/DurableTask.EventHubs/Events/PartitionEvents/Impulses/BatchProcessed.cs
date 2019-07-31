@@ -67,6 +67,9 @@ namespace DurableTask.EventHubs
                 s.Append(' ');
                 s.Append(State.OrchestrationStatus);
             }
+
+            s.Append(' ');
+            s.Append(this.InstanceId);
         }
     }
 

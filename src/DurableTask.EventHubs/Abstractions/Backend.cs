@@ -43,20 +43,24 @@ namespace DurableTask.EventHubs
         /// </summary>
         public interface IHost
         {
-            IClient AddClient(Guid clientId, ISender<PartitionEvent> batchSender);
+            uint NumberPartitions { set; }
 
-            IPartition AddPartition(uint partitionId, ISender<Event> batchSender);
+            IClient AddClient(Guid clientId, ISender batchSender);
+
+            IPartition AddPartition(uint partitionId, ISender batchSender);
         }
 
         /// <summary>
         /// A sender abstraction, passed to clients and partitions, for sending messages
         /// </summary>
-        /// <typeparam name="T"></typeparam>
-        public interface ISender<in T>
+        public interface ISender
         {
-            void Submit(T element);
+            void Submit(Event element, ISendConfirmationListener confirmationListener = null);
+        }
 
-            void Submit(IEnumerable<T> batch);
+        public interface ISendConfirmationListener
+        {
+            void ConfirmDurablySent(Event evt);
         }
 
         /// <summary>
@@ -68,7 +72,6 @@ namespace DurableTask.EventHubs
 
             void Process(IEnumerable<ClientEvent> batch);
 
-            void ConfirmDurablySent(IEnumerable<PartitionEvent> sent);
         }
 
         /// <summary>
@@ -83,8 +86,6 @@ namespace DurableTask.EventHubs
             Task ProcessAsync(IEnumerable<PartitionEvent> batch);
 
             Task TakeCheckpoint(long position);
-
-            void ConfirmDurablySent(IEnumerable<Event> sent);
 
             Task StopAsync();
         }

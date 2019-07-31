@@ -40,7 +40,7 @@ namespace DurableTask.EventHubs
         {
             await Task.Delay(simulatedDelay);
             this.clientQueues = new Dictionary<Guid, EmulatedQueue<ClientEvent>>();
-            this.partitionQueues = new EmulatedQueue<PartitionEvent>[settings.NumberPartitions];
+            this.partitionQueues = new EmulatedQueue<PartitionEvent>[settings.EmulatedPartitions];
         }
 
         async Task Backend.ITaskHub.DeleteAsync()
@@ -60,10 +60,12 @@ namespace DurableTask.EventHubs
         {
             this.shutdownTokenSource = new CancellationTokenSource();
 
+            this.host.NumberPartitions = this.settings.EmulatedPartitions;
+
             // create a client and start its receive loop
             var clientId = Guid.NewGuid();
             var clientQueue = new EmulatedQueue<ClientEvent>(simulatedDelay, this.shutdownTokenSource.Token);
-            var clientSender = new BatchWorker<PartitionEvent>(this.shutdownTokenSource.Token);
+            var clientSender = new SendWorker(this.shutdownTokenSource.Token);
             this.clientQueues[clientId] = clientQueue;
             var client = this.host.AddClient(clientId, clientSender);
             clientSender.SetHandler(list => SendEvents(client, list));
@@ -71,11 +73,11 @@ namespace DurableTask.EventHubs
             var clientReceiveLoop = ClientReceiveLoop(client, clientQueue);
 
             // create all partitions and start their receive loops
-            for (uint i = 0; i < settings.NumberPartitions; i++)
+            for (uint i = 0; i < this.settings.EmulatedPartitions; i++)
             {
                 uint partitionId = i;
                 var partitionQueue = new EmulatedQueue<PartitionEvent>(simulatedDelay, this.shutdownTokenSource.Token);
-                var partitionSender = new BatchWorker<Event>(this.shutdownTokenSource.Token);
+                var partitionSender = new SendWorker(this.shutdownTokenSource.Token);
                 this.partitionQueues[i] = partitionQueue;
                 var partition = this.host.AddPartition(i, partitionSender);
                 partitionSender.SetHandler(list => SendEvents(partition, list));
@@ -112,19 +114,16 @@ namespace DurableTask.EventHubs
             return (pos == -1) ? "Impulse" : $"{pos:D7}    ";
         }
 
-        private async Task SendEvents(Backend.IClient client, List<PartitionEvent> events)
+        private Task SendEvents(Backend.IClient client, List<Event> events)
         {
             try
             {
-                foreach (var partitionEvent in events)
-                {
-                    await this.partitionQueues[partitionEvent.PartitionId].SendAsync(partitionEvent);
-                }
-                client.ConfirmDurablySent(events);
+                return SendEvents(events);
             }
-            catch (System.Threading.Tasks.TaskCanceledException)
+            catch (TaskCanceledException)
             {
                 // this is normal during shutdown
+                return Task.CompletedTask;
             }
             catch (Exception e)
             {
@@ -133,31 +132,36 @@ namespace DurableTask.EventHubs
             }
         }
 
-        private async Task SendEvents(Backend.IPartition partition, List<Event> events)
+        private Task SendEvents(Backend.IPartition partition, List<Event> events)
         {
             try
             {
-                foreach (var evt in events)
-                {
-                    if (evt is ClientEvent clientEvent)
-                    {
-                        await this.clientQueues[clientEvent.ClientId].SendAsync(clientEvent);
-                    }
-                    else if (evt is PartitionEvent partitionEvent)
-                    {
-                        await this.partitionQueues[partitionEvent.PartitionId].SendAsync(partitionEvent);
-                    }
-                }
-                partition.ConfirmDurablySent(events);
+                return SendEvents(events);
             }
             catch (TaskCanceledException)
             {
                 // this is normal during shutdown
+                return Task.CompletedTask;
             }
             catch (Exception e)
             {
                 System.Diagnostics.Trace.TraceError($"Part{partition:D2} Exception during send: {e}");
                 throw e;
+            }
+        }
+
+        private async Task SendEvents(List<Event> events)
+        {
+            foreach (var evt in events)
+            {
+                if (evt is ClientEvent clientEvent)
+                {
+                    await this.clientQueues[clientEvent.ClientId].SendAsync(clientEvent);
+                }
+                else if (evt is PartitionEvent partitionEvent)
+                {
+                    await this.partitionQueues[partitionEvent.PartitionId].SendAsync(partitionEvent);
+                }
             }
         }
 

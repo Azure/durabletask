@@ -12,19 +12,19 @@ namespace DurableTask.EventHubs
     internal class EventProcessor : IEventProcessor
     {
         private readonly Backend.IHost host;
-        private readonly Backend.ISender<Event> sender;
+        private readonly Backend.ISender sender;
         private readonly Func<EventData, PartitionEvent> parseFunction;
 
         private Backend.IPartition partition;
 
-        public EventProcessor(Backend.IHost host, Backend.ISender<Event> sender, Serializer serializer)
+        public EventProcessor(Backend.IHost host, Backend.ISender sender)
         {
             this.host = host;
             this.sender = sender;
 
             this.parseFunction = (EventData eventData) =>
             {
-                var evt = serializer.DeserializeEvent(eventData.Body);
+                var evt = Serializer.DeserializeEvent(eventData.Body);
                 evt.QueuePosition = eventData.SystemProperties.SequenceNumber;
                 return (PartitionEvent) evt;
             };

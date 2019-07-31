@@ -31,10 +31,7 @@ namespace DurableTask.EventHubs.Tests
         public TestOrchestrationHost(EventHubsOrchestrationServiceSettings settings)
         {
             //var service = new AzureStorageOrchestrationService(settings);
-            var service = new EventHubs.EventHubsOrchestrationService(new EventHubs.EventHubsOrchestrationServiceSettings()
-            {
-                NumberPartitions = 32,
-            });
+            var service = new EventHubs.EventHubsOrchestrationService(settings);
             ((IOrchestrationService)service).CreateAsync().GetAwaiter().GetResult();
 
             this.settings = settings;
@@ -45,16 +42,14 @@ namespace DurableTask.EventHubs.Tests
             this.addedActivityTypes = new HashSet<Type>();
         }
 
-        public string TaskHub => this.settings.EventHubName;
-
         public void Dispose()
         {
             this.worker.Dispose();
         }
 
-        public Task StartAsync()
+        public async Task StartAsync()
         {
-            return this.worker.StartAsync();
+            await this.worker.StartAsync();
         }
 
         public Task StopAsync()

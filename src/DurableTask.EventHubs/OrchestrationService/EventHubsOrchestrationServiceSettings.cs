@@ -22,18 +22,9 @@ namespace DurableTask.EventHubs
     {
         /// <summary>
         /// Gets or sets the connection string for the event hubs namespace.
+        /// Can be a real connection string, or of the form "Emulator:n" where n is the number of partitions
         /// </summary>
         public string EventHubsConnectionString { get; set; }
-
-        /// <summary>
-        /// Gets or sets the name of the event hub.
-        /// </summary>
-        public string EventHubName { get; set; }
-
-        /// <summary>
-        /// Gets or sets the name of the task hub.
-        /// </summary>
-        public string TaskHubName { get; set; }
 
         /// <summary>
         /// Gets or sets the connection string for the Azure storage used for leases and checkpoints.
@@ -41,15 +32,19 @@ namespace DurableTask.EventHubs
         public string StorageConnectionString { get; set; }
 
         /// <summary>
-        /// Bypasses event hubs and uses in-memory emulation instead.
+        /// Gets or sets the task hub name.
         /// </summary>
-        public bool UseEmulatedBackend => (string.IsNullOrEmpty(this.EventHubsConnectionString));
+        public string TaskHubName { get; set; }
 
         /// <summary>
-        /// Gets or sets the number of partitions to use when creating an event hub.
-        /// If the event hub already exists, this number is ignored.
+        /// Bypasses event hubs and uses in-memory emulation instead.
         /// </summary>
-        public int NumberPartitions { get; set; }
+        public bool UseEmulatedBackend => (this.EventHubsConnectionString.StartsWith("Emulator:"));
+
+        /// <summary>
+        /// Gets the number of partitions when using the emulator
+        /// </summary>
+        public uint EmulatedPartitions => uint.Parse(this.EventHubsConnectionString.Substring(9));
 
         /// <summary>
         /// Gets or sets the maximum number of work items that can be processed concurrently on a single node.
@@ -80,14 +75,14 @@ namespace DurableTask.EventHubs
                 throw new ArgumentNullException(nameof(settings.EventHubsConnectionString));
             }
 
+            if (!settings.UseEmulatedBackend && string.IsNullOrEmpty(settings.TaskHubName))
+            {
+                throw new ArgumentNullException(nameof(settings.TaskHubName));
+            }
+
             if (string.IsNullOrEmpty(settings.StorageConnectionString))
             {
                 throw new ArgumentNullException(nameof(settings.StorageConnectionString));
-            }
-
-            if (settings.NumberPartitions < 1 || settings.NumberPartitions > 32)
-            {
-                throw new ArgumentOutOfRangeException(nameof(settings.NumberPartitions));
             }
 
             if (settings.MaxConcurrentTaskOrchestrationWorkItems <= 0)
@@ -101,16 +96,6 @@ namespace DurableTask.EventHubs
             }
 
             return settings;
-        }
-
-        /// <summary>
-        /// Computes the partition for the given instance.
-        /// </summary>
-        /// <param name="instanceId">The instance id.</param>
-        /// <returns>The partition id.</returns>
-        public uint GetPartitionId(string instanceId)
-        {
-            return Fnv1aHashHelper.ComputeHash(instanceId) % (uint)this.NumberPartitions;
         }
     }
 }

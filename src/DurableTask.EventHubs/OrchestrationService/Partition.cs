@@ -13,10 +13,12 @@ namespace DurableTask.EventHubs
     internal class Partition : Backend.IPartition
     {
         public uint PartitionId { get; private set; }
+        public Func<string, uint> PartitionFunction { get; private set; }
+
         public EventHubsOrchestrationServiceSettings Settings { get; private set; }
 
         public Storage.IPartitionState State { get; private set; }
-        public Backend.ISender<Event> BatchSender { get; private set; }
+        public Backend.ISender BatchSender { get; private set; }
         public WorkQueue<TaskActivityWorkItem> ActivityWorkItemQueue { get; private set; }
         public WorkQueue<TaskOrchestrationWorkItem> OrchestrationWorkItemQueue { get; private set; }
 
@@ -32,13 +34,15 @@ namespace DurableTask.EventHubs
 
         public Partition(
             uint partitionId,
-            Backend.ISender<Event> batchSender,
+            Func<string,uint> partitionFunction,
+            Backend.ISender batchSender,
             EventHubsOrchestrationServiceSettings settings,
             WorkQueue<TaskActivityWorkItem> activityWorkItemQueue,
             WorkQueue<TaskOrchestrationWorkItem> orchestrationWorkItemQueue,
             CancellationToken cancellationToken)
         {
             this.PartitionId = partitionId;
+            this.PartitionFunction = partitionFunction;
             this.State = new EmulatedStorage();
             this.BatchSender = batchSender;
             this.Settings = settings;
@@ -83,31 +87,12 @@ namespace DurableTask.EventHubs
             throw new NotImplementedException();
         }
 
-        public void ConfirmDurablySent(IEnumerable<Event> sent)
-        {
-            long lastSendAck = -1;
-
-            foreach (var evt in sent)
-            {
-                if (evt is TaskMessageReceived y && y.QueuePosition > lastSendAck)
-                {
-                    lastSendAck = y.QueuePosition;
-                }
-            }
-
-            if (lastSendAck > -1)
-            {
-                this.BatchSender.Submit(new SentMessagesAcked()
-                {
-                    PartitionId = this.PartitionId,
-                    LastAckedQueuePosition = lastSendAck,
-                });
-            }
-        }
-
         private void TimersFired(List<Event> timersFired)
         {
-            this.BatchSender.Submit(timersFired);
+            foreach (var t in timersFired)
+            {
+                this.BatchSender.Submit(t);
+            }
         }
 
         public class ResponseWaiter : CancellableCompletionSource<ClientEvent>

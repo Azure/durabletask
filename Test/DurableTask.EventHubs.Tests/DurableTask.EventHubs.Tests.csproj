@@ -16,9 +16,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="appsettings.json" CopyToOutputDirectory="Always" />
+    <None Update="xunit.runner.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
-
+  
   <ItemGroup>
     <ProjectReference Include="..\..\src\DurableTask.EventHubs\DurableTask.EventHubs.csproj" />
   </ItemGroup>
