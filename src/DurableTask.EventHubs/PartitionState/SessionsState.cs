@@ -135,33 +135,33 @@ namespace DurableTask.EventHubs
 
         // BatchProcessed
 
-        public void Scope(BatchProcessed evt, List<TrackedObject> scope, List<TrackedObject> apply)
+        public void Process(BatchProcessed evt, EffectTracker effect)
         {
             if (evt.State != null
                 && this.Sessions.TryGetValue(evt.InstanceId, out var session)
                 && session.SessionId == evt.SessionId
                 && session.BatchStartPosition == evt.BatchStartPosition)
             {
-                apply.Add(State.GetInstance(evt.InstanceId));
+                effect.ApplyTo(State.GetInstance(evt.InstanceId));
 
-                apply.Add(State.GetHistory(evt.InstanceId));
+                effect.ApplyTo(State.GetHistory(evt.InstanceId));
 
                 if (evt.OrchestratorMessages?.Count > 0)
                 {
-                    apply.Add(State.Outbox);
+                    effect.ApplyTo(State.Outbox);
                 }
 
                 if (evt.ActivityMessages?.Count > 0)
                 {
-                    apply.Add(State.Activities);
+                    effect.ApplyTo(State.Activities);
                 }
 
                 if (evt.TimerMessages?.Count > 0)
                 {
-                    apply.Add(State.Timers);
+                    effect.ApplyTo(State.Timers);
                 }
 
-                apply.Add(this);
+                effect.ApplyTo(this);
             }
         }
 

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.Serialization;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -41,12 +42,12 @@ namespace DurableTask.EventHubs
             this.settings = settings;
             this.HostId = $"{Environment.MachineName}-{DateTime.UtcNow:o}";
             this.ClientId = Guid.NewGuid();
-            this.connections = new EventHubsConnections(settings.EventHubsConnectionString);
+            this.connections = new EventHubsConnections(host, settings.EventHubsConnectionString);
             var blobContainerName = $"{settings.TaskHubName.ToLowerInvariant()}-evtprocessors";
             var cloudStorageAccount = CloudStorageAccount.Parse(this.settings.StorageConnectionString);
             var cloudBlobClient = cloudStorageAccount.CreateCloudBlobClient();
             this.cloudBlobContainer = cloudBlobClient.GetContainerReference(blobContainerName);
-            this.creationParameters = cloudBlobContainer.GetBlockBlobReference("creationparameters");
+            this.creationParameters = cloudBlobContainer.GetBlockBlobReference("creationparameters.json");
         }
 
         Task<bool> Backend.ITaskHub.ExistsAsync()
@@ -76,7 +77,7 @@ namespace DurableTask.EventHubs
                 startPositions[i] = queueInfo.LastEnqueuedSequenceNumber + 1;
             }
 
-            var evt = new TaskhubCreated()
+            var creationParameters = new
             {
                 CreationTimestamp = DateTime.UtcNow,
                 StartPositions = startPositions
@@ -84,7 +85,7 @@ namespace DurableTask.EventHubs
 
             // save the creation parameters in a blob
             var jsonText = JsonConvert.SerializeObject(
-                evt,
+                creationParameters,
                 Formatting.Indented,
                 new JsonSerializerSettings() { TypeNameHandling = TypeNameHandling.None });
             await this.creationParameters.UploadTextAsync(jsonText);
@@ -92,9 +93,26 @@ namespace DurableTask.EventHubs
             // add a start up event to all partitions
             for (uint i = 0; i < numberPartitions; i++)
             {
+                var evt = new TaskhubCreated()
+                {
+                    PartitionId = i,
+                    CreationTimestamp = creationParameters.CreationTimestamp,
+                    StartPositions = creationParameters.StartPositions,
+                };
+
                 var partitionSender = this.connections.GetPartitionSender(i);
                 partitionSender.Add(evt, null);
             }
+        }
+
+        [DataContract]
+        public class CreationParameters
+        {
+            [DataMember]
+            public DateTime CreationTimestamp { get; set; }
+
+            [DataMember]
+            public long[] StartPositions { get; set; }
         }
 
         Task Backend.ITaskHub.DeleteAsync()
@@ -148,8 +166,6 @@ namespace DurableTask.EventHubs
 
         void Backend.ISender.Submit(Event evt, Backend.ISendConfirmationListener listener)
         {
-            System.Diagnostics.Trace.TraceInformation($"Sending {evt}");
-
             if (evt is ClientEvent clientEvent)
             {
                 var clientId = clientEvent.ClientId;
@@ -162,8 +178,6 @@ namespace DurableTask.EventHubs
                 var sender = this.connections.GetPartitionSender(partitionId);
                 sender.Add(partitionEvent, listener);
             }
-
-            System.Diagnostics.Trace.TraceInformation($"Sent {evt}");
         }
 
         private async Task ClientEventLoop()

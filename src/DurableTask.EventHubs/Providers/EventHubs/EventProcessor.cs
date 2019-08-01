@@ -17,6 +17,8 @@ namespace DurableTask.EventHubs
 
         private Backend.IPartition partition;
 
+        private Dictionary<string, MemoryStream> reassembly = new Dictionary<string, MemoryStream>();
+
         public EventProcessor(Backend.IHost host, Backend.ISender sender)
         {
             this.host = host;
@@ -45,13 +47,13 @@ namespace DurableTask.EventHubs
 
         Task IEventProcessor.ProcessErrorAsync(PartitionContext context, Exception error)
         {
-            System.Diagnostics.Trace.TraceError($"exception in EventProcessor: {error}");
+            partition.ReportError("Exception in EventProcessor", error);
             return Task.FromResult<object>(null);
         }
 
-        Task IEventProcessor.ProcessEventsAsync(PartitionContext context, IEnumerable<EventData> messages)
+        async Task IEventProcessor.ProcessEventsAsync(PartitionContext context, IEnumerable<EventData> messages)
         {
-            return this.partition.ProcessAsync(messages.Select(parseFunction));   
+            await this.partition.ProcessAsync(messages.Select(this.parseFunction));
         }    
     }
 }

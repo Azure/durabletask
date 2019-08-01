@@ -39,10 +39,10 @@ namespace DurableTask.EventHubs
             // re-send all messages as they could have been lost after the failure
             foreach(var kvp in Outbox)
             {
-                this.Send(kvp.Key, kvp.Value);
+                this.Send(kvp.Value);
             }
         }
-        private void Send(long queuePosition, List<TaskMessage> messages)
+        private void Send(List<TaskMessage> messages)
         {
             foreach (var message in messages)
             {
@@ -53,10 +53,9 @@ namespace DurableTask.EventHubs
                 {
                     PartitionId = partitionId,
                     TaskMessage = message,
-                    QueuePosition = queuePosition,
                 };
 
-                Partition.BatchSender.Submit(outmessage, this);
+                Partition.Submit(outmessage, this);
             }
         }
 
@@ -65,7 +64,7 @@ namespace DurableTask.EventHubs
             // TODO apply batching optimization
             if (evt is TaskMessageReceived y && y.QueuePosition > -1)
             {
-                this.Partition.BatchSender.Submit(new SentMessagesAcked()
+                this.Partition.Submit(new SentMessagesAcked()
                 {
                     PartitionId = this.Partition.PartitionId,
                     LastAckedQueuePosition = y.QueuePosition,
@@ -79,16 +78,16 @@ namespace DurableTask.EventHubs
         {
             Outbox.Add(evt.QueuePosition, evt.OrchestratorMessages);
 
-            this.Send(evt.QueuePosition, evt.OrchestratorMessages);
+            this.Send(evt.OrchestratorMessages);
         }
 
         // OutgoingMessagesAcked
 
-        public void Scope(SentMessagesAcked evt, List<TrackedObject> scope, List<TrackedObject> apply)
+        public void Process(SentMessagesAcked evt, EffectTracker effect)
         {
             if (Outbox.Count > 0 && Outbox.First().Key < evt.LastAckedQueuePosition)
             {
-                apply.Add(this);
+                effect.ApplyTo(this);
             }
         }
 

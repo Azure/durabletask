@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -16,7 +17,7 @@ namespace DurableTask.EventHubs
         private static TimeSpan DefaultTimeout = TimeSpan.FromMinutes(5);
 
         public Guid ClientId { get; private set; }
-        public Backend.ISender BatchSender { get; private set; }
+        private Backend.ISender BatchSender { get; set; }
 
 
         private long SequenceNumber; // for numbering requests that enter on this client
@@ -24,9 +25,12 @@ namespace DurableTask.EventHubs
         private BatchTimer<ResponseWaiter> ResponseTimeouts;
         private ConcurrentDictionary<long, ResponseWaiter> ResponseWaiters;
 
+        public string AbbreviatedClientId; // used for tracing
+        
         public Client(Guid clientId, Backend.ISender batchSender, CancellationToken shutdownToken)
         {
             this.ClientId = clientId;
+            this.AbbreviatedClientId = clientId.ToString("N").Substring(0,7);
             this.BatchSender = batchSender;
             this.shutdownToken = shutdownToken;
             this.ResponseTimeouts = new BatchTimer<ResponseWaiter>(this.shutdownToken, Timeout);
@@ -37,7 +41,7 @@ namespace DurableTask.EventHubs
         {
             foreach (var clientEvent in batch)
             {
-                TraceClientReceive(clientEvent);
+                TraceReceive(clientEvent);
 
                 if (this.ResponseWaiters.TryGetValue(clientEvent.RequestId, out var waiter))
                 {
@@ -46,9 +50,27 @@ namespace DurableTask.EventHubs
             }
         }
 
-        private void TraceClientReceive(Event m)
+        public void Submit(Event evt, Backend.ISendConfirmationListener listener)
         {
-            System.Diagnostics.Trace.TraceInformation($"Client.{m.QueuePosition:D7} Processing {m}");
+            TraceSend(evt);
+            this.BatchSender.Submit(evt, listener);
+        }
+
+        public void ReportError(string msg, Exception e)
+        {
+            Trace.TraceError($"Client.{this.AbbreviatedClientId} !!! {msg}: {e}");
+        }
+
+        [Conditional("DEBUG")]
+        private void TraceSend(Event m)
+        {
+            Trace.TraceInformation($"Client.{this.AbbreviatedClientId} Sending {m}");
+        }
+
+        [Conditional("DEBUG")]
+        private void TraceReceive(Event m)
+        {
+            Trace.TraceInformation($"Client.{this.AbbreviatedClientId} Processing {m}");
         }
 
         private static void Timeout<T>(IEnumerable<CancellableCompletionSource<T>> promises) where T : class
@@ -65,7 +87,7 @@ namespace DurableTask.EventHubs
             this.ResponseWaiters.TryAdd(request.RequestId, waiter);
             this.ResponseTimeouts.Schedule(DateTime.UtcNow + request.Timeout, waiter);
 
-            this.BatchSender.Submit(request, doneWhenSent ? waiter : null);
+            this.Submit(request, doneWhenSent ? waiter : null);
 
             return waiter.Task;
         }

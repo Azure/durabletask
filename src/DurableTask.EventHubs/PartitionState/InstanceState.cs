@@ -44,32 +44,30 @@ namespace DurableTask.EventHubs
 
         // CreationRequestReceived
 
-        public void Scope(CreationRequestReceived evt, List<TrackedObject> scope, List<TrackedObject> apply)
+        public void Process(CreationRequestReceived evt, EffectTracker effect)
         {
             if (this.OrchestrationState != null
                 && evt.DedupeStatuses != null
                 && evt.DedupeStatuses.Contains(this.OrchestrationState.OrchestrationStatus))
             {
                 // An instance in this state already exists. do nothing but respond to client.
-                this.Partition.BatchSender.Submit(new CreationResponseReceived()
+                this.Partition.Submit(new CreationResponseReceived()
                 {
                     ClientId = evt.ClientId,
                     RequestId = evt.RequestId,
                     Succeeded = false,
-                    QueuePosition = evt.QueuePosition,
                 });
             }
             else
             {
-                apply.Add(State.Sessions);
-                apply.Add(this);
+                effect.ApplyTo(State.Sessions);
+                effect.ApplyTo(this);
 
-                this.Partition.BatchSender.Submit(new CreationResponseReceived()
+                this.Partition.Submit(new CreationResponseReceived()
                 {
                     ClientId = evt.ClientId,
                     RequestId = evt.RequestId,
                     Succeeded = true,
-                    QueuePosition = evt.QueuePosition,
                 });
             }
         }

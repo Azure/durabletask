@@ -48,12 +48,12 @@ namespace DurableTask.EventHubs
             }
         }
 
-        public void Scope(TimerFired evt, List<TrackedObject> scope, List<TrackedObject> apply)
+        public void Process(TimerFired evt, EffectTracker effect)
         {
             if (PendingTimers.ContainsKey(evt.TimerId))
             {
-                apply.Add(State.Sessions);
-                apply.Add(this);
+                effect.ApplyTo(State.Sessions);
+                effect.ApplyTo(this);
             }
         }
 

@@ -47,12 +47,12 @@ namespace DurableTask.EventHubs
 
         // *************  event processing *****************
 
-        public void Scope(ActivityCompleted evt, List<TrackedObject> scope, List<TrackedObject> apply)
+        public void Process(ActivityCompleted evt, EffectTracker effect)
         {
             if (PendingActivities.ContainsKey(evt.ActivityId))
             {
-                apply.Add(State.Sessions);
-                apply.Add(this);
+                effect.ApplyTo(State.Sessions);
+                effect.ApplyTo(this);
             }
         }
 

@@ -33,11 +33,11 @@ namespace DurableTask.EventHubs
     [KnownType(typeof(TimerFired))]
     [KnownType(typeof(TaskhubCreated))]
     [KnownType(typeof(TaskMessageReceived))]
+    [KnownType(typeof(PartitionEventFragment))]
     internal abstract class Event
     {
         /// <summary>
         /// For received events, this is the queue position at which the event was received, and is filled in by the back-end.
-        /// For sent events, this is the event that caused the send (for non-impulses), or -1 (for impulses).
         /// </summary>
         [IgnoreDataMember]
         public long QueuePosition { get; set; } = -1;

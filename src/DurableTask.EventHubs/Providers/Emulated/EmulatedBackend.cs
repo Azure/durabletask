@@ -13,7 +13,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -69,7 +68,6 @@ namespace DurableTask.EventHubs
             this.clientQueues[clientId] = clientQueue;
             var client = this.host.AddClient(clientId, clientSender);
             clientSender.SetHandler(list => SendEvents(client, list));
-            clientSender.SubmitTracer = this.TraceClientSend;
             var clientReceiveLoop = ClientReceiveLoop(client, clientQueue);
 
             // create all partitions and start their receive loops
@@ -81,7 +79,6 @@ namespace DurableTask.EventHubs
                 this.partitionQueues[i] = partitionQueue;
                 var partition = this.host.AddPartition(i, partitionSender);
                 partitionSender.SetHandler(list => SendEvents(partition, list));
-                partitionSender.SubmitTracer = (e) => this.TracePartitionSend(partitionId, e);
                 var partitionReceiveLoop = PartitionReceiveLoop(partition, partitionQueue);
             }
 
@@ -98,22 +95,6 @@ namespace DurableTask.EventHubs
             }
         }
 
-        private void TraceClientSend(Event m)
-        {
-            System.Diagnostics.Trace.TraceInformation($"Client.{GetSendContext(m)} Sending {m}");
-        }
-
-        private void TracePartitionSend(uint partition, Event m)
-        {
-            System.Diagnostics.Trace.TraceInformation($"Part{partition:D2}.{GetSendContext(m)} Sending {m}");
-        }
-
-        private string GetSendContext(Event @event)
-        {
-            var pos = @event.QueuePosition;
-            return (pos == -1) ? "Impulse" : $"{pos:D7}    ";
-        }
-
         private Task SendEvents(Backend.IClient client, List<Event> events)
         {
             try
@@ -127,7 +108,7 @@ namespace DurableTask.EventHubs
             }
             catch (Exception e)
             {
-                System.Diagnostics.Trace.TraceError($"Client Exception during send: {e}");
+                client.ReportError("Exception During Send", e);
                 throw e;
             }
         }
@@ -145,7 +126,7 @@ namespace DurableTask.EventHubs
             }
             catch (Exception e)
             {
-                System.Diagnostics.Trace.TraceError($"Part{partition:D2} Exception during send: {e}");
+                partition.ReportError("Exception During Send", e);
                 throw e;
             }
         }
@@ -189,7 +170,7 @@ namespace DurableTask.EventHubs
             }
             catch (Exception e)
             {
-                System.Diagnostics.Trace.TraceError($"Client Exception in receive loop: {e}");
+                client.ReportError("Client Exception in receive loop", e);
             }
         }
 
@@ -218,7 +199,7 @@ namespace DurableTask.EventHubs
             }
             catch (Exception e)
             {
-                System.Diagnostics.Trace.TraceError($"Part{partition.PartitionId:D2} Exception in receive loop: {e}");
+                partition.ReportError("Exception in Receive Loop", e);
             }
         }
     }

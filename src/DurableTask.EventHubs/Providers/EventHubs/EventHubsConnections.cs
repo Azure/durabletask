@@ -24,6 +24,7 @@ namespace DurableTask.EventHubs
 {
     internal class EventHubsConnections
     {
+        private readonly Backend.IHost host;
         private readonly string connectionString;
 
         private object thisLock = new object();
@@ -35,8 +36,9 @@ namespace DurableTask.EventHubs
 
         public PartitionReceiver ClientReceiver { get; private set; }
 
-        public EventHubsConnections(string connectionString)
+        public EventHubsConnections(Backend.IHost host, string connectionString)
         {
+            this.host = host;
             this.connectionString = connectionString;
         }
 
@@ -62,7 +64,7 @@ namespace DurableTask.EventHubs
                         EntityPath = PartitionsPath
                     };
                     _partitionEventHubsClient = EventHubClient.CreateFromConnectionString(connectionStringBuilder.ToString());
-                    System.Diagnostics.Trace.TraceInformation($"Created Partitions Client {_partitionEventHubsClient.ClientId}");
+                    //System.Diagnostics.Trace.TraceInformation($"Created Partitions Client {_partitionEventHubsClient.ClientId}");
                 }
                 return _partitionEventHubsClient;
             }
@@ -80,7 +82,7 @@ namespace DurableTask.EventHubs
                         EntityPath = GetClientsPath(clientPath)
                     };
                     _clientEventHubsClients[clientPath] = client = EventHubClient.CreateFromConnectionString(connectionStringBuilder.ToString());
-                    System.Diagnostics.Trace.TraceInformation($"Created EventHub Client {client.ClientId}");
+                    //System.Diagnostics.Trace.TraceInformation($"Created EventHub Client {client.ClientId}");
 
                 }
                 return client;
@@ -102,7 +104,7 @@ namespace DurableTask.EventHubs
                 {
                     var client = GetPartitionEventHubsClient();
                     var partitionSender = client.CreatePartitionSender(partitionId.ToString());
-                    _partitionSenders[partitionId] = sender = new EventSender<PartitionEvent>(partitionSender);
+                    _partitionSenders[partitionId] = sender = new EventSender<PartitionEvent>(host, partitionSender);
                     //System.Diagnostics.Trace.TraceInformation($"Created PartitionSender {partitionSender.ClientId} from {client.ClientId}");
                 }
                 return sender;
@@ -118,7 +120,7 @@ namespace DurableTask.EventHubs
                     uint clientBucket = Fnv1aHashHelper.ComputeHash(clientId.ToByteArray()) % NumClientBuckets;
                     var client = GetClientBucketEventHubsClient(clientBucket);
                     var partitionSender = client.CreatePartitionSender((clientBucket % NumPartitionsPerClientPath).ToString());
-                    _clientSenders[clientId] = sender = new EventSender<ClientEvent>(partitionSender);
+                    _clientSenders[clientId] = sender = new EventSender<ClientEvent>(host, partitionSender);
                     //System.Diagnostics.Trace.TraceInformation($"Created ResponseSender {partitionSender.ClientId} from {client.ClientId}");
                 }
                 return sender;
@@ -129,16 +131,16 @@ namespace DurableTask.EventHubs
         {
             if (ClientReceiver != null)
             {
-                System.Diagnostics.Trace.TraceInformation($"Closing Client Receiver");
+                //ystem.Diagnostics.Trace.TraceInformation($"Closing Client Receiver");
                 await ClientReceiver.CloseAsync();
             }
 
-            System.Diagnostics.Trace.TraceInformation($"Closing Client Bucket Clients");
+            //System.Diagnostics.Trace.TraceInformation($"Closing Client Bucket Clients");
             await Task.WhenAll(_clientEventHubsClients.Values.Select(s => s.CloseAsync()).ToList());
 
             if (_partitionEventHubsClient != null)
             {
-                System.Diagnostics.Trace.TraceInformation($"Closing Partitions Client {_partitionEventHubsClient.ClientId}");
+                //System.Diagnostics.Trace.TraceInformation($"Closing Partitions Client {_partitionEventHubsClient.ClientId}");
                 await _partitionEventHubsClient.CloseAsync();
             }
         }

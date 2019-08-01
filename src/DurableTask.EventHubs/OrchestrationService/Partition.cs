@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -32,6 +33,8 @@ namespace DurableTask.EventHubs
 
         private static readonly Task completedTask = Task.FromResult<object>(null);
 
+        public AsyncLocal<string> TraceContext { get; private set; }
+
         public Partition(
             uint partitionId,
             Func<string,uint> partitionFunction,
@@ -50,9 +53,10 @@ namespace DurableTask.EventHubs
             this.OrchestrationWorkItemQueue = orchestrationWorkItemQueue;
 
             this.partitionShutdown = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            this.TraceContext = new AsyncLocal<string>();
         }
 
-        public Task<long> StartAsync()
+        public async Task<long> StartAsync()
         {
             // initialize collections for pending work
             this.PendingTimers = new BatchTimer<Event>(this.PartitionShutdownToken, this.TimersFired);
@@ -60,14 +64,20 @@ namespace DurableTask.EventHubs
             this.PendingResponses = new ConcurrentDictionary<long, ResponseWaiter>();
 
             // restore from last snapshot
-            return State.RestoreAsync(this);
+            this.TraceContext.Value = "restore";
+            var resumeFrom = await State.RestoreAsync(this);
+            this.TraceContext.Value = null;
+
+            return resumeFrom;
         }
- 
+
         public Task ProcessAsync(IEnumerable<PartitionEvent> batch)
         {
             foreach (var partitionEvent in batch)
             {
-                System.Diagnostics.Trace.TraceInformation($"Part{this.PartitionId:D2}.{partitionEvent.QueuePosition:D7} Processing {partitionEvent}");
+                this.TraceContext.Value = $"{partitionEvent.QueuePosition:D7}   ";
+
+                this.TraceReceive(partitionEvent);
 
                 var target = partitionEvent.GetTarget(this.State);
                 this.State.Apply(target, partitionEvent);
@@ -89,9 +99,10 @@ namespace DurableTask.EventHubs
 
         private void TimersFired(List<Event> timersFired)
         {
+            this.TraceContext.Value = "TWorker";
             foreach (var t in timersFired)
             {
-                this.BatchSender.Submit(t);
+                this.Submit(t);
             }
         }
 
@@ -121,12 +132,38 @@ namespace DurableTask.EventHubs
             }
         }
 
-        public void ObserveException(Exception error)
+        public void Submit(Event evt, Backend.ISendConfirmationListener listener = null)
         {
-            // TODO
-            System.Diagnostics.Trace.TraceError($"exception observed: {error}");
+            this.Trace($"Sending {evt}");
+            this.BatchSender.Submit(evt, listener);
         }
 
+        public void ReportError(string msg, Exception e)
+        {
+            System.Diagnostics.Trace.TraceError($"Part{this.PartitionId:D2} !!! {msg}: {e}");
+        }
+
+        [Conditional("DEBUG")]
+        public void TraceReceive(PartitionEvent evt)
+        {
+            System.Diagnostics.Trace.TraceInformation($"Part{this.PartitionId:D2}.{evt.QueuePosition:D7} Processing {evt}");
+        }
+
+        [Conditional("DEBUG")]
+        public void Trace(string msg)
+        {
+            var context = this.TraceContext.Value;
+            if (string.IsNullOrEmpty(context))
+            {
+                System.Diagnostics.Trace.TraceInformation($"Part{this.PartitionId:D2}         {msg}");
+            }
+            else
+            {
+                System.Diagnostics.Trace.TraceInformation($"Part{this.PartitionId:D2}.{context} {msg}");
+            }
+        }
+
+ 
         /******************************/
         // Client requests
         /******************************/
@@ -144,7 +181,7 @@ namespace DurableTask.EventHubs
 
                 if (response != null)
                 {
-                    this.BatchSender.Submit(response);
+                    this.Submit(response);
                 }
             }
             catch (TaskCanceledException)
@@ -152,7 +189,7 @@ namespace DurableTask.EventHubs
             }
             catch (Exception e)
             {
-                this.ObserveException(e);
+                this.ReportError($"Exception while handling {request.GetType().Name}", e);
             }
         }
 
@@ -209,14 +246,14 @@ namespace DurableTask.EventHubs
                     OrchestrationState = orchestrationState,
                 };
 
-                this.BatchSender.Submit(response);
+                this.Submit(response);
             }
             catch (TaskCanceledException)
             {
             }
             catch (Exception e)
             {
-                this.ObserveException(e);
+                this.ReportError($"Exception while handling {request.GetType().Name}", e);
             }
         }
     }

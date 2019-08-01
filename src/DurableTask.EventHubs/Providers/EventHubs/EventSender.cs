@@ -12,10 +12,12 @@ namespace DurableTask.EventHubs
 {
     internal class EventSender<T> : BatchWorker where T: Event
     {
-        protected readonly PartitionSender sender;
+        private readonly PartitionSender sender;
+        private readonly Backend.IHost host;
 
-        public EventSender(PartitionSender sender)
+        public EventSender(Backend.IHost host, PartitionSender sender)
         {
+            this.host = host;
             this.sender = sender;
         }
 
@@ -57,29 +59,37 @@ namespace DurableTask.EventHubs
 
                 // create and send as many batches as needed 
                 var batch = sender.CreateBatch();
-
+                
                 for (int i = 0; i < toSend.Count; i++)
                 {
                     var startpos = (int)stream.Position;
 
                     Serializer.SerializeEvent(toSend[i].Event, stream);
 
-                    var eventData = new EventData(new ArraySegment<byte>(stream.GetBuffer(), startpos, (int)stream.Position - startpos));
+                    var arraySegment = new ArraySegment<byte>(stream.GetBuffer(), startpos, (int)stream.Position - startpos);
+                    var eventData = new EventData(arraySegment);
 
-                    if (!batch.TryAdd(eventData))
+                    if (batch.TryAdd(eventData))
                     {
-                        if (batch.Count == 0)
+                        continue;
+                    }
+                    else if (batch.Count > 0)
+                    {
+                        // send the batch we have so far, reset stream, and backtrack one element
+                        await sender.SendAsync(batch);
+                        batch = sender.CreateBatch();
+                        stream.Seek(0, SeekOrigin.Begin);
+                        i--;
+                    }
+                    else
+                    {
+                        // the message is too big. Break it into fragments, and send each individually.
+                        var fragments = FragmentationAndReassembly.Fragment(arraySegment, toSend[i].Event);
+                        foreach (var fragment in fragments)
                         {
-                            throw new Exception("message too large"); // TODO
-                        }
-                        else
-                        {
-                            // send the batch we have so far
-                            await sender.SendAsync(batch);
-
-                            // create new batch and reset stream
                             stream.Seek(0, SeekOrigin.Begin);
-                            batch = sender.CreateBatch();
+                            Serializer.SerializeEvent((Event) fragment, stream);
+                            await sender.SendAsync(new EventData(new ArraySegment<byte>(stream.GetBuffer(), 0, (int)stream.Position)));
                         }
                     }
                 }
@@ -100,7 +110,7 @@ namespace DurableTask.EventHubs
             }
             catch (Exception e)
             {
-                System.Diagnostics.Trace.TraceError($"!!! failure in sender: {e}");
+                host.ReportError("Failure in sender", e);
             }
         }
 

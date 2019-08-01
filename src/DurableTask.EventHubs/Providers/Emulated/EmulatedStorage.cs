@@ -14,8 +14,6 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Runtime.Serialization;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace DurableTask.EventHubs
@@ -23,6 +21,8 @@ namespace DurableTask.EventHubs
     internal class EmulatedStorage : Storage.IPartitionState
     {
         public ClocksState Clocks { get; private set; }
+
+        public ReassemblyState Reassembly { get; private set; }
 
         public OutboxState Outbox { get; private set; } 
 
@@ -44,6 +44,7 @@ namespace DurableTask.EventHubs
         public EmulatedStorage()
         {
             this.Clocks = new ClocksState();
+            this.Reassembly = new ReassemblyState();
             this.Outbox = new OutboxState();
             this.Timers = new TimersState();
             this.Activities = new ActivitiesState();
@@ -102,6 +103,7 @@ namespace DurableTask.EventHubs
         private IEnumerable<TrackedObject> GetTrackedObjects()
         {
             yield return Clocks;
+            yield return Reassembly;
             yield return Outbox;
             yield return Timers;
             yield return Activities;
@@ -123,14 +125,12 @@ namespace DurableTask.EventHubs
         }
 
         // reuse these collection objects between updates (note that updates are never concurrent by design)
-        List<TrackedObject> scope = new List<TrackedObject>();
-        List<TrackedObject> apply = new List<TrackedObject>();
+        TrackedObject.EffectTracker tracker = new TrackedObject.EffectTracker();
 
-        public void Apply(TrackedObject target, Event evt)
+        public void Apply(TrackedObject target, PartitionEvent evt)
         {
-            target.Process(evt, scope, apply);
-            scope.Clear();
-            apply.Clear();
+            target.Process(evt, tracker);
+            tracker.Clear();
         }
 
         public Task<TResult> ReadAsync<TResult>(Func<TResult> read)

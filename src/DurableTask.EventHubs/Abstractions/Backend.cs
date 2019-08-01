@@ -48,6 +48,8 @@ namespace DurableTask.EventHubs
             IClient AddClient(Guid clientId, ISender batchSender);
 
             IPartition AddPartition(uint partitionId, ISender batchSender);
+
+            void ReportError(string msg, Exception e);
         }
 
         /// <summary>
@@ -72,6 +74,7 @@ namespace DurableTask.EventHubs
 
             void Process(IEnumerable<ClientEvent> batch);
 
+            void ReportError(string msg, Exception e);
         }
 
         /// <summary>
@@ -86,6 +89,8 @@ namespace DurableTask.EventHubs
             Task ProcessAsync(IEnumerable<PartitionEvent> batch);
 
             Task TakeCheckpoint(long position);
+
+            void ReportError(string msg, Exception e);
 
             Task StopAsync();
         }

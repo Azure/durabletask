@@ -37,7 +37,7 @@ namespace DurableTask.EventHubs
 
             // ------ methods called from updater thread ------
 
-            void Apply(TrackedObject target, Event evt);
+            void Apply(TrackedObject target, PartitionEvent evt);
 
             // ------ methods called from any thread ------
 
@@ -48,6 +48,8 @@ namespace DurableTask.EventHubs
             // ------ tracked objects ------
 
             ClocksState Clocks { get; }
+
+            ReassemblyState Reassembly { get; }
 
             OutboxState Outbox { get; }
 

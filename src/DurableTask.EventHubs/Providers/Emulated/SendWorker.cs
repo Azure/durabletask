@@ -13,8 +13,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -27,8 +25,6 @@ namespace DurableTask.EventHubs
         private Func<List<Event>, Task> handler;
         private List<Event> work;
         private List<Backend.ISendConfirmationListener> listeners;
-
-        public Action<Event> SubmitTracer { get; set; }
 
         public SendWorker(CancellationToken token, Func<List<Event>, Task> handler = null)
         {
@@ -75,8 +71,6 @@ namespace DurableTask.EventHubs
 
                 this.work.Add(element);
                 this.listeners.Add(confirmationListener);
-
-                this.SubmitTracer?.Invoke(element);
             }
         }
 

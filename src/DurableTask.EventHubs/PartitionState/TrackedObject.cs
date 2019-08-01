@@ -11,11 +11,8 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
 using System.Collections.Generic;
 using System.Runtime.Serialization;
-using System.Text;
-using System.Threading;
 
 namespace DurableTask.EventHubs
 {
@@ -50,42 +47,91 @@ namespace DurableTask.EventHubs
             // subclasses override this if there is work they need to do here
         }
 
-        public void Process(Event processorEvent, List<TrackedObject> scope, List<TrackedObject> apply)
+        public void Apply(PartitionEvent e)
         {
-            // start with reading this object only, to determine the scope
-            if (processorEvent.QueuePosition > this.LastProcessed)
+            // the default apply for an object does not update any state.
+        }
+
+        public virtual void Process(PartitionEventFragment e, EffectTracker effect)
+        {
+            // the default scope for a reassembled event applies that event
+            dynamic dynamicThis = this;
+            dynamic dynamicPartitionEvent = e.ReassembledEvent;
+            dynamicThis.Scope(dynamicPartitionEvent, effect);
+        }
+
+        public virtual void Apply(PartitionEventFragment e)
+        {
+            // the default apply for a reassembled event applies that event
+            dynamic dynamicThis = this;
+            dynamic dynamicPartitionEvent = e.ReassembledEvent;
+            dynamicThis.Apply(dynamicPartitionEvent);
+        }
+
+        public class EffectTracker
+        {
+            public List<TrackedObject> ObjectsToProcessOn = new List<TrackedObject>();
+            public List<TrackedObject> ObjectsToApplyTo = new List<TrackedObject>();
+
+            public void ProcessOn(TrackedObject o)
             {
-                var scopeStartPos = scope.Count;
-                var applyStartPos = apply.Count;
+                ObjectsToProcessOn.Add(o);
+            }
 
-                System.Diagnostics.Trace.TraceInformation($"Part{this.Partition.PartitionId:D2}.{processorEvent.QueuePosition:D7}     Read [{this.Key}]");
+            public void ApplyTo(TrackedObject o)
+            {
+                ObjectsToApplyTo.Add(o);
+            }
 
+            public void Clear()
+            {
+                ObjectsToProcessOn.Clear();
+                ObjectsToApplyTo.Clear();
+            }
+        }
+
+        
+        public void Process(PartitionEvent evt, EffectTracker effect)
+        {
+            if (evt.QueuePosition > this.LastProcessed)
+            {
+                var processOnStartPos = effect.ObjectsToProcessOn.Count;
+                var applyToStartPos = effect.ObjectsToApplyTo.Count;
+
+                this.Partition.Trace($"Process on [{this.Key}]");
+
+                // start with processing the event on this object, determining effect
                 dynamic dynamicThis = this;
-                dynamic dynamicProcessorEvent = processorEvent;
-                dynamicThis.Scope(dynamicProcessorEvent, scope, apply);
+                dynamic dynamicPartitionEvent = evt;
+                dynamicThis.Process(dynamicPartitionEvent, effect);
 
-                if (scope.Count > scopeStartPos)
+                var numObjectToProcessOn = effect.ObjectsToProcessOn.Count - processOnStartPos;
+                var numObjectsToApplyTo = effect.ObjectsToApplyTo.Count - applyToStartPos;
+
+                // recursively process all objects as determined by effect tracker
+                if (numObjectToProcessOn > 0)
                 {
-                    for (int i = scopeStartPos; i < scope.Count; i++)
+                    for (int i = processOnStartPos; i < numObjectToProcessOn; i++)
                     {
-                        scope[i].Process(processorEvent, scope, apply);
+                        effect.ObjectsToProcessOn[i].Process(evt, effect);
                     }
                 }
 
-                if (apply.Count > applyStartPos)
+                // apply all objects  as determined by effect tracker
+                if (numObjectsToApplyTo > 0)
                 {
-                    for (int i = applyStartPos; i < apply.Count; i++)
+                    for (int i = applyToStartPos; i < numObjectsToApplyTo; i++)
                     {
-                        var target = apply[i];
-                        if (target.LastProcessed < processorEvent.QueuePosition)
+                        var target = effect.ObjectsToApplyTo[i];
+                        if (target.LastProcessed < evt.QueuePosition)
                         {
                             lock (target.Lock)
                             {
-                                System.Diagnostics.Trace.TraceInformation($"Part{this.Partition.PartitionId:D2}.{processorEvent.QueuePosition:D7}     Update [{target.Key}]");
+                                this.Partition.Trace($"Apply to [{target.Key}]");
 
                                 dynamic dynamicTarget = target;
-                                dynamicTarget.Apply(dynamicProcessorEvent);
-                                target.LastProcessed = processorEvent.QueuePosition;
+                                dynamicTarget.Apply(dynamicPartitionEvent);
+                                target.LastProcessed = evt.QueuePosition;
                             }
                         }
                     }

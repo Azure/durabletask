@@ -13,26 +13,22 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Runtime.Serialization;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace DurableTask.EventHubs
 {
-    internal class CancellableCompletionSource<T> : CompletionSourceWithCleanup<T>
+    [DataContract]
+    internal class ClientEventFragment : ClientEvent, FragmentationAndReassembly.IEventFragment
     {
-        private readonly CancellationTokenRegistration CancellationRegistration;
+        [DataMember]
+        public Guid CohortId { get; set; }
 
-        public bool IsCompleted => this.Task.IsCompleted;
+        [DataMember]
+        public byte[] Bytes { get; set; }
 
-        public CancellableCompletionSource(CancellationToken token1)
-        {
-            this.CancellationRegistration = token1.Register(this.TryCancel);
-        }
-
-        protected override void Cleanup()
-        {
-            CancellationRegistration.Dispose();
-        }
+        [DataMember]
+        public bool IsLast { get; set; }
     }
 }

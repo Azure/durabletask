@@ -1,4 +1,5 @@
-﻿//  Copyright Microsoft Corporation
+﻿//  ----------------------------------------------------------------------------------
+//  Copyright Microsoft Corporation
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
 //  You may obtain a copy of the License at
@@ -12,12 +13,30 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Runtime.Serialization;
 using System.Text;
 
 namespace DurableTask.EventHubs
 {
-    interface ICompletionSource
+    [DataContract]
+    internal class PartitionEventFragment : PartitionEvent, FragmentationAndReassembly.IEventFragment
     {
-        bool IsCompleted { get; }
+        [DataMember]
+        public Guid CohortId { get; set; }
+
+        [DataMember]
+        public byte[] Bytes { get; set; }
+
+        [DataMember]
+        public bool IsLast { get; set; }
+
+        [IgnoreDataMember]
+        public PartitionEvent ReassembledEvent;
+
+        public override TrackedObject GetTarget(Storage.IPartitionState state)
+        {
+            return state.Reassembly;
+        }
     }
 }

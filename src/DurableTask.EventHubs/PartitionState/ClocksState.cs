@@ -27,21 +27,27 @@ namespace DurableTask.EventHubs
         [IgnoreDataMember]
         public override string Key => "Clocks";
 
+        // TaskhubCreated is always the first event, it currently has no effect other than priming the event processor
+
+        public void Process(TaskhubCreated evt, EffectTracker effect)
+        {
+        }
+
+        // TaskMessageReceived goes to session
+
+        public void Process(TaskMessageReceived evt, EffectTracker effect)
+        {
+            if (!this.Deduplicate(evt))
+            {
+                effect.ApplyTo(State.Sessions);
+                effect.ApplyTo(this);
+            }
+        }
+
         private bool Deduplicate(TaskMessageReceived taskMessageReceived)
         {
             // TODO check against vector clock
             return false;
-        }
-
-        private bool Deduplicate(ClientRequestEvent clientRequestReceived)
-        {
-            // TODO check against vector clock
-            return false;
-        }
-
-        public void Apply(ClientRequestEvent evt)
-        {
-            // TODO update clocks
         }
 
         public void Apply(TaskMessageReceived evt)
@@ -49,67 +55,36 @@ namespace DurableTask.EventHubs
             // TODO update clocks
         }
 
-        // TaskhubCreated is always the first event, it currently has no effect other than priming the event processor
-
-        public void Scope(TaskhubCreated evt, List<TrackedObject> scope, List<TrackedObject> apply)
-        {
-        }
-
-        // TaskMessageReceived goes to session
-
-        public void Scope(TaskMessageReceived evt, List<TrackedObject> scope, List<TrackedObject> apply)
-        {
-            if (!this.Deduplicate(evt))
-            {
-                apply.Add(State.Sessions);
-                apply.Add(this);
-            }
-        }
-
         // ClientTaskMessageReceived goes to session
 
-        public void Scope(ClientTaskMessagesReceived evt, List<TrackedObject> scope, List<TrackedObject> apply)
+        public void Process(ClientTaskMessagesReceived evt, EffectTracker effect)
         {
-            if (!this.Deduplicate(evt))
-            {
-                apply.Add(State.Sessions);
-                apply.Add(this);
-            }
+            effect.ApplyTo(State.Sessions);
+            effect.ApplyTo(this);
         }
 
         // CreationRequestReceived goes to instance
 
-        public void Scope(CreationRequestReceived evt, List<TrackedObject> scope, List<TrackedObject> apply)
+        public void Process(CreationRequestReceived evt, EffectTracker effect)
         {
-            if (!this.Deduplicate(evt))
-            {
-                scope.Add(State.GetInstance(evt.InstanceId));
-                apply.Add(this);
-            }
+            effect.ProcessOn(State.GetInstance(evt.InstanceId));
+            effect.ApplyTo(this);
         }
 
         // WaitRequestReceived starts an asychronous waiter 
 
-        public void Scope(WaitRequestReceived evt, List<TrackedObject> scope, List<TrackedObject> apply)
+        public void Process(WaitRequestReceived evt, EffectTracker effect)
         {
-            if (!this.Deduplicate(evt))
-            {
-                var waitTask = this.Partition.HandleAsync(evt);
-                apply.Add(this);
-            }
+            var waitTask = this.Partition.HandleAsync(evt);
+            effect.ApplyTo(this);
         }
 
         // StateRequestReceived starts an asychronous read 
 
-        public void Scope(StateRequestReceived evt, List<TrackedObject> scope, List<TrackedObject> apply)
+        public void Process(StateRequestReceived evt, EffectTracker effect)
         {
-            if (!this.Deduplicate(evt))
-            {
-                var readTask = this.Partition.HandleAsync(evt);
-                apply.Add(this);
-            }
-        }
-
-
+            var readTask = this.Partition.HandleAsync(evt);
+            effect.ApplyTo(this);
+        }  
     }
 }

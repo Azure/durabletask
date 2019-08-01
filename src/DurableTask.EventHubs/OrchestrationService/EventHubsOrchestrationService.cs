@@ -192,6 +192,12 @@ namespace DurableTask.EventHubs
             return partition;
         }
 
+        void Backend.IHost.ReportError(string msg, Exception e)
+        {
+            System.Diagnostics.Trace.TraceError($"!!! {msg}: {e}");
+        }
+
+
         /******************************/
         // client methods
         /******************************/
@@ -327,7 +333,10 @@ namespace DurableTask.EventHubs
         {
             var orchestrationWorkItem = (OrchestrationWorkItem)workItem;
 
-            orchestrationWorkItem.Partition.BatchSender.Submit(new BatchProcessed()
+            var partition = orchestrationWorkItem.Partition;
+            partition.TraceContext.Value = "OWorker";
+
+            partition.Submit(new BatchProcessed()
             {
                 PartitionId = orchestrationWorkItem.Partition.PartitionId,
                 SessionId = orchestrationWorkItem.SessionId,
@@ -405,7 +414,9 @@ namespace DurableTask.EventHubs
         Task IOrchestrationService.CompleteTaskActivityWorkItemAsync(TaskActivityWorkItem workItem, TaskMessage responseMessage)
         {
             var activityWorkItem = (ActivityWorkItem)workItem;
-            activityWorkItem.Partition.BatchSender.Submit(new ActivityCompleted()
+            var partition = activityWorkItem.Partition;
+            partition.TraceContext.Value = "AWorker";
+            partition.Submit(new ActivityCompleted()
             {
                 PartitionId = activityWorkItem.Partition.PartitionId,
                 ActivityId = activityWorkItem.ActivityId,
