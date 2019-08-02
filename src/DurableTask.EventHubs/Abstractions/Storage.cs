@@ -37,7 +37,7 @@ namespace DurableTask.EventHubs
 
             // ------ methods called from updater thread ------
 
-            void Apply(TrackedObject target, PartitionEvent evt);
+            void Process(PartitionEvent evt);
 
             // ------ methods called from any thread ------
 

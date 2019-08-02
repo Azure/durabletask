@@ -38,6 +38,9 @@ namespace DurableTask.EventHubs
 
         [IgnoreDataMember]
         public string InstanceId => ExecutionStartedEvent.OrchestrationInstance.InstanceId;
+
+        [IgnoreDataMember]
+        public override bool AtLeastOnceDelivery => false;
     }
 
 }

@@ -23,11 +23,9 @@ namespace DurableTask.EventHubs
     {
         private readonly CancellationTokenRegistration CancellationRegistration;
 
-        public bool IsCompleted => this.Task.IsCompleted;
-
         public CancellableCompletionSource(CancellationToken token1)
         {
-            this.CancellationRegistration = token1.Register(this.TryCancel);
+            this.CancellationRegistration = token1.Register(this.TrySetCanceled);
         }
 
         protected override void Cleanup()

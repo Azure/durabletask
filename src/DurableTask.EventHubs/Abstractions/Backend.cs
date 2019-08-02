@@ -63,6 +63,8 @@ namespace DurableTask.EventHubs
         public interface ISendConfirmationListener
         {
             void ConfirmDurablySent(Event evt);
+
+            void ReportSenderException(Event evt, Exception e);
         }
 
         /// <summary>

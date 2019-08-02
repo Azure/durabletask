@@ -40,26 +40,42 @@ namespace DurableTask.EventHubs
             Notify();
         }
 
+        private void Requeue(IEnumerable<Entry> requeue)
+        {
+            lock (lockable)
+            {
+                this.queue.InsertRange(0, requeue);
+            }
+            Notify();
+        }
+
+        // we reuse the same memory stream t
         private readonly MemoryStream stream = new MemoryStream();
+
+        private TimeSpan backoff = TimeSpan.FromSeconds(5);
 
         protected override async Task Work()
         {
+            lock (lockable)
+            {
+                if (queue.Count == 0)
+                    return;
+
+                // mark queue position
+                var temp = this.toSend;
+                this.toSend = this.queue;
+                this.queue = temp;
+            }
+
+            // track progress in case of exception
+            var sentSuccessfully = 0;
+            var maybeSent = 0;
+            Exception senderException = null;
+
             try
             {
-                lock (lockable)
-                {
-                    if (queue.Count == 0)
-                        return;
-
-                    // swap queues
-                    var temp = this.toSend;
-                    this.toSend = this.queue;
-                    this.queue = temp;
-                }
-
-                // create and send as many batches as needed 
                 var batch = sender.CreateBatch();
-                
+
                 for (int i = 0; i < toSend.Count; i++)
                 {
                     var startpos = (int)stream.Position;
@@ -71,26 +87,31 @@ namespace DurableTask.EventHubs
 
                     if (batch.TryAdd(eventData))
                     {
+                        maybeSent = i;
                         continue;
                     }
                     else if (batch.Count > 0)
                     {
-                        // send the batch we have so far, reset stream, and backtrack one element
+                        // send the batch we have so far, then create a new batch
                         await sender.SendAsync(batch);
+                        sentSuccessfully = i;
                         batch = sender.CreateBatch();
                         stream.Seek(0, SeekOrigin.Begin);
+                        // backtrack one so we try to send this same element again
                         i--;
                     }
                     else
                     {
                         // the message is too big. Break it into fragments, and send each individually.
                         var fragments = FragmentationAndReassembly.Fragment(arraySegment, toSend[i].Event);
+                        maybeSent = i;
                         foreach (var fragment in fragments)
                         {
                             stream.Seek(0, SeekOrigin.Begin);
-                            Serializer.SerializeEvent((Event) fragment, stream);
+                            Serializer.SerializeEvent((Event)fragment, stream);
                             await sender.SendAsync(new EventData(new ArraySegment<byte>(stream.GetBuffer(), 0, (int)stream.Position)));
                         }
+                        sentSuccessfully = i + 1;
                     }
                 }
 
@@ -98,20 +119,48 @@ namespace DurableTask.EventHubs
                 {
                     await sender.SendAsync(batch);
                 }
-
-                // finally, confirm the sends
-                foreach (var t in toSend)
-                {
-                    t.Listener?.ConfirmDurablySent(t.Event);
-                }
-
-                // and clear the queue so we can reuse it for the next batch
-                this.toSend.Clear();
+                sentSuccessfully = toSend.Count;
             }
             catch (Exception e)
             {
-                host.ReportError("Failure in sender", e);
+                host.ReportError("Warning: failure in sender", e);
+                senderException = e;
             }
+
+            // Confirm all sent ones, and retry or report maybe-sent ones
+            List<Entry> requeue = null;
+
+            for (int i = 0; i < toSend.Count; i++)
+            {
+                var entry = toSend[i];
+
+                if (i < sentSuccessfully)
+                {
+                    // the event was definitely sent successfully
+                    entry.Listener?.ConfirmDurablySent(entry.Event);
+                }
+                else if (i > maybeSent || entry.Event.AtLeastOnceDelivery)
+                {
+                    // the event was definitely not sent, OR it was maybe sent but can be duplicated safely
+                    (requeue ?? (requeue = new List<Entry>())).Add(entry);
+                }
+                else
+                {
+                    // the event may have been sent or maybe not, report problem to listener
+                    entry.Listener?.ReportSenderException(entry.Event, senderException);
+                }
+            }
+
+            if (requeue != null)
+            {
+                // take a deep breath before trying again
+                await Task.Delay(backoff);
+
+                this.Requeue(requeue);
+            }
+
+            // and clear the queue so we can reuse it for the next batch
+            this.toSend.Clear();          
         }
 
         private IEnumerable<EventData> Serialize(IEnumerable<Entry> entries)

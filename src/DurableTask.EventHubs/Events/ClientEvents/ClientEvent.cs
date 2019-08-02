@@ -14,5 +14,8 @@ namespace DurableTask.EventHubs
 
         [DataMember]
         public long RequestId { get; set; }
+
+        [DataMember]
+        public override bool AtLeastOnceDelivery => true;
     }
 }

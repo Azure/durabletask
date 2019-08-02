@@ -20,6 +20,7 @@ using DurableTask.Core;
 namespace DurableTask.EventHubs
 {
     [DataContract]
+    [KnownType(typeof(ClientEventFragment))]
     [KnownType(typeof(CreationResponseReceived))]
     [KnownType(typeof(StateResponseReceived))]
     [KnownType(typeof(WaitResponseReceived))]
@@ -41,6 +42,12 @@ namespace DurableTask.EventHubs
         /// </summary>
         [IgnoreDataMember]
         public long QueuePosition { get; set; } = -1;
+
+        /// <summary>
+        /// Some events should not be duplicated, so we do not retry them when enqueue is ambigous
+        /// </summary>
+        [IgnoreDataMember]
+        public abstract bool AtLeastOnceDelivery { get; }
 
         public override string ToString()
         {

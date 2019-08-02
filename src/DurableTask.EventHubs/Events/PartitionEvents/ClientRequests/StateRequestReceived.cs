@@ -26,6 +26,9 @@ namespace DurableTask.EventHubs
     {
         [DataMember]
         public string InstanceId { get; set; }
+
+        [IgnoreDataMember]
+        public override bool AtLeastOnceDelivery => true;
     }
 
 }

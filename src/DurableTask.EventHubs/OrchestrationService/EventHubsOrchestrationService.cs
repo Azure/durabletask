@@ -128,7 +128,7 @@ namespace DurableTask.EventHubs
         {
             foreach (var waiter in waiters)
             {
-                waiter.TryFulfill(null);
+                waiter.TrySetResult(null);
             }
         }
 

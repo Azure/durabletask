@@ -27,7 +27,7 @@ namespace DurableTask.EventHubs
         [DataMember]
         public TaskMessage TaskMessage { get; set; }
 
-        public override TrackedObject GetTarget(Storage.IPartitionState state)
+        public override TrackedObject StartProcessingOnObject(Storage.IPartitionState state)
         {
             return state.Clocks;
         }

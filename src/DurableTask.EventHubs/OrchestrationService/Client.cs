@@ -24,6 +24,7 @@ namespace DurableTask.EventHubs
 
         private BatchTimer<ResponseWaiter> ResponseTimeouts;
         private ConcurrentDictionary<long, ResponseWaiter> ResponseWaiters;
+        private Dictionary<Guid, List<ClientEventFragment>> Fragments;
 
         public string AbbreviatedClientId; // used for tracing
         
@@ -35,18 +36,46 @@ namespace DurableTask.EventHubs
             this.shutdownToken = shutdownToken;
             this.ResponseTimeouts = new BatchTimer<ResponseWaiter>(this.shutdownToken, Timeout);
             this.ResponseWaiters = new ConcurrentDictionary<long, ResponseWaiter>();
+            this.Fragments = new Dictionary<Guid, List<ClientEventFragment>>();
         }
+
 
         public void Process(IEnumerable<ClientEvent> batch)
         {
             foreach (var clientEvent in batch)
             {
-                TraceReceive(clientEvent);
-
-                if (this.ResponseWaiters.TryGetValue(clientEvent.RequestId, out var waiter))
+                if (!(clientEvent is ClientEventFragment fragment))
                 {
-                    waiter.TryFulfill(clientEvent);
+                    TraceReceive(clientEvent);
+                    Process(clientEvent);
                 }
+                else
+                {
+                    if (!fragment.IsLast)
+                    {
+                        if (!this.Fragments.TryGetValue(fragment.CohortId, out var list))
+                        {
+                            this.Fragments[fragment.CohortId] = list = new List<ClientEventFragment>();
+                        }
+                        list.Add(fragment);
+                    }
+                    else
+                    {
+                        var reassembledEvent = (ClientEvent)FragmentationAndReassembly.Reassemble(this.Fragments[fragment.CohortId], fragment);
+                        this.Fragments.Remove(fragment.CohortId);
+
+                        TraceReceive(reassembledEvent);
+                        Process(reassembledEvent);
+                    }
+                }
+            }
+        }
+
+        public void Process(ClientEvent clientEvent)
+        {
+            if (this.ResponseWaiters.TryGetValue(clientEvent.RequestId, out var waiter))
+            {
+                waiter.TrySetResult(clientEvent);
             }
         }
 
@@ -77,7 +106,7 @@ namespace DurableTask.EventHubs
         {
             foreach (var promise in promises)
             {
-                promise.TryThrowTimeoutException();
+                promise.TrySetTimeoutException();
             }
         }
 
@@ -106,6 +135,11 @@ namespace DurableTask.EventHubs
             public void ConfirmDurablySent(Event evt)
             {
                 this.TrySetResult(null); // task finishes when the send has been confirmed, no result is returned
+            }
+
+            public void ReportSenderException(Event evt, Exception e)
+            {
+                this.TrySetException(e); // task finishes with exception
             }
 
             protected override void Cleanup()

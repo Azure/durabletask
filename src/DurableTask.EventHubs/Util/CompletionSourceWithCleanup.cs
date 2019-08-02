@@ -19,31 +19,41 @@ using System.Threading.Tasks;
 
 namespace DurableTask.EventHubs
 {
-    internal class CompletionSourceWithCleanup<T> : TaskCompletionSource<T>
-    { 
-        protected virtual void Cleanup()
-        {
-        }
+    internal abstract class CompletionSourceWithCleanup<T> 
+    {
+        private TaskCompletionSource<T> inner = new TaskCompletionSource<T>();
 
-        public virtual void TryCancel()
+        public Task<T> Task => inner.Task;
+
+        abstract protected void Cleanup();
+
+        public virtual void TrySetCanceled()
         {
-            if (this.TrySetCanceled())
+            if (this.inner.TrySetCanceled())
             {
                 this.Cleanup();
             }
         }
 
-        public virtual void TryThrowTimeoutException()
+        public virtual void TrySetTimeoutException()
         {
-            if (this.TrySetException(new TimeoutException()))
+            if (this.inner.TrySetException(new TimeoutException()))
             {
                 this.Cleanup();
             }
         }
 
-        public bool TryFulfill(T result)
+        public virtual void TrySetException(Exception e)
         {
-            if (this.TrySetResult(result))
+            if (this.inner.TrySetException(e))
+            {
+                this.Cleanup();
+            }
+        }
+
+        public bool TrySetResult(T result)
+        {
+            if (this.inner.TrySetResult(result))
             {
                 this.Cleanup();
                 return true;

@@ -26,5 +26,8 @@ namespace DurableTask.EventHubs
     {
         [DataMember]
         public TaskMessage[] TaskMessages { get; set; }
+
+        [IgnoreDataMember]
+        public override bool AtLeastOnceDelivery => false;
     }
 }

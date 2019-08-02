@@ -72,6 +72,12 @@ namespace DurableTask.EventHubs
             }
         }
 
+        public void ReportSenderException(Event evt, Exception e)
+        {
+            // this should never be called because all events sent by partitions are at-least-once
+            throw new NotImplementedException();
+        }
+
         // BatchProcessed
 
         public void Apply(BatchProcessed evt)
@@ -109,5 +115,6 @@ namespace DurableTask.EventHubs
 
             LastAckedQueuePosition = evt.LastAckedQueuePosition;
         }
+
     }
 }

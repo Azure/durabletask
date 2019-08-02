@@ -127,9 +127,10 @@ namespace DurableTask.EventHubs
         // reuse these collection objects between updates (note that updates are never concurrent by design)
         TrackedObject.EffectTracker tracker = new TrackedObject.EffectTracker();
 
-        public void Apply(TrackedObject target, PartitionEvent evt)
+        public void Process(PartitionEvent evt)
         {
-            target.Process(evt, tracker);
+            var target = evt.StartProcessingOnObject(this);
+            target.ProcessRecursively(evt, tracker);
             tracker.Clear();
         }
 

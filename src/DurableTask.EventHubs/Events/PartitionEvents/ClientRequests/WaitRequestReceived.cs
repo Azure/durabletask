@@ -24,6 +24,9 @@ namespace DurableTask.EventHubs
         [DataMember]
         public string ExecutionId { get; set; }
 
+        [IgnoreDataMember]
+        public override bool AtLeastOnceDelivery => true;
+
         protected override void AddExtraInformation(StringBuilder s)
         {
             s.Append(' ');

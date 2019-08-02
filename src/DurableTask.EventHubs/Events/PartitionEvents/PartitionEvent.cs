@@ -24,7 +24,10 @@ namespace DurableTask.EventHubs
         [DataMember]
         public uint PartitionId { get; set; }
 
+        [IgnoreDataMember]
+        public override bool AtLeastOnceDelivery => true; 
+
         // returns set of affected objects
-        public abstract TrackedObject GetTarget(Storage.IPartitionState state);
+        public abstract TrackedObject StartProcessingOnObject(Storage.IPartitionState state);
     }
 }

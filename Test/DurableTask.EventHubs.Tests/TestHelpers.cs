@@ -53,10 +53,10 @@ namespace DurableTask.EventHubs.Tests
 
         public static string GetEventHubsConnectionString()
         {
-            return "Emulator:1";
+            //return "Emulator:1";
             // return "Emulator:4";
-            //return "Emulator:32";
-            //return GetTestSetting("EventHubsConnectionString", false);
+            // return "Emulator:32";
+            return GetTestSetting("EventHubsConnectionString", false);
         }
 
         static string GetTestSetting(string name, bool require)
@@ -65,7 +65,7 @@ namespace DurableTask.EventHubs.Tests
 
             if (require && string.IsNullOrEmpty(setting))
             {
-                throw new ArgumentNullException("The environment variable {DurabeTaskTestPrefix + name} must be defined for the tests to run");
+                throw new ArgumentNullException($"The environment variable {DurabeTaskTestPrefix + name} must be defined for the tests to run");
             }
 
             return setting;

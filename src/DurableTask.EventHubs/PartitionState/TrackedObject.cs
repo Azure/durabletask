@@ -89,31 +89,33 @@ namespace DurableTask.EventHubs
                 ObjectsToApplyTo.Clear();
             }
         }
-
         
-        public void Process(PartitionEvent evt, EffectTracker effect)
+        public void ProcessRecursively(PartitionEvent evt, EffectTracker effect)
         {
             if (evt.QueuePosition > this.LastProcessed)
             {
+                this.Partition.Trace($"Process on [{this.Key}]");
+
+                // remember the initial position of the lists so we can tell
+                // which elements were added by this frame, and remove them at the end.
+
                 var processOnStartPos = effect.ObjectsToProcessOn.Count;
                 var applyToStartPos = effect.ObjectsToApplyTo.Count;
-
-                this.Partition.Trace($"Process on [{this.Key}]");
 
                 // start with processing the event on this object, determining effect
                 dynamic dynamicThis = this;
                 dynamic dynamicPartitionEvent = evt;
                 dynamicThis.Process(dynamicPartitionEvent, effect);
 
-                var numObjectToProcessOn = effect.ObjectsToProcessOn.Count - processOnStartPos;
+                var numObjectsToProcessOn = effect.ObjectsToProcessOn.Count - processOnStartPos;
                 var numObjectsToApplyTo = effect.ObjectsToApplyTo.Count - applyToStartPos;
 
                 // recursively process all objects as determined by effect tracker
-                if (numObjectToProcessOn > 0)
+                if (numObjectsToProcessOn > 0)
                 {
-                    for (int i = processOnStartPos; i < numObjectToProcessOn; i++)
+                    for (int i = processOnStartPos; i < numObjectsToProcessOn; i++)
                     {
-                        effect.ObjectsToProcessOn[i].Process(evt, effect);
+                        effect.ObjectsToProcessOn[i].ProcessRecursively(evt, effect);
                     }
                 }
 
@@ -136,6 +138,10 @@ namespace DurableTask.EventHubs
                         }
                     }
                 }
+
+                // remove the elements that were added in this frame
+                effect.ObjectsToProcessOn.RemoveRange(processOnStartPos, numObjectsToProcessOn);
+                effect.ObjectsToApplyTo.RemoveRange(applyToStartPos, numObjectsToApplyTo);
             }
         }
     }

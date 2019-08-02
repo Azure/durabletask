@@ -38,7 +38,7 @@ namespace DurableTask.EventHubs
             {
                 evt.ReassembledEvent = (PartitionEvent) FragmentationAndReassembly.Reassemble(this.Fragments[evt.CohortId], evt);
                 this.Partition.Trace($"Reassembled {evt.ReassembledEvent}");
-                var target = evt.ReassembledEvent.GetTarget(Partition.State);
+                var target = evt.ReassembledEvent.StartProcessingOnObject(Partition.State);
                 effect.ProcessOn(target);
             }
 

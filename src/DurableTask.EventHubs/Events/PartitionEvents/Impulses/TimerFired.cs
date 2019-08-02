@@ -32,7 +32,7 @@ namespace DurableTask.EventHubs
         [IgnoreDataMember]
         public TimerFiredEvent TimerFiredEvent => (TimerFiredMessage.Event as TimerFiredEvent);
 
-        public override TrackedObject GetTarget(Storage.IPartitionState state)
+        public override TrackedObject StartProcessingOnObject(Storage.IPartitionState state)
         {
             return state.Timers;
         }

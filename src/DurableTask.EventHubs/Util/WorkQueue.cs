@@ -43,7 +43,7 @@ namespace DurableTask.EventHubs
                 while (waiters.Count > 0)
                 {
                     var next = waiters.Dequeue();
-                    if (next.TryFulfill(element))
+                    if (next.TrySetResult(element))
                     {
                         return;
                     }

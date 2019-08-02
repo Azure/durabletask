@@ -79,8 +79,7 @@ namespace DurableTask.EventHubs
 
                 this.TraceReceive(partitionEvent);
 
-                var target = partitionEvent.GetTarget(this.State);
-                this.State.Apply(target, partitionEvent);
+                this.State.Process(partitionEvent);
             }
             return completedTask;
         }
@@ -128,7 +127,7 @@ namespace DurableTask.EventHubs
         {
             if (this.PendingResponses.TryGetValue(request.QueuePosition, out var waiter))
             {
-                waiter.TryFulfill(response);
+                waiter.TrySetResult(response);
             }
         }
 
@@ -211,7 +210,7 @@ namespace DurableTask.EventHubs
                     value.OrchestrationStatus != OrchestrationStatus.Pending &&
                     value.OrchestrationStatus != OrchestrationStatus.ContinuedAsNew)
                 {
-                    this.TryFulfill(new WaitResponseReceived()
+                    this.TrySetResult(new WaitResponseReceived()
                     {
                         ClientId = Request.ClientId,
                         RequestId = Request.RequestId,
