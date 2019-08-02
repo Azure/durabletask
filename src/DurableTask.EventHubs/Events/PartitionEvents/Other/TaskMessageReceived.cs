@@ -25,17 +25,33 @@ namespace DurableTask.EventHubs
     internal class TaskMessageReceived : PartitionEvent
     {
         [DataMember]
-        public TaskMessage TaskMessage { get; set; }
+        public List<TaskMessage> TaskMessages { get; set; }
+
+        [DataMember]
+        public uint OriginPartition { get; set; }
+
+        [DataMember]
+        public long OriginPosition { get; set; }
 
         public override TrackedObject StartProcessingOnObject(Storage.IPartitionState state)
         {
-            return state.Clocks;
+            return state.Dedup;
         }
 
-        protected override void AddExtraInformation(StringBuilder s)
+        protected override void TraceInformation(StringBuilder s)
         {
             s.Append(' ');
-            s.Append(TaskMessage.Event.EventType);
+            if (TaskMessages.Count == 1)
+            {
+                s.Append(TaskMessages[0].Event.EventType);
+            }
+            else
+            {
+                s.Append('[');
+                s.Append(TaskMessages.Count);
+                s.Append(']');
+            }
+            s.Append($" from: Part{OriginPartition:D2}.{OriginPosition:D7}");
         }
     }
 }

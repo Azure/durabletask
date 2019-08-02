@@ -58,7 +58,7 @@ namespace DurableTask.EventHubs
             return state.Sessions;
         }
 
-        protected override void AddExtraInformation(StringBuilder s)
+        protected override void TraceInformation(StringBuilder s)
         {
             s.Append($" S{SessionId:D6}:{BatchStartPosition}[{BatchLength}]");
 

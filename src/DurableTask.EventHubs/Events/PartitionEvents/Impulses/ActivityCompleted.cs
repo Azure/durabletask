@@ -33,7 +33,7 @@ namespace DurableTask.EventHubs
             return state.Activities;
         }
 
-        protected override void AddExtraInformation(StringBuilder s)
+        protected override void TraceInformation(StringBuilder s)
         {
             s.Append($" A{ActivityId:D6}");
         }

@@ -334,8 +334,8 @@ namespace DurableTask.EventHubs
             var orchestrationWorkItem = (OrchestrationWorkItem)workItem;
 
             var partition = orchestrationWorkItem.Partition;
-            partition.TraceContext.Value = "OWorker";
 
+            partition.TraceContext.Value = "OWorker";
             partition.Submit(new BatchProcessed()
             {
                 PartitionId = orchestrationWorkItem.Partition.PartitionId,

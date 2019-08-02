@@ -77,10 +77,8 @@ namespace DurableTask.EventHubs
             }
         }
 
-        private void AddMessagesToSession(TaskMessage[] messages)
+        private void AddMessagesToSession(string instanceId, IEnumerable<TaskMessage> messages)
         {
-            var instanceId = messages[0].OrchestrationInstance.InstanceId;
-
             if (this.Sessions.TryGetValue(instanceId, out var session))
             {
                 session.Batch.AddRange(messages);
@@ -102,14 +100,19 @@ namespace DurableTask.EventHubs
 
         public void Apply(TaskMessageReceived taskMessageReceived)
         {
-            this.AddMessageToSession(taskMessageReceived.TaskMessage);
+            foreach (var group in taskMessageReceived.TaskMessages
+                .GroupBy(tm => tm.OrchestrationInstance.InstanceId))
+            {
+                this.AddMessagesToSession(group.Key, group);
+            }
         }
 
         // ClientTaskMessagesReceived
 
         public void Apply(ClientTaskMessagesReceived evt)
         {
-            this.AddMessagesToSession(evt.TaskMessages);
+            var instanceId = evt.TaskMessages[0].OrchestrationInstance.InstanceId;
+            this.AddMessagesToSession(instanceId, evt.TaskMessages);
         }
 
         // CreationMessageReceived

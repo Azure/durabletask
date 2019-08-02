@@ -47,7 +47,7 @@ namespace DurableTask.EventHubs
 
             // ------ tracked objects ------
 
-            ClocksState Clocks { get; }
+            DedupState Dedup { get; }
 
             ClientsState Clients { get; }
 

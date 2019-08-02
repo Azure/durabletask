@@ -27,7 +27,7 @@ namespace DurableTask.EventHubs
         [IgnoreDataMember]
         public override bool AtLeastOnceDelivery => true;
 
-        protected override void AddExtraInformation(StringBuilder s)
+        protected override void TraceInformation(StringBuilder s)
         {
             s.Append(' ');
             s.Append(this.InstanceId);

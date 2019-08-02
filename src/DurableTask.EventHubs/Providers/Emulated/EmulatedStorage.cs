@@ -20,22 +20,15 @@ namespace DurableTask.EventHubs
 {
     internal class EmulatedStorage : Storage.IPartitionState
     {
-        public ClocksState Clocks { get; private set; }
-
+        public DedupState Dedup { get; private set; }
         public ReassemblyState Reassembly { get; private set; }
-
         public ClientsState Clients { get; private set; }
-
         public OutboxState Outbox { get; private set; } 
-
         public TimersState Timers { get; private set; }
-
         public ActivitiesState Activities { get; private set; }
-
         public SessionsState Sessions { get; private set; }
 
         private ConcurrentDictionary<string, InstanceState> instances;
-
         private ConcurrentDictionary<string, HistoryState> histories;
 
         private Partition partition;
@@ -45,7 +38,7 @@ namespace DurableTask.EventHubs
 
         public EmulatedStorage()
         {
-            this.Clocks = new ClocksState();
+            this.Dedup = new DedupState();
             this.Clients = new ClientsState();
             this.Reassembly = new ReassemblyState();
             this.Outbox = new OutboxState();
@@ -105,7 +98,7 @@ namespace DurableTask.EventHubs
 
         private IEnumerable<TrackedObject> GetTrackedObjects()
         {
-            yield return Clocks;
+            yield return Dedup;
             yield return Clients;
             yield return Reassembly;
             yield return Outbox;

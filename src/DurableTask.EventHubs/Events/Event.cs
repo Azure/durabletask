@@ -53,11 +53,11 @@ namespace DurableTask.EventHubs
         {
             var s = new StringBuilder();
             s.Append(this.GetType().Name);
-            this.AddExtraInformation(s);
+            this.TraceInformation(s);
             return s.ToString();
         }
 
-        protected virtual void AddExtraInformation(StringBuilder s)
+        protected virtual void TraceInformation(StringBuilder s)
         {
         }
     }

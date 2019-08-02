@@ -11,7 +11,7 @@ namespace DurableTask.EventHubs
     /// and consumes no thread or task resources when idle. It uses TaskScheduler.Current 
     /// to schedule the work cycles.
     /// </summary>
-    public abstract class BatchWorker
+    internal abstract class BatchWorker
     {
         private readonly object lockable = new object();
 

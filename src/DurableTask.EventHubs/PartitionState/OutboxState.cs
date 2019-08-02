@@ -16,6 +16,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Serialization;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using DurableTask.Core;
 
 namespace DurableTask.EventHubs
@@ -27,48 +29,72 @@ namespace DurableTask.EventHubs
         public SortedList<long, List<TaskMessage>> Outbox { get; private set; } = new SortedList<long, List<TaskMessage>>();
 
         [DataMember]
-        public long LastAckedQueuePosition { get; set; } = -1;
+        public long LastPersistedAck { get; set; } = -1;
+
+        [IgnoreDataMember]
+        public long LastNonPersistedAck { get; set; } = -1;
 
         [IgnoreDataMember]
         public override string Key => "Outbox";
 
-        public long GetLastAckedQueuePosition() { return LastAckedQueuePosition; }
+        public long GetLastAckedQueuePosition() { return LastPersistedAck; }
 
         protected override void Restore()
         {
             // re-send all messages as they could have been lost after the failure
-            foreach(var kvp in Outbox)
+            foreach (var kvp in Outbox)
             {
-                this.Send(kvp.Value);
+                this.Send(kvp.Key, kvp.Value);
             }
         }
-        private void Send(List<TaskMessage> messages)
+
+        private void Send(long queuePosition, List<TaskMessage> messages)
         {
+            var toSend = new Dictionary<uint, TaskMessageReceived>();
+
             foreach (var message in messages)
             {
                 var instanceId = message.OrchestrationInstance.InstanceId;
                 var partitionId = this.Partition.PartitionFunction(instanceId);
 
-                var outmessage = new TaskMessageReceived()
+                if (!toSend.TryGetValue(partitionId, out var outmessage))
                 {
-                    PartitionId = partitionId,
-                    TaskMessage = message,
-                };
+                    toSend[partitionId] = outmessage = new TaskMessageReceived()
+                    {
+                        PartitionId = partitionId,
+                        OriginPartition = this.Partition.PartitionId,
+                        OriginPosition = queuePosition,
+                        TaskMessages = new List<TaskMessage>(),
+                    };
+                }
+                outmessage.TaskMessages.Add(message);
+            }
 
+            foreach (var outmessage in toSend.Values)
+            {
                 Partition.Submit(outmessage, this);
             }
         }
 
         public void ConfirmDurablySent(Event evt)
         {
-            // TODO apply batching optimization
-            if (evt is TaskMessageReceived y && y.QueuePosition > -1)
+            if (evt is TaskMessageReceived taskMessageReceived)
             {
-                this.Partition.Submit(new SentMessagesAcked()
+                bool loopbackAlreadyUnderway = this.LastPersistedAck < this.LastNonPersistedAck;
+
+                System.Diagnostics.Debug.Assert(this.LastNonPersistedAck < taskMessageReceived.OriginPosition);
+
+                this.LastNonPersistedAck = taskMessageReceived.OriginPosition;
+                 
+                if (!loopbackAlreadyUnderway)
                 {
-                    PartitionId = this.Partition.PartitionId,
-                    LastAckedQueuePosition = y.QueuePosition,
-                });
+                    this.Partition.TraceContext.Value = "SWorker";
+                    this.Partition.Submit(new SentMessagesAcked()
+                    {
+                        PartitionId = this.Partition.PartitionId,
+                        LastAckedQueuePosition = LastNonPersistedAck,
+                    });
+                }
             }
         }
 
@@ -83,8 +109,7 @@ namespace DurableTask.EventHubs
         public void Apply(BatchProcessed evt)
         {
             Outbox.Add(evt.QueuePosition, evt.OrchestratorMessages);
-
-            this.Send(evt.OrchestratorMessages);
+            this.Send(evt.QueuePosition, evt.OrchestratorMessages);
         }
 
         // OutgoingMessagesAcked
@@ -113,7 +138,17 @@ namespace DurableTask.EventHubs
                 }
             }
 
-            LastAckedQueuePosition = evt.LastAckedQueuePosition;
+            LastPersistedAck = evt.LastAckedQueuePosition;
+
+            if (LastPersistedAck < LastNonPersistedAck)
+            {
+                // more messages were acked and we still have to persist that fact 
+                this.Partition.Submit(new SentMessagesAcked()
+                {
+                    PartitionId = this.Partition.PartitionId,
+                    LastAckedQueuePosition = LastNonPersistedAck,
+                });
+            }
         }
 
     }

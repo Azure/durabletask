@@ -37,7 +37,7 @@ namespace DurableTask.EventHubs
             return state.Timers;
         }
 
-        protected override void AddExtraInformation(StringBuilder s)
+        protected override void TraceInformation(StringBuilder s)
         {
             s.Append(" Id=");
             s.Append(TimerId);

@@ -22,10 +22,13 @@ using DurableTask.Core.History;
 namespace DurableTask.EventHubs
 {
     [DataContract]
-    internal class ClocksState : TrackedObject
+    internal class DedupState : TrackedObject
     {
         [IgnoreDataMember]
-        public override string Key => "Clocks";
+        public override string Key => "Dedup";
+
+        [DataMember]
+        public Dictionary<uint, long> ProcessedOrigins { get; set; } = new Dictionary<uint, long>();
 
         // TaskhubCreated is always the first event, we use it to initialize the deduplication logic
 
@@ -36,29 +39,27 @@ namespace DurableTask.EventHubs
 
         public void Apply(TaskhubCreated evt)
         {
-
+            for(uint i = 0; i < evt.StartPositions.Length; i++)
+            {
+                ProcessedOrigins[i] = evt.StartPositions[i]; // includes first event which is TaskHubCreated
+            }
         }
 
-        // TaskMessageReceived goes to session, if not a duplicate
+        // TaskMessageReceived filters any messages that originated on
+        // a partition, and whose origin is marked as processed
 
         public void Process(TaskMessageReceived evt, EffectTracker effect)
         {
-            if (!this.Deduplicate(evt))
+            if (this.ProcessedOrigins[evt.OriginPartition] < evt.OriginPosition)
             {
                 effect.ApplyTo(State.Sessions);
                 effect.ApplyTo(this);
             }
         }
 
-        private bool Deduplicate(TaskMessageReceived taskMessageReceived)
-        {
-            // TODO check against vector clock
-            return false;
-        }
-
         public void Apply(TaskMessageReceived evt)
         {
-            // TODO update clocks
+            this.ProcessedOrigins[evt.OriginPartition] = evt.OriginPosition;
         }
 
     }

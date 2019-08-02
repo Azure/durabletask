@@ -91,6 +91,7 @@ namespace DurableTask.EventHubs
             await this.creationParameters.UploadTextAsync(jsonText);
 
             // add a start up event to all partitions
+            var ackCounter = new AckCounter(numberPartitions);
             for (uint i = 0; i < numberPartitions; i++)
             {
                 var evt = new TaskhubCreated()
@@ -101,8 +102,10 @@ namespace DurableTask.EventHubs
                 };
 
                 var partitionSender = this.connections.GetPartitionSender(i);
-                partitionSender.Add(evt, null);
+                partitionSender.Add(evt, ackCounter);
             }
+
+            await ackCounter.WaitAsync();
         }
 
         [DataContract]
@@ -113,6 +116,33 @@ namespace DurableTask.EventHubs
 
             [DataMember]
             public long[] StartPositions { get; set; }
+        }
+
+        private class AckCounter : Backend.ISendConfirmationListener
+        {
+            private readonly TaskCompletionSource<object> tcs = new TaskCompletionSource<object>();
+            private int count;
+            public AckCounter(int numberAcks)
+            {
+                count = numberAcks;
+            }
+            public void ConfirmDurablySent(Event evt)
+            {
+                var val = Interlocked.Decrement(ref count);
+                if (val == 0)
+                {
+                    tcs.TrySetResult(null);
+                }
+            }
+            public void ReportSenderException(Event evt, Exception e)
+            {
+                // not applicable for this type of event
+                throw new NotImplementedException();
+            }
+            public Task WaitAsync()
+            {
+                return tcs.Task;
+            }
         }
 
         Task Backend.ITaskHub.DeleteAsync()

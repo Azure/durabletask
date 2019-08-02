@@ -37,9 +37,10 @@ namespace DurableTask.EventHubs
 
         async Task Backend.ITaskHub.CreateAsync()
         {
+            var numberPartitions = settings.EmulatedPartitions;
             await Task.Delay(simulatedDelay);
             this.clientQueues = new Dictionary<Guid, EmulatedQueue<ClientEvent>>();
-            this.partitionQueues = new EmulatedQueue<PartitionEvent>[settings.EmulatedPartitions];
+            this.partitionQueues = new EmulatedQueue<PartitionEvent>[numberPartitions];
         }
 
         async Task Backend.ITaskHub.DeleteAsync()
@@ -59,7 +60,10 @@ namespace DurableTask.EventHubs
         {
             this.shutdownTokenSource = new CancellationTokenSource();
 
-            this.host.NumberPartitions = this.settings.EmulatedPartitions;
+            var numberPartitions = this.settings.EmulatedPartitions;
+            this.host.NumberPartitions = numberPartitions;
+            var creationTimestamp = DateTime.UtcNow;
+            var startPositions = new long[numberPartitions];
 
             // create a client and start its receive loop
             var clientId = Guid.NewGuid();
@@ -82,7 +86,17 @@ namespace DurableTask.EventHubs
                 var partitionReceiveLoop = PartitionReceiveLoop(partition, partitionQueue);
             }
 
-            await Task.Delay(simulatedDelay);
+            for (uint i = 0; i < numberPartitions; i++)
+            {
+                var evt = new TaskhubCreated()
+                {
+                    PartitionId = i,
+                    CreationTimestamp = creationTimestamp,
+                    StartPositions = startPositions,
+                };
+
+                await this.partitionQueues[i].SendAsync(evt);
+            }
         }
 
         async Task Backend.ITaskHub.StopAsync()

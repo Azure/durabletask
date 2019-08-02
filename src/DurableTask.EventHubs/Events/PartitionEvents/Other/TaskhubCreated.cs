@@ -35,7 +35,7 @@ namespace DurableTask.EventHubs
 
         public override TrackedObject StartProcessingOnObject(Storage.IPartitionState state)
         {
-            return state.Clocks;
+            return state.Dedup;
         }
     }
 
