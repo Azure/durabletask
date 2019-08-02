@@ -137,6 +137,18 @@ namespace DurableTask.EventHubs
             this.BatchSender.Submit(evt, listener);
         }
 
+        public void EnqueueActivityWorkItem(ActivityWorkItem item)
+        {
+            this.Trace($"create activity work item A{item.ActivityId:D6}");
+            this.ActivityWorkItemQueue.Add(item);
+        }
+
+        public void EnqueueOrchestrationWorkItem(OrchestrationWorkItem item)
+        {
+            this.Trace($"create orchestration work item S{item.SessionId:D6}:{item.BatchStartPosition}[{item.BatchLength}]");
+            this.OrchestrationWorkItemQueue.Add(item);
+        }
+
         public void ReportError(string msg, Exception e)
         {
             System.Diagnostics.Trace.TraceError($"Part{this.PartitionId:D2} !!! {msg}: {e}");

@@ -75,7 +75,7 @@ namespace DurableTask.EventHubs
             else
             {
                 // the work item is ready to process
-                Partition.OrchestrationWorkItemQueue.Add(this);
+                Partition.EnqueueOrchestrationWorkItem(this);
             }
         }
 

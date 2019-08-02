@@ -41,7 +41,7 @@ namespace DurableTask.EventHubs
             // reschedule work items
             foreach (var pending in PendingActivities)
             {
-                Partition.ActivityWorkItemQueue.Add(new ActivityWorkItem(this.Partition, pending.Key, pending.Value));
+                Partition.EnqueueActivityWorkItem(new ActivityWorkItem(this.Partition, pending.Key, pending.Value));
             }
         }
 
@@ -68,7 +68,7 @@ namespace DurableTask.EventHubs
                 var activityId = SequenceNumber++;
                 PendingActivities.Add(activityId, msg);
 
-                Partition.ActivityWorkItemQueue.Add(new ActivityWorkItem(this.Partition, activityId, msg));
+                Partition.EnqueueActivityWorkItem(new ActivityWorkItem(this.Partition, activityId, msg));
             }
         }
     }

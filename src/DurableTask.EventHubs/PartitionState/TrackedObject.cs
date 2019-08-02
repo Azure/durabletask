@@ -57,7 +57,7 @@ namespace DurableTask.EventHubs
             // the default scope for a reassembled event applies that event
             dynamic dynamicThis = this;
             dynamic dynamicPartitionEvent = e.ReassembledEvent;
-            dynamicThis.Scope(dynamicPartitionEvent, effect);
+            dynamicThis.Process(dynamicPartitionEvent, effect);
         }
 
         public virtual void Apply(PartitionEventFragment e)
@@ -113,18 +113,18 @@ namespace DurableTask.EventHubs
                 // recursively process all objects as determined by effect tracker
                 if (numObjectsToProcessOn > 0)
                 {
-                    for (int i = processOnStartPos; i < numObjectsToProcessOn; i++)
+                    for (int i = 0; i < numObjectsToProcessOn; i++)
                     {
-                        effect.ObjectsToProcessOn[i].ProcessRecursively(evt, effect);
+                        effect.ObjectsToProcessOn[processOnStartPos + i].ProcessRecursively(evt, effect);
                     }
                 }
 
                 // apply all objects  as determined by effect tracker
                 if (numObjectsToApplyTo > 0)
                 {
-                    for (int i = applyToStartPos; i < numObjectsToApplyTo; i++)
+                    for (int i = 0; i < numObjectsToApplyTo; i++)
                     {
-                        var target = effect.ObjectsToApplyTo[i];
+                        var target = effect.ObjectsToApplyTo[applyToStartPos + i];
                         if (target.LastProcessed < evt.QueuePosition)
                         {
                             lock (target.Lock)

@@ -60,7 +60,7 @@ namespace DurableTask.EventHubs
 
         protected override void AddExtraInformation(StringBuilder s)
         {
-            s.Append($" S{SessionId:D6}:{BatchStartPosition}");
+            s.Append($" S{SessionId:D6}:{BatchStartPosition}[{BatchLength}]");
 
             if (State != null)
             {

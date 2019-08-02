@@ -182,7 +182,7 @@ namespace DurableTask.EventHubs.Tests
             // This test creates history payloads that exceed the 4 MB limit imposed by Azure Storage
             // when 100 entities are uploaded at a time.
             var client = await host.StartOrchestrationAsync(typeof(Orchestrations.SemiLargePayloadFanOutFanIn), 90);
-            var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(20));
+            var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
 
             Assert.Equal(OrchestrationStatus.Completed, status?.OrchestrationStatus);
         }
