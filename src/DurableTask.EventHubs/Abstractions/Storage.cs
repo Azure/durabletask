@@ -49,6 +49,8 @@ namespace DurableTask.EventHubs
 
             ClocksState Clocks { get; }
 
+            ClientsState Clients { get; }
+
             ReassemblyState Reassembly { get; }
 
             OutboxState Outbox { get; }

@@ -15,19 +15,39 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.Serialization;
 using System.Text;
+using System.Threading.Tasks;
 using DurableTask.Core;
-using DurableTask.Core.Exceptions;
 using DurableTask.Core.History;
 
 namespace DurableTask.EventHubs
 {
     [DataContract]
-    internal class StateRequestReceived : ClientRequestEvent
+    internal class ClientsState : TrackedObject
     {
-        [DataMember]
-        public string InstanceId { get; set; }
-
         [IgnoreDataMember]
-        public override bool AtLeastOnceDelivery => true;
+        public override string Key => "Clients";
+
+        // this is where we would add client-tracking state if we need it at some point
+        // for now this just dispatches the processing, but keeps no state
+
+        public void Process(ClientTaskMessagesReceived evt, EffectTracker effect)
+        {
+            effect.ApplyTo(Partition.State.Sessions);
+        }
+
+        public void Process(CreationRequestReceived evt, EffectTracker effect)
+        {
+            effect.ProcessOn(Partition.State.GetInstance(evt.InstanceId));
+        }
+
+        public void Process(StateRequestReceived evt, EffectTracker effect)
+        {
+            var task = Partition.HandleAsync(evt);
+        }
+
+        public void Process(WaitRequestReceived evt, EffectTracker effect)
+        {
+            var task = Partition.HandleAsync(evt);
+        }
     }
 }

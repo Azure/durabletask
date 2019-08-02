@@ -27,13 +27,19 @@ namespace DurableTask.EventHubs
         [IgnoreDataMember]
         public override string Key => "Clocks";
 
-        // TaskhubCreated is always the first event, it currently has no effect other than priming the event processor
+        // TaskhubCreated is always the first event, we use it to initialize the deduplication logic
 
         public void Process(TaskhubCreated evt, EffectTracker effect)
         {
+            effect.ApplyTo(this);
         }
 
-        // TaskMessageReceived goes to session
+        public void Apply(TaskhubCreated evt)
+        {
+
+        }
+
+        // TaskMessageReceived goes to session, if not a duplicate
 
         public void Process(TaskMessageReceived evt, EffectTracker effect)
         {
@@ -55,36 +61,5 @@ namespace DurableTask.EventHubs
             // TODO update clocks
         }
 
-        // ClientTaskMessageReceived goes to session
-
-        public void Process(ClientTaskMessagesReceived evt, EffectTracker effect)
-        {
-            effect.ApplyTo(State.Sessions);
-            effect.ApplyTo(this);
-        }
-
-        // CreationRequestReceived goes to instance
-
-        public void Process(CreationRequestReceived evt, EffectTracker effect)
-        {
-            effect.ProcessOn(State.GetInstance(evt.InstanceId));
-            effect.ApplyTo(this);
-        }
-
-        // WaitRequestReceived starts an asychronous waiter 
-
-        public void Process(WaitRequestReceived evt, EffectTracker effect)
-        {
-            var waitTask = this.Partition.HandleAsync(evt);
-            effect.ApplyTo(this);
-        }
-
-        // StateRequestReceived starts an asychronous read 
-
-        public void Process(StateRequestReceived evt, EffectTracker effect)
-        {
-            var readTask = this.Partition.HandleAsync(evt);
-            effect.ApplyTo(this);
-        }  
     }
 }

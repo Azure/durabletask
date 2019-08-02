@@ -29,5 +29,5 @@ namespace DurableTask.EventHubs
 
         [IgnoreDataMember]
         public override bool AtLeastOnceDelivery => false;
-    }
+     }
 }

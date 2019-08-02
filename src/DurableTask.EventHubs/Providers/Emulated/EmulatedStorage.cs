@@ -24,6 +24,8 @@ namespace DurableTask.EventHubs
 
         public ReassemblyState Reassembly { get; private set; }
 
+        public ClientsState Clients { get; private set; }
+
         public OutboxState Outbox { get; private set; } 
 
         public TimersState Timers { get; private set; }
@@ -44,6 +46,7 @@ namespace DurableTask.EventHubs
         public EmulatedStorage()
         {
             this.Clocks = new ClocksState();
+            this.Clients = new ClientsState();
             this.Reassembly = new ReassemblyState();
             this.Outbox = new OutboxState();
             this.Timers = new TimersState();
@@ -103,6 +106,7 @@ namespace DurableTask.EventHubs
         private IEnumerable<TrackedObject> GetTrackedObjects()
         {
             yield return Clocks;
+            yield return Clients;
             yield return Reassembly;
             yield return Outbox;
             yield return Timers;
