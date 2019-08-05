@@ -19,13 +19,12 @@ namespace DurableTask.EventHubs.Tests
 
     internal static class TestHelpers
     {
-        public static EventHubsOrchestrationService GetTestOrchestrationService(string taskHub = null)
+        public static EventHubsOrchestrationService GetTestOrchestrationService()
         {
             var settings = new EventHubsOrchestrationServiceSettings
             {
                 EventHubsConnectionString = GetEventHubsConnectionString(),
                 StorageConnectionString = GetStorageConnectionString(),
-                TaskHubName = taskHub ?? "taskhub",
             };
             return new EventHubsOrchestrationService(settings);
         }
@@ -39,7 +38,6 @@ namespace DurableTask.EventHubs.Tests
             {
                 EventHubsConnectionString = GetEventHubsConnectionString(),
                 StorageConnectionString = GetStorageConnectionString(),
-                TaskHubName = "taskhub",
             };
             return new TestOrchestrationHost(settings);
         }

@@ -46,7 +46,7 @@ namespace DurableTask.EventHubs.Tests
         [Fact]
         public async Task SimpleGreetingOrchestration()
         {
-            var orchestrationService = TestHelpers.GetTestOrchestrationService(nameof(SimpleGreetingOrchestration));
+            var orchestrationService = TestHelpers.GetTestOrchestrationService();
             await ((IOrchestrationService)orchestrationService).CreateIfNotExistsAsync();
             var worker = new TaskHubWorker(orchestrationService);
 

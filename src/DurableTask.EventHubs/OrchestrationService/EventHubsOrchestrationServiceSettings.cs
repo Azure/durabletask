@@ -32,9 +32,9 @@ namespace DurableTask.EventHubs
         public string StorageConnectionString { get; set; }
 
         /// <summary>
-        /// Gets or sets the task hub name.
+        /// The taskhub name is fixed for this provider.
         /// </summary>
-        public string TaskHubName { get; set; }
+        internal string TaskHubName => "taskhub";
 
         /// <summary>
         /// Bypasses event hubs and uses in-memory emulation instead.
