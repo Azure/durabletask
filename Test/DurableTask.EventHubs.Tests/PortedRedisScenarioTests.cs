@@ -43,34 +43,34 @@ namespace DurableTask.EventHubs.Tests
             await service.StopAsync();
         }
 
-        [Fact]
-        public async Task SimpleGreetingOrchestration()
-        {
-            var orchestrationService = TestHelpers.GetTestOrchestrationService();
-            await ((IOrchestrationService)orchestrationService).CreateIfNotExistsAsync();
-            var worker = new TaskHubWorker(orchestrationService);
+        //[Fact]
+        //public async Task SimpleGreetingOrchestration()
+        //{
+        //    var orchestrationService = TestHelpers.GetTestOrchestrationService();
+        //    await ((IOrchestrationService)orchestrationService).CreateIfNotExistsAsync();
+        //    var worker = new TaskHubWorker(orchestrationService);
 
-            try
-            {
-                await worker.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
-                    .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
-                    .StartAsync();
+        //    try
+        //    {
+        //        await worker.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
+        //            .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
+        //            .StartAsync();
 
-                var client = new TaskHubClient(orchestrationService);
+        //        var client = new TaskHubClient(orchestrationService);
 
-                OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), null);
+        //        OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), null);
 
-                OrchestrationState result = await client.WaitForOrchestrationAsync(id, TimeSpan.FromSeconds(Debugger.IsAttached ? 300 : 20), new CancellationToken());
-                Assert.Equal(OrchestrationStatus.Completed, result.OrchestrationStatus);
+        //        OrchestrationState result = await client.WaitForOrchestrationAsync(id, TimeSpan.FromSeconds(Debugger.IsAttached ? 300 : 20), new CancellationToken());
+        //        Assert.Equal(OrchestrationStatus.Completed, result.OrchestrationStatus);
 
-                Assert.Equal("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result);
-            }
-            finally
-            {
-                await worker.StopAsync(true);
-                await ((IOrchestrationService)orchestrationService).DeleteAsync();
-            }
-        }
+        //        Assert.Equal("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result);
+        //    }
+        //    finally
+        //    {
+        //        await worker.StopAsync(true);
+        //        await ((IOrchestrationService)orchestrationService).DeleteAsync();
+        //    }
+        //}
 
         //[Fact]
         //public async Task SimpleFanOutOrchestration_DurabilityTest()
