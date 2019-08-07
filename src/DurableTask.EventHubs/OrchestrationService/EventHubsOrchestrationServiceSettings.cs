@@ -14,6 +14,8 @@
 namespace DurableTask.EventHubs
 {
     using System;
+    using DurableTask.Core;
+    using Microsoft.Azure.EventHubs;
 
     /// <summary>
     /// Settings for the <see cref="EventHubsOrchestrationService"/> class.
@@ -32,21 +34,6 @@ namespace DurableTask.EventHubs
         public string StorageConnectionString { get; set; }
 
         /// <summary>
-        /// The taskhub name is fixed for this provider.
-        /// </summary>
-        internal string TaskHubName => "taskhub";
-
-        /// <summary>
-        /// Bypasses event hubs and uses in-memory emulation instead.
-        /// </summary>
-        public bool UseEmulatedBackend => (this.EventHubsConnectionString.StartsWith("Emulator:"));
-
-        /// <summary>
-        /// Gets the number of partitions when using the emulator
-        /// </summary>
-        public uint EmulatedPartitions => uint.Parse(this.EventHubsConnectionString.Substring(9));
-
-        /// <summary>
         /// Gets or sets the maximum number of work items that can be processed concurrently on a single node.
         /// The default value is 100.
         /// </summary>
@@ -57,6 +44,50 @@ namespace DurableTask.EventHubs
         /// The default value is 100.
         /// </summary>
         public int MaxConcurrentTaskOrchestrationWorkItems { get; set; } = 100;
+
+        /// <summary>
+        ///  Should we carry over unexecuted raised events to the next iteration of an orchestration on ContinueAsNew
+        /// </summary>
+        public BehaviorOnContinueAsNew EventBehaviourForContinueAsNew { get; set; } = BehaviorOnContinueAsNew.Carryover;
+
+        /// <summary>
+        ///  Whether to keep the orchestration service running even if stop is called.
+        ///  This is useful in a testing scenario, due to the inordinate time spent when shutting down EventProcessorHost.
+        /// </summary>
+        public bool KeepServiceRunning { get; set; } = false;
+
+        /// <inheritdoc/>
+        public override bool Equals(object obj)
+        {
+            if (!(obj is EventHubsOrchestrationServiceSettings other))
+                return false;
+
+            return
+                (this.EventHubsConnectionString,
+                this.StorageConnectionString,
+                this.MaxConcurrentTaskActivityWorkItems,
+                this.MaxConcurrentTaskOrchestrationWorkItems,
+                this.EventBehaviourForContinueAsNew,
+                this.KeepServiceRunning)
+                ==
+                (other.EventHubsConnectionString,
+                other.StorageConnectionString,
+                other.MaxConcurrentTaskActivityWorkItems,
+                other.MaxConcurrentTaskOrchestrationWorkItems,
+                other.EventBehaviourForContinueAsNew,
+                other.KeepServiceRunning);
+        }
+
+        /// <inheritdoc/>
+        public override int GetHashCode()
+        {
+            return (this.EventHubsConnectionString,
+                this.StorageConnectionString,
+                this.MaxConcurrentTaskActivityWorkItems,
+                this.MaxConcurrentTaskOrchestrationWorkItems,
+                this.EventBehaviourForContinueAsNew,
+                this.KeepServiceRunning).GetHashCode();
+        }
 
         /// <summary>
         /// Validates the specified <see cref="EventHubsOrchestrationServiceSettings"/> object.
@@ -70,19 +101,30 @@ namespace DurableTask.EventHubs
                 throw new ArgumentNullException(nameof(settings));
             }
 
-            if (!settings.UseEmulatedBackend && string.IsNullOrEmpty(settings.EventHubsConnectionString))
+            if (string.IsNullOrEmpty(settings.EventHubsConnectionString))
             {
                 throw new ArgumentNullException(nameof(settings.EventHubsConnectionString));
             }
 
-            if (!settings.UseEmulatedBackend && string.IsNullOrEmpty(settings.TaskHubName))
+            if (settings.UseEmulatedBackend)
             {
-                throw new ArgumentNullException(nameof(settings.TaskHubName));
+                var numberPartitions = settings.EmulatedPartitions;
+                if (numberPartitions < 1 || numberPartitions > 32)
+                {
+                    throw new ArgumentOutOfRangeException(nameof(settings.EventHubsConnectionString));
+                }
             }
-
-            if (string.IsNullOrEmpty(settings.StorageConnectionString))
+            else
             {
-                throw new ArgumentNullException(nameof(settings.StorageConnectionString));
+                if (string.IsNullOrEmpty(settings.EventHubsNamespaceName))
+                {
+                    throw new FormatException(nameof(settings.EventHubsConnectionString));
+                }
+
+                if (string.IsNullOrEmpty(settings.StorageConnectionString))
+                {
+                    throw new ArgumentNullException(nameof(settings.StorageConnectionString));
+                }
             }
 
             if (settings.MaxConcurrentTaskOrchestrationWorkItems <= 0)
@@ -96,6 +138,29 @@ namespace DurableTask.EventHubs
             }
 
             return settings;
+        }
+
+        /// <summary>
+        /// Bypasses event hubs and uses in-memory emulation instead.
+        /// </summary>
+        public bool UseEmulatedBackend => (this.EventHubsConnectionString.StartsWith("Emulator:"));
+
+        /// <summary>
+        /// Gets the number of partitions when using the emulator
+        /// </summary>
+        public uint EmulatedPartitions => uint.Parse(this.EventHubsConnectionString.Substring(9));
+
+        /// <summary>
+        /// Returns the name of the eventhubs namespace
+        /// </summary>
+        public string EventHubsNamespaceName
+        {
+            get
+            {
+                var builder = new EventHubsConnectionStringBuilder(this.EventHubsConnectionString);
+                var host = builder.Endpoint.Host;
+                return host.Substring(0, host.IndexOf('.'));
+            }
         }
     }
 }

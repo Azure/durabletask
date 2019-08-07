@@ -30,7 +30,7 @@ namespace DurableTask.EventHubs
         private CancellationTokenSource shutdownSource;
 
         private CloudBlobContainer cloudBlobContainer;
-        private CloudBlockBlob creationParameters;
+        private CloudBlockBlob taskhubParameters;
 
         private const int MaxReceiveBatchSize = 10000; // actual batches will always be much smaller
 
@@ -43,16 +43,16 @@ namespace DurableTask.EventHubs
             this.HostId = $"{Environment.MachineName}-{DateTime.UtcNow:o}";
             this.ClientId = Guid.NewGuid();
             this.connections = new EventHubsConnections(host, settings.EventHubsConnectionString);
-            var blobContainerName = $"{settings.TaskHubName.ToLowerInvariant()}-evtprocessors";
+            var blobContainerName = $"{settings.EventHubsNamespaceName}-processors";
             var cloudStorageAccount = CloudStorageAccount.Parse(this.settings.StorageConnectionString);
             var cloudBlobClient = cloudStorageAccount.CreateCloudBlobClient();
             this.cloudBlobContainer = cloudBlobClient.GetContainerReference(blobContainerName);
-            this.creationParameters = cloudBlobContainer.GetBlockBlobReference("creationparameters.json");
+            this.taskhubParameters = cloudBlobContainer.GetBlockBlobReference("taskhubparameters.json");
         }
 
         Task<bool> Backend.ITaskHub.ExistsAsync()
         {
-            return this.creationParameters.ExistsAsync();
+            return this.taskhubParameters.ExistsAsync();
         }
 
         async Task Backend.ITaskHub.CreateAsync()
@@ -77,18 +77,18 @@ namespace DurableTask.EventHubs
                 startPositions[i] = queueInfo.LastEnqueuedSequenceNumber + 1;
             }
 
-            var creationParameters = new
+            var taskHubParameters = new
             {
                 CreationTimestamp = DateTime.UtcNow,
                 StartPositions = startPositions
             };
 
-            // save the creation parameters in a blob
+            // save the taskhub parameters in a blob
             var jsonText = JsonConvert.SerializeObject(
-                creationParameters,
+                taskHubParameters,
                 Formatting.Indented,
                 new JsonSerializerSettings() { TypeNameHandling = TypeNameHandling.None });
-            await this.creationParameters.UploadTextAsync(jsonText);
+            await this.taskhubParameters.UploadTextAsync(jsonText);
 
             // add a start up event to all partitions
             var ackCounter = new AckCounter(numberPartitions);
@@ -97,8 +97,8 @@ namespace DurableTask.EventHubs
                 var evt = new TaskhubCreated()
                 {
                     PartitionId = i,
-                    CreationTimestamp = creationParameters.CreationTimestamp,
-                    StartPositions = creationParameters.StartPositions,
+                    CreationTimestamp = taskHubParameters.CreationTimestamp,
+                    StartPositions = taskHubParameters.StartPositions,
                 };
 
                 var partitionSender = this.connections.GetPartitionSender(i);
@@ -109,7 +109,7 @@ namespace DurableTask.EventHubs
         }
 
         [DataContract]
-        public class CreationParameters
+        public class TaskhubParameters
         {
             [DataMember]
             public DateTime CreationTimestamp { get; set; }
@@ -147,15 +147,15 @@ namespace DurableTask.EventHubs
 
         Task Backend.ITaskHub.DeleteAsync()
         {
-            return this.creationParameters.DeleteAsync();
+            return this.taskhubParameters.DeleteIfExistsAsync();
         }
 
         async Task Backend.ITaskHub.StartAsync()
         {
             this.shutdownSource = new CancellationTokenSource();
 
-            // load the creation parameters
-            var jsonText = await this.creationParameters.DownloadTextAsync();
+            // load the taskhub parameters
+            var jsonText = await this.taskhubParameters.DownloadTextAsync();
             var evt = JsonConvert.DeserializeObject<TaskhubCreated>(jsonText);
 
             this.host.NumberPartitions = (uint) evt.StartPositions.Length;

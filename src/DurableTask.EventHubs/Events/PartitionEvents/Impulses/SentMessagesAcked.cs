@@ -23,7 +23,7 @@ namespace DurableTask.EventHubs
     internal class SentMessagesAcked : PartitionEvent
     {
         [DataMember]
-        public long LastAckedQueuePosition { get; set; }
+        public (long, uint)[] DurablySent { get; set; }
 
         public override TrackedObject StartProcessingOnObject(Storage.IPartitionState state)
         {

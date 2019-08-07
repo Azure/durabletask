@@ -40,8 +40,6 @@ namespace DurableTask.EventHubs
         private CancellationTokenSource serviceShutdownSource;
         private static readonly Task completedTask = Task.FromResult<object>(null);
 
-        private const int MaxConcurrentWorkItems = 20;
-
         //internal Dictionary<uint, Partition> Partitions { get; private set; }
         internal Client Client { get; private set; }
 
@@ -112,16 +110,21 @@ namespace DurableTask.EventHubs
 
         async Task IOrchestrationService.StartAsync()
         {
-            System.Diagnostics.Debug.Assert(this.serviceShutdownSource == null, "Already started");
+            if (this.serviceShutdownSource != null)
+            {
+                // we left the service running. No need to start it again.
+            }
+            else
+            {
+                this.serviceShutdownSource = new CancellationTokenSource();
 
-            this.serviceShutdownSource = new CancellationTokenSource();
+                this.ActivityWorkItemQueue = new WorkQueue<TaskActivityWorkItem>(this.serviceShutdownSource.Token, SendNullResponses);
+                this.OrchestrationWorkItemQueue = new WorkQueue<TaskOrchestrationWorkItem>(this.serviceShutdownSource.Token, SendNullResponses);
 
-            this.ActivityWorkItemQueue = new WorkQueue<TaskActivityWorkItem>(this.serviceShutdownSource.Token, SendNullResponses);
-            this.OrchestrationWorkItemQueue = new WorkQueue<TaskOrchestrationWorkItem>(this.serviceShutdownSource.Token, SendNullResponses);
+                await taskHub.StartAsync();
 
-            await taskHub.StartAsync();
-
-            System.Diagnostics.Debug.Assert(this.Client != null, "Backend should have added client");
+                System.Diagnostics.Debug.Assert(this.Client != null, "Backend should have added client");
+            }
         }
 
         private static void SendNullResponses<T>(IEnumerable<CancellableCompletionSource<T>> waiters) where T : class
@@ -134,7 +137,7 @@ namespace DurableTask.EventHubs
 
         async Task IOrchestrationService.StopAsync(bool isForced)
         {
-            if (this.serviceShutdownSource != null)
+            if (!this.settings.KeepServiceRunning && this.serviceShutdownSource != null)
             {
                 this.serviceShutdownSource.Cancel();
                 this.serviceShutdownSource.Dispose();
@@ -152,14 +155,7 @@ namespace DurableTask.EventHubs
         /// <inheritdoc/>
         public void Dispose()
         {
-            if (this.serviceShutdownSource != null)
-            {
-                this.serviceShutdownSource.Cancel();
-                this.serviceShutdownSource.Dispose();
-                this.serviceShutdownSource = null;
-
-                this.taskHub.StopAsync();
-            }
+            this.taskHub.StopAsync();
         }
 
         /// <summary>
@@ -390,7 +386,7 @@ namespace DurableTask.EventHubs
             return 0;
         }
 
-        int IOrchestrationService.MaxConcurrentTaskOrchestrationWorkItems => MaxConcurrentWorkItems;
+        int IOrchestrationService.MaxConcurrentTaskOrchestrationWorkItems => settings.MaxConcurrentTaskOrchestrationWorkItems;
 
         int IOrchestrationService.TaskOrchestrationDispatcherCount => 1;
 
@@ -431,7 +427,7 @@ namespace DurableTask.EventHubs
             return Task.FromResult(workItem);
         }
 
-        int IOrchestrationService.MaxConcurrentTaskActivityWorkItems => MaxConcurrentWorkItems;
+        int IOrchestrationService.MaxConcurrentTaskActivityWorkItems => settings.MaxConcurrentTaskActivityWorkItems;
 
         int IOrchestrationService.TaskActivityDispatcherCount => 1;
 

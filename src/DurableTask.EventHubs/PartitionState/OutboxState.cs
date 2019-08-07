@@ -26,25 +26,29 @@ namespace DurableTask.EventHubs
     internal class OutboxState : TrackedObject, Backend.ISendConfirmationListener
     {
         [DataMember]
-        public SortedList<long, List<TaskMessage>> Outbox { get; private set; } = new SortedList<long, List<TaskMessage>>();
+        public SortedList<long, Dictionary<uint, TaskMessageReceived>> Outbox { get; private set; } = new SortedList<long, Dictionary<uint, TaskMessageReceived>>();
 
         [DataMember]
         public long LastPersistedAck { get; set; } = -1;
 
         [IgnoreDataMember]
-        public long LastNonPersistedAck { get; set; } = -1;
+        public List<(long, uint)> CurrentAckBatch { get; set; } = new List<(long, uint)>();
+
+        [IgnoreDataMember]
+        public bool AckBatchInProgress { get; set; } = false;
 
         [IgnoreDataMember]
         public override string Key => "Outbox";
-
-        public long GetLastAckedQueuePosition() { return LastPersistedAck; }
 
         protected override void Restore()
         {
             // re-send all messages as they could have been lost after the failure
             foreach (var kvp in Outbox)
             {
-                this.Send(kvp.Key, kvp.Value);
+                foreach (var outmessage in kvp.Value.Values)
+                {
+                    Partition.Submit(outmessage, this);
+                }
             }
         }
 
@@ -80,20 +84,18 @@ namespace DurableTask.EventHubs
         {
             if (evt is TaskMessageReceived taskMessageReceived)
             {
-                bool loopbackAlreadyUnderway = this.LastPersistedAck < this.LastNonPersistedAck;
+                this.CurrentAckBatch.Add((taskMessageReceived.OriginPosition, taskMessageReceived.OriginPartition));
 
-                System.Diagnostics.Debug.Assert(this.LastNonPersistedAck < taskMessageReceived.OriginPosition);
-
-                this.LastNonPersistedAck = taskMessageReceived.OriginPosition;
-                 
-                if (!loopbackAlreadyUnderway)
+                if (!this.AckBatchInProgress)
                 {
                     this.Partition.TraceContext.Value = "SWorker";
                     this.Partition.Submit(new SentMessagesAcked()
                     {
                         PartitionId = this.Partition.PartitionId,
-                        LastAckedQueuePosition = LastNonPersistedAck,
+                        DurablySent = this.CurrentAckBatch.ToArray(),
                     });
+                    this.CurrentAckBatch.Clear();
+                    this.AckBatchInProgress = true;
                 }
             }
         }
@@ -108,48 +110,64 @@ namespace DurableTask.EventHubs
 
         public void Apply(BatchProcessed evt)
         {
-            Outbox.Add(evt.QueuePosition, evt.OrchestratorMessages);
-            this.Send(evt.QueuePosition, evt.OrchestratorMessages);
+            var toSend = new Dictionary<uint, TaskMessageReceived>();
+
+            foreach (var message in evt.OrchestratorMessages)
+            {
+                var instanceId = message.OrchestrationInstance.InstanceId;
+                var partitionId = this.Partition.PartitionFunction(instanceId);
+
+                if (!toSend.TryGetValue(partitionId, out var outmessage))
+                {
+                    toSend[partitionId] = outmessage = new TaskMessageReceived()
+                    {
+                        PartitionId = partitionId,
+                        OriginPartition = this.Partition.PartitionId,
+                        OriginPosition = evt.QueuePosition,
+                        TaskMessages = new List<TaskMessage>(),
+                    };
+                }
+                outmessage.TaskMessages.Add(message);
+            }
+
+            Outbox.Add(evt.QueuePosition, toSend);
+
+            foreach (var outmessage in toSend.Values)
+            {
+                Partition.Submit(outmessage, this);
+            }
         }
 
         // OutgoingMessagesAcked
 
         public void Process(SentMessagesAcked evt, EffectTracker effect)
         {
-            if (Outbox.Count > 0 && Outbox.First().Key < evt.LastAckedQueuePosition)
-            {
-                effect.ApplyTo(this);
-            }
+            effect.ApplyTo(this);
         }
 
         public void Apply(SentMessagesAcked evt)
         {
-            while (Outbox.Count > 0)
+            foreach(var (queuePosition, destination) in evt.DurablySent)
             {
-                var first = Outbox.First();
-
-                if (first.Key < evt.LastAckedQueuePosition)
+                if (this.Outbox.TryGetValue(queuePosition, out var dictionary))
                 {
-                    Outbox.Remove(first.Key);
-                }
-                else
-                {
-                    break;
+                    dictionary.Remove(destination);
                 }
             }
 
-            LastPersistedAck = evt.LastAckedQueuePosition;
-
-            if (LastPersistedAck < LastNonPersistedAck)
+            if (this.CurrentAckBatch.Count == 0)
             {
-                // more messages were acked and we still have to persist that fact 
+                this.AckBatchInProgress = false;
+            }
+            else
+            {
                 this.Partition.Submit(new SentMessagesAcked()
                 {
                     PartitionId = this.Partition.PartitionId,
-                    LastAckedQueuePosition = LastNonPersistedAck,
+                    DurablySent = this.CurrentAckBatch.ToArray(),
                 });
+                this.CurrentAckBatch.Clear();
             }
         }
-
     }
 }

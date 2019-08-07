@@ -22,7 +22,8 @@ using DurableTask.Core.History;
 namespace DurableTask.EventHubs
 {
     /// <summary>
-    /// Is the first event processed by a partition. Contains creation parameters.
+    /// Is the first event processed by a partition. Deletes all state of the previous taskhub.
+    /// Contains creation parameters. 
     /// </summary>
     [DataContract]
     internal class TaskhubCreated : PartitionEvent
