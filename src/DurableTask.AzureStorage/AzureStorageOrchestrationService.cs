@@ -430,7 +430,7 @@ namespace DurableTask.AzureStorage
             {
                 throw new InvalidOperationException("The orchestration service has already started.");
             }
-
+            await this.CreateIfNotExistsAsync();
             await this.trackingStore.StartAsync();
 
             // Disable nagling to improve storage access latency:
