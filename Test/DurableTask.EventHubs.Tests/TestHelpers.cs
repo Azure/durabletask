@@ -11,7 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.EventHubs.Tests
+namespace DurableTask.EventSourced.Tests
 {
     using System;
     using System.Threading.Tasks;
@@ -19,14 +19,14 @@ namespace DurableTask.EventHubs.Tests
 
     internal static class TestHelpers
     {
-        public static EventHubsOrchestrationService GetTestOrchestrationService()
+        public static EventSourcedOrchestrationService GetTestOrchestrationService()
         {
-            var settings = new EventHubsOrchestrationServiceSettings
+            var settings = new EventSourcedOrchestrationServiceSettings
             {
                 EventHubsConnectionString = GetEventHubsConnectionString(),
                 StorageConnectionString = GetStorageConnectionString(),
             };
-            return new EventHubsOrchestrationService(settings);
+            return new EventSourcedOrchestrationService(settings);
         }
 
 
@@ -34,7 +34,7 @@ namespace DurableTask.EventHubs.Tests
             bool enableExtendedSessions,
             int extendedSessionTimeoutInSeconds = 30)
         {
-            var settings = new EventHubsOrchestrationServiceSettings
+            var settings = new EventSourcedOrchestrationServiceSettings
             {
                 EventHubsConnectionString = GetEventHubsConnectionString(),
                 StorageConnectionString = GetStorageConnectionString(),

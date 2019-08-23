@@ -11,7 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.EventHubs.Tests
+namespace DurableTask.EventSourced.Tests
 {
     using System;
     using System.Collections.Generic;
@@ -122,7 +122,7 @@ namespace DurableTask.EventHubs.Tests
         [Fact]
         public async Task EventConversation()
         {
-            var client = await host.StartOrchestrationAsync(typeof(DurableTask.Test.Orchestrations.EventConversationOrchestration), "");
+            var client = await host.StartOrchestrationAsync(typeof(EventConversationOrchestration), "");
             var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
 
             Assert.Equal(OrchestrationStatus.Completed, status?.OrchestrationStatus);
@@ -145,7 +145,7 @@ namespace DurableTask.EventHubs.Tests
         [Fact]
         public async Task ContinueAsNewThenTimer()
         {
-            var client = await host.StartOrchestrationAsync(typeof(DurableTask.Test.Orchestrations.ContinueAsNewThenTimerOrchestration), 0);
+            var client = await host.StartOrchestrationAsync(typeof(ContinueAsNewThenTimerOrchestration), 0);
             var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
             Assert.Equal(OrchestrationStatus.Completed, status?.OrchestrationStatus);

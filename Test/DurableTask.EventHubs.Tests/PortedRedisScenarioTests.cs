@@ -16,10 +16,9 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using DurableTask.Core;
-using DurableTask.Test.Orchestrations;
 using Xunit;
 
-namespace DurableTask.EventHubs.Tests
+namespace DurableTask.EventSourced.Tests
 {
     [Collection("EventHubsTests")]
     public class PortedRedisScenarioTests

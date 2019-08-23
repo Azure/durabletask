@@ -11,7 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.EventHubs.Tests
+namespace DurableTask.EventSourced.Tests
 {
     using System;
     using System.Collections.Generic;

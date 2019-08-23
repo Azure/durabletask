@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace DurableTask.EventHubs.Tests
+namespace DurableTask.EventSourced.Tests
 {
     public class TestFixture : IDisposable
     {

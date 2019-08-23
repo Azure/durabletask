@@ -11,7 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.EventHubs.Tests
+namespace DurableTask.EventSourced.Tests
 {
     using System;
     using System.Collections.Generic;
@@ -22,16 +22,16 @@ namespace DurableTask.EventHubs.Tests
 
     internal sealed class TestOrchestrationHost : IDisposable
     {
-        readonly EventHubsOrchestrationServiceSettings settings;
+        readonly EventSourcedOrchestrationServiceSettings settings;
         readonly TaskHubWorker worker;
         readonly TaskHubClient client;
         readonly HashSet<Type> addedOrchestrationTypes;
         readonly HashSet<Type> addedActivityTypes;
 
-        public TestOrchestrationHost(EventHubsOrchestrationServiceSettings settings)
+        public TestOrchestrationHost(EventSourcedOrchestrationServiceSettings settings)
         {
             //var service = new AzureStorageOrchestrationService(settings);
-            var service = new EventHubs.EventHubsOrchestrationService(settings);
+            var service = new EventSourced.EventSourcedOrchestrationService(settings);
             ((IOrchestrationService)service).CreateAsync().GetAwaiter().GetResult();
 
             this.settings = settings;

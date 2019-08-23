@@ -11,7 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Test.Orchestrations
+namespace DurableTask.EventSourced.Tests
 {
     using System;
     using System.Runtime.Serialization;
