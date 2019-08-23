@@ -206,12 +206,12 @@ namespace DurableTask.SqlServer.Tracking
             {
                 if (recreate) await DeleteStoreAsync();
 
-                command.AddStatement($@"IF(SCHEMA_ID('{settings.SchemaName}') IS NULL)
+                command.AddStatement($@"IF(SCHEMA_ID(@schema) IS NULL)
                     BEGIN
                         EXEC sp_executesql N'CREATE SCHEMA [{settings.SchemaName}]'
-                    END");
+                    END", new { schema = settings.SchemaName });
 
-                command.AddStatement($@"IF(OBJECT_ID('{settings.OrchestrationStateTableName}') IS NULL)
+                command.AddStatement($@"IF(OBJECT_ID(@table) IS NULL)
                     BEGIN
                         CREATE TABLE {settings.OrchestrationStateTableName} (
 	                        [InstanceId] NVARCHAR(50) NOT NULL,
@@ -224,9 +224,9 @@ namespace DurableTask.SqlServer.Tracking
 	                        [LastUpdatedTime] DATETIME2 NOT NULL,
 	                        [StateData] NVARCHAR(MAX) NOT NULL,
                             CONSTRAINT [PK_{settings.SchemaName}_{settings.HubName}{SqlServerInstanceStoreSettings.OrchestrationTable}_InstanceId_ExecutionId] PRIMARY KEY CLUSTERED ([InstanceId], [ExecutionId]))
-                    END");
+                    END", new { table = settings.OrchestrationStateTableName });
 
-                command.AddStatement($@"IF(OBJECT_ID('{settings.WorkItemTableName}') IS NULL)
+                command.AddStatement($@"IF(OBJECT_ID(@table) IS NULL)
                     BEGIN
                         CREATE TABLE {settings.WorkItemTableName} (
 	                        [InstanceId] NVARCHAR(50) NOT NULL,
@@ -235,7 +235,7 @@ namespace DurableTask.SqlServer.Tracking
 	                        [EventTimestamp] DATETIME2 NOT NULL,
 	                        [HistoryEvent] NVARCHAR(MAX) NOT NULL,
                             CONSTRAINT [PK_{settings.SchemaName}_{settings.HubName}{SqlServerInstanceStoreSettings.WorkitemTable}_InstanceId_ExecutionId_SequenceNumber] PRIMARY KEY CLUSTERED ([InstanceId], [ExecutionId], [SequenceNumber]))
-                    END");
+                    END", new { table = settings.WorkItemTableName });
 
                 await connection.OpenAsync();
                 await command.ExecuteNonQueryAsync();
@@ -272,7 +272,7 @@ namespace DurableTask.SqlServer.Tracking
                 return await command.ExecuteNonQueryAsync();
             }
         }
-        
+
         /// <inheritdoc />
         public async Task<object> WriteEntitiesAsync(IEnumerable<InstanceEntityBase> entities)
         {
