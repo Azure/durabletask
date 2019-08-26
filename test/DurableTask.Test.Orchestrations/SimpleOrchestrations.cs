@@ -14,6 +14,7 @@
 namespace DurableTask.Test.Orchestrations
 {
     using System;
+    using System.Collections.Generic;
     using System.Runtime.Serialization;
     using System.Threading;
     using System.Threading.Tasks;
@@ -297,9 +298,28 @@ namespace DurableTask.Test.Orchestrations
 
         public async override Task<string> RunTask(OrchestrationContext context, string input)
         {
+            bool useFireAndForgetSubOrchestration = bool.Parse(input);
+
             // start a responder orchestration
             var responderId = "responderId";
-            var responderOrchestration = context.CreateSubOrchestrationInstance<string>(typeof(Responder), responderId, "Herkimer");
+            Task<string> responderOrchestration = null;
+
+            if (!useFireAndForgetSubOrchestration)
+            {
+                responderOrchestration = context.CreateSubOrchestrationInstance<string>(typeof(Responder), responderId, "Herkimer");
+            }
+            else
+            {
+                var dummyTask = context.CreateSubOrchestrationInstance<object>(NameVersionHelper.GetDefaultName(typeof(Responder)), "", responderId, "Herkimer",
+                    new Dictionary<string, string>() { { FrameworkConstants.FireAndForgetOrchestrationTag, "" } });
+
+                if (!dummyTask.IsCompleted)
+                {
+                    throw new Exception("test failed: fire-and-forget should complete immediately");
+                }
+
+                responderOrchestration = Task.FromResult("Herkimer is done");
+            }
 
             // send the id of this orchestration to the responder
             var responderInstance = new OrchestrationInstance() { InstanceId = responderId };
@@ -310,8 +330,10 @@ namespace DurableTask.Test.Orchestrations
             if (message != "hi from Herkimer")
                 throw new Exception("test failed");
 
-            // tell the responder to stop listening, then wait for it to complete
+            // tell the responder to stop listening
             context.SendEvent(responderInstance, channelName, "stop");
+
+            // if this was not a fire-and-forget orchestration, wait for it to complete
             var receiverResult = await responderOrchestration;
 
             if (receiverResult != "Herkimer is done")

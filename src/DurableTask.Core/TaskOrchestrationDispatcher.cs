@@ -600,8 +600,10 @@ namespace DurableTask.Core
                 return taskMessage;
             }
 
-            // If this is a Sub Orchestration than notify the parent by sending a complete message
-            if (runtimeState.ParentInstance != null)
+            // If this is a Sub Orchestration, and not tagged as fire-and-forget, 
+            // then notify the parent by sending a complete message
+            if (runtimeState.ParentInstance != null
+                && (runtimeState.Tags == null || !runtimeState.Tags.ContainsKey(FrameworkConstants.FireAndForgetOrchestrationTag)))
             {
                 var taskMessage = new TaskMessage();
                 if (completeOrchestratorAction.OrchestrationStatus == OrchestrationStatus.Completed)
@@ -763,15 +765,30 @@ namespace DurableTask.Core
             if (newTags != null && existingTags != null)
             {
                 result = newTags.Concat(
-                    existingTags.Where(k => !newTags.ContainsKey(k.Key)))
+                    existingTags.Where(k => !newTags.ContainsKey(k.Key) && k.Key != FrameworkConstants.FireAndForgetOrchestrationTag))
                     .ToDictionary(x => x.Key, y => y.Value);
             }
             else
             {
-                result = newTags ?? existingTags;
+                result = newTags ?? TagsToInherit(existingTags);
             }
 
             return result;
+        }
+
+        static IDictionary<string, string> TagsToInherit(
+           IDictionary<string, string> existingTags)
+        {
+            if (existingTags == null || ! existingTags.ContainsKey(FrameworkConstants.FireAndForgetOrchestrationTag))
+            {
+                return existingTags;
+            }
+            else
+            {
+                return existingTags
+                    .Where(k => k.Key != FrameworkConstants.FireAndForgetOrchestrationTag)
+                    .ToDictionary(x => x.Key, y => y.Value);
+            }
         }
 
         class NonBlockingCountdownLock

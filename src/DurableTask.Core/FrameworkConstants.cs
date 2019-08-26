@@ -36,6 +36,13 @@ namespace DurableTask.Core
         /// </summary>
         public const string HistoryEventIndexPropertyName = "HistoryEventIndex";
 
+
+        /// <summary>
+        /// A special orchestration tag used for indicating that a suborchestration is fire-and-forget,
+        /// i.e. the parent orchestration does not wait for the result.
+        /// </summary>
+        public const string FireAndForgetOrchestrationTag = "FireAndForget";
+
         /// <summary>
         /// Id for a fake timer event
         /// </summary>
