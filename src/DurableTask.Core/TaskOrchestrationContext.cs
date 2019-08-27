@@ -159,8 +159,7 @@ namespace DurableTask.Core
 
             this.orchestratorActionsMap.Add(id, action);
 
-            if (tags != null 
-                && tags.ContainsKey(FrameworkConstants.FireAndForgetOrchestrationTag))
+            if (OrchestrationTags.IsTaggedAsFireAndForget(tags))
             {
                 // this is a fire-and-forget orchestration, so we do not wait for a result.
                 return default(T);

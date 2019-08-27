@@ -603,7 +603,7 @@ namespace DurableTask.Core
             // If this is a Sub Orchestration, and not tagged as fire-and-forget, 
             // then notify the parent by sending a complete message
             if (runtimeState.ParentInstance != null
-                && (runtimeState.Tags == null || !runtimeState.Tags.ContainsKey(FrameworkConstants.FireAndForgetOrchestrationTag)))
+                && !OrchestrationTags.IsTaggedAsFireAndForget(runtimeState.Tags))
             {
                 var taskMessage = new TaskMessage();
                 if (completeOrchestratorAction.OrchestrationStatus == OrchestrationStatus.Completed)
@@ -709,7 +709,7 @@ namespace DurableTask.Core
 
             var startedEvent = new ExecutionStartedEvent(-1, createSubOrchestrationAction.Input)
             {
-                Tags = MergeTags(createSubOrchestrationAction.Tags, runtimeState.Tags),
+                Tags = OrchestrationTags.MergeTags(createSubOrchestrationAction.Tags, runtimeState.Tags),
                 OrchestrationInstance = new OrchestrationInstance
                 {
                     InstanceId = createSubOrchestrationAction.InstanceId,
@@ -755,42 +755,7 @@ namespace DurableTask.Core
             };
         }
 
-        static IDictionary<string, string> MergeTags(
-            IDictionary<string, string> newTags,
-            IDictionary<string, string> existingTags)
-        {
-            IDictionary<string, string> result;
-
-            // We will merge the two dictionaries of tags, tags in the createSubOrchestrationAction overwrite those in runtimeState
-            if (newTags != null && existingTags != null)
-            {
-                result = newTags.Concat(
-                    existingTags.Where(k => !newTags.ContainsKey(k.Key) && k.Key != FrameworkConstants.FireAndForgetOrchestrationTag))
-                    .ToDictionary(x => x.Key, y => y.Value);
-            }
-            else
-            {
-                result = newTags ?? TagsToInherit(existingTags);
-            }
-
-            return result;
-        }
-
-        static IDictionary<string, string> TagsToInherit(
-           IDictionary<string, string> existingTags)
-        {
-            if (existingTags == null || ! existingTags.ContainsKey(FrameworkConstants.FireAndForgetOrchestrationTag))
-            {
-                return existingTags;
-            }
-            else
-            {
-                return existingTags
-                    .Where(k => k.Key != FrameworkConstants.FireAndForgetOrchestrationTag)
-                    .ToDictionary(x => x.Key, y => y.Value);
-            }
-        }
-
+ 
         class NonBlockingCountdownLock
         {
             int available;

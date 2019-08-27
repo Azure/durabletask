@@ -288,7 +288,7 @@ namespace DurableTask.Test.Orchestrations
     }
 
     [KnownType(typeof(EventConversationOrchestration.Responder))]
-    public sealed class EventConversationOrchestration : TaskOrchestration<string, string>
+    public sealed class EventConversationOrchestration : TaskOrchestration<string, bool>
     {
         private readonly TaskCompletionSource<string> tcs
             = new TaskCompletionSource<string>(TaskContinuationOptions.ExecuteSynchronously);
@@ -296,10 +296,8 @@ namespace DurableTask.Test.Orchestrations
         // HACK: This is just a hack to communicate result of orchestration back to test
         public static bool OkResult;
 
-        public async override Task<string> RunTask(OrchestrationContext context, string input)
+        public async override Task<string> RunTask(OrchestrationContext context, bool useFireAndForgetSubOrchestration)
         {
-            bool useFireAndForgetSubOrchestration = bool.Parse(input);
-
             // start a responder orchestration
             var responderId = "responderId";
             Task<string> responderOrchestration = null;
@@ -311,7 +309,7 @@ namespace DurableTask.Test.Orchestrations
             else
             {
                 var dummyTask = context.CreateSubOrchestrationInstance<object>(NameVersionHelper.GetDefaultName(typeof(Responder)), "", responderId, "Herkimer",
-                    new Dictionary<string, string>() { { FrameworkConstants.FireAndForgetOrchestrationTag, "" } });
+                    new Dictionary<string, string>() { { OrchestrationTags.FireAndForget, "" } });
 
                 if (!dummyTask.IsCompleted)
                 {
