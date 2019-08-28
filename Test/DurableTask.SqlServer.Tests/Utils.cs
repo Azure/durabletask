@@ -1,12 +1,25 @@
-﻿using DurableTask.Core;
-using DurableTask.Core.History;
-using DurableTask.Core.Tracking;
-using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿//  ----------------------------------------------------------------------------------
+//  Copyright Microsoft Corporation
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//  http://www.apache.org/licenses/LICENSE-2.0
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+//  ----------------------------------------------------------------------------------
 
 namespace DurableTask.SqlServer.Tests
 {
+    using DurableTask.Core;
+    using DurableTask.Core.History;
+    using DurableTask.Core.Tracking;
+    using System;
+    using System.Collections.Generic;
+    using System.Linq;
+
     public static class Utils
     {
         private static readonly Random random = new Random();
@@ -15,7 +28,7 @@ namespace DurableTask.SqlServer.Tests
         {
             var statusValues = Enum.GetValues(typeof(OrchestrationStatus)).Cast<OrchestrationStatus>().ToArray();
 
-            while(true)
+            while (true)
                 yield return new OrchestrationStateInstanceEntity
                 {
                     State = new OrchestrationState
@@ -39,7 +52,7 @@ namespace DurableTask.SqlServer.Tests
         public static IEnumerable<OrchestrationWorkItemInstanceEntity> InfiniteWorkItemTestData(string instanceId, string executionId)
         {
             var sequenceNumber = 0;
-            while(true)
+            while (true)
                 yield return new OrchestrationWorkItemInstanceEntity
                 {
                     EventTimestamp = DateTime.UtcNow,

@@ -1,13 +1,25 @@
-﻿using DurableTask.Core;
-using DurableTask.Core.Tracking;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using System;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
+﻿//  ----------------------------------------------------------------------------------
+//  Copyright Microsoft Corporation
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//  http://www.apache.org/licenses/LICENSE-2.0
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+//  ----------------------------------------------------------------------------------
 
 namespace DurableTask.SqlServer.Tests
 {
+    using DurableTask.Core;
+    using DurableTask.Core.Tracking;
+    using Microsoft.VisualStudio.TestTools.UnitTesting;
+    using System;
+    using System.Linq;
+    using System.Threading.Tasks;
+
     [TestClass]
     public class PurgeHistoryTests : BaseTestClass
     {
@@ -21,7 +33,7 @@ namespace DurableTask.SqlServer.Tests
                 .ToArray();
 
             int secondsToAdd = 0;
-            foreach(var item in orchestrations)
+            foreach (var item in orchestrations)
             {
                 item.State.CreatedTime = DateTime.UtcNow.AddSeconds(secondsToAdd++);
                 item.State.LastUpdatedTime = item.State.CompletedTime = DateTime.MaxValue;
@@ -37,7 +49,8 @@ namespace DurableTask.SqlServer.Tests
             var count = (await InstanceStore.GetOrchestrationHistoryEventsAsync(instance.InstanceId, instance.ExecutionId)).Count();
             Assert.AreEqual(5, count);
 
-            foreach (var item in orchestrations.Take(2)) {
+            foreach (var item in orchestrations.Take(2))
+            {
                 instance = item.State.OrchestrationInstance;
                 count = (await InstanceStore.GetOrchestrationHistoryEventsAsync(instance.InstanceId, instance.ExecutionId)).Count();
                 Assert.AreEqual(0, count);
