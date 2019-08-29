@@ -286,7 +286,7 @@ namespace DurableTask.ServiceBus.Tests
                                        typeof(Test.Orchestrations.EventConversationOrchestration.Responder))
                 .StartAsync();
 
-            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(Test.Orchestrations.EventConversationOrchestration), "");
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(Test.Orchestrations.EventConversationOrchestration), "false");
             bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
             Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
             Assert.IsTrue(Test.Orchestrations.EventConversationOrchestration.OkResult, "Orchestration did not finish ok!!!");
