@@ -23,20 +23,17 @@ namespace DurableTask.Core
     /// properties that can be explicitly assigned when orchestrations or suborchestrations
     /// are created. A suborchestration automatically inherits the tags of its parent orchestration.
     /// </summary>
-    /// <remarks>
-    /// Tags are generally intended for application-specific purposes and ignored by the runtime,
-    /// except for the special fire-and-forget tag. The fire-and-forget tag, when assigned to a 
-    /// sub-orchestration, is interpreted by the runtime to indicate that the parent should not
-    /// wait for the result of the sub-orchestration, and the sub-orchestration need not send a
-    /// response to the parent. Unlike application-defined tags, the fire-and-forget tag is not 
-    /// automatically inherited by sub-orchestrations.
-    /// </remarks>
     public static class OrchestrationTags
     {
         /// <summary>
         /// A special orchestration tag used for indicating that a suborchestration is fire-and-forget,
         /// i.e. the parent orchestration does not wait for the result.
         /// </summary>
+        /// <remarks>
+        /// Tags are generally intended for application-specific purposes and ignored by the runtime,
+        /// except for this special tag. Unlike general application-defined tags, this tag is not 
+        /// automatically inherited by sub-orchestrations.
+        /// </remarks>
         public const string FireAndForget = "FireAndForget";
 
         /// <summary>
