@@ -11,38 +11,23 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
+namespace DurableTask.AzureServiceFabric
 {
+    using System;
     using System.Runtime.Serialization;
-    using DurableTask.Core.History;
+    using DurableTask.Core;
 
-    /// <summary>
-    /// Wire level transport object for task messages containing events and orchestration instance information
-    /// </summary>
     [DataContract]
-    public class TaskMessage : IExtensibleDataObject
+    sealed class TaskMessageItem : IExtensibleDataObject
     {
-        /// <summary>
-        /// Event information for this task message
-        /// </summary>
-        [DataMember]
-        public HistoryEvent Event { get; set; }
+        public TaskMessageItem(TaskMessage taskMessage)
+        {
+            this.TaskMessage = taskMessage ?? throw new ArgumentNullException(nameof(taskMessage));
+        }
 
-        /// <summary>
-        /// Sequence number for ordering of messages in history tracking
-        /// </summary>
         [DataMember]
-        public long SequenceNumber { get; set; }
+        public TaskMessage TaskMessage { get; private set; }
 
-        /// <summary>
-        /// The orchestration instance information
-        /// </summary>
-        [DataMember]
-        public OrchestrationInstance OrchestrationInstance { get; set; }
-
-        /// <summary>
-        /// Implementation for <see cref="IExtensibleDataObject.ExtensionData"/>.
-        /// </summary>
         public ExtensionDataObject ExtensionData { get; set; }
     }
 }
