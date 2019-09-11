@@ -1,9 +1,6 @@
 # Service Fabric Reliable Collections Provider For Durable Task Framework
 
-This page outlines the current status of the custom provider for Durable Task Framework based on Service Fabric Reliable Collections.
-
-What are Reliable Collections?
-https://docs.microsoft.com/en-us/azure/service-fabric/service-fabric-reliable-services-reliable-collections
+This page outlines the current status of the custom provider for Durable Task Framework based on [Service Fabric Reliable Collections](https://docs.microsoft.com/en-us/azure/service-fabric/service-fabric-reliable-services-reliable-collections).
 
 This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
 For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
@@ -42,6 +39,10 @@ There are pre-requisites for setting up this project for developing or making co
 * There are 2 manual steps that must be done before running tests:
   * A 5 node local cluster must be setup using Service Fabric Local Cluster Manager (installed by SDK).
   * After the solution is built, the "TestFabricApplication" must be packaged using the context menu. (The packaged application will be deployed to local cluster as part of test setup)
+
+## .Net Targets
+
+Currently this project supports .Net 4.6.1, which is framework version of 'netstandard2.0'. Some of the dependency packages do not have support for 'netstandard2.0', once those packages support 'netstandard2.0' this project will also support the same.
   
 ## Main Contributors
 
