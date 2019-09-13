@@ -38,5 +38,9 @@
       <SubType>Form</SubType>
     </Compile>
   </ItemGroup>
-  
+  <ItemGroup>
+    <None Update="SumOfSquares\BagofNumbers.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 </Project>
