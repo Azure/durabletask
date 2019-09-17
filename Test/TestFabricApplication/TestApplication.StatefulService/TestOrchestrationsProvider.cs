@@ -24,6 +24,7 @@ namespace TestApplication.StatefulService
     using DurableTask.Test.Orchestrations.Performance;
 
     using TestApplication.Common.Orchestrations;
+    using TestApplication.Common.OrchestrationTasks;
 
 
     /// <inheritdoc/>
@@ -44,6 +45,7 @@ namespace TestApplication.StatefulService
             taskHubWorker
                 .AddTaskOrchestrations(this.GetOrchestrationTypes().ToArray())
                 .AddTaskOrchestrations(this.GetTaskOrchestrations().Select(instance => new DefaultObjectCreator<TaskOrchestration>(instance.Value)).ToArray())
+                .AddTaskActivitiesFromInterface<IUserTasks>(new UserTasks())
                 .AddTaskActivities(GetActivityTypes().ToArray());
         }
 
@@ -52,7 +54,6 @@ namespace TestApplication.StatefulService
         {
             return new Type[]
             {
-                typeof(GetUserTask),
                 typeof(GreetUserTask),
                 typeof(GenerationBasicTask),
                 typeof(RandomTimeWaitingTask),

@@ -11,15 +11,22 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace TestApplication.Common.Orchestrations
+namespace TestApplication.Common.OrchestrationTasks
 {
-    using DurableTask.Core;
+    using System.Threading.Tasks;
 
-    public class GetUserTask : TaskActivity<string, string>
+    public class UserTasks : IUserTasks
     {
-        protected override string Execute(TaskContext context, string input)
+        public async Task<string> GetUserAsync()
         {
+            await Task.Yield();
             return "Gabbar";
+        }
+
+        public async Task<string> GreetUserAsync(string user)
+        {
+            await Task.Yield();
+            return "Hello " + user;
         }
     }
 }
