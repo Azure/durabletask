@@ -11,15 +11,18 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace TestApplication.Common.Orchestrations
+namespace TestApplication.Common.OrchestrationTasks
 {
-    using DurableTask.Core;
+    using System.Threading.Tasks;
+    using DurableTask.Test.Orchestrations.Performance;
 
-    public class GreetUserTask : TaskActivity<string, string>
+    public interface ITestTasks
     {
-        protected override string Execute(TaskContext context, string user)
-        {
-            return "Hello " + user;
-        }
+        /// <summary>
+        /// Throws exception when remainingAttempts > 0. Otherwise succeeds.
+        /// </summary>
+        /// <param name="remainingAttempts">remaining number of attempts</param>
+        /// <returns>bool indicating whether task completed successfully or not.</returns>
+        Task<bool> ThrowExceptionAsync(int remainingAttempts);
     }
 }
