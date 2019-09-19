@@ -11,21 +11,18 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace TestApplication.Common.Orchestrations
+namespace TestApplication.Common.OrchestrationTasks
 {
     using System.Threading.Tasks;
-    using DurableTask.Core;
-    using TestApplication.Common.OrchestrationTasks;
+    using DurableTask.Test.Orchestrations.Performance;
 
-    public class SimpleOrchestrationWithTasks : TaskOrchestration<string, string>
+    public interface ITestTasks
     {
-        public override async Task<string> RunTask(OrchestrationContext context, string input)
-        {
-            IUserTasks userTasks = context.CreateClient<IUserTasks>();
-            string user = await userTasks.GetUserAsync();
-            string greeting = await userTasks.GreetUserAsync(user);
-
-            return greeting;
-        }
+        /// <summary>
+        /// Throws exception when remainingAttempts > 0. Otherwise succeeds.
+        /// </summary>
+        /// <param name="remainingAttempts">remaining number of attempts</param>
+        /// <returns>bool indicating whether task completed successfully or not.</returns>
+        Task<bool> ThrowExceptionAsync(int remainingAttempts);
     }
 }

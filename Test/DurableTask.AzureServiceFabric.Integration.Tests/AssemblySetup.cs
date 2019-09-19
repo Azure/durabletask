@@ -45,7 +45,7 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
             get
             {
                 var sourceRoot = Environment.GetEnvironmentVariable("SourceRoot") ?? string.Empty;
-                var applicationPath = Path.Combine(sourceRoot.Trim(), "Test", "TestFabricApplication", "TestFabricApplication");
+                var applicationPath = Path.Combine(sourceRoot.Trim(), "Test", "TestFabricApplication", "TestApplication");
 
                 if (!Directory.Exists(applicationPath))
                 {

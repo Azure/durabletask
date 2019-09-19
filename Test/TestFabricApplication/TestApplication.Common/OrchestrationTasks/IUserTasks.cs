@@ -11,22 +11,14 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace TestApplication.Common.Orchestrations
+namespace TestApplication.Common.OrchestrationTasks
 {
-    using DurableTask.Core;
+    using System.Threading.Tasks;
 
-    public class ExceptionThrowingTask : TaskActivity<int, bool>
+    public interface IUserTasks
     {
-        protected override bool Execute(TaskContext context, int remainingAttempts)
-        {
-            if (remainingAttempts > 0)
-            {
-                // ServiceEventSource.Current.Message($"{nameof(ExceptionThrowingTask)}.{nameof(Execute)} : Throwing Exception, RemainingAttempts = {remainingAttempts}");
-                throw new CounterException(remainingAttempts);
-            }
+        Task<string> GetUserAsync();
 
-            // ServiceEventSource.Current.Message($"{nameof(ExceptionThrowingTask)}.{nameof(Execute)} : Returning true, RemainingAttempts = {remainingAttempts}");
-            return true;
-        }
+        Task<string> GreetUserAsync(string user);
     }
 }

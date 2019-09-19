@@ -17,6 +17,7 @@ namespace TestApplication.Common.Orchestrations
     using System.Threading.Tasks;
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
+    using TestApplication.Common.OrchestrationTasks;
 
     public class OrchestrationRunningIntoRetry : TaskOrchestration<int, int>
     {
@@ -24,14 +25,14 @@ namespace TestApplication.Common.Orchestrations
 
         public override async Task<int> RunTask(OrchestrationContext context, int numberOfRetriesToEnforce)
         {
-            var result = await context.ScheduleWithRetry<bool>(typeof(ExceptionThrowingTask),
-                new RetryOptions(TimeSpan.FromSeconds(1), 5)
-                {
-                    BackoffCoefficient = 2,
-                    MaxRetryInterval = TimeSpan.FromMinutes(1),
-                    Handle = RetryExceptionHandler
-                },
-                this.LatestException?.Counter-1 ?? numberOfRetriesToEnforce);
+            var retryOptions = new RetryOptions(TimeSpan.FromSeconds(1), 5)
+            {
+                BackoffCoefficient = 2,
+                MaxRetryInterval = TimeSpan.FromMinutes(1),
+                Handle = RetryExceptionHandler
+            };
+            ITestTasks testTasks = context.CreateRetryableClient<ITestTasks>(retryOptions);
+            var result = await testTasks.ThrowExceptionAsync(this.LatestException?.Counter -1 ?? numberOfRetriesToEnforce);
 
             if (result)
             {

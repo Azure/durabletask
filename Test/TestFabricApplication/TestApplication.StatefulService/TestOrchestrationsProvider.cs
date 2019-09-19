@@ -16,14 +16,13 @@ namespace TestApplication.StatefulService
     using System;
     using System.Collections.Generic;
     using System.Linq;
-    using System.Threading.Tasks;
 
     using DurableTask.Core;
     using DurableTask.AzureServiceFabric;
-    using DurableTask.AzureServiceFabric.Service;
     using DurableTask.Test.Orchestrations.Performance;
 
     using TestApplication.Common.Orchestrations;
+    using TestApplication.Common.OrchestrationTasks;
 
 
     /// <inheritdoc/>
@@ -44,6 +43,8 @@ namespace TestApplication.StatefulService
             taskHubWorker
                 .AddTaskOrchestrations(this.GetOrchestrationTypes().ToArray())
                 .AddTaskOrchestrations(this.GetTaskOrchestrations().Select(instance => new DefaultObjectCreator<TaskOrchestration>(instance.Value)).ToArray())
+                .AddTaskActivitiesFromInterface<IUserTasks>(new UserTasks())
+                .AddTaskActivitiesFromInterface<ITestTasks>(new TestTasks())
                 .AddTaskActivities(GetActivityTypes().ToArray());
         }
 
@@ -52,11 +53,7 @@ namespace TestApplication.StatefulService
         {
             return new Type[]
             {
-                typeof(GetUserTask),
-                typeof(GreetUserTask),
-                typeof(GenerationBasicTask),
                 typeof(RandomTimeWaitingTask),
-                typeof(ExceptionThrowingTask),
                 typeof(ExecutionCountingActivity)
             };
         }
@@ -68,7 +65,6 @@ namespace TestApplication.StatefulService
             {
                 typeof(SimpleOrchestrationWithTasks),
                 typeof(SimpleOrchestrationWithTimer),
-                typeof(GenerationBasicOrchestration),
                 typeof(SimpleOrchestrationWithSubOrchestration),
                 typeof(DriverOrchestration),
                 typeof(TestOrchestration),

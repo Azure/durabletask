@@ -29,7 +29,7 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests.DeploymentUtil
         public static async Task DeployAsync(string applicationRootPath)
         {
             var appInfoReader = new ApplicationInfoReader(applicationRootPath);
-            var serviceName = new Uri($"fabric:/{appInfoReader.GetApplicationName()}/{appInfoReader.GetServiceName()}");
+            var serviceName = new Uri(Constants.TestFabricApplicationAddress);
             var applicationDescription =
                 new ApplicationDescription(
                     new Uri($"fabric:/{appInfoReader.GetApplicationName()}"),
