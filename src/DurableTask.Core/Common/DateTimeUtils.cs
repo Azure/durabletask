@@ -14,7 +14,6 @@
 namespace DurableTask.Core.Common
 {
     using System;
-    using System.Reflection;
 
     /// <summary>
     /// Extension methods for DateTime
@@ -33,17 +32,14 @@ namespace DurableTask.Core.Common
         /// Returns minimum allowable DateTime, allows overriding this for the storage emulator.
         /// The Storage emulator supports a min datetime or DateTime.FromFileTimeUtc(0)
         /// </summary>  
-        public static readonly DateTime MinDateTime = DateTime.MinValue;
+        public static DateTime MinDateTime { get; private set; } = DateTime.MinValue;
 
         /// <summary>
         /// Uses reflection to alter the static readonly MinDateTime value for tests
         /// </summary>  
         public static void SetMinDateTimeForStorageEmulator()
         {
-            BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.Static;
-            Type settingsType = typeof(DateTimeUtils);
-            FieldInfo field = settingsType.GetField(nameof(MinDateTime), flags);
-            field?.SetValue(settingsType, DateTime.FromFileTimeUtc(0));
+            MinDateTime = DateTime.FromFileTimeUtc(0);
         }
     }
 }
