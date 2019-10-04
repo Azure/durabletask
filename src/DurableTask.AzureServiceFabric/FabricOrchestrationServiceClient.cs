@@ -92,6 +92,11 @@ namespace DurableTask.AzureServiceFabric
                 throw new NotSupportedException($"DedupeStatuses are not supported yet with service fabric provider");
             }
 
+            if (creationMessage.Event is ExecutionStartedEvent executionStarted && executionStarted.ScheduledStartTime.HasValue)
+            {
+                throw new NotSupportedException("Service Fabric storage provider for Durable Tasks currently does not support scheduled starts");
+            }
+
             creationMessage.OrchestrationInstance.InstanceId.EnsureValidInstanceId();
 
             return CreateTaskOrchestrationAsync(creationMessage);

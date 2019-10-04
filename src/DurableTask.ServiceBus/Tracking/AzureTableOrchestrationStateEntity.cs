@@ -95,6 +95,7 @@ namespace DurableTask.ServiceBus.Tracking
             returnValues.Add("CompressedSize", new EntityProperty(State.CompressedSize));
             returnValues.Add("Input", new EntityProperty(State.Input.Truncate(ServiceBusConstants.MaxStringLengthForAzureTableColumn)));
             returnValues.Add("Output", new EntityProperty(State.Output.Truncate(ServiceBusConstants.MaxStringLengthForAzureTableColumn)));
+            returnValues.Add("ScheduledStartTime", new EntityProperty(State.ScheduledStartTime));
 
             return returnValues;
         }
@@ -145,7 +146,10 @@ namespace DurableTask.ServiceBus.Tracking
                 CompressedSize =
                     GetValue("CompressedSize", properties, property => property.Int64Value).GetValueOrDefault(),
                 Input = GetValue("Input", properties, property => property.StringValue),
-                Output = GetValue("Output", properties, property => property.StringValue)
+                Output = GetValue("Output", properties, property => property.StringValue),
+                ScheduledStartTime = GetValue("ScheduledStartTime", properties, property => property.DateTimeOffsetValue)
+                    .GetValueOrDefault()
+                    .DateTime,
             };
 
             TaskTimeStamp =

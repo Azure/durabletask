@@ -124,6 +124,26 @@ namespace DurableTask.Core
         }
 
         /// <summary>
+        ///     Create a new orchestration of the specified type with an automatically generated instance id
+        /// </summary>
+        /// <param name="orchestrationType">Type that derives from TaskOrchestration</param>
+        /// <param name="input">Input parameter to the specified TaskOrchestration</param>
+        /// <param name="startAt">Orchestration start time</param>
+        /// <returns>OrchestrationInstance that represents the orchestration that was created</returns>
+        public Task<OrchestrationInstance> CreateOrchestrationInstanceAsync(Type orchestrationType, object input, DateTime startAt)
+        {
+            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+                NameVersionHelper.GetDefaultName(orchestrationType),
+                NameVersionHelper.GetDefaultVersion(orchestrationType),
+                null,
+                input,
+                null,
+                null,
+                null,
+                startAt);
+        }
+
+        /// <summary>
         ///     Create a new orchestration of the specified type with the specified instance id
         /// </summary>
         /// <param name="orchestrationType">Type that derives from TaskOrchestration</param>
