@@ -22,6 +22,7 @@ namespace DurableTask.AzureStorage
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
+    using Microsoft.WindowsAzure.Storage;
 
     class OrchestrationSessionManager : IDisposable
     {
@@ -108,7 +109,12 @@ namespace DurableTask.AzureStorage
                     Guid traceActivityId = AzureStorageOrchestrationService.StartNewLogicalTraceScope();
 
                     // This will block until either new messages arrive or the queue is released.
-                    IReadOnlyList<MessageData> messages = await controlQueue.GetMessagesAsync(cancellationToken);
+                    OperationContext context = new OperationContext { ClientRequestID = Guid.NewGuid().ToString() };
+                    IReadOnlyList<MessageData> messages = await TimeoutHandler.ExecuteWithTimeout("DequeueLoop", context.ClientRequestID, () =>
+                    {
+                        return controlQueue.GetMessagesAsync(cancellationToken);
+                    });
+                    
                     if (messages.Count > 0)
                     {
                         this.AddMessageToPendingOrchestration(controlQueue, messages, traceActivityId, cancellationToken);
