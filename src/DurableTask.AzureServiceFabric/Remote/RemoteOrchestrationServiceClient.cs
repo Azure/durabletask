@@ -118,7 +118,7 @@ namespace DurableTask.AzureServiceFabric.Remote
             instanceId.EnsureValidInstanceId();
             var uri = await ConstructEndpointUriAsync(instanceId, GetOrchestrationFragment(instanceId), CancellationToken.None);
             var builder = new UriBuilder($"{uri}?executionId={executionId}");
-            var history = await this.HttpClient.GetStringAsync(builder.Uri);
+            var history = await this.HttpClient.GetStringResponseAsync(builder.Uri);
             return history;
         }
 
@@ -133,7 +133,7 @@ namespace DurableTask.AzureServiceFabric.Remote
             instanceId.EnsureValidInstanceId();
             var uri = await ConstructEndpointUriAsync(instanceId, GetOrchestrationFragment(instanceId), CancellationToken.None);
             var builder = new UriBuilder($"{uri}?allExecutions={allExecutions}");
-            var stateString = await this.HttpClient.GetStringAsync(builder.Uri);
+            var stateString = await this.HttpClient.GetStringResponseAsync(builder.Uri);
             var states = JsonConvert.DeserializeObject<IList<OrchestrationState>>(stateString);
             return states;
         }
@@ -149,7 +149,7 @@ namespace DurableTask.AzureServiceFabric.Remote
             instanceId.EnsureValidInstanceId();
             var uri = await ConstructEndpointUriAsync(instanceId, GetOrchestrationFragment(instanceId), CancellationToken.None);
             var builder = new UriBuilder($"{uri}?executionId={executionId}");
-            var stateString = await this.HttpClient.GetStringAsync(builder.Uri);
+            var stateString = await this.HttpClient.GetStringResponseAsync(builder.Uri);
             var state = JsonConvert.DeserializeObject<OrchestrationState>(stateString);
             return state;
         }
