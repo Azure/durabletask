@@ -429,7 +429,7 @@ namespace DurableTask.AzureStorage.Tests
             do
             {
                 OperationContext context = new OperationContext { ClientRequestID = Guid.NewGuid().ToString() };
-                BlobResultSegment results = await TimeoutHandler.ExecuteWithTimeout("GetBlobCount", context.ClientRequestID, () =>
+                BlobResultSegment results = await TimeoutHandler.ExecuteWithTimeout("GetBlobCount", context.ClientRequestID, null, null, () =>
                 {
                     return instanceDirectory.ListBlobsSegmentedAsync(blobContinuationToken);
                 });

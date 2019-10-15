@@ -1056,7 +1056,7 @@ namespace DurableTask.AzureStorage
             using (var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, this.shutdownSource.Token))
             {
                 OperationContext context = new OperationContext { ClientRequestID = Guid.NewGuid().ToString() };
-                MessageData message = await TimeoutHandler.ExecuteWithTimeout("LockNextTaskActivity", context.ClientRequestID, () =>
+                MessageData message = await TimeoutHandler.ExecuteWithTimeout("LockNextTaskActivity", context.ClientRequestID, storageAccountName, null, () =>
                 {
                     return this.workItemQueue.GetMessageAsync(linkedCts.Token);
                 });
