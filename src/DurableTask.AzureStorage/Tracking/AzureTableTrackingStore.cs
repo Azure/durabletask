@@ -1142,7 +1142,7 @@ namespace DurableTask.AzureStorage.Tracking
             string eventType = entity.Properties["EventType"].StringValue;
             string blobName = $"{instanceId}/history-{sequenceNumber}-{eventType}-{property}.json.gz";
 
-            return blobName.ToLowerInvariant();
+            return blobName;
         }
 
         async Task<string> UploadHistoryBatch(
