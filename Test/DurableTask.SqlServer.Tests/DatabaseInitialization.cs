@@ -27,9 +27,6 @@ namespace DurableTask.SqlServer.Tests
     [TestClass]
     public class DatabaseInitialization
     {
-        //Container will fail to start up if the password provided is not a "strong" password
-        private const string saPassword = "S3cur3P@$$w0rd";
-
         private static readonly AppSettings appSettings;
 
         static DatabaseInitialization()
@@ -39,6 +36,7 @@ namespace DurableTask.SqlServer.Tests
             new ConfigurationBuilder()
                 .SetBasePath(Environment.CurrentDirectory)
                 .AddJsonFile("appsettings.json", optional: true)
+                .AddEnvironmentVariables()
                 .Build()
                 .Bind(appSettings);
         }
@@ -46,6 +44,11 @@ namespace DurableTask.SqlServer.Tests
         [AssemblyInitialize]
         public static void Initialize(TestContext context)
         {
+            var saPassword = new SqlConnectionStringBuilder(appSettings.ConnectionStrings["SqlServer"]).Password;
+
+            if (string.IsNullOrWhiteSpace(saPassword))
+                throw new InvalidOperationException("The 'SqlServer' connection string must have a password.");
+
             //perform cleanup to return system to a known state
             EnsureSqlServerContainerIsRemoved().Wait();
 
@@ -84,6 +87,7 @@ namespace DurableTask.SqlServer.Tests
                 command.ExecuteNonQuery();
             }
         }
+
         [AssemblyCleanup]
         public static void Cleanup()
         {
@@ -124,7 +128,7 @@ namespace DurableTask.SqlServer.Tests
                 }
             }
 
-            throw new Exception("Unable to open connection to SQL Server");
+            throw new Exception("Unable to open connection to SQL Server. Please ensure Docker is running and the password provided meets the requirements for a strong password (https://docs.microsoft.com/en-us/sql/relational-databases/security/strong-passwords).");
         }
 
         private static SqlConnection GetMasterDatabaseConnection()
@@ -141,7 +145,7 @@ namespace DurableTask.SqlServer.Tests
         }
 
         private static SqlConnectionStringBuilder GetConnectionStringBuilder() =>
-            new SqlConnectionStringBuilder(appSettings.ConnectionStrings["SqlServer"]) { Password = saPassword };
+            new SqlConnectionStringBuilder(appSettings.ConnectionStrings["SqlServer"]);
 
         public class NoOpProgress : IProgress<JSONMessage>
         {
