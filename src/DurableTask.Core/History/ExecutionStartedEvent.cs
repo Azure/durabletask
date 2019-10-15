@@ -39,6 +39,13 @@ namespace DurableTask.Core.History
         }
 
         /// <summary>
+        /// Creates a new ExecutionStartedEvent
+        /// </summary>
+        internal ExecutionStartedEvent()
+        {
+        }
+
+        /// <summary>
         /// Gets the event type
         /// </summary>
         public override EventType EventType => EventType.ExecutionStarted;
