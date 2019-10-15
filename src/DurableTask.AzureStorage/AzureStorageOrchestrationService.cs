@@ -1244,6 +1244,12 @@ namespace DurableTask.AzureStorage
                 return;
             }
 
+            if (existingInstance != null && !OverrideConditionsMet(existingInstance.OrchestrationStatus))
+            {
+                // An instance in a state that is configured to not be overridable already exists
+                return;
+            }
+
             ControlQueue controlQueue = await this.GetControlQueueAsync(creationMessage.OrchestrationInstance.InstanceId);
             MessageData internalMessage = await this.SendTaskOrchestrationMessageInternalAsync(
                 EmptySourceInstance,
@@ -1263,6 +1269,26 @@ namespace DurableTask.AzureStorage
                 executionStartedEvent,
                 ignoreExistingInstances,
                 inputStatusOverride);
+        }
+
+        private bool OverrideConditionsMet(OrchestrationStatus orchestrationStatus)
+        {
+            OverridableStates overridableStates = settings.OverrideExistingInstanceStates;
+            if (overridableStates == OverridableStates.AnyState)
+            {
+                return true;
+            }
+            else if (overridableStates == OverridableStates.IfTerminatedFailedOrCompleted)
+            {
+                if (orchestrationStatus == OrchestrationStatus.Terminated || 
+                    orchestrationStatus == OrchestrationStatus.Failed || 
+                    orchestrationStatus == OrchestrationStatus.Completed)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>

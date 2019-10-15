@@ -173,6 +173,11 @@ namespace DurableTask.AzureStorage
         public BehaviorOnContinueAsNew EventBehaviourForContinueAsNew { get; set; } = BehaviorOnContinueAsNew.Carryover;
 
         /// <summary>
+        ///  
+        /// </summary>
+        public OverridableStates OverrideExistingInstanceStates { get; set; } = OverridableStates.AnyState;
+
+        /// <summary>
         /// Returns bool indicating is the TrackingStoreStorageAccount has been set.
         /// </summary>
         public  bool HasTrackingStoreStorageAccount => TrackingStoreStorageAccountDetails != null;
