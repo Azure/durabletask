@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
+  <PropertyGroup>
+    <TargetFrameworks>net461</TargetFrameworks>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PackageId>Microsoft.Azure.DurableTask.AzureServiceFabric</PackageId>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net461'">
+    <PackageReference Include="ImpromptuInterface" Version="6.2.2" />
+    <PackageReference Include="Newtonsoft.Json" Version="7.0.1" />
+    <Reference Include="System.Web" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
+    <PackageReference Include="ImpromptuInterface" Version="6.2.2" />
+    <PackageReference Include="Newtonsoft.Json" Version="7.0.1" />
+    <Reference Include="System.Web" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <!-- Restoring packages for netstandard2.0 causes warnings. As warnings are treated as errors, compilation will fail. -->
+    <!-- Once the packages support netstandard2.0, this project will support netstandard2.0. -->
+    <PackageReference Include="ImpromptuInterface" Version="7.0.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNet.WebApi.OwinSelfHost" Version="5.2.6" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="2.1.1" />
+    <PackageReference Include="Microsoft.ServiceFabric.Data" Version="3.3.617" />
+    <PackageReference Include="Microsoft.ServiceFabric.Services" Version="3.3.617" />
+    <PackageReference Include="Microsoft.ServiceFabric" Version="6.4.617" />
+    <PackageReference Include="System.Collections.Immutable" Version="1.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DurableTask.Core\DurableTask.Core.csproj" />
+  </ItemGroup>
+
+</Project>

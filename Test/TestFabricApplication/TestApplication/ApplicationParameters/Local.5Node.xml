@@ -1,0 +1,8 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Application xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" Name="fabric:/TestFabricApplicationType" xmlns="http://schemas.microsoft.com/2011/01/fabric">
+  <Parameters>
+    <Parameter Name="TestStatefulService_PartitionCount" Value="3" />
+    <Parameter Name="TestStatefulService_MinReplicaSetSize" Value="2" />
+    <Parameter Name="TestStatefulService_TargetReplicaSetSize" Value="3" />
+  </Parameters>
+</Application>

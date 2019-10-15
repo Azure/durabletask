@@ -26,19 +26,19 @@ namespace DurableTask.Core
         /// Event information for this task message
         /// </summary>
         [DataMember]
-        public HistoryEvent Event;
+        public HistoryEvent Event { get; set; }
 
         /// <summary>
         /// Sequence number for ordering of messages in history tracking
         /// </summary>
         [DataMember]
-        public long SequenceNumber;
+        public long SequenceNumber { get; set; }
 
         /// <summary>
         /// The orchestration instance information
         /// </summary>
         [DataMember]
-        public OrchestrationInstance OrchestrationInstance;
+        public OrchestrationInstance OrchestrationInstance { get; set; }
 
         /// <summary>
         /// Implementation for <see cref="IExtensibleDataObject.ExtensionData"/>.
