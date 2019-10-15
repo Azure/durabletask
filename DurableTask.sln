@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.26403.7
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29409.12
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.ServiceBus", "src\DurableTask.ServiceBus\DurableTask.ServiceBus.csproj", "{6F5D2EAD-726D-4FE5-A575-AEB96D1CCE37}"
 EndProject
@@ -41,9 +41,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.AzureStorage", 
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.AzureStorage.Tests", "Test\DurableTask.AzureStorage.Tests\DurableTask.AzureStorage.Tests.csproj", "{7CD147F9-1BB9-41FD-A310-BCA07447A6B9}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.Redis", "src\DurableTask.Redis\DurableTask.Redis.csproj", "{BDA5B320-5282-49FE-B0A7-1F8A0F06862C}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.Redis", "src\DurableTask.Redis\DurableTask.Redis.csproj", "{BDA5B320-5282-49FE-B0A7-1F8A0F06862C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.Redis.Tests", "Test\DurableTask.Redis.Tests\DurableTask.Redis.Tests.csproj", "{B1C3B554-A098-47F8-8FA9-C28B5BBF35B1}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.Redis.Tests", "Test\DurableTask.Redis.Tests\DurableTask.Redis.Tests.csproj", "{B1C3B554-A098-47F8-8FA9-C28B5BBF35B1}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.AzureServiceFabric", "src\DurableTask.AzureServiceFabric\DurableTask.AzureServiceFabric.csproj", "{3C10169F-4ACB-4FF6-A12B-B74569613E81}"
 EndProject
@@ -58,6 +58,10 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestApplication.StatefulService", "Test\TestFabricApplication\TestApplication.StatefulService\TestApplication.StatefulService.csproj", "{88A231A9-940D-43E4-B7CD-B46BA9375367}"
 EndProject
 Project("{A07B5EB6-E848-4116-A8D0-A826331D98C6}") = "TestApplication", "Test\TestFabricApplication\TestApplication\TestApplication.sfproj", "{1D52F94E-933C-411F-96C4-4960B423586F}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.SqlServer", "src\DurableTask.SqlServer\DurableTask.SqlServer.csproj", "{C9F84589-3F2B-4D58-A995-BC169D16217F}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.SqlServer.Tests", "Test\DurableTask.SqlServer.Tests\DurableTask.SqlServer.Tests.csproj", "{B835BFA6-D9BB-47C4-8594-38EAE0157BBA}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -153,16 +157,24 @@ Global
 		{7CD147F9-1BB9-41FD-A310-BCA07447A6B9}.Debug|x64.Build.0 = Debug|Any CPU
 		{7CD147F9-1BB9-41FD-A310-BCA07447A6B9}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7CD147F9-1BB9-41FD-A310-BCA07447A6B9}.Release|Any CPU.Build.0 = Release|Any CPU
-		{BDA5B320-5282-49FE-B0A7-1F8A0F06862C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{BDA5B320-5282-49FE-B0A7-1F8A0F06862C}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{BDA5B320-5282-49FE-B0A7-1F8A0F06862C}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{BDA5B320-5282-49FE-B0A7-1F8A0F06862C}.Release|Any CPU.Build.0 = Release|Any CPU
-		{B1C3B554-A098-47F8-8FA9-C28B5BBF35B1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{B1C3B554-A098-47F8-8FA9-C28B5BBF35B1}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{B1C3B554-A098-47F8-8FA9-C28B5BBF35B1}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{B1C3B554-A098-47F8-8FA9-C28B5BBF35B1}.Release|Any CPU.Build.0 = Release|Any CPU
 		{7CD147F9-1BB9-41FD-A310-BCA07447A6B9}.Release|x64.ActiveCfg = Release|Any CPU
 		{7CD147F9-1BB9-41FD-A310-BCA07447A6B9}.Release|x64.Build.0 = Release|Any CPU
+		{BDA5B320-5282-49FE-B0A7-1F8A0F06862C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BDA5B320-5282-49FE-B0A7-1F8A0F06862C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BDA5B320-5282-49FE-B0A7-1F8A0F06862C}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{BDA5B320-5282-49FE-B0A7-1F8A0F06862C}.Debug|x64.Build.0 = Debug|Any CPU
+		{BDA5B320-5282-49FE-B0A7-1F8A0F06862C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BDA5B320-5282-49FE-B0A7-1F8A0F06862C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BDA5B320-5282-49FE-B0A7-1F8A0F06862C}.Release|x64.ActiveCfg = Release|Any CPU
+		{BDA5B320-5282-49FE-B0A7-1F8A0F06862C}.Release|x64.Build.0 = Release|Any CPU
+		{B1C3B554-A098-47F8-8FA9-C28B5BBF35B1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B1C3B554-A098-47F8-8FA9-C28B5BBF35B1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B1C3B554-A098-47F8-8FA9-C28B5BBF35B1}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{B1C3B554-A098-47F8-8FA9-C28B5BBF35B1}.Debug|x64.Build.0 = Debug|Any CPU
+		{B1C3B554-A098-47F8-8FA9-C28B5BBF35B1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B1C3B554-A098-47F8-8FA9-C28B5BBF35B1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B1C3B554-A098-47F8-8FA9-C28B5BBF35B1}.Release|x64.ActiveCfg = Release|Any CPU
+		{B1C3B554-A098-47F8-8FA9-C28B5BBF35B1}.Release|x64.Build.0 = Release|Any CPU
 		{3C10169F-4ACB-4FF6-A12B-B74569613E81}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{3C10169F-4ACB-4FF6-A12B-B74569613E81}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3C10169F-4ACB-4FF6-A12B-B74569613E81}.Debug|x64.ActiveCfg = Debug|Any CPU
@@ -211,6 +223,22 @@ Global
 		{1D52F94E-933C-411F-96C4-4960B423586F}.Release|x64.ActiveCfg = Release|x64
 		{1D52F94E-933C-411F-96C4-4960B423586F}.Release|x64.Build.0 = Release|x64
 		{1D52F94E-933C-411F-96C4-4960B423586F}.Release|x64.Deploy.0 = Release|x64
+		{C9F84589-3F2B-4D58-A995-BC169D16217F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C9F84589-3F2B-4D58-A995-BC169D16217F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C9F84589-3F2B-4D58-A995-BC169D16217F}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{C9F84589-3F2B-4D58-A995-BC169D16217F}.Debug|x64.Build.0 = Debug|Any CPU
+		{C9F84589-3F2B-4D58-A995-BC169D16217F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C9F84589-3F2B-4D58-A995-BC169D16217F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C9F84589-3F2B-4D58-A995-BC169D16217F}.Release|x64.ActiveCfg = Release|Any CPU
+		{C9F84589-3F2B-4D58-A995-BC169D16217F}.Release|x64.Build.0 = Release|Any CPU
+		{B835BFA6-D9BB-47C4-8594-38EAE0157BBA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B835BFA6-D9BB-47C4-8594-38EAE0157BBA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B835BFA6-D9BB-47C4-8594-38EAE0157BBA}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{B835BFA6-D9BB-47C4-8594-38EAE0157BBA}.Debug|x64.Build.0 = Debug|Any CPU
+		{B835BFA6-D9BB-47C4-8594-38EAE0157BBA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B835BFA6-D9BB-47C4-8594-38EAE0157BBA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B835BFA6-D9BB-47C4-8594-38EAE0157BBA}.Release|x64.ActiveCfg = Release|Any CPU
+		{B835BFA6-D9BB-47C4-8594-38EAE0157BBA}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -236,9 +264,11 @@ Global
 		{99EB4BD2-72E4-4471-8E8D-9454BEACFA35} = {C53918E6-667A-4930-837C-0018C5D6E374}
 		{88A231A9-940D-43E4-B7CD-B46BA9375367} = {C53918E6-667A-4930-837C-0018C5D6E374}
 		{1D52F94E-933C-411F-96C4-4960B423586F} = {C53918E6-667A-4930-837C-0018C5D6E374}
+		{C9F84589-3F2B-4D58-A995-BC169D16217F} = {DBCD161C-D409-48E5-924E-9B7FA1C36B84}
+		{B835BFA6-D9BB-47C4-8594-38EAE0157BBA} = {95C69A06-7F62-4652-A480-207B614C2869}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {2D63A120-9394-48D9-8CA9-1184364FB854}
 		EnterpriseLibraryConfigurationToolBinariesPath = packages\TransientFaultHandling.Core.5.1.1209.1\lib\NET4
+		SolutionGuid = {2D63A120-9394-48D9-8CA9-1184364FB854}
 	EndGlobalSection
 EndGlobal
