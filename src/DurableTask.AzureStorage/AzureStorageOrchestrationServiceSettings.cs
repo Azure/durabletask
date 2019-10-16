@@ -173,7 +173,7 @@ namespace DurableTask.AzureStorage
         public BehaviorOnContinueAsNew EventBehaviourForContinueAsNew { get; set; } = BehaviorOnContinueAsNew.Carryover;
 
         /// <summary>
-        ///  
+        ///  States to override an existing orchestrator when attempting to start a new orchestrator with the same instance Id
         /// </summary>
         public OverridableStates OverrideExistingInstanceStates { get; set; } = OverridableStates.AnyState;
 
