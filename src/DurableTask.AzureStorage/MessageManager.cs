@@ -286,7 +286,7 @@ namespace DurableTask.AzureStorage
             while (true)
             {
                 OperationContext context = new OperationContext { ClientRequestID = Guid.NewGuid().ToString() };
-                BlobResultSegment segment = await TimeoutHandler.ExecuteWithTimeout("DeleteLargeMessageBlobs", context.ClientRequestID, null, null, () =>
+                BlobResultSegment segment = await TimeoutHandler.ExecuteWithTimeout("DeleteLargeMessageBlobs", context.ClientRequestID, cloudBlobContainer?.ServiceClient?.Credentials?.AccountName, null, () =>
                 {
                     return instanceDirectory.ListBlobsSegmentedAsync(blobContinuationToken);
                 });
