@@ -4,7 +4,8 @@ using System.Threading.Tasks;
 
 namespace DurableTask.AzureStorage
 {
-    //https://github.com/Azure/azure-webjobs-sdk/pull/2291
+    // Class that acts as a timeout handler to wrap Azure Storage calls, mitigating a deadlock that occurs with Azure Storage SDK 9.3.3.
+    // The TimeoutHandler class is based off of the similar Azure Functions fix seen here: https://github.com/Azure/azure-webjobs-sdk/pull/2291
     internal static class TimeoutHandler
     {
         private static readonly TimeSpan DefaultTimeout = TimeSpan.FromMinutes(2);
