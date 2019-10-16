@@ -79,7 +79,7 @@ namespace DurableTask.AzureStorage.Messaging
                     try
                     {
                         OperationContext context = new OperationContext { ClientRequestID = Guid.NewGuid().ToString() };
-                        IEnumerable<CloudQueueMessage> batch = await TimeoutHandler.ExecuteWithTimeout("GetMessages", context.ClientRequestID, null, null, () =>
+                        IEnumerable<CloudQueueMessage> batch = await TimeoutHandler.ExecuteWithTimeout("GetMessages", context.ClientRequestID, storageAccountName, settings.TaskHubName, () =>
                         {
                             return this.storageQueue.GetMessagesAsync(
                             this.settings.ControlQueueBatchSize,

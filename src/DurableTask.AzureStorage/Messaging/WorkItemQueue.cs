@@ -42,7 +42,7 @@ namespace DurableTask.AzureStorage.Messaging
                 try
                 {
                     OperationContext context = new OperationContext { ClientRequestID = Guid.NewGuid().ToString() };
-                    CloudQueueMessage queueMessage = await TimeoutHandler.ExecuteWithTimeout("GetMessage", context.ClientRequestID, null, null, () =>
+                    CloudQueueMessage queueMessage = await TimeoutHandler.ExecuteWithTimeout("GetMessage", context.ClientRequestID, storageAccountName, settings.TaskHubName, () =>
                     {
                         return this.storageQueue.GetMessageAsync(
                         this.settings.WorkItemQueueVisibilityTimeout,
