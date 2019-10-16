@@ -105,6 +105,9 @@ namespace DurableTask.AzureStorage.Messaging
                     session?.GetCurrentEpisode() ?? 0);
                 data.SequenceNumber = Interlocked.Increment(ref messageSequenceNumber);
 
+                // mark that this message was sent using the new version of the algorithm
+                data.NewPersistenceOrder = true;
+
                 string rawContent = await messageManager.SerializeMessageDataAsync(data);
                 CloudQueueMessage queueMessage = new CloudQueueMessage(rawContent);
 

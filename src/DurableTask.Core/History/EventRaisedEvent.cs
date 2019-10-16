@@ -48,5 +48,13 @@ namespace DurableTask.Core.History
         /// </summary>
         [DataMember]
         public string Input { get; set; }
+
+        /// <summary>
+        /// Gets or sets the fingerprint of the event. The fingerprint is used to detect duplicate delivery of events
+        /// within an orchestration history. Collision probability is sufficiently low (less than 1 in a billion for
+        /// histories with less than 100,000 entries).
+        /// </summary>
+        [DataMember]
+        public long FingerPrint { get; set; }
     }
 }

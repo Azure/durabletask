@@ -52,5 +52,11 @@ namespace DurableTask.Core.History
         /// </summary>
         [DataMember]
         public string Input { get; set; }
+
+        /// <summary>
+        /// Gets or sets the sub orchestration's execution id
+        /// </summary>
+        [DataMember]
+        public string ExecutionId { get; set; }
     }
 }

@@ -151,7 +151,7 @@ namespace DurableTask.Core
 
                     // Wait for new messages to arrive for the session. This call is expected to block (asynchronously)
                     // until either new messages are available or until a provider-specific timeout has expired.
-                    workItem.NewMessages = await workItem.Session.FetchNewOrchestrationMessagesAsync(workItem);
+                    workItem.NewMessages = await workItem.Session.FetchNewOrchestrationMessagesAsync(workItem, this.orchestrationService);
                     if (workItem.NewMessages == null)
                     {
                         break;
@@ -257,29 +257,37 @@ namespace DurableTask.Core
                         switch (decision.OrchestratorActionType)
                         {
                             case OrchestratorActionType.ScheduleOrchestrator:
-                                messagesToSend.Add(
-                                    ProcessScheduleTaskDecision((ScheduleTaskOrchestratorAction)decision, runtimeState,
-                                        IncludeParameters));
+                                var taskScheduledEvent = ProcessScheduleTaskDecision((ScheduleTaskOrchestratorAction)decision);
+                                runtimeState.AddEvent(taskScheduledEvent);
+                                var taskScheduledMessage = CreateTaskScheduledMessage(taskScheduledEvent, runtimeState.OrchestrationInstance);
+                                messagesToSend.Add(taskScheduledMessage);
                                 break;
                             case OrchestratorActionType.CreateTimer:
                                 var timerOrchestratorAction = (CreateTimerOrchestratorAction)decision;
-                                timerMessages.Add(ProcessCreateTimerDecision(timerOrchestratorAction, runtimeState));
+                                var timerCreatedEvent = ProcessCreateTimerDecision(timerOrchestratorAction);
+                                runtimeState.AddEvent(timerCreatedEvent);
+                                var timerFiredMessage = CreateTimerFiredMessage(timerCreatedEvent, runtimeState.OrchestrationInstance);
+                                timerMessages.Add(timerFiredMessage);
                                 break;
                             case OrchestratorActionType.CreateSubOrchestration:
                                 var createSubOrchestrationAction = (CreateSubOrchestrationAction)decision;
-                                orchestratorMessages.Add(
-                                    ProcessCreateSubOrchestrationInstanceDecision(createSubOrchestrationAction,
-                                        runtimeState, IncludeParameters));
+                                var subOrchestrationInstanceCreatedEvent = ProcessCreateSubOrchestrationInstanceDecision(createSubOrchestrationAction);
+                                runtimeState.AddEvent(subOrchestrationInstanceCreatedEvent);
+                                var executionStartedMessage = CreateExecutionStartedMessage(subOrchestrationInstanceCreatedEvent, runtimeState);
+                                orchestratorMessages.Add(executionStartedMessage);
                                 break;
                             case OrchestratorActionType.SendEvent:
                                 var sendEventAction = (SendEventOrchestratorAction)decision;
-                                orchestratorMessages.Add(
-                                   ProcessSendEventDecision(sendEventAction, runtimeState));
+                                var eventSentEvent = ProcessSendEventDecision(sendEventAction);
+                                runtimeState.AddEvent(eventSentEvent);
+                                var eventRaisedMessage = CreateEventRaisedMessage(eventSentEvent, runtimeState);
+                                orchestratorMessages.Add(eventRaisedMessage);
                                 break;
                             case OrchestratorActionType.OrchestrationComplete:
                                 OrchestrationCompleteOrchestratorAction completeDecision = (OrchestrationCompleteOrchestratorAction)decision;
-                                TaskMessage workflowInstanceCompletedMessage =
-                                    ProcessWorkflowCompletedTaskDecision(completeDecision, runtimeState, IncludeDetails, out continuedAsNew);
+                                var executionCompletedEvent = ProcessWorkflowCompletedTaskDecision(completeDecision, runtimeState, IncludeDetails, out continuedAsNew);
+                                runtimeState.AddEvent(executionCompletedEvent);
+                                var workflowInstanceCompletedMessage = CreateWorkflowCompletedTaskMessage(executionCompletedEvent, runtimeState);
                                 if (workflowInstanceCompletedMessage != null)
                                 {
                                     // Send complete message to parent workflow or to itself to start a new execution
@@ -340,7 +348,10 @@ namespace DurableTask.Core
                                 FireAt = DateTime.UtcNow
                             };
 
-                            timerMessages.Add(ProcessCreateTimerDecision(dummyTimer, runtimeState));
+                            var fakeTimerEvent = ProcessCreateTimerDecision(dummyTimer);
+                            runtimeState.AddEvent(fakeTimerEvent);
+                            var fakeTimerMessage = CreateTimerFiredMessage(fakeTimerEvent, runtimeState.OrchestrationInstance);
+                            timerMessages.Add(fakeTimerMessage);
                             isInterrupted = true;
                             break;
                         }
@@ -425,8 +436,6 @@ namespace DurableTask.Core
                 instanceState);
 
             workItem.OrchestrationRuntimeState = runtimeState;
-
-            workItem.Session?.UpdateRuntimeState(runtimeState);
 
             return isCompleted || continuedAsNew || isInterrupted;
         }
@@ -541,7 +550,7 @@ namespace DurableTask.Core
             return true;
         }
 
-        static TaskMessage ProcessWorkflowCompletedTaskDecision(
+        static ExecutionCompletedEvent ProcessWorkflowCompletedTaskDecision(
             OrchestrationCompleteOrchestratorAction completeOrchestratorAction,
             OrchestrationRuntimeState runtimeState,
             bool includeDetails,
@@ -552,7 +561,11 @@ namespace DurableTask.Core
             if (completeOrchestratorAction.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew)
             {
                 executionCompletedEvent = new ContinueAsNewEvent(completeOrchestratorAction.Id,
-                    completeOrchestratorAction.Result);
+                    completeOrchestratorAction.Result)
+                {
+                    ExecutionId = Guid.NewGuid().ToString("N"),
+                    NewVersion = completeOrchestratorAction.NewVersion,
+                };
             }
             else
             {
@@ -561,7 +574,10 @@ namespace DurableTask.Core
                     completeOrchestratorAction.OrchestrationStatus);
             }
 
-            runtimeState.AddEvent(executionCompletedEvent);
+            if (includeDetails)
+            {
+                executionCompletedEvent.Details = completeOrchestratorAction.Details;
+            }
 
             TraceHelper.TraceInstance(
                 runtimeState.OrchestrationStatus == OrchestrationStatus.Failed ? TraceEventType.Warning : TraceEventType.Information,
@@ -577,21 +593,28 @@ namespace DurableTask.Core
                 runtimeState.OrchestrationInstance,
                 () => Utils.EscapeJson(DataConverter.Serialize(runtimeState.Events, true)));
 
+            return executionCompletedEvent;
+        }
+
+        static TaskMessage CreateWorkflowCompletedTaskMessage(
+             ExecutionCompletedEvent executionCompletedEvent,
+             OrchestrationRuntimeState runtimeState)
+        {        
             // Check to see if we need to start a new execution
-            if (completeOrchestratorAction.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew)
+            if (executionCompletedEvent is ContinueAsNewEvent continueAsNewEvent)
             {
                 var taskMessage = new TaskMessage();
-                var startedEvent = new ExecutionStartedEvent(-1, completeOrchestratorAction.Result)
+                var startedEvent = new ExecutionStartedEvent(-1, continueAsNewEvent.Result)
                 {
                     OrchestrationInstance = new OrchestrationInstance
                     {
                         InstanceId = runtimeState.OrchestrationInstance.InstanceId,
-                        ExecutionId = Guid.NewGuid().ToString("N")
+                        ExecutionId = continueAsNewEvent.ExecutionId,
                     },
                     Tags = runtimeState.Tags,
                     ParentInstance = runtimeState.ParentInstance,
                     Name = runtimeState.Name,
-                    Version = completeOrchestratorAction.NewVersion ?? runtimeState.Version
+                    Version = continueAsNewEvent.NewVersion ?? runtimeState.Version
                 };
 
                 taskMessage.OrchestrationInstance = startedEvent.OrchestrationInstance;
@@ -606,21 +629,21 @@ namespace DurableTask.Core
                 && !OrchestrationTags.IsTaggedAsFireAndForget(runtimeState.Tags))
             {
                 var taskMessage = new TaskMessage();
-                if (completeOrchestratorAction.OrchestrationStatus == OrchestrationStatus.Completed)
+                if (executionCompletedEvent.OrchestrationStatus == OrchestrationStatus.Completed)
                 {
                     var subOrchestrationCompletedEvent =
                         new SubOrchestrationInstanceCompletedEvent(-1, runtimeState.ParentInstance.TaskScheduleId,
-                            completeOrchestratorAction.Result);
+                            executionCompletedEvent.Result);
 
                     taskMessage.Event = subOrchestrationCompletedEvent;
                 }
-                else if (completeOrchestratorAction.OrchestrationStatus == OrchestrationStatus.Failed ||
-                         completeOrchestratorAction.OrchestrationStatus == OrchestrationStatus.Terminated)
+                else if (executionCompletedEvent.OrchestrationStatus == OrchestrationStatus.Failed ||
+                         executionCompletedEvent.OrchestrationStatus == OrchestrationStatus.Terminated)
                 {
                     var subOrchestrationFailedEvent =
                         new SubOrchestrationInstanceFailedEvent(-1, runtimeState.ParentInstance.TaskScheduleId,
-                            completeOrchestratorAction.Result,
-                            includeDetails ? completeOrchestratorAction.Details : null);
+                            executionCompletedEvent.Result,
+                            executionCompletedEvent.Details);
 
                     taskMessage.Event = subOrchestrationFailedEvent;
                 }
@@ -635,127 +658,160 @@ namespace DurableTask.Core
             return null;
         }
 
-        static TaskMessage ProcessScheduleTaskDecision(
-            ScheduleTaskOrchestratorAction scheduleTaskOrchestratorAction,
-            OrchestrationRuntimeState runtimeState,
-            bool includeParameters)
-        {
-            var taskMessage = new TaskMessage();
 
-            var scheduledEvent = new TaskScheduledEvent(scheduleTaskOrchestratorAction.Id)
+        static TaskScheduledEvent ProcessScheduleTaskDecision(ScheduleTaskOrchestratorAction scheduleTaskOrchestratorAction)
+        {
+            return new TaskScheduledEvent(scheduleTaskOrchestratorAction.Id)
             {
                 Name = scheduleTaskOrchestratorAction.Name,
                 Version = scheduleTaskOrchestratorAction.Version,
-                Input = scheduleTaskOrchestratorAction.Input
+                Input = scheduleTaskOrchestratorAction.Input,
             };
+        }
 
-            taskMessage.Event = scheduledEvent;
-            taskMessage.OrchestrationInstance = runtimeState.OrchestrationInstance;
-
-            if (!includeParameters)
+        static TaskMessage CreateTaskScheduledMessage(
+            TaskScheduledEvent evt,
+            OrchestrationInstance orchestrationInstance)
+        {
+            return new TaskMessage()
             {
-                scheduledEvent = new TaskScheduledEvent(scheduleTaskOrchestratorAction.Id)
+                Event = evt,
+                OrchestrationInstance = orchestrationInstance,
+            };
+        }
+
+        static TimerCreatedEvent ProcessCreateTimerDecision(
+            CreateTimerOrchestratorAction createTimerOrchestratorAction)
+        {
+            return new TimerCreatedEvent(createTimerOrchestratorAction.Id)
+            {
+                FireAt = createTimerOrchestratorAction.FireAt
+            };
+        }
+
+       
+        static TaskMessage CreateTimerFiredMessage(
+            TimerCreatedEvent timerCreatedEvent,
+            OrchestrationInstance orchestrationInstance)
+        {
+            return new TaskMessage()
+            {
+                Event = new TimerFiredEvent(-1)
                 {
-                    Name = scheduleTaskOrchestratorAction.Name,
-                    Version = scheduleTaskOrchestratorAction.Version
-                };
-            }
-
-            runtimeState.AddEvent(scheduledEvent);
-            return taskMessage;
-        }
-
-        static TaskMessage ProcessCreateTimerDecision(
-            CreateTimerOrchestratorAction createTimerOrchestratorAction,
-            OrchestrationRuntimeState runtimeState)
-        {
-            var taskMessage = new TaskMessage();
-
-            runtimeState.AddEvent(new TimerCreatedEvent(createTimerOrchestratorAction.Id)
-            {
-                FireAt = createTimerOrchestratorAction.FireAt
-            });
-
-            taskMessage.Event = new TimerFiredEvent(-1)
-            {
-                TimerId = createTimerOrchestratorAction.Id,
-                FireAt = createTimerOrchestratorAction.FireAt
+                    TimerId = timerCreatedEvent.EventId,
+                    FireAt = timerCreatedEvent.FireAt,
+                },
+                OrchestrationInstance = orchestrationInstance,
             };
-
-            taskMessage.OrchestrationInstance = runtimeState.OrchestrationInstance;
-
-            return taskMessage;
         }
 
-        static TaskMessage ProcessCreateSubOrchestrationInstanceDecision(
-            CreateSubOrchestrationAction createSubOrchestrationAction,
-            OrchestrationRuntimeState runtimeState,
-            bool includeParameters)
+        static SubOrchestrationInstanceCreatedEvent ProcessCreateSubOrchestrationInstanceDecision(
+            CreateSubOrchestrationAction createSubOrchestrationAction)
         {
-            var historyEvent = new SubOrchestrationInstanceCreatedEvent(createSubOrchestrationAction.Id)
+            return new SubOrchestrationInstanceCreatedEvent(createSubOrchestrationAction.Id)
             {
                 Name = createSubOrchestrationAction.Name,
                 Version = createSubOrchestrationAction.Version,
-                InstanceId = createSubOrchestrationAction.InstanceId
+                InstanceId = createSubOrchestrationAction.InstanceId,
+                Input = createSubOrchestrationAction.Input,
+                ExecutionId = Guid.NewGuid().ToString("N"),
+                Tags = createSubOrchestrationAction.Tags,
             };
-            if (includeParameters)
-            {
-                historyEvent.Input = createSubOrchestrationAction.Input;
-            }
-
-            runtimeState.AddEvent(historyEvent);
-
-            var taskMessage = new TaskMessage();
-
-            var startedEvent = new ExecutionStartedEvent(-1, createSubOrchestrationAction.Input)
-            {
-                Tags = OrchestrationTags.MergeTags(createSubOrchestrationAction.Tags, runtimeState.Tags),
-                OrchestrationInstance = new OrchestrationInstance
-                {
-                    InstanceId = createSubOrchestrationAction.InstanceId,
-                    ExecutionId = Guid.NewGuid().ToString("N")
-                },
-                ParentInstance = new ParentInstance
-                {
-                    OrchestrationInstance = runtimeState.OrchestrationInstance,
-                    Name = runtimeState.Name,
-                    Version = runtimeState.Version,
-                    TaskScheduleId = createSubOrchestrationAction.Id
-                },
-                Name = createSubOrchestrationAction.Name,
-                Version = createSubOrchestrationAction.Version
-            };
-
-            taskMessage.OrchestrationInstance = startedEvent.OrchestrationInstance;
-            taskMessage.Event = startedEvent;
-
-            return taskMessage;
         }
 
-        static TaskMessage ProcessSendEventDecision(
-            SendEventOrchestratorAction sendEventAction,
+        static TaskMessage CreateExecutionStartedMessage(
+            SubOrchestrationInstanceCreatedEvent subOrchestrationInstanceCreatedEvent,
             OrchestrationRuntimeState runtimeState)
         {
-            var historyEvent = new EventSentEvent(sendEventAction.Id)
+            var targetInstance = new OrchestrationInstance
             {
-                 InstanceId = sendEventAction.Instance.InstanceId,
-                 Name = sendEventAction.EventName,
-                 Input = sendEventAction.EventData
+                InstanceId = subOrchestrationInstanceCreatedEvent.InstanceId,
+                ExecutionId = subOrchestrationInstanceCreatedEvent.ExecutionId,
             };
-            
-            runtimeState.AddEvent(historyEvent);
+            return new TaskMessage()
+            {
+                OrchestrationInstance = targetInstance,
+                Event = new ExecutionStartedEvent(-1, subOrchestrationInstanceCreatedEvent.Input)
+                {
+                    Tags = OrchestrationTags.MergeTags(subOrchestrationInstanceCreatedEvent.Tags, runtimeState.Tags),
+                    OrchestrationInstance = targetInstance,
+                    ParentInstance = new ParentInstance
+                    {
+                        OrchestrationInstance = runtimeState.OrchestrationInstance,
+                        Name = runtimeState.Name,
+                        Version = runtimeState.Version,
+                        TaskScheduleId = subOrchestrationInstanceCreatedEvent.EventId
+                    },
+                    Name = subOrchestrationInstanceCreatedEvent.Name,
+                    Version = subOrchestrationInstanceCreatedEvent.Version
+                },
+            };
+        }
+
+        static EventSentEvent ProcessSendEventDecision(SendEventOrchestratorAction sendEventAction)
+        {
+            return new EventSentEvent(sendEventAction.Id)
+            {
+                InstanceId = sendEventAction.Instance.InstanceId,
+                Name = sendEventAction.EventName,
+                Input = sendEventAction.EventData,
+                ExecutionId = sendEventAction.Instance.ExecutionId,
+            };
+        }
+
+        static TaskMessage CreateEventRaisedMessage(EventSentEvent eventSentEvent, OrchestrationRuntimeState runtimeState)
+        {
+            var targetInstance = new OrchestrationInstance
+            {
+                InstanceId = eventSentEvent.InstanceId,
+                ExecutionId = eventSentEvent.ExecutionId,
+            };
 
             return new TaskMessage
             {
-                OrchestrationInstance = sendEventAction.Instance,
-                Event = new EventRaisedEvent(-1, sendEventAction.EventData)
+                OrchestrationInstance = targetInstance,
+                Event = new EventRaisedEvent(-1, eventSentEvent.Input)
                 {
-                    Name = sendEventAction.EventName
+                    Name = eventSentEvent.Name,
+                    FingerPrint = Utils.ComputeLongHash(runtimeState.OrchestrationInstance.InstanceId, runtimeState.OrchestrationInstance.ExecutionId, (uint) eventSentEvent.EventId),
                 }
             };
         }
-
  
+        /// <summary>
+        /// Recreate the task message that was sent by the given event. Can be used by storage providers
+        /// to restore lost messages in cases where the history was saved but the messages were not.
+        /// </summary>
+        /// <param name="historyEvent">The history event.</param>
+        /// <param name="runtimeState">The runtime state of the orchestration.</param>
+        /// <returns></returns>
+        public static TaskMessage RecreateMessageForEvent(HistoryEvent historyEvent, OrchestrationRuntimeState runtimeState)
+        {
+            switch (historyEvent.EventType)
+            {
+                case EventType.ExecutionCompleted:
+                case EventType.ExecutionFailed:
+                case EventType.ExecutionTerminated:
+                case EventType.ContinueAsNew:
+                    return TaskOrchestrationDispatcher.CreateWorkflowCompletedTaskMessage((ExecutionCompletedEvent)historyEvent, runtimeState);
+
+                case EventType.TaskScheduled:
+                    return TaskOrchestrationDispatcher.CreateTaskScheduledMessage((TaskScheduledEvent)historyEvent, runtimeState.OrchestrationInstance);
+
+                case EventType.SubOrchestrationInstanceCreated:
+                    return TaskOrchestrationDispatcher.CreateExecutionStartedMessage((SubOrchestrationInstanceCreatedEvent)historyEvent, runtimeState);
+
+                case EventType.TimerCreated:
+                    return TaskOrchestrationDispatcher.CreateTimerFiredMessage((TimerCreatedEvent)historyEvent, runtimeState.OrchestrationInstance);
+
+                case EventType.EventSent:
+                    return TaskOrchestrationDispatcher.CreateEventRaisedMessage((EventSentEvent)historyEvent, runtimeState);
+
+                default:
+                    return null;
+            }
+        }
+
         class NonBlockingCountdownLock
         {
             int available;

@@ -32,6 +32,18 @@ namespace DurableTask.Core.History
         }
 
         /// <summary>
+        /// Gets or sets the execution id for the next execution of this workflow.
+        /// </summary>
+        [DataMember]
+        public string ExecutionId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the version for the next execution of this workflow.
+        /// </summary>
+        [DataMember]
+        public string NewVersion { get; set; }
+
+        /// <summary>
         /// Gets the event type
         /// </summary>
         public override EventType EventType => EventType.ContinueAsNew;

@@ -151,6 +151,63 @@ namespace DurableTask.Core.Common
         }
 
         /// <summary>
+        /// Compute an FNV hash from two strings and a long.
+        /// </summary>
+        /// <param name="str1">The first string.</param>
+        /// <param name="str2">The second string.</param>
+        /// <param name="number">The number.</param>
+        /// <returns></returns>
+        public static long ComputeLongHash(string str1, string str2, uint number)
+        {
+            unchecked
+            {
+                var hash = 0xcbf29ce484222325ul; // FNV_offset_basis
+                var prime = 0x100000001b3ul; // FNV_prime
+
+                if (str1 != null)
+                {
+                    for (int i = 0; i < str1.Length; i++)
+                    {
+                        hash ^= str1[i];
+                        hash *= prime;
+                    }
+                }
+                if (str2 != null)
+                {
+                    for (int i = 0; i < str2.Length; i++)
+                    {
+                        hash ^= str2[i];
+                        hash *= prime;
+                    }
+                }
+
+                hash ^= number & 0xFF;
+                hash *= prime;
+                number >>= 8;
+                hash ^= number & 0xFF;
+                hash *= prime;
+                number >>= 8;
+                hash ^= number & 0xFF;
+                hash *= prime;
+                number >>= 8;
+                hash ^= number & 0xFF;
+                hash *= prime;
+
+                return (long)hash;
+            }
+        }
+
+        /// <summary>
+        /// Compute a random long.
+        /// </summary>
+        /// <returns></returns>
+        public static long RandomLong()
+        {
+            var random = new Random();
+            return (long)(((ulong)((uint)random.Next()) << 32) | (uint)random.Next());
+        }
+
+        /// <summary>
         /// Returns true or false whether the supplied stream is a compressed stream
         /// </summary>
         public static bool IsGzipStream(Stream stream)

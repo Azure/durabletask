@@ -50,5 +50,11 @@ namespace DurableTask.Core.History
         /// </summary>
         [DataMember]
         public string Result { get; private set; }
+
+        /// <summary>
+        /// Gets or sets the details
+        /// </summary>
+        [DataMember]
+        public string Details { get; set; }
     }
 }

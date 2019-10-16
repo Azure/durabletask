@@ -29,11 +29,6 @@ namespace DurableTask.Core
         /// or until an internal wait period has expired. In either case, <c>null</c> can be returned
         /// and the dispatcher will shut down the session.
         /// </remarks>
-        Task<IList<TaskMessage>> FetchNewOrchestrationMessagesAsync(TaskOrchestrationWorkItem workItem);
-
-        /// <summary>
-        /// Updates the in-memory session info.
-        /// </summary>
-        void UpdateRuntimeState(OrchestrationRuntimeState runtimeState);
+        Task<IList<TaskMessage>> FetchNewOrchestrationMessagesAsync(TaskOrchestrationWorkItem workItem, IOrchestrationService orchestrationService);
     }
 }

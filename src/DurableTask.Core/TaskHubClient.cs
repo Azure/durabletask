@@ -511,7 +511,11 @@ namespace DurableTask.Core
             var taskMessage = new TaskMessage
             {
                 OrchestrationInstance = orchestrationInstance,
-                Event = new EventRaisedEvent(-1, serializedInput) { Name = eventName }
+                Event = new EventRaisedEvent(-1, serializedInput)
+                {
+                    Name = eventName,
+                    FingerPrint = Common.Utils.RandomLong(),
+                }
             };
 
             await ServiceClient.SendTaskOrchestrationMessageAsync(taskMessage);

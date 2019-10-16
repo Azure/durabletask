@@ -16,6 +16,7 @@ namespace DurableTask.AzureStorage.Messaging
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Core;
     using DurableTask.Core.History;
@@ -94,7 +95,8 @@ namespace DurableTask.AzureStorage.Messaging
 
         // Called by the DTFx dispatcher thread
         public async Task<IList<TaskMessage>> FetchNewOrchestrationMessagesAsync(
-            TaskOrchestrationWorkItem workItem)
+            TaskOrchestrationWorkItem workItem,
+            IOrchestrationService orchestrationService)
         {
             if (!await this.messagesAvailableEvent.WaitAsync(this.idleTimeout))
             {
@@ -105,6 +107,11 @@ namespace DurableTask.AzureStorage.Messaging
             {
                 this.CurrentMessageBatch = this.nextMessageBatch.ToArray();
                 this.nextMessageBatch.Clear();
+            }
+
+            if (this.CurrentMessageBatch.Count > 0)
+            {
+                await ((AzureStorageOrchestrationService)orchestrationService).PreprocessEvents(this, CancellationToken.None);
             }
 
             var messages = new List<TaskMessage>(this.CurrentMessageBatch.Count);

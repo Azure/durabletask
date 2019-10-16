@@ -66,6 +66,12 @@ namespace DurableTask.AzureStorage
         public long SequenceNumber { get; set; }
 
         /// <summary>
+        /// Whether this message uses the new algorithm, i.e. was sent after being persisted in history.
+        /// </summary>
+        [DataMember]
+        public bool NewPersistenceOrder { get; set; }
+
+        /// <summary>
         /// The episode number of the orchestration which created this message.
         /// </summary>
         /// <remarks>
@@ -84,6 +90,7 @@ namespace DurableTask.AzureStorage
         internal long TotalMessageSizeBytes { get; set; }
 
         internal MessageFormatFlags MessageFormat { get; set; }
+
     }
 
     /// <summary>

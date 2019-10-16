@@ -614,7 +614,7 @@ namespace DurableTask.AzureStorage
                     List<MessageData> outOfOrderMessages = null;
                     foreach (MessageData message in session.CurrentMessageBatch)
                     {
-                        if (session.IsOutOfOrderMessage(message))
+                        if (!message.NewPersistenceOrder && session.IsOutOfOrderMessage(message))
                         {
                             if (outOfOrderMessages == null)
                             {
@@ -648,6 +648,8 @@ namespace DurableTask.AzureStorage
                         // This will also remove the messages from the current batch.
                         await this.AbandonMessagesAsync(session, outOfOrderMessages);
                     }
+
+                    await this.PreprocessEvents(session, linkedCts.Token);
 
                     if (session.CurrentMessageBatch.Count == 0)
                     {
@@ -859,19 +861,8 @@ namespace DurableTask.AzureStorage
             string instanceId = workItem.InstanceId;
             string executionId = runtimeState.OrchestrationInstance.ExecutionId;
 
-            // First, add new messages into the queue. If a failure happens after this, duplicate messages will
-            // be written after the retry, but the results of those messages are expected to be de-dup'd later.
-            // This provider needs to ensure that response messages are not processed until the history a few
-            // lines down has been successfully committed.
-            await this.CommitOutboundQueueMessages(
-                session,
-                outboundMessages,
-                orchestratorMessages,
-                timerMessages,
-                continuedAsNewMessage);
-
-            // Next, commit the orchestration history updates. This is the actual "checkpoint". Failures after this
-            // will result in a duplicate replay of the orchestration with no side-effects.
+            // First, commit the orchestration history updates. This is the actual "checkpoint". Failures after this
+            // will no longer change the history.
             try
             {
                 session.ETag = await this.trackingStore.UpdateStateAsync(runtimeState, workItem.OrchestrationRuntimeState, instanceId, executionId, session.ETag);
@@ -901,8 +892,24 @@ namespace DurableTask.AzureStorage
                 throw;
             }
 
+            // update the latest runtime state in the in-memory session object, if using in-memory sessions.
+            session.UpdateRuntimeState(runtimeState);
+
+            // Send outbound queue messages.
+            await this.CommitOutboundQueueMessages(
+                session,
+                outboundMessages,
+                orchestratorMessages,
+                timerMessages,
+                continuedAsNewMessage);
+
             // Finally, delete the messages which triggered this orchestration execution. This is the final commit.
             await this.DeleteMessageBatchAsync(session);
+
+            // If we fail before this final step, but after committing the history, the messages will become visible again; 
+            // but then they are identified as duplicates prior
+            // to processing, and any outbound messages (which may have not been durably enqueued) 
+            // are reconstructed from the saved history and resent.
         }
 
         async Task CommitOutboundQueueMessages(
@@ -956,6 +963,155 @@ namespace DurableTask.AzureStorage
             await enqueueOperations.ParallelForEachAsync(
                 this.settings.MaxStorageOperationConcurrency,
                 op => op.Queue.AddMessageAsync(op.Message, session));
+
+            // continue as new must be enqueued after all other messages have been successfully enqueued,
+            // because once the continue as new is received, the previous history goes away, so it cannot
+            // be used to recover messages that failed during enqueueing
+            if (continuedAsNewMessage != null)
+            {
+                await session.ControlQueue.AddMessageAsync(continuedAsNewMessage, session);
+            }
+        }
+
+        internal async Task PreprocessEvents(OrchestrationSession session, CancellationToken token)
+        {
+            // peforms three tasks on incoming events:
+            // - remove events that are not meant for this execution
+            // - remove events that are duplicates, i.e. have already been delivered to this execution
+            // - when receiving a duplicate, resend all subsequent messages in the history as they may have been lost
+
+            List<MessageData> toRemove = new List<MessageData>();
+            int earliestDuplicate = int.MaxValue;
+
+            foreach (var message in session.CurrentMessageBatch)
+            {
+                if (!message.NewPersistenceOrder)
+                {
+                    continue; // legacy support: do not preprocess messages sent by previous version of algorithm 
+                }
+
+                var targetedExecutionId = message.TaskMessage.OrchestrationInstance.ExecutionId;
+
+                System.Diagnostics.Debug.Assert(targetedExecutionId == null || session.Instance.ExecutionId == targetedExecutionId);
+
+                // check if message is a duplicate of some history event
+                var events = session.RuntimeState.Events;
+                for (var pos = 0; pos < events.Count; pos++)
+                {
+                    var evt = events[pos];
+                    foreach (var msg in session.CurrentMessageBatch)
+                    {
+                        if (msg.TaskMessage.Event.EventType == evt.EventType
+                            && this.IsDuplicate(evt, msg))
+                        {
+                            toRemove.Add(msg);
+                            earliestDuplicate = Math.Min(earliestDuplicate, pos);
+                        }
+                    }
+                }
+            }   
+
+            if (toRemove.Count > 0)
+            {
+                foreach (var x in toRemove)
+                {
+                    session.CurrentMessageBatch.Remove(x);
+                }
+
+                if (earliestDuplicate < int.MaxValue)
+                {
+                    await this.ResendAllPossiblyLostMessages(session, earliestDuplicate);
+                }
+
+                await toRemove.ParallelForEachAsync(
+                    this.settings.MaxStorageOperationConcurrency,
+                    message => session.ControlQueue.DeleteMessageAsync(message, session));
+            }
+        }
+
+        private bool IsDuplicate(HistoryEvent evt, MessageData message)
+        {       
+            switch (evt.EventType)
+            {
+                case EventType.ExecutionStarted:
+                    System.Diagnostics.Debug.Assert(message.TaskMessage.OrchestrationInstance.ExecutionId != null);
+                    return true;
+
+                case EventType.EventRaised:
+                    return ((EventRaisedEvent)evt).FingerPrint
+                        == ((EventRaisedEvent)(message.TaskMessage.Event)).FingerPrint;
+
+                case EventType.TaskCompleted:
+                    System.Diagnostics.Debug.Assert(message.TaskMessage.OrchestrationInstance.ExecutionId != null);
+                    return ((TaskCompletedEvent)evt).TaskScheduledId 
+                        == ((TaskCompletedEvent)(message.TaskMessage.Event)).TaskScheduledId;
+                case EventType.TaskFailed:
+                    System.Diagnostics.Debug.Assert(message.TaskMessage.OrchestrationInstance.ExecutionId != null);
+                    return ((TaskFailedEvent)evt).TaskScheduledId
+                        == ((TaskFailedEvent)(message.TaskMessage.Event)).TaskScheduledId;
+                case EventType.SubOrchestrationInstanceCompleted:
+                    System.Diagnostics.Debug.Assert(message.TaskMessage.OrchestrationInstance.ExecutionId != null);
+                    return ((SubOrchestrationInstanceCompletedEvent)evt).TaskScheduledId
+                        == ((SubOrchestrationInstanceCompletedEvent)(message.TaskMessage.Event)).TaskScheduledId;
+                case EventType.SubOrchestrationInstanceFailed:
+                    System.Diagnostics.Debug.Assert(message.TaskMessage.OrchestrationInstance.ExecutionId != null);
+                    return ((SubOrchestrationInstanceFailedEvent)evt).TaskScheduledId
+                        == ((SubOrchestrationInstanceFailedEvent)(message.TaskMessage.Event)).TaskScheduledId;
+                case EventType.TimerFired:
+                    System.Diagnostics.Debug.Assert(message.TaskMessage.OrchestrationInstance.ExecutionId != null);
+                    return ((TimerFiredEvent)evt).TimerId
+                        == ((TimerFiredEvent)(message.TaskMessage.Event)).TimerId;
+
+                default:
+                    return false;
+            }
+        }
+
+        private Task ResendAllPossiblyLostMessages(OrchestrationSession session, int fromHistoryIndex)
+        {
+            List<TaskMessage> outboundMessages = new List<TaskMessage>();
+            List<TaskMessage> orchestratorMessages = new List<TaskMessage>();
+            List<TaskMessage> timerMessages = new List<TaskMessage>();
+            TaskMessage continuedAsNewMessage = null;
+
+            var events = session.RuntimeState.Events;
+            for (int i = fromHistoryIndex; i < events.Count; i++)
+            {
+                var message = TaskOrchestrationDispatcher.RecreateMessageForEvent(events[i], session.RuntimeState);
+                if (message != null)
+                {
+                    switch (message.Event.EventType)
+                    {
+                        case EventType.ContinueAsNew:
+                            continuedAsNewMessage = message;
+                            break;
+
+                        case EventType.ExecutionCompleted:
+                        case EventType.ExecutionFailed:
+                        case EventType.ExecutionTerminated:
+                        case EventType.SubOrchestrationInstanceCreated:
+                        case EventType.EventSent:
+                            orchestratorMessages.Add(message);
+                            break;
+
+                        case EventType.TaskScheduled:
+                            outboundMessages.Add(message);
+                            break;
+
+                        case EventType.TimerCreated:
+                            timerMessages.Add(message);
+                            break;
+                    }
+                }
+            }
+
+            if (continuedAsNewMessage != null)
+            {
+                timerMessages.Clear();
+                outboundMessages.Clear();
+            }
+
+            return this.CommitOutboundQueueMessages(session, outboundMessages, orchestratorMessages, timerMessages, continuedAsNewMessage);
         }
 
         async Task DeleteMessageBatchAsync(OrchestrationSession session)

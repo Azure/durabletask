@@ -13,6 +13,7 @@
 
 namespace DurableTask.Core.History
 {
+    using System.Collections.Generic;
     using System.Runtime.Serialization;
 
     /// <summary>
@@ -58,5 +59,17 @@ namespace DurableTask.Core.History
         /// </summary>
         [DataMember]
         public string Input { get; set; }
+
+        /// <summary>
+        /// Gets or sets the sub orchestration's execution id
+        /// </summary>
+        [DataMember]
+        public string ExecutionId { get; set; }
+
+        /// <summary>
+        /// Gets or sets a dictionary of tags of string, string
+        /// </summary>
+        [DataMember]
+        public IDictionary<string, string> Tags { get; set; }
     }
 }
