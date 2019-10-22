@@ -35,7 +35,7 @@ namespace DurableTask.AzureStorage
                 if (Equals(timeoutTask, completedTask))
                 {
                     var message = $"The operation '{operationName}' with id '{clientRequestId}' did not complete in '{DefaultTimeout}'. Terminating the process to mitigate potential deadlock.";
-                    AnalyticsEventSource.Log.OrchestrationProcessingFailure(account, taskHub, null, null, message, Utils.ExtensionVersion);
+                    AnalyticsEventSource.Log.GeneralError(account ?? "", taskHub ?? "", message, Utils.ExtensionVersion);
 
                     // Delay to ensure the ETW event gets written
                     await Task.Delay(TimeSpan.FromSeconds(3));
