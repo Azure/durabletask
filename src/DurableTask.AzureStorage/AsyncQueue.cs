@@ -33,7 +33,7 @@ namespace DurableTask.AzureStorage
 
         public async Task<T> DequeueAsync(CancellationToken cancellationToken)
         {
-            while (true)
+            while (!cancellationToken.IsCancellationRequested)
             {
                 await this.semaphore.WaitAsync(cancellationToken);
 
@@ -42,6 +42,8 @@ namespace DurableTask.AzureStorage
                     return item;
                 }
             }
+
+            return default(T);
         }
 
         public void Dispose()

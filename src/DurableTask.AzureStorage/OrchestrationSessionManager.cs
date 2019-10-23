@@ -402,11 +402,14 @@ namespace DurableTask.AzureStorage
                     this.activeOrchestrationSessions.Remove(instanceId))
                 {
                     // Put any unprocessed messages back into the pending buffer.
-                    this.AddMessageToPendingOrchestration(
-                        session.ControlQueue,
-                        session.PendingMessages,
-                        session.TraceActivityId,
-                        cancellationToken);
+                    if (session.PendingMessages.Count > 0)
+                    {
+                        this.AddMessageToPendingOrchestration(
+                            session.ControlQueue,
+                            session.PendingMessages,
+                            session.TraceActivityId,
+                            cancellationToken);
+                    }
                 }
                 else
                 {

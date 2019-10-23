@@ -103,7 +103,7 @@ namespace DurableTask.AzureStorage.Messaging
 
             lock (this.nextMessageBatch)
             {
-                this.CurrentMessageBatch = this.nextMessageBatch.ToArray();
+                this.CurrentMessageBatch = this.nextMessageBatch.ToList();
                 this.nextMessageBatch.Clear();
             }
 

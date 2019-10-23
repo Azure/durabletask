@@ -43,6 +43,8 @@ namespace DurableTask.AzureStorage.Tests
 
         public string TaskHub => this.settings.TaskHubName;
 
+        public AzureStorageOrchestrationServiceSettings Settings => settings;
+
         public void Dispose()
         {
             this.worker.Dispose();

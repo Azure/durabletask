@@ -173,6 +173,11 @@ namespace DurableTask.AzureStorage
         public BehaviorOnContinueAsNew EventBehaviourForContinueAsNew { get; set; } = BehaviorOnContinueAsNew.Carryover;
 
         /// <summary>
+        /// Number of execution histories retained. Must be at least 2, and at most 10.
+        /// </summary>
+        public int NumberOfRetainedExecutionHistories { get; set; } = 3;
+
+        /// <summary>
         /// Returns bool indicating is the TrackingStoreStorageAccount has been set.
         /// </summary>
         public  bool HasTrackingStoreStorageAccount => TrackingStoreStorageAccountDetails != null;

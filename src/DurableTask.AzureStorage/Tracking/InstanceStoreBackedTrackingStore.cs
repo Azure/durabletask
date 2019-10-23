@@ -127,42 +127,49 @@ namespace DurableTask.AzureStorage.Tracking
             return Utils.CompletedTask;
         }
 
-        /// <inheritdoc />
-        public override async Task<string> UpdateStateAsync(OrchestrationRuntimeState newRuntimeState, OrchestrationRuntimeState oldRuntimeState, string instanceId, string executionId, string eTag)
+         /// <inheritdoc />
+        public override async Task<string> UpdateStateAsync(OrchestrationRuntimeState newRuntimeState, string instanceId, string mostRecentExecutionId, string eTag, Func<Task> renewIfNeeded)
         {
-            //In case there is a runtime state for an older execution/iteration as well that needs to be committed, commit it.
-            //This may be the case if a ContinueAsNew was executed on the orchestration
-            if (newRuntimeState != oldRuntimeState)
+            // local function for collecting all new events of a given execution and previous executions
+            async Task CollectEvents(OrchestrationRuntimeState runtimeState, string executionId, List<OrchestrationWorkItemInstanceEntity> list)
             {
-                eTag = await UpdateStateAsync(oldRuntimeState, instanceId, oldRuntimeState.OrchestrationInstance.ExecutionId, eTag);
+                var allEvents = runtimeState.Events;
+                var newEvents = runtimeState.NewEvents;
+
+                if (newEvents.Count == allEvents.Count
+                    && runtimeState.PreviousExecution != null)
+                {
+                    // first collect all events in the previous execution(s)
+                    await CollectEvents(runtimeState.PreviousExecution, runtimeState.PreviousExecution.OrchestrationInstance.ExecutionId, list);
+                }
+
+                for (int i = 0; i < newEvents.Count; i++)
+                {
+                    var historyEvent = newEvents[i];
+
+                    list.Add(new OrchestrationWorkItemInstanceEntity()
+                    {
+                        HistoryEvent = historyEvent,
+                        ExecutionId = executionId,
+                        InstanceId = instanceId,
+                        SequenceNumber = i + i + (runtimeState.Events.Count - runtimeState.NewEvents.Count),
+                        EventTimestamp = historyEvent.Timestamp
+                    });
+                }
             }
 
-            return await UpdateStateAsync(newRuntimeState, instanceId, executionId, eTag);
-        }
+            List<OrchestrationWorkItemInstanceEntity> entities = new List<OrchestrationWorkItemInstanceEntity>();
 
-        /// <inheritdoc />
-        private async Task<string> UpdateStateAsync(OrchestrationRuntimeState runtimeState, string instanceId, string executionId, string eTag)
-        {
-            int oldEventsCount = (runtimeState.Events.Count - runtimeState.NewEvents.Count);
-            await instanceStore.WriteEntitiesAsync(runtimeState.NewEvents.Select((x, i) =>
-            {
-                return new OrchestrationWorkItemInstanceEntity()
-                {
-                    HistoryEvent = x,
-                    ExecutionId = executionId,
-                    InstanceId = instanceId,
-                    SequenceNumber = i + oldEventsCount,
-                    EventTimestamp = x.Timestamp
-                };
+            await CollectEvents(newRuntimeState, mostRecentExecutionId, entities);
 
-            }));
+            await instanceStore.WriteEntitiesAsync(entities);
 
             await instanceStore.WriteEntitiesAsync(new InstanceEntityBase[]
             {
                     new OrchestrationStateInstanceEntity()
                     {
-                        State = Core.Common.Utils.BuildOrchestrationState(runtimeState),
-                        SequenceNumber = runtimeState.Events.Count
+                        State = Core.Common.Utils.BuildOrchestrationState(newRuntimeState),
+                        SequenceNumber = newRuntimeState.Events.Count
                     }
             });
 

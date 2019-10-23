@@ -117,6 +117,38 @@ namespace DurableTask.AzureStorage.Tracking
             this.settings.FetchLargeMessageDataEnabled = false;
         }
 
+        public static string MakeRowKey(char prefix, long sequenceNumber)
+        {
+            return prefix + sequenceNumber.ToString("X15");
+        }
+
+        public static void ParseRowKey(string rowKey, out char prefix, out long sequenceNumber)
+        {
+            prefix = rowKey[0];
+            sequenceNumber = Convert.ToInt64(rowKey.Substring(1), 16);
+        }
+
+        public static char InitialPrefix()
+        {
+            return '0';
+        }
+
+        public char NextPrefix(char prefix)
+        {
+            return (char)((((prefix - '0') + 1) % settings.NumberOfRetainedExecutionHistories) + '0');
+        }
+
+        public string MakePseudoEtag(char prefix, string eTag)
+        {
+            return prefix + eTag;
+        }
+
+        public void ParsePseudoEtag(string pseudoEtag, out char prefix, out string eTag)
+        {
+            prefix = pseudoEtag[0];
+            eTag = pseudoEtag.Substring(1);
+        }
+
         /// <summary>
         ///  Table Request Options for The History and Instance Tables
         /// </summary>
@@ -157,28 +189,78 @@ namespace DurableTask.AzureStorage.Tracking
         {
             HistoryEntitiesResponseInfo historyEntitiesResponseInfo = await this.GetHistoryEntitiesResponseInfoAsync(instanceId, expectedExecutionId, null, cancellationToken);
             IList<HistoryEvent> historyEvents;
-            string executionId;
+            string mostRecentExecutionId = null;
+            char lastCommittedPrefix = InitialPrefix();
+            long lastCommittedSequenceNumber = 0;
+            bool knowLastCommitted = false;
+
             string eTagValue = null;
+
             if (historyEntitiesResponseInfo.HistoryEventEntities.Count > 0)
             {
-                // The most recent generation will always be in the first history event.
-                executionId = historyEntitiesResponseInfo.HistoryEventEntities[0].Properties["ExecutionId"].StringValue;
+                // find the sentinel entity and read the info
+                foreach (DynamicTableEntity entity in historyEntitiesResponseInfo.HistoryEventEntities)
+                {
+                    if (entity.RowKey == SentinelRowKey)
+                    {
+                        eTagValue = entity.ETag;
+                        mostRecentExecutionId = entity.Properties["ExecutionId"].StringValue;
+                        if (entity.Properties.TryGetValue("LastCommitted", out EntityProperty entityProperty))
+                        {
+                            ParseRowKey(entityProperty.StringValue, out lastCommittedPrefix, out lastCommittedSequenceNumber);
+                            knowLastCommitted = true;
+                        }
+                        continue;
+                    }
+                }
 
                 // Convert the table entities into history events.
                 var events = new List<HistoryEvent>(historyEntitiesResponseInfo.HistoryEventEntities.Count);
 
                 foreach (DynamicTableEntity entity in historyEntitiesResponseInfo.HistoryEventEntities)
                 {
-                    if (entity.Properties["ExecutionId"].StringValue != executionId)
-                    {
-                        // The remaining entities are from a previous generation and can be discarded.
-                        break;
-                    }
-
                     if (entity.RowKey == SentinelRowKey)
                     {
-                        eTagValue = entity.ETag;
                         continue;
+                    }
+
+                    string entityExecutionId = entity.Properties["ExecutionId"].StringValue;
+
+                    ParseRowKey(entity.RowKey, out var entityPrefix, out var entitySequenceNumber);
+
+                    if (! knowLastCommitted)
+                    {
+                        // legacy case - filter by execution id only
+                        if (!(entityExecutionId == expectedExecutionId 
+                            || (expectedExecutionId == null && entityExecutionId == mostRecentExecutionId)))
+                        {
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        // remove garbage and events belonging to partially committed batches from the results
+
+                        if (expectedExecutionId == null && lastCommittedPrefix != entityPrefix)
+                        {
+                            // This entity is not part of the latest execution and can be discarded.
+                            continue;
+                        }
+
+                        if (entityPrefix == lastCommittedPrefix)
+                        {
+                            if (entitySequenceNumber > lastCommittedSequenceNumber)
+                            {
+                                continue; // entry is garbage from the past, or belongs to an uncommitted partial batch from the future
+                            }
+                        }
+                        else
+                        {
+                            if (entityExecutionId == mostRecentExecutionId)
+                            {
+                                continue; // we have started to overwrite this execution, so the remaining events are garbage
+                            }
+                        }
                     }
 
                     // Some entity properties may be stored in blob storage.
@@ -186,13 +268,13 @@ namespace DurableTask.AzureStorage.Tracking
 
                     events.Add((HistoryEvent)this.tableEntityConverter.ConvertFromTableEntity(entity, GetTypeForTableEntity));
                 }
-
+          
                 historyEvents = events;
             }
             else
             {
                 historyEvents = EmptyHistoryEventList;
-                executionId = expectedExecutionId;
+                mostRecentExecutionId = expectedExecutionId;
             }
 
             int currentEpisodeNumber = Utils.GetEpisodeNumber(historyEvents);
@@ -201,7 +283,7 @@ namespace DurableTask.AzureStorage.Tracking
                 this.storageAccountName,
                 this.taskHubName,
                 instanceId,
-                executionId,
+                mostRecentExecutionId,
                 historyEvents.Count,
                 currentEpisodeNumber,
                 historyEntitiesResponseInfo.RequestCount,
@@ -209,7 +291,7 @@ namespace DurableTask.AzureStorage.Tracking
                 eTagValue,
                 Utils.ExtensionVersion);
 
-            return new OrchestrationHistory(historyEvents, eTagValue);
+            return new OrchestrationHistory(historyEvents, MakePseudoEtag(lastCommittedPrefix, eTagValue));
         }
 
         async Task<HistoryEntitiesResponseInfo> GetHistoryEntitiesResponseInfoAsync(string instanceId, string expectedExecutionId, IList<string> projectionColumns,  CancellationToken cancellationToken = default(CancellationToken))
@@ -224,7 +306,9 @@ namespace DurableTask.AzureStorage.Tracking
             {
                 // Filter down to a specific generation.
                 // e.g. "PartitionKey eq 'c138dd969a1e4a699b0644c7d8279f81' and ExecutionId eq '85f05ce1494c4a29989f64d3fe0f9089'"
-                filterCondition.Append(" and ExecutionId eq ").Append(Quote).Append(expectedExecutionId).Append(Quote);
+                // but always include the sentinel, so the e-tag can be read
+                filterCondition.Append(" and (RowKey eq ").Append(Quote).Append(SentinelRowKey).Append(Quote)
+                    .Append(" or ExecutionId eq ").Append(Quote).Append(expectedExecutionId).Append(Quote).Append(')');
             }
 
             TableQuery query = new TableQuery().Where(filterCondition.ToString());
@@ -273,38 +357,58 @@ namespace DurableTask.AzureStorage.Tracking
             };
         }
 
-        async Task<List<DynamicTableEntity>> QueryHistoryAsync(string filterCondition, string instanceId, CancellationToken cancellationToken)
+        async Task<List<DynamicTableEntity>> QueryHistoryAsync(string filterCondition, string instanceId, string executionId, CancellationToken cancellationToken)
         {
-            TableQuery query = new TableQuery().Where(filterCondition.ToString());
-
             var entities = new List<DynamicTableEntity>(100);
 
             var stopwatch = new Stopwatch();
             int requestCount = 0;
 
-            bool finishedEarly = false;
-            TableContinuationToken continuationToken = null;
-            while (true)
+            // Fetch just the sentinel first
+            requestCount++;
+            stopwatch.Start();
+            var sentinelQueryResponse = await this.HistoryTable.ExecuteAsync(TableOperation.Retrieve(instanceId, SentinelRowKey));
+            stopwatch.Stop();
+            var sentinelEntity = (DynamicTableEntity)sentinelQueryResponse.Result;
+
+            if (sentinelEntity != null)
             {
-                requestCount++;
-                stopwatch.Start();
-                var segment = await this.HistoryTable.ExecuteQuerySegmentedAsync(
-                    query,
-                    continuationToken,
-                    this.StorageTableRequestOptions,
-                    null,
-                    cancellationToken);
-                stopwatch.Stop();
+                string mostRecentExecutionId = sentinelEntity.Properties["ExecutionId"].StringValue;
 
-                int previousCount = entities.Count;
-                entities.AddRange(segment);
-                this.stats.StorageRequests.Increment();
-                this.stats.TableEntitiesRead.Increment(entities.Count - previousCount);
-
-                continuationToken = segment.ContinuationToken;
-                if (finishedEarly || continuationToken == null || cancellationToken.IsCancellationRequested)
+                if (string.IsNullOrEmpty(executionId))
                 {
-                    break;
+                    executionId = mostRecentExecutionId;
+                }
+
+                if (executionId == mostRecentExecutionId)
+                {
+                    TableQuery query = new TableQuery().Where(filterCondition.ToString());
+
+                    bool finishedEarly = false;
+                    TableContinuationToken continuationToken = null;
+                    while (true)
+                    {
+                        requestCount++;
+                        stopwatch.Start();
+                        var segment = await this.HistoryTable.ExecuteQuerySegmentedAsync(
+                            query,
+                            continuationToken,
+                            this.StorageTableRequestOptions,
+                            null,
+                            cancellationToken);
+                        stopwatch.Stop();
+
+                        int previousCount = entities.Count;
+                        entities.AddRange(segment);
+                        this.stats.StorageRequests.Increment();
+                        this.stats.TableEntitiesRead.Increment(entities.Count - previousCount);
+
+                        continuationToken = segment.ContinuationToken;
+                        if (finishedEarly || continuationToken == null || cancellationToken.IsCancellationRequested)
+                        {
+                            break;
+                        }
+                    }
                 }
             }
 
@@ -312,15 +416,11 @@ namespace DurableTask.AzureStorage.Tracking
             // It's also not important to have for this particular trace.
             int currentEpisodeNumber = 0;
 
-            string executionId = entities.Count > 0 && entities.First().Properties.ContainsKey("ExecutionId") ?
-                entities[0].Properties["ExecutionId"].StringValue :
-                string.Empty;
-
             AnalyticsEventSource.Log.FetchedInstanceHistory(
                 this.storageAccountName,
                 this.taskHubName,
                 instanceId,
-                executionId,
+                executionId ?? string.Empty,
                 entities.Count,
                 currentEpisodeNumber,
                 requestCount,
@@ -328,7 +428,7 @@ namespace DurableTask.AzureStorage.Tracking
                 string.Empty /* ETag */,
                 Utils.ExtensionVersion);
 
-            return entities; 
+            return entities;
         }
 
         public override async Task<IList<string>> RewindHistoryAsync(string instanceId, IList<string> failedLeaves, CancellationToken cancellationToken)
@@ -351,7 +451,7 @@ namespace DurableTask.AzureStorage.Tracking
             orchestratorStartedFilterCondition.Append(PartitionKeyProperty).Append(" eq ").Append(Quote).Append(instanceId).Append(Quote); // = TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, instanceId);
             orchestratorStartedFilterCondition.Append(" and EventType eq ").Append(Quote).Append("OrchestratorStarted").Append(Quote);
 
-            var orchestratorStartedEntities = await this.QueryHistoryAsync(orchestratorStartedFilterCondition.ToString(), instanceId, cancellationToken);
+            var orchestratorStartedEntities = await this.QueryHistoryAsync(orchestratorStartedFilterCondition.ToString(), instanceId, null, cancellationToken);
 
             // get most recent orchestratorStarted event
             var recentStartRowKey = orchestratorStartedEntities.Max(x => x.RowKey);
@@ -367,7 +467,7 @@ namespace DurableTask.AzureStorage.Tracking
             rowsToUpdateFilterCondition.Append(" or EventType eq ").Append(Quote).Append("TaskFailed").Append(Quote);
             rowsToUpdateFilterCondition.Append(" or EventType eq ").Append(Quote).Append("SubOrchestrationInstanceFailed").Append(Quote).Append(")");
 
-            var entitiesToClear = await this.QueryHistoryAsync(rowsToUpdateFilterCondition.ToString(), instanceId, cancellationToken);
+            var entitiesToClear = await this.QueryHistoryAsync(rowsToUpdateFilterCondition.ToString(), instanceId, executionId, cancellationToken);
 
             foreach (DynamicTableEntity entity in entitiesToClear)
             {
@@ -394,7 +494,7 @@ namespace DurableTask.AzureStorage.Tracking
                     tsFilterCondition.Append(" and EventId eq ").Append(taskScheduledId);
                     tsFilterCondition.Append(" and EventType eq ").Append(Quote).Append(nameof(EventType.TaskScheduled)).Append(Quote);
 
-                    var taskScheduledEntities = await QueryHistoryAsync(tsFilterCondition.ToString(), instanceId, cancellationToken);
+                    var taskScheduledEntities = await QueryHistoryAsync(tsFilterCondition.ToString(), instanceId, executionId, cancellationToken);
 
                     taskScheduledEntities[0].Properties["Reason"] = new EntityProperty("Rewound: " + taskScheduledEntities[0].Properties["EventType"].StringValue);
                     taskScheduledEntities[0].Properties["EventType"] = new EntityProperty(nameof(EventType.GenericEvent));
@@ -415,7 +515,7 @@ namespace DurableTask.AzureStorage.Tracking
                     soFilterCondition.Append(" and EventId eq ").Append(subOrchestrationId);
                     soFilterCondition.Append(" and EventType eq ").Append(Quote).Append(nameof(EventType.SubOrchestrationInstanceCreated)).Append(Quote);
 
-                    var subOrchesratrationEntities = await QueryHistoryAsync(soFilterCondition.ToString(), instanceId, cancellationToken);
+                    var subOrchesratrationEntities = await QueryHistoryAsync(soFilterCondition.ToString(), instanceId, executionId, cancellationToken);
 
                     soInstanceId = subOrchesratrationEntities[0].Properties["InstanceId"].StringValue;
 
@@ -873,43 +973,35 @@ namespace DurableTask.AzureStorage.Tracking
         /// <inheritdoc />
         public override async Task<string> UpdateStateAsync(
             OrchestrationRuntimeState newRuntimeState,
-            OrchestrationRuntimeState oldRuntimeState,
             string instanceId,
-            string executionId,
-            string eTagValue)
+            string mostRecentExecutionId,
+            string pseudoETag,
+            Func<Task> renewIfNeeded)
         {
             int estimatedBytes = 0;
-            IList<HistoryEvent> newEvents = newRuntimeState.NewEvents;
-            IList<HistoryEvent> allEvents = newRuntimeState.Events;
-
-            int episodeNumber = Utils.GetEpisodeNumber(newRuntimeState);
+            int episodeNumber = 0;
+            int totalSize = 0;
 
             var newEventListBuffer = new StringBuilder(4000);
             var historyEventBatch = new TableBatchOperation();
+            string lastCommitted = null;
+
+            ParsePseudoEtag(pseudoETag, out char lastCommittedPrefix, out string eTagValue);
 
             EventType? orchestratorEventType = null;
 
-            var instanceEntity = new DynamicTableEntity(instanceId, string.Empty)
+            var instanceEntity = new DynamicTableEntity(instanceId, string.Empty);
+
+            // local function for processing a history event
+            async Task ProcessHistoryItem(HistoryEvent historyEvent, string executionId, long sequenceNumber, char prefix)
             {
-                Properties =
-                {
-                    ["CustomStatus"] = new EntityProperty(newRuntimeState.Status),
-                    ["ExecutionId"] = new EntityProperty(executionId),
-                    ["LastUpdatedTime"] = new EntityProperty(newEvents.Last().Timestamp),
-                }
-            };
-            
-            for (int i = 0; i < newEvents.Count; i++)
-            {
-                HistoryEvent historyEvent = newEvents[i];
                 DynamicTableEntity historyEntity = this.tableEntityConverter.ConvertToTableEntity(historyEvent);
                 historyEntity.PartitionKey = instanceId;
 
                 newEventListBuffer.Append(historyEvent.EventType.ToString()).Append(',');
 
                 // The row key is the sequence number, which represents the chronological ordinal of the event.
-                long sequenceNumber = i + (allEvents.Count - newEvents.Count);
-                historyEntity.RowKey = sequenceNumber.ToString("X16");
+                historyEntity.RowKey = MakeRowKey(prefix, sequenceNumber);
                 historyEntity.Properties["ExecutionId"] = new EntityProperty(executionId);
 
                 await this.CompressLargeMessageAsync(historyEntity);
@@ -921,55 +1013,58 @@ namespace DurableTask.AzureStorage.Tracking
                 estimatedBytes += GetEstimatedByteCount(historyEntity);
 
                 // Monitor for orchestration instance events 
-                switch (historyEvent.EventType)
+                if (executionId == mostRecentExecutionId)
                 {
-                    case EventType.ExecutionStarted:
-                        orchestratorEventType = historyEvent.EventType;
-                        ExecutionStartedEvent executionStartedEvent = (ExecutionStartedEvent)historyEvent;
-                        instanceEntity.Properties["Name"] = new EntityProperty(executionStartedEvent.Name);
-                        instanceEntity.Properties["Version"] = new EntityProperty(executionStartedEvent.Version);
-                        instanceEntity.Properties["CreatedTime"] = new EntityProperty(executionStartedEvent.Timestamp);
-                        instanceEntity.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Running.ToString());
-                        this.SetInstancesTablePropertyFromHistoryProperty(
-                            historyEntity,
-                            instanceEntity,
-                            historyPropertyName: nameof(executionStartedEvent.Input),
-                            instancePropertyName: InputProperty,
-                            data: executionStartedEvent.Input);
-                        break;
-                    case EventType.ExecutionCompleted:
-                        orchestratorEventType = historyEvent.EventType;
-                        ExecutionCompletedEvent executionCompleted = (ExecutionCompletedEvent)historyEvent;
-                        instanceEntity.Properties["RuntimeStatus"] = new EntityProperty(executionCompleted.OrchestrationStatus.ToString());
-                        this.SetInstancesTablePropertyFromHistoryProperty(
-                            historyEntity,
-                            instanceEntity,
-                            historyPropertyName: nameof(executionCompleted.Result),
-                            instancePropertyName: OutputProperty,
-                            data: executionCompleted.Result);
-                        break;
-                    case EventType.ExecutionTerminated:
-                        orchestratorEventType = historyEvent.EventType;
-                        ExecutionTerminatedEvent executionTerminatedEvent = (ExecutionTerminatedEvent)historyEvent;
-                        instanceEntity.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Terminated.ToString());
-                        this.SetInstancesTablePropertyFromHistoryProperty(
-                            historyEntity,
-                            instanceEntity,
-                            historyPropertyName: nameof(executionTerminatedEvent.Input),
-                            instancePropertyName: OutputProperty,
-                            data: executionTerminatedEvent.Input);
-                        break;
-                    case EventType.ContinueAsNew:
-                        orchestratorEventType = historyEvent.EventType;
-                        ExecutionCompletedEvent executionCompletedEvent = (ExecutionCompletedEvent)historyEvent;
-                        instanceEntity.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.ContinuedAsNew.ToString());
-                        this.SetInstancesTablePropertyFromHistoryProperty(
-                            historyEntity,
-                            instanceEntity,
-                            historyPropertyName: nameof(executionCompletedEvent.Result),
-                            instancePropertyName: OutputProperty,
-                            data: executionCompletedEvent.Result);
-                        break;
+                    switch (historyEvent.EventType)
+                    {
+                        case EventType.ExecutionStarted:
+                            orchestratorEventType = historyEvent.EventType;
+                            ExecutionStartedEvent executionStartedEvent = (ExecutionStartedEvent)historyEvent;
+                            instanceEntity.Properties["Name"] = new EntityProperty(executionStartedEvent.Name);
+                            instanceEntity.Properties["Version"] = new EntityProperty(executionStartedEvent.Version);
+                            instanceEntity.Properties["CreatedTime"] = new EntityProperty(executionStartedEvent.Timestamp);
+                            instanceEntity.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Running.ToString());
+                            this.SetInstancesTablePropertyFromHistoryProperty(
+                                historyEntity,
+                                instanceEntity,
+                                historyPropertyName: nameof(executionStartedEvent.Input),
+                                instancePropertyName: InputProperty,
+                                data: executionStartedEvent.Input);
+                            break;
+                        case EventType.ExecutionCompleted:
+                            orchestratorEventType = historyEvent.EventType;
+                            ExecutionCompletedEvent executionCompleted = (ExecutionCompletedEvent)historyEvent;
+                            instanceEntity.Properties["RuntimeStatus"] = new EntityProperty(executionCompleted.OrchestrationStatus.ToString());
+                            this.SetInstancesTablePropertyFromHistoryProperty(
+                                historyEntity,
+                                instanceEntity,
+                                historyPropertyName: nameof(executionCompleted.Result),
+                                instancePropertyName: OutputProperty,
+                                data: executionCompleted.Result);
+                            break;
+                        case EventType.ExecutionTerminated:
+                            orchestratorEventType = historyEvent.EventType;
+                            ExecutionTerminatedEvent executionTerminatedEvent = (ExecutionTerminatedEvent)historyEvent;
+                            instanceEntity.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Terminated.ToString());
+                            this.SetInstancesTablePropertyFromHistoryProperty(
+                                historyEntity,
+                                instanceEntity,
+                                historyPropertyName: nameof(executionTerminatedEvent.Input),
+                                instancePropertyName: OutputProperty,
+                                data: executionTerminatedEvent.Input);
+                            break;
+                        case EventType.ContinueAsNew:
+                            orchestratorEventType = historyEvent.EventType;
+                            ExecutionCompletedEvent executionCompletedEvent = (ExecutionCompletedEvent)historyEvent;
+                            instanceEntity.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.ContinuedAsNew.ToString());
+                            this.SetInstancesTablePropertyFromHistoryProperty(
+                                historyEntity,
+                                instanceEntity,
+                                historyPropertyName: nameof(executionCompletedEvent.Result),
+                                instancePropertyName: OutputProperty,
+                                data: executionCompletedEvent.Result);
+                            break;
+                    }
                 }
 
                 // Table storage only supports inserts of up to 100 entities at a time or 4 MB at a time.
@@ -980,10 +1075,12 @@ namespace DurableTask.AzureStorage.Tracking
                         executionId,
                         historyEventBatch,
                         newEventListBuffer,
-                        newEvents.Count,
+                        totalSize,
                         episodeNumber,
                         estimatedBytes,
-                        eTagValue);
+                        eTagValue,
+                        lastCommitted,
+                        renewIfNeeded);
 
                     // Reset local state for the next batch
                     newEventListBuffer.Clear();
@@ -992,19 +1089,70 @@ namespace DurableTask.AzureStorage.Tracking
                 }
             }
 
-            // First persistence step is to commit history to the history table. Messages must come after.
+            // local function for processing all new events of a given execution and previous executions
+            async Task ProcessNewEvents(OrchestrationRuntimeState runtimeState, string executionId, char prefix)
+            {
+                var allEvents = runtimeState.Events;
+                var newEvents = runtimeState.NewEvents;
+
+                totalSize = newEvents.Count;
+                episodeNumber = Utils.GetEpisodeNumber(runtimeState);
+
+                var startAt = runtimeState.Events.Count - newEvents.Count;
+
+                for (int i = 0; i < newEvents.Count; i++)
+                {
+                    var sequenceNumber = i + startAt;
+
+                    if (executionId == mostRecentExecutionId && i == newEvents.Count - 1)
+                    {
+                        lastCommitted = MakeRowKey(prefix, sequenceNumber); // the next event is the last event, so it will commit everything
+                    }
+
+                    await ProcessHistoryItem(newEvents[i], executionId, sequenceNumber, prefix);
+                }
+            }
+
+            // First persistence step is to commit history to the history table. The last batch
+            // written commits the work item.
+
+            var prefixToUse = lastCommittedPrefix;
+
+            // if there were one or more previous executions, we have to process them first
+            if (newRuntimeState.PreviousExecution != null && newRuntimeState.PreviousExecution.NewEvents.Count > 0)
+            {
+                foreach (var previous in newRuntimeState.PreviousExecution.GetExecutionsWithNewEvents())
+                {
+                    // first we need to process the new events in the previous execution
+                    await ProcessNewEvents(previous, previous.OrchestrationInstance.ExecutionId, prefixToUse);
+
+                    // then we need to get a new prefix for the next execution
+                    prefixToUse = NextPrefix(prefixToUse);
+                }
+            }
+
+            await ProcessNewEvents(newRuntimeState, mostRecentExecutionId, prefixToUse);
+
             if (historyEventBatch.Count > 0)
             {
                 eTagValue = await this.UploadHistoryBatch(
                     instanceId,
-                    executionId,
+                    mostRecentExecutionId,
                     historyEventBatch,
                     newEventListBuffer,
-                    newEvents.Count,
+                    newRuntimeState.NewEvents.Count,
                     episodeNumber,
                     estimatedBytes,
-                    eTagValue);
+                    eTagValue,
+                    lastCommitted,
+                    renewIfNeeded);
             }
+
+            // Next step is to update the instances table.
+
+            instanceEntity.Properties["CustomStatus"] = new EntityProperty(newRuntimeState.Status);
+            instanceEntity.Properties["LastUpdatedTime"] = new EntityProperty(newRuntimeState.NewEvents.Last().Timestamp);
+            instanceEntity.Properties["ExecutionId"] = new EntityProperty(mostRecentExecutionId);
 
             Stopwatch orchestrationInstanceUpdateStopwatch = Stopwatch.StartNew();
             await this.InstancesTable.ExecuteAsync(TableOperation.InsertOrMerge(instanceEntity));
@@ -1016,13 +1164,13 @@ namespace DurableTask.AzureStorage.Tracking
                 this.storageAccountName,
                 this.taskHubName,
                 instanceId,
-                executionId,
+                mostRecentExecutionId,
                 orchestratorEventType?.ToString() ?? string.Empty,
                 episodeNumber,
                 orchestrationInstanceUpdateStopwatch.ElapsedMilliseconds,
                 Utils.ExtensionVersion);
 
-            return eTagValue;
+            return MakePseudoEtag(prefixToUse, eTagValue);
         }
 
         static int GetEstimatedByteCount(DynamicTableEntity entity)
@@ -1153,7 +1301,9 @@ namespace DurableTask.AzureStorage.Tracking
             int numberOfTotalEvents,
             int episodeNumber,
             int estimatedBatchSizeInBytes,
-            string eTagValue)
+            string eTagValue,
+            string lastCommitted,
+            Func<Task> renewIfNeeded)
         {
             // Adding / updating sentinel entity
             DynamicTableEntity sentinelEntity = new DynamicTableEntity(instanceId, SentinelRowKey)
@@ -1164,14 +1314,25 @@ namespace DurableTask.AzureStorage.Tracking
                 }
             };
 
+            if (!string.IsNullOrEmpty(lastCommitted))
+            {
+                sentinelEntity.Properties["LastCommitted"] = new EntityProperty(lastCommitted);
+            }
+
             if (!string.IsNullOrEmpty(eTagValue))
             {
                 sentinelEntity.ETag = eTagValue;
-                historyEventBatch.Replace(sentinelEntity);
+                historyEventBatch.Merge(sentinelEntity);
             }
             else
             {
-                historyEventBatch.InsertOrReplace(sentinelEntity);
+                historyEventBatch.Insert(sentinelEntity);
+            }
+
+            Task renewTask = renewIfNeeded(); // prevent session timeouts if committing the history takes a lot of time
+            if (renewTask != null)
+            { 
+                await renewTask;
             }
 
             Stopwatch stopwatch = Stopwatch.StartNew();
@@ -1198,9 +1359,14 @@ namespace DurableTask.AzureStorage.Tracking
                         stopwatch.ElapsedMilliseconds,
                         eTagValue,
                         Utils.ExtensionVersion);
-                }
 
-                throw;
+                    // translate exception into a backend-independent one
+                    throw new Core.Exceptions.StorageConflictException("Failed to commit history due to storage conflict.", ex);
+                }
+                else
+                {
+                    throw;
+                }
             }
 
             this.stats.StorageRequests.Increment();

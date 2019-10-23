@@ -105,75 +105,84 @@ namespace DurableTask.Core
         /// <returns>A new TaskOrchestrationWorkItem</returns>
         protected Task<TaskOrchestrationWorkItem> OnFetchWorkItemAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken)
         {
-            return this.orchestrationService.LockNextTaskOrchestrationWorkItemAsync(receiveTimeout, cancellationToken);
+             return this.orchestrationService.LockNextTaskOrchestrationWorkItemAsync(receiveTimeout, cancellationToken);
         }
 
         async Task OnProcessWorkItemSessionAsync(TaskOrchestrationWorkItem workItem)
         {
-            if (workItem.Session == null)
-            {
-                // Legacy behavior
-                await OnProcessWorkItemAsync(workItem);
-                return;
-            }
-
-            var isExtendedSession = false;
-            var processCount = 0;
             try
             {
-                while (true)
+                if (workItem.Session == null)
                 {
-                    // If the provider provided work items, execute them.
-                    if (workItem.NewMessages?.Count > 0)
+                    // Legacy behavior
+                    await OnProcessWorkItemAsync(workItem);
+                    return;
+                }
+
+                var isExtendedSession = false;
+                var processCount = 0;
+                try
+                {
+                    while (true)
                     {
-                        bool isCompletedOrInterrupted = await OnProcessWorkItemAsync(workItem);
-                        if (isCompletedOrInterrupted)
+                        // If the provider provided work items, execute them.
+                        if (workItem.NewMessages?.Count > 0)
+                        {
+                            bool isCompletedOrInterrupted = await OnProcessWorkItemAsync(workItem);
+                            if (isCompletedOrInterrupted)
+                            {
+                                break;
+                            }
+
+                            processCount++;
+                        }
+
+                        // Fetches beyond the first require getting an extended session lock, used to prevent starvation.
+                        if (processCount > 0 && !isExtendedSession)
+                        {
+                            isExtendedSession = this.concurrentSessionLock.Acquire();
+                            if (!isExtendedSession)
+                            {
+                                TraceHelper.Trace(TraceEventType.Verbose, "OnProcessWorkItemSession-MaxOperations", "Failed to acquire concurrent session lock.");
+                                break;
+                            }
+                        }
+
+                        TraceHelper.Trace(TraceEventType.Verbose, "OnProcessWorkItemSession-StartFetch", "Starting fetch of existing session.");
+                        Stopwatch timer = Stopwatch.StartNew();
+
+                        // Wait for new messages to arrive for the session. This call is expected to block (asynchronously)
+                        // until either new messages are available or until a provider-specific timeout has expired.
+                        workItem.NewMessages = await workItem.Session.FetchNewOrchestrationMessagesAsync(workItem);
+                        if (workItem.NewMessages == null)
                         {
                             break;
                         }
 
-                        processCount++;
+                        TraceHelper.Trace(
+                            TraceEventType.Verbose,
+                            "OnProcessWorkItemSession-EndFetch",
+                            $"Fetched {workItem.NewMessages.Count} new message(s) after {timer.ElapsedMilliseconds} ms from existing session.");
                     }
-
-                    // Fetches beyond the first require getting an extended session lock, used to prevent starvation.
-                    if (processCount > 0 && !isExtendedSession)
+                }
+                finally
+                {
+                    if (isExtendedSession)
                     {
-                        isExtendedSession = this.concurrentSessionLock.Acquire();
-                        if (!isExtendedSession)
-                        {
-                            TraceHelper.Trace(TraceEventType.Verbose, "OnProcessWorkItemSession-MaxOperations", "Failed to acquire concurrent session lock.");
-                            break;
-                        }
+                        TraceHelper.Trace(
+                            TraceEventType.Verbose,
+                            "OnProcessWorkItemSession-Release",
+                            $"Releasing extended session after {processCount} batch(es).");
+                        this.concurrentSessionLock.Release();
                     }
-
-                    TraceHelper.Trace(TraceEventType.Verbose, "OnProcessWorkItemSession-StartFetch", "Starting fetch of existing session.");
-                    Stopwatch timer = Stopwatch.StartNew();
-
-                    // Wait for new messages to arrive for the session. This call is expected to block (asynchronously)
-                    // until either new messages are available or until a provider-specific timeout has expired.
-                    workItem.NewMessages = await workItem.Session.FetchNewOrchestrationMessagesAsync(workItem);
-                    if (workItem.NewMessages == null)
-                    {
-                        break;
-                    }
-
-                    TraceHelper.Trace(
-                        TraceEventType.Verbose,
-                        "OnProcessWorkItemSession-EndFetch",
-                        $"Fetched {workItem.NewMessages.Count} new message(s) after {timer.ElapsedMilliseconds} ms from existing session.");
-                    workItem.OrchestrationRuntimeState.NewEvents.Clear();
                 }
             }
-            finally
+            catch (StorageConflictException)
             {
-                if (isExtendedSession)
-                {
-                    TraceHelper.Trace(
-                        TraceEventType.Verbose,
-                        "OnProcessWorkItemSession-Release",
-                        $"Releasing extended session after {processCount} batch(es).");
-                    this.concurrentSessionLock.Release();
-                }
+                TraceHelper.Trace(
+                    TraceEventType.Information,
+                    "OnProcessWorkItemSession-StorageConflict",
+                    $"Storage conflict detected, discarding work item.");
             }
         }
 
@@ -199,8 +208,6 @@ namespace DurableTask.Core
 
             runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
 
-            OrchestrationRuntimeState originalOrchestrationRuntimeState = runtimeState;
-
             OrchestrationState instanceState = null;
 
             if (!ReconcileMessagesWithState(workItem))
@@ -215,6 +222,8 @@ namespace DurableTask.Core
             }
             else
             {
+                var allowedNumberOfFastContinueAsNews = 1;
+
                 do
                 {
                     continuedAsNew = false;
@@ -385,6 +394,9 @@ namespace DurableTask.Core
                             }
 
                             runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
+
+                            // keep previous runtime states as a linked list in the current runtime state
+                            runtimeState.PreviousExecution = workItem.OrchestrationRuntimeState;
                             workItem.OrchestrationRuntimeState = runtimeState;
 
                             TaskOrchestration newOrchestration = this.objectManager.GetObject(
@@ -408,13 +420,15 @@ namespace DurableTask.Core
 
                         instanceState = Utils.BuildOrchestrationState(runtimeState);
                     }
-                } while (continuedAsNew);
+                } while (continuedAsNew && allowedNumberOfFastContinueAsNews-- >= 1);
             }
-
-            workItem.OrchestrationRuntimeState = originalOrchestrationRuntimeState;
 
             runtimeState.Status = runtimeState.Status ?? carryOverStatus;
 
+            // some orchestration service implementations may expect runtime state
+            // in the work item to be the original one, so we temporarily restore it
+            workItem.OrchestrationRuntimeState = runtimeState.GetOriginalExecution();
+          
             await this.orchestrationService.CompleteTaskOrchestrationWorkItemAsync(
                 workItem,
                 runtimeState,
@@ -424,9 +438,14 @@ namespace DurableTask.Core
                 continuedAsNewMessage,
                 instanceState);
 
+            // set the runtime state back to the latest runtime state
             workItem.OrchestrationRuntimeState = runtimeState;
 
             workItem.Session?.UpdateRuntimeState(runtimeState);
+
+            // all new events have been persisted & sent, so we now
+            // clear the respective collections, for the case where we are running with extended sessions
+            workItem.OrchestrationRuntimeState.ClearNewEvents();
 
             return isCompleted || continuedAsNew || isInterrupted;
         }

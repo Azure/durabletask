@@ -768,7 +768,10 @@ namespace DurableTask.AzureStorage
             {
                 var instanceId = newMessages[0].OrchestrationInstance.InstanceId;
 
-                if (instanceId.StartsWith("@"))
+                if (instanceId.StartsWith("@") 
+                    && newMessages.Count > 0 
+                    && newMessages[0].Event.EventType == EventType.EventRaised
+                    && newMessages[0].OrchestrationInstance.ExecutionId == null)
                 {
                     // automatically start this instance
                     var orchestrationInstance = new OrchestrationInstance
@@ -832,6 +835,18 @@ namespace DurableTask.AzureStorage
             }
         }
 
+        private Task RenewSessionIfNecessary(TaskOrchestrationWorkItem workItem)
+        {
+            if (workItem.LockedUntilUtc < DateTime.UtcNow.AddMinutes(1))
+            {
+                return RenewTaskOrchestrationWorkItemLockAsync(workItem);
+            }
+            else
+            {
+                return null;
+            }
+        }
+
         /// <inheritdoc />
         public async Task CompleteTaskOrchestrationWorkItemAsync(
             TaskOrchestrationWorkItem workItem,
@@ -874,30 +889,24 @@ namespace DurableTask.AzureStorage
             // will result in a duplicate replay of the orchestration with no side-effects.
             try
             {
-                session.ETag = await this.trackingStore.UpdateStateAsync(runtimeState, workItem.OrchestrationRuntimeState, instanceId, executionId, session.ETag);
+                session.ETag = await this.trackingStore.UpdateStateAsync(runtimeState, instanceId, executionId, session.ETag, () => RenewSessionIfNecessary(workItem));
+            }
+            catch (Core.Exceptions.StorageConflictException)
+            {
+                // as we could not commit the state (losing storage ownership) we need to abandon the messages
+                // so the new owner can receive them and process them
+                await this.AbandonSessionAsync(session);
+                throw;
             }
             catch (Exception e)
             {
-                // Precondition failure is expected to be handled internally and logged as a warning.
-                if ((e as StorageException)?.RequestInformation?.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
-                {
-                    await this.AbandonTaskOrchestrationWorkItemAsync(workItem);
-                    return;
-                }
-                else
-                {
-                    // TODO: https://github.com/Azure/azure-functions-durable-extension/issues/332
-                    //       It's possible that history updates may have been partially committed at this point.
-                    //       If so, what are the implications of this as far as DurableTask.Core are concerned?
-                    AnalyticsEventSource.Log.OrchestrationProcessingFailure(
-                        this.storageAccountName,
-                        this.settings.TaskHubName,
-                        instanceId,
-                        executionId,
-                        e.ToString(),
-                        Utils.ExtensionVersion);
-                }
-
+                AnalyticsEventSource.Log.OrchestrationProcessingFailure(
+                    this.storageAccountName,
+                    this.settings.TaskHubName,
+                    instanceId,
+                    executionId,
+                    e.ToString(),
+                    Utils.ExtensionVersion);
                 throw;
             }
 
@@ -1178,18 +1187,9 @@ namespace DurableTask.AzureStorage
         /// <inheritdoc />
         public bool IsMaxMessageCountExceeded(int currentMessageCount, OrchestrationRuntimeState runtimeState)
         {
-            if (this.settings.MaxCheckpointBatchSize <= 0)
-            {
-                return false;
-            }
-
-            // We will process at most N events at a time. Any remaining events will be
-            // scheduled in a subsequent episode. This is useful to ensure we don't exceed the
-            // orchestrator queue timeout while trying to checkpoint massive numbers of actions.
-            // It also reduces the amount of re-work that needs to be done if there is a failure
-            // in the middle of a checkpoint. Note that having a number too small could
-            // drastically increase the end-to-end processing time of an orchestration.
-            return runtimeState.NewEvents.Count > this.settings.MaxCheckpointBatchSize;
+            // We must always process all the decisions.
+            // Otherwise the reliability algorithm does not work.
+            return false;
         }
 
         /// <inheritdoc />

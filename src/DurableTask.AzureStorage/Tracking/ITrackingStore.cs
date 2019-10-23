@@ -18,6 +18,7 @@ namespace DurableTask.AzureStorage.Tracking
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Core;
+    using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
 
     /// <summary>
@@ -65,11 +66,12 @@ namespace DurableTask.AzureStorage.Tracking
         /// Update State in the Tracking store for a particular orchestration instance and execution base on the new runtime state
         /// </summary>
         /// <param name="newRuntimeState">The New RuntimeState</param>
-        /// <param name="oldRuntimeState">The RuntimeState for an olderExecution</param>
         /// <param name="instanceId">InstanceId for the Orchestration Update</param>
-        /// <param name="executionId">ExecutionId for the Orchestration Update</param>
+        /// <param name="mostRecentExecutionId">ExecutionId for the Orchestration Update</param>
         /// <param name="eTag">The ETag value to use for safe updates</param>
-        Task<string> UpdateStateAsync(OrchestrationRuntimeState newRuntimeState, OrchestrationRuntimeState oldRuntimeState, string instanceId, string executionId, string eTag);
+        /// <param name="renewIfNeeded">The async function to call for renewing work items</param>
+        /// <exception cref="StorageConflictException">Indicates that the update failed because another participant already updated this history in storage.</exception>
+        Task<string> UpdateStateAsync(OrchestrationRuntimeState newRuntimeState, string instanceId, string mostRecentExecutionId, string eTag, Func<Task> renewIfNeeded);
 
         /// <summary>
         /// Get The Orchestration State for the Latest or All Executions

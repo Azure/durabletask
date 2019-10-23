@@ -56,6 +56,11 @@ namespace DurableTask.Core
         public string Status;
 
         /// <summary>
+        /// The previous execution. Is set when doing multiple executions in a row.
+        /// </summary>
+        public OrchestrationRuntimeState PreviousExecution { get; set; }
+
+        /// <summary>
         /// Creates a new instance of the OrchestrationRuntimeState
         /// </summary>
         public OrchestrationRuntimeState()
@@ -212,6 +217,48 @@ namespace DurableTask.Core
             }
 
             SetMarkerEvents(historyEvent);
+        }
+
+        /// <summary>
+        /// Clears the new events for this execution and any prior executions.
+        /// </summary>
+        public void ClearNewEvents()
+        {
+            this.NewEvents.Clear();
+            this.PreviousExecution?.ClearNewEvents();
+        }
+
+        /// <summary>
+        /// Returns all previous executions of this execution that have some new events.
+        /// </summary>
+        /// <returns></returns>
+        public IEnumerable<OrchestrationRuntimeState> GetExecutionsWithNewEvents()
+        {          
+            List<OrchestrationRuntimeState> list = new List<OrchestrationRuntimeState>();
+            var current = this;
+            while (current != null && current.NewEvents.Count > 0)
+            {
+                list.Add(current);
+                current = current.PreviousExecution;
+            }
+
+            list.Reverse();
+            return list;
+        }
+
+        /// <summary>
+        /// Returns the original execution.
+        /// </summary>
+        /// <returns></returns>
+        public OrchestrationRuntimeState GetOriginalExecution()
+        {
+            var current = this;
+            while(current.PreviousExecution != null)
+            {
+                current = current.PreviousExecution;
+            }
+
+            return current;
         }
 
         bool IsDuplicateEvent(HistoryEvent historyEvent)

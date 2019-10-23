@@ -592,11 +592,11 @@ namespace DurableTask.AzureStorage.Tests
                 await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
 
                 // Perform some operations
-                await client.RaiseEventAsync("operation", "incr");
-                await client.RaiseEventAsync("operation", "incr");
-                await client.RaiseEventAsync("operation", "incr");
+                await client.RaiseEventAsync("operation", "incr1");
+                await client.RaiseEventAsync("operation", "incr2");
+                await client.RaiseEventAsync("operation", "incr3");
                 await client.RaiseEventAsync("operation", "decr");
-                await client.RaiseEventAsync("operation", "incr");
+                await client.RaiseEventAsync("operation", "incr4");
                 await Task.Delay(2000);
 
                 // Make sure it's still running and didn't complete early (or fail).
@@ -641,9 +641,8 @@ namespace DurableTask.AzureStorage.Tests
         {
             DateTime startDateTime = DateTime.UtcNow;
 
-            Tuple<string, TestOrchestrationClient> resultTuple = await this.ValidateCharacterCounterIntegrationTest(enableExtendedSessions);
-            string instanceId = resultTuple.Item1;
-            TestOrchestrationClient client = resultTuple.Item2;
+            (string instanceId, TestOrchestrationClient client, int numberRetainedHistories) = 
+                await this.ValidateCharacterCounterIntegrationTest(enableExtendedSessions);
 
             List<HistoryStateEvent> historyEvents = await client.GetOrchestrationHistoryAsync(instanceId);
             Assert.IsTrue(historyEvents.Count > 0);
@@ -654,7 +653,7 @@ namespace DurableTask.AzureStorage.Tests
 
             int blobCount = await this.GetBlobCount("test-largemessages", instanceId);
 
-            Assert.AreEqual(3, blobCount);
+            Assert.IsTrue(blobCount >= 3 && blobCount <= 3 * numberRetainedHistories);
 
             await client.PurgeInstanceHistoryByTimePeriod(
                 startDateTime,
@@ -678,7 +677,7 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(0, blobCount);
         }
 
-        private async Task<Tuple<string, TestOrchestrationClient>> ValidateCharacterCounterIntegrationTest(bool enableExtendedSessions)
+        private async Task<(string, TestOrchestrationClient, int)> ValidateCharacterCounterIntegrationTest(bool enableExtendedSessions)
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
             {
@@ -737,9 +736,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 await host.StopAsync();
 
-                return new Tuple<string, TestOrchestrationClient>(
-                    orchestrationState.OrchestrationInstance.InstanceId,
-                    client);
+                return (orchestrationState.OrchestrationInstance.InstanceId, client, host.Settings.NumberOfRetainedExecutionHistories);
             }
         }
 
@@ -2055,6 +2052,11 @@ namespace DurableTask.AzureStorage.Tests
                 public override async Task<int> RunTask(OrchestrationContext context, int currentValue)
                 {
                     string operation = await this.WaitForOperation();
+
+                    if (operation.StartsWith("incr"))
+                    {
+                        operation = "incr";
+                    }
 
                     bool done = false;
                     switch (operation?.ToLowerInvariant())
