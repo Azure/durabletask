@@ -188,93 +188,92 @@ namespace DurableTask.AzureStorage.Tracking
         public override async Task<OrchestrationHistory> GetHistoryEventsAsync(string instanceId, string expectedExecutionId, CancellationToken cancellationToken = default(CancellationToken))
         {
             HistoryEntitiesResponseInfo historyEntitiesResponseInfo = await this.GetHistoryEntitiesResponseInfoAsync(instanceId, expectedExecutionId, null, cancellationToken);
-            IList<HistoryEvent> historyEvents;
-            string mostRecentExecutionId = null;
-            char lastCommittedPrefix = InitialPrefix();
-            long lastCommittedSequenceNumber = 0;
-            bool knowLastCommitted = false;
 
-            string eTagValue = null;
+            // first, interpret the query results and filter out events from uncommitted executions
+            // or events that are part of executions that are being overwritten
+
+            DynamicTableEntity sentinelEntity;
+            string mostRecentExecutionId;
+            string partials = string.Empty;
+            char lastCommittedPrefix;
+            long lastCommittedSequenceNumber;
+            string eTagValue;
+
+            if (historyEntitiesResponseInfo.HistoryEventEntities.Count == 0)
+            {
+                // there is no prior history in storage at all
+                lastCommittedPrefix = InitialPrefix();
+                lastCommittedSequenceNumber = -1;
+                expectedExecutionId = expectedExecutionId ?? string.Empty; // only appears in tracing         
+                eTagValue = null;
+            }
+            else
+            {
+                // the last returned entity is the sentinel
+                sentinelEntity = historyEntitiesResponseInfo.HistoryEventEntities[historyEntitiesResponseInfo.HistoryEventEntities.Count - 1];
+                Debug.Assert(sentinelEntity.RowKey == SentinelRowKey);
+                historyEntitiesResponseInfo.HistoryEventEntities.RemoveAt(historyEntitiesResponseInfo.HistoryEventEntities.Count - 1);
+
+                // set response values
+                mostRecentExecutionId = sentinelEntity.Properties["ExecutionId"].StringValue;
+                expectedExecutionId = expectedExecutionId ?? mostRecentExecutionId;
+                eTagValue = sentinelEntity.ETag;
+
+                if (sentinelEntity.Properties.TryGetValue("Partials", out var partialsEntity))
+                {
+                    partials = partialsEntity.StringValue;
+                }
+
+                if (sentinelEntity.Properties.TryGetValue("LastCommitted", out EntityProperty entityProperty))
+                {
+                    ParseRowKey(entityProperty.StringValue, out lastCommittedPrefix, out lastCommittedSequenceNumber);
+                }
+                else
+                {
+                    // legacy case : we are reading history written by an older version of the algorithm
+                    lastCommittedPrefix = InitialPrefix();
+                    lastCommittedSequenceNumber = historyEntitiesResponseInfo.HistoryEventEntities
+                        .Where(entity => entity.Properties["ExecutionId"].StringValue == mostRecentExecutionId)
+                        .Max(entity => Convert.ToInt64(entity.RowKey, 16));
+                }
+            }
+
+            // Next, convert the table entities into history events.
+            IList<HistoryEvent> historyEvents = EmptyHistoryEventList;
 
             if (historyEntitiesResponseInfo.HistoryEventEntities.Count > 0)
             {
-                // find the sentinel entity and read the info
-                foreach (DynamicTableEntity entity in historyEntitiesResponseInfo.HistoryEventEntities)
-                {
-                    if (entity.RowKey == SentinelRowKey)
-                    {
-                        eTagValue = entity.ETag;
-                        mostRecentExecutionId = entity.Properties["ExecutionId"].StringValue;
-                        if (entity.Properties.TryGetValue("LastCommitted", out EntityProperty entityProperty))
-                        {
-                            ParseRowKey(entityProperty.StringValue, out lastCommittedPrefix, out lastCommittedSequenceNumber);
-                            knowLastCommitted = true;
-                        }
-                        continue;
-                    }
-                }
-
                 // Convert the table entities into history events.
-                var events = new List<HistoryEvent>(historyEntitiesResponseInfo.HistoryEventEntities.Count);
+                historyEvents = new List<HistoryEvent>(historyEntitiesResponseInfo.HistoryEventEntities.Count);
 
                 foreach (DynamicTableEntity entity in historyEntitiesResponseInfo.HistoryEventEntities)
                 {
-                    if (entity.RowKey == SentinelRowKey)
+                    if (entity.Properties["ExecutionId"].StringValue != expectedExecutionId)
                     {
                         continue;
                     }
 
-                    string entityExecutionId = entity.Properties["ExecutionId"].StringValue;
+                    ParseRowKey(entity.RowKey, out var prefix, out var sequenceNumber);
 
-                    ParseRowKey(entity.RowKey, out var entityPrefix, out var entitySequenceNumber);
-
-                    if (! knowLastCommitted)
+                    if (prefix == lastCommittedPrefix)
                     {
-                        // legacy case - filter by execution id only
-                        if (!(entityExecutionId == expectedExecutionId 
-                            || (expectedExecutionId == null && entityExecutionId == mostRecentExecutionId)))
+                        if (sequenceNumber > lastCommittedSequenceNumber)
                         {
+                            // belongs to the committed prefix of the latest execution.
                             continue;
                         }
                     }
-                    else
+                    else if (partials?.Contains(prefix) == true)
                     {
-                        // remove garbage and events belonging to partially committed batches from the results
-
-                        if (expectedExecutionId == null && lastCommittedPrefix != entityPrefix)
-                        {
-                            // This entity is not part of the latest execution and can be discarded.
-                            continue;
-                        }
-
-                        if (entityPrefix == lastCommittedPrefix)
-                        {
-                            if (entitySequenceNumber > lastCommittedSequenceNumber)
-                            {
-                                continue; // entry is garbage from the past, or belongs to an uncommitted partial batch from the future
-                            }
-                        }
-                        else
-                        {
-                            if (entityExecutionId == mostRecentExecutionId)
-                            {
-                                continue; // we have started to overwrite this execution, so the remaining events are garbage
-                            }
-                        }
+                        // belongs to either an uncommitted future execution or a past execution that is being overwritten.
+                        continue;
                     }
 
                     // Some entity properties may be stored in blob storage.
                     await this.DecompressLargeEntityProperties(entity);
 
-                    events.Add((HistoryEvent)this.tableEntityConverter.ConvertFromTableEntity(entity, GetTypeForTableEntity));
+                    historyEvents.Add((HistoryEvent)this.tableEntityConverter.ConvertFromTableEntity(entity, GetTypeForTableEntity));
                 }
-          
-                historyEvents = events;
-            }
-            else
-            {
-                historyEvents = EmptyHistoryEventList;
-                mostRecentExecutionId = expectedExecutionId;
             }
 
             int currentEpisodeNumber = Utils.GetEpisodeNumber(historyEvents);
@@ -283,7 +282,7 @@ namespace DurableTask.AzureStorage.Tracking
                 this.storageAccountName,
                 this.taskHubName,
                 instanceId,
-                mostRecentExecutionId,
+                expectedExecutionId,
                 historyEvents.Count,
                 currentEpisodeNumber,
                 historyEntitiesResponseInfo.RequestCount,
@@ -304,9 +303,8 @@ namespace DurableTask.AzureStorage.Tracking
             filterCondition.Append(PartitionKeyProperty).Append(" eq ").Append(Quote).Append(instanceId).Append(Quote);
             if (!string.IsNullOrEmpty(expectedExecutionId))
             {
-                // Filter down to a specific generation.
-                // e.g. "PartitionKey eq 'c138dd969a1e4a699b0644c7d8279f81' and ExecutionId eq '85f05ce1494c4a29989f64d3fe0f9089'"
-                // but always include the sentinel, so the e-tag can be read
+                // Filter down to a specific generation, but always include the sentinel, so we can read e-tag and filter out partials
+                // e.g. "PartitionKey eq 'c138dd969a1e4a699b0644c7d8279f81' and (RowKey eq 'sentinel' or ExecutionId eq '85f05ce1494c4a29989f64d3fe0f9089')"
                 filterCondition.Append(" and (RowKey eq ").Append(Quote).Append(SentinelRowKey).Append(Quote)
                     .Append(" or ExecutionId eq ").Append(Quote).Append(expectedExecutionId).Append(Quote).Append(')');
             }
@@ -353,7 +351,7 @@ namespace DurableTask.AzureStorage.Tracking
             {
                 HistoryEventEntities = historyEventEntities,
                 ElapsedMilliseconds = elapsedMilliseconds,
-                RequestCount = requestCount
+                RequestCount = requestCount,
             };
         }
 
@@ -369,6 +367,8 @@ namespace DurableTask.AzureStorage.Tracking
             stopwatch.Start();
             var sentinelQueryResponse = await this.HistoryTable.ExecuteAsync(TableOperation.Retrieve(instanceId, SentinelRowKey));
             stopwatch.Stop();
+            this.stats.StorageRequests.Increment();
+            this.stats.TableEntitiesRead.Increment();
             var sentinelEntity = (DynamicTableEntity)sentinelQueryResponse.Result;
 
             if (sentinelEntity != null)
@@ -384,7 +384,6 @@ namespace DurableTask.AzureStorage.Tracking
                 {
                     TableQuery query = new TableQuery().Where(filterCondition.ToString());
 
-                    bool finishedEarly = false;
                     TableContinuationToken continuationToken = null;
                     while (true)
                     {
@@ -404,7 +403,7 @@ namespace DurableTask.AzureStorage.Tracking
                         this.stats.TableEntitiesRead.Increment(entities.Count - previousCount);
 
                         continuationToken = segment.ContinuationToken;
-                        if (finishedEarly || continuationToken == null || cancellationToken.IsCancellationRequested)
+                        if (continuationToken == null || cancellationToken.IsCancellationRequested)
                         {
                             break;
                         }
@@ -980,10 +979,12 @@ namespace DurableTask.AzureStorage.Tracking
         {
             int estimatedBytes = 0;
             int episodeNumber = 0;
-            int totalSize = 0;
+            int executionHistoryEventCount = 0;
 
             var newEventListBuffer = new StringBuilder(4000);
             var historyEventBatch = new TableBatchOperation();
+
+            StringBuilder partials = new StringBuilder();
             string lastCommitted = null;
 
             ParsePseudoEtag(pseudoETag, out char lastCommittedPrefix, out string eTagValue);
@@ -1075,11 +1076,12 @@ namespace DurableTask.AzureStorage.Tracking
                         executionId,
                         historyEventBatch,
                         newEventListBuffer,
-                        totalSize,
+                        executionHistoryEventCount,
                         episodeNumber,
                         estimatedBytes,
                         eTagValue,
                         lastCommitted,
+                        partials.ToString(),
                         renewIfNeeded);
 
                     // Reset local state for the next batch
@@ -1095,10 +1097,15 @@ namespace DurableTask.AzureStorage.Tracking
                 var allEvents = runtimeState.Events;
                 var newEvents = runtimeState.NewEvents;
 
-                totalSize = newEvents.Count;
+                executionHistoryEventCount = newEvents.Count;
                 episodeNumber = Utils.GetEpisodeNumber(runtimeState);
 
                 var startAt = runtimeState.Events.Count - newEvents.Count;
+
+                if (executionHistoryEventCount > 0)
+                {
+                    partials.Append(prefix); // keeps track of executions currently being written
+                }
 
                 for (int i = 0; i < newEvents.Count; i++)
                 {
@@ -1106,7 +1113,9 @@ namespace DurableTask.AzureStorage.Tracking
 
                     if (executionId == mostRecentExecutionId && i == newEvents.Count - 1)
                     {
-                        lastCommitted = MakeRowKey(prefix, sequenceNumber); // the next event is the last event, so it will commit everything
+                        // this is the last event, so its batch will commit everything
+                        partials.Clear();
+                        lastCommitted = MakeRowKey(prefix, sequenceNumber); 
                     }
 
                     await ProcessHistoryItem(newEvents[i], executionId, sequenceNumber, prefix);
@@ -1145,6 +1154,7 @@ namespace DurableTask.AzureStorage.Tracking
                     estimatedBytes,
                     eTagValue,
                     lastCommitted,
+                    partials.ToString(),
                     renewIfNeeded);
             }
 
@@ -1303,38 +1313,37 @@ namespace DurableTask.AzureStorage.Tracking
             int estimatedBatchSizeInBytes,
             string eTagValue,
             string lastCommitted,
+            string partials,
             Func<Task> renewIfNeeded)
         {
-            // Adding / updating sentinel entity
-            DynamicTableEntity sentinelEntity = new DynamicTableEntity(instanceId, SentinelRowKey)
-            {
-                Properties =
-                {
-                    ["ExecutionId"] = new EntityProperty(executionId),
-                }
-            };
+            bool isFresh = string.IsNullOrEmpty(eTagValue);
+            bool isFinalBatch = !string.IsNullOrEmpty(lastCommitted);
 
-            if (!string.IsNullOrEmpty(lastCommitted))
+            // Adding / updating sentinel entity
+            DynamicTableEntity sentinelEntity = new DynamicTableEntity(instanceId, SentinelRowKey);
+
+            // we are updating this property with every batch
+            sentinelEntity.Properties["Partials"] = new EntityProperty(partials);
+           
+            // we are updating these properties only when committing the final batch
+            if (isFresh || isFinalBatch)
             {
+                sentinelEntity.Properties["ExecutionId"] = new EntityProperty(executionId);
                 sentinelEntity.Properties["LastCommitted"] = new EntityProperty(lastCommitted);
             }
 
-            if (!string.IsNullOrEmpty(eTagValue))
+            if (isFresh)
+            {
+                historyEventBatch.Insert(sentinelEntity);
+            }
+            else     
             {
                 sentinelEntity.ETag = eTagValue;
                 historyEventBatch.Merge(sentinelEntity);
             }
-            else
-            {
-                historyEventBatch.Insert(sentinelEntity);
-            }
-
-            Task renewTask = renewIfNeeded(); // prevent session timeouts if committing the history takes a lot of time
-            if (renewTask != null)
-            { 
-                await renewTask;
-            }
-
+           
+            await renewIfNeeded(); // prevent session timeouts if committing the history takes a lot of time
+          
             Stopwatch stopwatch = Stopwatch.StartNew();
             IList<TableResult> tableResultList;
             try

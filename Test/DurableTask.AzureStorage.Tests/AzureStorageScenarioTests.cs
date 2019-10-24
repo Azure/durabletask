@@ -592,6 +592,7 @@ namespace DurableTask.AzureStorage.Tests
                 await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
 
                 // Perform some operations
+                // (all the incr have the same effect but the number helps when debugging)
                 await client.RaiseEventAsync("operation", "incr1");
                 await client.RaiseEventAsync("operation", "incr2");
                 await client.RaiseEventAsync("operation", "incr3");
@@ -2053,6 +2054,8 @@ namespace DurableTask.AzureStorage.Tests
                 {
                     string operation = await this.WaitForOperation();
 
+                    // for easier debugging we support suffixing incr operations with a sequence
+                    // number. So here we strip off that suffix.
                     if (operation.StartsWith("incr"))
                     {
                         operation = "incr";

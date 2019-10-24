@@ -153,7 +153,7 @@ namespace DurableTask.AzureStorage
                     // means that this is a management operation, like RaiseEvent or Terminate, which
                     // should be delivered to the current session.
                     if (this.activeOrchestrationSessions.TryGetValue(instanceId, out OrchestrationSession session) &&
-                        (executionId == null || session.Instance.ExecutionId == executionId))
+                        (executionId == null || session.RuntimeState.ContainsExecution(executionId)))
                     {
                         List<MessageData> pendingMessages;
                         if (!existingSessionMessages.TryGetValue(session, out pendingMessages))

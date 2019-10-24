@@ -48,6 +48,7 @@ namespace DurableTask.AzureStorage
             InstanceId = string.Empty,
             ExecutionId = string.Empty
         };
+        static readonly Task AlreadyCompletedTask = Task.FromResult<object>(null);
 
         readonly AzureStorageOrchestrationServiceSettings settings;
         readonly AzureStorageOrchestrationServiceStats stats;
@@ -769,7 +770,6 @@ namespace DurableTask.AzureStorage
                 var instanceId = newMessages[0].OrchestrationInstance.InstanceId;
 
                 if (instanceId.StartsWith("@") 
-                    && newMessages.Count > 0 
                     && newMessages[0].Event.EventType == EventType.EventRaised
                     && newMessages[0].OrchestrationInstance.ExecutionId == null)
                 {
@@ -843,7 +843,7 @@ namespace DurableTask.AzureStorage
             }
             else
             {
-                return null;
+                return AlreadyCompletedTask ;
             }
         }
 

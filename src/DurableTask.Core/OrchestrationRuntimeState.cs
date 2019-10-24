@@ -56,7 +56,7 @@ namespace DurableTask.Core
         public string Status;
 
         /// <summary>
-        /// The previous execution. Is set when doing multiple executions in a row.
+        /// The previous execution. Is used to chain executions that end with a continue-as-new.
         /// </summary>
         public OrchestrationRuntimeState PreviousExecution { get; set; }
 
@@ -259,6 +259,16 @@ namespace DurableTask.Core
             }
 
             return current;
+        }
+
+        /// <summary>
+        /// Checks if the given execution ID matches a current or past execution of this session.
+        /// </summary>
+        /// <returns></returns>
+        public bool ContainsExecution(string executionId)
+        {
+            return this.OrchestrationInstance.ExecutionId == executionId
+                   || this.PreviousExecution != null && this.PreviousExecution.ContainsExecution(executionId);
         }
 
         bool IsDuplicateEvent(HistoryEvent historyEvent)

@@ -222,7 +222,7 @@ namespace DurableTask.Core
             }
             else
             {
-                var allowedNumberOfFastContinueAsNews = 1;
+                int allowedNumberOfFastContinueAsNews = 1;
 
                 do
                 {
