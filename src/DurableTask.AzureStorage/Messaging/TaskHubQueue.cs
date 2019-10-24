@@ -174,7 +174,7 @@ namespace DurableTask.AzureStorage.Messaging
             return initialVisibilityDelay;
         }
 
-        public async Task AbandonMessageAsync(MessageData message, SessionBase session)
+        public virtual async Task AbandonMessageAsync(MessageData message, SessionBase session)
         {
             CloudQueueMessage queueMessage = message.OriginalQueueMessage;
             TaskMessage taskMessage = message.TaskMessage;
@@ -275,7 +275,7 @@ namespace DurableTask.AzureStorage.Messaging
             }
         }
 
-        public async Task DeleteMessageAsync(MessageData message, SessionBase session)
+        public virtual async Task DeleteMessageAsync(MessageData message, SessionBase session)
         {
             CloudQueueMessage queueMessage = message.OriginalQueueMessage;
             TaskMessage taskMessage = message.TaskMessage;

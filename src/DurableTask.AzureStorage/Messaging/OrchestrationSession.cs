@@ -25,7 +25,6 @@ namespace DurableTask.AzureStorage.Messaging
         readonly TimeSpan idleTimeout;
 
         readonly AsyncAutoResetEvent messagesAvailableEvent;
-        readonly AsyncManualResetEvent sessionReleasedEvent;
         readonly MessageCollection nextMessageBatch;
 
         public OrchestrationSession(
@@ -47,7 +46,6 @@ namespace DurableTask.AzureStorage.Messaging
             this.ETag = eTag;
 
             this.messagesAvailableEvent = new AsyncAutoResetEvent(signaled: false);
-            this.sessionReleasedEvent = new AsyncManualResetEvent();
             this.nextMessageBatch = new MessageCollection();
         }
 
@@ -67,28 +65,17 @@ namespace DurableTask.AzureStorage.Messaging
             return Utils.GetEpisodeNumber(this.RuntimeState);
         }
 
-        public IEnumerable<MessageData> AddOrReplaceMessages(IEnumerable<MessageData> messages)
+        public void AddOrReplaceMessages(IEnumerable<MessageData> messages)
         {
             lock (this.nextMessageBatch)
             {
-                List<MessageData> replacingMessages = null;
                 foreach (MessageData message in messages)
                 {
-                    if (!this.nextMessageBatch.AddOrReplace(message))
-                    {
-                        if (replacingMessages == null)
-                        {
-                            replacingMessages = new List<MessageData>();
-                        }
-
-                        replacingMessages.Add(message);
-                    }
+                    this.nextMessageBatch.AddOrReplace(message);
                 }
 
                 // Force running asynchronously to avoid blocking the main dispatch thread.
                 Task.Run(() => this.messagesAvailableEvent.Set());
-
-                return replacingMessages ?? Enumerable.Empty<MessageData>();
             }
         }
 
