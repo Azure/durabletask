@@ -183,9 +183,12 @@ namespace DurableTask.AzureStorage.Messaging
 
         public override Task AbandonMessageAsync(MessageData message, SessionBase session)
         {
-            if (this.pendingMessageIds.Remove(message.OriginalQueueMessage.Id))
+            lock (this.pendingMessageIds)
             {
-                this.stats.PendingOrchestratorMessages.Decrement();
+                if (this.pendingMessageIds.Remove(message.OriginalQueueMessage.Id))
+                {
+                    this.stats.PendingOrchestratorMessages.Decrement();
+                }
             }
 
             return base.AbandonMessageAsync(message, session);
@@ -193,9 +196,12 @@ namespace DurableTask.AzureStorage.Messaging
 
         public override Task DeleteMessageAsync(MessageData message, SessionBase session)
         {
-            if (this.pendingMessageIds.Remove(message.OriginalQueueMessage.Id))
+            lock (this.pendingMessageIds)
             {
-                this.stats.PendingOrchestratorMessages.Decrement();
+                if (this.pendingMessageIds.Remove(message.OriginalQueueMessage.Id))
+                {
+                    this.stats.PendingOrchestratorMessages.Decrement();
+                }
             }
 
             return base.DeleteMessageAsync(message, session);
