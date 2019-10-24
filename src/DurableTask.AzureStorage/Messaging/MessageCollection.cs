@@ -32,6 +32,7 @@ namespace DurableTask.AzureStorage.Messaging
                 if (existingMessage.Id == message.OriginalQueueMessage.Id)
                 {
                     this[i] = message;
+                    return;
                 }
             }
 
