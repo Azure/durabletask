@@ -269,7 +269,7 @@ namespace DurableTask.AzureStorage
             string eventType = message.TaskMessage.Event.EventType.ToString();
             string sequenceNumber = message.SequenceNumber.ToString("X16");
 
-            return $"{instanceId}/message-{sequenceNumber}-{eventType}.json.gz".ToLowerInvariant();
+            return $"{instanceId}/message-{sequenceNumber}-{eventType}.json.gz";
         }
 
         internal async Task DeleteLargeMessageBlobs(string instanceId, AzureStorageOrchestrationServiceStats stats)
