@@ -265,10 +265,11 @@ namespace DurableTask.Core
         /// Checks if the given execution ID matches a current or past execution of this session.
         /// </summary>
         /// <returns></returns>
-        public bool ContainsExecution(string executionId)
+        public bool HasPreviousExecution(string executionId)
         {
-            return this.OrchestrationInstance.ExecutionId == executionId
-                   || this.PreviousExecution != null && this.PreviousExecution.ContainsExecution(executionId);
+            return this.PreviousExecution != null 
+                && (this.PreviousExecution.OrchestrationInstance?.ExecutionId == executionId
+                   || this.PreviousExecution.HasPreviousExecution(executionId));
         }
 
         bool IsDuplicateEvent(HistoryEvent historyEvent)

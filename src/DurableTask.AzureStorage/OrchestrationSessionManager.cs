@@ -152,8 +152,8 @@ namespace DurableTask.AzureStorage
                     // directly rather than adding it to the linked list. A null executionId value
                     // means that this is a management operation, like RaiseEvent or Terminate, which
                     // should be delivered to the current session.
-                    if (this.activeOrchestrationSessions.TryGetValue(instanceId, out OrchestrationSession session) &&
-                        (executionId == null || session.RuntimeState.ContainsExecution(executionId)))
+                    if (this.activeOrchestrationSessions.TryGetValue(instanceId, out OrchestrationSession session) &&                    
+                        (executionId == null || session.Instance.ExecutionId == executionId || session.RuntimeState.HasPreviousExecution(executionId)))
                     {
                         List<MessageData> pendingMessages;
                         if (!existingSessionMessages.TryGetValue(session, out pendingMessages))
@@ -335,7 +335,7 @@ namespace DurableTask.AzureStorage
                         return session;
                     }
                     else if (nextBatch.OrchestrationExecutionId == null 
-                        || existingSession.RuntimeState.ContainsExecution(nextBatch.OrchestrationExecutionId))
+                        || existingSession.Instance.ExecutionId == nextBatch.OrchestrationExecutionId || existingSession.RuntimeState.HasPreviousExecution(nextBatch.OrchestrationExecutionId))
                     {
                         // there is already an active session with the same execution id.
                         // The session might be waiting for more messages. If it is, signal them.
