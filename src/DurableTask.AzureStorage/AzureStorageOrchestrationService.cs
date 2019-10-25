@@ -895,7 +895,7 @@ namespace DurableTask.AzureStorage
             {
                 // as we could not commit the state (losing storage ownership) we need to abandon the messages
                 // so the new owner can receive them and process them
-                await this.AbandonSessionAsync(session);
+                await this.AbandonAndReleaseSessionAsync(session);
                 throw;
             }
             catch (Exception e)
