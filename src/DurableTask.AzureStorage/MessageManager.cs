@@ -269,7 +269,7 @@ namespace DurableTask.AzureStorage
             string eventType = message.TaskMessage.Event.EventType.ToString();
             string activityId = message.ActivityId.ToString("N");
 
-            return $"{instanceId}/message-{activityId}-{eventType}.json.gz".ToLowerInvariant();
+            return $"{instanceId}/message-{activityId}-{eventType}.json.gz";
         }
 
         internal async Task DeleteLargeMessageBlobs(string instanceId, AzureStorageOrchestrationServiceStats stats)
