@@ -674,6 +674,12 @@ namespace DurableTask.AzureStorage
                             eventListBuilder.Append(msg.Event.EventType.ToString()).Append(',');
                         }
 
+                        // must abandon incoming EventRaised events that did not target this specific execution
+                        // so that they can be received by the most recent execution instead
+                        await this.AbandonMessagesAsync(session, session.CurrentMessageBatch
+                            .Where(messageData => messageData.TaskMessage.Event.EventType == EventType.EventRaised && messageData.TaskMessage.OrchestrationInstance.ExecutionId == null)
+                            .ToList());
+
                         AnalyticsEventSource.Log.DiscardingWorkItem(
                             this.storageAccountName,
                             this.settings.TaskHubName,
