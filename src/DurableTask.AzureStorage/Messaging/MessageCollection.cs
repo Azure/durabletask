@@ -19,9 +19,9 @@ namespace DurableTask.AzureStorage.Messaging
     class MessageCollection : List<MessageData>
     {
         /// <summary>
-        /// Adds or replaces a message in the list based on the message ID. Returns true for adds, false for replaces.
+        /// Adds or replaces a message in the list based on the message ID.
         /// </summary>
-        public bool AddOrReplace(MessageData message)
+        public void AddOrReplace(MessageData message)
         {
             // If a message has been sitting in the buffer for too long, the invisibility timeout may expire and 
             // it may get dequeued a second time. In such cases, we should replace the existing copy of the message
@@ -32,12 +32,11 @@ namespace DurableTask.AzureStorage.Messaging
                 if (existingMessage.Id == message.OriginalQueueMessage.Id)
                 {
                     this[i] = message;
-                    return false;
+                    return;
                 }
             }
 
             this.Add(message);
-            return true;
         }
     }
 }

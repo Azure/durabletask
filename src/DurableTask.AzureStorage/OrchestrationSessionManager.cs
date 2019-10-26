@@ -194,25 +194,8 @@ namespace DurableTask.AzureStorage
                         this.ScheduleOrchestrationStatePrefetch(node, traceActivityId, cancellationToken);
                     }
 
-                    if (targetBatch.Messages.AddOrReplace(data))
-                    {
-                        // Added. This is the normal path.
-                        this.stats.PendingOrchestratorMessages.Increment();
-                    }
-                    else
-                    {
-                        // Replaced. This happens if the visibility timeout of a message expires while it
-                        // is still sitting here in memory.
-                        AnalyticsEventSource.Log.DuplicateMessageDetected(
-                            this.storageAccountName,
-                            this.settings.TaskHubName,
-                            data.OriginalQueueMessage.Id,
-                            instanceId,
-                            executionId,
-                            controlQueue.Name,
-                            data.OriginalQueueMessage.DequeueCount,
-                            Utils.ExtensionVersion);
-                    }
+                    // New messages are added; duplicate messages are replaced
+                    targetBatch.Messages.AddOrReplace(data);
                 }
 
                 // The session might be waiting for more messages. If it is, signal them.
@@ -221,19 +204,8 @@ namespace DurableTask.AzureStorage
                     OrchestrationSession session = pair.Key;
                     List<MessageData> newMessages = pair.Value;
 
-                    IEnumerable<MessageData> replacements = session.AddOrReplaceMessages(newMessages);
-                    foreach (MessageData replacementMessage in replacements)
-                    {
-                        AnalyticsEventSource.Log.DuplicateMessageDetected(
-                            this.storageAccountName,
-                            this.settings.TaskHubName,
-                            replacementMessage.OriginalQueueMessage.Id,
-                            session.Instance.InstanceId,
-                            session.Instance.ExecutionId,
-                            controlQueue.Name,
-                            replacementMessage.OriginalQueueMessage.DequeueCount,
-                            Utils.ExtensionVersion);
-                    }
+                    // New messages are added; duplicate messages are replaced
+                    session.AddOrReplaceMessages(newMessages);
                 }
             }
         }
@@ -315,8 +287,6 @@ namespace DurableTask.AzureStorage
                                 ExecutionId = nextBatch.OrchestrationExecutionId,
                             };
 
-                        this.stats.PendingOrchestratorMessages.Increment(-nextBatch.Messages.Count);
-
                         Guid traceActivityId = AzureStorageOrchestrationService.StartNewLogicalTraceScope();
 
                         OrchestrationSession session = new OrchestrationSession(
@@ -338,19 +308,7 @@ namespace DurableTask.AzureStorage
                     {
                         // there is already an active session with the same execution id.
                         // The session might be waiting for more messages. If it is, signal them.
-                        IEnumerable<MessageData> replacements = existingSession.AddOrReplaceMessages(node.Value.Messages);
-                        foreach (MessageData replacementMessage in replacements)
-                        {
-                            AnalyticsEventSource.Log.DuplicateMessageDetected(
-                                this.storageAccountName,
-                                this.settings.TaskHubName,
-                                replacementMessage.OriginalQueueMessage.Id,
-                                existingSession.Instance.InstanceId,
-                                existingSession.Instance.ExecutionId,
-                                node.Value.ControlQueue.Name,
-                                replacementMessage.OriginalQueueMessage.DequeueCount,
-                                Utils.ExtensionVersion);
-                        }
+                        existingSession.AddOrReplaceMessages(node.Value.Messages);
                     }
                     else
                     {
