@@ -27,12 +27,18 @@ namespace DurableTask.AzureStorage
         /// <summary>
         /// The MessageData object.
         /// </summary>
-        public MessageData(TaskMessage message, Guid activityId, string queueName, int orchestrationEpisode)
+        public MessageData(
+            TaskMessage message,
+            Guid activityId,
+            string queueName,
+            int? orchestrationEpisode,
+            OrchestrationInstance sender)
         {
             this.TaskMessage = message;
             this.ActivityId = activityId;
             this.QueueName = queueName;
             this.Episode = orchestrationEpisode;
+            this.Sender = sender ?? throw new ArgumentNullException(nameof(sender));
         }
 
         /// <summary>
@@ -69,11 +75,18 @@ namespace DurableTask.AzureStorage
         /// The episode number of the orchestration which created this message.
         /// </summary>
         /// <remarks>
-        /// This value may be <c>0</c> if the orchestration instance that created
-        /// the message was started before episode numbers were tracked.
+        /// This value may be <c>null</c> if the orchestration instance that created
+        /// the message was started before episode numbers were tracked, or if the message
+        /// was created by a client.
         /// </remarks>
-        [DataMember]
-        public int Episode { get; private set; }
+        [DataMember(EmitDefaultValue = false)]
+        public int? Episode { get; private set; }
+
+        /// <summary>
+        /// The sender of the message.
+        /// </summary>
+        [DataMember(EmitDefaultValue = false)]
+        public OrchestrationInstance Sender { get; private set; }
 
         internal string Id => this.OriginalQueueMessage?.Id;
 

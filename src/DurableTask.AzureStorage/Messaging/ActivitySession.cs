@@ -27,7 +27,7 @@ namespace DurableTask.AzureStorage.Messaging
             : base(storageAccountName, taskHubName, message.TaskMessage.OrchestrationInstance, traceActivityId)
         {
             this.MessageData = message ?? throw new ArgumentNullException(nameof(message));
-            this.orchestrationEpisode = message.Episode;
+            this.orchestrationEpisode = message.Episode ?? -1;
         }
 
         public MessageData MessageData { get; }
