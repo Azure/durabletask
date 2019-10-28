@@ -85,7 +85,7 @@ namespace DurableTask.AzureStorage.Messaging
                             this.settings.ControlQueueBatchSize,
                             this.settings.ControlQueueVisibilityTimeout,
                             this.settings.ControlQueueRequestOptions,
-                            null /* operationContext */,
+                            context,
                             linkedCts.Token);
                         });
 

@@ -109,11 +109,7 @@ namespace DurableTask.AzureStorage
                     Guid traceActivityId = AzureStorageOrchestrationService.StartNewLogicalTraceScope();
 
                     // This will block until either new messages arrive or the queue is released.
-                    OperationContext context = new OperationContext { ClientRequestID = Guid.NewGuid().ToString() };
-                    IReadOnlyList<MessageData> messages = await TimeoutHandler.ExecuteWithTimeout("DequeueLoop", context.ClientRequestID, storageAccountName, settings.TaskHubName, () =>
-                    {
-                        return controlQueue.GetMessagesAsync(cancellationToken);
-                    });
+                    IReadOnlyList<MessageData> messages = await controlQueue.GetMessagesAsync(cancellationToken);
                     
                     if (messages.Count > 0)
                     {

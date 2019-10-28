@@ -47,7 +47,7 @@ namespace DurableTask.AzureStorage.Messaging
                         return this.storageQueue.GetMessageAsync(
                         this.settings.WorkItemQueueVisibilityTimeout,
                         this.settings.WorkItemQueueRequestOptions,
-                        null /* operationContext */,
+                        context,
                         cancellationToken);
                     });
 
