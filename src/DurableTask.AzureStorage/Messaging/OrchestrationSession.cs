@@ -153,20 +153,21 @@ namespace DurableTask.AzureStorage.Messaging
                 // LastCheckpointTime represents the time at which the most recent history checkpoint completed.
                 // The checkpoint is written to the history table only *after* all queue messages are sent.
                 // A message is out of order when its timestamp *preceeds* the most recent checkpoint timestamp.
-                // This logic only applies for messages sent by orchestrations.
+                // This logic only applies for messages sent by orchestrations to themselves.
                 // Orchestration checkpoint time information was added only after v1.6.4.
                 return false;
             }
 
-            ////// This message is a response to a task. Search the history to make sure that we've recorded the fact that
-            ////// this task was scheduled. We don't have the luxery of transactions between queues and tables, so queue
-            ////// messages are always written before we update the history in table storage. This means that in some
-            ////// cases the response message could get picked up before we're ready for it.
-            ////HistoryEvent mostRecentTaskEvent = this.RuntimeState.Events.LastOrDefault(e => e.EventId == taskScheduledId);
-            ////if (mostRecentTaskEvent != null)
-            ////{
-            ////    return false;
-            ////}
+            if (Utils.TryGetTaskScheduledId(message.TaskMessage.Event, out int taskScheduledId))
+            {
+                // This message is a response to a task. Search the history to make sure that we've recorded the fact that
+                // this task was scheduled.
+                HistoryEvent mostRecentTaskEvent = this.RuntimeState.Events.LastOrDefault(e => e.EventId == taskScheduledId);
+                if (mostRecentTaskEvent != null)
+                {
+                    return false;
+                }
+            }
 
             // The message is out of order and cannot be handled by the current session.
             return true;

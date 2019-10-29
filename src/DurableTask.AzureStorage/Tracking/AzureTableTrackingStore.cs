@@ -1241,16 +1241,13 @@ namespace DurableTask.AzureStorage.Tracking
             this.stats.TableEntitiesWritten.Increment(historyEventBatch.Count);
 
             string newETagValue = null;
-            if (tableResultList != null)
+            for (int i = tableResultList.Count - 1; i >= 0; i--)
             {
-                for (int i = tableResultList.Count - 1; i >= 0; i--)
+                DynamicTableEntity resultEntity = (DynamicTableEntity)tableResultList[i].Result;
+                if (resultEntity.RowKey == SentinelRowKey)
                 {
-                    DynamicTableEntity resultEntity = (DynamicTableEntity)tableResultList[i].Result;
-                    if (resultEntity.RowKey == SentinelRowKey)
-                    {
-                        newETagValue = resultEntity.ETag;
-                        break;
-                    }
+                    newETagValue = resultEntity.ETag;
+                    break;
                 }
             }
 

@@ -104,27 +104,27 @@ namespace DurableTask.AzureStorage
             return historyEvent.EventId;
         }
 
-        public static bool TryGetTaskScheduledId(HistoryEvent historyEvent, out int taskEventId)
+        public static bool TryGetTaskScheduledId(HistoryEvent historyEvent, out int taskScheduledId)
         {
             switch (historyEvent.EventType)
             {
                 case EventType.TaskCompleted:
-                    taskEventId = ((TaskCompletedEvent)historyEvent).TaskScheduledId;
+                    taskScheduledId = ((TaskCompletedEvent)historyEvent).TaskScheduledId;
                     return true;
                 case EventType.TaskFailed:
-                    taskEventId = ((TaskFailedEvent)historyEvent).TaskScheduledId;
+                    taskScheduledId = ((TaskFailedEvent)historyEvent).TaskScheduledId;
                     return true;
                 case EventType.SubOrchestrationInstanceCompleted:
-                    taskEventId = ((SubOrchestrationInstanceCompletedEvent)historyEvent).TaskScheduledId;
+                    taskScheduledId = ((SubOrchestrationInstanceCompletedEvent)historyEvent).TaskScheduledId;
                     return true;
                 case EventType.SubOrchestrationInstanceFailed:
-                    taskEventId = ((SubOrchestrationInstanceFailedEvent)historyEvent).TaskScheduledId;
+                    taskScheduledId = ((SubOrchestrationInstanceFailedEvent)historyEvent).TaskScheduledId;
                     return true;
                 case EventType.TimerFired:
-                    taskEventId = ((TimerFiredEvent)historyEvent).TimerId;
+                    taskScheduledId = ((TimerFiredEvent)historyEvent).TimerId;
                     return true;
                 default:
-                    taskEventId = -1;
+                    taskScheduledId = -1;
                     return false;
             }
         }
