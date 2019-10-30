@@ -153,7 +153,9 @@ namespace DurableTask.AzureStorage.Messaging
                 // LastCheckpointTime represents the time at which the most recent history checkpoint completed.
                 // The checkpoint is written to the history table only *after* all queue messages are sent.
                 // A message is out of order when its timestamp *preceeds* the most recent checkpoint timestamp.
-                // This logic only applies for messages sent by orchestrations to themselves.
+                // In this case, we see that the checkpoint came *after* the message, so there is no out-of-order
+                // concern. Note that this logic only applies for messages sent by orchestrations to themselves.
+                // The next check considers the other cases (activities, sub-orchestrations, etc.).
                 // Orchestration checkpoint time information was added only after v1.6.4.
                 return false;
             }
