@@ -1244,7 +1244,7 @@ namespace DurableTask.AzureStorage
                 // An instance in this state already exists.
                 if (settings.ThrowExceptionOnInvalidDedupeStatus)
                 {
-                    throw new InvalidOperationException($"An Orchestration instance in the state {existingInstance.OrchestrationStatus} already exists.");
+                    throw new InvalidOperationException($"An Orchestration instance with the status {existingInstance.OrchestrationStatus} already exists.");
                 }
 
                 return;
