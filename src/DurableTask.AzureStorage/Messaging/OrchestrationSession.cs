@@ -32,7 +32,7 @@ namespace DurableTask.AzureStorage.Messaging
             string taskHubName,
             OrchestrationInstance orchestrationInstance,
             ControlQueue controlQueue,
-            IList<MessageData> initialMessageBatch,
+            List<MessageData> initialMessageBatch,
             OrchestrationRuntimeState runtimeState,
             string eTag,
             DateTime lastCheckpointTime,
@@ -53,7 +53,7 @@ namespace DurableTask.AzureStorage.Messaging
 
         public ControlQueue ControlQueue { get; }
 
-        public IList<MessageData> CurrentMessageBatch { get; private set; }
+        public List<MessageData> CurrentMessageBatch { get; private set; }
 
         public MessageCollection DeferredMessages { get; } = new MessageCollection();
 
@@ -98,7 +98,7 @@ namespace DurableTask.AzureStorage.Messaging
 
             lock (this.nextMessageBatch)
             {
-                this.CurrentMessageBatch = this.nextMessageBatch.ToArray();
+                this.CurrentMessageBatch = this.nextMessageBatch.ToList();
                 this.nextMessageBatch.Clear();
             }
 
