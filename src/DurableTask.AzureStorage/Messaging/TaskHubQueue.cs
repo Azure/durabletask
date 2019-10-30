@@ -102,10 +102,11 @@ namespace DurableTask.AzureStorage.Messaging
                     taskMessage,
                     outboundTraceActivityId,
                     this.storageQueue.Name,
-                    session?.GetCurrentEpisode() ?? 0);
+                    session?.GetCurrentEpisode(),
+                    sourceInstance);
                 data.SequenceNumber = Interlocked.Increment(ref messageSequenceNumber);
 
-                string rawContent = await messageManager.SerializeMessageDataAsync(data);
+                string rawContent = await this.messageManager.SerializeMessageDataAsync(data);
                 CloudQueueMessage queueMessage = new CloudQueueMessage(rawContent);
 
                 AnalyticsEventSource.Log.SendingMessage(
@@ -121,7 +122,7 @@ namespace DurableTask.AzureStorage.Messaging
                     taskMessage.OrchestrationInstance.InstanceId,
                     taskMessage.OrchestrationInstance.ExecutionId,
                     data.SequenceNumber,
-                    data.Episode,
+                    data.Episode.GetValueOrDefault(-1),
                     Utils.ExtensionVersion);
 
                 await this.storageQueue.AddMessageAsync(

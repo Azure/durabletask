@@ -32,6 +32,11 @@ namespace DurableTask.AzureStorage
             this IEnumerable<TSource> enumerable,
             Func<TSource, Task> action)
         {
+            if (!enumerable.Any())
+            {
+                return;
+            }
+
             var tasks = new List<Task>(32);
             foreach (TSource entry in enumerable)
             {
@@ -43,6 +48,11 @@ namespace DurableTask.AzureStorage
 
         public static async Task ParallelForEachAsync<T>(this IList<T> items, int maxConcurrency, Func<T, Task> action)
         {
+            if (items.Count == 0)
+            {
+                return;
+            }
+
             using (var semaphore = new SemaphoreSlim(maxConcurrency))
             {
                 var tasks = new Task[items.Count];
@@ -86,20 +96,36 @@ namespace DurableTask.AzureStorage
 
         public static int GetTaskEventId(HistoryEvent historyEvent)
         {
+            if (TryGetTaskScheduledId(historyEvent, out int taskScheduledId))
+            {
+                return taskScheduledId;
+            }
+
+            return historyEvent.EventId;
+        }
+
+        public static bool TryGetTaskScheduledId(HistoryEvent historyEvent, out int taskScheduledId)
+        {
             switch (historyEvent.EventType)
             {
                 case EventType.TaskCompleted:
-                    return ((TaskCompletedEvent)historyEvent).TaskScheduledId;
+                    taskScheduledId = ((TaskCompletedEvent)historyEvent).TaskScheduledId;
+                    return true;
                 case EventType.TaskFailed:
-                    return ((TaskFailedEvent)historyEvent).TaskScheduledId;
+                    taskScheduledId = ((TaskFailedEvent)historyEvent).TaskScheduledId;
+                    return true;
                 case EventType.SubOrchestrationInstanceCompleted:
-                    return ((SubOrchestrationInstanceCompletedEvent)historyEvent).TaskScheduledId;
+                    taskScheduledId = ((SubOrchestrationInstanceCompletedEvent)historyEvent).TaskScheduledId;
+                    return true;
                 case EventType.SubOrchestrationInstanceFailed:
-                    return ((SubOrchestrationInstanceFailedEvent)historyEvent).TaskScheduledId;
+                    taskScheduledId = ((SubOrchestrationInstanceFailedEvent)historyEvent).TaskScheduledId;
+                    return true;
                 case EventType.TimerFired:
-                    return ((TimerFiredEvent)historyEvent).TimerId;
+                    taskScheduledId = ((TimerFiredEvent)historyEvent).TimerId;
+                    return true;
                 default:
-                    return historyEvent.EventId;
+                    taskScheduledId = -1;
+                    return false;
             }
         }
     }

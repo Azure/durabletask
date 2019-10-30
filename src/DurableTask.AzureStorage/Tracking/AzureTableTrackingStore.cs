@@ -42,6 +42,8 @@ namespace DurableTask.AzureStorage.Tracking
         const string RowKeyProperty = "RowKey";
         const string PartitionKeyProperty = "PartitionKey";
         const string SentinelRowKey = "sentinel";
+        const string IsCheckpointCompleteProperty = "IsCheckpointComplete";
+        const string CheckpointCompletedTimestampProperty = "CheckpointCompletedTimestamp";
 
         // See https://docs.microsoft.com/en-us/rest/api/storageservices/understanding-the-table-service-data-model#property-types
         const int MaxTablePropertySizeInBytes = 60 * 1024; // 60KB
@@ -155,19 +157,26 @@ namespace DurableTask.AzureStorage.Tracking
         /// <inheritdoc />
         public override async Task<OrchestrationHistory> GetHistoryEventsAsync(string instanceId, string expectedExecutionId, CancellationToken cancellationToken = default(CancellationToken))
         {
-            HistoryEntitiesResponseInfo historyEntitiesResponseInfo = await this.GetHistoryEntitiesResponseInfoAsync(instanceId, expectedExecutionId, null, cancellationToken);
+            HistoryEntitiesResponseInfo historyEntitiesResponseInfo = await this.GetHistoryEntitiesResponseInfoAsync(
+                instanceId,
+                expectedExecutionId,
+                null,
+                cancellationToken);
+
+            List<DynamicTableEntity> tableEntities = historyEntitiesResponseInfo.HistoryEventEntities;
+
             IList<HistoryEvent> historyEvents;
             string executionId;
             string eTagValue = null;
-            if (historyEntitiesResponseInfo.HistoryEventEntities.Count > 0)
+            if (tableEntities.Count > 0)
             {
                 // The most recent generation will always be in the first history event.
-                executionId = historyEntitiesResponseInfo.HistoryEventEntities[0].Properties["ExecutionId"].StringValue;
+                executionId = tableEntities[0].Properties["ExecutionId"].StringValue;
 
                 // Convert the table entities into history events.
-                var events = new List<HistoryEvent>(historyEntitiesResponseInfo.HistoryEventEntities.Count);
+                var events = new List<HistoryEvent>(tableEntities.Count);
 
-                foreach (DynamicTableEntity entity in historyEntitiesResponseInfo.HistoryEventEntities)
+                foreach (DynamicTableEntity entity in tableEntities)
                 {
                     if (entity.Properties["ExecutionId"].StringValue != executionId)
                     {
@@ -195,6 +204,17 @@ namespace DurableTask.AzureStorage.Tracking
                 executionId = expectedExecutionId;
             }
 
+            // Read the checkpoint completion time from the sentinel row, which should always be the last row.
+            // The only time a sentinel won't exist is if no instance of this ID has ever existed.
+            // The IsCheckpointCompleteProperty was newly added _after_ v1.6.4.
+            DateTime checkpointCompletionTime = DateTime.MinValue;
+            DynamicTableEntity lastRow = tableEntities.LastOrDefault();
+            if (lastRow?.RowKey == SentinelRowKey &&
+                lastRow.Properties.TryGetValue(CheckpointCompletedTimestampProperty, out EntityProperty timestampProperty))
+            {
+                checkpointCompletionTime = timestampProperty.DateTime ?? DateTime.MinValue;
+            }
+
             int currentEpisodeNumber = Utils.GetEpisodeNumber(historyEvents);
 
             AnalyticsEventSource.Log.FetchedInstanceHistory(
@@ -207,9 +227,10 @@ namespace DurableTask.AzureStorage.Tracking
                 historyEntitiesResponseInfo.RequestCount,
                 historyEntitiesResponseInfo.ElapsedMilliseconds,
                 eTagValue,
+                checkpointCompletionTime,
                 Utils.ExtensionVersion);
 
-            return new OrchestrationHistory(historyEvents, eTagValue);
+            return new OrchestrationHistory(historyEvents, checkpointCompletionTime, eTagValue);
         }
 
         async Task<HistoryEntitiesResponseInfo> GetHistoryEntitiesResponseInfoAsync(string instanceId, string expectedExecutionId, IList<string> projectionColumns,  CancellationToken cancellationToken = default(CancellationToken))
@@ -223,8 +244,9 @@ namespace DurableTask.AzureStorage.Tracking
             if (!string.IsNullOrEmpty(expectedExecutionId))
             {
                 // Filter down to a specific generation.
-                // e.g. "PartitionKey eq 'c138dd969a1e4a699b0644c7d8279f81' and ExecutionId eq '85f05ce1494c4a29989f64d3fe0f9089'"
-                filterCondition.Append(" and ExecutionId eq ").Append(Quote).Append(expectedExecutionId).Append(Quote);
+                // e.g. "PartitionKey eq 'c138dd969a1e4a699b0644c7d8279f81' and (RowKey eq 'sentinel' or ExecutionId eq '85f05ce1494c4a29989f64d3fe0f9089')"
+                filterCondition.Append(" and (RowKey eq ").Append(Quote).Append(SentinelRowKey).Append(Quote)
+                    .Append(" or ExecutionId eq ").Append(Quote).Append(expectedExecutionId).Append(Quote).Append(')');
             }
 
             TableQuery query = new TableQuery().Where(filterCondition.ToString());
@@ -310,7 +332,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             // We don't have enough information to get the episode number.
             // It's also not important to have for this particular trace.
-            int currentEpisodeNumber = 0;
+            int currentEpisodeNumber = -1;
 
             string executionId = entities.Count > 0 && entities.First().Properties.ContainsKey("ExecutionId") ?
                 entities[0].Properties["ExecutionId"].StringValue :
@@ -326,6 +348,7 @@ namespace DurableTask.AzureStorage.Tracking
                 requestCount,
                 stopwatch.ElapsedMilliseconds,
                 string.Empty /* ETag */,
+                DateTime.MinValue,
                 Utils.ExtensionVersion);
 
             return entities; 
@@ -901,6 +924,8 @@ namespace DurableTask.AzureStorage.Tracking
             
             for (int i = 0; i < newEvents.Count; i++)
             {
+                bool isFinalEvent = i == newEvents.Count - 1;
+
                 HistoryEvent historyEvent = newEvents[i];
                 DynamicTableEntity historyEntity = this.tableEntityConverter.ConvertToTableEntity(historyEvent);
                 historyEntity.PartitionKey = instanceId;
@@ -983,7 +1008,8 @@ namespace DurableTask.AzureStorage.Tracking
                         newEvents.Count,
                         episodeNumber,
                         estimatedBytes,
-                        eTagValue);
+                        eTagValue,
+                        isFinalBatch: isFinalEvent);
 
                     // Reset local state for the next batch
                     newEventListBuffer.Clear();
@@ -1003,7 +1029,8 @@ namespace DurableTask.AzureStorage.Tracking
                     newEvents.Count,
                     episodeNumber,
                     estimatedBytes,
-                    eTagValue);
+                    eTagValue,
+                    isFinalBatch: true);
             }
 
             Stopwatch orchestrationInstanceUpdateStopwatch = Stopwatch.StartNew();
@@ -1153,7 +1180,8 @@ namespace DurableTask.AzureStorage.Tracking
             int numberOfTotalEvents,
             int episodeNumber,
             int estimatedBatchSizeInBytes,
-            string eTagValue)
+            string eTagValue,
+            bool isFinalBatch)
         {
             // Adding / updating sentinel entity
             DynamicTableEntity sentinelEntity = new DynamicTableEntity(instanceId, SentinelRowKey)
@@ -1161,13 +1189,19 @@ namespace DurableTask.AzureStorage.Tracking
                 Properties =
                 {
                     ["ExecutionId"] = new EntityProperty(executionId),
+                    [IsCheckpointCompleteProperty] = new EntityProperty(isFinalBatch),
                 }
             };
+
+            if (isFinalBatch)
+            {
+                sentinelEntity.Properties[CheckpointCompletedTimestampProperty] = new EntityProperty(DateTime.UtcNow);
+            }
 
             if (!string.IsNullOrEmpty(eTagValue))
             {
                 sentinelEntity.ETag = eTagValue;
-                historyEventBatch.Replace(sentinelEntity);
+                historyEventBatch.Merge(sentinelEntity);
             }
             else
             {
@@ -1207,15 +1241,13 @@ namespace DurableTask.AzureStorage.Tracking
             this.stats.TableEntitiesWritten.Increment(historyEventBatch.Count);
 
             string newETagValue = null;
-            if (tableResultList != null)
+            for (int i = tableResultList.Count - 1; i >= 0; i--)
             {
-                for (int i = tableResultList.Count - 1; i >= 0; i--)
+                DynamicTableEntity resultEntity = (DynamicTableEntity)tableResultList[i].Result;
+                if (resultEntity.RowKey == SentinelRowKey)
                 {
-                    if (((DynamicTableEntity)tableResultList[i].Result).RowKey == SentinelRowKey)
-                    {
-                        newETagValue = tableResultList[i].Etag;
-                        break;
-                    }
+                    newETagValue = resultEntity.ETag;
+                    break;
                 }
             }
 
@@ -1231,6 +1263,7 @@ namespace DurableTask.AzureStorage.Tracking
                 stopwatch.ElapsedMilliseconds,
                 estimatedBatchSizeInBytes,
                 string.Concat(eTagValue ?? "(null)", " -->", Environment.NewLine, newETagValue ?? "(null)"),
+                isFinalBatch,
                 Utils.ExtensionVersion);
 
             return newETagValue;
