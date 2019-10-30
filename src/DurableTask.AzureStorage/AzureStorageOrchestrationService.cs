@@ -1056,6 +1056,7 @@ namespace DurableTask.AzureStorage
             using (var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, this.shutdownSource.Token))
             {
                 MessageData message = await this.workItemQueue.GetMessageAsync(linkedCts.Token);
+
                 if (message == null)
                 {
                     // shutting down

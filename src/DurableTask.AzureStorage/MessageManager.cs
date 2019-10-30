@@ -23,6 +23,7 @@ namespace DurableTask.AzureStorage
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.Core;
+    using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Blob;
     using Microsoft.WindowsAzure.Storage.Queue;
     using Newtonsoft.Json;
@@ -284,7 +285,12 @@ namespace DurableTask.AzureStorage
             BlobContinuationToken blobContinuationToken = null;
             while (true)
             {
-                BlobResultSegment segment = await instanceDirectory.ListBlobsSegmentedAsync(blobContinuationToken);
+                OperationContext context = new OperationContext { ClientRequestID = Guid.NewGuid().ToString() };
+                BlobResultSegment segment = await TimeoutHandler.ExecuteWithTimeout("DeleteLargeMessageBlobs", context.ClientRequestID, cloudBlobContainer?.ServiceClient?.Credentials?.AccountName, null, () =>
+                {
+                    return instanceDirectory.ListBlobsSegmentedAsync(blobContinuationToken);
+                });
+                
                 stats.StorageRequests.Increment();
                 foreach (IListBlobItem blobListItem in segment.Results)
                 {

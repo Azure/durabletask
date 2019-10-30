@@ -20,6 +20,7 @@ namespace DurableTask.AzureStorage.Messaging
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Monitoring;
+    using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Queue;
 
     class ControlQueue : TaskHubQueue, IDisposable
@@ -79,12 +80,16 @@ namespace DurableTask.AzureStorage.Messaging
 
                     try
                     {
-                        IEnumerable<CloudQueueMessage> batch = await this.storageQueue.GetMessagesAsync(
+                        OperationContext context = new OperationContext { ClientRequestID = Guid.NewGuid().ToString() };
+                        IEnumerable<CloudQueueMessage> batch = await TimeoutHandler.ExecuteWithTimeout("GetMessages", context.ClientRequestID, storageAccountName, settings.TaskHubName, () =>
+                        {
+                            return this.storageQueue.GetMessagesAsync(
                             this.settings.ControlQueueBatchSize,
                             this.settings.ControlQueueVisibilityTimeout,
                             this.settings.ControlQueueRequestOptions,
-                            null /* operationContext */,
+                            context,
                             linkedCts.Token);
+                        });
 
                         this.stats.StorageRequests.Increment();
 

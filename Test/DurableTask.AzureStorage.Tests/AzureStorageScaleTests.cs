@@ -159,7 +159,12 @@ namespace DurableTask.AzureStorage.Tests
             var results = new List<IListBlobItem>();
             do
             {
-                BlobResultSegment response = await client.ListBlobsSegmentedAsync(continuationToken);
+                OperationContext context = new OperationContext { ClientRequestID = Guid.NewGuid().ToString() };
+                BlobResultSegment response = await TimeoutHandler.ExecuteWithTimeout("ListBobs", context.ClientRequestID, null, null, () =>
+                {
+                    return client.ListBlobsSegmentedAsync(continuationToken);
+                });
+                
                 continuationToken = response.ContinuationToken;
                 results.AddRange(response.Results);
             }
