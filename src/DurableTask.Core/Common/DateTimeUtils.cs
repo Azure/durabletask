@@ -31,7 +31,7 @@ namespace DurableTask.Core.Common
         /// <summary>
         /// Returns minimum allowable DateTime, allows overriding this for the storage emulator.
         /// The Storage emulator supports a min datetime or DateTime.FromFileTimeUtc(0)
-        /// Do not alter this value. Kept as field to have backward compatibility.
+        /// Do not alter this value. Kept as field to have backward compatibility(#319).
         /// </summary>  
         public static DateTime MinDateTime = DateTime.MinValue;
 
