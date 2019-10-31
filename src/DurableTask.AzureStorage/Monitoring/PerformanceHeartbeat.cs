@@ -25,32 +25,32 @@ namespace DurableTask.AzureStorage.Monitoring
         /// <summary>
         /// Gets the number of partitions configured in the task hub.
         /// </summary>
-        public int PartitionCount { get; internal set; }
+        public int PartitionCount { get; set; }
 
         /// <summary>
         /// Gets the number of messages across all control queues.
         /// </summary>
-        public IReadOnlyList<int> ControlQueueLengths { get; internal set; }
+        public IReadOnlyList<int> ControlQueueLengths { get; set; }
 
         /// <summary>
         /// Gets the latency of messages in all control queues.
         /// </summary>
-        public IReadOnlyList<TimeSpan> ControlQueueLatencies { get; internal set; }
+        public IReadOnlyList<TimeSpan> ControlQueueLatencies { get; set; }
 
         /// <summary>
         /// Gets the number of messages in the work-item queue.
         /// </summary>
-        public int WorkItemQueueLength { get; internal set; }
+        public int WorkItemQueueLength { get; set; }
 
         /// <summary>
         /// Gets a trend value describing the latency of messages in the work-item queue over a period of time.
         /// </summary>
-        public double WorkItemQueueLatencyTrend { get; internal set; }
+        public double WorkItemQueueLatencyTrend { get; set; }
 
         /// <summary>
         /// Gets the approximate age of the first work-item queue message.
         /// </summary>
-        public TimeSpan WorkItemQueueLatency { get; internal set; }
+        public TimeSpan WorkItemQueueLatency { get; set; }
 
         /// <summary>
         /// Gets a scale recommendation for the task hub given the current performance metrics.
