@@ -173,6 +173,11 @@ namespace DurableTask.AzureStorage
         public BehaviorOnContinueAsNew EventBehaviourForContinueAsNew { get; set; } = BehaviorOnContinueAsNew.Carryover;
 
         /// <summary>
+        /// When true, will throw an exception when attempting to create an orchestration with an existing dedupe status.
+        /// </summary>
+        public bool ThrowExceptionOnInvalidDedupeStatus { get; set; } = false;
+
+        /// <summary>
         /// Returns bool indicating is the TrackingStoreStorageAccount has been set.
         /// </summary>
         public  bool HasTrackingStoreStorageAccount => TrackingStoreStorageAccountDetails != null;
