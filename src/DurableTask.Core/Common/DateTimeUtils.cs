@@ -20,11 +20,6 @@ namespace DurableTask.Core.Common
     /// </summary>
     public static class DateTimeUtils
     {
-        static DateTimeUtils()
-        {
-            MinDateTime = DateTime.MinValue;
-        }
-
         /// <summary>
         /// Returns bool indicating is the datetime has a value set
         /// </summary>        
