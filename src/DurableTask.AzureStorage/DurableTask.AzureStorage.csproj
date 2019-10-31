@@ -29,7 +29,8 @@
 
   <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
     <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
-    <PackageReference Include="WindowsAzure.Storage" version="9.3.3" />
+    <!--Change the Storage SDK version with extreme caution, otherwise may break Durable Functions usage with Azure Storage Extension. -->
+    <PackageReference Include="WindowsAzure.Storage" version="9.3.1" />
   </ItemGroup>
 
   <ItemGroup>
