@@ -12,6 +12,7 @@
 //  ----------------------------------------------------------------------------------
 
 using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -32,7 +33,7 @@ namespace DurableTask.AzureStorage
 
                 Task completedTask = await Task.WhenAny(timeoutTask, operationTask);
 
-                if (Equals(timeoutTask, completedTask))
+                if (Equals(timeoutTask, completedTask) && !Debugger.IsAttached)
                 {
                     var message = $"The operation '{operationName}' with id '{clientRequestId}' did not complete in '{DefaultTimeout}'. Terminating the process to mitigate potential deadlock.";
                     AnalyticsEventSource.Log.GeneralError(account ?? "", taskHub ?? "", message, Utils.ExtensionVersion);
