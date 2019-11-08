@@ -12,6 +12,7 @@
 //  ----------------------------------------------------------------------------------
 
 using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -25,6 +26,12 @@ namespace DurableTask.AzureStorage
 
         public static async Task<T> ExecuteWithTimeout<T>(string operationName, string clientRequestId, string account, string taskHub, Func<Task<T>> operation)
         {
+            if (Debugger.IsAttached)
+            {
+                // ignore long delays while debugging
+                return await operation();
+            }
+
             using (var cts = new CancellationTokenSource())
             {
                 Task timeoutTask = Task.Delay(DefaultTimeout, cts.Token);
