@@ -26,6 +26,12 @@ namespace DurableTask.AzureStorage
 
         public static async Task<T> ExecuteWithTimeout<T>(string operationName, string clientRequestId, string account, string taskHub, Func<Task<T>> operation)
         {
+            if (Debugger.IsAttached)
+            {
+                // ignore long delays while debugging
+                return await operation();
+            }
+
             using (var cts = new CancellationTokenSource())
             {
                 Task timeoutTask = Task.Delay(DefaultTimeout, cts.Token);
@@ -33,7 +39,7 @@ namespace DurableTask.AzureStorage
 
                 Task completedTask = await Task.WhenAny(timeoutTask, operationTask);
 
-                if (Equals(timeoutTask, completedTask) && !Debugger.IsAttached)
+                if (Equals(timeoutTask, completedTask))
                 {
                     var message = $"The operation '{operationName}' with id '{clientRequestId}' did not complete in '{DefaultTimeout}'. Terminating the process to mitigate potential deadlock.";
                     AnalyticsEventSource.Log.GeneralError(account ?? "", taskHub ?? "", message, Utils.ExtensionVersion);
