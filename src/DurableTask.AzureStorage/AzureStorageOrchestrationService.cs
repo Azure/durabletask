@@ -906,9 +906,9 @@ namespace DurableTask.AzureStorage
                 if (session.DeferredMessages.Count > 0
                     && executionId != workItem.OrchestrationRuntimeState.OrchestrationInstance?.ExecutionId)
                 {
-                    var messages = session.DeferredMessages.ToArray();
+                    var messages = session.DeferredMessages.ToList();
                     session.DeferredMessages.Clear();
-                    this.orchestrationSessionManager.AddMessageToPendingOrchestration(session.ControlQueue, messages, default(Guid), CancellationToken.None);
+                    this.orchestrationSessionManager.AddMessageToPendingOrchestration(session.ControlQueue, messages, session.TraceActivityId, CancellationToken.None);
                 }
             }
             catch (Exception e)
