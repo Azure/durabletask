@@ -130,7 +130,7 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        void AddMessageToPendingOrchestration(
+        internal void AddMessageToPendingOrchestration(
             ControlQueue controlQueue,
             IEnumerable<MessageData> queueMessages,
             Guid traceActivityId,
