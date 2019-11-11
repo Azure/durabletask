@@ -801,7 +801,9 @@ namespace DurableTask.AzureStorage
             {
                 var instanceId = newMessages[0].OrchestrationInstance.InstanceId;
 
-                if (instanceId.StartsWith("@"))
+                if (instanceId.StartsWith("@")
+                    && newMessages[0].Event.EventType == EventType.EventRaised
+                    && newMessages[0].OrchestrationInstance.ExecutionId == null)
                 {
                     // automatically start this instance
                     var orchestrationInstance = new OrchestrationInstance
@@ -896,6 +898,18 @@ namespace DurableTask.AzureStorage
             try
             {
                 session.ETag = await this.trackingStore.UpdateStateAsync(runtimeState, workItem.OrchestrationRuntimeState, instanceId, executionId, session.ETag);
+
+                // update the runtime state and execution id stored in the session
+                session.UpdateRuntimeState(runtimeState);
+
+                // if we deferred some messages, and the execution id of this instance has changed, redeliver them
+                if (session.DeferredMessages.Count > 0
+                    && executionId != workItem.OrchestrationRuntimeState.OrchestrationInstance?.ExecutionId)
+                {
+                    var messages = session.DeferredMessages.ToList();
+                    session.DeferredMessages.Clear();
+                    this.orchestrationSessionManager.AddMessageToPendingOrchestration(session.ControlQueue, messages, session.TraceActivityId, CancellationToken.None);
+                }
             }
             catch (Exception e)
             {

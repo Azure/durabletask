@@ -426,8 +426,6 @@ namespace DurableTask.Core
 
             workItem.OrchestrationRuntimeState = runtimeState;
 
-            workItem.Session?.UpdateRuntimeState(runtimeState);
-
             return isCompleted || continuedAsNew || isInterrupted;
         }
 
