@@ -115,13 +115,13 @@ namespace DurableTask.AzureServiceFabric.Service
         /// </returns>
         protected override async Task OnChangeRoleAsync(ReplicaRole newRole, CancellationToken cancellationToken)
         {
-            ServiceFabricProviderEventSource.Tracing.LogFabricServiceInformation(this, $"Fabric On Change Role Async, current role = {this.currentRole}, new role = {newRole}");
+            ServiceFabricProviderEventSource.Tracing.LogFabricServiceInformation(this, $"TaskHubStatefulService invoking service listener OnChangeRoleAsync, current role = {this.currentRole}, new role = {newRole}");
             foreach (var listener in this.serviceListeners)
             {
                 await listener.OnChangeRoleAsync(newRole, cancellationToken);
             }
             this.currentRole = newRole;
-            ServiceFabricProviderEventSource.Tracing.LogFabricServiceInformation(this, $"Fabric On Change Role Async, current role = {this.currentRole}");
+            ServiceFabricProviderEventSource.Tracing.LogFabricServiceInformation(this, $"TaskHubStatefulService invoked service listener OnChangeRoleAsync, current role = {this.currentRole}");
         }
 
         /// <summary>

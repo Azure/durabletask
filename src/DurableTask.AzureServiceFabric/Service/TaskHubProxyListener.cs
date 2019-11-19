@@ -73,13 +73,13 @@ namespace DurableTask.AzureServiceFabric.Service
         /// </returns>
         public async Task OnChangeRoleAsync(ReplicaRole newRole, CancellationToken cancellationToken)
         {
-            ServiceFabricProviderEventSource.Tracing.LogFabricServiceInformation(this.statefulService, $"Fabric On Change Role Async, current role = {this.currentRole}, new role = {newRole}");
+            ServiceFabricProviderEventSource.Tracing.LogFabricServiceInformation(this.statefulService, $"TaskHubProxyListener OnChangeRoleAsync, current role = {this.currentRole}, new role = {newRole}");
             if (newRole != ReplicaRole.Primary && this.currentRole == ReplicaRole.Primary)
             {
                 await StopAsync();
             }
             this.currentRole = newRole;
-            ServiceFabricProviderEventSource.Tracing.LogFabricServiceInformation(this.statefulService, $"Fabric On Change Role Async, current role = {this.currentRole}");
+            ServiceFabricProviderEventSource.Tracing.LogFabricServiceInformation(this.statefulService, $"TaskHubProxyListener OnChangeRoleAsync, current role = {this.currentRole}");
         }
 
         /// <summary>

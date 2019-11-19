@@ -51,20 +51,24 @@ namespace DurableTask.AzureServiceFabric
             }
         }
 
-        internal static Task<string> GetStringResponseAsync(this HttpClient httpClient, string requestingUri)
+        internal static Task<string> GetStringResponseAsync(this HttpClient httpClient, string requestUri)
         {
-            requestingUri = requestingUri ?? throw new ArgumentNullException(nameof(requestingUri));
-            return httpClient.GetStringResponseAsync(new Uri(requestingUri));
+            requestUri = requestUri ?? throw new ArgumentNullException(nameof(requestUri));
+            return httpClient.GetStringResponseAsync(new Uri(requestUri));
         }
 
-        internal static async Task<string> GetStringResponseAsync(this HttpClient httpClient, Uri requestingUri)
+        internal static async Task<string> GetStringResponseAsync(this HttpClient httpClient, Uri requestUri)
         {
             httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
-            requestingUri = requestingUri ?? throw new ArgumentNullException(nameof(requestingUri));
-            HttpResponseMessage response = await httpClient.GetAsync(requestingUri);
-            response.EnsureSuccessStatusCode();
+            requestUri = requestUri ?? throw new ArgumentNullException(nameof(requestUri));
+            HttpResponseMessage response = await httpClient.GetAsync(requestUri);
             string content = await response.Content.ReadAsStringAsync();
-            return content;
+            if (response.IsSuccessStatusCode)
+            {
+                return content;
+            }
+
+            throw new HttpRequestException($"Request failed with status code '{response.StatusCode}' and content '{content}'");
         }
     }
 }
