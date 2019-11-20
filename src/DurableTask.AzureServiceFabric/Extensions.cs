@@ -14,6 +14,8 @@
 namespace DurableTask.AzureServiceFabric
 {
     using System;
+    using System.Net.Http;
+    using System.Threading.Tasks;
     using System.Web;
 
     using DurableTask.AzureServiceFabric.Exceptions;
@@ -47,6 +49,26 @@ namespace DurableTask.AzureServiceFabric
             {
                 throw new InvalidInstanceIdException(instanceId);
             }
+        }
+
+        internal static Task<string> GetStringResponseAsync(this HttpClient httpClient, string requestUri)
+        {
+            requestUri = requestUri ?? throw new ArgumentNullException(nameof(requestUri));
+            return httpClient.GetStringResponseAsync(new Uri(requestUri));
+        }
+
+        internal static async Task<string> GetStringResponseAsync(this HttpClient httpClient, Uri requestUri)
+        {
+            httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+            requestUri = requestUri ?? throw new ArgumentNullException(nameof(requestUri));
+            HttpResponseMessage response = await httpClient.GetAsync(requestUri);
+            string content = await response.Content.ReadAsStringAsync();
+            if (response.IsSuccessStatusCode)
+            {
+                return content;
+            }
+
+            throw new HttpRequestException($"Request failed with status code '{response.StatusCode}' and content '{content}'");
         }
     }
 }

@@ -175,6 +175,23 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
         }
 
         [TestMethod]
+        public async Task Orchestration_With_Same_Id_Can_Be_Started_After_First_One_Finishes()
+        {
+            var instanceId = nameof(Orchestration_With_Same_Id_Can_Be_Started_After_First_One_Finishes);
+
+            OrchestrationInstance instance1 = await this.taskHubClient.CreateOrchestrationInstanceAsync(typeof(ExecutionCountingOrchestration), instanceId, 10);
+            await this.taskHubClient.WaitForOrchestrationAsync(instance1, TimeSpan.FromSeconds(10));
+            var state1 = await this.taskHubClient.GetOrchestrationStateAsync(instance1);
+
+            OrchestrationInstance instance2 = await this.taskHubClient.CreateOrchestrationInstanceAsync(typeof(ExecutionCountingOrchestration), instanceId, 20);
+            await this.taskHubClient.WaitForOrchestrationAsync(instance2, TimeSpan.FromSeconds(10));
+            var state2 = await this.taskHubClient.GetOrchestrationStateAsync(instance2);
+
+            Assert.AreNotEqual(instance1.ExecutionId, instance2.ExecutionId);
+            Assert.AreNotEqual(state1.Output, state2.Output);
+        }
+
+        [TestMethod]
         public async Task FabricProviderClient_ReturnsRunningOrchestrations()
         {
             var instanceIdPrefix = nameof(FabricProviderClient_ReturnsRunningOrchestrations);
