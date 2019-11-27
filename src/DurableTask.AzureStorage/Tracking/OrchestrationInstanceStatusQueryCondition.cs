@@ -45,6 +45,11 @@ namespace DurableTask.AzureStorage.Tracking
         public IEnumerable<string> TaskHubNames { get; set; }
 
         /// <summary>
+        /// InstanceIdPrefix
+        /// </summary>
+        public string InstanceIdPrefix { get; set; }
+
+        /// <summary>
         /// Get the TableQuery object
         /// </summary>
         /// <typeparam name="T"></typeparam>
@@ -96,6 +101,19 @@ namespace DurableTask.AzureStorage.Tracking
                 {
                     conditions.Add(taskHubCondition);
                 }
+            }
+
+            if (this.InstanceIdPrefix != null)
+            {
+                var length = InstanceIdPrefix.Length - 1;
+                var nextChar = InstanceIdPrefix[length] + 1;
+
+                var biggerSubstring = InstanceIdPrefix.Substring(0, length) + (char)nextChar;
+
+                conditions.Add(TableQuery.CombineFilters(
+                    TableQuery.GenerateFilterCondition("InstanceId", QueryComparisons.GreaterThanOrEqual, InstanceIdPrefix), 
+                    TableOperators.And, 
+                    TableQuery.GenerateFilterCondition("InstanceId", QueryComparisons.LessThan, biggerSubstring)));
             }
 
             return conditions.Count == 1 ? 
