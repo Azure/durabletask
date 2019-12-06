@@ -172,6 +172,24 @@ namespace DurableTask.AzureStorage.Messaging
                 }
             }
 
+            // Special functionality for entity messages with a delivery delay 
+            if (taskMessage.Event is EventRaisedEvent eventRaisedEvent
+                && taskMessage.OrchestrationInstance.InstanceId[0] == '@')
+            {
+                // Since all events targeting entities are named by the runtime, not the user, we can follow a custom 
+                // naming convention to pass a time parameter.
+                var eventName = eventRaisedEvent.Name;
+                if (eventName.Length >= 3 && eventName[2] == '@')
+                {
+                    var scheduledUtc = DateTime.Parse(eventRaisedEvent.Name.Substring(3)).ToUniversalTime();
+                    initialVisibilityDelay = scheduledUtc - DateTime.UtcNow;
+                    if (initialVisibilityDelay < TimeSpan.Zero)
+                    {
+                        initialVisibilityDelay = TimeSpan.Zero;
+                    }
+                }
+            }
+
             return initialVisibilityDelay;
         }
 
