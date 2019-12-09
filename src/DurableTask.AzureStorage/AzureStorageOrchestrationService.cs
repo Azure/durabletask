@@ -27,6 +27,7 @@ namespace DurableTask.AzureStorage
     using DurableTask.AzureStorage.Partitioning;
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
+    using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Blob;
@@ -917,6 +918,13 @@ namespace DurableTask.AzureStorage
                 if ((e as StorageException)?.RequestInformation?.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
                 {
                     await this.AbandonTaskOrchestrationWorkItemAsync(workItem);
+
+                    // if running with extended session, terminate the session
+                    if (workItem.Session != null)
+                    {
+                        throw new SessionAbortedException();
+                    }
+
                     return;
                 }
                 else

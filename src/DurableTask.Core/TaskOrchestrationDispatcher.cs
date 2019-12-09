@@ -164,6 +164,10 @@ namespace DurableTask.Core
                     workItem.OrchestrationRuntimeState.NewEvents.Clear();
                 }
             }
+            catch (SessionAbortedException)
+            {
+                // we catch this exception here so that the TaskOrchestrationDispatcher does not back off.
+            }
             finally
             {
                 if (isExtendedSession)

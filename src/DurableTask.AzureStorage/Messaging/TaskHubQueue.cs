@@ -172,6 +172,25 @@ namespace DurableTask.AzureStorage.Messaging
                 }
             }
 
+            // Special functionality for entity messages with a delivery delay 
+            if (taskMessage.Event is EventRaisedEvent eventRaisedEvent
+                && taskMessage.OrchestrationInstance.InstanceId[0] == '@')
+            {
+                // We assume that auto-started orchestrations (i.e. instance ids starting with '@')
+                // are used exclusively by durable entities; so we can follow
+                // a custom naming convention to pass a time parameter.
+                var eventName = eventRaisedEvent.Name;
+                if (eventName.Length >= 3 && eventName[2] == '@'
+                    && DateTime.TryParse(eventRaisedEvent.Name.Substring(3), out var scheduledTime))
+                {
+                    initialVisibilityDelay = scheduledTime.ToUniversalTime() - DateTime.UtcNow;
+                    if (initialVisibilityDelay < TimeSpan.Zero)
+                    {
+                        initialVisibilityDelay = TimeSpan.Zero;
+                    }
+                }
+            }
+
             return initialVisibilityDelay;
         }
 

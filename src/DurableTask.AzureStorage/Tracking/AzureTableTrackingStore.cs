@@ -1205,7 +1205,7 @@ namespace DurableTask.AzureStorage.Tracking
             }
             else
             {
-                historyEventBatch.InsertOrReplace(sentinelEntity);
+                historyEventBatch.Insert(sentinelEntity);
             }
 
             Stopwatch stopwatch = Stopwatch.StartNew();
