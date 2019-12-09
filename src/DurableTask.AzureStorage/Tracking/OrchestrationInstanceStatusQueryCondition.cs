@@ -61,7 +61,8 @@ namespace DurableTask.AzureStorage.Tracking
             if (!((this.RuntimeStatus == null || (!this.RuntimeStatus.Any())) && 
                 this.CreatedTimeFrom == default(DateTime) && 
                 this.CreatedTimeTo == default(DateTime) &&
-                this.TaskHubNames == null))
+                this.TaskHubNames == null &&
+                InstanceIdPrefix == null))
             {
                 query.Where(this.GetConditions());
             }

@@ -165,5 +165,19 @@ namespace DurableTask.AzureStorage.Tests
             var query = condition.ToTableQuery<OrchestrationInstanceStatus>();
             Assert.AreEqual("RuntimeStatus eq 'Running'", query.FilterString);
         }
+
+        [TestMethod]
+        public void OrchestrationInstanceQuery_InstanceIdPrefix()
+        {
+            var condition = new OrchestrationInstanceStatusQueryCondition
+            {
+                InstanceIdPrefix = "aaab",
+            };
+
+            var result = condition.ToTableQuery<OrchestrationInstanceStatus>().FilterString;
+            Assert.AreEqual(
+                "(InstanceId ge 'aaab') and (InstanceId lt 'aaac')",
+                condition.ToTableQuery<OrchestrationInstanceStatus>().FilterString);
+        }
     }
 }
