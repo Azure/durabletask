@@ -62,7 +62,7 @@ namespace DurableTask.AzureStorage.Tracking
                 this.CreatedTimeFrom == default(DateTime) && 
                 this.CreatedTimeTo == default(DateTime) &&
                 this.TaskHubNames == null &&
-                InstanceIdPrefix == null))
+                this.InstanceIdPrefix == null))
             {
                 query.Where(this.GetConditions());
             }
@@ -106,15 +106,15 @@ namespace DurableTask.AzureStorage.Tracking
 
             if (this.InstanceIdPrefix != null)
             {
-                var length = InstanceIdPrefix.Length - 1;
-                var nextChar = InstanceIdPrefix[length] + 1;
+                int length = InstanceIdPrefix.Length - 1;
+                int incrementedLastChar = InstanceIdPrefix[length] + 1;
 
-                var biggerSubstring = InstanceIdPrefix.Substring(0, length) + (char)nextChar;
+                string greaterThanPrefix = InstanceIdPrefix.Substring(0, length) + (char)incrementedLastChar;
 
                 conditions.Add(TableQuery.CombineFilters(
                     TableQuery.GenerateFilterCondition("InstanceId", QueryComparisons.GreaterThanOrEqual, InstanceIdPrefix), 
                     TableOperators.And, 
-                    TableQuery.GenerateFilterCondition("InstanceId", QueryComparisons.LessThan, biggerSubstring)));
+                    TableQuery.GenerateFilterCondition("InstanceId", QueryComparisons.LessThan, greaterThanPrefix)));
             }
 
             return conditions.Count == 1 ? 
