@@ -44,6 +44,17 @@ namespace DurableTask.Core
         }
 
         /// <summary>
+        ///     Create a new TaskHubClient with the given OrchestrationServiceClient
+        /// </summary>
+        /// <param name="serviceClient">Object implementing the <see cref="IOrchestrationServiceClient"/> interface </param>
+        /// <param name="dataConverter"></param>
+        public TaskHubClient(IOrchestrationServiceClient serviceClient, JsonDataConverter dataConverter)
+        {
+            ServiceClient = serviceClient ?? throw new ArgumentNullException(nameof(serviceClient));
+            this.defaultConverter = dataConverter;
+        }
+
+        /// <summary>
         ///     Create a new orchestration of the specified type with an automatically generated instance id
         /// </summary>
         /// <param name="orchestrationType">Type that derives from TaskOrchestration</param>
