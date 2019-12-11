@@ -44,14 +44,14 @@ namespace DurableTask.Core
         }
 
         /// <summary>
-        ///     Create a new TaskHubClient with the given OrchestrationServiceClient
+        ///     Create a new TaskHubClient with the given OrchestrationServiceClient and JsonDataConverter.
         /// </summary>
         /// <param name="serviceClient">Object implementing the <see cref="IOrchestrationServiceClient"/> interface </param>
-        /// <param name="dataConverter"></param>
+        /// <param name="dataConverter">The <see cref="JsonDataConverter"/> to use for message serialization.</param>
         public TaskHubClient(IOrchestrationServiceClient serviceClient, JsonDataConverter dataConverter)
         {
             ServiceClient = serviceClient ?? throw new ArgumentNullException(nameof(serviceClient));
-            this.defaultConverter = dataConverter;
+            this.defaultConverter = dataConverter ?? throw new ArgumentNullException(nameof(dataConverter));
         }
 
         /// <summary>
