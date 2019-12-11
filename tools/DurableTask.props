@@ -43,7 +43,7 @@
   <!-- Nuget Package Settings -->
   <PropertyGroup>
     <PackageOutputPath>..\..\build_output\packages</PackageOutputPath>
-    <AssemblyVersion>2.3.0</AssemblyVersion>
+    <AssemblyVersion>2.1.4</AssemblyVersion>
     <FileVersion>2.1.4</FileVersion>
     <Version>2.1.4</Version>
     <Company>Microsoft</Company>
