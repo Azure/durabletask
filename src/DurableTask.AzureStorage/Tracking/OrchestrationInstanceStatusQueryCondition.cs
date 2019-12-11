@@ -104,17 +104,17 @@ namespace DurableTask.AzureStorage.Tracking
                 }
             }
 
-            if (this.InstanceIdPrefix != null)
+            if (!string.IsNullOrEmpty(this.InstanceIdPrefix))
             {
-                int length = InstanceIdPrefix.Length - 1;
-                int incrementedLastChar = InstanceIdPrefix[length] + 1;
+                int length = this.InstanceIdPrefix.Length - 1;
+                char incrementedLastChar = (char)(this.InstanceIdPrefix[length] + 1);
 
-                string greaterThanPrefix = InstanceIdPrefix.Substring(0, length) + (char)incrementedLastChar;
+                string greaterThanPrefix = this.InstanceIdPrefix.Substring(0, length) + incrementedLastChar;
 
                 conditions.Add(TableQuery.CombineFilters(
-                    TableQuery.GenerateFilterCondition("InstanceId", QueryComparisons.GreaterThanOrEqual, InstanceIdPrefix), 
+                    TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.GreaterThanOrEqual, InstanceIdPrefix), 
                     TableOperators.And, 
-                    TableQuery.GenerateFilterCondition("InstanceId", QueryComparisons.LessThan, greaterThanPrefix)));
+                    TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.LessThan, greaterThanPrefix)));
             }
 
             return conditions.Count == 1 ? 

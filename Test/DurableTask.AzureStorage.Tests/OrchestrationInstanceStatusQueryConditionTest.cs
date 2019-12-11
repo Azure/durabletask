@@ -176,7 +176,7 @@ namespace DurableTask.AzureStorage.Tests
 
             var result = condition.ToTableQuery<OrchestrationInstanceStatus>().FilterString;
             Assert.AreEqual(
-                "(InstanceId ge 'aaab') and (InstanceId lt 'aaac')",
+                "(PartitionKey ge 'aaab') and (PartitionKey lt 'aaac')",
                 condition.ToTableQuery<OrchestrationInstanceStatus>().FilterString);
         }
     }
