@@ -88,6 +88,13 @@ namespace DurableTask.AzureStorage.Tracking
         Task<OrchestrationState> GetStateAsync(string instanceId, string executionId, bool fetchInput);
 
         /// <summary>
+        /// Fetches the latest instance status of the specified orchestration instance.
+        /// </summary>
+        /// <param name="instanceId">The ID of the orchestration.</param>
+        /// <returns>Returns the instance status or <c>null</c> if none was found.</returns>
+        Task<InstanceStatus> FetchInstanceStatusAsync(string instanceId);
+
+        /// <summary>
         /// Get The Orchestration State for querying all orchestration instances
         /// </summary>
         /// <returns></returns>
@@ -129,10 +136,10 @@ namespace DurableTask.AzureStorage.Tracking
         /// Used to set a state in the tracking store whenever a new execution is initiated from the client
         /// </summary>
         /// <param name="executionStartedEvent">The Execution Started Event being queued</param>
-        /// <param name="ignoreExistingInstances">When <c>true</c>, this operation is a no-op if an execution with this ID already exists.</param>
+        /// <param name="eTag">The eTag value to use for optimistic concurrency or <c>null</c> to overwrite any existing execution status.</param>
         /// <param name="inputStatusOverride">An override value to use for the Input column. If not specified, uses <see cref="ExecutionStartedEvent.Input"/>.</param>
         /// <returns>Returns <c>true</c> if the record was created successfully; <c>false</c> otherwise.</returns>
-        Task<bool> SetNewExecutionAsync(ExecutionStartedEvent executionStartedEvent, bool ignoreExistingInstances, string inputStatusOverride);
+        Task<bool> SetNewExecutionAsync(ExecutionStartedEvent executionStartedEvent, string eTag, string inputStatusOverride);
 
         /// <summary>
         /// Used to update a state in the tracking store to pending whenever a rewind is initiated from the client
