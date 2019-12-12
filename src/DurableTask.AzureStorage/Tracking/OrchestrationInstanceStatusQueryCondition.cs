@@ -45,6 +45,11 @@ namespace DurableTask.AzureStorage.Tracking
         public IEnumerable<string> TaskHubNames { get; set; }
 
         /// <summary>
+        /// InstanceIdPrefix
+        /// </summary>
+        public string InstanceIdPrefix { get; set; }
+
+        /// <summary>
         /// Get the TableQuery object
         /// </summary>
         /// <typeparam name="T"></typeparam>
@@ -56,7 +61,8 @@ namespace DurableTask.AzureStorage.Tracking
             if (!((this.RuntimeStatus == null || (!this.RuntimeStatus.Any())) && 
                 this.CreatedTimeFrom == default(DateTime) && 
                 this.CreatedTimeTo == default(DateTime) &&
-                this.TaskHubNames == null))
+                this.TaskHubNames == null &&
+                this.InstanceIdPrefix == null))
             {
                 query.Where(this.GetConditions());
             }
@@ -96,6 +102,19 @@ namespace DurableTask.AzureStorage.Tracking
                 {
                     conditions.Add(taskHubCondition);
                 }
+            }
+
+            if (!string.IsNullOrEmpty(this.InstanceIdPrefix))
+            {
+                int length = this.InstanceIdPrefix.Length - 1;
+                char incrementedLastChar = (char)(this.InstanceIdPrefix[length] + 1);
+
+                string greaterThanPrefix = this.InstanceIdPrefix.Substring(0, length) + incrementedLastChar;
+
+                conditions.Add(TableQuery.CombineFilters(
+                    TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.GreaterThanOrEqual, InstanceIdPrefix), 
+                    TableOperators.And, 
+                    TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.LessThan, greaterThanPrefix)));
             }
 
             return conditions.Count == 1 ? 
