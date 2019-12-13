@@ -50,10 +50,10 @@ namespace DurableTask.AzureStorage.Tracking
             //If no execution Id is provided get the latest executionId by getting the latest state
             if (expectedExecutionId == null)
             {
-                expectedExecutionId = (await instanceStore.GetOrchestrationStateAsync(instanceId, false)).FirstOrDefault()?.State.OrchestrationInstance.ExecutionId;
+                expectedExecutionId = (await this.instanceStore.GetOrchestrationStateAsync(instanceId, false)).FirstOrDefault()?.State.OrchestrationInstance.ExecutionId;
             }
 
-            var events = await instanceStore.GetOrchestrationHistoryEventsAsync(instanceId, expectedExecutionId);
+            var events = await this.instanceStore.GetOrchestrationHistoryEventsAsync(instanceId, expectedExecutionId);
 
             if (events == null || !events.Any())
             {
@@ -63,6 +63,13 @@ namespace DurableTask.AzureStorage.Tracking
             {
                 return new OrchestrationHistory(events.Select(x => x.HistoryEvent).ToList());
             }
+        }
+
+        /// <inheritdoc />
+        public override async Task<InstanceStatus> FetchInstanceStatusAsync(string instanceId)
+        {
+            OrchestrationState state = await this.GetStateAsync(instanceId, executionId: null);
+            return state != null ? new InstanceStatus(state) : null;
         }
 
         /// <inheritdoc />
@@ -77,24 +84,24 @@ namespace DurableTask.AzureStorage.Tracking
         {
             if (executionId == null)
             {
-                return (await GetStateAsync(instanceId, false)).FirstOrDefault();
+                return (await this.GetStateAsync(instanceId, false)).FirstOrDefault();
             }
             else
             {
-                return (await instanceStore.GetOrchestrationStateAsync(instanceId, executionId))?.State;
+                return (await this.instanceStore.GetOrchestrationStateAsync(instanceId, executionId))?.State;
             }
         }
 
         /// <inheritdoc />
         public override Task PurgeHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType)
         {
-            return instanceStore.PurgeOrchestrationHistoryEventsAsync(thresholdDateTimeUtc, timeRangeFilterType);
+            return this.instanceStore.PurgeOrchestrationHistoryEventsAsync(thresholdDateTimeUtc, timeRangeFilterType);
         }
 
         /// <inheritdoc />
         public override async Task<bool> SetNewExecutionAsync(
             ExecutionStartedEvent executionStartedEvent,
-            bool ignoreExistingInstances /* not used */,
+            string eTag /* not used */,
             string inputStatusOverride)
         {
             var orchestrationState = new OrchestrationState()

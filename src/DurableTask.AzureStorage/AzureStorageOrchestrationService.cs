@@ -1285,17 +1285,15 @@ namespace DurableTask.AzureStorage
             // Client operations will auto-create the task hub if it doesn't already exist.
             await this.EnsureTaskHubAsync();
 
-            OrchestrationState existingInstance = await this.trackingStore.GetStateAsync(
-                creationMessage.OrchestrationInstance.InstanceId,
-                executionId: null,
-                fetchInput: false);
+            InstanceStatus existingInstance = await this.trackingStore.FetchInstanceStatusAsync(
+                creationMessage.OrchestrationInstance.InstanceId);
 
-            if (existingInstance != null && dedupeStatuses != null && dedupeStatuses.Contains(existingInstance.OrchestrationStatus))
+            if (existingInstance?.State != null && dedupeStatuses != null && dedupeStatuses.Contains(existingInstance.State.OrchestrationStatus))
             {
                 // An instance in this state already exists.
-                if (settings.ThrowExceptionOnInvalidDedupeStatus)
+                if (this.settings.ThrowExceptionOnInvalidDedupeStatus)
                 {
-                    throw new InvalidOperationException($"An Orchestration instance with the status {existingInstance.OrchestrationStatus} already exists.");
+                    throw new InvalidOperationException($"An Orchestration instance with the status {existingInstance.State.OrchestrationStatus} already exists.");
                 }
 
                 return;
@@ -1307,18 +1305,12 @@ namespace DurableTask.AzureStorage
                 controlQueue,
                 creationMessage);
 
-            // The start message gets enqueued before we write to the instances table. It's possible that the orchestration
-            // will start and update the instances status before this call can do so. To account for that race condition
-            // we ignore updating the instance status if none already exists. The case where one exists already is
-            // when an existing instance is being overwritten.
-            bool ignoreExistingInstances = (existingInstance == null);
-
             // CompressedBlobName either has a blob path for large messages or is null.
             string inputStatusOverride = internalMessage.CompressedBlobName;
 
             await this.trackingStore.SetNewExecutionAsync(
                 executionStartedEvent,
-                ignoreExistingInstances,
+                existingInstance?.ETag,
                 inputStatusOverride);
         }
 

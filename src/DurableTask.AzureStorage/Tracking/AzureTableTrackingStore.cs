@@ -478,6 +478,19 @@ namespace DurableTask.AzureStorage.Tracking
         /// <inheritdoc />
         public override async Task<OrchestrationState> GetStateAsync(string instanceId, string executionId, bool fetchInput)
         {
+            InstanceStatus instanceStatus = await this.FetchInstanceStatusInternalAsync(instanceId, executionId, fetchInput);
+            return instanceStatus?.State;
+        }
+
+        /// <inheritdoc />
+        public override Task<InstanceStatus> FetchInstanceStatusAsync(string instanceId)
+        {
+            return this.FetchInstanceStatusInternalAsync(instanceId, executionId: null, fetchInput: false);
+        }
+
+        /// <inheritdoc />
+        async Task<InstanceStatus> FetchInstanceStatusInternalAsync(string instanceId, string executionId, bool fetchInput)
+        {
             if (instanceId == null)
             {
                 throw new ArgumentNullException(nameof(instanceId));
@@ -514,7 +527,8 @@ namespace DurableTask.AzureStorage.Tracking
                 return null;
             }
 
-            return await this.ConvertFromAsync(orchestrationInstanceStatus, instanceId);
+            OrchestrationState state = await this.ConvertFromAsync(orchestrationInstanceStatus, instanceId);
+            return state != null ? new InstanceStatus(state, orchestration.Etag) : null;
         }
 
         async Task<OrchestrationState> ConvertFromAsync(OrchestrationInstanceStatus orchestrationInstanceStatus, string instanceId)
@@ -794,11 +808,12 @@ namespace DurableTask.AzureStorage.Tracking
         /// <inheritdoc />
         public override async Task<bool> SetNewExecutionAsync(
             ExecutionStartedEvent executionStartedEvent,
-            bool ignoreExistingInstances,
+            string eTag,
             string inputStatusOverride)
         {
             DynamicTableEntity entity = new DynamicTableEntity(executionStartedEvent.OrchestrationInstance.InstanceId, "")
             {
+                ETag = eTag,
                 Properties =
                 {
                     ["Input"] = new EntityProperty(inputStatusOverride ?? executionStartedEvent.Input),
@@ -814,16 +829,20 @@ namespace DurableTask.AzureStorage.Tracking
             Stopwatch stopwatch = Stopwatch.StartNew();
             try
             {
-                if (ignoreExistingInstances)
+                if (eTag == null)
                 {
+                    // This is the case for creating a new instance.
                     await this.InstancesTable.ExecuteAsync(TableOperation.Insert(entity));
                 }
                 else
                 {
-                    await this.InstancesTable.ExecuteAsync(TableOperation.InsertOrReplace(entity));
+                    // This is the case for overwriting an existing instance.
+                    await this.InstancesTable.ExecuteAsync(TableOperation.Replace(entity));
                 }
             }
-            catch (StorageException e) when (e.RequestInformation?.HttpStatusCode == 409)
+            catch (StorageException e) when (
+                e.RequestInformation?.HttpStatusCode == 409 /* Conflict */ ||
+                e.RequestInformation?.HttpStatusCode == 412 /* Precondition failed */)
             {
                 // Ignore. The main scenario for this is handling race conditions in status update.
                 return false;
