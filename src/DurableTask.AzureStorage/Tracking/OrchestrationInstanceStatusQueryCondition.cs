@@ -54,6 +54,28 @@ namespace DurableTask.AzureStorage.Tracking
         /// </summary>
         public bool FetchInput { get; set; } = true;
 
+        private List<string> columnsWithoutInput;
+
+        private List<string> ColumnsWithoutInput
+        {
+            get
+            {
+                if (this.columnsWithoutInput == null)
+                {
+                    this.columnsWithoutInput = typeof(OrchestrationInstanceStatus).GetProperties()
+                        .Where(prop => !prop.Name.Equals(nameof(OrchestrationInstanceStatus.Input)))
+                        .Select(prop => prop.Name)
+                        .ToList();
+                }
+
+                return this.columnsWithoutInput;
+            }
+            set
+            {
+                this.columnsWithoutInput = value;
+            }
+        }
+
         /// <summary>
         /// Get the TableQuery object
         /// </summary>
@@ -71,8 +93,7 @@ namespace DurableTask.AzureStorage.Tracking
             {
                 if (!FetchInput)
                 {
-                    IList<string> columns = new List<string> { "ExecutionId", "Name", "Version", "Output", "CustomStatus", "CreatedTime", "LastUpdatedTime", "RuntimeStatus" };
-                    query.Select(columns);
+                    query.Select(columnsWithoutInput);
                 }
 
                 query.Where(this.GetConditions());
