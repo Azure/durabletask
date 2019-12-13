@@ -491,7 +491,7 @@ namespace DurableTask.AzureStorage.Tracking
                 {
                     // Retrieve all columns except the input column
                     columnsToRetrieve.Remove(InputProperty);
-                }            
+                }
             }
 
             var stopwatch = new Stopwatch();
