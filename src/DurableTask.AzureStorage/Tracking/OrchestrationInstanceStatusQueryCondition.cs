@@ -69,7 +69,7 @@ namespace DurableTask.AzureStorage.Tracking
                 this.TaskHubNames == null &&
                 this.InstanceIdPrefix == null))
             {
-                if (!FetchInput)
+                if (!this.FetchInput)
                 {
                     IList<string> columns = new List<string> { "ExecutionId", "Name", "Version", "Output", "CustomStatus", "CreatedTime", "LastUpdatedTime", "RuntimeStatus" };
                     query.Select(columns);
