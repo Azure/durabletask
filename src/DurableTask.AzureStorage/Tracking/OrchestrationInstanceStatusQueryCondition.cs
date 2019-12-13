@@ -50,6 +50,11 @@ namespace DurableTask.AzureStorage.Tracking
         public string InstanceIdPrefix { get; set; }
 
         /// <summary>
+        /// If true, the input will be returned with the query
+        /// </summary>
+        public bool FetchInput { get; set; } = true;
+
+        /// <summary>
         /// Get the TableQuery object
         /// </summary>
         /// <typeparam name="T"></typeparam>
@@ -64,6 +69,12 @@ namespace DurableTask.AzureStorage.Tracking
                 this.TaskHubNames == null &&
                 this.InstanceIdPrefix == null))
             {
+                if (!FetchInput)
+                {
+                    IList<string> columns = new List<string> { "ExecutionId", "Name", "Version", "Output", "CustomStatus", "CreatedTime", "LastUpdatedTime", "RuntimeStatus" };
+                    query.Select(columns);
+                }
+
                 query.Where(this.GetConditions());
             }
 
