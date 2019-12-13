@@ -24,6 +24,8 @@ namespace DurableTask.AzureStorage.Tracking
     /// </summary>
     public class OrchestrationInstanceStatusQueryCondition
     {
+        private List<string> columnsWithoutInput;
+
         /// <summary>
         /// RuntimeStatus
         /// </summary>
@@ -53,8 +55,6 @@ namespace DurableTask.AzureStorage.Tracking
         /// If true, the input will be returned with the results. The default value is true.
         /// </summary>
         public bool FetchInput { get; set; } = true;
-
-        private List<string> columnsWithoutInput;
 
         private List<string> ColumnsWithoutInput
         {
