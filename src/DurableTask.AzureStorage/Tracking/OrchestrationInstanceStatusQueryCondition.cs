@@ -50,7 +50,7 @@ namespace DurableTask.AzureStorage.Tracking
         public string InstanceIdPrefix { get; set; }
 
         /// <summary>
-        /// If true, the input will be returned with the query
+        /// If true, the input will be returned with the results. The default value is true.
         /// </summary>
         public bool FetchInput { get; set; } = true;
 
@@ -91,7 +91,7 @@ namespace DurableTask.AzureStorage.Tracking
                 this.TaskHubNames == null &&
                 this.InstanceIdPrefix == null))
             {
-                if (!FetchInput)
+                if (!this.FetchInput)
                 {
                     query.Select(columnsWithoutInput);
                 }
