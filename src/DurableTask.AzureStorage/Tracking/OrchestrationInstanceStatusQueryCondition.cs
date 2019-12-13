@@ -24,6 +24,8 @@ namespace DurableTask.AzureStorage.Tracking
     /// </summary>
     public class OrchestrationInstanceStatusQueryCondition
     {
+        private List<string> columnsWithoutInput;
+
         /// <summary>
         /// RuntimeStatus
         /// </summary>
@@ -50,6 +52,31 @@ namespace DurableTask.AzureStorage.Tracking
         public string InstanceIdPrefix { get; set; }
 
         /// <summary>
+        /// If true, the input will be returned with the results. The default value is true.
+        /// </summary>
+        public bool FetchInput { get; set; } = true;
+
+        private List<string> ColumnsWithoutInput
+        {
+            get
+            {
+                if (this.columnsWithoutInput == null)
+                {
+                    this.columnsWithoutInput = typeof(OrchestrationInstanceStatus).GetProperties()
+                        .Where(prop => !prop.Name.Equals(nameof(OrchestrationInstanceStatus.Input)))
+                        .Select(prop => prop.Name)
+                        .ToList();
+                }
+
+                return this.columnsWithoutInput;
+            }
+            set
+            {
+                this.columnsWithoutInput = value;
+            }
+        }
+
+        /// <summary>
         /// Get the TableQuery object
         /// </summary>
         /// <typeparam name="T"></typeparam>
@@ -64,6 +91,11 @@ namespace DurableTask.AzureStorage.Tracking
                 this.TaskHubNames == null &&
                 this.InstanceIdPrefix == null))
             {
+                if (!this.FetchInput)
+                {
+                    query.Select(columnsWithoutInput);
+                }
+
                 query.Where(this.GetConditions());
             }
 
