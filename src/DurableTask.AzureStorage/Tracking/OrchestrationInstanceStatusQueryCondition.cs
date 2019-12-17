@@ -24,8 +24,6 @@ namespace DurableTask.AzureStorage.Tracking
     /// </summary>
     public class OrchestrationInstanceStatusQueryCondition
     {
-        private List<string> columnsWithoutInput;
-
         /// <summary>
         /// RuntimeStatus
         /// </summary>
@@ -56,25 +54,10 @@ namespace DurableTask.AzureStorage.Tracking
         /// </summary>
         public bool FetchInput { get; set; } = true;
 
-        private List<string> ColumnsWithoutInput
-        {
-            get
-            {
-                if (this.columnsWithoutInput == null)
-                {
-                    this.columnsWithoutInput = typeof(OrchestrationInstanceStatus).GetProperties()
-                        .Where(prop => !prop.Name.Equals(nameof(OrchestrationInstanceStatus.Input)))
-                        .Select(prop => prop.Name)
-                        .ToList();
-                }
-
-                return this.columnsWithoutInput;
-            }
-            set
-            {
-                this.columnsWithoutInput = value;
-            }
-        }
+        private static readonly List<string> ColumnsWithoutInput = typeof(OrchestrationInstanceStatus).GetProperties()
+            .Where(prop => !prop.Name.Equals(nameof(OrchestrationInstanceStatus.Input)))
+            .Select(prop => prop.Name)
+            .ToList();
 
         /// <summary>
         /// Get the TableQuery object
@@ -93,7 +76,7 @@ namespace DurableTask.AzureStorage.Tracking
             {
                 if (!this.FetchInput)
                 {
-                    query.Select(columnsWithoutInput);
+                    query.Select(ColumnsWithoutInput);
                 }
 
                 query.Where(this.GetConditions());
