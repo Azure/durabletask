@@ -24,8 +24,6 @@ namespace DurableTask.AzureStorage.Tracking
     /// </summary>
     public class OrchestrationInstanceStatusQueryCondition
     {
-        private List<string> columnsWithoutInput;
-
         /// <summary>
         /// RuntimeStatus
         /// </summary>
