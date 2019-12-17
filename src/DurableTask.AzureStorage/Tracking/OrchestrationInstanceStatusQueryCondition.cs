@@ -93,7 +93,7 @@ namespace DurableTask.AzureStorage.Tracking
             {
                 if (!this.FetchInput)
                 {
-                    query.Select(columnsWithoutInput);
+                    query.Select(ColumnsWithoutInput);
                 }
 
                 query.Where(this.GetConditions());
