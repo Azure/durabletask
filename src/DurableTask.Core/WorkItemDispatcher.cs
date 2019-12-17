@@ -173,7 +173,7 @@ namespace DurableTask.Core
                 if (!forced)
                 {
                     var retryCount = 7;
-                    while (this.AllWorkItemsCompleted() && retryCount-- >= 0)
+                    while (!this.AllWorkItemsCompleted() && retryCount-- >= 0)
                     {
                         TraceHelper.Trace(TraceEventType.Information, "WorkItemDispatcherStop-Waiting", $"WorkItemDispatcher('{this.name}') waiting to stop. Id {this.id}. WorkItemCount: {this.concurrentWorkItemCount}, ActiveFetchers: {this.activeFetchers}");
                         await Task.Delay(1000);
