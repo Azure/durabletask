@@ -23,7 +23,12 @@
   
   <!-- SourceLink Dependency for GitHub-->
   <ItemGroup>
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.0-*" PrivateAssets="All" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.*" PrivateAssets="All" />
+  </ItemGroup>
+
+  <!-- Nuget package icon -->
+  <ItemGroup>
+    <None Include="..\..\logo.png" Pack="true" PackagePath="\"/>
   </ItemGroup>
 
   <!-- Sign assemblies if the snk file is present -->
@@ -50,11 +55,11 @@
     <Authors>Microsoft</Authors> 
     <Product>Durable Task Framework</Product>
     <Description>This package provides a C# based durable task framework for writing long running applications.</Description>
-    <PackageLicenseUrl>http://www.apache.org/licenses/LICENSE-2.0</PackageLicenseUrl>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <Copyright>© Microsoft Corporation. All rights reserved.</Copyright>
     <PackageProjectUrl>https://github.com/Azure/durabletask/</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Azure/durabletask/</RepositoryUrl>
-    <PackageIconUrl>https://github.com/Azure/durabletask/blob/master/logo.png?raw=true</PackageIconUrl>
+    <PackageIcon>logo.png</PackageIcon>
     <PackageTags>ServiceBus Azure Task Durable Orchestration Workflow Activity Reliable</PackageTags>
     <NeutralLanguage>en-US</NeutralLanguage>
     <IncludeSymbols>true</IncludeSymbols>

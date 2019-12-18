@@ -68,6 +68,7 @@ namespace DurableTask.AzureStorage.Messaging
                             AnalyticsEventSource.Log.PendingOrchestratorMessageLimitReached(
                                 this.storageAccountName,
                                 this.settings.TaskHubName,
+                                this.Name,
                                 pendingOrchestratorMessages,
                                 Utils.ExtensionVersion);
                         }
@@ -81,15 +82,20 @@ namespace DurableTask.AzureStorage.Messaging
                     try
                     {
                         OperationContext context = new OperationContext { ClientRequestID = Guid.NewGuid().ToString() };
-                        IEnumerable<CloudQueueMessage> batch = await TimeoutHandler.ExecuteWithTimeout("GetMessages", context.ClientRequestID, storageAccountName, settings.TaskHubName, () =>
-                        {
-                            return this.storageQueue.GetMessagesAsync(
-                            this.settings.ControlQueueBatchSize,
-                            this.settings.ControlQueueVisibilityTimeout,
-                            this.settings.ControlQueueRequestOptions,
-                            context,
-                            linkedCts.Token);
-                        });
+                        IEnumerable<CloudQueueMessage> batch = await TimeoutHandler.ExecuteWithTimeout(
+                            "GetMessages",
+                            context.ClientRequestID,
+                            this.storageAccountName,
+                            this.settings.TaskHubName,
+                            () =>
+                            {
+                                return this.storageQueue.GetMessagesAsync(
+                                    this.settings.ControlQueueBatchSize,
+                                    this.settings.ControlQueueVisibilityTimeout,
+                                    this.settings.ControlQueueRequestOptions,
+                                    context,
+                                    linkedCts.Token);
+                            });
 
                         this.stats.StorageRequests.Increment();
 

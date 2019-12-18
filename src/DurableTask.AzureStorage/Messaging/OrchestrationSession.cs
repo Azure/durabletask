@@ -96,6 +96,8 @@ namespace DurableTask.AzureStorage.Messaging
                 return null; // timed-out
             }
 
+            this.StartNewLogicalTraceScope();
+
             lock (this.nextMessageBatch)
             {
                 this.CurrentMessageBatch = this.nextMessageBatch.ToList();
