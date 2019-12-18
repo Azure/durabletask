@@ -476,10 +476,11 @@ namespace DurableTask.AzureStorage
                 ExtensionVersion);
         }
 
-        [Event(116, Level = EventLevel.Informational)]
+        [Event(116, Level = EventLevel.Informational, Version = 2)]
         public void PendingOrchestratorMessageLimitReached(
             string Account,
             string TaskHub,
+            string PartitionId,
             long PendingOrchestratorMessages,
             string ExtensionVersion)
         {
@@ -488,6 +489,7 @@ namespace DurableTask.AzureStorage
                 116,
                 Account,
                 TaskHub,
+                PartitionId,
                 PendingOrchestratorMessages,
                 ExtensionVersion);
         }

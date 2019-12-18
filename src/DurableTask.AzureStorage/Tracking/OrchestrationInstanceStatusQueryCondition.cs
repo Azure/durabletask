@@ -24,6 +24,11 @@ namespace DurableTask.AzureStorage.Tracking
     /// </summary>
     public class OrchestrationInstanceStatusQueryCondition
     {
+        private static readonly List<string> ColumnsWithoutInput = typeof(OrchestrationInstanceStatus).GetProperties()
+            .Where(prop => !prop.Name.Equals(nameof(OrchestrationInstanceStatus.Input)))
+            .Select(prop => prop.Name)
+            .ToList();
+
         /// <summary>
         /// RuntimeStatus
         /// </summary>
@@ -53,11 +58,6 @@ namespace DurableTask.AzureStorage.Tracking
         /// If true, the input will be returned with the results. The default value is true.
         /// </summary>
         public bool FetchInput { get; set; } = true;
-
-        private static readonly List<string> ColumnsWithoutInput = typeof(OrchestrationInstanceStatus).GetProperties()
-            .Where(prop => !prop.Name.Equals(nameof(OrchestrationInstanceStatus.Input)))
-            .Select(prop => prop.Name)
-            .ToList();
 
         /// <summary>
         /// Get the TableQuery object
