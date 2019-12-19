@@ -20,12 +20,14 @@ namespace DurableTask.AzureStorage.Messaging
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Monitoring;
+    using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Queue;
 
     class ControlQueue : TaskHubQueue, IDisposable
     {
         static readonly List<MessageData> EmptyMessageList = new List<MessageData>();
 
+        readonly HashSet<string> pendingMessageIds;
         readonly CancellationTokenSource releaseTokenSource;
         readonly CancellationToken releaseCancellationToken;
 
@@ -36,6 +38,7 @@ namespace DurableTask.AzureStorage.Messaging
             MessageManager messageManager)
             : base(storageQueue, settings, stats, messageManager)
         {
+            this.pendingMessageIds = new HashSet<string>();
             this.releaseTokenSource = new CancellationTokenSource();
             this.releaseCancellationToken = this.releaseTokenSource.Token;
         }
@@ -65,6 +68,7 @@ namespace DurableTask.AzureStorage.Messaging
                             AnalyticsEventSource.Log.PendingOrchestratorMessageLimitReached(
                                 this.storageAccountName,
                                 this.settings.TaskHubName,
+                                this.Name,
                                 pendingOrchestratorMessages,
                                 Utils.ExtensionVersion);
                         }
@@ -77,12 +81,21 @@ namespace DurableTask.AzureStorage.Messaging
 
                     try
                     {
-                        IEnumerable<CloudQueueMessage> batch = await this.storageQueue.GetMessagesAsync(
-                            this.settings.ControlQueueBatchSize,
-                            this.settings.ControlQueueVisibilityTimeout,
-                            this.settings.ControlQueueRequestOptions,
-                            null /* operationContext */,
-                            linkedCts.Token);
+                        OperationContext context = new OperationContext { ClientRequestID = Guid.NewGuid().ToString() };
+                        IEnumerable<CloudQueueMessage> batch = await TimeoutHandler.ExecuteWithTimeout(
+                            "GetMessages",
+                            context.ClientRequestID,
+                            this.storageAccountName,
+                            this.settings.TaskHubName,
+                            () =>
+                            {
+                                return this.storageQueue.GetMessagesAsync(
+                                    this.settings.ControlQueueBatchSize,
+                                    this.settings.ControlQueueVisibilityTimeout,
+                                    this.settings.ControlQueueRequestOptions,
+                                    context,
+                                    linkedCts.Token);
+                            });
 
                         this.stats.StorageRequests.Increment();
 
@@ -112,6 +125,29 @@ namespace DurableTask.AzureStorage.Messaging
                             MessageData messageData = await this.messageManager.DeserializeQueueMessageAsync(
                                 queueMessage,
                                 this.storageQueue.Name);
+
+                            // Check to see whether we've already dequeued this message.
+                            lock (this.pendingMessageIds)
+                            {
+                                if (this.pendingMessageIds.Add(queueMessage.Id))
+                                {
+                                    this.stats.PendingOrchestratorMessages.Increment();
+                                }
+                                else
+                                {
+                                    // This message is already loaded in memory and is therefore a duplicate.
+                                    // We will continue to process it because we need the updated pop receipt.
+                                    AnalyticsEventSource.Log.DuplicateMessageDetected(
+                                        this.storageAccountName,
+                                        this.settings.TaskHubName,
+                                        queueMessage.Id,
+                                        messageData.TaskMessage.OrchestrationInstance.InstanceId,
+                                        messageData.TaskMessage.OrchestrationInstance.ExecutionId,
+                                        this.Name,
+                                        queueMessage.DequeueCount,
+                                        Utils.ExtensionVersion);
+                                }
+                            }
 
                             batchMessages.Add(messageData);
                         });
@@ -154,6 +190,32 @@ namespace DurableTask.AzureStorage.Messaging
                 this.IsReleased = true;
                 return EmptyMessageList;
             }
+        }
+
+        public override Task AbandonMessageAsync(MessageData message, SessionBase session)
+        {
+            lock (this.pendingMessageIds)
+            {
+                if (this.pendingMessageIds.Remove(message.OriginalQueueMessage.Id))
+                {
+                    this.stats.PendingOrchestratorMessages.Decrement();
+                }
+            }
+
+            return base.AbandonMessageAsync(message, session);
+        }
+
+        public override Task DeleteMessageAsync(MessageData message, SessionBase session)
+        {
+            lock (this.pendingMessageIds)
+            {
+                if (this.pendingMessageIds.Remove(message.OriginalQueueMessage.Id))
+                {
+                    this.stats.PendingOrchestratorMessages.Decrement();
+                }
+            }
+
+            return base.DeleteMessageAsync(message, session);
         }
 
         public void Release()

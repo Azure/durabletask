@@ -303,7 +303,7 @@ namespace DurableTask.AzureStorage
                 ExtensionVersion);
         }
 
-        [Event(110, Level = EventLevel.Informational, Version = 2)]
+        [Event(110, Level = EventLevel.Informational, Version = 3)]
         public void FetchedInstanceHistory(
             string Account,
             string TaskHub,
@@ -314,6 +314,7 @@ namespace DurableTask.AzureStorage
             int RequestCount,
             long LatencyMs,
             string ETag,
+            DateTime LastCheckpointTime,
             string ExtensionVersion)
         {
             EnsureLogicalTraceActivityId();
@@ -328,10 +329,11 @@ namespace DurableTask.AzureStorage
                 RequestCount,
                 LatencyMs,
                 ETag ?? string.Empty,
+                LastCheckpointTime,
                 ExtensionVersion);
         }
 
-        [Event(111, Level = EventLevel.Informational, Version = 3)]
+        [Event(111, Level = EventLevel.Informational, Version = 4)]
         public void AppendedInstanceHistory(
             string Account,
             string TaskHub,
@@ -344,6 +346,7 @@ namespace DurableTask.AzureStorage
             long LatencyMs,
             int SizeInBytes,
             string ETag,
+            bool IsCheckpointComplete,
             string ExtensionVersion)
         {
             EnsureLogicalTraceActivityId();
@@ -360,6 +363,7 @@ namespace DurableTask.AzureStorage
                 LatencyMs,
                 SizeInBytes,
                 ETag ?? string.Empty,
+                IsCheckpointComplete,
                 ExtensionVersion);
         }
 
@@ -472,10 +476,11 @@ namespace DurableTask.AzureStorage
                 ExtensionVersion);
         }
 
-        [Event(116, Level = EventLevel.Informational)]
+        [Event(116, Level = EventLevel.Informational, Version = 2)]
         public void PendingOrchestratorMessageLimitReached(
             string Account,
             string TaskHub,
+            string PartitionId,
             long PendingOrchestratorMessages,
             string ExtensionVersion)
         {
@@ -484,6 +489,7 @@ namespace DurableTask.AzureStorage
                 116,
                 Account,
                 TaskHub,
+                PartitionId,
                 PendingOrchestratorMessages,
                 ExtensionVersion);
         }
@@ -504,7 +510,7 @@ namespace DurableTask.AzureStorage
                 ExtensionVersion);
         }
 
-        [Event(118, Level = EventLevel.Warning, Version = 2)]
+        [Event(118, Level = EventLevel.Warning, Version = 3)]
         public void ReceivedOutOfOrderMessage(
             string Account,
             string TaskHub,
@@ -515,6 +521,7 @@ namespace DurableTask.AzureStorage
             int TaskEventId,
             string MessageId,
             int Episode,
+            DateTime LastCheckpointTime,
             string ExtensionVersion)
         {
             EnsureLogicalTraceActivityId();
@@ -529,6 +536,7 @@ namespace DurableTask.AzureStorage
                 TaskEventId,
                 MessageId,
                 Episode,
+                LastCheckpointTime,
                 ExtensionVersion);
         }
 

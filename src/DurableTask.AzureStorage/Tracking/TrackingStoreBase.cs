@@ -46,6 +46,9 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
+        public abstract Task<InstanceStatus> FetchInstanceStatusAsync(string instanceId);
+
+        /// <inheritdoc />
         public abstract Task<IList<OrchestrationState>> GetStateAsync(string instanceId, bool allExecutions, bool fetchInput);
         
         /// <inheritdoc />
@@ -90,7 +93,7 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public abstract Task<bool> SetNewExecutionAsync(ExecutionStartedEvent executionStartedEvent, bool ignoreExistingInstances, string inputStatusOverride);
+        public abstract Task<bool> SetNewExecutionAsync(ExecutionStartedEvent executionStartedEvent, string eTag, string inputStatusOverride);
 
         /// <inheritdoc />
         public virtual Task UpdateStatusForRewindAsync(string instanceId)

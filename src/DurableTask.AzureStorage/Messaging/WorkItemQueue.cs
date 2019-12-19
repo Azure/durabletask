@@ -17,6 +17,7 @@ namespace DurableTask.AzureStorage.Messaging
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Monitoring;
+    using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Queue;
 
     class WorkItemQueue : TaskHubQueue
@@ -40,11 +41,15 @@ namespace DurableTask.AzureStorage.Messaging
             {
                 try
                 {
-                    CloudQueueMessage queueMessage = await this.storageQueue.GetMessageAsync(
+                    OperationContext context = new OperationContext { ClientRequestID = Guid.NewGuid().ToString() };
+                    CloudQueueMessage queueMessage = await TimeoutHandler.ExecuteWithTimeout("GetMessage", context.ClientRequestID, storageAccountName, settings.TaskHubName, () =>
+                    {
+                        return this.storageQueue.GetMessageAsync(
                         this.settings.WorkItemQueueVisibilityTimeout,
                         this.settings.WorkItemQueueRequestOptions,
-                        null /* operationContext */,
+                        context,
                         cancellationToken);
+                    });
 
                     this.stats.StorageRequests.Increment();
 

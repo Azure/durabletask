@@ -10,6 +10,7 @@
 *.user
 bin/
 obj/
+pkg/
 packages/
 TestResults/
 

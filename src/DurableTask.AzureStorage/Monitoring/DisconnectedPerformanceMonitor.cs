@@ -14,6 +14,7 @@
 namespace DurableTask.AzureStorage.Monitoring
 {
     using System;
+    using System.Collections;
     using System.Collections.Generic;
     using System.Linq;
     using System.Text;
@@ -80,11 +81,29 @@ namespace DurableTask.AzureStorage.Monitoring
         internal QueueMetricHistory WorkItemQueueLatencies => this.workItemQueueLatencies;
 
         /// <summary>
-        /// Collects and returns a sampling of all performance metrics being observed by this instance.
+        /// Collects and returns a sampling of all performance metrics being observed by this instance as well as a scale
+        /// recommendation.
         /// </summary>
         /// <param name="currentWorkerCount">The number of workers known to be processing messages for this task hub.</param>
-        /// <returns>Returns a performance data summary or <c>null</c> if data cannot be obtained.</returns>
+        /// <returns>Returns a performance data summary with scale recommendation or <c>null</c> if data cannot be obtained.</returns>
         public virtual async Task<PerformanceHeartbeat> PulseAsync(int currentWorkerCount)
+        {
+            var heartbeatPayload = await this.PulseAsync();
+
+            if (heartbeatPayload != null)
+            {
+                heartbeatPayload.ScaleRecommendation = MakeScaleRecommendation(currentWorkerCount);
+            }
+
+            return heartbeatPayload;
+        }
+
+        /// <summary>
+        /// Collects and returns a sampling of all performance metrics being observed by this instance. Will not return a scale
+        /// recommendation.
+        /// </summary>
+        /// <returns>Returns a performance data summary with no scale recommendation or <c>null</c> if data cannot be obtained.</returns>
+        public virtual async Task<PerformanceHeartbeat> PulseAsync()
         {
             if (!await this.UpdateQueueMetrics())
             {
@@ -98,8 +117,7 @@ namespace DurableTask.AzureStorage.Monitoring
                 WorkItemQueueLength = this.currentWorkItemQueueLength,
                 WorkItemQueueLatencyTrend = this.WorkItemQueueLatencies.CurrentTrend,
                 ControlQueueLengths = this.currentControlQueueLengths,
-                ControlQueueLatencies = this.ControlQueueLatencies.Select(h => TimeSpan.FromMilliseconds(h.Latest)).ToList(),
-                ScaleRecommendation = this.MakeScaleRecommendation(currentWorkerCount),
+                ControlQueueLatencies = this.ControlQueueLatencies.Select(h => TimeSpan.FromMilliseconds(h.Latest)).ToList()
             };
 
             return heartbeatPayload;
@@ -262,17 +280,65 @@ namespace DurableTask.AzureStorage.Monitoring
             return result;
         }
 
-        ScaleRecommendation MakeScaleRecommendation(int workerCount)
+        /// <summary>
+        /// Calculates a Scale Recommendation based on in-memory performance metrics.
+        /// </summary>
+        /// <param name="workerCount">The number of workers known to be processing messages for this task hub.</param>
+        /// <returns>Returns a scale recommendation</returns>
+        public virtual ScaleRecommendation MakeScaleRecommendation(int workerCount)
+        {
+            return MakeScaleRecommendation(workerCount, this.PartitionCount, this.WorkItemQueueLatencies, this.ControlQueueLatencies);
+        }
+
+        /// <summary>
+        /// Calculates a Scale Recommendation based on passed-in performance metrics.
+        /// </summary>
+        /// <param name="workerCount">The number of workers known to be processing messages for this task hub.</param>
+        /// <param name="performanceHeartbeats">Previously collected, chronologically-ordered performance metrics.</param>
+        /// <returns>Returns a scale recommendation</returns>
+        public virtual ScaleRecommendation MakeScaleRecommendation(int workerCount, PerformanceHeartbeat[] performanceHeartbeats)
+        {
+            if (performanceHeartbeats == null || performanceHeartbeats.Length == 0)
+            {
+                return new ScaleRecommendation(ScaleAction.None, keepWorkersAlive: true, reason: "No heartbeat metrics");
+            }
+
+            int partitionCount = performanceHeartbeats.Last().PartitionCount;
+            QueueMetricHistory workItemQueueLatencyHistory = new QueueMetricHistory(QueueLengthSampleSize);
+            List<QueueMetricHistory> controlQueueLatencyHistory = new List<QueueMetricHistory>();
+
+            foreach (PerformanceHeartbeat heartbeat in performanceHeartbeats)
+            {
+                workItemQueueLatencyHistory.Add((int)heartbeat.WorkItemQueueLatency.TotalMilliseconds);
+
+                for (int i = 0; i < heartbeat.ControlQueueLatencies.Count; ++i)
+                {
+                    if (controlQueueLatencyHistory.Count <= i)
+                    {
+                        controlQueueLatencyHistory.Add(new QueueMetricHistory(QueueLengthSampleSize));
+                    }
+                    controlQueueLatencyHistory[i].Add((int)heartbeat.ControlQueueLatencies[i].TotalMilliseconds);
+                }
+            }
+
+            return MakeScaleRecommendation(workerCount, partitionCount, workItemQueueLatencyHistory, controlQueueLatencyHistory);
+        }
+
+        internal ScaleRecommendation MakeScaleRecommendation(
+            int workerCount,
+            int partitionCount,
+            QueueMetricHistory workItemQueueLatencyHistory,
+            List<QueueMetricHistory> controlQueueLatencyHistory)
         {
             // REVIEW: Is zero latency a reliable indicator of idle?
-            bool taskHubIsIdle = IsIdle(this.WorkItemQueueLatencies) && this.ControlQueueLatencies.TrueForAll(IsIdle);
+            bool taskHubIsIdle = IsIdle(workItemQueueLatencyHistory) && controlQueueLatencyHistory.TrueForAll(IsIdle);
             if (workerCount == 0 && !taskHubIsIdle)
             {
                 return new ScaleRecommendation(ScaleAction.AddWorker, keepWorkersAlive: true, reason: "First worker");
             }
 
             // Wait until we have enough samples before making specific recommendations
-            if (!this.WorkItemQueueLatencies.IsFull || !this.ControlQueueLatencies.TrueForAll(h => h.IsFull))
+            if (!workItemQueueLatencyHistory.IsFull || !controlQueueLatencyHistory.TrueForAll(h => h.IsFull))
             {
                 return new ScaleRecommendation(ScaleAction.None, keepWorkersAlive: !taskHubIsIdle, reason: "Not enough samples");
             }
@@ -284,37 +350,37 @@ namespace DurableTask.AzureStorage.Monitoring
                     keepWorkersAlive: false,
                     reason: "Task hub is idle");
             }
-            else if (this.IsHighLatency(this.WorkItemQueueLatencies))
+            else if (this.IsHighLatency(workItemQueueLatencyHistory))
             {
                 return new ScaleRecommendation(
                     ScaleAction.AddWorker,
                     keepWorkersAlive: true,
-                    reason: $"Work-item queue latency: {this.WorkItemQueueLatencies.Latest} > {this.highLatencyThreshold}");
+                    reason: $"Work-item queue latency: {workItemQueueLatencyHistory.Latest} > {this.highLatencyThreshold}");
             }
-            else if (workerCount > this.PartitionCount && IsIdle(this.WorkItemQueueLatencies))
+            else if (workerCount > partitionCount && IsIdle(workItemQueueLatencyHistory))
             {
                 return new ScaleRecommendation(
                     ScaleAction.RemoveWorker,
                     keepWorkersAlive: true,
-                    reason: $"Work-items idle, #workers > partitions ({workerCount} > {this.PartitionCount})");
+                    reason: $"Work-items idle, #workers > partitions ({workerCount} > {partitionCount})");
             }
 
             // Control queues are partitioned; only scale-out if there are more partitions than workers.
-            if (workerCount < this.ControlQueueLatencies.Count(this.IsHighLatency))
+            if (workerCount < controlQueueLatencyHistory.Count(this.IsHighLatency))
             {
                 // Some control queues are busy, so scale out until workerCount == partitionCount.
-                QueueMetricHistory metric = this.ControlQueueLatencies.First(this.IsHighLatency);
+                QueueMetricHistory metric = controlQueueLatencyHistory.First(this.IsHighLatency);
                 return new ScaleRecommendation(
                     ScaleAction.AddWorker,
                     keepWorkersAlive: true,
                     reason: $"High control queue latency: {metric.Latest} > {this.highLatencyThreshold}");
             }
-            else if (workerCount > this.ControlQueueLatencies.Count(h => !IsIdle(h)) && IsIdle(this.WorkItemQueueLatencies))
+            else if (workerCount > controlQueueLatencyHistory.Count(h => !IsIdle(h)) && IsIdle(workItemQueueLatencyHistory))
             {
                 // If the work item queues are idle, scale down to the number of non-idle control queues.
                 return new ScaleRecommendation(
                     ScaleAction.RemoveWorker,
-                    keepWorkersAlive: this.ControlQueueLatencies.Any(IsIdle),
+                    keepWorkersAlive: controlQueueLatencyHistory.Any(IsIdle),
                     reason: $"One or more control queues idle");
             }
             else if (workerCount > 1)
@@ -326,8 +392,8 @@ namespace DurableTask.AzureStorage.Monitoring
                 // that it's a slow scale-in that will get automatically corrected once latencies start increasing again.
                 bool tryRandomScaleDown = Random.Next(10) == 0;
                 if (tryRandomScaleDown &&
-                    this.ControlQueueLatencies.TrueForAll(IsLowLatency) &&
-                    this.WorkItemQueueLatencies.TrueForAll(latency => latency < LowLatencyThreshold))
+                    controlQueueLatencyHistory.TrueForAll(IsLowLatency) &&
+                    workItemQueueLatencyHistory.TrueForAll(latency => latency < LowLatencyThreshold))
                 {
                     return new ScaleRecommendation(
                         ScaleAction.RemoveWorker,

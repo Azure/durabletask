@@ -25,7 +25,6 @@ namespace DurableTask.AzureStorage.Messaging
         readonly TimeSpan idleTimeout;
 
         readonly AsyncAutoResetEvent messagesAvailableEvent;
-        readonly AsyncManualResetEvent sessionReleasedEvent;
         readonly MessageCollection nextMessageBatch;
 
         public OrchestrationSession(
@@ -33,9 +32,10 @@ namespace DurableTask.AzureStorage.Messaging
             string taskHubName,
             OrchestrationInstance orchestrationInstance,
             ControlQueue controlQueue,
-            IList<MessageData> initialMessageBatch,
+            List<MessageData> initialMessageBatch,
             OrchestrationRuntimeState runtimeState,
             string eTag,
+            DateTime lastCheckpointTime,
             TimeSpan idleTimeout,
             Guid traceActivityId)
             : base(storageAccountName, taskHubName, orchestrationInstance, traceActivityId)
@@ -45,19 +45,25 @@ namespace DurableTask.AzureStorage.Messaging
             this.CurrentMessageBatch = initialMessageBatch ?? throw new ArgumentNullException(nameof(initialMessageBatch));
             this.RuntimeState = runtimeState ?? throw new ArgumentNullException(nameof(runtimeState));
             this.ETag = eTag;
+            this.LastCheckpointTime = lastCheckpointTime;
 
             this.messagesAvailableEvent = new AsyncAutoResetEvent(signaled: false);
-            this.sessionReleasedEvent = new AsyncManualResetEvent();
             this.nextMessageBatch = new MessageCollection();
         }
 
         public ControlQueue ControlQueue { get; }
 
-        public IList<MessageData> CurrentMessageBatch { get; private set; }
+        public List<MessageData> CurrentMessageBatch { get; private set; }
+
+        public MessageCollection DeferredMessages { get; } = new MessageCollection();
+
+        public MessageCollection DiscardedMessages { get; } = new MessageCollection();
 
         public OrchestrationRuntimeState RuntimeState { get; private set; }
 
         public string ETag { get; set; }
+
+        public DateTime LastCheckpointTime { get; }
 
         public IReadOnlyList<MessageData> PendingMessages => this.nextMessageBatch;
 
@@ -67,28 +73,17 @@ namespace DurableTask.AzureStorage.Messaging
             return Utils.GetEpisodeNumber(this.RuntimeState);
         }
 
-        public IEnumerable<MessageData> AddOrReplaceMessages(IEnumerable<MessageData> messages)
+        public void AddOrReplaceMessages(IEnumerable<MessageData> messages)
         {
             lock (this.nextMessageBatch)
             {
-                List<MessageData> replacingMessages = null;
                 foreach (MessageData message in messages)
                 {
-                    if (!this.nextMessageBatch.AddOrReplace(message))
-                    {
-                        if (replacingMessages == null)
-                        {
-                            replacingMessages = new List<MessageData>();
-                        }
-
-                        replacingMessages.Add(message);
-                    }
+                    this.nextMessageBatch.AddOrReplace(message);
                 }
 
                 // Force running asynchronously to avoid blocking the main dispatch thread.
                 Task.Run(() => this.messagesAvailableEvent.Set());
-
-                return replacingMessages ?? Enumerable.Empty<MessageData>();
             }
         }
 
@@ -101,9 +96,11 @@ namespace DurableTask.AzureStorage.Messaging
                 return null; // timed-out
             }
 
+            this.StartNewLogicalTraceScope();
+
             lock (this.nextMessageBatch)
             {
-                this.CurrentMessageBatch = this.nextMessageBatch.ToArray();
+                this.CurrentMessageBatch = this.nextMessageBatch.ToList();
                 this.nextMessageBatch.Clear();
             }
 
@@ -123,6 +120,16 @@ namespace DurableTask.AzureStorage.Messaging
             this.Instance = runtimeState.OrchestrationInstance;
         }
 
+        internal void DeferMessage(MessageData message)
+        {
+            this.DeferredMessages.AddOrReplace(message);
+        }
+
+        internal void DiscardMessage(MessageData data)
+        {
+            this.DiscardedMessages.AddOrReplace(data);
+        }
+
         internal bool IsOutOfOrderMessage(MessageData message)
         {
             if (this.IsNonexistantInstance() && message.OriginalQueueMessage.DequeueCount > 5)
@@ -135,21 +142,35 @@ namespace DurableTask.AzureStorage.Messaging
                 return false;
             }
 
-            int taskScheduledId = Utils.GetTaskEventId(message.TaskMessage.Event);
-            if (taskScheduledId < 0)
+            if (message.Sender?.InstanceId != this.Instance.InstanceId)
             {
-                // This message does not require ordering (RaiseEvent, ExecutionStarted, Terminate, etc.).
+                // Only messages sent and received within an orchestration instance require ordering.
+                // Message sender metadata was added only after v1.6.4 and may be null for data created
+                // in earlier versions.
                 return false;
             }
 
-            // This message is a response to a task. Search the history to make sure that we've recorded the fact that
-            // this task was scheduled. We don't have the luxery of transactions between queues and tables, so queue
-            // messages are always written before we update the history in table storage. This means that in some
-            // cases the response message could get picked up before we're ready for it.
-            HistoryEvent mostRecentTaskEvent = this.RuntimeState.Events.LastOrDefault(e => e.EventId == taskScheduledId);
-            if (mostRecentTaskEvent != null)
+            if (this.LastCheckpointTime > message.TaskMessage.Event.Timestamp)
             {
+                // LastCheckpointTime represents the time at which the most recent history checkpoint completed.
+                // The checkpoint is written to the history table only *after* all queue messages are sent.
+                // A message is out of order when its timestamp *preceeds* the most recent checkpoint timestamp.
+                // In this case, we see that the checkpoint came *after* the message, so there is no out-of-order
+                // concern. Note that this logic only applies for messages sent by orchestrations to themselves.
+                // The next check considers the other cases (activities, sub-orchestrations, etc.).
+                // Orchestration checkpoint time information was added only after v1.6.4.
                 return false;
+            }
+
+            if (Utils.TryGetTaskScheduledId(message.TaskMessage.Event, out int taskScheduledId))
+            {
+                // This message is a response to a task. Search the history to make sure that we've recorded the fact that
+                // this task was scheduled.
+                HistoryEvent mostRecentTaskEvent = this.RuntimeState.Events.LastOrDefault(e => e.EventId == taskScheduledId);
+                if (mostRecentTaskEvent != null)
+                {
+                    return false;
+                }
             }
 
             // The message is out of order and cannot be handled by the current session.

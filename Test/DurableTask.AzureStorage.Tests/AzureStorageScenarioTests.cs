@@ -166,15 +166,17 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [DataTestMethod]
-        [DataRow(false)]
-        [DataRow(true)]
-        public async Task EventConversation(bool enableExtendedSessions)
+        [DataRow(false, false)]
+        [DataRow(true, false)]
+        [DataRow(false, true)]
+        [DataRow(true, true)]
+        public async Task EventConversation(bool enableExtendedSessions, bool useFireAndForget)
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
             {
                 await host.StartAsync();
 
-                var client = await host.StartOrchestrationAsync(typeof(Test.Orchestrations.EventConversationOrchestration), "");
+                var client = await host.StartOrchestrationAsync(typeof(Test.Orchestrations.EventConversationOrchestration), useFireAndForget);
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
@@ -183,7 +185,6 @@ namespace DurableTask.AzureStorage.Tests
                 await host.StopAsync();
             }
         }
-
 
         [DataTestMethod]
         [DataRow(false)]
@@ -427,7 +428,12 @@ namespace DurableTask.AzureStorage.Tests
             BlobContinuationToken blobContinuationToken = null;
             do
             {
-                BlobResultSegment results = await instanceDirectory.ListBlobsSegmentedAsync(blobContinuationToken);
+                OperationContext context = new OperationContext { ClientRequestID = Guid.NewGuid().ToString() };
+                BlobResultSegment results = await TimeoutHandler.ExecuteWithTimeout("GetBlobCount", context.ClientRequestID, null, null, () =>
+                {
+                    return instanceDirectory.ListBlobsSegmentedAsync(blobContinuationToken);
+                });
+                
                 blobContinuationToken = results.ContinuationToken;
                 blobCount += results.Results.Count();
             } while (blobContinuationToken != null);

@@ -159,12 +159,20 @@ namespace DurableTask.Core
 
             this.orchestratorActionsMap.Add(id, action);
 
-            var tcs = new TaskCompletionSource<string>();
-            this.openTasks.Add(id, new OpenTaskInfo { Name = name, Version = version, Result = tcs });
+            if (OrchestrationTags.IsTaggedAsFireAndForget(tags))
+            {
+                // this is a fire-and-forget orchestration, so we do not wait for a result.
+                return default(T);
+            }
+            else
+            {
+                var tcs = new TaskCompletionSource<string>();
+                this.openTasks.Add(id, new OpenTaskInfo { Name = name, Version = version, Result = tcs });
 
-            string serializedResult = await tcs.Task;
+                string serializedResult = await tcs.Task;
 
-            return this.dataConverter.Deserialize<T>(serializedResult);
+                return this.dataConverter.Deserialize<T>(serializedResult);
+            }
         }
 
         public override void SendEvent(OrchestrationInstance orchestrationInstance, string eventName, object eventData)

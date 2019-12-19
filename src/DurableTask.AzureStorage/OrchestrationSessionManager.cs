@@ -16,12 +16,14 @@ namespace DurableTask.AzureStorage
     using System;
     using System.Collections.Concurrent;
     using System.Collections.Generic;
+    using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Messaging;
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
+    using Microsoft.WindowsAzure.Storage;
 
     class OrchestrationSessionManager : IDisposable
     {
@@ -109,6 +111,7 @@ namespace DurableTask.AzureStorage
 
                     // This will block until either new messages arrive or the queue is released.
                     IReadOnlyList<MessageData> messages = await controlQueue.GetMessagesAsync(cancellationToken);
+                    
                     if (messages.Count > 0)
                     {
                         this.AddMessageToPendingOrchestration(controlQueue, messages, traceActivityId, cancellationToken);
@@ -127,7 +130,7 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        void AddMessageToPendingOrchestration(
+        internal void AddMessageToPendingOrchestration(
             ControlQueue controlQueue,
             IEnumerable<MessageData> queueMessages,
             Guid traceActivityId,
@@ -148,21 +151,37 @@ namespace DurableTask.AzureStorage
                     string instanceId = data.TaskMessage.OrchestrationInstance.InstanceId;
                     string executionId = data.TaskMessage.OrchestrationInstance.ExecutionId;
 
-                    // If the target orchestration already running we add the message to the session
-                    // directly rather than adding it to the linked list. A null executionId value
-                    // means that this is a management operation, like RaiseEvent or Terminate, which
-                    // should be delivered to the current session.
-                    if (this.activeOrchestrationSessions.TryGetValue(instanceId, out OrchestrationSession session) &&
-                        (executionId == null || session.Instance.ExecutionId == executionId))
+                    if (this.activeOrchestrationSessions.TryGetValue(instanceId, out OrchestrationSession session))
                     {
-                        List<MessageData> pendingMessages;
-                        if (!existingSessionMessages.TryGetValue(session, out pendingMessages))
+                        // If the target orchestration is already running we add the message to the session
+                        // directly rather than adding it to the linked list. A null executionId value
+                        // means that this is a management operation, like RaiseEvent or Terminate, which
+                        // should be delivered to the current session.
+                        if (executionId == null || session.Instance.ExecutionId == executionId)
                         {
-                            pendingMessages = new List<MessageData>();
-                            existingSessionMessages.Add(session, pendingMessages);
+                            List<MessageData> pendingMessages;
+                            if (!existingSessionMessages.TryGetValue(session, out pendingMessages))
+                            {
+                                pendingMessages = new List<MessageData>();
+                                existingSessionMessages.Add(session, pendingMessages);
+                            }
+
+                            pendingMessages.Add(data);
+                        }
+                        else if (data.TaskMessage.Event.Timestamp < session.RuntimeState.CreatedTime)
+                        {
+                            // This message was created for a previous generation of this instance.
+                            // This is common for canceled timer fired events in ContinueAsNew scenarios.
+                            session.DiscardMessage(data);
+                        }
+                        else
+                        {
+                            // Most likely this message was created for a new generation of the current
+                            // instance. This can happen if a ContinueAsNew message arrives before the current
+                            // session finished unloading. Defer the message so that it can be processed later.
+                            session.DeferMessage(data);
                         }
 
-                        pendingMessages.Add(data);
                         continue;
                     }
 
@@ -174,11 +193,19 @@ namespace DurableTask.AzureStorage
                     {
                         PendingMessageBatch batch = node.Value;
 
-                        if (batch.OrchestrationInstanceId == instanceId && 
-                            (executionId == null || batch.OrchestrationExecutionId == executionId))
+                        if (batch.OrchestrationInstanceId == instanceId)
                         {
-                            targetBatch = batch;
-                            break;
+                            if (executionId == null || batch.OrchestrationExecutionId == executionId)
+                            {
+                                targetBatch = batch;
+                                break;
+                            }
+                            else if (batch.OrchestrationExecutionId == null)
+                            {
+                                targetBatch = batch;
+                                batch.OrchestrationExecutionId = executionId;
+                                break;
+                            }
                         }
 
                         node = node.Previous;
@@ -190,29 +217,12 @@ namespace DurableTask.AzureStorage
                         node = this.pendingOrchestrationMessageBatches.AddLast(targetBatch);
 
                         // Before the batch of messages can be processed, we need to download the latest execution state.
-                        // This is done on another background thread so that it won't slow down dequeuing.
+                        // This is done beforehand in the background as a performance optimization.
                         this.ScheduleOrchestrationStatePrefetch(node, traceActivityId, cancellationToken);
                     }
 
-                    if (targetBatch.Messages.AddOrReplace(data))
-                    {
-                        // Added. This is the normal path.
-                        this.stats.PendingOrchestratorMessages.Increment();
-                    }
-                    else
-                    {
-                        // Replaced. This happens if the visibility timeout of a message expires while it
-                        // is still sitting here in memory.
-                        AnalyticsEventSource.Log.DuplicateMessageDetected(
-                            this.storageAccountName,
-                            this.settings.TaskHubName,
-                            data.OriginalQueueMessage.Id,
-                            instanceId,
-                            executionId,
-                            controlQueue.Name,
-                            data.OriginalQueueMessage.DequeueCount,
-                            Utils.ExtensionVersion);
-                    }
+                    // New messages are added; duplicate messages are replaced
+                    targetBatch.Messages.AddOrReplace(data);
                 }
 
                 // The session might be waiting for more messages. If it is, signal them.
@@ -221,19 +231,8 @@ namespace DurableTask.AzureStorage
                     OrchestrationSession session = pair.Key;
                     List<MessageData> newMessages = pair.Value;
 
-                    IEnumerable<MessageData> replacements = session.AddOrReplaceMessages(newMessages);
-                    foreach (MessageData replacementMessage in replacements)
-                    {
-                        AnalyticsEventSource.Log.DuplicateMessageDetected(
-                            this.storageAccountName,
-                            this.settings.TaskHubName,
-                            replacementMessage.OriginalQueueMessage.Id,
-                            session.Instance.InstanceId,
-                            session.Instance.ExecutionId,
-                            controlQueue.Name,
-                            replacementMessage.OriginalQueueMessage.DequeueCount,
-                            Utils.ExtensionVersion);
-                    }
+                    // New messages are added; duplicate messages are replaced
+                    session.AddOrReplaceMessages(newMessages);
                 }
             }
         }
@@ -245,7 +244,6 @@ namespace DurableTask.AzureStorage
             CancellationToken cancellationToken)
         {
             PendingMessageBatch batch = node.Value;
-            batch.IsLoadingState = true;
 
             // Do the fetch in a background thread
             this.fetchRuntimeStateQueue.EnqueueAndDispatch(async delegate
@@ -257,15 +255,15 @@ namespace DurableTask.AzureStorage
                     if (batch.OrchestrationState == null)
                     {
                         OrchestrationHistory history = await this.trackingStore.GetHistoryEventsAsync(
-                            batch.OrchestrationInstanceId,
-                            batch.OrchestrationExecutionId,
-                            cancellationToken);
+                           batch.OrchestrationInstanceId,
+                           batch.OrchestrationExecutionId,
+                           cancellationToken);
 
                         batch.OrchestrationState = new OrchestrationRuntimeState(history.Events);
                         batch.ETag = history.ETag;
+                        batch.LastCheckpointTime = history.LastCheckpointTime;
                     }
 
-                    batch.IsLoadingState = false;
                     this.readyForProcessingQueue.Enqueue(node);
                 }
                 catch (OperationCanceledException)
@@ -315,8 +313,6 @@ namespace DurableTask.AzureStorage
                                 ExecutionId = nextBatch.OrchestrationExecutionId,
                             };
 
-                        this.stats.PendingOrchestratorMessages.Increment(-nextBatch.Messages.Count);
-
                         Guid traceActivityId = AzureStorageOrchestrationService.StartNewLogicalTraceScope();
 
                         OrchestrationSession session = new OrchestrationSession(
@@ -327,6 +323,7 @@ namespace DurableTask.AzureStorage
                             nextBatch.Messages,
                             nextBatch.OrchestrationState,
                             nextBatch.ETag,
+                            nextBatch.LastCheckpointTime,
                             this.settings.ExtendedSessionIdleTimeout,
                             traceActivityId);
 
@@ -338,19 +335,7 @@ namespace DurableTask.AzureStorage
                     {
                         // there is already an active session with the same execution id.
                         // The session might be waiting for more messages. If it is, signal them.
-                        IEnumerable<MessageData> replacements = existingSession.AddOrReplaceMessages(node.Value.Messages);
-                        foreach (MessageData replacementMessage in replacements)
-                        {
-                            AnalyticsEventSource.Log.DuplicateMessageDetected(
-                                this.storageAccountName,
-                                this.settings.TaskHubName,
-                                replacementMessage.OriginalQueueMessage.Id,
-                                existingSession.Instance.InstanceId,
-                                existingSession.Instance.ExecutionId,
-                                node.Value.ControlQueue.Name,
-                                replacementMessage.OriginalQueueMessage.DequeueCount,
-                                Utils.ExtensionVersion);
-                        }
+                        existingSession.AddOrReplaceMessages(node.Value.Messages);
                     }
                     else
                     {
@@ -391,30 +376,32 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        public void ReleaseSession(string instanceId, CancellationToken cancellationToken)
+        public bool TryReleaseSession(string instanceId, CancellationToken cancellationToken, out OrchestrationSession session)
         {
             // Taking this lock ensures we don't add new messages to a session we're about to release.
             lock (this.messageAndSessionLock)
             {
                 // Release is local/in-memory only because instances are affinitized to queues and this
                 // node already holds the lease for the target control queue.
-                if (this.activeOrchestrationSessions.TryGetValue(instanceId, out OrchestrationSession session) &&
+                if (this.activeOrchestrationSessions.TryGetValue(instanceId, out session) &&
                     this.activeOrchestrationSessions.Remove(instanceId))
                 {
                     // Put any unprocessed messages back into the pending buffer.
                     this.AddMessageToPendingOrchestration(
                         session.ControlQueue,
-                        session.PendingMessages,
+                        session.PendingMessages.Concat(session.DeferredMessages),
                         session.TraceActivityId,
                         cancellationToken);
+                    return true;
                 }
                 else
                 {
                     AnalyticsEventSource.Log.AssertFailure(
                         this.storageAccountName,
                         this.settings.TaskHubName,
-                        $"{nameof(ReleaseSession)}: Session for instance {instanceId} was not found!",
+                        $"{nameof(TryReleaseSession)}: Session for instance {instanceId} was not found!",
                         Utils.ExtensionVersion);
+                    return false;
                 }
             }
         }
@@ -449,11 +436,11 @@ namespace DurableTask.AzureStorage
 
             public ControlQueue ControlQueue { get; }
             public string OrchestrationInstanceId { get; }
-            public string OrchestrationExecutionId { get; }
+            public string OrchestrationExecutionId { get; set; }
             public MessageCollection Messages { get; } = new MessageCollection();
             public OrchestrationRuntimeState OrchestrationState { get; set; }
             public string ETag { get; set; }
-            public bool IsLoadingState { get; set; }
+            public DateTime LastCheckpointTime { get; set; }
         }
     }
 }

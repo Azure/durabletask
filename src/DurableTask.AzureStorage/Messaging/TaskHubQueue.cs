@@ -102,10 +102,11 @@ namespace DurableTask.AzureStorage.Messaging
                     taskMessage,
                     outboundTraceActivityId,
                     this.storageQueue.Name,
-                    session?.GetCurrentEpisode() ?? 0);
+                    session?.GetCurrentEpisode(),
+                    sourceInstance);
                 data.SequenceNumber = Interlocked.Increment(ref messageSequenceNumber);
 
-                string rawContent = await messageManager.SerializeMessageDataAsync(data);
+                string rawContent = await this.messageManager.SerializeMessageDataAsync(data);
                 CloudQueueMessage queueMessage = new CloudQueueMessage(rawContent);
 
                 AnalyticsEventSource.Log.SendingMessage(
@@ -121,7 +122,7 @@ namespace DurableTask.AzureStorage.Messaging
                     taskMessage.OrchestrationInstance.InstanceId,
                     taskMessage.OrchestrationInstance.ExecutionId,
                     data.SequenceNumber,
-                    data.Episode,
+                    data.Episode.GetValueOrDefault(-1),
                     Utils.ExtensionVersion);
 
                 await this.storageQueue.AddMessageAsync(
@@ -171,10 +172,29 @@ namespace DurableTask.AzureStorage.Messaging
                 }
             }
 
+            // Special functionality for entity messages with a delivery delay 
+            if (taskMessage.Event is EventRaisedEvent eventRaisedEvent
+                && taskMessage.OrchestrationInstance.InstanceId[0] == '@')
+            {
+                // We assume that auto-started orchestrations (i.e. instance ids starting with '@')
+                // are used exclusively by durable entities; so we can follow
+                // a custom naming convention to pass a time parameter.
+                var eventName = eventRaisedEvent.Name;
+                if (eventName.Length >= 3 && eventName[2] == '@'
+                    && DateTime.TryParse(eventRaisedEvent.Name.Substring(3), out var scheduledTime))
+                {
+                    initialVisibilityDelay = scheduledTime.ToUniversalTime() - DateTime.UtcNow;
+                    if (initialVisibilityDelay < TimeSpan.Zero)
+                    {
+                        initialVisibilityDelay = TimeSpan.Zero;
+                    }
+                }
+            }
+
             return initialVisibilityDelay;
         }
 
-        public async Task AbandonMessageAsync(MessageData message, SessionBase session)
+        public virtual async Task AbandonMessageAsync(MessageData message, SessionBase session)
         {
             CloudQueueMessage queueMessage = message.OriginalQueueMessage;
             TaskMessage taskMessage = message.TaskMessage;
@@ -275,7 +295,7 @@ namespace DurableTask.AzureStorage.Messaging
             }
         }
 
-        public async Task DeleteMessageAsync(MessageData message, SessionBase session)
+        public virtual async Task DeleteMessageAsync(MessageData message, SessionBase session)
         {
             CloudQueueMessage queueMessage = message.OriginalQueueMessage;
             TaskMessage taskMessage = message.TaskMessage;

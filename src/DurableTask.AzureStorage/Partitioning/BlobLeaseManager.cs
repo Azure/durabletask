@@ -108,7 +108,12 @@ namespace DurableTask.AzureStorage.Partitioning
             BlobContinuationToken continuationToken = null;
             do
             {
-                BlobResultSegment segment = await this.consumerGroupDirectory.ListBlobsSegmentedAsync(continuationToken);
+                OperationContext context = new OperationContext { ClientRequestID = Guid.NewGuid().ToString() };
+                BlobResultSegment segment = await TimeoutHandler.ExecuteWithTimeout("ListLeases", context.ClientRequestID, storageAccountName, taskHubName, () =>
+                {
+                    return this.consumerGroupDirectory.ListBlobsSegmentedAsync(continuationToken);
+                });
+                
                 continuationToken = segment.ContinuationToken;
 
                 var downloadTasks = new List<Task<BlobLease>>();

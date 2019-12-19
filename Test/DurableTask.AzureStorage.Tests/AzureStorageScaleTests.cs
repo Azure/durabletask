@@ -159,7 +159,12 @@ namespace DurableTask.AzureStorage.Tests
             var results = new List<IListBlobItem>();
             do
             {
-                BlobResultSegment response = await client.ListBlobsSegmentedAsync(continuationToken);
+                OperationContext context = new OperationContext { ClientRequestID = Guid.NewGuid().ToString() };
+                BlobResultSegment response = await TimeoutHandler.ExecuteWithTimeout("ListBobs", context.ClientRequestID, null, null, () =>
+                {
+                    return client.ListBlobsSegmentedAsync(continuationToken);
+                });
+                
                 continuationToken = response.ContinuationToken;
                 results.AddRange(response.Results);
             }
@@ -678,6 +683,246 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(ScaleAction.AddWorker, recommendation.Action);
             Assert.IsTrue(recommendation.KeepWorkersAlive);
         }
+
+        [TestMethod]
+        public void ScaleDecision_AdHoc_WorkItemLatency_High()
+        {
+            var mock = GetFakePerformanceMonitor();
+
+            var latencies = new List<int> { 500, 600, 700, 800, 900, 1000 };
+            var heartbeats = new PerformanceHeartbeat[latencies.Count];
+            for (int i = 0; i < latencies.Count; ++i)
+            {
+                heartbeats[i] = new PerformanceHeartbeat
+                {
+                    PartitionCount = AzureStorageOrchestrationServiceSettings.DefaultPartitionCount,
+                    WorkItemQueueLatency = TimeSpan.FromMilliseconds(latencies[i]),
+                    ControlQueueLatencies = new List<TimeSpan> { TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero }
+                };
+            }
+
+            ScaleRecommendation recommendation = mock.MakeScaleRecommendation(1, heartbeats);
+            Assert.AreEqual(ScaleAction.AddWorker, recommendation.Action);
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+        }
+
+        [TestMethod]
+        public void ScaleDecision_AdHoc_WorkItemLatency_Moderate()
+        {
+            var mock = GetFakePerformanceMonitor();
+
+            var latencies = new List<int> { 500, 600, 700, 800, 900 };
+            var heartbeats = new PerformanceHeartbeat[latencies.Count];
+            for (int i = 0; i < latencies.Count; ++i)
+            {
+                heartbeats[i] = new PerformanceHeartbeat
+                {
+                    PartitionCount = AzureStorageOrchestrationServiceSettings.DefaultPartitionCount,
+                    WorkItemQueueLatency = TimeSpan.FromMilliseconds(latencies[i]),
+                    ControlQueueLatencies = new List<TimeSpan> { TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero }
+                };
+            }
+
+            ScaleRecommendation recommendation = mock.MakeScaleRecommendation(1, heartbeats);
+            Assert.AreEqual(ScaleAction.None, recommendation.Action);
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+        }
+
+        [TestMethod]
+        public void ScaleDecision_AdHoc_WorkItemLatency_Low()
+        {
+            var mock = GetFakePerformanceMonitor();
+
+            var latencies = new List<int> { 10, 10, 10, 10, 10 };
+            var heartbeats = new List<PerformanceHeartbeat>();
+            for (int i = 0; i < latencies.Count; ++i)
+            {
+                heartbeats.Add(new PerformanceHeartbeat
+                {
+                    PartitionCount = AzureStorageOrchestrationServiceSettings.DefaultPartitionCount,
+                    WorkItemQueueLatency = TimeSpan.FromMilliseconds(latencies[i]),
+                    ControlQueueLatencies = new List<TimeSpan> { TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero }
+                });
+            }
+
+            ScaleRecommendation recommendation = mock.MakeScaleRecommendation(1, heartbeats.ToArray());
+            Assert.AreEqual(ScaleAction.None, recommendation.Action);
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+
+            var random = new Random();
+
+            // Scale down for low latency is semi-random, so need to take a lot of samples
+            var recommendations = new ScaleRecommendation[500];
+            for (int i = 0; i < recommendations.Length; i++)
+            {
+                heartbeats.Add(new PerformanceHeartbeat
+                {
+                    PartitionCount = AzureStorageOrchestrationServiceSettings.DefaultPartitionCount,
+                    WorkItemQueueLatency = TimeSpan.FromMilliseconds(random.Next(50)),
+                    ControlQueueLatencies = new List<TimeSpan> { TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero }
+                });
+
+                recommendations[i] = mock.MakeScaleRecommendation(2, heartbeats.ToArray());
+            }
+
+            int scaleOutCount = recommendations.Count(r => r.Action == ScaleAction.AddWorker);
+            int scaleInCount = recommendations.Count(r => r.Action == ScaleAction.RemoveWorker);
+            int noScaleCount = recommendations.Count(r => r.Action == ScaleAction.None);
+            int keepAliveCount = recommendations.Count(r => r.KeepWorkersAlive);
+
+            Trace.TraceInformation($"Scale-out count  : {scaleOutCount}.");
+            Trace.TraceInformation($"Scale-in count   : {scaleInCount}.");
+            Trace.TraceInformation($"No-scale count   : {noScaleCount}.");
+            Trace.TraceInformation($"Keep-alive count : {keepAliveCount}.");
+
+            // It is expected that we scale-in only a small percentage of the time and never scale-out.
+            Assert.AreEqual(0, scaleOutCount);
+            Assert.AreNotEqual(0, scaleInCount);
+            Assert.IsTrue(noScaleCount > scaleInCount, "Should have more no-scale decisions");
+            Assert.IsTrue(keepAliveCount > recommendations.Length * 0.9, "Almost all should be keep-alive");
+        }
+
+        [TestMethod]
+        public void ScaleDecision_AdHoc_WorkItemLatency_Idle()
+        {
+            var mock = GetFakePerformanceMonitor();
+
+            var latencies = new List<int> { 30000, 0, 0, 0, 0, 0 };
+            var heartbeats = new PerformanceHeartbeat[latencies.Count];
+            for (int i = 0; i < latencies.Count; ++i)
+            {
+                heartbeats[i] = new PerformanceHeartbeat
+                {
+                    PartitionCount = AzureStorageOrchestrationServiceSettings.DefaultPartitionCount,
+                    WorkItemQueueLatency = TimeSpan.FromMilliseconds(latencies[i]),
+                    ControlQueueLatencies = new List<TimeSpan> { TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero }
+                };
+            }
+
+            ScaleRecommendation recommendation = mock.MakeScaleRecommendation(1, heartbeats);
+            Assert.AreEqual(ScaleAction.RemoveWorker, recommendation.Action);
+            Assert.IsFalse(recommendation.KeepWorkersAlive);
+        }
+
+        [TestMethod]
+        public void ScaleDecision_AdHoc_WorkItemLatency_NotIdle()
+        {
+            var mock = GetFakePerformanceMonitor();
+
+            var latencies = new List<int> { 1, 0, 0, 0, 0 };
+            var heartbeats = new List<PerformanceHeartbeat>();
+            for (int i = 0; i < 100; i++)
+            {
+                for (int j = 0; j < latencies.Count; ++j)
+                {
+                    heartbeats.Add(new PerformanceHeartbeat
+                    {
+                        PartitionCount = AzureStorageOrchestrationServiceSettings.DefaultPartitionCount,
+                        WorkItemQueueLatency = TimeSpan.FromMilliseconds(latencies[j]),
+                        ControlQueueLatencies = new List<TimeSpan> { TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero }
+                    });
+                }
+
+                ScaleRecommendation recommendation = mock.MakeScaleRecommendation(1, heartbeats.ToArray());
+
+                // Should never scale to zero when there was a message in a queue
+                // within the last 5 samples.
+                Assert.AreEqual(ScaleAction.None, recommendation.Action);
+                Assert.IsTrue(recommendation.KeepWorkersAlive);
+            }
+        }
+
+        [TestMethod]
+        public void ScaleDecision_AdHoc_WorkItemLatency_MaxPollingDelay1()
+        {
+            var mock = GetFakePerformanceMonitor();
+
+            var latencies = new List<int> { 0, 0, 0, 0, 9999 };
+            var heartbeats = new PerformanceHeartbeat[latencies.Count];
+            for (int i = 0; i < latencies.Count; ++i)
+            {
+                heartbeats[i] = new PerformanceHeartbeat
+                {
+                    PartitionCount = AzureStorageOrchestrationServiceSettings.DefaultPartitionCount,
+                    WorkItemQueueLatency = TimeSpan.FromMilliseconds(latencies[i]),
+                    ControlQueueLatencies = new List<TimeSpan> { TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero }
+                };
+            }
+
+            // When queue is idle, first non-zero latency must be > max polling interval
+            ScaleRecommendation recommendation = mock.MakeScaleRecommendation(1, heartbeats);
+            Assert.AreEqual(ScaleAction.None, recommendation.Action);
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+        }
+
+
+        [TestMethod]
+        public void ScaleDecision_AdHoc_WorkItemLatency_MaxPollingDelay2()
+        {
+            var mock = GetFakePerformanceMonitor();
+
+            var latencies = new List<int> { 0, 0, 0, 10000, 100 };
+            var heartbeats = new PerformanceHeartbeat[latencies.Count];
+            for (int i = 0; i < latencies.Count; ++i)
+            {
+                heartbeats[i] = new PerformanceHeartbeat
+                {
+                    PartitionCount = AzureStorageOrchestrationServiceSettings.DefaultPartitionCount,
+                    WorkItemQueueLatency = TimeSpan.FromMilliseconds(latencies[i]),
+                    ControlQueueLatencies = new List<TimeSpan> { TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero }
+                };
+            }
+
+            ScaleRecommendation recommendation = mock.MakeScaleRecommendation(1, heartbeats);
+            Assert.AreEqual(ScaleAction.None, recommendation.Action);
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+        }
+
+        [TestMethod]
+        public void ScaleDecision_AdHoc_WorkItemLatency_QuickDrain()
+        {
+            var mock = GetFakePerformanceMonitor();
+
+            var latencies = new List<int> { 30000, 30000, 30000, 30000, 3 };
+            var heartbeats = new PerformanceHeartbeat[latencies.Count];
+            for (int i = 0; i < latencies.Count; ++i)
+            {
+                heartbeats[i] = new PerformanceHeartbeat
+                {
+                    PartitionCount = AzureStorageOrchestrationServiceSettings.DefaultPartitionCount,
+                    WorkItemQueueLatency = TimeSpan.FromMilliseconds(latencies[i]),
+                    ControlQueueLatencies = new List<TimeSpan> { TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero }
+                };
+            }
+
+            // Something happened and we immediately drained the work-item queue
+            ScaleRecommendation recommendation = mock.MakeScaleRecommendation(1, heartbeats);
+            Assert.AreEqual(ScaleAction.None, recommendation.Action);
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+        }
+
+        [TestMethod]
+        public void ScaleDecision_AdHoc_WorkItemLatency_NotMaxPollingDelay()
+        {
+            var mock = GetFakePerformanceMonitor();
+
+            var latencies = new List<int> { 0, 0, 0, 10, 9999 };
+            var heartbeats = new PerformanceHeartbeat[latencies.Count];
+            for (int i = 0; i < latencies.Count; ++i)
+            {
+                heartbeats[i] = new PerformanceHeartbeat
+                {
+                    PartitionCount = AzureStorageOrchestrationServiceSettings.DefaultPartitionCount,
+                    WorkItemQueueLatency = TimeSpan.FromMilliseconds(latencies[i]),
+                    ControlQueueLatencies = new List<TimeSpan> { TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero }
+                };
+            }
+
+            // Queue was not idle, so we consider high threshold but not max polling latency
+            ScaleRecommendation recommendation = mock.MakeScaleRecommendation(1, heartbeats);
+            Assert.AreEqual(ScaleAction.AddWorker, recommendation.Action);
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+        }
         #endregion
 
         #region Control Queue Scaling
@@ -941,6 +1186,436 @@ namespace DurableTask.AzureStorage.Tests
             {
                 PerformanceHeartbeat heartbeat = await mock.PulseAsync(simulatedWorkerCount);
                 ScaleRecommendation recommendation = heartbeat.ScaleRecommendation;
+                Assert.IsTrue(recommendation.KeepWorkersAlive);
+
+                if (simulatedWorkerCount < 3)
+                {
+                    Assert.AreEqual(ScaleAction.AddWorker, recommendation.Action);
+                }
+                else if (simulatedWorkerCount <= 4)
+                {
+                    Assert.AreEqual(ScaleAction.None, recommendation.Action);
+                }
+                else
+                {
+                    Assert.AreEqual(ScaleAction.RemoveWorker, recommendation.Action);
+                }
+            }
+        }
+
+        [TestMethod]
+        public void ScaleDecision_AdHoc_ControlQueueLatency_High1()
+        {
+            var mock = GetFakePerformanceMonitor();
+
+            var latencies = new[]
+            {
+                new[] { 0, 0, 0, 600 },
+                new[] { 0, 0, 0, 700 },
+                new[] { 0, 0, 0, 800 },
+                new[] { 0, 0, 0, 900 },
+                new[] { 0, 0, 0, 1000 }
+            };
+            var heartbeats = new PerformanceHeartbeat[latencies.Length];
+            for (int i = 0; i < latencies.Length; ++i)
+            {
+                heartbeats[i] = new PerformanceHeartbeat
+                {
+                    PartitionCount = AzureStorageOrchestrationServiceSettings.DefaultPartitionCount,
+                    WorkItemQueueLatency = TimeSpan.Zero,
+                    ControlQueueLatencies = latencies[i].Select(x => TimeSpan.FromMilliseconds(x)).ToList()
+                };
+            }
+
+            ScaleRecommendation recommendation = mock.MakeScaleRecommendation(1, heartbeats);
+            Assert.AreEqual(ScaleAction.None, recommendation.Action, "Only one hot partition");
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+        }
+
+        [TestMethod]
+        public void ScaleDecision_AdHoc_ControlQueueLatency_High2()
+        {
+            var mock = GetFakePerformanceMonitor();
+
+            var latencies = new[]
+            {
+                new[] { 0, 0, 600, 600 },
+                new[] { 0, 0, 700, 700 },
+                new[] { 0, 0, 800, 800 },
+                new[] { 0, 0, 900, 900 },
+                new[] { 0, 0, 1000, 1000 }
+            };
+            var heartbeats = new PerformanceHeartbeat[latencies.Length];
+            for (int i = 0; i < latencies.Length; ++i)
+            {
+                heartbeats[i] = new PerformanceHeartbeat
+                {
+                    PartitionCount = AzureStorageOrchestrationServiceSettings.DefaultPartitionCount,
+                    WorkItemQueueLatency = TimeSpan.Zero,
+                    ControlQueueLatencies = latencies[i].Select(x => TimeSpan.FromMilliseconds(x)).ToList()
+                };
+            }
+
+            ScaleRecommendation recommendation = mock.MakeScaleRecommendation(1, heartbeats);
+            Assert.AreEqual(ScaleAction.AddWorker, recommendation.Action, "Two hot partitions");
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+
+            recommendation = mock.MakeScaleRecommendation(2, heartbeats);
+            Assert.AreEqual(ScaleAction.None, recommendation.Action, "Only two hot partitions");
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+        }
+
+        [TestMethod]
+        public void ScaleDecision_AdHoc_ControlQueueLatency_High4()
+        {
+            var mock = GetFakePerformanceMonitor();
+
+            var latencies = new[]
+            {
+                new[] { 600, 600, 600, 600 },
+                new[] { 700, 700, 700, 700 },
+                new[] { 800, 800, 800, 800 },
+                new[] { 900, 900, 900, 900 },
+                new[] { 1000, 1000, 1000, 1000 }
+            };
+            var heartbeats = new PerformanceHeartbeat[latencies.Length];
+            for (int i = 0; i < latencies.Length; ++i)
+            {
+                heartbeats[i] = new PerformanceHeartbeat
+                {
+                    PartitionCount = AzureStorageOrchestrationServiceSettings.DefaultPartitionCount,
+                    WorkItemQueueLatency = TimeSpan.Zero,
+                    ControlQueueLatencies = latencies[i].Select(x => TimeSpan.FromMilliseconds(x)).ToList()
+                };
+            }
+
+            ScaleRecommendation recommendation = mock.MakeScaleRecommendation(3, heartbeats);
+            Assert.AreEqual(ScaleAction.AddWorker, recommendation.Action, "Four hot partitions");
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+
+            recommendation = mock.MakeScaleRecommendation(4, heartbeats);
+            Assert.AreEqual(ScaleAction.None, recommendation.Action, "Only four hot partitions");
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+
+            recommendation = mock.MakeScaleRecommendation(5, heartbeats);
+            Assert.AreEqual(ScaleAction.RemoveWorker, recommendation.Action, "No work items and only four hot partitions");
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+        }
+
+        [TestMethod]
+        public void ScaleDecision_AdHoc_ControlQueueLatency_Moderate()
+        {
+            var mock = GetFakePerformanceMonitor();
+
+            var latencies = new[]
+            {
+                new[] { 500, 500, 500, 500 },
+                new[] { 500, 500, 500, 500 },
+                new[] { 500, 500, 500, 500 },
+                new[] { 500, 500, 500, 500 },
+                new[] { 500, 500, 500, 500 }
+            };
+            var heartbeats = new PerformanceHeartbeat[latencies.Length];
+            for (int i = 0; i < latencies.Length; ++i)
+            {
+                heartbeats[i] = new PerformanceHeartbeat
+                {
+                    PartitionCount = AzureStorageOrchestrationServiceSettings.DefaultPartitionCount,
+                    WorkItemQueueLatency = TimeSpan.Zero,
+                    ControlQueueLatencies = latencies[i].Select(x => TimeSpan.FromMilliseconds(x)).ToList()
+                };
+            }
+
+            for (int simulatedWorkerCount = 1; simulatedWorkerCount < 10; simulatedWorkerCount++)
+            {
+                ScaleRecommendation recommendation = mock.MakeScaleRecommendation(simulatedWorkerCount, heartbeats);
+                Assert.IsTrue(recommendation.KeepWorkersAlive);
+
+                if (simulatedWorkerCount > 4)
+                {
+                    Assert.AreEqual(ScaleAction.RemoveWorker, recommendation.Action);
+                }
+                else
+                {
+                    Assert.AreEqual(ScaleAction.None, recommendation.Action);
+                }
+            }
+        }
+
+        [TestMethod]
+        public void ScaleDecision_AdHoc_ControlQueueLatency_Idle1()
+        {
+            var mock = GetFakePerformanceMonitor();
+
+            var latencies = new[]
+            {
+                new[] { 1, 1, 1, 1 },
+                new[] { 0, 1, 1, 1 },
+                new[] { 0, 1, 1, 1 },
+                new[] { 0, 1, 1, 1 },
+                new[] { 0, 1, 1, 1 },
+                new[] { 0, 1, 1, 1 }
+            };
+            var heartbeats = new PerformanceHeartbeat[latencies.Length];
+            for (int i = 0; i < latencies.Length; ++i)
+            {
+                heartbeats[i] = new PerformanceHeartbeat
+                {
+                    PartitionCount = AzureStorageOrchestrationServiceSettings.DefaultPartitionCount,
+                    WorkItemQueueLatency = TimeSpan.Zero,
+                    ControlQueueLatencies = latencies[i].Select(x => TimeSpan.FromMilliseconds(x)).ToList()
+                };
+            }
+
+            for (int simulatedWorkerCount = 1; simulatedWorkerCount < 10; simulatedWorkerCount++)
+            {
+                ScaleRecommendation recommendation = mock.MakeScaleRecommendation(simulatedWorkerCount, heartbeats);
+                Assert.IsTrue(recommendation.KeepWorkersAlive);
+
+                if (simulatedWorkerCount > 3)
+                {
+                    Assert.AreEqual(ScaleAction.RemoveWorker, recommendation.Action);
+                }
+                else
+                {
+                    Assert.AreEqual(ScaleAction.None, recommendation.Action);
+                }
+            }
+        }
+
+        [TestMethod]
+        public void ScaleDecision_AdHoc_ControlQueueLatency_Idle2()
+        {
+            var mock = GetFakePerformanceMonitor();
+
+            var latencies = new[]
+            {
+                new[] { 1, 1, 1, 1 },
+                new[] { 0, 0, 1, 1 },
+                new[] { 0, 0, 1, 1 },
+                new[] { 0, 0, 1, 1 },
+                new[] { 0, 0, 1, 1 },
+                new[] { 0, 0, 1, 1 }
+            };
+            var heartbeats = new PerformanceHeartbeat[latencies.Length];
+            for (int i = 0; i < latencies.Length; ++i)
+            {
+                heartbeats[i] = new PerformanceHeartbeat
+                {
+                    PartitionCount = AzureStorageOrchestrationServiceSettings.DefaultPartitionCount,
+                    WorkItemQueueLatency = TimeSpan.Zero,
+                    ControlQueueLatencies = latencies[i].Select(x => TimeSpan.FromMilliseconds(x)).ToList()
+                };
+            }
+
+            for (int simulatedWorkerCount = 1; simulatedWorkerCount < 10; simulatedWorkerCount++)
+            {
+                ScaleRecommendation recommendation = mock.MakeScaleRecommendation(simulatedWorkerCount, heartbeats);
+                Assert.IsTrue(recommendation.KeepWorkersAlive);
+
+                if (simulatedWorkerCount > 2)
+                {
+                    Assert.AreEqual(ScaleAction.RemoveWorker, recommendation.Action);
+                }
+                else
+                {
+                    Assert.AreEqual(ScaleAction.None, recommendation.Action);
+                }
+            }
+        }
+
+        [TestMethod]
+        public void ScaleDecision_AdHoc_ControlQueueLatency_Idle4()
+        {
+            var mock = GetFakePerformanceMonitor();
+
+            var latencies = new[]
+            {
+                new[] { 0, 0, 0, 1 },
+                new[] { 0, 0, 0, 0 },
+                new[] { 0, 0, 0, 0 },
+                new[] { 0, 0, 0, 0 },
+                new[] { 0, 0, 0, 0 },
+                new[] { 0, 0, 0, 0 }
+            };
+            var heartbeats = new PerformanceHeartbeat[latencies.Length];
+            for (int i = 0; i < latencies.Length; ++i)
+            {
+                heartbeats[i] = new PerformanceHeartbeat
+                {
+                    PartitionCount = AzureStorageOrchestrationServiceSettings.DefaultPartitionCount,
+                    WorkItemQueueLatency = TimeSpan.Zero,
+                    ControlQueueLatencies = latencies[i].Select(x => TimeSpan.FromMilliseconds(x)).ToList()
+                };
+            }
+
+            ScaleRecommendation recommendation = mock.MakeScaleRecommendation(1, heartbeats);
+            Assert.AreEqual(ScaleAction.RemoveWorker, recommendation.Action);
+            Assert.IsFalse(recommendation.KeepWorkersAlive);
+        }
+
+        [TestMethod]
+        public void ScaleDecision_AdHoc_ControlQueueLatency_NotIdle()
+        {
+            var mock = GetFakePerformanceMonitor();
+
+            var latencies = new[]
+            {
+                new[] { 0, 0, 0, 1 },
+                new[] { 0, 0, 0, 0 },
+                new[] { 0, 0, 0, 0 },
+                new[] { 0, 0, 0, 0 },
+                new[] { 0, 0, 0, 0 }
+            };
+            var heartbeats = new PerformanceHeartbeat[latencies.Length];
+            for (int i = 0; i < latencies.Length; ++i)
+            {
+                heartbeats[i] = new PerformanceHeartbeat
+                {
+                    PartitionCount = AzureStorageOrchestrationServiceSettings.DefaultPartitionCount,
+                    WorkItemQueueLatency = TimeSpan.Zero,
+                    ControlQueueLatencies = latencies[i].Select(x => TimeSpan.FromMilliseconds(x)).ToList()
+                };
+            }
+
+            for (int i = 0; i < 100; i++)
+            {
+                ScaleRecommendation recommendation = mock.MakeScaleRecommendation(1, heartbeats);
+
+                // We should never scale to zero unless all control queues are idle.
+                Assert.AreEqual(ScaleAction.None, recommendation.Action);
+                Assert.IsTrue(recommendation.KeepWorkersAlive);
+            }
+        }
+
+        [TestMethod]
+        public void ScaleDecision_AdHoc_ControlQueueLatency_MaxPollingDelay1()
+        {
+            var mock = GetFakePerformanceMonitor();
+
+            var latencies = new[]
+            {
+                new[] { 0, 0, 0, 0 },
+                new[] { 0, 0, 0, 0 },
+                new[] { 0, 0, 0, 0 },
+                new[] { 0, 0, 0, 0 },
+                new[] { 9999, 9999, 9999, 9999 }
+            };
+            var heartbeats = new PerformanceHeartbeat[latencies.Length];
+            for (int i = 0; i < latencies.Length; ++i)
+            {
+                heartbeats[i] = new PerformanceHeartbeat
+                {
+                    PartitionCount = AzureStorageOrchestrationServiceSettings.DefaultPartitionCount,
+                    WorkItemQueueLatency = TimeSpan.Zero,
+                    ControlQueueLatencies = latencies[i].Select(x => TimeSpan.FromMilliseconds(x)).ToList()
+                };
+            }
+
+            // When queue is idle, first non-zero latency must be > max polling interval
+            ScaleRecommendation recommendation = mock.MakeScaleRecommendation(1, heartbeats);
+            Assert.AreEqual(ScaleAction.None, recommendation.Action);
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+        }
+
+        [TestMethod]
+        public void ScaleDecision_AdHoc_ControlQueueLatency_MaxPollingDelay2()
+        {
+            var mock = GetFakePerformanceMonitor();
+
+            var latencies = new[]
+            {
+                new[] { 0, 0, 0, 0 },
+                new[] { 0, 0, 0, 0 },
+                new[] { 0, 0, 0, 0 },
+                new[] { 10000, 10000, 10000, 10000 },
+                new[] { 100, 100, 100, 100 }
+            };
+            var heartbeats = new PerformanceHeartbeat[latencies.Length];
+            for (int i = 0; i < latencies.Length; ++i)
+            {
+                heartbeats[i] = new PerformanceHeartbeat
+                {
+                    PartitionCount = AzureStorageOrchestrationServiceSettings.DefaultPartitionCount,
+                    WorkItemQueueLatency = TimeSpan.Zero,
+                    ControlQueueLatencies = latencies[i].Select(x => TimeSpan.FromMilliseconds(x)).ToList()
+                };
+            }
+
+            ScaleRecommendation recommendation = mock.MakeScaleRecommendation(1, heartbeats);
+            Assert.AreEqual(ScaleAction.None, recommendation.Action);
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+        }
+
+        [TestMethod]
+        public void ScaleDecision_AdHoc_ControlQueueLatency_QuickDrain()
+        {
+            var mock = GetFakePerformanceMonitor();
+
+            var latencies = new[]
+            {
+                new[] { 30000, 30000, 30000, 30000 },
+                new[] { 30000, 30000, 30000, 30000 },
+                new[] { 30000, 30000, 30000, 30000 },
+                new[] { 30000, 30000, 30000, 30000 },
+                new[] { 0, 0, 0, 0 }
+            };
+            var heartbeats = new PerformanceHeartbeat[latencies.Length];
+            for (int i = 0; i < latencies.Length; ++i)
+            {
+                heartbeats[i] = new PerformanceHeartbeat
+                {
+                    PartitionCount = AzureStorageOrchestrationServiceSettings.DefaultPartitionCount,
+                    WorkItemQueueLatency = TimeSpan.Zero,
+                    ControlQueueLatencies = latencies[i].Select(x => TimeSpan.FromMilliseconds(x)).ToList()
+                };
+            }
+
+            // Something happened and we immediately drained the work-item queue
+            for (int simulatedWorkerCount = 1; simulatedWorkerCount < 10; simulatedWorkerCount++)
+            {
+                ScaleRecommendation recommendation = mock.MakeScaleRecommendation(simulatedWorkerCount, heartbeats);
+                Assert.IsTrue(recommendation.KeepWorkersAlive);
+
+                if (simulatedWorkerCount > 4)
+                {
+                    Assert.AreEqual(ScaleAction.RemoveWorker, recommendation.Action);
+                }
+                else
+                {
+                    Assert.AreEqual(ScaleAction.None, recommendation.Action);
+                }
+            }
+        }
+
+        [TestMethod]
+        public void ScaleDecision_AdHoc_ControlQueueLatency_NotMaxPollingDelay()
+        {
+            var mock = GetFakePerformanceMonitor();
+
+            var latencies = new[]
+            {
+                new[] { 0, 0, 0, 0 },
+                new[] { 0, 0, 0, 0 },
+                new[] { 0, 0, 0, 0 },
+                new[] { 0, 10, 10, 10 },
+                new[] { 9999, 9999, 9999, 9999 }
+            };
+            var heartbeats = new PerformanceHeartbeat[latencies.Length];
+            for (int i = 0; i < latencies.Length; ++i)
+            {
+                heartbeats[i] = new PerformanceHeartbeat
+                {
+                    PartitionCount = AzureStorageOrchestrationServiceSettings.DefaultPartitionCount,
+                    WorkItemQueueLatency = TimeSpan.Zero,
+                    ControlQueueLatencies = latencies[i].Select(x => TimeSpan.FromMilliseconds(x)).ToList()
+                };
+            }
+
+            // Queue was not idle, so we consider high threshold but not max polling latency
+            for (int simulatedWorkerCount = 1; simulatedWorkerCount < 10; simulatedWorkerCount++)
+            {
+                ScaleRecommendation recommendation = mock.MakeScaleRecommendation(simulatedWorkerCount, heartbeats);
                 Assert.IsTrue(recommendation.KeepWorkersAlive);
 
                 if (simulatedWorkerCount < 3)
