@@ -39,7 +39,7 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
         public async Task Orchestration_With_ScheduledTasks_Finishes()
         {
             var instance = await this.taskHubClient.CreateOrchestrationInstanceAsync(typeof(SimpleOrchestrationWithTasks), null);
-            var result =  await this.taskHubClient.WaitForOrchestrationAsync(instance, TimeSpan.FromMinutes(2));
+            var result = await this.taskHubClient.WaitForOrchestrationAsync(instance, TimeSpan.FromMinutes(2));
 
             Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
             Assert.AreEqual("\"Hello Gabbar\"", result.Output);
@@ -148,7 +148,7 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
 
             OrchestrationInstance createdInstance = null;
 
-            for(int i = 0; i < allResults.Length; i++)
+            for (int i = 0; i < allResults.Length; i++)
             {
                 var result = allResults[i];
                 if (result.Item1 != null)
@@ -231,7 +231,7 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
             }
 
             var results = await Task.WhenAll(waitTasks);
-            foreach(var result in results)
+            foreach (var result in results)
             {
                 Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
             }

@@ -42,7 +42,7 @@ namespace DurableTask.AzureServiceFabric.Tests
             var guids = Enumerable.Range(0, numberOfMessages).Select(x => Guid.NewGuid()).ToList();
 
             // Add them in reverse order to expected order just to make the test case more interesting.
-            for (int i = numberOfMessages -1 ; i >= 0; i--)
+            for (int i = numberOfMessages - 1; i >= 0; i--)
             {
                 builder.Add(new Message<Guid, TaskMessageItem>(guids[i], new TaskMessageItem(new TaskMessage()
                 {
@@ -86,7 +86,7 @@ namespace DurableTask.AzureServiceFabric.Tests
             var guids = Enumerable.Range(0, numberOfMessages).Select(x => Guid.NewGuid()).ToList();
 
             // Add them in reverse order to expected order just to make the test case more interesting.
-            for (int i = numberOfMessages -1 ; i >= 0; i--)
+            for (int i = numberOfMessages - 1; i >= 0; i--)
             {
                 builder.Add(new Message<Guid, TaskMessageItem>(guids[i], new TaskMessageItem(new TaskMessage() //Let the key values be in reverse order to fired at values again to make test more interesting.
                 {

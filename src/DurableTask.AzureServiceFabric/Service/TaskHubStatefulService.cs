@@ -88,7 +88,7 @@ namespace DurableTask.AzureServiceFabric.Service
         {
             try
             {
-                foreach(var listener in this.serviceListeners)
+                foreach (var listener in this.serviceListeners)
                 {
                     await listener.OnRunAsync(cancellationToken);
                 }

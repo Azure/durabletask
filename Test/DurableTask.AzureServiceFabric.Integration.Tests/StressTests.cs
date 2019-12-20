@@ -80,7 +80,7 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
                 results.Add(attemptNumber, new Tuple<OrchestrationInstance, OrchestrationState>(instance, state));
             }
 
-            for(int attemptNumber = 0; attemptNumber < numberOfAttempts; attemptNumber++)
+            for (int attemptNumber = 0; attemptNumber < numberOfAttempts; attemptNumber++)
             {
                 var instance = results[attemptNumber].Item1;
                 var state = results[attemptNumber].Item2;

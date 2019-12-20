@@ -29,8 +29,11 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
         public static TaskHubClient CreateTaskHubClient()
         {
             var partitionProvider = new FabricPartitionEndpointResolver(new Uri(Constants.TestFabricApplicationAddress), new DefaultStringPartitionHashing());
-            var httpClient = new HttpClient();
-            return new TaskHubClient(new RemoteOrchestrationServiceClient(partitionProvider));
+            var httpClientHandler = new HttpClientHandler()
+            {
+                ServerCertificateCustomValidationCallback = (message, certificate, chain, errors) => true
+            };
+            return new TaskHubClient(new RemoteOrchestrationServiceClient(partitionProvider, httpClientHandler));
         }
 
         public static async Task ThrowsException<TException>(Func<Task> action, string expectedMessage) where TException : Exception

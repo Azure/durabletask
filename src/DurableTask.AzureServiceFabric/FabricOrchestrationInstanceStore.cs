@@ -36,7 +36,7 @@ namespace DurableTask.AzureServiceFabric
     class FabricOrchestrationInstanceStore : IFabricOrchestrationServiceInstanceStore
     {
         const string InstanceStoreCollectionNamePrefix = Constants.CollectionNameUniquenessPrefix + "InstSt_";
-        const string TimeFormatString =  "yyyy-MM-dd-HH";
+        const string TimeFormatString = "yyyy-MM-dd-HH";
         const string TimeFormatStringPrefix = "yyyy-MM-dd-";
         readonly IReliableStateManager stateManager;
         readonly CancellationToken cancellationToken;

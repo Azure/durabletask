@@ -49,6 +49,15 @@ namespace DurableTask.AzureServiceFabric.Remote
         }
 
         /// <summary>
+        /// Creates a new instance.
+        /// </summary>
+        public RemoteOrchestrationServiceClient(IPartitionEndpointResolver partitionProvider, HttpClientHandler httpClientHandler = null)
+        {
+            this.partitionProvider = partitionProvider;
+            this.httpClient = new HttpClient(httpClientHandler);
+        }
+
+        /// <summary>
         /// HttpClient for making REST calls.
         /// </summary>
         public HttpClient HttpClient

@@ -105,7 +105,7 @@ namespace DurableTask.AzureServiceFabric
 
         public async Task SendTaskOrchestrationMessageBatchAsync(params TaskMessage[] messages)
         {
-            foreach(var message in messages)
+            foreach (var message in messages)
             {
                 message.OrchestrationInstance.InstanceId.EnsureValidInstanceId();
                 await this.SendTaskOrchestrationMessageAsync(message);
@@ -137,7 +137,7 @@ namespace DurableTask.AzureServiceFabric
             var stateInstances = await this.instanceStore.GetOrchestrationStateAsync(instanceId, allExecutions);
 
             var result = new List<OrchestrationState>();
-            foreach(var stateInstance in stateInstances)
+            foreach (var stateInstance in stateInstances)
             {
                 if (stateInstance != null)
                 {
