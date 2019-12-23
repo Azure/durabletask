@@ -56,7 +56,8 @@ namespace TestApplication.StatefulService
             }
             finally
             {
-                RunNetShCommand($"http delete sslcert ipport={sslEndpointPort}");
+                // Test purpose only.
+                UnBindSslPort();
             }
         }
 
@@ -78,9 +79,16 @@ namespace TestApplication.StatefulService
             }
 
             sslEndpointPort = $"0.0.0.0:{endpoint.Port}";
-            RunNetShCommand($"http delete sslcert ipport={sslEndpointPort}");
+            UnBindSslPort();
+            // Register unbind when ctrl+c, ctrl+break happens.
+            Console.CancelKeyPress += (_, __) => UnBindSslPort();
             var appid = "\"{C60263BE-E2BC-45E0-80B4-896D8A11C64C}\"";
             RunNetShCommand($"http add sslcert ipport={sslEndpointPort} certHash={certificate.Thumbprint} appid={appid}");
+        }
+
+        private static void UnBindSslPort()
+        {
+            RunNetShCommand($"http delete sslcert ipport={sslEndpointPort}");
         }
 
         private static void RunNetShCommand(string arguments)
