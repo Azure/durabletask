@@ -48,6 +48,7 @@ namespace DurableTask.AzureServiceFabric.Service
         TaskHubWorker worker;
         ReplicaRole currentRole;
         StatefulService statefulService;
+        bool enableHttps = true;
 
         /// <summary>
         /// Creates instance of <see cref="TaskHubProxyListener"/>
@@ -55,12 +56,28 @@ namespace DurableTask.AzureServiceFabric.Service
         /// <param name="context">stateful service context</param>
         /// <param name="fabricOrchestrationProviderSettings">instance of <see cref="FabricOrchestrationProviderSettings"/></param>
         /// <param name="registerOrchestrations">Delegate invoked before starting the worker.</param>
+        [Obsolete]
         public TaskHubProxyListener(StatefulServiceContext context,
                 FabricOrchestrationProviderSettings fabricOrchestrationProviderSettings,
                 RegisterOrchestrations registerOrchestrations)
         {
             this.fabricOrchestrationProviderSettings = fabricOrchestrationProviderSettings ?? throw new ArgumentNullException(nameof(fabricOrchestrationProviderSettings));
             this.registerOrchestrations = registerOrchestrations ?? throw new ArgumentNullException(nameof(registerOrchestrations));
+        }
+
+        /// <summary>
+        /// Creates instance of <see cref="TaskHubProxyListener"/>
+        /// </summary>
+        /// <param name="fabricOrchestrationProviderSettings">instance of <see cref="FabricOrchestrationProviderSettings"/></param>
+        /// <param name="registerOrchestrations">Delegate invoked before starting the worker.</param>
+        /// <param name="enableHttps">Whether to enable https or http</param>
+        public TaskHubProxyListener(FabricOrchestrationProviderSettings fabricOrchestrationProviderSettings,
+                RegisterOrchestrations registerOrchestrations,
+                bool enableHttps = true)
+        {
+            this.fabricOrchestrationProviderSettings = fabricOrchestrationProviderSettings ?? throw new ArgumentNullException(nameof(fabricOrchestrationProviderSettings));
+            this.registerOrchestrations = registerOrchestrations ?? throw new ArgumentNullException(nameof(registerOrchestrations));
+            this.enableHttps = enableHttps;
         }
 
         /// <summary>
@@ -99,8 +116,6 @@ namespace DurableTask.AzureServiceFabric.Service
             return new ServiceReplicaListener(context =>
             {
                 var serviceEndpoint = context.CodePackageActivationContext.GetEndpoint(Constants.TaskHubProxyListenerEndpointName);
-                int port = serviceEndpoint.Port;
-
                 string ipAddress = context.NodeContext.IPAddressOrFQDN;
 #if DEBUG
                 IPHostEntry entry = Dns.GetHostEntry(ipAddress);
@@ -110,7 +125,9 @@ namespace DurableTask.AzureServiceFabric.Service
 #endif
 
                 EnsureFabricOrchestrationProviderIsInitialized();
-                string listeningAddress = String.Format(CultureInfo.InvariantCulture, "http://{0}:{1}/{2}/dtfx/", ipAddress, port, context.PartitionId);
+                string protocol = this.enableHttps ? "https" : "http";
+                string listeningAddress = string.Format(CultureInfo.InvariantCulture, "{0}://{1}:{2}/{3}/dtfx/", protocol, ipAddress, serviceEndpoint.Port, context.PartitionId);
+
                 return new OwinCommunicationListener(new Startup(listeningAddress, this.fabricOrchestrationProvider));
             }, Constants.TaskHubProxyServiceName);
         }

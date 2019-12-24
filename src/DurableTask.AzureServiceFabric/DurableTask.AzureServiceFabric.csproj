@@ -5,7 +5,7 @@
     <TargetFrameworks>net461</TargetFrameworks>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <PackageId>Microsoft.Azure.DurableTask.AzureServiceFabric</PackageId>
-    <Version>2.1.4</Version>
+    <Version>2.2.0</Version>
     <AssemblyVersion>$(Version)</AssemblyVersion>
     <FileVersion>$(Version)</FileVersion>
   </PropertyGroup>

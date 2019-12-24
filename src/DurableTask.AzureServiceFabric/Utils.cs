@@ -66,7 +66,7 @@ namespace DurableTask.AzureServiceFabric
             {
                 await Task.Delay(initialDelay, token);
             }
-            catch(TaskCanceledException)
+            catch (TaskCanceledException)
             {
             }
 
@@ -77,7 +77,7 @@ namespace DurableTask.AzureServiceFabric
                     await loopAction();
                     await Task.Delay(delayOnSuccess).ConfigureAwait(false);
                 }
-                catch(Exception e)
+                catch (Exception e)
                 {
                     ServiceFabricProviderEventSource.Tracing.ExceptionWhileRunningBackgroundJob(actionName, e.ToString());
                     await Task.Delay(delayOnException).ConfigureAwait(false);

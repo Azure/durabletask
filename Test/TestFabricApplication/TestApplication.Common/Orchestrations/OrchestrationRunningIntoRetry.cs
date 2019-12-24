@@ -32,7 +32,7 @@ namespace TestApplication.Common.Orchestrations
                 Handle = RetryExceptionHandler
             };
             ITestTasks testTasks = context.CreateRetryableClient<ITestTasks>(retryOptions);
-            var result = await testTasks.ThrowExceptionAsync(this.LatestException?.Counter -1 ?? numberOfRetriesToEnforce);
+            var result = await testTasks.ThrowExceptionAsync(this.LatestException?.Counter - 1 ?? numberOfRetriesToEnforce);
 
             if (result)
             {

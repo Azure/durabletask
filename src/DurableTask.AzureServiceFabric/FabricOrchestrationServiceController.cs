@@ -83,7 +83,7 @@ namespace DurableTask.AzureServiceFabric
         /// <returns> <see cref="IHttpActionResult"/> object. </returns>
         [HttpPost]
         [Route("messages/{messageId}")]
-        public async Task<IHttpActionResult> SendTaskOrchestrationMessage([FromUri]long messageId,[FromBody] TaskMessage message)
+        public async Task<IHttpActionResult> SendTaskOrchestrationMessage([FromUri]long messageId, [FromBody] TaskMessage message)
         {
             if (messageId != message.SequenceNumber)
             {
