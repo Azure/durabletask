@@ -16,9 +16,9 @@ namespace DurableTask.AzureStorage.Tests
     using System;
     using System.Collections.Generic;
     using System.Configuration;
+    using System.Diagnostics;
     using System.IO;
     using System.Linq;
-    using System.Reflection;
     using System.Runtime.Serialization;
     using System.Text;
     using System.Threading;
@@ -31,12 +31,13 @@ namespace DurableTask.AzureStorage.Tests
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Blob;
     using Microsoft.WindowsAzure.Storage.Table;
-    using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
 
     [TestClass]
     public class AzureStorageScenarioTests
     {
+        public static readonly TimeSpan StandardTimeout = Debugger.IsAttached ? TimeSpan.FromMinutes(5) : TimeSpan.FromSeconds(30);
+
         /// <summary>
         /// End-to-end test which validates a simple orchestrator function which doesn't call any activity functions.
         /// </summary>
@@ -50,7 +51,7 @@ namespace DurableTask.AzureStorage.Tests
                 await host.StartAsync();
 
                 var client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloInline), "World");
-                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                var status = await client.WaitForCompletionAsync(StandardTimeout);
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
                 Assert.AreEqual("World", JToken.Parse(status?.Input));
@@ -73,7 +74,7 @@ namespace DurableTask.AzureStorage.Tests
                 await host.StartAsync();
 
                 var client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloWithActivity), "World");
-                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                var status = await client.WaitForCompletionAsync(StandardTimeout);
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
                 Assert.AreEqual("World", JToken.Parse(status?.Input));
@@ -94,7 +95,7 @@ namespace DurableTask.AzureStorage.Tests
                 await host.StartAsync();
 
                 var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Factorial), 10);
-                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                var status = await client.WaitForCompletionAsync(StandardTimeout);
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
                 Assert.AreEqual(10, JToken.Parse(status?.Input));
@@ -116,7 +117,7 @@ namespace DurableTask.AzureStorage.Tests
                 await host.StartAsync();
 
                 var client = await host.StartOrchestrationAsync(typeof(Orchestrations.FactorialNoReplay), 10);
-                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                var status = await client.WaitForCompletionAsync(StandardTimeout);
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
                 Assert.AreEqual(10, JToken.Parse(status?.Input));
@@ -1725,6 +1726,29 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        /// <summary>
+        /// Tests the behavior of <see cref="SessionAbortedException"/> from orchestrations and activities.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task AbortOrchestrationAndActivity(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                await host.StartAsync();
+
+                string input = Guid.NewGuid().ToString();
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.AbortSessionOrchestration), input);
+                var status = await client.WaitForCompletionAsync(StandardTimeout);
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                Assert.IsNotNull(status.Output);
+                Assert.AreEqual("True", JToken.Parse(status.Output));
+                await host.StopAsync();
+            }
+        }
+
         static class Orchestrations
         {
             internal class SayHelloInline : TaskOrchestration<string, string>
@@ -2386,6 +2410,53 @@ namespace DurableTask.AzureStorage.Tests
                         {
                             tcs.TrySetResult(input);
                         }
+                    }
+                }
+            }
+
+            [KnownType(typeof(AbortSessionOrchestration.Activity))]
+            internal class AbortSessionOrchestration : TaskOrchestration<string, string>
+            {
+                // This is a hacky way of keeping track of global state
+                static bool abortedOrchestration = false;
+                static bool abortedActivity = false;
+
+                public async override Task<string> RunTask(OrchestrationContext context, string input)
+                {
+                    if (!abortedOrchestration)
+                    {
+                        abortedOrchestration = true;
+                        throw new SessionAbortedException();
+                    }
+
+                    try
+                    {
+                        await context.ScheduleTask<string>(typeof(Activity), input);
+                        return (abortedOrchestration && abortedActivity).ToString();
+                    }
+                    catch
+                    {
+                        return "Test failed: The activity's SessionAbortedException should not be visible to the orchestration";
+                    }
+                    finally
+                    {
+                        // reset to ensure future executions work correctly
+                        abortedOrchestration = false;
+                        abortedActivity = false;
+                    }
+                }
+
+                public class Activity : TaskActivity<string, string>
+                {
+                    protected override string Execute(TaskContext context, string input)
+                    {
+                        if (!abortedActivity)
+                        {
+                            abortedActivity = true;
+                            throw new SessionAbortedException();
+                        }
+
+                        return input;
                     }
                 }
             }

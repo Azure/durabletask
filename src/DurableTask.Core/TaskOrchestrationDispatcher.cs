@@ -178,9 +178,11 @@ namespace DurableTask.Core
                     }
                 }
             }
-            catch (SessionAbortedException)
+            catch (SessionAbortedException e)
             {
                 // Either the orchestration or the orchestration service abandoned the session as part of normal control flow.
+                OrchestrationInstance instance = workItem.OrchestrationRuntimeState?.OrchestrationInstance ?? new OrchestrationInstance { InstanceId = workItem.InstanceId };
+                TraceHelper.TraceInstance(TraceEventType.Warning, "TaskOrchestrationDispatcher-ExecutionAborted", instance, "{0}", e.Message);
                 await this.orchestrationService.AbandonTaskOrchestrationWorkItemAsync(workItem);
             }
         }

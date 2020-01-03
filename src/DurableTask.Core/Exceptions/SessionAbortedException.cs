@@ -26,6 +26,7 @@ namespace DurableTask.Core.Exceptions
         /// Initializes a new instance of the <see cref="SessionAbortedException"/> class.
         /// </summary>
         public SessionAbortedException()
+            : base("The current execution has been aborted.")
         {
         }
 

@@ -13,12 +13,14 @@
 
 namespace DurableTask.Core
 {
+    using System;
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Core.Command;
+    using DurableTask.Core.Common;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
 
@@ -87,9 +89,16 @@ namespace DurableTask.Core
                         {
                             if (this.result.IsFaulted)
                             {
-                                Debug.Assert(this.result.Exception != null);
+                                Exception exception = this.result.Exception?.InnerExceptions.FirstOrDefault();
+                                Debug.Assert(exception != null);
 
-                                this.context.FailOrchestration(this.result.Exception.InnerExceptions.FirstOrDefault());
+                                if (Utils.IsExecutionAborting(exception))
+                                {
+                                    // Let this exception propogate out to be handled by the dispatcher
+                                    this.result.GetAwaiter().GetResult();
+                                }
+                                
+                                this.context.FailOrchestration(exception);
                             }
                             else
                             {
