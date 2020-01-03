@@ -88,10 +88,11 @@ namespace DurableTask.Core
             Task renewTask = null;
             var renewCancellationTokenSource = new CancellationTokenSource();
 
+            TaskMessage taskMessage = workItem.TaskMessage;
+            OrchestrationInstance orchestrationInstance = taskMessage.OrchestrationInstance;
+            TaskScheduledEvent scheduledEvent = null;
             try
             {
-                TaskMessage taskMessage = workItem.TaskMessage;
-                OrchestrationInstance orchestrationInstance = taskMessage.OrchestrationInstance;
                 if (string.IsNullOrWhiteSpace(orchestrationInstance?.InstanceId))
                 {
                     throw TraceHelper.TraceException(
@@ -110,7 +111,7 @@ namespace DurableTask.Core
                 }
 
                 // call and get return message
-                var scheduledEvent = (TaskScheduledEvent)taskMessage.Event;
+                scheduledEvent = (TaskScheduledEvent)taskMessage.Event;
                 TaskActivity taskActivity = this.objectManager.GetObject(scheduledEvent.Name, scheduledEvent.Version);
                 if (taskActivity == null)
                 {
@@ -141,7 +142,7 @@ namespace DurableTask.Core
                         string details = IncludeDetails ? e.Details : null;
                         eventToRespond = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details);
                     }
-                    catch (Exception e) when (!Utils.IsFatal(e))
+                    catch (Exception e) when (!Utils.IsFatal(e) && !(e is SessionAbortedException))
                     {
                         TraceHelper.TraceExceptionInstance(TraceEventType.Error, "TaskActivityDispatcher-ProcessException", taskMessage.OrchestrationInstance, e);
                         string details = IncludeDetails
@@ -158,6 +159,13 @@ namespace DurableTask.Core
                 };
 
                 await this.orchestrationService.CompleteTaskActivityWorkItemAsync(workItem, responseTaskMessage);
+            }
+            catch (SessionAbortedException)
+            {
+                // The activity aborted its execution
+                string activityName = scheduledEvent?.Name ?? "(unknown)";
+                TraceHelper.TraceInstance(TraceEventType.Information, "TaskActivityDispatcher-ActivityAborted", orchestrationInstance, "The activity '{0}' aborted its execution.", activityName);
+                await this.orchestrationService.AbandonTaskActivityWorkItemAsync(workItem);
             }
             finally
             {

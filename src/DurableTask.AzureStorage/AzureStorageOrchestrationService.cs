@@ -917,15 +917,8 @@ namespace DurableTask.AzureStorage
                 // Precondition failure is expected to be handled internally and logged as a warning.
                 if ((e as StorageException)?.RequestInformation?.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
                 {
-                    await this.AbandonTaskOrchestrationWorkItemAsync(workItem);
-
-                    // if running with extended session, terminate the session
-                    if (workItem.Session != null)
-                    {
-                        throw new SessionAbortedException();
-                    }
-
-                    return;
+                    // The orchestration dispatcher will handle this exception by abandoning the work item
+                    throw new SessionAbortedException();
                 }
                 else
                 {
