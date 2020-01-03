@@ -110,74 +110,80 @@ namespace DurableTask.Core
 
         async Task OnProcessWorkItemSessionAsync(TaskOrchestrationWorkItem workItem)
         {
-            if (workItem.Session == null)
-            {
-                // Legacy behavior
-                await OnProcessWorkItemAsync(workItem);
-                return;
-            }
-
-            var isExtendedSession = false;
-            var processCount = 0;
             try
             {
-                while (true)
+                if (workItem.Session == null)
                 {
-                    // If the provider provided work items, execute them.
-                    if (workItem.NewMessages?.Count > 0)
+                    // Legacy behavior
+                    await OnProcessWorkItemAsync(workItem);
+                    return;
+                }
+
+                var isExtendedSession = false;
+                var processCount = 0;
+                try
+                {
+                    while (true)
                     {
-                        bool isCompletedOrInterrupted = await OnProcessWorkItemAsync(workItem);
-                        if (isCompletedOrInterrupted)
+                        // If the provider provided work items, execute them.
+                        if (workItem.NewMessages?.Count > 0)
+                        {
+                            bool isCompletedOrInterrupted = await OnProcessWorkItemAsync(workItem);
+                            if (isCompletedOrInterrupted)
+                            {
+                                break;
+                            }
+
+                            processCount++;
+                        }
+
+                        // Fetches beyond the first require getting an extended session lock, used to prevent starvation.
+                        if (processCount > 0 && !isExtendedSession)
+                        {
+                            isExtendedSession = this.concurrentSessionLock.Acquire();
+                            if (!isExtendedSession)
+                            {
+                                TraceHelper.Trace(TraceEventType.Verbose, "OnProcessWorkItemSession-MaxOperations", "Failed to acquire concurrent session lock.");
+                                break;
+                            }
+                        }
+
+                        TraceHelper.Trace(TraceEventType.Verbose, "OnProcessWorkItemSession-StartFetch", "Starting fetch of existing session.");
+                        Stopwatch timer = Stopwatch.StartNew();
+
+                        // Wait for new messages to arrive for the session. This call is expected to block (asynchronously)
+                        // until either new messages are available or until a provider-specific timeout has expired.
+                        workItem.NewMessages = await workItem.Session.FetchNewOrchestrationMessagesAsync(workItem);
+                        if (workItem.NewMessages == null)
                         {
                             break;
                         }
 
-                        processCount++;
+                        TraceHelper.Trace(
+                            TraceEventType.Verbose,
+                            "OnProcessWorkItemSession-EndFetch",
+                            $"Fetched {workItem.NewMessages.Count} new message(s) after {timer.ElapsedMilliseconds} ms from existing session.");
+                        workItem.OrchestrationRuntimeState.NewEvents.Clear();
                     }
-
-                    // Fetches beyond the first require getting an extended session lock, used to prevent starvation.
-                    if (processCount > 0 && !isExtendedSession)
-                    {
-                        isExtendedSession = this.concurrentSessionLock.Acquire();
-                        if (!isExtendedSession)
-                        {
-                            TraceHelper.Trace(TraceEventType.Verbose, "OnProcessWorkItemSession-MaxOperations", "Failed to acquire concurrent session lock.");
-                            break;
-                        }
-                    }
-
-                    TraceHelper.Trace(TraceEventType.Verbose, "OnProcessWorkItemSession-StartFetch", "Starting fetch of existing session.");
-                    Stopwatch timer = Stopwatch.StartNew();
-
-                    // Wait for new messages to arrive for the session. This call is expected to block (asynchronously)
-                    // until either new messages are available or until a provider-specific timeout has expired.
-                    workItem.NewMessages = await workItem.Session.FetchNewOrchestrationMessagesAsync(workItem);
-                    if (workItem.NewMessages == null)
-                    {
-                        break;
-                    }
-
-                    TraceHelper.Trace(
-                        TraceEventType.Verbose,
-                        "OnProcessWorkItemSession-EndFetch",
-                        $"Fetched {workItem.NewMessages.Count} new message(s) after {timer.ElapsedMilliseconds} ms from existing session.");
-                    workItem.OrchestrationRuntimeState.NewEvents.Clear();
                 }
-            }
-            catch (SessionAbortedException)
-            {
-                // we catch this exception here so that the TaskOrchestrationDispatcher does not back off.
-            }
-            finally
-            {
-                if (isExtendedSession)
+                finally
                 {
-                    TraceHelper.Trace(
-                        TraceEventType.Verbose,
-                        "OnProcessWorkItemSession-Release",
-                        $"Releasing extended session after {processCount} batch(es).");
-                    this.concurrentSessionLock.Release();
+                    if (isExtendedSession)
+                    {
+                        TraceHelper.Trace(
+                            TraceEventType.Verbose,
+                            "OnProcessWorkItemSession-Release",
+                            $"Releasing extended session after {processCount} batch(es).");
+                        this.concurrentSessionLock.Release();
+                    }
                 }
+            }
+            catch (SessionAbortedException e)
+            {
+                // Either the orchestration or the orchestration service explicitly abandoned the session.
+                OrchestrationInstance instance = workItem.OrchestrationRuntimeState?.OrchestrationInstance ?? new OrchestrationInstance { InstanceId = workItem.InstanceId };
+                TraceHelper.TraceInstance(TraceEventType.Warning, "TaskOrchestrationDispatcher-ExecutionAborted", instance, "{0}", e.Message);
+                await this.orchestrationService.AbandonTaskOrchestrationWorkItemAsync(workItem);
             }
         }
 

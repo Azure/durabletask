@@ -95,7 +95,7 @@ namespace DurableTask.Core
             {
                 result = await RunTask(context, parameter);
             }
-            catch (Exception e) when (!Utils.IsFatal(e))
+            catch (Exception e) when (!Utils.IsFatal(e) && !Utils.IsExecutionAborting(e))
             {
                 string details = Utils.SerializeCause(e, DataConverter);
                 throw new OrchestrationFailureException(e.Message, details);

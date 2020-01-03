@@ -243,6 +243,11 @@ namespace DurableTask.Core.Common
         }
 
         /// <summary>
+        /// Returns true if an exception represents an aborting execution; false otherwise.
+        /// </summary>
+        public static bool IsExecutionAborting(Exception exception) => exception is SessionAbortedException;
+
+        /// <summary>
         /// Executes the supplied action until successful or the supplied number of attempts is reached
         /// </summary>
         public static async Task ExecuteWithRetries(Func<Task> retryAction, string sessionId, string operation,

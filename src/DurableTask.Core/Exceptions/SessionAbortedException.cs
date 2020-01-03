@@ -17,20 +17,21 @@ namespace DurableTask.Core.Exceptions
     using System.Runtime.Serialization;
 
     /// <summary>
-    /// Thrown when a session was aborted, for example in a split-brain situation
+    /// Thrown when an orchestration or activity session is aborted, for example in split-brain situation or host shutdown situations.
     /// </summary>
     [Serializable]
     public class SessionAbortedException : InvalidOperationException
     {
         /// <summary>
-        /// Initializes a new instance of the <see cref="OrchestrationAlreadyExistsException"/> class.
+        /// Initializes a new instance of the <see cref="SessionAbortedException"/> class.
         /// </summary>
         public SessionAbortedException()
+            : base("The current execution has been aborted.")
         {
         }
 
         /// <summary>
-        /// Initializes an new instance of the SessionAbortedException class with a specified error message
+        /// Initializes an new instance of the <see cref="SessionAbortedException"/> class with a specified error message
         /// </summary>
         /// <param name="message">The message that describes the error.</param>
         public SessionAbortedException(string message)
@@ -39,7 +40,7 @@ namespace DurableTask.Core.Exceptions
         }
 
         /// <summary>
-        /// Initializes an new instance of the SessionAbortedException class with a specified error message
+        /// Initializes an new instance of the <see cref="SessionAbortedException"/> class with a specified error message
         ///    and a reference to the inner exception that is the cause of this exception.
         /// </summary>
         /// <param name="message">The message that describes the error.</param>
@@ -50,7 +51,7 @@ namespace DurableTask.Core.Exceptions
         }
 
         /// <summary>
-        /// Initializes a new instance of the SessionAbortedException class with serialized data.
+        /// Initializes a new instance of the <see cref="SessionAbortedException"/> class with serialized data.
         /// </summary>
         /// <param name="info">The System.Runtime.Serialization.SerializationInfo that holds the serialized object data about the exception being thrown.</param>
         /// <param name="context">The System.Runtime.Serialization.StreamingContext that contains contextual information about the source or destination.</param>
