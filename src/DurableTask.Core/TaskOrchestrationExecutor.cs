@@ -17,6 +17,7 @@ namespace DurableTask.Core
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Linq;
+    using System.Runtime.ExceptionServices;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Core.Command;
@@ -94,8 +95,8 @@ namespace DurableTask.Core
 
                                 if (Utils.IsExecutionAborting(exception))
                                 {
-                                    // Let this exception propogate out to be handled by the dispatcher
-                                    this.result.GetAwaiter().GetResult();
+                                    // Let this exception propagate out to be handled by the dispatcher
+                                    ExceptionDispatchInfo.Capture(exception).Throw();
                                 }
                                 
                                 this.context.FailOrchestration(exception);
