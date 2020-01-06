@@ -221,6 +221,9 @@ namespace DurableTask.AzureStorage.Messaging
         public void Release()
         {
             this.releaseTokenSource.Cancel();
+
+            // Note that we also set IsReleased to true when the dequeue loop ends, so this is
+            // somewhat redundant. This one was added mostly to make tests run more predictably.
             this.IsReleased = true;
         }
 

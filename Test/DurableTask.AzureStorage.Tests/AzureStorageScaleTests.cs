@@ -425,8 +425,9 @@ namespace DurableTask.AzureStorage.Tests
             await TestHelpers.WaitFor(
                 condition: () => !service.OwnedControlQueues.Any(),
                 timeout: TimeSpan.FromSeconds(10));
-            
-            // Small additional delay to account for tiny race condition.
+
+            // Small additional delay to account for tiny race condition between OwnedControlQueues being updated
+            // and LockNextTaskOrchestrationWorkItemAsync being able to react to that change.
             await Task.Delay(250);
 
             // STEP 3: Try to get an orchestration work item - a null value should be returned
