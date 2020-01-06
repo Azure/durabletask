@@ -179,9 +179,9 @@ namespace DurableTask.AzureStorage.Messaging
                 // We assume that auto-started orchestrations (i.e. instance ids starting with '@')
                 // are used exclusively by durable entities; so we can follow
                 // a custom naming convention to pass a time parameter.
-                var eventName = eventRaisedEvent.Name;
-                if (eventName.Length >= 3 && eventName[2] == '@'
-                    && DateTime.TryParse(eventRaisedEvent.Name.Substring(3), out var scheduledTime))
+                string eventName = eventRaisedEvent.Name;
+                if (eventName != null && eventName.Length >= 3 && eventName[2] == '@'
+                    && DateTime.TryParse(eventName.Substring(3), out DateTime scheduledTime))
                 {
                     initialVisibilityDelay = scheduledTime.ToUniversalTime() - DateTime.UtcNow;
                     if (initialVisibilityDelay < TimeSpan.Zero)

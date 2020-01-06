@@ -610,6 +610,13 @@ namespace DurableTask.AzureStorage
                         return null;
                     }
 
+                    // Make sure we still own the partition. If not, abandon the session.
+                    if (session.ControlQueue.IsReleased)
+                    {
+                        await this.AbandonAndReleaseSessionAsync(session);
+                        return null;
+                    }
+
                     session.StartNewLogicalTraceScope();
 
                     List<MessageData> outOfOrderMessages = null;

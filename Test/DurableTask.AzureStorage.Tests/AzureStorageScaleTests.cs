@@ -21,11 +21,14 @@ namespace DurableTask.AzureStorage.Tests
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Messaging;
     using DurableTask.AzureStorage.Monitoring;
+    using DurableTask.AzureStorage.Partitioning;
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
+    using DurableTask.Core.History;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Blob;
+    using Microsoft.WindowsAzure.Storage.Queue;
     using Microsoft.WindowsAzure.Storage.Table;
 
     /// <summary>
@@ -172,11 +175,11 @@ namespace DurableTask.AzureStorage.Tests
             return results;
         }
 
-/// <summary>
-/// REQUIREMENT: Workers can be added or removed at any time and control-queue partitions are load-balanced automatically.
-/// REQUIREMENT: No two workers will ever process the same control queue.
-/// </summary>
-[TestMethod]
+        /// <summary>
+        /// REQUIREMENT: Workers can be added or removed at any time and control-queue partitions are load-balanced automatically.
+        /// REQUIREMENT: No two workers will ever process the same control queue.
+        /// </summary>
+        [TestMethod]
         public async Task MultiWorkerLeaseMovement()
         {
             const int MaxWorkerCount = 4;
@@ -369,6 +372,76 @@ namespace DurableTask.AzureStorage.Tests
             {
                 await worker.StopAsync(isForced: true);
             }
+        }
+
+        /// <summary>
+        /// If a partition is lost, verify that all pre-fetched messages associated
+        /// with that partition are abandoned and not processed.
+        /// </summary>
+        [TestMethod]
+        public async Task PartitionLost_AbandonPrefetchedSession()
+        {
+            var settings = new AzureStorageOrchestrationServiceSettings()
+            {
+                PartitionCount = 1,
+                LeaseRenewInterval = TimeSpan.FromMilliseconds(500),
+                TaskHubName = TestHelpers.GetTestTaskHubName(),
+                StorageConnectionString = TestHelpers.GetTestStorageAccountConnectionString(),
+                ControlQueueBufferThreshold = 100,
+            };
+
+            // STEP 1: Start up the service and queue up a large number of messages
+            var service = new AzureStorageOrchestrationService(settings);
+            await service.CreateAsync();
+            await service.StartAsync();
+
+            // These instance IDs are set up specifically to bypass message validation logic
+            // that might otherwise discard these messages as out-of-order, invalid, etc.
+            var sourceInstance = new OrchestrationInstance();
+            var targetInstance = new OrchestrationInstance { InstanceId = "@counter@xyz" };
+
+            await TestHelpers.WaitFor(
+                condition: () => service.OwnedControlQueues.Any(),
+                timeout: TimeSpan.FromSeconds(10));
+            ControlQueue controlQueue = service.OwnedControlQueues.Single();
+
+            List<TaskMessage> messages = Enumerable.Range(0, 100).Select(i => new TaskMessage
+            {
+                Event = new EventRaisedEvent(-1, null),
+                SequenceNumber = i,
+                OrchestrationInstance = targetInstance,
+            }).ToList();
+
+            await messages.ParallelForEachAsync(
+                maxConcurrency: 50,
+                action: msg => controlQueue.AddMessageAsync(msg, sourceInstance));
+
+            // STEP 2: Force the lease to be stolen and wait for the lease status to update.
+            //         The orchestration service should detect this and update its state.
+            BlobLease lease = (await service.ListBlobLeasesAsync()).Single();
+            await lease.Blob.ChangeLeaseAsync(
+                proposedLeaseId: Guid.NewGuid().ToString(),
+                accessCondition: AccessCondition.GenerateLeaseCondition(lease.Token));
+            await TestHelpers.WaitFor(
+                condition: () => !service.OwnedControlQueues.Any(),
+                timeout: TimeSpan.FromSeconds(10));
+
+            // Small additional delay to account for tiny race condition between OwnedControlQueues being updated
+            // and LockNextTaskOrchestrationWorkItemAsync being able to react to that change.
+            await Task.Delay(250);
+
+            // STEP 3: Try to get an orchestration work item - a null value should be returned
+            //         because the lease was lost.
+            var workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
+                TimeSpan.FromMinutes(5),
+                CancellationToken.None);
+            Assert.IsNull(workItem);
+
+            // STEP 4: Verify that all the enqueued messages were abandoned, i.e. put back
+            //         onto the queue with their dequeue counts incremented.
+            IEnumerable<CloudQueueMessage> queueMessages =
+                await controlQueue.InnerQueue.PeekMessagesAsync(settings.ControlQueueBatchSize);
+            Assert.IsTrue(queueMessages.All(msg => msg.DequeueCount == 1));
         }
 
         [TestMethod]

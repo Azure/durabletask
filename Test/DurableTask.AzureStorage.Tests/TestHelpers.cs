@@ -15,6 +15,8 @@ namespace DurableTask.AzureStorage.Tests
 {
     using System;
     using System.Configuration;
+    using System.Diagnostics;
+    using System.Threading.Tasks;
 
     static class TestHelpers
     {
@@ -28,7 +30,7 @@ namespace DurableTask.AzureStorage.Tests
             var settings = new AzureStorageOrchestrationServiceSettings
             {
                 StorageConnectionString = storageConnectionString,
-                TaskHubName = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None).AppSettings.Settings["TaskHubName"].Value,
+                TaskHubName = GetTestTaskHubName(),
                 ExtendedSessionsEnabled = enableExtendedSessions,
                 ExtendedSessionIdleTimeout = TimeSpan.FromSeconds(extendedSessionTimeoutInSeconds),
                 FetchLargeMessageDataEnabled = fetchLargeMessages,
@@ -48,6 +50,12 @@ namespace DurableTask.AzureStorage.Tests
             return storageConnectionString;
         }
 
+        public static string GetTestTaskHubName()
+        {
+            Configuration appConfig = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
+            return appConfig.AppSettings.Settings["TaskHubName"].Value;
+        }
+
         static string GetTestSetting(string name)
         {
             string value = Environment.GetEnvironmentVariable("DurableTaskTest" + name);
@@ -57,6 +65,24 @@ namespace DurableTask.AzureStorage.Tests
             }
 
             return value;
+        }
+
+        public static async Task WaitFor(Func<bool> condition, TimeSpan timeout)
+        {
+            Stopwatch timer = Stopwatch.StartNew();
+            do
+            {
+                bool result = condition();
+                if (result)
+                {
+                    return;
+                }
+
+                await Task.Delay(TimeSpan.FromMilliseconds(100));
+
+            } while (timer.Elapsed < timeout);
+
+            throw new TimeoutException("Timed out waiting for condition to be true.");
         }
     }
 }

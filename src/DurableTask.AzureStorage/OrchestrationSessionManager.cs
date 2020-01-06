@@ -23,7 +23,6 @@ namespace DurableTask.AzureStorage
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
-    using Microsoft.WindowsAzure.Storage;
 
     class OrchestrationSessionManager : IDisposable
     {
