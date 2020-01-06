@@ -221,6 +221,7 @@ namespace DurableTask.AzureStorage.Messaging
         public void Release()
         {
             this.releaseTokenSource.Cancel();
+            this.IsReleased = true;
         }
 
         public virtual void Dispose()
