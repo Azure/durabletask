@@ -109,6 +109,5 @@ namespace DurableTask.AzureStorage.Tests.Correlation
             telemetry.Timestamp = timeStamp;
             return telemetry;
         }
-    
-}
+    }
 }
