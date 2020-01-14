@@ -74,7 +74,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
             TelemetryConfiguration config = TelemetryConfiguration.CreateDefault();
             if (onSend != null)
             {
-                config.TelemetryChannel = new StubTelemetryChannel { OnSend = onSend };
+                config.TelemetryChannel = new NoOpTelemetryChannel { OnSend = onSend };
             }
 
 #pragma warning disable 618

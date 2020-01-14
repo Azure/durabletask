@@ -23,12 +23,13 @@ namespace DurableTask.AzureStorage.Tests.Correlation
     /// <summary>
     /// A stub of <see cref="ITelemetryChannel"/>.
     /// This is the copy of the https://github.com/Microsoft/ApplicationInsights-dotnet/Test/TestFramework/Shared/StubTelemetryClient
-    public sealed class StubTelemetryChannel : ITelemetryChannel
+    /// </summary>
+    public sealed class NoOpTelemetryChannel : ITelemetryChannel
     {
         /// <summary>
-        /// Initializes a new instance of the <see cref="StubTelemetryChannel"/> class.
+        /// Initializes a new instance of the <see cref="NoOpTelemetryChannel"/> class.
         /// </summary>
-        public StubTelemetryChannel()
+        public NoOpTelemetryChannel()
         {
             this.OnSend = telemetry => { };
             this.OnFlush = () => { };
