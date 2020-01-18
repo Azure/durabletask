@@ -16,9 +16,21 @@ namespace Correlation.Samples
     using System;
     using DurableTask.AzureStorage;
     using System.Configuration;
+    using System.IO;
+    using Microsoft.Extensions.Configuration;
 
     public static class TestHelpers
     {
+        public static IConfigurationRoot Configuration { get; set; }
+
+        static TestHelpers()
+        {
+            var builder = new ConfigurationBuilder()
+                .SetBasePath(Directory.GetCurrentDirectory())
+                .AddJsonFile("appsettings.json");
+            Configuration = builder.Build();
+        }
+
         internal static TestOrchestrationHost GetTestOrchestrationHost(
             bool enableExtendedSessions,
             int extendedSessionTimeoutInSeconds = 30)
@@ -28,7 +40,7 @@ namespace Correlation.Samples
             var settings = new AzureStorageOrchestrationServiceSettings
             {
                 StorageConnectionString = storageConnectionString,
-                TaskHubName = ConfigurationManager.AppSettings.Get("TaskHubName"),
+                TaskHubName = Configuration["taskHubName"],
                 ExtendedSessionsEnabled = enableExtendedSessions,
                 ExtendedSessionIdleTimeout = TimeSpan.FromSeconds(extendedSessionTimeoutInSeconds),
             };
@@ -41,7 +53,7 @@ namespace Correlation.Samples
             string storageConnectionString = GetTestSetting("StorageConnectionString");
             if (string.IsNullOrEmpty(storageConnectionString))
             {
-                throw new ArgumentNullException("A Storage connection string must be defined in either an environment variable or in configuration.");
+                throw new ArgumentNullException("A Storage connection string must be defined in either an environment variable or in appsettings.json.");
             }
 
             return storageConnectionString;
@@ -52,7 +64,7 @@ namespace Correlation.Samples
             string value = Environment.GetEnvironmentVariable("DurableTaskTest" + name);
             if (string.IsNullOrEmpty(value))
             {
-                value = ConfigurationManager.AppSettings.Get(name);
+                value = Configuration[name];
             }
 
             return value;
