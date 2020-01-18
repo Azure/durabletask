@@ -124,14 +124,14 @@ namespace DurableTask.Core.Tests
             Assert.ThrowsException<InvalidOperationException>(() => currentContext.GetCurrentOrchestrationRequestTraceContext());
         }
 
-        private Foo GetNewRequestContext(string comment)
+        private static Foo GetNewRequestContext(string comment)
         {
             var requestContext = new Foo() { Comment = comment };
             requestContext.TelemetryType = TelemetryType.Request;
             return requestContext;
         }
 
-        private Foo GetNewDependencyContext(string comment)
+        private static Foo GetNewDependencyContext(string comment)
         {
             var dependencyContext = new Foo() { Comment = comment };
             dependencyContext.TelemetryType = TelemetryType.Dependency;

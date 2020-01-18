@@ -27,7 +27,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
 
     public class TelemetryActivator
     {        
-        static TelemetryClient telemetryClient;
+        static TelemetryClient telemetryClient; // static works but not non-static.
 
         public void Initialize()
         {
