@@ -636,7 +636,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
 
                     if (CorrelationSettings.Current.Protocol == Protocol.W3CTraceContext)
                     {
-#pragma warning disable 618
+#pragma warning disable 618 // GenerateW3CContext() is deprecated. However, it is required for W3C for this System.Diagnostics version.
                         activity.GenerateW3CContext();
 #pragma warning restore 618
                     }

@@ -50,7 +50,7 @@ namespace Correlation.Samples
                     CorrelationSettings.Current.Protocol = Protocol.HttpCorrelationProtocol;
                     return;
                 default:
-#pragma warning disable 618
+#pragma warning disable 618 // GenerateW3CContext() is deprecated. However, it is required for W3C for this version.
                     activity.GenerateW3CContext();
 #pragma warning restore 618
                     return;

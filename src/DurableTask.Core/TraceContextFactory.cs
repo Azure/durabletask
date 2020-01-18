@@ -21,7 +21,7 @@ namespace DurableTask.Core
     using DurableTask.Core.Settings;
     using Microsoft.ApplicationInsights.W3C;
 
-#pragma warning disable 618
+#pragma warning disable 618 // GetTraceparent(), GetTracestate() are deprecated. However, it is required for W3C for this System.Diagnostics version.
 
     /// <summary>
     /// Factory of TraceContext

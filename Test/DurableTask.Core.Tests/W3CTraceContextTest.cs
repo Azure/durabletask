@@ -10,7 +10,6 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-#pragma warning disable CS0618 
 
 namespace DurableTask.Core.Tests
 {
@@ -32,11 +31,10 @@ namespace DurableTask.Core.Tests
             var traceContext = new W3CTraceContext();
             var parentTraceContext = new NullObjectTraceContext();
             traceContext.SetParentAndStart(parentTraceContext);
-
+#pragma warning disable 618 // IsW3CActviity() is deprecated. However, it is required for W3C for this version.
             Assert.IsTrue(traceContext.CurrentActivity.IsW3CActivity());
+#pragma warning restore 618
             Assert.AreEqual(traceContext.StartTime, traceContext.CurrentActivity.StartTimeUtc);
-
         }
-
     }
 }

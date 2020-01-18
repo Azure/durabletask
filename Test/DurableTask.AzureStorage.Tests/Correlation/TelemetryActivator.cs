@@ -77,7 +77,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
                 config.TelemetryChannel = new NoOpTelemetryChannel { OnSend = onSend };
             }
 
-#pragma warning disable 618
+#pragma warning disable 618 // DurableTaskCorrelationTelemetryIntializer() requires suppression. It is required for W3C for this System.Diagnostics version.
             var telemetryInitializer = new DurableTaskCorrelationTelemetryInitializer();
             // TODO It should be suppressed by DependencyTrackingTelemetryModule, however, it doesn't work currently.
             // Once the bug is fixed, remove this settings. 

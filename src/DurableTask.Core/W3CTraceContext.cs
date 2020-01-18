@@ -11,7 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-#pragma warning disable 618
+#pragma warning disable 618 // GetTraceId(), GetParentSpanId(), GenerateW3C() require supression for this System.Diagnostic version.
 
 namespace DurableTask.Core
 {
