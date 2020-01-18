@@ -33,6 +33,16 @@ namespace DurableTask.Core
         {
             OrchestrationTraceContexts = new Stack<TraceContextBase>();
         }
+
+        static TraceContextBase()
+        {
+            CustomJsonSerializerSettings = new JsonSerializerSettings()
+            {
+                TypeNameHandling = TypeNameHandling.Objects,
+                PreserveReferencesHandling = PreserveReferencesHandling.Objects,
+                ReferenceLoopHandling = ReferenceLoopHandling.Serialize,
+            };
+        }
        
         /// <summary>
         /// Start time of this telemetry
@@ -77,17 +87,15 @@ namespace DurableTask.Core
         [JsonIgnore]
         public abstract TimeSpan Duration { get; }
 
+        [JsonIgnore]
+        static JsonSerializerSettings CustomJsonSerializerSettings { get; }
+
         /// <summary>
         /// Serializable Json string of TraceContext
         /// </summary>
         [JsonIgnore]
-        public string SerializableTraceContext => // TODO Implement Custom Serializer
-            JsonConvert.SerializeObject(this, new JsonSerializerSettings()
-            {
-                TypeNameHandling = TypeNameHandling.Objects,
-                PreserveReferencesHandling = PreserveReferencesHandling.Objects,
-                ReferenceLoopHandling = ReferenceLoopHandling.Serialize,
-            });
+        public string SerializableTraceContext => 
+            JsonConvert.SerializeObject(this, CustomJsonSerializerSettings);
 
         /// <summary>
         /// Telemetry.Id Used for sending telemetry. refer this URL
@@ -154,7 +162,7 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="json">Serialized json of TraceContext sub classes</param>
         /// <returns></returns>
-        public static TraceContextBase Restore(string json) // TODO Implement Custom Serializer
+        public static TraceContextBase Restore(string json) 
         {
             if (!string.IsNullOrEmpty(json))
             {
@@ -164,12 +172,7 @@ namespace DurableTask.Core
                 var restored = JsonConvert.DeserializeObject(
                     json,
                     traceContextType,
-                    new JsonSerializerSettings()
-                    {
-                        TypeNameHandling = TypeNameHandling.Objects,
-                        PreserveReferencesHandling = PreserveReferencesHandling.Objects,
-                        ReferenceLoopHandling = ReferenceLoopHandling.Serialize,
-                    }) as TraceContextBase;
+                    CustomJsonSerializerSettings) as TraceContextBase;
                 restored.OrchestrationTraceContexts = new Stack<TraceContextBase>(restored.OrchestrationTraceContexts);
                 return restored;
             }
