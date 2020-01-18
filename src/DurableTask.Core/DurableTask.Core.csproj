@@ -23,6 +23,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!--TODO Planning to remove DenpendencyCollector once we can update DiagnosticSource to 4.6.0+. -->
     <PackageReference Include="Microsoft.ApplicationInsights.DependencyCollector" Version="2.8.0" />
     <PackageReference Include="System.Diagnostics.DiagnosticSource" Version="4.5.0" />
   </ItemGroup>
