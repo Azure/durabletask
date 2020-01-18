@@ -452,7 +452,12 @@ namespace DurableTask.Core
             string reason = failure.Message;
             string details;
             // correlation 
-            CorrelationTraceClient.TrackException(failure);
+            CorrelationTraceClient.Propagate(
+                () =>
+                {
+                    CorrelationTraceClient.TrackException(failure);
+                });
+
             if (failure is OrchestrationFailureException orchestrationFailureException)
             {
                 details = orchestrationFailureException.Details;
