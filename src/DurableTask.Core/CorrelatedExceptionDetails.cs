@@ -20,7 +20,7 @@ namespace DurableTask.Core
     /// <summary>
     /// A class that includes an exception and correlation information for sending telemetry
     /// </summary>
-    public class CorrelatedException
+    public class CorrelatedExceptionDetails
     {
         /// <summary>
         /// Exception that is sent to E2E tracing system
@@ -43,7 +43,7 @@ namespace DurableTask.Core
         /// <param name="exception">Exception</param> 
         /// <param name="operationId">OperationId</param>
         /// <param name="parentId">ParentId</param>
-        public CorrelatedException(Exception exception, string operationId, string parentId)
+        public CorrelatedExceptionDetails(Exception exception, string operationId, string parentId)
         {
             this.Exception = exception;
             this.ParentId = parentId;

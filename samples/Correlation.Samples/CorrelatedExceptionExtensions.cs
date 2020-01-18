@@ -21,7 +21,7 @@ namespace Correlation.Samples
 
     public static class CorrelatedExceptionExtensions
     {
-        public static ExceptionTelemetry CreateExceptionTelemetry(this CorrelatedException e)
+        public static ExceptionTelemetry CreateExceptionTelemetry(this CorrelatedExceptionDetails e)
         {
             var exceptionTelemetry = new ExceptionTelemetry(e.Exception);
             exceptionTelemetry.Context.Operation.Id = e.OperationId;
