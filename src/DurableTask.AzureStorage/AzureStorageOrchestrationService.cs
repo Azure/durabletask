@@ -1369,7 +1369,7 @@ namespace DurableTask.AzureStorage
             ActivitySession session;
             if (!this.activeActivitySessions.TryGetValue(workItem.Id, out session))
             {
-                // The contextBase does not exist - possibly because it was already removed.
+                // The context does not exist - possibly because it was already removed.
                 AnalyticsEventSource.Log.AssertFailure(
                     this.storageAccountName,
                     this.settings.TaskHubName,
