@@ -26,8 +26,9 @@ namespace DurableTask.AzureStorage.Tests.Correlation
     using Microsoft.ApplicationInsights.W3C;
 
     public class TelemetryActivator
-    {        
-        static TelemetryClient telemetryClient; // static works but not non-static.
+    {
+        // TODO: Should be static.  If we change to instance variables, it will lost the telemetry when you instantiate TelemetryInitializer second time
+        static TelemetryClient telemetryClient; 
 
         public void Initialize()
         {
