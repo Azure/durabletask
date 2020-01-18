@@ -11,11 +11,9 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-#pragma warning disable 618
 namespace DurableTask.AzureStorage.Messaging
 {
     using System;
-    using System.Diagnostics;
     using System.Reflection;
     using System.Runtime.ExceptionServices;
     using System.Text;
@@ -24,8 +22,6 @@ namespace DurableTask.AzureStorage.Messaging
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.Core;
     using DurableTask.Core.History;
-    using Microsoft.ApplicationInsights;
-    using Microsoft.ApplicationInsights.DataContracts;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Queue;
 
