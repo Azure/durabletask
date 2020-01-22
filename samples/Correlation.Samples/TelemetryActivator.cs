@@ -20,9 +20,8 @@ namespace Correlation.Samples
     using Microsoft.ApplicationInsights.Extensibility;
 
     public class TelemetryActivator
-    {        
-        // TODO: Should be static.  If we change to instance variables, it will lost the telemetry when you instantiate TelemetryInitializer second time.
-        static TelemetryClient telemetryClient;
+    {
+        private TelemetryClient telemetryClient;
 
         public void Initialize()
         {

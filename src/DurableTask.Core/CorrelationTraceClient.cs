@@ -44,9 +44,7 @@ namespace DurableTask.Core
             Action<TraceContextBase> trackDependencyTelemetryAction, 
             Action<Exception> trackExceptionAction)
         {
-            if (listenerSubscription == null)
-            {
-                listenerSubscription = DiagnosticListener.AllListeners.Subscribe(
+            listenerSubscription = DiagnosticListener.AllListeners.Subscribe(
                     delegate (DiagnosticListener listener)
                     {
                         if (listener.Name == DiagnosticSourceName)
@@ -76,7 +74,6 @@ namespace DurableTask.Core
                             });
                         }
                     });
-            }
         }
 
         /// <summary>
