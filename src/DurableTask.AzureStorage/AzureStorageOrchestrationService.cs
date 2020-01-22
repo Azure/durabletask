@@ -1373,7 +1373,7 @@ namespace DurableTask.AzureStorage
                 AnalyticsEventSource.Log.AssertFailure(
                     this.storageAccountName,
                     this.settings.TaskHubName,
-                    $"Could not find contextBase for work item with ID = {workItem.Id}.",
+                    $"Could not find context for work item with ID = {workItem.Id}.",
                     Utils.ExtensionVersion);
                 return;
             }
@@ -1412,7 +1412,7 @@ namespace DurableTask.AzureStorage
             ActivitySession session;
             if (!this.activeActivitySessions.TryGetValue(workItem.Id, out session))
             {
-                // The contextBase does not exist - possibly because it was already removed.
+                // The context does not exist - possibly because it was already removed.
                 // Expire the work item to prevent subsequent renewal attempts.
                 return ExpireWorkItem(workItem);
             }
@@ -1438,11 +1438,11 @@ namespace DurableTask.AzureStorage
             ActivitySession session;
             if (!this.activeActivitySessions.TryGetValue(workItem.Id, out session))
             {
-                // The contextBase does not exist - possibly because it was already removed.
+                // The context does not exist - possibly because it was already removed.
                 AnalyticsEventSource.Log.AssertFailure(
                     this.storageAccountName,
                     this.settings.TaskHubName,
-                    $"Could not find contextBase for work item with ID = {workItem.Id}.",
+                    $"Could not find context for work item with ID = {workItem.Id}.",
                     Utils.ExtensionVersion);
                 return;
             }
