@@ -111,7 +111,7 @@ namespace DurableTask.AzureStorage.Messaging
                 CorrelationTraceClient.Propagate(
                     () => { data.SerializableTraceContext = GetSerializableTraceContext(taskMessage); });
                 
-                string rawContent = await messageManager.SerializeMessageDataAsync(data);
+                string rawContent = await this.messageManager.SerializeMessageDataAsync(data);
 
                 CloudQueueMessage queueMessage = new CloudQueueMessage(rawContent);
 
