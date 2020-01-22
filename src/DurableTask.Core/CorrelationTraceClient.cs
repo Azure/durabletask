@@ -24,7 +24,7 @@ namespace DurableTask.Core
     /// </summary>
     public class CorrelationTraceClient
     {
-        const string DiagnosticSourceName = "DurableTask.AzureStorage";
+        const string DiagnosticSourceName = "DurableTask.Core";
         const string RequestTrackEvent = "RequestEvent";
         const string DependencyTrackEvent = "DependencyEvent";
         const string ExceptionEvent = "ExceptionEvent";
