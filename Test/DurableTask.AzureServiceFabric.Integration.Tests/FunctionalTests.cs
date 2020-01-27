@@ -110,6 +110,16 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
         }
 
         [TestMethod]
+        public async Task GenerationBasicTest()
+        {
+            var instance = await this.taskHubClient.CreateOrchestrationInstanceAsync(typeof(GenerationBasicOrchestration), 2);
+            var result = await this.taskHubClient.WaitForOrchestrationAsync(instance, TimeSpan.FromMinutes(2));
+
+            Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
+            Assert.AreEqual(2, result.Output, "Orchestration Result is wrong!!!");
+        }
+
+        [TestMethod]
         public async Task Orchestration_With_Same_Id_Cant_Be_Started_While_Running()
         {
             var instanceId = nameof(Orchestration_With_Same_Id_Cant_Be_Started_While_Running);

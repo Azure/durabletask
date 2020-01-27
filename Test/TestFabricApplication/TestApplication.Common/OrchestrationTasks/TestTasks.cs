@@ -19,6 +19,17 @@ namespace TestApplication.Common.OrchestrationTasks
 
     public class TestTasks : ITestTasks
     {
+        static int generationCount = 0;
+
+        /// <summary>
+        /// Increments Generation Count variable.
+        /// </summary>
+        /// <returns>Generation count</returns>
+        public Task<int> IncrementGenerationCount()
+        {
+            return Task.FromResult(++generationCount);
+        }
+
         /// <summary>
         /// Throws exception when remainingAttempts > 0. Otherwise succeeds.
         /// </summary>
