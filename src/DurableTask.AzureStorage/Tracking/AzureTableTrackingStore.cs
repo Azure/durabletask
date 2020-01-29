@@ -176,11 +176,13 @@ namespace DurableTask.AzureStorage.Tracking
                 // Convert the table entities into history events.
                 var events = new List<HistoryEvent>(tableEntities.Count);
 
+                bool areMultipleExecutions = false;
                 foreach (DynamicTableEntity entity in tableEntities)
                 {
                     if (entity.Properties["ExecutionId"].StringValue != executionId)
                     {
                         // The remaining entities are from a previous generation and can be discarded.
+                        areMultipleExecutions = true;
                         break;
                     }
 
@@ -194,6 +196,18 @@ namespace DurableTask.AzureStorage.Tracking
                     await this.DecompressLargeEntityProperties(entity);
 
                     events.Add((HistoryEvent)this.tableEntityConverter.ConvertFromTableEntity(entity, GetTypeForTableEntity));
+                }
+
+                // If we detected multiple executions, we didn't have a chance to look at the last row
+                // to see if it was the sentinal row. Check now to make sure we grab the ETag if it
+                // exists.
+                if (areMultipleExecutions)
+                {
+                    DynamicTableEntity entity = tableEntities.Last();
+                    if (entity.RowKey == SentinelRowKey)
+                    {
+                        eTagValue = entity.ETag;
+                    }
                 }
 
                 historyEvents = events;
