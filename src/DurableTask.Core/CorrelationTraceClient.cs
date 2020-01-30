@@ -22,7 +22,7 @@ namespace DurableTask.Core
     /// Delegate sending telemetry to the other side.
     /// Mainly send telemetry to the Durable Functions TelemetryClient
     /// </summary>
-    public class CorrelationTraceClient
+    public static class CorrelationTraceClient
     {
         const string DiagnosticSourceName = "DurableTask.Core";
         const string RequestTrackEvent = "RequestEvent";
