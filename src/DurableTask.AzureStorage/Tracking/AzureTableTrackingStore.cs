@@ -184,7 +184,7 @@ namespace DurableTask.AzureStorage.Tracking
                         break;
                     }
 
-                    // The sentinal row does not contain any history events, so save it for later
+                    // The sentinel row does not contain any history events, so save it for later
                     // and continue
                     if (entity.RowKey == SentinelRowKey)
                     {
@@ -207,8 +207,8 @@ namespace DurableTask.AzureStorage.Tracking
             }
 
             // Read the checkpoint completion time from the sentinel row, which should always be the last row.
-            // The only time a sentinel won't exist is if no instance of this ID has ever existed.
-            // The IsCheckpointCompleteProperty was newly added _after_ v1.6.4.
+            // A sentinel won't exist only if no instance of this ID has ever existed or the instance history
+            // was purged.The IsCheckpointCompleteProperty was newly added _after_ v1.6.4.
             DateTime checkpointCompletionTime = DateTime.MinValue;
             sentinel = sentinel ?? tableEntities.LastOrDefault(e => e.RowKey == SentinelRowKey);
             string eTagValue = sentinel?.ETag;
