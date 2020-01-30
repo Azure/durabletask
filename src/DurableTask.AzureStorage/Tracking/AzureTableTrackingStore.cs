@@ -168,6 +168,7 @@ namespace DurableTask.AzureStorage.Tracking
             IList<HistoryEvent> historyEvents;
             string executionId;
             string eTagValue = null;
+            DateTime checkpointCompletionTime = DateTime.MinValue;
             if (tableEntities.Count > 0)
             {
                 // The most recent generation will always be in the first history event.
@@ -176,19 +177,26 @@ namespace DurableTask.AzureStorage.Tracking
                 // Convert the table entities into history events.
                 var events = new List<HistoryEvent>(tableEntities.Count);
 
-                bool areMultipleExecutions = false;
-                foreach (DynamicTableEntity entity in tableEntities)
+                for (int i = 0; i < tableEntities.Count; i++)
                 {
+                    DynamicTableEntity entity = tableEntities[i];
                     if (entity.Properties["ExecutionId"].StringValue != executionId)
                     {
                         // The remaining entities are from a previous generation and can be discarded.
-                        areMultipleExecutions = true;
                         break;
                     }
 
+                    // The sentinal row does not contain any history events, so ignore this row.
                     if (entity.RowKey == SentinelRowKey)
                     {
-                        eTagValue = entity.ETag;
+                        if (i != (tableEntities.Count - 1))
+                        {
+                            AnalyticsEventSource.Log.GeneralWarning(
+                                this.storageAccountName,
+                                this.taskHubName,
+                                $"The sentinal row should be the last row in history events query for instance id {instanceId}. It is row {i} of {tableEntities.Count}",
+                                Utils.ExtensionVersion);
+                        }
                         continue;
                     }
 
@@ -198,15 +206,19 @@ namespace DurableTask.AzureStorage.Tracking
                     events.Add((HistoryEvent)this.tableEntityConverter.ConvertFromTableEntity(entity, GetTypeForTableEntity));
                 }
 
-                // If we detected multiple executions, we didn't have a chance to look at the last row
-                // to see if it was the sentinal row. Check now to make sure we grab the ETag if it
-                // exists.
-                if (areMultipleExecutions)
+                // Read the checkpoint completion time and ETag from the sentinel row, which should always be
+                // the last row. The only time a sentinel won't exist is if no instance of this ID has ever 
+                // existed.
+                DynamicTableEntity lastRow = tableEntities.Last();
+                if (lastRow.RowKey == SentinelRowKey)
                 {
-                    DynamicTableEntity entity = tableEntities.Last();
-                    if (entity.RowKey == SentinelRowKey)
+                    eTagValue = lastRow.ETag;
+                    // The IsCheckpointCompleteProperty was newly added _after_ v1.6.4, so check if it exists
+                    if (lastRow.Properties.TryGetValue(
+                            CheckpointCompletedTimestampProperty,
+                            out EntityProperty timestampProperty))
                     {
-                        eTagValue = entity.ETag;
+                        checkpointCompletionTime = timestampProperty.DateTime ?? DateTime.MinValue;
                     }
                 }
 
@@ -216,17 +228,6 @@ namespace DurableTask.AzureStorage.Tracking
             {
                 historyEvents = EmptyHistoryEventList;
                 executionId = expectedExecutionId;
-            }
-
-            // Read the checkpoint completion time from the sentinel row, which should always be the last row.
-            // The only time a sentinel won't exist is if no instance of this ID has ever existed.
-            // The IsCheckpointCompleteProperty was newly added _after_ v1.6.4.
-            DateTime checkpointCompletionTime = DateTime.MinValue;
-            DynamicTableEntity lastRow = tableEntities.LastOrDefault();
-            if (lastRow?.RowKey == SentinelRowKey &&
-                lastRow.Properties.TryGetValue(CheckpointCompletedTimestampProperty, out EntityProperty timestampProperty))
-            {
-                checkpointCompletionTime = timestampProperty.DateTime ?? DateTime.MinValue;
             }
 
             int currentEpisodeNumber = Utils.GetEpisodeNumber(historyEvents);
