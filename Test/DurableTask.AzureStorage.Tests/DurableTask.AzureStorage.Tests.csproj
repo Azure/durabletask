@@ -29,7 +29,6 @@
     <ProjectReference Include="..\..\src\DurableTask.Core\DurableTask.Core.csproj" />
     <ProjectReference Include="..\..\src\DurableTask.AzureStorage\DurableTask.AzureStorage.csproj" />
     <ProjectReference Include="..\DurableTask.Core.Tests\DurableTask.Core.Tests.csproj" />
-    <ProjectReference Include="..\DurableTask.Test.Orchestrations\DurableTask.Test.Orchestrations.csproj" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net451'">

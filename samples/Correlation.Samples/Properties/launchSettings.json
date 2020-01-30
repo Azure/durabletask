@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "Correlation.Samples": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "CorrelationProtocol": "HTTP"
+      }
+    }
+  }
+}

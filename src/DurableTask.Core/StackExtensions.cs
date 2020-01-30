@@ -13,32 +13,23 @@
 
 namespace DurableTask.Core
 {
-    using System;
-    using System.Diagnostics;
+    using System.Collections.Generic;
+    using System.Linq;
 
     /// <summary>
-    /// An active instance / work item of a task activity
+    /// Extension methods for Stack
     /// </summary>
-    public class TaskActivityWorkItem
+    public static class StackExtensions
     {
         /// <summary>
-        /// The Id of the work work item, likely related to the task message
+        /// Clone the Stack instance with the right order.
         /// </summary>
-        public string Id;
-
-        /// <summary>
-        /// The datetime this work item is locked until
-        /// </summary>
-        public DateTime LockedUntilUtc;
-
-        /// <summary>
-        /// The task message associated with this work item
-        /// </summary>
-        public TaskMessage TaskMessage;
-
-        /// <summary>
-        /// The TraceContext which is included on the queue.
-        /// </summary>
-        public TraceContextBase TraceContextBase;
+        /// <typeparam name="T">Type of the Stack</typeparam>
+        /// <param name="original">Stack instance</param>
+        /// <returns></returns>
+        public static Stack<T> Clone<T>(this Stack<T> original)
+        {
+            return new Stack<T>(original.Reverse());
+        }
     }
 }
