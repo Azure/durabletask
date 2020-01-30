@@ -11,34 +11,27 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
+namespace DurableTask.AzureStorage
 {
     using System;
-    using System.Diagnostics;
+    using System.Collections.Generic;
+    using System.Text;
 
     /// <summary>
-    /// An active instance / work item of a task activity
+    /// Extension methods for String
     /// </summary>
-    public class TaskActivityWorkItem
+    public static class StringExtensions
     {
         /// <summary>
-        /// The Id of the work work item, likely related to the task message
+        /// Get the ClassName part delimited by +
+        /// e.g. DurableTask.AzureStorage.Tests.Correlation.CorrelationScenarioTest+SayHelloActivity
+        /// should be "SayHelloActivity"
         /// </summary>
-        public string Id;
-
-        /// <summary>
-        /// The datetime this work item is locked until
-        /// </summary>
-        public DateTime LockedUntilUtc;
-
-        /// <summary>
-        /// The task message associated with this work item
-        /// </summary>
-        public TaskMessage TaskMessage;
-
-        /// <summary>
-        /// The TraceContext which is included on the queue.
-        /// </summary>
-        public TraceContextBase TraceContextBase;
+        /// <param name="s"></param>
+        public static string GetTargetClassName(this string s)
+        {
+            var index = s.IndexOf('+');
+            return s.Substring(index + 1, s.Length - index - 1);
+        }
     }
 }

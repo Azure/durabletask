@@ -11,34 +11,33 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
+namespace DurableTask.AzureStorage.Tests.Correlation
 {
     using System;
-    using System.Diagnostics;
 
-    /// <summary>
-    /// An active instance / work item of a task activity
-    /// </summary>
-    public class TaskActivityWorkItem
+    public static class StringExtensions
     {
-        /// <summary>
-        /// The Id of the work work item, likely related to the task message
-        /// </summary>
-        public string Id;
+        public static TraceParent ToTraceParent(this string traceParent)
+        {
+            if (!string.IsNullOrEmpty(traceParent))
+            {
+                var substrings = traceParent.Split('-');
+                if (substrings.Length != 4)
+                {
+                    throw new ArgumentException($"Traceparent doesn't respect the spec. {traceParent}");
+                }
 
-        /// <summary>
-        /// The datetime this work item is locked until
-        /// </summary>
-        public DateTime LockedUntilUtc;
+                return new TraceParent
+                {
+                    Version = substrings[0],
+                    TraceId = substrings[1],
+                    SpanId = substrings[2],
+                    TraceFlags = substrings[3]
+                };
+            }
 
-        /// <summary>
-        /// The task message associated with this work item
-        /// </summary>
-        public TaskMessage TaskMessage;
-
-        /// <summary>
-        /// The TraceContext which is included on the queue.
-        /// </summary>
-        public TraceContextBase TraceContextBase;
+            return null;
+        }
     }
+
 }

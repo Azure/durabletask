@@ -11,48 +11,57 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
+namespace DurableTask.Core.Settings
 {
     using System;
     using System.Collections.Generic;
-    using System.Diagnostics;
+    using System.Net.Sockets;
+    using System.Text;
 
     /// <summary>
-    /// An active instance / work item of an orchestration
+    /// Settings for Distributed Tracing
     /// </summary>
-    public class TaskOrchestrationWorkItem
+    public class CorrelationSettings
     {
         /// <summary>
-        /// The instance id of this orchestration
+        /// Create a new instance of the CorrelationSettings with default settings
         /// </summary>
-        public string InstanceId;
+        public CorrelationSettings()
+        {
+            Protocol = Protocol.W3CTraceContext;
+        }
 
         /// <summary>
-        /// The current runtime state of this work item
+        /// Correlation Protocol
         /// </summary>
-        public OrchestrationRuntimeState OrchestrationRuntimeState;
+        public Protocol Protocol { get; set; }
 
         /// <summary>
-        /// The datetime this orchestration work item is locked until
+        /// Suppress Distributed Tracing
+        /// default: true
         /// </summary>
-        public DateTime LockedUntilUtc;
+        public bool EnableDistributedTracing { get; set; } = false;
 
         /// <summary>
-        /// The list of new task messages associated with this work item instance
+        /// Current Correlation Settings
+        /// TODO Need to discuss the design for referencing Settings from DurableTask.Core side.
         /// </summary>
-        public IList<TaskMessage> NewMessages;
+        public static CorrelationSettings Current { get; set; } = new CorrelationSettings();
+    }
+
+    /// <summary>
+    /// Distributed Tracing Protocol
+    /// </summary>
+    public enum Protocol
+    {
+        /// <summary>
+        /// W3C TraceContext Protocol
+        /// </summary>
+        W3CTraceContext,
 
         /// <summary>
-        /// The session provider for this work item. This is only required for
-        /// providers that intend to leverage extended sessions.
+        /// HttpCorrelationProtocol
         /// </summary>
-        public IOrchestrationSession Session;
-
-        /// <summary>
-        /// The trace context used for correlation.
-        /// </summary>
-        public TraceContextBase TraceContext;
-
-        internal OrchestrationExecutionCursor Cursor;
+        HttpCorrelationProtocol
     }
 }

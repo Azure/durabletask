@@ -13,32 +13,29 @@
 
 namespace DurableTask.Core
 {
-    using System;
-    using System.Diagnostics;
-
     /// <summary>
-    /// An active instance / work item of a task activity
+    /// TraceConstants for Distributed Tracing
     /// </summary>
-    public class TaskActivityWorkItem
+    public static class TraceConstants
     {
         /// <summary>
-        /// The Id of the work work item, likely related to the task message
+        /// Client is the Distributed Tracing message for OrchestratorClient.
         /// </summary>
-        public string Id;
+        public const string Client = "DtClient";
 
         /// <summary>
-        /// The datetime this work item is locked until
+        /// Orchestrator is the Distributed Tracing message for Orchestrator.
         /// </summary>
-        public DateTime LockedUntilUtc;
+        public const string Orchestrator = "DtOrchestrator";
 
         /// <summary>
-        /// The task message associated with this work item
+        /// Activity is the Distributed Tracing message for Activity
         /// </summary>
-        public TaskMessage TaskMessage;
+        public const string Activity = "DtActivity";
 
         /// <summary>
-        /// The TraceContext which is included on the queue.
+        /// DependencyDefault is the Distributed Tracing message default name for Dependency.
         /// </summary>
-        public TraceContextBase TraceContextBase;
+        public const string DependencyDefault = "outbound";
     }
 }
