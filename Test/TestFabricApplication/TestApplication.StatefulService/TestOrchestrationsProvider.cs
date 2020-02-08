@@ -66,6 +66,7 @@ namespace TestApplication.StatefulService
                 typeof(SimpleOrchestrationWithTasks),
                 typeof(SimpleOrchestrationWithTimer),
                 typeof(SimpleOrchestrationWithSubOrchestration),
+                typeof(GenerationBasicOrchestration),
                 typeof(DriverOrchestration),
                 typeof(TestOrchestration),
                 typeof(ExecutionCountingOrchestration)

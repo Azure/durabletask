@@ -117,7 +117,7 @@ namespace DurableTask.AzureServiceFabric
 
         public bool IsMaxMessageCountExceeded(int currentMessageCount, OrchestrationRuntimeState runtimeState)
         {
-            return false;
+            return true;
         }
 
         public int GetDelayInSecondsAfterOnProcessException(Exception exception)
@@ -196,7 +196,7 @@ namespace DurableTask.AzureServiceFabric
 
         public Task RenewTaskOrchestrationWorkItemLockAsync(TaskOrchestrationWorkItem workItem)
         {
-            throw new NotImplementedException();
+            return Task.CompletedTask;
         }
 
         public async Task CompleteTaskOrchestrationWorkItemAsync(
@@ -210,6 +210,7 @@ namespace DurableTask.AzureServiceFabric
         {
             SessionInformation sessionInfo = GetSessionInfo(workItem.InstanceId);
             bool isComplete = this.IsOrchestrationComplete(workItem.OrchestrationRuntimeState.OrchestrationStatus);
+
 
             IList<OrchestrationInstance> sessionsToEnqueue = null;
             List<Message<Guid, TaskMessageItem>> scheduledMessages = null;
@@ -262,6 +263,11 @@ namespace DurableTask.AzureServiceFabric
 
                             await this.orchestrationProvider.CompleteMessages(txn, sessionInfo.Instance, sessionInfo.LockTokens);
 
+                            if (workItem.OrchestrationRuntimeState.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew)
+                            {
+                                await HandleCompletedOrchestration(workItem);
+                            }
+
                             // When an orchestration is completed, we need to drop the session which involves 2 steps (1) Removing the row from sessions
                             // (2) Dropping the session messages dictionary. The second step is done in background thread for performance so is not
                             // part of transaction. Since it will happen outside the trasanction, if this transaction fails for some reason and we dropped
@@ -275,8 +281,8 @@ namespace DurableTask.AzureServiceFabric
                             // mark it as complete even if it is. So we use the work item's runtime state when 'newOrchestrationRuntimeState' is null
                             // so that the latest state is what is stored for the session.
                             // As part of next transaction, we are going to remove the row anyway for the session and it doesn't matter to update it to 'null'.
-                            var newInstance = continuedAsNewMessage != null ? continuedAsNewMessage.OrchestrationInstance : sessionInfo.Instance;
-                            await this.orchestrationProvider.UpdateSessionState(txn, newInstance, newOrchestrationRuntimeState ?? workItem.OrchestrationRuntimeState);
+
+                            await this.orchestrationProvider.UpdateSessionState(txn, newOrchestrationRuntimeState.OrchestrationInstance, newOrchestrationRuntimeState ?? workItem.OrchestrationRuntimeState);
 
                             // We skip writing to instanceStore when orchestration reached terminal state to avoid a minor timing issue that
                             // wait for an orchestration completes but another orchestration with the same name cannot be started immediately
@@ -399,9 +405,10 @@ namespace DurableTask.AzureServiceFabric
         }
 
         public int TaskActivityDispatcherCount => this.settings.TaskActivityDispatcherSettings.DispatcherCount;
+
         public int MaxConcurrentTaskActivityWorkItems => this.settings.TaskActivityDispatcherSettings.MaxConcurrentActivities;
 
-        public BehaviorOnContinueAsNew EventBehaviourForContinueAsNew { get; }
+        public BehaviorOnContinueAsNew EventBehaviourForContinueAsNew { get; } = BehaviorOnContinueAsNew.Ignore;
 
         // Note: Do not rely on cancellationToken parameter to this method because the top layer does not yet implement any cancellation.
         public async Task<TaskActivityWorkItem> LockNextTaskActivityWorkItem(TimeSpan receiveTimeout, CancellationToken cancellationToken)

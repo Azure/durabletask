@@ -112,11 +112,20 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
         [TestMethod]
         public async Task GenerationBasicTest()
         {
-            var instance = await this.taskHubClient.CreateOrchestrationInstanceAsync(typeof(GenerationBasicOrchestration), 2);
+            var instanceId = nameof(GenerationBasicOrchestration);
+            var instance = await this.taskHubClient.CreateOrchestrationInstanceAsync(typeof(GenerationBasicOrchestration), instanceId, 2);
             var result = await this.taskHubClient.WaitForOrchestrationAsync(instance, TimeSpan.FromMinutes(2));
 
+            Assert.AreEqual(OrchestrationStatus.ContinuedAsNew, result.OrchestrationStatus);
+            Assert.AreEqual("1", result.Output, "Orchestration Result is wrong!!!");
+
+            var state = await this.taskHubClient.GetOrchestrationStateAsync(instanceId);
+            result = await this.taskHubClient.WaitForOrchestrationAsync(state.OrchestrationInstance, TimeSpan.FromMinutes(2));
+
             Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
-            Assert.AreEqual(2, result.Output, "Orchestration Result is wrong!!!");
+            Assert.AreEqual("2", result.Output, "Orchestration Result is wrong!!!");
+            Assert.AreEqual(result.OrchestrationInstance.InstanceId, instance.InstanceId);
+            Assert.AreNotEqual(result.OrchestrationInstance.ExecutionId, instance.ExecutionId);
         }
 
         [TestMethod]
