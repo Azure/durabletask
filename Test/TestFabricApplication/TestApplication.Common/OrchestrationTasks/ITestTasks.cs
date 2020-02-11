@@ -29,5 +29,11 @@ namespace TestApplication.Common.OrchestrationTasks
         /// </summary>
         /// <returns>Generation count</returns>
         Task<int> IncrementGenerationCount();
+
+        /// <summary>
+        /// Utility method to reset counter at the beginning of test.
+        /// </summary>
+        /// <returns>Generation coutner value</returns>
+        Task<int> ResetGenerationCounter();
     }
 }

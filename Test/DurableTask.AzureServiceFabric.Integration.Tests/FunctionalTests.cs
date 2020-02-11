@@ -129,6 +129,33 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
         }
 
         [TestMethod]
+        public async Task RecurringOrchestrationTest()
+        {
+            var instanceId = nameof(RecurringOrchestration);
+            var input = new RecurringOrchestrationInput
+            {
+                TargetOrchestrationInput = "1",
+                TargetOrchestrationType = typeof(RecurringTargetOrchestration).ToString(),
+                TargetOrchestrationInstanceId = nameof(RecurringTargetOrchestration)
+            };
+            var instance = await this.taskHubClient.CreateOrchestrationInstanceAsync(typeof(RecurringOrchestration), instanceId, input);
+            await Task.Delay(TimeSpan.FromSeconds(1));
+            var result = await this.taskHubClient.GetOrchestrationStateAsync(input.TargetOrchestrationInstanceId, false);
+
+            Assert.AreNotEqual("4", result[0].Output, "Orchestration Result is wrong!!!");
+
+            OrchestrationState state;
+            do
+            {
+                state = await this.taskHubClient.GetOrchestrationStateAsync(instanceId);
+                await Task.Delay(TimeSpan.FromSeconds(1));
+            } while (state.OrchestrationStatus != OrchestrationStatus.Completed);
+
+            Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
+            Assert.AreEqual("4", state.Output, "Orchestration Result is wrong!!!");
+        }
+
+        [TestMethod]
         public async Task Orchestration_With_Same_Id_Cant_Be_Started_While_Running()
         {
             var instanceId = nameof(Orchestration_With_Same_Id_Cant_Be_Started_While_Running);
