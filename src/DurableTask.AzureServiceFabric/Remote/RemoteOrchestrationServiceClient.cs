@@ -280,7 +280,7 @@ namespace DurableTask.AzureServiceFabric.Remote
             cancellationToken.ThrowIfCancellationRequested();
             string endpoint = await this.partitionProvider.GetPartitionEndPointAsync(instanceId, cancellationToken);
             string defaultEndPoint = GetDefaultEndPoint(endpoint);
-            return new Uri($"{defaultEndPoint}/{fragment}");
+            return new Uri($"{defaultEndPoint.TrimEnd('/')}/{fragment}");
         }
 
         private async Task<IEnumerable<Uri>> GetAllEndpointsAsync(CancellationToken cancellationToken)

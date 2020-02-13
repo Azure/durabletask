@@ -117,7 +117,6 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
             var result = await this.taskHubClient.WaitForOrchestrationAsync(instance, TimeSpan.FromMinutes(2));
 
             Assert.AreEqual(OrchestrationStatus.ContinuedAsNew, result.OrchestrationStatus);
-            Assert.AreEqual("1", result.Output, "Orchestration Result is wrong!!!");
 
             var state = await this.taskHubClient.GetOrchestrationStateAsync(instanceId);
             result = await this.taskHubClient.WaitForOrchestrationAsync(state.OrchestrationInstance, TimeSpan.FromMinutes(2));

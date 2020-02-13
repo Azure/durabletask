@@ -15,10 +15,10 @@ namespace DurableTask.AzureServiceFabric.TaskHelpers
 {
     using System;
 
-    abstract class RetryPolicy
+    interface IRetryPolicy
     {
-        public abstract bool ShouldExecute();
+        bool ShouldExecute();
 
-        public abstract TimeSpan GetNextDelay();
+        TimeSpan GetNextDelay();
     }
 }

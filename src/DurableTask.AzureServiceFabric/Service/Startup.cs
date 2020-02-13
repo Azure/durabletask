@@ -57,6 +57,8 @@ namespace DurableTask.AzureServiceFabric.Service
             config.MapHttpAttributeRoutes();
             config.DependencyResolver = new DefaultDependencyResolver(GenerateServiceProvider());
             config.IncludeErrorDetailPolicy = IncludeErrorDetailPolicy.Always;
+            config.Formatters.Remove(config.Formatters.XmlFormatter);
+            config.Formatters.Remove(config.Formatters.FormUrlEncodedFormatter);
             config.Formatters.JsonFormatter.SerializerSettings.TypeNameHandling = Newtonsoft.Json.TypeNameHandling.All;
             appBuilder.UseWebApi(config);
         }

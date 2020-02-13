@@ -26,7 +26,7 @@ namespace DurableTask.AzureServiceFabric.TaskHelpers
             return ExecuteWithRetryOnTransient(action, CountBasedFixedDelayRetryPolicy.GetNewDefaultPolicy(), uniqueActionIdentifier);
         }
 
-        static async Task ExecuteWithRetryOnTransient(Func<Task> action, RetryPolicy retryPolicy, string uniqueActionIdentifier)
+        static async Task ExecuteWithRetryOnTransient(Func<Task> action, IRetryPolicy retryPolicy, string uniqueActionIdentifier)
         {
             Exception lastException = null;
 
@@ -37,6 +37,7 @@ namespace DurableTask.AzureServiceFabric.TaskHelpers
                 Stopwatch timer = Stopwatch.StartNew();
                 try
                 {
+                    ServiceFabricProviderEventSource.Tracing.LogOrchestrationInformation(uniqueActionIdentifier, null, "Executing action");
                     await action();
                     timer.Stop();
                     ServiceFabricProviderEventSource.Tracing.LogMeasurement($"{uniqueActionIdentifier}, Attempt Number : {attemptNumber}, Result : Success", timer.ElapsedMilliseconds);
@@ -70,7 +71,7 @@ namespace DurableTask.AzureServiceFabric.TaskHelpers
             return ExecuteWithRetryOnTransient(action, CountBasedFixedDelayRetryPolicy.GetNewDefaultPolicy(), uniqueActionIdentifier);
         }
 
-        static async Task<TResult> ExecuteWithRetryOnTransient<TResult>(Func<Task<TResult>> action, RetryPolicy retryPolicy, string uniqueActionIdentifier)
+        static async Task<TResult> ExecuteWithRetryOnTransient<TResult>(Func<Task<TResult>> action, IRetryPolicy retryPolicy, string uniqueActionIdentifier)
         {
             Exception lastException = null;
 

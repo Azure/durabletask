@@ -15,34 +15,28 @@ namespace DurableTask.AzureServiceFabric.TaskHelpers
 {
     using System;
 
-    class CountBasedFixedDelayRetryPolicy : RetryPolicy
+    class CountBasedFixedDelayRetryPolicy : IRetryPolicy
     {
-        readonly int maxNumberOfAttempts;
         readonly TimeSpan delay;
         int pendingAttempts;
 
         public CountBasedFixedDelayRetryPolicy(int maxNumberOfAttempts, TimeSpan delay)
         {
-            this.maxNumberOfAttempts = maxNumberOfAttempts;
             this.delay = delay;
             this.pendingAttempts = maxNumberOfAttempts;
         }
 
-        public override bool ShouldExecute()
+        public bool ShouldExecute()
         {
             return this.pendingAttempts-- > 0;
         }
 
-        public override TimeSpan GetNextDelay()
+        public TimeSpan GetNextDelay()
         {
-            if (this.pendingAttempts < 1)
-            {
-                return TimeSpan.Zero;
-            }
-            return this.delay;
+            return this.pendingAttempts < 1 ? TimeSpan.Zero : this.delay;
         }
 
-        public static RetryPolicy GetNewDefaultPolicy()
+        public static IRetryPolicy GetNewDefaultPolicy()
         {
             return new CountBasedFixedDelayRetryPolicy(3, TimeSpan.FromMilliseconds(100));
         }

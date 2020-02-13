@@ -209,8 +209,10 @@ namespace DurableTask.AzureServiceFabric
             OrchestrationState orchestrationState)
         {
             SessionInformation sessionInfo = GetSessionInfo(workItem.InstanceId);
+            ServiceFabricProviderEventSource.Tracing.LogOrchestrationInformation(workItem.InstanceId,
+                workItem.OrchestrationRuntimeState.OrchestrationInstance?.ExecutionId,
+                $"Current orchestration status: {workItem.OrchestrationRuntimeState.OrchestrationStatus}");
             bool isComplete = this.IsOrchestrationComplete(workItem.OrchestrationRuntimeState.OrchestrationStatus);
-
 
             IList<OrchestrationInstance> sessionsToEnqueue = null;
             List<Message<Guid, TaskMessageItem>> scheduledMessages = null;
