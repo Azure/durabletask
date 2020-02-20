@@ -77,7 +77,7 @@ namespace DurableTask.Core
         {
             object result = await ScheduleTaskInternal(name, version, taskList, typeof(TResult), parameters);
 
-            return (TResult)result;
+            return (result == null) ? null : (TResult)result;
         }
 
         public async Task<object> ScheduleTaskInternal(string name, string version, string taskList, Type resultType,
