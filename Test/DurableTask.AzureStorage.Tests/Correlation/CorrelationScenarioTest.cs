@@ -33,8 +33,8 @@ namespace DurableTask.AzureStorage.Tests.Correlation
     public class CorrelationScenarioTest
     {
         [DataTestMethod]
-        [DataRow(Protocol.HttpCorrelationProtocol)]
         [DataRow(Protocol.W3CTraceContext)]
+        [DataRow(Protocol.HttpCorrelationProtocol)]
         public async Task SingleOrchestratorWithSingleActivityAsync(Protocol protocol)
         {
             CorrelationSettings.Current.Protocol = protocol;
@@ -634,12 +634,8 @@ namespace DurableTask.AzureStorage.Tests.Correlation
                     await host.StartAsync();
                     var activity = new Activity(TraceConstants.Client);
 
-                    if (CorrelationSettings.Current.Protocol == Protocol.W3CTraceContext)
-                    {
-#pragma warning disable 618 // GenerateW3CContext() is deprecated. However, it is required for W3C for this System.Diagnostics version.
-                        activity.GenerateW3CContext();
-#pragma warning restore 618
-                    }
+                    var idFormat = CorrelationSettings.Current.Protocol == Protocol.W3CTraceContext ? ActivityIdFormat.W3C : ActivityIdFormat.Hierarchical;
+                    activity.SetIdFormat(idFormat);
 
                     activity.Start();
                     Client = await host.StartOrchestrationAsync(orchestrationType, parameter);

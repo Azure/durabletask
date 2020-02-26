@@ -48,11 +48,11 @@ namespace Correlation.Samples
             {
                 case "HTTP":
                     CorrelationSettings.Current.Protocol = Protocol.HttpCorrelationProtocol;
+                    activity.SetIdFormat(ActivityIdFormat.Hierarchical);
                     return;
                 default:
-#pragma warning disable 618 // GenerateW3CContext() is deprecated. However, it is required for W3C for this version.
-                    activity.GenerateW3CContext();
-#pragma warning restore 618
+                    CorrelationSettings.Current.Protocol = Protocol.W3CTraceContext;
+                    activity.SetIdFormat(ActivityIdFormat.W3C);
                     return;
             }
         }

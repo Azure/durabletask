@@ -3,7 +3,7 @@
     "Correlation.Samples": {
       "commandName": "Project",
       "environmentVariables": {
-        "CorrelationProtocol": "HTTP"
+        "CorrelationProtocol": "W3C"
       }
     }
   }

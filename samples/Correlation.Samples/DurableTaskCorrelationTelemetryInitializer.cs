@@ -20,13 +20,13 @@ namespace Correlation.Samples
     using System.Diagnostics.CodeAnalysis;
     using System.Linq;
     using DurableTask.Core;
+    using DurableTask.Core.Settings;
     using ImpromptuInterface;
     using Microsoft.ApplicationInsights.Channel;
     using Microsoft.ApplicationInsights.Common;
     using Microsoft.ApplicationInsights.DataContracts;
     using Microsoft.ApplicationInsights.Extensibility;
     using Microsoft.ApplicationInsights.Extensibility.Implementation;
-    using Microsoft.ApplicationInsights.W3C;
 
     /// <summary>
     /// Telemetry Initializer that sets correlation ids for W3C.
@@ -114,6 +114,11 @@ namespace Correlation.Samples
             if (!(telemetry is RequestTelemetry))
             {
                 Activity currentActivity = Activity.Current;
+                if (telemetry is ExceptionTelemetry)
+                {
+                    Console.WriteLine("exception!");
+                }
+
                 if (currentActivity == null)
                 {
                     if (CorrelationTraceContext.Current != null)
@@ -127,9 +132,14 @@ namespace Correlation.Samples
                     {
                         UpdateTelemetry(telemetry, CorrelationTraceContext.Current);
                     }
-                    else 
+                    else if (CorrelationSettings.Current.Protocol == Protocol.W3CTraceContext)
                     {
                         UpdateTelemetry(telemetry, currentActivity, false);
+                    }
+                    else if (CorrelationSettings.Current.Protocol == Protocol.HttpCorrelationProtocol
+                      && telemetry is ExceptionTelemetry)
+                    {
+                        UpdateTelemetryExceptionForHTTPCorrelationProtocol((ExceptionTelemetry)telemetry, currentActivity);
                     }
                 }
             }
@@ -174,7 +184,14 @@ namespace Correlation.Samples
             else
             {
                 telemetry.Context.Operation.Id = !string.IsNullOrEmpty(telemetry.Context.Operation.Id) ? telemetry.Context.Operation.Id : context.TelemetryContextOperationId;
-                telemetry.Context.Operation.ParentId = !string.IsNullOrEmpty(telemetry.Context.Operation.ParentId) ? telemetry.Context.Operation.ParentId : context.TelemetryContextOperationParentId;
+                if (telemetry is ExceptionTelemetry)
+                {
+                    telemetry.Context.Operation.ParentId = context.TelemetryId;
+                }
+                else
+                {
+                    telemetry.Context.Operation.ParentId = !string.IsNullOrEmpty(telemetry.Context.Operation.ParentId) ? telemetry.Context.Operation.ParentId : context.TelemetryContextOperationParentId;
+                }
             }
         }
 
@@ -202,11 +219,11 @@ namespace Correlation.Samples
             if (initializeFromCurrent)
             {
                 if (string.IsNullOrEmpty(opTelemetry.Id))
-                    opTelemetry.Id = StringUtilities.FormatRequestId(telemetry.Context.Operation.Id, traceParent.SpanId);
+                    opTelemetry.Id = traceParent.SpanId;
 
                 if (string.IsNullOrEmpty(context.ParentSpanId))
                 {
-                    telemetry.Context.Operation.ParentId = StringUtilities.FormatRequestId(telemetry.Context.Operation.Id, context.ParentSpanId);
+                    telemetry.Context.Operation.ParentId = telemetry.Context.Operation.Id;
                 }
             }
             else
@@ -216,9 +233,9 @@ namespace Correlation.Samples
                     telemetry.Context.Operation.Id = traceParent.TraceId;
                 }
 
-                if (telemetry.Context.Operation.ParentId == null) // TODO check if it works. 
+                if (telemetry.Context.Operation.ParentId == null)
                 {
-                    telemetry.Context.Operation.ParentId = StringUtilities.FormatRequestId(telemetry.Context.Operation.Id, traceParent.SpanId);
+                    telemetry.Context.Operation.ParentId = traceParent.SpanId;
                 }
             }
         }
@@ -252,10 +269,16 @@ namespace Correlation.Samples
                 {
                     var host = new Uri(dTelemetry.CommandName).Host;
                     if (ExcludeComponentCorrelationHttpHeadersOnDomains.Contains(host)) return true;
-                }                  
+                }
             }
 
             return false;
+        }
+
+        internal static void UpdateTelemetryExceptionForHTTPCorrelationProtocol(ExceptionTelemetry telemetry, Activity activity)
+        {
+            telemetry.Context.Operation.ParentId = activity.Id;
+            telemetry.Context.Operation.Id = activity.RootId;
         }
 
         [SuppressMessage("Microsoft.Usage", "CA1801:ReviewUnusedParameters", Justification = "This method has different code for Net45/NetCore")]
@@ -265,8 +288,6 @@ namespace Correlation.Samples
             {
                 return;
             }
-
-            activity.UpdateContextOnActivity();
 
             // Requests and dependnecies are initialized from the current Activity 
             // (i.e. telemetry.Id = current.Id). Activity is created for such requests specifically
@@ -285,63 +306,22 @@ namespace Correlation.Samples
                                                .StartsWith(RddDiagnosticSourcePrefix, StringComparison.Ordinal));
             }
 
-            string spanId = null, parentSpanId = null;
-            foreach (var tag in activity.Tags)
+            if (telemetry is OperationTelemetry operation)
             {
-                switch (tag.Key)
-                {
-                    case TraceIdTag:
-#if NET45
-                        // on .NET Fx Activities are not always reliable, this code prevents update
-                        // of the telemetry that was forcibly updated during Activity lifetime
-                        // ON .NET Core there is no such problem 
-                        if (telemetry.Context.Operation.Id == tag.Value && !forceUpdate)
-                        {
-                            return;
-                        }
-#endif
-                        telemetry.Context.Operation.Id = tag.Value;
-                        break;
-                    case SpanIdTag:
-                        spanId = tag.Value;
-                        break;
-                    case ParentSpanIdTag:
-                        parentSpanId = tag.Value;
-                        break;
-                    case TracestateTag:
-                        if (telemetry is OperationTelemetry operation)
-                        {
-                            operation.Properties[TracestateTag] = tag.Value;
-                        }
-
-                        break;
-                }
+                operation.Properties[TracestateTag] = activity.TraceStateString;
             }
 
             if (initializeFromCurrent)
             {
-                opTelemetry.Id = StringUtilities.FormatRequestId(telemetry.Context.Operation.Id, spanId);
-                if (parentSpanId != null)
+                opTelemetry.Id = activity.SpanId.ToHexString();
+                if (activity.ParentSpanId != null)
                 {
-                    telemetry.Context.Operation.ParentId = StringUtilities.FormatRequestId(telemetry.Context.Operation.Id, parentSpanId);
+                    opTelemetry.Context.Operation.ParentId = activity.ParentSpanId.ToHexString();
                 }
             }
             else
             {
-                telemetry.Context.Operation.ParentId = StringUtilities.FormatRequestId(telemetry.Context.Operation.Id, spanId);
-            }
-
-            if (opTelemetry != null)
-            {
-                if (opTelemetry.Context.Operation.Id != activity.RootId)
-                {
-                    opTelemetry.Properties[LegacyRootIdProperty] = activity.RootId;
-                }
-
-                if (opTelemetry.Id != activity.Id)
-                {
-                    opTelemetry.Properties[LegacyRequestIdProperty] = activity.Id;
-                }
+                telemetry.Context.Operation.ParentId = activity.SpanId.ToHexString();
             }
         }
     }
