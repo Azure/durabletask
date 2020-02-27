@@ -19,9 +19,6 @@ namespace DurableTask.Core
     using System.Dynamic;
     using System.Text;
     using DurableTask.Core.Settings;
-    using Microsoft.ApplicationInsights.W3C;
-
-#pragma warning disable 618 // GetTraceparent(), GetTracestate() are deprecated. However, it is required for W3C for this System.Diagnostics version.
 
     /// <summary>
     /// Factory of TraceContext
@@ -82,9 +79,9 @@ namespace DurableTask.Core
                 {
                     OperationName = activity.OperationName,
                     StartTime = activity.StartTimeUtc,
-                    TraceParent = activity.GetTraceparent(),
-                    TraceState = activity.GetTracestate(),
-                    ParentSpanId = activity.GetParentSpanId(),
+                    TraceParent = activity.Id,
+                    TraceState = activity.TraceStateString,
+                    ParentSpanId = activity.ParentSpanId.ToHexString(),
                     // ParentId = activity.Id // TODO check if it necessary
                     CurrentActivity = activity
                 };

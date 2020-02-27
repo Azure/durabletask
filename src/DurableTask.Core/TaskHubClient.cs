@@ -21,7 +21,6 @@ namespace DurableTask.Core
     using System.Threading.Tasks;
     using DurableTask.Core.History;
     using DurableTask.Core.Serializing;
-    using Microsoft.ApplicationInsights.W3C;
 
     /// <summary>
     ///     Client used to manage and query orchestration instances

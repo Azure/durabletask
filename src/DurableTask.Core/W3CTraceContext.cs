@@ -11,15 +11,12 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-#pragma warning disable 618 // GetTraceId(), GetParentSpanId(), GenerateW3C() require supression for this System.Diagnostic version.
-
 namespace DurableTask.Core
 {
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Text;
-    using Microsoft.ApplicationInsights.W3C;
 
     /// <summary>
     /// W3CTraceContext keep the correlation value with W3C TraceContext protocol
@@ -57,17 +54,17 @@ namespace DurableTask.Core
                 if (CurrentActivity == null)
                 {
                     var traceParent = TraceParentObject.Create(TraceParent);
-                    return $"|{traceParent.TraceId}.{traceParent.SpanId}.";
+                    return traceParent.SpanId;
                 }
                 else
                 {
-                    return $"|{CurrentActivity.GetTraceId()}.{CurrentActivity.GetSpanId()}.";
+                    return CurrentActivity.SpanId.ToHexString();
                 }
             }
         }
 
         /// <inheritdoc />
-        public override string TelemetryContextOperationId => CurrentActivity?.GetTraceId() ??
+        public override string TelemetryContextOperationId => CurrentActivity?.RootId ??
                     TraceParentObject.Create(TraceParent).TraceId;
 
         /// <inheritdoc />
@@ -76,12 +73,11 @@ namespace DurableTask.Core
             {
                 if (CurrentActivity == null)
                 {
-                    var traceParent = TraceParentObject.Create(TraceParent);
-                    return $"|{traceParent.TraceId}.{ParentSpanId}.";
+                    return ParentSpanId;
                 }
                 else
                 {
-                    return $"|{CurrentActivity.GetTraceId()}.{CurrentActivity.GetParentSpanId()}.";
+                    return CurrentActivity.ParentSpanId.ToHexString();
                 }
             }
         }
@@ -92,25 +88,23 @@ namespace DurableTask.Core
             if (CurrentActivity == null)
             {
                 CurrentActivity = new Activity(this.OperationName);
+                CurrentActivity.SetIdFormat(ActivityIdFormat.W3C);
             }
 
             if (parentTraceContext is W3CTraceContext)
             {
                 var context = (W3CTraceContext)parentTraceContext;
-                CurrentActivity.SetTraceparent(context.TraceParent);
-                CurrentActivity.SetTracestate(context.TraceState);
+                CurrentActivity.SetParentId(context.TraceParent);
+                CurrentActivity.TraceStateString = context.TraceState;
                 OrchestrationTraceContexts = context.OrchestrationTraceContexts.Clone();
-            } else // In case of null object
-            {
-                CurrentActivity.GenerateW3CContext();
-            }
+            } 
 
             CurrentActivity.Start();
 
             StartTime = CurrentActivity.StartTimeUtc;
-            TraceParent = CurrentActivity.GetTraceparent();
-            TraceState = CurrentActivity.GetTracestate();
-            ParentSpanId = CurrentActivity.GetParentSpanId();
+            TraceParent = CurrentActivity.Id;
+            TraceState = CurrentActivity.TraceStateString;
+            ParentSpanId = CurrentActivity.ParentSpanId.ToHexString();
 
             CorrelationTraceContext.Current = this;
         }
@@ -119,13 +113,16 @@ namespace DurableTask.Core
         public override void StartAsNew()
         {
             CurrentActivity = new Activity(this.OperationName);
-            CurrentActivity.GenerateW3CContext();
+            CurrentActivity.SetIdFormat(ActivityIdFormat.W3C);
             CurrentActivity.Start();
 
             StartTime = CurrentActivity.StartTimeUtc;
-            TraceParent = CurrentActivity.GetTraceparent();
-            TraceState = CurrentActivity.GetTracestate();
-            ParentSpanId = CurrentActivity.GetParentSpanId();
+
+            TraceParent = CurrentActivity.Id;
+
+            CurrentActivity.TraceStateString = TraceState;
+            TraceState = CurrentActivity.TraceStateString;
+            ParentSpanId = CurrentActivity.ParentSpanId.ToHexString();
 
             CorrelationTraceContext.Current = this;
         }

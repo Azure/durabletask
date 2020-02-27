@@ -23,7 +23,6 @@ namespace DurableTask.AzureStorage.Tests.Correlation
     using Microsoft.ApplicationInsights.DependencyCollector;
     using Microsoft.ApplicationInsights.Extensibility;
     using Microsoft.ApplicationInsights.Extensibility.Implementation;
-    using Microsoft.ApplicationInsights.W3C;
 
     public class TelemetryActivator
     {

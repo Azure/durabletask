@@ -13,17 +13,70 @@
 
 namespace DurableTask.Core.Tests
 {
-    using Microsoft.ApplicationInsights.W3C;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using System;
     using System.Collections.Generic;
+    using System.Diagnostics;
     using System.Linq;
     using System.Text;
     using System.Threading.Tasks;
+    using System.Xml.Serialization;
 
     [TestClass]
     public class W3CTraceContextTest
     {
+        [TestMethod]
+        public void SetParentNormalCase()
+        {
+            var ExpectedTraceState = "congo=t61rcWkgMzE";
+            var parentContext = new W3CTraceContext()
+            {
+                OperationName = "Foo",
+                TraceState = ExpectedTraceState
+            };
+            parentContext.StartAsNew();
+            Assert.AreEqual(ExpectedTraceState, parentContext.TraceState);
+            Assert.AreEqual(parentContext.CurrentActivity.Id, parentContext.TraceParent);
+            Assert.AreEqual(parentContext.CurrentActivity.SpanId.ToHexString(), parentContext.TelemetryId);
+            Assert.AreEqual(parentContext.CurrentActivity.RootId, parentContext.TelemetryContextOperationId);
+            Assert.AreEqual(parentContext.CurrentActivity.ParentSpanId.ToHexString(), parentContext.TelemetryContextOperationParentId);
+
+            var childContext = new W3CTraceContext()
+            {
+                OperationName = "Bar"
+            };
+            childContext.SetParentAndStart(parentContext);
+            Assert.AreEqual(ExpectedTraceState, childContext.TraceState);
+            Assert.AreEqual(childContext.CurrentActivity.Id, childContext.TraceParent);
+            Assert.AreEqual(childContext.CurrentActivity.SpanId.ToHexString(),childContext.TelemetryId);
+            Assert.AreEqual(childContext.CurrentActivity.RootId, childContext.TelemetryContextOperationId);
+            Assert.AreEqual(parentContext.CurrentActivity.SpanId.ToHexString(), childContext.ParentSpanId);
+            Assert.AreEqual(parentContext.CurrentActivity.SpanId.ToHexString(), childContext.TelemetryContextOperationParentId);
+        }
+
+        [TestMethod]
+        public void RestoredSoThatNoCurrentActivity()
+        {
+            var ExpectedTraceState = "congo=t61rcWkgMzE";
+            var ExpectedSpanId = "b7ad6b7169203331";
+            var ExpectedRootId = "0af7651916cd43dd8448eb211c80319c";
+            var ExpectedTraceParent = $"00-{ExpectedRootId}-{ExpectedSpanId}-01";
+            var ExpectedParentSpanId = "00f067aa0ba902b7";
+            var context = new W3CTraceContext()
+            {
+                OperationName = "Foo",
+                TraceState = ExpectedTraceState,
+                TraceParent = ExpectedTraceParent,
+                ParentSpanId = ExpectedParentSpanId,
+                TelemetryType = TelemetryType.Request
+            };
+            Assert.AreEqual(ExpectedTraceState, context.TraceState);
+            Assert.AreEqual(ExpectedTraceParent, context.TraceParent);
+            Assert.AreEqual(ExpectedSpanId, context.TelemetryId);
+            Assert.AreEqual(ExpectedRootId, context.TelemetryContextOperationId);
+            Assert.AreEqual(ExpectedParentSpanId, context.TelemetryContextOperationParentId);
+        }
+
         // SetParent sometimes accept NullObject 
         [TestMethod]
         public void SetParentWithNullObject()
@@ -31,9 +84,6 @@ namespace DurableTask.Core.Tests
             var traceContext = new W3CTraceContext();
             var parentTraceContext = new NullObjectTraceContext();
             traceContext.SetParentAndStart(parentTraceContext);
-#pragma warning disable 618 // IsW3CActviity() is deprecated. However, it is required for W3C for this version.
-            Assert.IsTrue(traceContext.CurrentActivity.IsW3CActivity());
-#pragma warning restore 618
             Assert.AreEqual(traceContext.StartTime, traceContext.CurrentActivity.StartTimeUtc);
         }
     }
