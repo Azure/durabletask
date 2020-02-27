@@ -43,6 +43,7 @@ namespace DurableTask.Core
         public override void SetParentAndStart(TraceContextBase parentTraceContext)
         {
             CurrentActivity = new Activity(this.OperationName);
+            CurrentActivity.SetIdFormat(ActivityIdFormat.Hierarchical);
 
             if (parentTraceContext is HttpCorrelationProtocolTraceContext)
             {
@@ -64,6 +65,7 @@ namespace DurableTask.Core
         public override void StartAsNew()
         {
             CurrentActivity = new Activity(this.OperationName);
+            CurrentActivity.SetIdFormat(ActivityIdFormat.Hierarchical);
             CurrentActivity.Start();
 
             ParentId = CurrentActivity.Id;

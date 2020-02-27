@@ -26,7 +26,6 @@ namespace DurableTask.AzureStorage.Tests.Correlation
     using Microsoft.ApplicationInsights.DataContracts;
     using Microsoft.ApplicationInsights.Extensibility;
     using Microsoft.ApplicationInsights.Extensibility.Implementation;
-    using Microsoft.ApplicationInsights.W3C;
 
     /// <summary>
     /// Telemetry Initializer that sets correlation ids for W3C.
@@ -217,11 +216,11 @@ namespace DurableTask.AzureStorage.Tests.Correlation
             if (initializeFromCurrent)
             {
                 if (string.IsNullOrEmpty(opTelemetry.Id))
-                    opTelemetry.Id = StringUtilities.FormatRequestId(telemetry.Context.Operation.Id, traceParent.SpanId);
+                    opTelemetry.Id = traceParent.SpanId;
 
                 if (string.IsNullOrEmpty(context.ParentSpanId))
                 {
-                    telemetry.Context.Operation.ParentId = StringUtilities.FormatRequestId(telemetry.Context.Operation.Id, context.ParentSpanId);
+                    telemetry.Context.Operation.ParentId = telemetry.Context.Operation.Id;
                 }
             }
             else
@@ -231,9 +230,9 @@ namespace DurableTask.AzureStorage.Tests.Correlation
                     telemetry.Context.Operation.Id = traceParent.TraceId;
                 }
 
-                if (telemetry.Context.Operation.ParentId == null) // TODO check if it works. 
+                if (telemetry.Context.Operation.ParentId == null) 
                 {
-                    telemetry.Context.Operation.ParentId = StringUtilities.FormatRequestId(telemetry.Context.Operation.Id, traceParent.SpanId);
+                    telemetry.Context.Operation.ParentId = traceParent.SpanId;
                 }
             }
         }
@@ -287,8 +286,6 @@ namespace DurableTask.AzureStorage.Tests.Correlation
                 return;
             }
 
-            activity.UpdateContextOnActivity();
-
             // Requests and dependnecies are initialized from the current Activity 
             // (i.e. telemetry.Id = current.Id). Activity is created for such requests specifically
             // Traces, exceptions, events on the other side are children of current activity
@@ -306,63 +303,22 @@ namespace DurableTask.AzureStorage.Tests.Correlation
                                                .StartsWith(RddDiagnosticSourcePrefix, StringComparison.Ordinal));
             }
 
-            string spanId = null, parentSpanId = null;
-            foreach (var tag in activity.Tags)
+            if (telemetry is OperationTelemetry operation)
             {
-                switch (tag.Key)
-                {
-                    case TraceIdTag:
-#if NET45
-                        // on .NET Fx Activities are not always reliable, this code prevents update
-                        // of the telemetry that was forcibly updated during Activity lifetime
-                        // ON .NET Core there is no such problem 
-                        if (telemetry.Context.Operation.Id == tag.Value && !forceUpdate)
-                        {
-                            return;
-                        }
-#endif
-                        telemetry.Context.Operation.Id = tag.Value;
-                        break;
-                    case SpanIdTag:
-                        spanId = tag.Value;
-                        break;
-                    case ParentSpanIdTag:
-                        parentSpanId = tag.Value;
-                        break;
-                    case TracestateTag:
-                        if (telemetry is OperationTelemetry operation)
-                        {
-                            operation.Properties[TracestateTag] = tag.Value;
-                        }
-
-                        break;
-                }
+                operation.Properties[TracestateTag] = activity.TraceStateString;
             }
 
             if (initializeFromCurrent)
             {
-                opTelemetry.Id = StringUtilities.FormatRequestId(telemetry.Context.Operation.Id, spanId);
-                if (parentSpanId != null)
+                opTelemetry.Id = activity.SpanId.ToHexString();
+                if (activity.ParentSpanId != null)
                 {
-                    telemetry.Context.Operation.ParentId = StringUtilities.FormatRequestId(telemetry.Context.Operation.Id, parentSpanId);
+                    opTelemetry.Context.Operation.ParentId = activity.ParentSpanId.ToHexString();
                 }
             }
             else
             {
-                telemetry.Context.Operation.ParentId = StringUtilities.FormatRequestId(telemetry.Context.Operation.Id, spanId);
-            }
-
-            if (opTelemetry != null)
-            {
-                if (opTelemetry.Context.Operation.Id != activity.RootId)
-                {
-                    opTelemetry.Properties[LegacyRootIdProperty] = activity.RootId;
-                }
-
-                if (opTelemetry.Id != activity.Id)
-                {
-                    opTelemetry.Properties[LegacyRequestIdProperty] = activity.Id;
-                }
+                telemetry.Context.Operation.ParentId = activity.SpanId.ToHexString();
             }
         }
     }
