@@ -1002,6 +1002,16 @@ namespace DurableTask.AzureStorage
 
             // Correlation
 
+            CorrelationTraceClient.Propagate(
+                () =>
+                {
+                    // In case of Extended Session, Emit the Dependency Telemetry. 
+                    if (workItem.IsExtendedSession)
+                    {
+                        TrackExtendedSessionDependencyTelemetry(session);
+                    }
+                });
+
             TraceContextBase currentTraceContextBaseOnComplete = null;
             CorrelationTraceClient.Propagate(
                 () =>
@@ -1093,6 +1103,37 @@ namespace DurableTask.AzureStorage
                 && ((orchestrationState.OrchestrationStatus != OrchestrationStatus.Completed) &&
                     (orchestrationState.OrchestrationStatus != OrchestrationStatus.Failed)
                     );
+        }
+
+        void TrackExtendedSessionDependencyTelemetry(OrchestrationSession session)
+        {
+            var messages = session.CurrentMessageBatch;
+            foreach (var message in messages)
+            {
+                if (message.SerializableTraceContext != null)
+                {
+                    var traceContext = TraceContextBase.Restore(message.SerializableTraceContext);
+                    switch (message.TaskMessage.Event)
+                    {
+                        // Dependency Execution finished.
+                        case TaskCompletedEvent tc:
+                        case TaskFailedEvent tf:
+                        case SubOrchestrationInstanceCompletedEvent sc:
+                        case SubOrchestrationInstanceFailedEvent sf:
+                            if (traceContext.OrchestrationTraceContexts.Count != 0)
+                            {
+                                var orchestrationDependencyTraceContext = traceContext.OrchestrationTraceContexts.Pop();
+                                CorrelationTraceClient.TrackDepencencyTelemetry(orchestrationDependencyTraceContext);
+                            }
+
+                            break;
+
+                        default:
+                            // When internal error happens, multiple message could come, however, it should not be prioritized.
+                            break;
+                    }
+                }
+            }
         }
 
         TraceContextBase CreateOrRestoreRequestTraceContextWithDependencyTrackingSettings(TraceContextBase traceContext, OrchestrationState orchestrationState, bool dependencyTelemetryStarted)

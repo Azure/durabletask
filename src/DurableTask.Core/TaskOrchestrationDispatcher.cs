@@ -120,6 +120,16 @@ namespace DurableTask.Core
                 }
 
                 var isExtendedSession = false;
+
+                CorrelationTraceClient.Propagate(
+                    () =>
+                    {                
+                        // Check if it is extended session.
+                        isExtendedSession = this.concurrentSessionLock.Acquire();
+                        this.concurrentSessionLock.Release();
+                        workItem.IsExtendedSession = isExtendedSession;
+                    });
+
                 var processCount = 0;
                 try
                 {
