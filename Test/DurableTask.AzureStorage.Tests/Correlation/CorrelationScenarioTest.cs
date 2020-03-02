@@ -33,14 +33,16 @@ namespace DurableTask.AzureStorage.Tests.Correlation
     public class CorrelationScenarioTest
     {
         [DataTestMethod]
-        [DataRow(Protocol.W3CTraceContext)]
-        [DataRow(Protocol.HttpCorrelationProtocol)]
-        public async Task SingleOrchestratorWithSingleActivityAsync(Protocol protocol)
+        [DataRow(Protocol.W3CTraceContext, false)]
+        [DataRow(Protocol.HttpCorrelationProtocol, false)]
+        [DataRow(Protocol.W3CTraceContext, true)]
+        [DataRow(Protocol.HttpCorrelationProtocol, true)]
+        public async Task SingleOrchestratorWithSingleActivityAsync(Protocol protocol, bool enableExtendedSessions)
         {
             CorrelationSettings.Current.Protocol = protocol;
             CorrelationSettings.Current.EnableDistributedTracing = true;
             var host = new TestCorrelationOrchestrationHost();
-            List<OperationTelemetry> actual = await host.ExecuteOrchestrationAsync(typeof(SayHelloOrchestrator), "world", 360);
+            List<OperationTelemetry> actual = await host.ExecuteOrchestrationAsync(typeof(SayHelloOrchestrator), "world", 360, enableExtendedSessions);
             Assert.AreEqual(5, actual.Count);
 
             CollectionAssert.AreEqual(
@@ -78,15 +80,17 @@ namespace DurableTask.AzureStorage.Tests.Correlation
         }
 
         [DataTestMethod]
-        [DataRow(Protocol.HttpCorrelationProtocol)]
-        [DataRow(Protocol.W3CTraceContext)]
-        public async Task SingleOrchestrationWithThrowingExceptionAsync(Protocol protocol)
+        [DataRow(Protocol.W3CTraceContext, false)]
+        [DataRow(Protocol.HttpCorrelationProtocol, false)]
+        [DataRow(Protocol.W3CTraceContext, true)]
+        [DataRow(Protocol.HttpCorrelationProtocol, true)]
+        public async Task SingleOrchestrationWithThrowingExceptionAsync(Protocol protocol, bool enableExtendedSessions)
         {
             CorrelationSettings.Current.Protocol = protocol;
             CorrelationSettings.Current.EnableDistributedTracing = true;
             var host = new TestCorrelationOrchestrationHost();
             // parameter = null cause an exception. 
-            Tuple<List<OperationTelemetry>, List<ExceptionTelemetry>> result = await host.ExecuteOrchestrationWithExceptionAsync(typeof(SayHelloOrchestrator), null, 50);
+            Tuple<List<OperationTelemetry>, List<ExceptionTelemetry>> result = await host.ExecuteOrchestrationWithExceptionAsync(typeof(SayHelloOrchestrator), null, 50, enableExtendedSessions);
 
             List<OperationTelemetry> actual = result.Item1;
             List<ExceptionTelemetry> actualExceptions = result.Item2;
@@ -111,14 +115,16 @@ namespace DurableTask.AzureStorage.Tests.Correlation
         }
 
         [DataTestMethod]
-        [DataRow(Protocol.HttpCorrelationProtocol)]
-        [DataRow(Protocol.W3CTraceContext)]
-        public async Task SingleOrchestratorWithMultipleActivitiesAsync(Protocol protocol)
+        [DataRow(Protocol.W3CTraceContext, false)]
+        [DataRow(Protocol.HttpCorrelationProtocol, false)]
+        [DataRow(Protocol.W3CTraceContext, true)]
+        [DataRow(Protocol.HttpCorrelationProtocol, true)]
+        public async Task SingleOrchestratorWithMultipleActivitiesAsync(Protocol protocol, bool enableExtendedSessions)
         {
             CorrelationSettings.Current.Protocol = protocol;
             CorrelationSettings.Current.EnableDistributedTracing = true;
             var host = new TestCorrelationOrchestrationHost();
-            List<OperationTelemetry> actual = await host.ExecuteOrchestrationAsync(typeof(SayHelloActivities), "world", 50);
+            List<OperationTelemetry> actual = await host.ExecuteOrchestrationAsync(typeof(SayHelloActivities), "world", 50, enableExtendedSessions);
             Assert.AreEqual(7, actual.Count);
 
             CollectionAssert.AreEqual(
@@ -169,14 +175,16 @@ namespace DurableTask.AzureStorage.Tests.Correlation
         }
 
         [DataTestMethod]
-        [DataRow(Protocol.HttpCorrelationProtocol)]
-        [DataRow(Protocol.W3CTraceContext)]
-        public async Task SubOrchestratorAsync(Protocol protocol)
+        [DataRow(Protocol.W3CTraceContext, false)]
+        [DataRow(Protocol.HttpCorrelationProtocol, false)]
+        [DataRow(Protocol.W3CTraceContext, true)]
+        [DataRow(Protocol.HttpCorrelationProtocol, true)]
+        public async Task SubOrchestratorAsync(Protocol protocol, bool enableExtendedSessions)
         {
             CorrelationSettings.Current.Protocol = protocol;
             CorrelationSettings.Current.EnableDistributedTracing = true;
             var host = new TestCorrelationOrchestrationHost();
-            List<OperationTelemetry> actual = await host.ExecuteOrchestrationAsync(typeof(ParentOrchestrator), "world", 50);
+            List<OperationTelemetry> actual = await host.ExecuteOrchestrationAsync(typeof(ParentOrchestrator), "world", 50, enableExtendedSessions);
             Assert.AreEqual(7, actual.Count);
             CollectionAssert.AreEqual(
                 new (Type, string)[]
@@ -211,14 +219,16 @@ namespace DurableTask.AzureStorage.Tests.Correlation
         }
 
         [DataTestMethod]
-        [DataRow(Protocol.HttpCorrelationProtocol)]
-        [DataRow(Protocol.W3CTraceContext)]
-        public async Task MultipleSubOrchestratorAsync(Protocol protocol)
+        [DataRow(Protocol.W3CTraceContext, false)]
+        [DataRow(Protocol.HttpCorrelationProtocol, false)]
+        [DataRow(Protocol.W3CTraceContext, true)]
+        [DataRow(Protocol.HttpCorrelationProtocol, true)]
+        public async Task MultipleSubOrchestratorAsync(Protocol protocol, bool enableExtendedSessions)
         {
             CorrelationSettings.Current.Protocol = protocol;
             CorrelationSettings.Current.EnableDistributedTracing = true;
             var host = new TestCorrelationOrchestrationHost();
-            List<OperationTelemetry> actual = await host.ExecuteOrchestrationAsync(typeof(ParentOrchestratorWithMultiLayeredSubOrchestrator), "world", 50);
+            List<OperationTelemetry> actual = await host.ExecuteOrchestrationAsync(typeof(ParentOrchestratorWithMultiLayeredSubOrchestrator), "world", 50, enableExtendedSessions);
             Assert.AreEqual(13, actual.Count);
 
             CollectionAssert.AreEqual(
@@ -266,15 +276,17 @@ namespace DurableTask.AzureStorage.Tests.Correlation
         }
 
         [DataTestMethod]
-        [DataRow(Protocol.HttpCorrelationProtocol)]
-        [DataRow(Protocol.W3CTraceContext)]
-        public async Task SingleOrchestratorWithRetryAsync(Protocol protocol)
+        [DataRow(Protocol.W3CTraceContext, false)]
+        [DataRow(Protocol.HttpCorrelationProtocol, false)]
+        [DataRow(Protocol.W3CTraceContext, true)]
+        [DataRow(Protocol.HttpCorrelationProtocol, true)]
+        public async Task SingleOrchestratorWithRetryAsync(Protocol protocol, bool enableExtendedSessions)
         {
             CorrelationSettings.Current.Protocol = protocol;
             CorrelationSettings.Current.EnableDistributedTracing = true;
             var host = new TestCorrelationOrchestrationHost();
             SingleOrchestrationWithRetry.ResetCounter();
-            Tuple<List<OperationTelemetry>, List<ExceptionTelemetry>> resultTuple = await host.ExecuteOrchestrationWithExceptionAsync(typeof(SingleOrchestrationWithRetry), "world", 50);
+            Tuple<List<OperationTelemetry>, List<ExceptionTelemetry>> resultTuple = await host.ExecuteOrchestrationWithExceptionAsync(typeof(SingleOrchestrationWithRetry), "world", 50, enableExtendedSessions);
             List<OperationTelemetry> actual = resultTuple.Item1;
             List<ExceptionTelemetry> actualExceptions = resultTuple.Item2;
 
@@ -328,15 +340,17 @@ namespace DurableTask.AzureStorage.Tests.Correlation
         }
 
         [DataTestMethod]
-        [DataRow(Protocol.HttpCorrelationProtocol)]
-        [DataRow(Protocol.W3CTraceContext)]
-        public async Task MultiLayeredOrchestrationWithRetryAsync(Protocol protocol)
+        [DataRow(Protocol.W3CTraceContext, false)]
+        [DataRow(Protocol.HttpCorrelationProtocol, false)]
+        [DataRow(Protocol.W3CTraceContext, true)]
+        [DataRow(Protocol.HttpCorrelationProtocol, true)]
+        public async Task MultiLayeredOrchestrationWithRetryAsync(Protocol protocol, bool enableExtendedSessions)
         {
             CorrelationSettings.Current.Protocol = protocol;
             CorrelationSettings.Current.EnableDistributedTracing = true;
             MultiLayeredOrchestrationWithRetry.Reset();
             var host = new TestCorrelationOrchestrationHost();
-            Tuple<List<OperationTelemetry>, List<ExceptionTelemetry>> resultTuple = await host.ExecuteOrchestrationWithExceptionAsync(typeof(MultiLayeredOrchestrationWithRetry), "world", 50);
+            Tuple<List<OperationTelemetry>, List<ExceptionTelemetry>> resultTuple = await host.ExecuteOrchestrationWithExceptionAsync(typeof(MultiLayeredOrchestrationWithRetry), "world", 50, enableExtendedSessions);
             List<OperationTelemetry> actual = resultTuple.Item1;
             List<ExceptionTelemetry> actualExceptions = resultTuple.Item2;
             Assert.AreEqual(19, actual.Count);
@@ -435,15 +449,17 @@ namespace DurableTask.AzureStorage.Tests.Correlation
         //[TestMethod] ContinueAsNew
 
         [DataTestMethod]
-        [DataRow(Protocol.HttpCorrelationProtocol)]
-        [DataRow(Protocol.W3CTraceContext)]
-        public async Task ContinueAsNewAsync(Protocol protocol)
+        [DataRow(Protocol.W3CTraceContext, false)]
+        [DataRow(Protocol.HttpCorrelationProtocol, false)]
+        [DataRow(Protocol.W3CTraceContext, true)]
+        [DataRow(Protocol.HttpCorrelationProtocol, true)]
+        public async Task ContinueAsNewAsync(Protocol protocol, bool enableExtendedSessions)
         {
             CorrelationSettings.Current.Protocol = protocol;
             CorrelationSettings.Current.EnableDistributedTracing = true;
             ContinueAsNewOrchestration.Reset();
             var host = new TestCorrelationOrchestrationHost();
-            List<OperationTelemetry> actual = await host.ExecuteOrchestrationAsync(typeof(ContinueAsNewOrchestration), "world", 50);
+            List<OperationTelemetry> actual = await host.ExecuteOrchestrationAsync(typeof(ContinueAsNewOrchestration), "world", 50, enableExtendedSessions);
             Assert.AreEqual(11, actual.Count);
 
             CollectionAssert.AreEqual(
@@ -488,16 +504,18 @@ namespace DurableTask.AzureStorage.Tests.Correlation
         }
 
         [DataTestMethod]
-        [DataRow(Protocol.HttpCorrelationProtocol)]
-        [DataRow(Protocol.W3CTraceContext)]
-        public async Task MultipleParentScenarioAsync(Protocol protocol)
+        [DataRow(Protocol.W3CTraceContext, false)]
+        [DataRow(Protocol.HttpCorrelationProtocol, false)]
+        [DataRow(Protocol.W3CTraceContext, true)]
+        [DataRow(Protocol.HttpCorrelationProtocol, true)]
+        public async Task MultipleParentScenarioAsync(Protocol protocol, bool enableExtendedSessions)
         {
             MultiParentOrchestrator.Reset();
             CorrelationSettings.Current.Protocol = protocol;
             CorrelationSettings.Current.EnableDistributedTracing = true;
             var host = new TestCorrelationOrchestrationHost();
             var tasks = new List<Task>();
-            tasks.Add(host.ExecuteOrchestrationAsync(typeof(MultiParentOrchestrator), "world", 30));
+            tasks.Add(host.ExecuteOrchestrationAsync(typeof(MultiParentOrchestrator), "world", 30, enableExtendedSessions));
 
             while (IsNotReadyForRaiseEvent(host.Client))
             {
@@ -558,15 +576,17 @@ namespace DurableTask.AzureStorage.Tests.Correlation
         }
 
         [DataTestMethod]
-        [DataRow(Protocol.HttpCorrelationProtocol)]
-        [DataRow(Protocol.W3CTraceContext)]
-        public async Task SuppressTelemetryAsync(Protocol protocol)
+        [DataRow(Protocol.W3CTraceContext, false)]
+        [DataRow(Protocol.HttpCorrelationProtocol, false)]
+        [DataRow(Protocol.W3CTraceContext, true)]
+        [DataRow(Protocol.HttpCorrelationProtocol, true)]
+        public async Task SuppressTelemetryAsync(Protocol protocol, bool enableExtendedSessions)
         {
             CorrelationSettings.Current.Protocol = protocol;
             CorrelationSettings.Current.EnableDistributedTracing = false;
             MultiLayeredOrchestrationWithRetry.Reset();
             var host = new TestCorrelationOrchestrationHost();
-            Tuple<List<OperationTelemetry>, List<ExceptionTelemetry>> resultTuple = await host.ExecuteOrchestrationWithExceptionAsync(typeof(MultiLayeredOrchestrationWithRetry), "world", 50);
+            Tuple<List<OperationTelemetry>, List<ExceptionTelemetry>> resultTuple = await host.ExecuteOrchestrationWithExceptionAsync(typeof(MultiLayeredOrchestrationWithRetry), "world", 50, enableExtendedSessions);
             List<OperationTelemetry> actual = resultTuple.Item1;
             List<ExceptionTelemetry> actualExceptions = resultTuple.Item2;
             Assert.AreEqual(0, actual.Count);
@@ -579,10 +599,10 @@ namespace DurableTask.AzureStorage.Tests.Correlation
         {
             internal TestOrchestrationClient Client { get; set; }
 
-            internal async Task<Tuple<List<OperationTelemetry>, List<ExceptionTelemetry>>> ExecuteOrchestrationWithExceptionAsync(Type orchestrationType, string parameter, int timeout)
+            internal async Task<Tuple<List<OperationTelemetry>, List<ExceptionTelemetry>>> ExecuteOrchestrationWithExceptionAsync(Type orchestrationType, string parameter, int timeout, bool enableExtendedSessions)
             {
                 var sendItems = new ConcurrentQueue<ITelemetry>();
-                await ExtractTelemetry(orchestrationType, parameter, timeout, sendItems);
+                await ExtractTelemetry(orchestrationType, parameter, timeout, sendItems, enableExtendedSessions);
 
                 var sendItemList = ConvertTo(sendItems);
                 var operationTelemetryList = sendItemList.OfType<OperationTelemetry>();
@@ -593,10 +613,10 @@ namespace DurableTask.AzureStorage.Tests.Correlation
                 return new Tuple<List<OperationTelemetry>, List<ExceptionTelemetry>>(operationTelemetries, exceptionTelemetryList);
             }
 
-            internal async Task<List<OperationTelemetry>> ExecuteOrchestrationAsync(Type orchestrationType, string parameter, int timeout)
+            internal async Task<List<OperationTelemetry>> ExecuteOrchestrationAsync(Type orchestrationType, string parameter, int timeout, bool enableExtendedSessions)
             {
                 var sendItems = new ConcurrentQueue<ITelemetry>();
-                await ExtractTelemetry(orchestrationType, parameter, timeout, sendItems);
+                await ExtractTelemetry(orchestrationType, parameter, timeout, sendItems, enableExtendedSessions);
 
                 var sendItemList = ConvertTo(sendItems);
                 var operationTelemetryList = sendItemList.OfType<OperationTelemetry>();
@@ -623,13 +643,13 @@ namespace DurableTask.AzureStorage.Tests.Correlation
                     p => p.Name.Contains(TraceConstants.Activity) || p.Name.Contains(TraceConstants.Orchestrator) || p.Name.Contains(TraceConstants.Client) || p.Name.Contains("Operation"));
             }
 
-            async Task ExtractTelemetry(Type orchestrationType, string parameter, int timeout, ConcurrentQueue<ITelemetry> sendItems)
+            async Task ExtractTelemetry(Type orchestrationType, string parameter, int timeout, ConcurrentQueue<ITelemetry> sendItems, bool enableExtendedSessions)
             {
                 var sendAction = new Action<ITelemetry>(
                     delegate(ITelemetry telemetry) { sendItems.Enqueue(telemetry); });
                 new TelemetryActivator().Initialize(sendAction, Guid.NewGuid().ToString());
                 // new TelemetryActivator().Initialize(item => sendItems.Enqueue(item), Guid.NewGuid().ToString());
-                using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(false))
+                using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
                 {
                     await host.StartAsync();
                     var activity = new Activity(TraceConstants.Client);

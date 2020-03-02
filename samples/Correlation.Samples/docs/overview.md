@@ -93,6 +93,8 @@ Correlation responsibilities:
 - Add the Request TraceContext to the Stack
 - Restore Current Orchestration Request TraceContext(Replay)
 - Add the Request TraceContext to a WorkItem.
+- Track Dependency Telemetry
+- Pop Dependency Telemetry once Tracked
 
 
 #### CompleteTaskOrchestrationWorkItemAsync
@@ -101,8 +103,9 @@ Receive a work item after the `LockNextTaskOrchestrationWorkItemAsync`, Correlat
 - Crete Dependency TraceContext from a Work Item
 - Add the Dependency TraceContext to the Stack
 - Set CorrelationTraceContext.Current = Dependency TraceContext
-- Track Request/Dependency Telemetry when the orchestration is finished.
-- Pop Request/Dependency Telemetry once Tracked
+- Track Request Telemetry when the orchestration is finished.
+- Track Dependency Telemetry when the orchestration is finished and workItem.isExtendedSession is true. 
+- Pop Request Telemetry once Tracked
 
 Why do we need to set the Dependency TraceContext to Collection TraceContext.Current?  `TaskHubQueue` get the TraceContext and send it with a queue message. 
 
@@ -157,6 +160,10 @@ The correlation responsibilities:
 - Set `CorrelationTraceContext.Current`. 
 
 It enable us to get TraceContext from `CorrelationTraceContext.Current` on it's call graph. 
+
+### OnProcessWorkItemSessionAsync
+
+- Set WorkItem.isExtendedSession
 
 ## Scenario testing
 Find automated scenario testing and testing framework. Read the [CorrelationScenarioTest.cs](../../Test/DurableTask.AzureStorage.Tests/Correlation/CorrelationScenarioTest.cs). 
