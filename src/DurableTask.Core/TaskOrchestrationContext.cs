@@ -34,8 +34,6 @@ namespace DurableTask.Core
         private bool executionTerminated;
         private int idCounter;
 
-        public JsonDataConverter DataConverter { get; set; }
-
         public bool HasContinueAsNew => continueAsNew != null;
 
         public void AddEventToNextIteration(HistoryEvent he)
