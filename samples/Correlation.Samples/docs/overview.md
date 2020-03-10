@@ -32,21 +32,21 @@ The stack represents the current TraceContext of the orchestrator.
 
 ![Class diagram](images/class-diagram.png)
 
-### [TraceContextBase](../../src/DurableTask.Core/TraceContextBase.cs)
+### [TraceContextBase](../../../src/DurableTask.Core/TraceContextBase.cs)
 
 A wrapper of [Activity](https://github.com/dotnet/corefx/blob/master/src/System.Diagnostics.DiagnosticSource/src/ActivityUserGuide.md) class. The Activity class is in charge of handling the correlation information of Application Insights. Activity is designed for in-memory execution. However, Orchestrator requires a replay. The execution is not in-memory. This class wraps the Activity to adopt orchestration execution. This class has a Stack called `OrchestrationTraceContexts.` It is a stack of request/dependency telemetry of orchestrator. 
 
 This class is serialized to queues. However, the default NewtonJSON serializer can't support it. So we have a custom serializer on the `TraceContextBase` class. 
 
-### [CorrelationTraceClient](../../src/DurableTask.Core/CorrelationTraceClient.cs)
+### [CorrelationTraceClient](../../../src/DurableTask.Core/CorrelationTraceClient.cs)
 
 Client for Tracking Telemetry. The responsibility is to delegate sending Telemetry to Application Insights to `TelemetryActivator.` (See the detail later). The namespace is DurableTask.Core package. It doesn't have a dependency on the Application Insights library. It only depends on the `System.Diagnostic.Activity`.
 
-### [CorrelationTraceContext](../../src/DurableTask.Core/CorrelationTraceContext.cs)
+### [CorrelationTraceContext](../../../src/DurableTask.Core/CorrelationTraceContext.cs)
 
 Share the TraceContext on the AsyncLocal scope. It helps to pass the TraceContext to the other classes without passing as a parameter. It works both on .netcore and .netframework. 
 
-### [CorrelationSettings](../../src/DurableTask.Core/Setting/CorrelationSettings.cs)
+### [CorrelationSettings](../../../src/DurableTask.Core/Settings/CorrelationSettings.cs)
 
 Configuration class for Distributed Tracing for DurableTask
 
@@ -82,7 +82,7 @@ CorrelationTraceClient.Propagate(
  () => { data.SerializableTraceContext = GetSerializableTraceContext(taskMessage); });
 ```
 
-### [AzureStorageOrchestrationService](../../src/DurableTask.AzureStorage/AzureStorageOrchestrationService.cs) ([IOrchestrationService](../../src/DurableTask.Core/IOrchestrationService.cs)) class
+### [AzureStorageOrchestrationService](../../../src/DurableTask.AzureStorage/AzureStorageOrchestrationService.cs) ([IOrchestrationService](../../../src/DurableTask.Core/IOrchestrationService.cs)) class
 
 #### LockNextTaskOrchestrationWorkItemAsync
 Receive a work item for orchestration and process it. 
@@ -125,7 +125,7 @@ The correlation responsibilities:
 - Set Request TraceContext to `CorrelationTraceContext.Current` to pass the telemetry to the `TaskHubQueue.`
 
 
-### [TaskHubQueue](../../src/DurableTask.AzureStorage/Messaging/TaskHubQueue.cs) class
+### [TaskHubQueue](../../../src/DurableTask.AzureStorage/Messaging/TaskHubQueue.cs) class
 
 #### AddMessageAsync
 Inject TraceContext to the queue message.
@@ -134,7 +134,7 @@ Inject TraceContext to the queue message.
 - If `CorrelationTraceConext.GenerateDependencyTracking` is true, Generate a Dependency TraceContext and push it tht the Stack.
 - Add TraceContext to the queue message.
 
-### [TaskHubClient](../../src/DurableTask.Core/TaskHubClient.cs) class
+### [TaskHubClient](../../../src/DurableTask.Core/TaskHubClient.cs) class
 
 #### InternalCreateOrchestrationInstanceWithRaisedEventAsync
 Method for starting orchestration.
@@ -147,14 +147,14 @@ The correlation responsibilities:
 - Track Request/Dependency telemetry
 - Set the Dependency Telemetry to the `CorrelationTraceContext.Current` to pass the telemetry to `TaskHubQueue.`
 
-### [TaskActivityDispatcher](../../src/DurableTask.Core/TaskActivityDispatcher.cs) class
+### [TaskActivityDispatcher](../../../src/DurableTask.Core/TaskActivityDispatcher.cs) class
 
 #### OnProcessWorkItemAsync (2 points)
 - Set Activity.Current. From the Activity, users can get the correlation info through Activity. Current
 - Track Exception Telemetry
 
 
-### [TaskOrchestrationDispatcher](../../src/DurableTask.Core/TaskOrchestrationDispatcher.cs) class
+### [TaskOrchestrationDispatcher](../../../src/DurableTask.Core/TaskOrchestrationDispatcher.cs) class
 
 #### OnProcessWorkItemAsync 
 - Set `CorrelationTraceContext.Current`. 
