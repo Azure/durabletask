@@ -53,6 +53,11 @@ namespace DurableTask.Core
         /// </summary>
         public TraceContextBase TraceContext;
 
+        /// <summary>
+        /// The flag of extendedSession.
+        /// </summary>
+        public bool IsExtendedSession = false;
+
         internal OrchestrationExecutionCursor Cursor;
     }
 }
