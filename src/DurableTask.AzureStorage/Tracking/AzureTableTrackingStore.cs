@@ -624,7 +624,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             if (segment.ContinuationToken != null)
             {
-                string tokenJson = JsonConvert.SerializeObject(token);
+                string tokenJson = JsonConvert.SerializeObject(segment.ContinuationToken);
                 queryResult.ContinuationToken = Convert.ToBase64String(Encoding.UTF8.GetBytes(tokenJson));
             }
 
