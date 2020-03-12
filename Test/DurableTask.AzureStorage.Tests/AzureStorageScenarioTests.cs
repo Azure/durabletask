@@ -168,6 +168,34 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
+        public async Task GetPaginatedStatuses()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            {
+                // Execute the orchestrator twice. Orchestrator will be replied. However instances might be two.
+                await host.StartAsync();
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloInline), "world one");
+                await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloInline), "world two");
+                await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                DurableStatusQueryResult queryResult = await host.service.GetOrchestrationStateAsync(
+                    new OrchestrationInstanceStatusQueryCondition(),
+                    1,
+                    null);
+                Assert.AreEqual(1, queryResult.OrchestrationState.Count());
+                Assert.IsNotNull(queryResult.ContinuationToken);
+                queryResult = await host.service.GetOrchestrationStateAsync(
+                    new OrchestrationInstanceStatusQueryCondition(),
+                    1,
+                    queryResult.ContinuationToken);
+                Assert.AreEqual(1, queryResult.OrchestrationState.Count());
+                Assert.IsNull(queryResult.ContinuationToken);
+                await host.StopAsync();
+            }
+        }
+
+        [TestMethod]
         public async Task NoInstancesGetAllOrchestrationStatusesNullContinuationToken()
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
