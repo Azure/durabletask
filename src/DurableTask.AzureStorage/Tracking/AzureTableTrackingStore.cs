@@ -617,13 +617,18 @@ namespace DurableTask.AzureStorage.Tracking
             this.stats.StorageRequests.Increment();
             this.stats.TableEntitiesRead.Increment(orchestrationStates.Count);
 
-            token = segment.ContinuationToken;
-            var tokenJson = JsonConvert.SerializeObject(token);
-            return new DurableStatusQueryResult()
+            var queryResult = new DurableStatusQueryResult()
             {
                 OrchestrationState = orchestrationStates,
-                ContinuationToken = Convert.ToBase64String(Encoding.UTF8.GetBytes(tokenJson))
             };
+
+            if (segment.ContinuationToken != null)
+            {
+                string tokenJson = JsonConvert.SerializeObject(segment.ContinuationToken);
+                queryResult.ContinuationToken = Convert.ToBase64String(Encoding.UTF8.GetBytes(tokenJson));
+            }
+
+            return queryResult;
         }
 
         async Task<IList<OrchestrationState>> QueryStateAsync(TableQuery<OrchestrationInstanceStatus> query, CancellationToken cancellationToken)
