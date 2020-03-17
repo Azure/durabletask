@@ -381,7 +381,7 @@ namespace DurableTask.Core
             if (this.openTasks.ContainsKey(taskId))
             {
                 OpenTaskInfo info = this.openTasks[taskId];
-                Exception cause = Utils.RetrieveCause(failedEvent.Details, this.DataConverter);
+                Exception cause = Utils.RetrieveCause(failedEvent.Details, new JsonDataConverter());
                 var failedException = new SubOrchestrationFailedException(failedEvent.EventId, taskId, info.Name,
                     info.Version,
                     failedEvent.Reason, cause);
