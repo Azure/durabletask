@@ -117,7 +117,7 @@ namespace DurableTask.AzureServiceFabric
 
         public bool IsMaxMessageCountExceeded(int currentMessageCount, OrchestrationRuntimeState runtimeState)
         {
-            return false;
+            return true;
         }
 
         public int GetDelayInSecondsAfterOnProcessException(Exception exception)
@@ -164,7 +164,7 @@ namespace DurableTask.AzureServiceFabric
                         return null;
                     }
 
-                    bool isComplete = currentRuntimeState.OrchestrationStatus.IsTerminalState();
+                    bool isComplete = this.IsOrchestrationComplete(currentRuntimeState.OrchestrationStatus);
                     if (isComplete)
                     {
                         await this.HandleCompletedOrchestration(workItem);
@@ -196,7 +196,7 @@ namespace DurableTask.AzureServiceFabric
 
         public Task RenewTaskOrchestrationWorkItemLockAsync(TaskOrchestrationWorkItem workItem)
         {
-            throw new NotImplementedException();
+            return Task.CompletedTask;
         }
 
         public async Task CompleteTaskOrchestrationWorkItemAsync(
@@ -209,13 +209,10 @@ namespace DurableTask.AzureServiceFabric
             OrchestrationState orchestrationState)
         {
             SessionInformation sessionInfo = GetSessionInfo(workItem.InstanceId);
-
-            if (continuedAsNewMessage != null)
-            {
-                throw new Exception("ContinueAsNew is not supported yet");
-            }
-
-            bool isComplete = workItem.OrchestrationRuntimeState.OrchestrationStatus.IsTerminalState();
+            ServiceFabricProviderEventSource.Tracing.LogOrchestrationInformation(workItem.InstanceId,
+                workItem.OrchestrationRuntimeState.OrchestrationInstance?.ExecutionId,
+                $"Current orchestration status: {workItem.OrchestrationRuntimeState.OrchestrationStatus}");
+            bool isComplete = this.IsOrchestrationComplete(workItem.OrchestrationRuntimeState.OrchestrationStatus);
 
             IList<OrchestrationInstance> sessionsToEnqueue = null;
             List<Message<Guid, TaskMessageItem>> scheduledMessages = null;
@@ -260,7 +257,18 @@ namespace DurableTask.AzureServiceFabric
                                 }
                             }
 
+                            if (continuedAsNewMessage != null)
+                            {
+                                await this.orchestrationProvider.AppendMessageAsync(txn, new TaskMessageItem(continuedAsNewMessage));
+                                sessionsToEnqueue = new List<OrchestrationInstance>() { continuedAsNewMessage.OrchestrationInstance };
+                            }
+
                             await this.orchestrationProvider.CompleteMessages(txn, sessionInfo.Instance, sessionInfo.LockTokens);
+
+                            if (workItem.OrchestrationRuntimeState.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew)
+                            {
+                                await HandleCompletedOrchestration(workItem);
+                            }
 
                             // When an orchestration is completed, we need to drop the session which involves 2 steps (1) Removing the row from sessions
                             // (2) Dropping the session messages dictionary. The second step is done in background thread for performance so is not
@@ -275,7 +283,8 @@ namespace DurableTask.AzureServiceFabric
                             // mark it as complete even if it is. So we use the work item's runtime state when 'newOrchestrationRuntimeState' is null
                             // so that the latest state is what is stored for the session.
                             // As part of next transaction, we are going to remove the row anyway for the session and it doesn't matter to update it to 'null'.
-                            await this.orchestrationProvider.UpdateSessionState(txn, sessionInfo.Instance, newOrchestrationRuntimeState ?? workItem.OrchestrationRuntimeState);
+
+                            await this.orchestrationProvider.UpdateSessionState(txn, newOrchestrationRuntimeState.OrchestrationInstance, newOrchestrationRuntimeState ?? workItem.OrchestrationRuntimeState);
 
                             // We skip writing to instanceStore when orchestration reached terminal state to avoid a minor timing issue that
                             // wait for an orchestration completes but another orchestration with the same name cannot be started immediately
@@ -386,7 +395,7 @@ namespace DurableTask.AzureServiceFabric
 
         public Task ReleaseTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
-            bool isComplete = workItem.OrchestrationRuntimeState.OrchestrationStatus.IsTerminalState();
+            bool isComplete = this.IsOrchestrationComplete(workItem.OrchestrationRuntimeState.OrchestrationStatus);
 
             SessionInformation sessionInfo = TryRemoveSessionInfo(workItem.InstanceId);
             if (sessionInfo != null)
@@ -398,9 +407,10 @@ namespace DurableTask.AzureServiceFabric
         }
 
         public int TaskActivityDispatcherCount => this.settings.TaskActivityDispatcherSettings.DispatcherCount;
+
         public int MaxConcurrentTaskActivityWorkItems => this.settings.TaskActivityDispatcherSettings.MaxConcurrentActivities;
 
-        public BehaviorOnContinueAsNew EventBehaviourForContinueAsNew { get; }
+        public BehaviorOnContinueAsNew EventBehaviourForContinueAsNew { get; } = BehaviorOnContinueAsNew.Ignore;
 
         // Note: Do not rely on cancellationToken parameter to this method because the top layer does not yet implement any cancellation.
         public async Task<TaskActivityWorkItem> LockNextTaskActivityWorkItem(TimeSpan receiveTimeout, CancellationToken cancellationToken)
@@ -500,6 +510,11 @@ namespace DurableTask.AzureServiceFabric
             }
 
             return 0;
+        }
+
+        bool IsOrchestrationComplete(OrchestrationStatus status)
+        {
+            return !(status.IsRunningOrPending() || status == OrchestrationStatus.ContinuedAsNew);
         }
 
         SessionInformation GetSessionInfo(string sessionId)

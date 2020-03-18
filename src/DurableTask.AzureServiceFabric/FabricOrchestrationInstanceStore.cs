@@ -40,7 +40,7 @@ namespace DurableTask.AzureServiceFabric
         const string TimeFormatStringPrefix = "yyyy-MM-dd-";
         readonly IReliableStateManager stateManager;
         readonly CancellationToken cancellationToken;
-        readonly ConcurrentDictionary<OrchestrationInstance, AsyncManualResetEvent> orchestrationWaiters = new ConcurrentDictionary<OrchestrationInstance, AsyncManualResetEvent>(OrchestrationInstanceComparer.Default);
+        readonly ConcurrentDictionary<string, AsyncManualResetEvent> orchestrationWaiters = new ConcurrentDictionary<string, AsyncManualResetEvent>(StringComparer.Ordinal);
 
         IReliableDictionary<string, OrchestrationState> instanceStore;
         IReliableDictionary<string, List<string>> executionIdStore;
@@ -88,22 +88,19 @@ namespace DurableTask.AzureServiceFabric
 
                     if (state.State.OrchestrationStatus.IsRunningOrPending())
                     {
-                        if (state.State.OrchestrationStatus == OrchestrationStatus.Pending)
-                        {
-                            await this.executionIdStore.AddOrUpdateAsync(transaction, instance.InstanceId, new List<string> { instance.ExecutionId },
-                                (k, old) =>
+                        await this.executionIdStore.AddOrUpdateAsync(transaction, instance.InstanceId, new List<string> { instance.ExecutionId },
+                            (k, old) =>
+                            {
+                                old.Add(instance.ExecutionId);
+                                if (old.Count > this.MaxExecutionIdsLength)
                                 {
-                                    old.Add(instance.ExecutionId);
-                                    if (old.Count > this.MaxExecutionIdsLength)
-                                    {
-                                        // Remove first 10% items.
-                                        int skipItemsLength = (int)(this.MaxExecutionIdsLength * 0.1);
-                                        old = old.Skip(skipItemsLength).ToList();
-                                    }
+                                    // Remove first 10% items.
+                                    int skipItemsLength = (int)(this.MaxExecutionIdsLength * 0.1);
+                                    old = old.Skip(skipItemsLength).ToList();
+                                }
 
-                                    return old;
-                                });
-                        }
+                                return old;
+                            });
 
                         await this.instanceStore.AddOrUpdateAsync(transaction, key, state.State, (k, oldValue) => state.State);
                     }
@@ -132,7 +129,7 @@ namespace DurableTask.AzureServiceFabric
                 throw new NotImplementedException("Querying for state across all executions for an orchestration is not supported, only the latest execution can be queried");
             }
 
-            await EnsureStoreInitializedAsync();
+            await this.EnsureStoreInitializedAsync();
 
             string latestExecutionId = (await GetExecutionIds(instanceId))?.Last();
 
@@ -340,9 +337,15 @@ namespace DurableTask.AzureServiceFabric
             }
         }
 
-        public async Task<OrchestrationStateInstanceEntity> WaitForOrchestrationAsync(OrchestrationInstance instance, TimeSpan timeout)
+        public async Task<OrchestrationStateInstanceEntity> WaitForOrchestrationAsync(string instanceId, TimeSpan timeout)
         {
-            var currentState = await this.GetOrchestrationStateAsync(instance.InstanceId, instance.ExecutionId);
+            var executionId = (await this.GetExecutionIds(instanceId)).Last();
+            if (executionId == null)
+            {
+                return null;
+            }
+
+            var currentState = await this.GetOrchestrationStateAsync(instanceId, executionId);
 
             // If querying state for an orchestration that's not started or completed and state cleaned up, we will immediately return null.
             if (currentState?.State == null)
@@ -355,15 +358,15 @@ namespace DurableTask.AzureServiceFabric
                 return currentState;
             }
 
-            var waiter = this.orchestrationWaiters.GetOrAdd(instance, new AsyncManualResetEvent());
+            var waiter = this.orchestrationWaiters.GetOrAdd(instanceId, new AsyncManualResetEvent());
             bool completed = await waiter.WaitAsync(timeout, this.cancellationToken);
 
             if (!completed)
             {
-                this.orchestrationWaiters.TryRemove(instance, out waiter);
+                this.orchestrationWaiters.TryRemove(instanceId, out waiter);
             }
 
-            currentState = await this.GetOrchestrationStateAsync(instance.InstanceId, instance.ExecutionId);
+            currentState = (await this.GetOrchestrationStateAsync(instanceId, allInstances: false)).FirstOrDefault();
             if (currentState?.State != null && currentState.State.OrchestrationStatus.IsTerminalState())
             {
                 return currentState;
@@ -374,7 +377,7 @@ namespace DurableTask.AzureServiceFabric
 
         public void OnOrchestrationCompleted(OrchestrationInstance instance)
         {
-            if (this.orchestrationWaiters.TryRemove(instance, out AsyncManualResetEvent resetEvent))
+            if (this.orchestrationWaiters.TryRemove(instance.InstanceId, out AsyncManualResetEvent resetEvent))
             {
                 resetEvent.Set();
             }

@@ -20,7 +20,6 @@ However, with the Service fabric provider, the provider runs on the same cluster
 
 ## What is pending?
 
-* ContinueAsNew needs to be implemented.
 * Providing support for Azure Storage instance store with Service Fabric based provider. (So that we can persist the state more permanantly)
 * External events should work but not tested.
 * Support for history event tracking.

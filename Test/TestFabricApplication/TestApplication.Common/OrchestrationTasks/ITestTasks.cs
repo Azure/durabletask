@@ -14,7 +14,6 @@
 namespace TestApplication.Common.OrchestrationTasks
 {
     using System.Threading.Tasks;
-    using DurableTask.Test.Orchestrations.Performance;
 
     public interface ITestTasks
     {
@@ -24,5 +23,17 @@ namespace TestApplication.Common.OrchestrationTasks
         /// <param name="remainingAttempts">remaining number of attempts</param>
         /// <returns>bool indicating whether task completed successfully or not.</returns>
         Task<bool> ThrowExceptionAsync(int remainingAttempts);
+
+        /// <summary>
+        /// Increments Generation Count variable.
+        /// </summary>
+        /// <returns>Generation count</returns>
+        Task<int> IncrementGenerationCount();
+
+        /// <summary>
+        /// Utility method to reset counter at the beginning of test.
+        /// </summary>
+        /// <returns>Generation coutner value</returns>
+        Task<int> ResetGenerationCounter();
     }
 }
