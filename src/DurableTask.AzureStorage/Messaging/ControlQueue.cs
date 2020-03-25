@@ -196,10 +196,8 @@ namespace DurableTask.AzureStorage.Messaging
         {
             lock (this.pendingMessageIds)
             {
-                if (this.pendingMessageIds.Remove(message.OriginalQueueMessage.Id))
-                {
-                    this.stats.PendingOrchestratorMessages.Decrement();
-                }
+                this.pendingMessageIds.Remove(message.OriginalQueueMessage.Id);
+                this.stats.PendingOrchestratorMessages.Decrement();
             }
 
             return base.AbandonMessageAsync(message, session);
@@ -209,10 +207,8 @@ namespace DurableTask.AzureStorage.Messaging
         {
             lock (this.pendingMessageIds)
             {
-                if (this.pendingMessageIds.Remove(message.OriginalQueueMessage.Id))
-                {
-                    this.stats.PendingOrchestratorMessages.Decrement();
-                }
+                this.pendingMessageIds.Remove(message.OriginalQueueMessage.Id);
+                this.stats.PendingOrchestratorMessages.Decrement();
             }
 
             return base.DeleteMessageAsync(message, session);

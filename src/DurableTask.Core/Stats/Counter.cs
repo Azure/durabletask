@@ -32,7 +32,10 @@ namespace DurableTask.Core.Stats
         /// </summary>
         public void Increment()
         {
-            Interlocked.Increment(ref this.counterValue);
+            lock (this)
+            {
+                this.counterValue++;
+            }
         }
 
         /// <summary>
@@ -41,15 +44,24 @@ namespace DurableTask.Core.Stats
         /// <param name="value">The value to increment the counter by</param>
         public void Increment(long value)
         {
-            Interlocked.Add(ref this.counterValue, value);
+            lock (this)
+            {
+                this.counterValue += value;
+            }      
         }
 
         /// <summary>
-        /// Decrements the counter by 1
+        /// Decrements the counter by 1. Ensures that counter cannot go below 0.
         /// </summary>
         public void Decrement()
         {
-            Interlocked.Decrement(ref this.counterValue);
+            lock (this)
+            {
+                if (this.counterValue > 0)
+                {
+                    this.counterValue--;
+                }
+            }        
         }
 
         /// <summary>
@@ -58,7 +70,12 @@ namespace DurableTask.Core.Stats
         /// <returns>The value of the counter before it was reset</returns>
         public long Reset()
         {
-            return Interlocked.Exchange(ref this.counterValue, 0);
+            lock (this)
+            {
+                long previousValue = this.counterValue;
+                this.counterValue = 0;
+                return previousValue;
+            }
         }
 
         /// <summary>
