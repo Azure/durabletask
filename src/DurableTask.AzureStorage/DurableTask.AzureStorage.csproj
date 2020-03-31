@@ -6,11 +6,11 @@
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <FileVersion>1.7.4</FileVersion>
     <AssemblyVersion>$(FileVersion)</AssemblyVersion>
-    <Version>$(FileVersion)</Version>
+    <PackageVersion>1.7.4-alpha</PackageVersion>
     <IncludeSymbols>true</IncludeSymbols>
     <Description>Azure Storage provider extension for the Durable Task Framework.</Description>
     <PackageTags>Azure Task Durable Orchestration Workflow Activity Reliable AzureStorage</PackageTags>
-    <PackageId>Microsoft.Azure.DurableTask.AzureStorage</PackageId>
+    <PackageId>Microsoft.Azure.DurableTask.AzureStorage.Telemetry</PackageId>
     <PublishRepositoryUrl>true</PublishRepositoryUrl> 
     <EmbedUntrackedSources>true</EmbedUntrackedSources> 
     <DebugSymbols>true</DebugSymbols> 
