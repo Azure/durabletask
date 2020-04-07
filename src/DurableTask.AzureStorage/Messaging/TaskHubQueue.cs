@@ -312,27 +312,44 @@ namespace DurableTask.AzureStorage.Messaging
                 message.SequenceNumber,
                 Utils.ExtensionVersion);
 
-            try
+            var haveRetried = false;
+            var successfulExecutions = 0;
+            while (successfulExecutions < 1)
             {
-                await this.storageQueue.DeleteMessageAsync(
-                    queueMessage,
-                    this.QueueRequestOptions,
-                    session.StorageOperationContext);
+                try
+                {
+                    await this.storageQueue.DeleteMessageAsync(
+                        queueMessage,
+                        this.QueueRequestOptions,
+                        session.StorageOperationContext);
+                }
+                catch (Exception e)
+                {
+                    if (!haveRetried && ExceptionIsRenewDeleteRace(e))
+                    {
+                        successfulExecutions--;
+                        haveRetried = true;
+                    }
+
+                    this.HandleMessagingExceptions(e, message, $"Caller: {nameof(DeleteMessageAsync)}");
+                }
+                finally
+                {
+                    successfulExecutions++;
+                    this.stats.StorageRequests.Increment();
+                }
             }
-            catch (Exception e)
-            {
-                this.HandleMessagingExceptions(e, message, $"Caller: {nameof(DeleteMessageAsync)}");
-            }
-            finally
-            {
-                this.stats.StorageRequests.Increment();
-            }
+        }
+
+        private bool ExceptionIsRenewDeleteRace(Exception e)
+        {
+            StorageException storageException = e as StorageException;
+            return storageException?.RequestInformation?.HttpStatusCode == 404;
         }
 
         void HandleMessagingExceptions(Exception e, MessageData message, string details)
         {
-            StorageException storageException = e as StorageException;
-            if (storageException?.RequestInformation?.HttpStatusCode == 404)
+            if (ExceptionIsRenewDeleteRace(e))
             {
                 // Message may have been processed and deleted already.
                 AnalyticsEventSource.Log.MessageGone(
