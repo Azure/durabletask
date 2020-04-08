@@ -33,9 +33,14 @@ namespace DurableTask.Core
         public static bool IsOrchestratorThread;
 
         /// <summary>
-        /// JsonDataConverter for serialization settings
+        /// JsonDataConverter for message serialization settings
         /// </summary>
-        public JsonDataConverter DataConverter { get; set; }
+        public JsonDataConverter MessageDataConverter { get; set; }
+
+        /// <summary>
+        /// JsonDataConverter for error serialization settings
+        /// </summary>
+        public JsonDataConverter ErrorDataConverter { get; set; }
 
         /// <summary>
         /// Instance of the currently executing orchestration

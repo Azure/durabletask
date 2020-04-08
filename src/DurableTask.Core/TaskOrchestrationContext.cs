@@ -48,7 +48,8 @@ namespace DurableTask.Core
             this.openTasks = new Dictionary<int, OpenTaskInfo>();
             this.orchestratorActionsMap = new Dictionary<int, OrchestratorAction>();
             this.idCounter = 0;
-            this.DataConverter = new JsonDataConverter();
+            this.MessageDataConverter = new JsonDataConverter();
+            this.ErrorDataConverter = new JsonDataConverter();
             OrchestrationInstance = orchestrationInstance;
             IsReplaying = false;
         }
@@ -83,7 +84,7 @@ namespace DurableTask.Core
             params object[] parameters)
         {
             int id = this.idCounter++;
-            string serializedInput = this.DataConverter.Serialize(parameters);
+            string serializedInput = this.MessageDataConverter.Serialize(parameters);
             var scheduleTaskTaskAction = new ScheduleTaskOrchestratorAction
             {
                 Id = id,
@@ -100,7 +101,7 @@ namespace DurableTask.Core
 
             string serializedResult = await tcs.Task;
 
-            return this.DataConverter.Deserialize(serializedResult, resultType);
+            return this.MessageDataConverter.Deserialize(serializedResult, resultType);
         }
 
         public override Task<T> CreateSubOrchestrationInstance<T>(
@@ -138,7 +139,7 @@ namespace DurableTask.Core
             IDictionary<string, string> tags)
         {
             int id = this.idCounter++;
-            string serializedInput = this.DataConverter.Serialize(input);
+            string serializedInput = this.MessageDataConverter.Serialize(input);
 
             string actualInstanceId = instanceId;
             if (string.IsNullOrWhiteSpace(actualInstanceId))
@@ -170,7 +171,7 @@ namespace DurableTask.Core
 
                 string serializedResult = await tcs.Task;
 
-                return this.DataConverter.Deserialize<T>(serializedResult);
+                return this.MessageDataConverter.Deserialize<T>(serializedResult);
             }
         }
 
@@ -182,7 +183,7 @@ namespace DurableTask.Core
             }
 
             int id = this.idCounter++;
-            string serializedEventData = this.DataConverter.Serialize(eventData);
+            string serializedEventData = this.MessageDataConverter.Serialize(eventData);
 
             var action = new SendEventOrchestratorAction
             {
@@ -207,7 +208,7 @@ namespace DurableTask.Core
 
         void ContinueAsNewCore(string newVersion, object input)
         {
-            string serializedInput = this.DataConverter.Serialize(input);
+            string serializedInput = this.MessageDataConverter.Serialize(input);
 
             this.continueAsNew = new OrchestrationCompleteOrchestratorAction
             {
@@ -343,7 +344,7 @@ namespace DurableTask.Core
             if (this.openTasks.ContainsKey(taskId))
             {
                 OpenTaskInfo info = this.openTasks[taskId];
-                Exception cause = Utils.RetrieveCause(failedEvent.Details, new JsonDataConverter());
+                Exception cause = Utils.RetrieveCause(failedEvent.Details, this.ErrorDataConverter);
 
                 var taskFailedException = new TaskFailedException(failedEvent.EventId, taskId, info.Name, info.Version,
                     failedEvent.Reason, cause);
@@ -381,7 +382,7 @@ namespace DurableTask.Core
             if (this.openTasks.ContainsKey(taskId))
             {
                 OpenTaskInfo info = this.openTasks[taskId];
-                Exception cause = Utils.RetrieveCause(failedEvent.Details, new JsonDataConverter());
+                Exception cause = Utils.RetrieveCause(failedEvent.Details, this.ErrorDataConverter);
                 var failedException = new SubOrchestrationFailedException(failedEvent.EventId, taskId, info.Name,
                     info.Version,
                     failedEvent.Reason, cause);
