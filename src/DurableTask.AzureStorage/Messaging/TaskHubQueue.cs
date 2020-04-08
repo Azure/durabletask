@@ -313,8 +313,7 @@ namespace DurableTask.AzureStorage.Messaging
                 Utils.ExtensionVersion);
 
             var haveRetried = false;
-            var successfulExecutions = 0;
-            while (successfulExecutions < 1)
+            while (true)
             {
                 try
                 {
@@ -325,23 +324,24 @@ namespace DurableTask.AzureStorage.Messaging
                 }
                 catch (Exception e)
                 {
-                    if (!haveRetried && ExceptionIsRenewDeleteRace(e))
-                    {
-                        successfulExecutions--;
-                        haveRetried = true;
-                    }
-
                     this.HandleMessagingExceptions(e, message, $"Caller: {nameof(DeleteMessageAsync)}");
+
+                    if (!haveRetried && IsMessageGoneException(e))
+                    {
+                        haveRetried = true;
+                        continue;
+                    }
                 }
                 finally
                 {
-                    successfulExecutions++;
                     this.stats.StorageRequests.Increment();
                 }
+
+                break;
             }
         }
 
-        private bool ExceptionIsRenewDeleteRace(Exception e)
+        private bool IsMessageGoneException(Exception e)
         {
             StorageException storageException = e as StorageException;
             return storageException?.RequestInformation?.HttpStatusCode == 404;
@@ -349,7 +349,7 @@ namespace DurableTask.AzureStorage.Messaging
 
         void HandleMessagingExceptions(Exception e, MessageData message, string details)
         {
-            if (ExceptionIsRenewDeleteRace(e))
+            if (IsMessageGoneException(e))
             {
                 // Message may have been processed and deleted already.
                 AnalyticsEventSource.Log.MessageGone(
