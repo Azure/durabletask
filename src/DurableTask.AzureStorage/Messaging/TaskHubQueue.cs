@@ -324,13 +324,13 @@ namespace DurableTask.AzureStorage.Messaging
                 }
                 catch (Exception e)
                 {
-                    this.HandleMessagingExceptions(e, message, $"Caller: {nameof(DeleteMessageAsync)}");
-
                     if (!haveRetried && IsMessageGoneException(e))
                     {
                         haveRetried = true;
                         continue;
                     }
+
+                    this.HandleMessagingExceptions(e, message, $"Caller: {nameof(DeleteMessageAsync)}");
                 }
                 finally
                 {
