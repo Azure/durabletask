@@ -43,9 +43,9 @@
   <!-- Nuget Package Settings -->
   <PropertyGroup>
     <PackageOutputPath>..\..\build_output\packages</PackageOutputPath>
-    <AssemblyVersion>2.2.3</AssemblyVersion>
-    <FileVersion>2.2.3</FileVersion>
-    <Version>2.2.3</Version>
+    <AssemblyVersion>2.2.4</AssemblyVersion>
+    <FileVersion>2.2.4</FileVersion>
+    <Version>2.2.4</Version>
     <Company>Microsoft</Company>
     <Authors>Microsoft</Authors>
     <Product>Durable Task Framework</Product>
