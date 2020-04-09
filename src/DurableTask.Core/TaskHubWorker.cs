@@ -156,8 +156,14 @@ namespace DurableTask.Core
             {
                 if (this.isStarted)
                 {
-                    await this.orchestrationDispatcher.StopAsync(isForced);
-                    await this.activityDispatcher.StopAsync(isForced);
+                    var dispatcherShutdowns = new Task[]
+                    {
+                        this.orchestrationDispatcher.StopAsync(isForced),
+                        this.activityDispatcher.StopAsync(isForced),
+                    };
+
+                    await Task.WhenAll(dispatcherShutdowns);
+
                     await orchestrationService.StopAsync(isForced);
 
                     this.isStarted = false;
