@@ -82,7 +82,7 @@ namespace DurableTask.AzureServiceFabric
 
         void OnOrchestrationCompleted(OrchestrationInstance instance);
 
-        Task<OrchestrationStateInstanceEntity> WaitForOrchestrationAsync(OrchestrationInstance instance, TimeSpan timeout);
+        Task<OrchestrationStateInstanceEntity> WaitForOrchestrationAsync(string instanceId, TimeSpan timeout);
 
         Task<List<string>> GetExecutionIds(string instanceId);
     }

@@ -17,6 +17,7 @@ namespace DurableTask.Core
     using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
+    using DurableTask.Core.Serializing;
     using ImpromptuInterface;
 
     /// <summary>
@@ -30,6 +31,11 @@ namespace DurableTask.Core
         /// </summary>
         [ThreadStatic]
         public static bool IsOrchestratorThread;
+
+        /// <summary>
+        /// JsonDataConverter for serialization settings
+        /// </summary>
+        public JsonDataConverter DataConverter { get; set; }
 
         /// <summary>
         /// Instance of the currently executing orchestration

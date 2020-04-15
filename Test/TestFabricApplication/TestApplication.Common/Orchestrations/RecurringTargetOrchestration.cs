@@ -11,34 +11,21 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric.TaskHelpers
+namespace TestApplication.Common.Orchestrations
 {
-    using System;
+    using System.Threading.Tasks;
 
-    class CountBasedFixedDelayRetryPolicy : IRetryPolicy
+    using DurableTask.Core;
+
+    using TestApplication.Common.OrchestrationTasks;
+
+    public class RecurringTargetOrchestration : TaskOrchestration<int, string>
     {
-        readonly TimeSpan delay;
-        int pendingAttempts;
-
-        public CountBasedFixedDelayRetryPolicy(int maxNumberOfAttempts, TimeSpan delay)
+        public override async Task<int> RunTask(OrchestrationContext context, string input)
         {
-            this.delay = delay;
-            this.pendingAttempts = maxNumberOfAttempts;
-        }
-
-        public bool ShouldExecute()
-        {
-            return this.pendingAttempts-- > 0;
-        }
-
-        public TimeSpan GetNextDelay()
-        {
-            return this.pendingAttempts < 1 ? TimeSpan.Zero : this.delay;
-        }
-
-        public static IRetryPolicy GetNewDefaultPolicy()
-        {
-            return new CountBasedFixedDelayRetryPolicy(3, TimeSpan.FromMilliseconds(100));
+            var testTasks = context.CreateClient<ITestTasks>();
+            int count = await testTasks.IncrementGenerationCount();
+            return count;
         }
     }
 }

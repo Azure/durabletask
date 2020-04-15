@@ -23,6 +23,7 @@ namespace DurableTask.AzureStorage.Tests
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
+    using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
@@ -162,6 +163,51 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.IsNotNull(results.SingleOrDefault(r => r.Output == "\"Hello, world one!\""));
                 Assert.IsNotNull(results.SingleOrDefault(r => r.Output == "\"Hello, world two!\""));
 
+                await host.StopAsync();
+            }
+        }
+
+        [TestMethod]
+        public async Task GetPaginatedStatuses()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            {
+                // Execute the orchestrator twice. Orchestrator will be replied. However instances might be two.
+                await host.StartAsync();
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloInline), "world one");
+                await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloInline), "world two");
+                await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                DurableStatusQueryResult queryResult = await host.service.GetOrchestrationStateAsync(
+                    new OrchestrationInstanceStatusQueryCondition(),
+                    1,
+                    null);
+                Assert.AreEqual(1, queryResult.OrchestrationState.Count());
+                Assert.IsNotNull(queryResult.ContinuationToken);
+                queryResult = await host.service.GetOrchestrationStateAsync(
+                    new OrchestrationInstanceStatusQueryCondition(),
+                    1,
+                    queryResult.ContinuationToken);
+                Assert.AreEqual(1, queryResult.OrchestrationState.Count());
+                Assert.IsNull(queryResult.ContinuationToken);
+                await host.StopAsync();
+            }
+        }
+
+        [TestMethod]
+        public async Task NoInstancesGetAllOrchestrationStatusesNullContinuationToken()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            {
+                // Execute the orchestrator twice. Orchestrator will be replied. However instances might be two.
+                await host.StartAsync();
+                var queryResult = await host.service.GetOrchestrationStateAsync(
+                    new OrchestrationInstanceStatusQueryCondition(),
+                    100,
+                    null);
+
+                Assert.IsNull(queryResult.ContinuationToken);
                 await host.StopAsync();
             }
         }

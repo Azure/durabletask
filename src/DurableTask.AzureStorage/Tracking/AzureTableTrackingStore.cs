@@ -167,7 +167,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             IList<HistoryEvent> historyEvents;
             string executionId;
-            string eTagValue = null;
+            DynamicTableEntity sentinel = null;
             if (tableEntities.Count > 0)
             {
                 // The most recent generation will always be in the first history event.
@@ -184,9 +184,11 @@ namespace DurableTask.AzureStorage.Tracking
                         break;
                     }
 
+                    // The sentinel row does not contain any history events, so save it for later
+                    // and continue
                     if (entity.RowKey == SentinelRowKey)
                     {
-                        eTagValue = entity.ETag;
+                        sentinel = entity;
                         continue;
                     }
 
@@ -205,12 +207,13 @@ namespace DurableTask.AzureStorage.Tracking
             }
 
             // Read the checkpoint completion time from the sentinel row, which should always be the last row.
-            // The only time a sentinel won't exist is if no instance of this ID has ever existed.
-            // The IsCheckpointCompleteProperty was newly added _after_ v1.6.4.
+            // A sentinel won't exist only if no instance of this ID has ever existed or the instance history
+            // was purged.The IsCheckpointCompleteProperty was newly added _after_ v1.6.4.
             DateTime checkpointCompletionTime = DateTime.MinValue;
-            DynamicTableEntity lastRow = tableEntities.LastOrDefault();
-            if (lastRow?.RowKey == SentinelRowKey &&
-                lastRow.Properties.TryGetValue(CheckpointCompletedTimestampProperty, out EntityProperty timestampProperty))
+            sentinel = sentinel ?? tableEntities.LastOrDefault(e => e.RowKey == SentinelRowKey);
+            string eTagValue = sentinel?.ETag;
+            if (sentinel != null &&
+                sentinel.Properties.TryGetValue(CheckpointCompletedTimestampProperty, out EntityProperty timestampProperty))
             {
                 checkpointCompletionTime = timestampProperty.DateTime ?? DateTime.MinValue;
             }
@@ -614,13 +617,18 @@ namespace DurableTask.AzureStorage.Tracking
             this.stats.StorageRequests.Increment();
             this.stats.TableEntitiesRead.Increment(orchestrationStates.Count);
 
-            token = segment.ContinuationToken;
-            var tokenJson = JsonConvert.SerializeObject(token);
-            return new DurableStatusQueryResult()
+            var queryResult = new DurableStatusQueryResult()
             {
                 OrchestrationState = orchestrationStates,
-                ContinuationToken = Convert.ToBase64String(Encoding.UTF8.GetBytes(tokenJson))
             };
+
+            if (segment.ContinuationToken != null)
+            {
+                string tokenJson = JsonConvert.SerializeObject(segment.ContinuationToken);
+                queryResult.ContinuationToken = Convert.ToBase64String(Encoding.UTF8.GetBytes(tokenJson));
+            }
+
+            return queryResult;
         }
 
         async Task<IList<OrchestrationState>> QueryStateAsync(TableQuery<OrchestrationInstanceStatus> query, CancellationToken cancellationToken)

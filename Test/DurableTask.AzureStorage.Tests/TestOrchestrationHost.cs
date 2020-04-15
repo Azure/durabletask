@@ -22,6 +22,8 @@ namespace DurableTask.AzureStorage.Tests
 
     internal sealed class TestOrchestrationHost : IDisposable
     {
+        internal readonly AzureStorageOrchestrationService service;
+
         readonly AzureStorageOrchestrationServiceSettings settings;
         readonly TaskHubWorker worker;
         readonly TaskHubClient client;
@@ -30,8 +32,8 @@ namespace DurableTask.AzureStorage.Tests
 
         public TestOrchestrationHost(AzureStorageOrchestrationServiceSettings settings)
         {
-            var service = new AzureStorageOrchestrationService(settings);
-            service.CreateAsync().GetAwaiter().GetResult();
+            this.service = new AzureStorageOrchestrationService(settings);
+            this.service.CreateAsync().GetAwaiter().GetResult();
 
             this.settings = settings;
 

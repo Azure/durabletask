@@ -63,5 +63,3 @@ Then You can see end-to-end tracing. Click and see how it correlates with each o
 ![End To End Tracing](images/end-to-end.png)
 
 **NOTE:** When you see the correlation breaks, you might wait for a while. The request telemetry of the first orchestrator comes last.  
-
-

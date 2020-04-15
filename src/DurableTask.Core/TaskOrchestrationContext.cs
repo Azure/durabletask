@@ -28,12 +28,11 @@ namespace DurableTask.Core
 
     internal class TaskOrchestrationContext : OrchestrationContext
     {
-        readonly JsonDataConverter dataConverter;
-        readonly IDictionary<int, OpenTaskInfo> openTasks;
-        readonly IDictionary<int, OrchestratorAction> orchestratorActionsMap;
-        OrchestrationCompleteOrchestratorAction continueAsNew;
-        bool executionTerminated;
-        int idCounter;
+        private readonly IDictionary<int, OpenTaskInfo> openTasks;
+        private readonly IDictionary<int, OrchestratorAction> orchestratorActionsMap;
+        private OrchestrationCompleteOrchestratorAction continueAsNew;
+        private bool executionTerminated;
+        private int idCounter;
 
         public bool HasContinueAsNew => continueAsNew != null;
 
@@ -49,7 +48,7 @@ namespace DurableTask.Core
             this.openTasks = new Dictionary<int, OpenTaskInfo>();
             this.orchestratorActionsMap = new Dictionary<int, OrchestratorAction>();
             this.idCounter = 0;
-            this.dataConverter = new JsonDataConverter();
+            this.DataConverter = new JsonDataConverter();
             OrchestrationInstance = orchestrationInstance;
             IsReplaying = false;
         }
@@ -84,7 +83,7 @@ namespace DurableTask.Core
             params object[] parameters)
         {
             int id = this.idCounter++;
-            string serializedInput = this.dataConverter.Serialize(parameters);
+            string serializedInput = this.DataConverter.Serialize(parameters);
             var scheduleTaskTaskAction = new ScheduleTaskOrchestratorAction
             {
                 Id = id,
@@ -101,7 +100,7 @@ namespace DurableTask.Core
 
             string serializedResult = await tcs.Task;
 
-            return this.dataConverter.Deserialize(serializedResult, resultType);
+            return this.DataConverter.Deserialize(serializedResult, resultType);
         }
 
         public override Task<T> CreateSubOrchestrationInstance<T>(
@@ -139,7 +138,7 @@ namespace DurableTask.Core
             IDictionary<string, string> tags)
         {
             int id = this.idCounter++;
-            string serializedInput = this.dataConverter.Serialize(input);
+            string serializedInput = this.DataConverter.Serialize(input);
 
             string actualInstanceId = instanceId;
             if (string.IsNullOrWhiteSpace(actualInstanceId))
@@ -171,7 +170,7 @@ namespace DurableTask.Core
 
                 string serializedResult = await tcs.Task;
 
-                return this.dataConverter.Deserialize<T>(serializedResult);
+                return this.DataConverter.Deserialize<T>(serializedResult);
             }
         }
 
@@ -183,7 +182,7 @@ namespace DurableTask.Core
             }
 
             int id = this.idCounter++;
-            string serializedEventData = this.dataConverter.Serialize(eventData);
+            string serializedEventData = this.DataConverter.Serialize(eventData);
 
             var action = new SendEventOrchestratorAction
             {
@@ -208,7 +207,7 @@ namespace DurableTask.Core
 
         void ContinueAsNewCore(string newVersion, object input)
         {
-            string serializedInput = this.dataConverter.Serialize(input);
+            string serializedInput = this.DataConverter.Serialize(input);
 
             this.continueAsNew = new OrchestrationCompleteOrchestratorAction
             {
@@ -344,7 +343,7 @@ namespace DurableTask.Core
             if (this.openTasks.ContainsKey(taskId))
             {
                 OpenTaskInfo info = this.openTasks[taskId];
-                Exception cause = Utils.RetrieveCause(failedEvent.Details, this.dataConverter);
+                Exception cause = Utils.RetrieveCause(failedEvent.Details, new JsonDataConverter());
 
                 var taskFailedException = new TaskFailedException(failedEvent.EventId, taskId, info.Name, info.Version,
                     failedEvent.Reason, cause);
@@ -382,7 +381,7 @@ namespace DurableTask.Core
             if (this.openTasks.ContainsKey(taskId))
             {
                 OpenTaskInfo info = this.openTasks[taskId];
-                Exception cause = Utils.RetrieveCause(failedEvent.Details, this.dataConverter);
+                Exception cause = Utils.RetrieveCause(failedEvent.Details, new JsonDataConverter());
                 var failedException = new SubOrchestrationFailedException(failedEvent.EventId, taskId, info.Name,
                     info.Version,
                     failedEvent.Reason, cause);

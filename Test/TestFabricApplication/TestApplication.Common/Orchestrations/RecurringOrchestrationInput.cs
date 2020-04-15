@@ -11,14 +11,14 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric.TaskHelpers
+namespace TestApplication.Common.Orchestrations
 {
-    using System;
-
-    interface IRetryPolicy
+    public class RecurringOrchestrationInput
     {
-        bool ShouldExecute();
+        public string TargetOrchestrationType { get; set; }
 
-        TimeSpan GetNextDelay();
+        public string TargetOrchestrationInput { get; set; }
+
+        public string TargetOrchestrationInstanceId { get; set; }
     }
 }

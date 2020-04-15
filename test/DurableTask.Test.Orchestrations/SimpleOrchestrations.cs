@@ -264,7 +264,7 @@ namespace DurableTask.Test.Orchestrations
         }
     }
 
-    public sealed class ContinueAsNewThenTimerOrchestration : TaskOrchestration<string,int>
+    public sealed class ContinueAsNewThenTimerOrchestration : TaskOrchestration<string, int>
     {
         public override async Task<string> RunTask(OrchestrationContext context, int input)
         {

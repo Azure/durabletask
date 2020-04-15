@@ -177,8 +177,7 @@ namespace DurableTask.AzureServiceFabric
         public async Task<OrchestrationState> WaitForOrchestrationAsync(string instanceId, string executionId, TimeSpan timeout, CancellationToken cancellationToken)
         {
             instanceId.EnsureValidInstanceId();
-            var instance = new OrchestrationInstance() { InstanceId = instanceId, ExecutionId = executionId };
-            var state = await this.instanceStore.WaitForOrchestrationAsync(instance, timeout);
+            var state = await this.instanceStore.WaitForOrchestrationAsync(instanceId, timeout);
             return state?.State;
         }
         #endregion
