@@ -39,29 +39,29 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.Emulator.Tests"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.AzureStorage", "src\DurableTask.AzureStorage\DurableTask.AzureStorage.csproj", "{F1B270EA-9DC2-4753-B3DE-B45D3C128FDB}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.AzureStorage.Tests", "Test\DurableTask.AzureStorage.Tests\DurableTask.AzureStorage.Tests.csproj", "{7CD147F9-1BB9-41FD-A310-BCA07447A6B9}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.AzureStorage.Tests", "test\DurableTask.AzureStorage.Tests\DurableTask.AzureStorage.Tests.csproj", "{7CD147F9-1BB9-41FD-A310-BCA07447A6B9}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.Redis", "src\DurableTask.Redis\DurableTask.Redis.csproj", "{BDA5B320-5282-49FE-B0A7-1F8A0F06862C}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.Redis.Tests", "Test\DurableTask.Redis.Tests\DurableTask.Redis.Tests.csproj", "{B1C3B554-A098-47F8-8FA9-C28B5BBF35B1}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.Redis.Tests", "test\DurableTask.Redis.Tests\DurableTask.Redis.Tests.csproj", "{B1C3B554-A098-47F8-8FA9-C28B5BBF35B1}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.AzureServiceFabric", "src\DurableTask.AzureServiceFabric\DurableTask.AzureServiceFabric.csproj", "{3C10169F-4ACB-4FF6-A12B-B74569613E81}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.AzureServiceFabric.Tests", "Test\DurableTask.AzureServiceFabric.Tests\DurableTask.AzureServiceFabric.Tests.csproj", "{AA0BCA9D-03F7-4F33-BBD5-2D99181E1C2A}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.AzureServiceFabric.Tests", "test\DurableTask.AzureServiceFabric.Tests\DurableTask.AzureServiceFabric.Tests.csproj", "{AA0BCA9D-03F7-4F33-BBD5-2D99181E1C2A}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.AzureServiceFabric.Integration.Tests", "Test\DurableTask.AzureServiceFabric.Integration.Tests\DurableTask.AzureServiceFabric.Integration.Tests.csproj", "{8C3D4CA2-4158-4631-BD5E-F5D066962FAF}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.AzureServiceFabric.Integration.Tests", "test\DurableTask.AzureServiceFabric.Integration.Tests\DurableTask.AzureServiceFabric.Integration.Tests.csproj", "{8C3D4CA2-4158-4631-BD5E-F5D066962FAF}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "TestFabricApplication", "TestFabricApplication", "{C53918E6-667A-4930-837C-0018C5D6E374}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestApplication.Common", "Test\TestFabricApplication\TestApplication.Common\TestApplication.Common.csproj", "{99EB4BD2-72E4-4471-8E8D-9454BEACFA35}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestApplication.Common", "test\TestFabricApplication\TestApplication.Common\TestApplication.Common.csproj", "{99EB4BD2-72E4-4471-8E8D-9454BEACFA35}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestApplication.StatefulService", "Test\TestFabricApplication\TestApplication.StatefulService\TestApplication.StatefulService.csproj", "{88A231A9-940D-43E4-B7CD-B46BA9375367}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestApplication.StatefulService", "test\TestFabricApplication\TestApplication.StatefulService\TestApplication.StatefulService.csproj", "{88A231A9-940D-43E4-B7CD-B46BA9375367}"
 EndProject
-Project("{A07B5EB6-E848-4116-A8D0-A826331D98C6}") = "TestApplication", "Test\TestFabricApplication\TestApplication\TestApplication.sfproj", "{1D52F94E-933C-411F-96C4-4960B423586F}"
+Project("{A07B5EB6-E848-4116-A8D0-A826331D98C6}") = "TestApplication", "test\TestFabricApplication\TestApplication\TestApplication.sfproj", "{1D52F94E-933C-411F-96C4-4960B423586F}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.SqlServer", "src\DurableTask.SqlServer\DurableTask.SqlServer.csproj", "{C9F84589-3F2B-4D58-A995-BC169D16217F}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.SqlServer.Tests", "Test\DurableTask.SqlServer.Tests\DurableTask.SqlServer.Tests.csproj", "{B835BFA6-D9BB-47C4-8594-38EAE0157BBA}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.SqlServer.Tests", "test\DurableTask.SqlServer.Tests\DurableTask.SqlServer.Tests.csproj", "{B835BFA6-D9BB-47C4-8594-38EAE0157BBA}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
