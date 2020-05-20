@@ -132,14 +132,15 @@ namespace DurableTask.AzureStorage.Messaging
 
         internal bool IsOutOfOrderMessage(MessageData message)
         {
-            if (this.IsNonexistantInstance() && message.OriginalQueueMessage.DequeueCount > 5)
+            if (this.IsNonexistantInstance() && 
+                message.TaskMessage.Event.EventType != EventType.ExecutionStarted)
             {
                 // The first five times a message for a nonexistant instance is dequeued, give the message the benefit
                 // of the doubt and assume that the instance hasn't had its history table populated yet. After the 
                 // fifth execution, ~30 seconds have passed and the most likely scenario is that this is a zombie event. 
                 // This means the history table for the message's orchestration no longer exists, either due to an explicit 
                 // PurgeHistory request or due to a ContinueAsNew call cleaning the old execution's history.
-                return false;
+                return message.OriginalQueueMessage.DequeueCount <= 5;
             }
 
             if (message.Sender?.InstanceId != this.Instance.InstanceId)
