@@ -40,15 +40,18 @@ namespace DurableTask.Core
         readonly WorkItemDispatcher<TaskOrchestrationWorkItem> dispatcher;
         readonly DispatchMiddlewarePipeline dispatchPipeline;
         readonly NonBlockingCountdownLock concurrentSessionLock;
+        readonly bool efficientTelemetry;
 
         internal TaskOrchestrationDispatcher(
             IOrchestrationService orchestrationService,
             INameVersionObjectManager<TaskOrchestration> objectManager,
-            DispatchMiddlewarePipeline dispatchPipeline)
+            DispatchMiddlewarePipeline dispatchPipeline,
+            bool efficientTelemetry)
         {
             this.objectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
             this.orchestrationService = orchestrationService ?? throw new ArgumentNullException(nameof(orchestrationService));
             this.dispatchPipeline = dispatchPipeline ?? throw new ArgumentNullException(nameof(dispatchPipeline));
+            this.efficientTelemetry = efficientTelemetry;
 
             this.dispatcher = new WorkItemDispatcher<TaskOrchestrationWorkItem>(
                 "TaskOrchestrationDispatcher",
@@ -235,7 +238,7 @@ namespace DurableTask.Core
                         "TaskOrchestrationDispatcher-ExecuteUserOrchestration-Begin",
                         runtimeState.OrchestrationInstance,
                         "Executing user orchestration: {0}",
-                        DataConverter.Serialize(runtimeState.GetOrchestrationRuntimeStateDump(), true));
+                        DataConverter.Serialize(runtimeState.GetOrchestrationRuntimeStateDump(this.efficientTelemetry), true));
 
                     if (workItem.Cursor == null)
                     {

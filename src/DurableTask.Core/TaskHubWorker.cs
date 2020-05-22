@@ -25,6 +25,7 @@ namespace DurableTask.Core
     /// </summary>
     public sealed class TaskHubWorker : IDisposable
     {
+        readonly bool efficientTelemetry
         readonly INameVersionObjectManager<TaskActivity> activityManager;
         readonly INameVersionObjectManager<TaskOrchestration> orchestrationManager;
 
@@ -48,11 +49,13 @@ namespace DurableTask.Core
         ///     Create a new TaskHubWorker with given OrchestrationService
         /// </summary>
         /// <param name="orchestrationService">Reference the orchestration service implementation</param>
-        public TaskHubWorker(IOrchestrationService orchestrationService)
+        /// <param name="efficientTelemetry">If true, reduces telemetry emitted for the sake of performance.</param>
+        public TaskHubWorker(IOrchestrationService orchestrationService, bool efficientTelemetry = false)
             : this(
                   orchestrationService,
                   new NameVersionObjectManager<TaskOrchestration>(),
-                  new NameVersionObjectManager<TaskActivity>())
+                  new NameVersionObjectManager<TaskActivity>(),
+                  efficientTelemetry)
         {
         }
 
@@ -62,14 +65,17 @@ namespace DurableTask.Core
         /// <param name="orchestrationService">Reference the orchestration service implementation</param>
         /// <param name="orchestrationObjectManager">NameVersionObjectManager for Orchestrations</param>
         /// <param name="activityObjectManager">NameVersionObjectManager for Activities</param>
+        /// <param name="efficientTelemetry">If true, reduces telemetry emitted for the sake of performance.</param>
         public TaskHubWorker(
             IOrchestrationService orchestrationService,
             INameVersionObjectManager<TaskOrchestration> orchestrationObjectManager,
-            INameVersionObjectManager<TaskActivity> activityObjectManager)
+            INameVersionObjectManager<TaskActivity> activityObjectManager,
+            bool efficientTelemetry)
         {
             this.orchestrationManager = orchestrationObjectManager ?? throw new ArgumentException("orchestrationObjectManager");
             this.activityManager = activityObjectManager ?? throw new ArgumentException("activityObjectManager");
             this.orchestrationService = orchestrationService ?? throw new ArgumentException("orchestrationService");
+            this.efficientTelemetry = efficientTelemetry;
         }
 
         /// <summary>
@@ -117,7 +123,8 @@ namespace DurableTask.Core
                 this.orchestrationDispatcher = new TaskOrchestrationDispatcher(
                     orchestrationService,
                     this.orchestrationManager,
-                    this.orchestrationDispatchPipeline);
+                    this.orchestrationDispatchPipeline,
+                    this.efficientTelemetry);
                 this.activityDispatcher = new TaskActivityDispatcher(
                     orchestrationService,
                     this.activityManager,

@@ -257,28 +257,40 @@ namespace DurableTask.Core
         /// <summary>
         /// Gets a statedump of the current list of events
         /// </summary>
+        /// <param name="abridgedDump">A full dump can be expensive, so this optional parameter just grabs the count of events.</param>
         /// <returns></returns>
-        public OrchestrationRuntimeStateDump GetOrchestrationRuntimeStateDump()
+        public OrchestrationRuntimeStateDump GetOrchestrationRuntimeStateDump(bool abridgedDump)
         {
-            var runtimeStateDump = new OrchestrationRuntimeStateDump
+            if (abridgedDump)
             {
-                Events = new List<HistoryEvent>(),
-                NewEvents = new List<HistoryEvent>(),
-            };
-
-            foreach (HistoryEvent evt in Events)
-            {
-                HistoryEvent abridgeEvent = GenerateAbridgedEvent(evt);
-                runtimeStateDump.Events.Add(abridgeEvent);
+                return new OrchestrationRuntimeStateDump
+                {
+                    EventCount = Events.Count,
+                    NewEventsCount = NewEvents.Count,
+                };
             }
-
-            foreach (HistoryEvent evt in NewEvents)
+            else
             {
-                HistoryEvent abridgeEvent = GenerateAbridgedEvent(evt);
-                runtimeStateDump.NewEvents.Add(abridgeEvent);
-            }
+                var runtimeStateDump = new OrchestrationRuntimeStateDump
+                {
+                    Events = new List<HistoryEvent>(),
+                    NewEvents = new List<HistoryEvent>(),
+                };
 
-            return runtimeStateDump;
+                foreach (HistoryEvent evt in Events)
+                {
+                    HistoryEvent abridgeEvent = GenerateAbridgedEvent(evt);
+                    runtimeStateDump.Events.Add(abridgeEvent);
+                }
+
+                foreach (HistoryEvent evt in NewEvents)
+                {
+                    HistoryEvent abridgeEvent = GenerateAbridgedEvent(evt);
+                    runtimeStateDump.NewEvents.Add(abridgeEvent);
+                }
+
+                return runtimeStateDump;
+            }
         }
 
         HistoryEvent GenerateAbridgedEvent(HistoryEvent evt)

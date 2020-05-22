@@ -22,6 +22,16 @@ namespace DurableTask.Core
     public class OrchestrationRuntimeStateDump
     {
         /// <summary>
+        /// The number of history events. Used in the case where we use the lighter-weight dump.
+        /// </summary>
+        public int EventCount { get; set; }
+
+        /// <summary>
+        /// The number of new events. Used in the case where we use the lighter-weight dump.
+        /// </summary>
+        public int NewEventsCount { get; set; }
+
+        /// <summary>
         /// List of all history events for this runtime state dump
         /// </summary>
         public IList<HistoryEvent> Events;
