@@ -13,22 +13,20 @@
 
 namespace DurableTask.Core
 {
-    using DurableTask.Core.History;
-    using System.Collections.Generic;
-
     /// <summary>
     /// A snapshot / state dump of an OrchestrationRuntimeState's events
     /// </summary>
     public class OrchestrationRuntimeStateDump
     {
         /// <summary>
-        /// List of all history events for this runtime state dump
+        /// The number of history events.
         /// </summary>
-        public IList<HistoryEvent> Events;
+        public int EventCount { get; set; }
 
         /// <summary>
-        /// List of new events added during an execution for this runtime state dump
+        /// The number of new events.
         /// </summary>
-        public IList<HistoryEvent> NewEvents;
+        public int NewEventsCount { get; set; }
+
     }
 }
