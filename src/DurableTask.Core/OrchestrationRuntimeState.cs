@@ -260,11 +260,33 @@ namespace DurableTask.Core
         /// <returns></returns>
         public OrchestrationRuntimeStateDump GetOrchestrationRuntimeStateDump()
         {
+#if DEBUG
+            var runtimeStateDump = new OrchestrationRuntimeStateDump
+            {
+                Events = new List<HistoryEvent>(),
+                NewEvents = new List<HistoryEvent>(),
+            };
+
+            foreach (HistoryEvent evt in Events)
+            {
+                HistoryEvent abridgeEvent = GenerateAbridgedEvent(evt);
+                runtimeStateDump.Events.Add(abridgeEvent);
+            }
+
+            foreach (HistoryEvent evt in NewEvents)
+            {
+                HistoryEvent abridgeEvent = GenerateAbridgedEvent(evt);
+                runtimeStateDump.NewEvents.Add(abridgeEvent);
+            }
+
+            return runtimeStateDump;
+#else
             return new OrchestrationRuntimeStateDump
             {
                 EventCount = Events.Count,
                 NewEventsCount = NewEvents.Count,
             };
+#endif
         }
 
         HistoryEvent GenerateAbridgedEvent(HistoryEvent evt)
