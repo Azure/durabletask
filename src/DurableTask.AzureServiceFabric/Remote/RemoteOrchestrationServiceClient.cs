@@ -270,7 +270,8 @@ namespace DurableTask.AzureServiceFabric.Remote
 
             if (!result.IsSuccessStatusCode)
             {
-                throw new RemoteServiceException("CreateTaskOrchestrationAsync failed", result.StatusCode);
+                var content = await result.Content?.ReadAsStringAsync();
+                throw new RemoteServiceException($"CreateTaskOrchestrationAsync failed with status code {result.StatusCode}: {content}", result.StatusCode);
             }
         }
 
