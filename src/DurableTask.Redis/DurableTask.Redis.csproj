@@ -5,7 +5,7 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <RunCodeAnalysis>false</RunCodeAnalysis>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <FileVersion>0.1.4</FileVersion>
+    <FileVersion>0.1.5</FileVersion>
     <AssemblyVersion>$(FileVersion)</AssemblyVersion>
     <Version>$(FileVersion)-alpha</Version>
     <IncludeSymbols>true</IncludeSymbols>
