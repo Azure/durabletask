@@ -15,7 +15,7 @@ This document explains:
 
 ## Prerequisite
 
-If you are new to the Distributed Tracing with Application insights, you can refer:
+If you are new to the Distributed Tracing with Application Insights, you can refer to:
 
 - [Correlation with Activity with Application Insights (1 - 3)](https://medium.com/@tsuyoshiushio/correlation-with-activity-with-application-insights-1-overview-753a48a645fb)
 
@@ -36,7 +36,7 @@ The stack represents the current TraceContext of the orchestrator.
 
 A wrapper of [Activity](https://github.com/dotnet/corefx/blob/master/src/System.Diagnostics.DiagnosticSource/src/ActivityUserGuide.md) class. The Activity class is in charge of handling the correlation information of Application Insights. Activity is designed for in-memory execution. However, Orchestrator requires a replay. The execution is not in-memory. This class wraps the Activity to adopt orchestration execution. This class has a Stack called `OrchestrationTraceContexts.` It is a stack of request/dependency telemetry of orchestrator. 
 
-This class is serialized to queues. However, the default NewtonJSON serializer can't support it. So we have a custom serializer on the `TraceContextBase` class. 
+This class is serialized to queues. However, the default `Newtonsoft.Json` serializer can't support it. So we have a custom serializer on the `TraceContextBase` class. 
 
 ### [CorrelationTraceClient](../../../src/DurableTask.Core/CorrelationTraceClient.cs)
 
@@ -52,7 +52,7 @@ Configuration class for Distributed Tracing for DurableTask
 
 ### [TelemetryActivator](../TelemetryActivator.cs)
 
-TelemetryActivator has a responsibility to track telemetry. Work with CorrelationTraceClient with giving Lambda to activate Application Insights. This class is a client-side implementation. So this class is **NOT** included in DrableTask namespaces.
+TelemetryActivator has a responsibility to track telemetry. Work with CorrelationTraceClient with giving Lambda to activate Application Insights. This class is a client-side implementation. So this class is **NOT** included in DurableTask namespaces.
 
 ### [DurableTaskCorrelationTelemetryInitializer](../DurableTaskCorrelationTelemetryInitializer.cs)
 
@@ -62,7 +62,7 @@ This telemetry Initializer tracks Dependency Telemetry automatically. This initi
 
 You can configure this feature with the `CorrelationSettings` class. 
 
-| Property | Description | example | default |
+| Property | Description | Example | Default |
 | -------- | ----------- | ------- | ------- |
 | EnableDistributedTracing | Set true if you need this feature | true or false | false |
 | Protocol | Correlation Protocol | W3CTraceContext or HttpCorrelation Protocol | W3CTraceContext |
@@ -79,7 +79,9 @@ A provider needs to add Correlation code if you want to have this feature. `Dura
 
 ```csharp
 CorrelationTraceClient.Propagate(
- () => { data.SerializableTraceContext = GetSerializableTraceContext(taskMessage); });
+    () => {
+        data.SerializableTraceContext = GetSerializableTraceContext(taskMessage);
+    });
 ```
 
 ### [AzureStorageOrchestrationService](../../../src/DurableTask.AzureStorage/AzureStorageOrchestrationService.cs) ([IOrchestrationService](../../../src/DurableTask.Core/IOrchestrationService.cs)) class
@@ -91,7 +93,7 @@ Correlation responsibilities:
 
 - Create Request TraceContext (First time)
 - Add the Request TraceContext to the Stack
-- Restore Current Orchestration Request TraceContext(Replay)
+- Restore Current Orchestration Request TraceContext (Replay)
 - Add the Request TraceContext to a WorkItem.
 - Track Dependency Telemetry
 - Pop Dependency Telemetry once Tracked
@@ -177,22 +179,24 @@ Then assert if the telemetry order is correct or not. If you have a scenario of 
 [DataRow(Protocol.W3CTraceContext)]
 public async Task SingleOrchestratorWithSingleActivityAsync(Protocol protocol)
 {
- CorrelationSettings.Current.Protocol = protocol;
- CorrelationSettings.Current.EnableDistributedTracing = true;
- var host = new TestCorrelationOrchestrationHost();
- List<OperationTelemetry> actual = await host.ExecuteOrchestrationAsync(typeof(SayHelloOrchestrator), "world", 360);
- Assert.AreEqual(5, actual.Count);
+    CorrelationSettings.Current.Protocol = protocol;
+    CorrelationSettings.Current.EnableDistributedTracing = true;
+    var host = new TestCorrelationOrchestrationHost();
+    List<OperationTelemetry> actual = await host.ExecuteOrchestrationAsync(typeof(SayHelloOrchestrator), "world", 360);
+    Assert.AreEqual(5, actual.Count);
 
- CollectionAssert.AreEqual(
- new (Type, string)[]
- {
- (typeof(RequestTelemetry), TraceConstants.Client),
- (typeof(DependencyTelemetry), TraceConstants.Client),
- (typeof(RequestTelemetry), $"{TraceConstants.Orchestrator} SayHelloOrchestrator"),
- (typeof(DependencyTelemetry), $"{TraceConstants.Orchestrator} {typeof(Hello).FullName}"),
- (typeof(RequestTelemetry), $"{TraceConstants.Activity} Hello")
- }, actual.Select(x => (x.GetType(), x.Name)).ToList());
- }
+    CollectionAssert.AreEqual(
+        new (Type, string)[]
+        {
+            (typeof(RequestTelemetry), TraceConstants.Client),
+            (typeof(DependencyTelemetry), TraceConstants.Client),
+            (typeof(RequestTelemetry), $"{TraceConstants.Orchestrator} SayHelloOrchestrator"),
+            (typeof(DependencyTelemetry), $"{TraceConstants.Orchestrator} {typeof(Hello).FullName}"),
+            (typeof(RequestTelemetry), $"{TraceConstants.Activity} Hello")
+        },
+        actual.Select(x => (x.GetType(), x.Name)).ToList()
+    );
+}
 ```
 
 ## Sample
