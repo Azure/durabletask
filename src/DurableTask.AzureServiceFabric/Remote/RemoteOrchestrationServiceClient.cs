@@ -295,7 +295,7 @@ namespace DurableTask.AzureServiceFabric.Remote
         {
             // sample endpoint - {"Endpoints":{"":"http:\/\/10.91.42.35:30001"}}
             var jObject = JObject.Parse(endpoint);
-            var defaultEndPoint = jObject["Endpoints"][Constants.TaskHubProxyServiceName].ToString();
+            var defaultEndPoint = jObject["Endpoints"][Constants.TaskHubProxyListenerEndpointName].ToString();
             return defaultEndPoint;
         }
 

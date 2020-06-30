@@ -129,7 +129,7 @@ namespace DurableTask.AzureServiceFabric.Service
                 string listeningAddress = string.Format(CultureInfo.InvariantCulture, "{0}://{1}:{2}/{3}/dtfx/", protocol, ipAddress, serviceEndpoint.Port, context.PartitionId);
 
                 return new OwinCommunicationListener(new Startup(listeningAddress, this.fabricOrchestrationProvider));
-            }, Constants.TaskHubProxyServiceName);
+            });
         }
 
         /// <inheritdoc />
