@@ -56,6 +56,7 @@ namespace DurableTask.AzureServiceFabric.Service
             HttpConfiguration config = new HttpConfiguration();
             config.MapHttpAttributeRoutes();
             config.DependencyResolver = new DefaultDependencyResolver(GenerateServiceProvider());
+            config.MessageHandlers.Add(new ActivityLoggingMessageHandler());
             config.IncludeErrorDetailPolicy = IncludeErrorDetailPolicy.Always;
             config.Formatters.Remove(config.Formatters.XmlFormatter);
             config.Formatters.Remove(config.Formatters.FormUrlEncodedFormatter);

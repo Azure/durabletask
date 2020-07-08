@@ -255,11 +255,12 @@ namespace DurableTask.Core
         }
 
         /// <summary>
-        /// Gets a statedump of the current list of events
+        /// Gets a statedump of the current list of events.
         /// </summary>
         /// <returns></returns>
         public OrchestrationRuntimeStateDump GetOrchestrationRuntimeStateDump()
         {
+#if DEBUG
             var runtimeStateDump = new OrchestrationRuntimeStateDump
             {
                 Events = new List<HistoryEvent>(),
@@ -279,6 +280,13 @@ namespace DurableTask.Core
             }
 
             return runtimeStateDump;
+#else
+            return new OrchestrationRuntimeStateDump
+            {
+                EventCount = Events.Count,
+                NewEventsCount = NewEvents.Count,
+            };
+#endif
         }
 
         HistoryEvent GenerateAbridgedEvent(HistoryEvent evt)
