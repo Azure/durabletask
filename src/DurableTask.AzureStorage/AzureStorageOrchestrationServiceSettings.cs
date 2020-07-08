@@ -28,6 +28,11 @@ namespace DurableTask.AzureStorage
         internal static readonly TimeSpan DefaultMaxQueuePollingInterval = TimeSpan.FromSeconds(30);
 
         /// <summary>
+        /// Gets or sets the name of the app.
+        /// </summary>
+        public string AppName { get; set; }
+
+        /// <summary>
         /// Gets or sets the number of messages to pull from the control queue at a time. The default is 32.
         /// The maximum batch size supported by Azure Storage Queues is 32.
         /// </summary>
