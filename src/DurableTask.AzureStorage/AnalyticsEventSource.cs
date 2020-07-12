@@ -14,11 +14,8 @@
 namespace DurableTask.AzureStorage
 {
     using System;
-    using System.Collections.Generic;
     using System.Diagnostics.Tracing;
-    using System.Linq;
     using System.Threading;
-    using DurableTask.Core;
 
     /// <summary>
     /// ETW Event Provider for the DurableTask.AzureStorage provider extension.
@@ -29,11 +26,7 @@ namespace DurableTask.AzureStorage
     [EventSource(Name = "DurableTask-AzureStorage")]
     class AnalyticsEventSource : EventSource
     {
-#if NETSTANDARD2_0
         static readonly AsyncLocal<Guid> ActivityIdState = new AsyncLocal<Guid>();
-#else
-        const string TraceActivityIdSlot = "TraceActivityId";
-#endif
 
         /// <summary>
         /// Singleton instance used for writing events.
@@ -43,36 +36,19 @@ namespace DurableTask.AzureStorage
         [NonEvent]
         public static void SetLogicalTraceActivityId(Guid activityId)
         {
-#if NETSTANDARD2_0
             // We use AsyncLocal to preserve activity IDs across async/await boundaries.
             ActivityIdState.Value = activityId;
-#else
-            // We use LogicalSetData to preserve activity IDs across async/await boundaries.
-            System.Runtime.Remoting.Messaging.CallContext.LogicalSetData(TraceActivityIdSlot, activityId);
-#endif
             SetCurrentThreadActivityId(activityId);
         }
 
         [NonEvent]
         private static void EnsureLogicalTraceActivityId()
         {
-#if NETSTANDARD2_0
             Guid currentActivityId = ActivityIdState.Value;
             if (currentActivityId != CurrentThreadActivityId)
             {
                 SetCurrentThreadActivityId(currentActivityId);
             }
-#else
-            object data = System.Runtime.Remoting.Messaging.CallContext.LogicalGetData(TraceActivityIdSlot);
-            if (data != null)
-            {
-                Guid currentActivityId = (Guid)data;
-                if (currentActivityId != CurrentThreadActivityId)
-                {
-                    SetCurrentThreadActivityId(currentActivityId);
-                }
-            }
-#endif
         }
 
         [Event(101, Level = EventLevel.Informational, Opcode = EventOpcode.Send, Task = Tasks.Enqueue, Version = 5)]

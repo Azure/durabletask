@@ -19,7 +19,9 @@ namespace DurableTask.Core
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Core.History;
+    using DurableTask.Core.Logging;
     using DurableTask.Core.Serializing;
+    using Microsoft.Extensions.Logging;
 
     /// <summary>
     ///     Client used to manage and query orchestration instances
@@ -27,6 +29,7 @@ namespace DurableTask.Core
     public sealed class TaskHubClient
     {
         readonly DataConverter defaultConverter;
+        readonly LogHelper logHelper;
 
         /// <summary>
         /// The orchestration service client for this task hub client
@@ -38,9 +41,8 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="serviceClient">Object implementing the <see cref="IOrchestrationServiceClient"/> interface </param>
         public TaskHubClient(IOrchestrationServiceClient serviceClient)
+            : this(serviceClient, new JsonDataConverter())
         {
-            ServiceClient = serviceClient ?? throw new ArgumentNullException(nameof(serviceClient));
-            this.defaultConverter = new JsonDataConverter();
         }
 
         /// <summary>
@@ -49,9 +51,21 @@ namespace DurableTask.Core
         /// <param name="serviceClient">Object implementing the <see cref="IOrchestrationServiceClient"/> interface </param>
         /// <param name="dataConverter">The <see cref="JsonDataConverter"/> to use for message serialization.</param>
         public TaskHubClient(IOrchestrationServiceClient serviceClient, JsonDataConverter dataConverter)
+            : this(serviceClient, dataConverter, null)
         {
-            ServiceClient = serviceClient ?? throw new ArgumentNullException(nameof(serviceClient));
-            this.defaultConverter = dataConverter ?? throw new ArgumentNullException(nameof(dataConverter));
+        }
+
+        /// <summary>
+        ///     Create a new TaskHubClient with the given OrchestrationServiceClient, JsonDataConverter, and ILoggerFactory.
+        /// </summary>
+        /// <param name="serviceClient">Object implementing the <see cref="IOrchestrationServiceClient"/> interface </param>
+        /// <param name="dataConverter">The <see cref="DataConverter"/> to use for message serialization.</param>
+        /// <param name="loggerFactory">The <see cref="ILoggerFactory"/> to use for logging.</param>
+        public TaskHubClient(IOrchestrationServiceClient serviceClient, DataConverter dataConverter = null, ILoggerFactory loggerFactory = null)
+        {
+            this.ServiceClient = serviceClient ?? throw new ArgumentNullException(nameof(serviceClient));
+            this.defaultConverter = dataConverter ?? new JsonDataConverter();
+            this.logHelper = new LogHelper(loggerFactory?.CreateLogger("DurableTask.Core"));
         }
 
         /// <summary>
@@ -62,7 +76,7 @@ namespace DurableTask.Core
         /// <returns>OrchestrationInstance that represents the orchestration that was created</returns>
         public Task<OrchestrationInstance> CreateOrchestrationInstanceAsync(Type orchestrationType, object input)
         {
-            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+            return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 NameVersionHelper.GetDefaultName(orchestrationType),
                 NameVersionHelper.GetDefaultVersion(orchestrationType),
                 null,
@@ -85,7 +99,7 @@ namespace DurableTask.Core
             string instanceId,
             object input)
         {
-            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+            return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 NameVersionHelper.GetDefaultName(orchestrationType),
                 NameVersionHelper.GetDefaultVersion(orchestrationType),
                 instanceId,
@@ -108,10 +122,9 @@ namespace DurableTask.Core
             Type orchestrationType,
             string instanceId,
             object input,
-            OrchestrationStatus[] dedupeStatuses
-            )
+            OrchestrationStatus[] dedupeStatuses)
         {
-            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+            return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 NameVersionHelper.GetDefaultName(orchestrationType),
                 NameVersionHelper.GetDefaultVersion(orchestrationType),
                 instanceId,
@@ -131,7 +144,15 @@ namespace DurableTask.Core
         /// <returns>OrchestrationInstance that represents the orchestration that was created</returns>
         public Task<OrchestrationInstance> CreateOrchestrationInstanceAsync(string name, string version, object input)
         {
-            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(name, version, null, input, null, null, null, null);
+            return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+                name,
+                version,
+                null,
+                input,
+                null,
+                null,
+                null,
+                null);
         }
 
         /// <summary>
@@ -144,7 +165,15 @@ namespace DurableTask.Core
         /// <returns>OrchestrationInstance that represents the orchestration that was created</returns>
         public Task<OrchestrationInstance> CreateOrchestrationInstanceAsync(string name, string version, string instanceId, object input)
         {
-            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(name, version, instanceId, input, null, null, null, null);
+            return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+                name,
+                version,
+                instanceId,
+                input,
+                null,
+                null,
+                null,
+                null);
         }
 
         /// <summary>
@@ -163,7 +192,15 @@ namespace DurableTask.Core
             object input,
             IDictionary<string, string> tags)
         {
-            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(name, version, instanceId, input, tags, null, null, null);
+            return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+                name,
+                version,
+                instanceId,
+                input,
+                tags,
+                null,
+                null,
+                null);
         }
 
         /// <summary>
@@ -184,7 +221,15 @@ namespace DurableTask.Core
             IDictionary<string, string> tags,
             OrchestrationStatus[] dedupeStatuses)
         {
-            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(name, version, instanceId, input, tags, dedupeStatuses, null, null);
+            return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+                name,
+                version,
+                instanceId,
+                input,
+                tags,
+                dedupeStatuses,
+                null,
+                null);
         }
 
         /// <summary>
@@ -202,7 +247,7 @@ namespace DurableTask.Core
             string eventName,
             object eventData)
         {
-            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+            return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 NameVersionHelper.GetDefaultName(orchestrationType),
                 NameVersionHelper.GetDefaultVersion(orchestrationType),
                 null,
@@ -230,7 +275,7 @@ namespace DurableTask.Core
             string eventName,
             object eventData)
         {
-            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+            return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 NameVersionHelper.GetDefaultName(orchestrationType),
                 NameVersionHelper.GetDefaultVersion(orchestrationType),
                 instanceId,
@@ -260,7 +305,7 @@ namespace DurableTask.Core
             string eventName,
             object eventData)
         {
-            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+            return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 NameVersionHelper.GetDefaultName(orchestrationType),
                 NameVersionHelper.GetDefaultVersion(orchestrationType),
                 instanceId,
@@ -285,7 +330,7 @@ namespace DurableTask.Core
             string eventName,
             object eventData)
         {
-            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+            return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 orchestrationName,
                 orchestrationVersion,
                 null,
@@ -311,7 +356,7 @@ namespace DurableTask.Core
             string eventName,
             object eventData)
         {
-            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+            return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 orchestrationName,
                 orchestrationVersion,
                 null, orchestrationInput,
@@ -340,7 +385,7 @@ namespace DurableTask.Core
             string eventName,
             object eventData)
         {
-            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+            return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 orchestrationName,
                 orchestrationVersion,
                 instanceId,
@@ -370,7 +415,7 @@ namespace DurableTask.Core
             string eventName,
             object eventData)
         {
-            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+            return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 orchestrationName,
                 orchestrationVersion,
                 instanceId,
@@ -404,7 +449,7 @@ namespace DurableTask.Core
             string eventName,
             object eventData)
         {
-            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+            return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 orchestrationName,
                 orchestrationVersion,
                 instanceId,
@@ -431,7 +476,7 @@ namespace DurableTask.Core
             string eventName,
             object eventData)
         {
-            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+            return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 orchestrationName,
                 orchestrationVersion,
                 instanceId,
@@ -470,19 +515,17 @@ namespace DurableTask.Core
                 OrchestrationInstance = orchestrationInstance
             };
 
-            var taskMessages = new List<TaskMessage>
+            var startMessage = new TaskMessage
             {
-                new TaskMessage
-                {
-                    OrchestrationInstance = orchestrationInstance,
-                    Event = startedEvent
-                }
+                OrchestrationInstance = orchestrationInstance,
+                Event = startedEvent
             };
 
+            TaskMessage eventMessage = null;
             if (eventData != null)
             {
                 string serializedEventData = this.defaultConverter.Serialize(eventData);
-                taskMessages.Add(new TaskMessage
+                eventMessage = new TaskMessage
                 {
                     OrchestrationInstance = new OrchestrationInstance
                     {
@@ -495,12 +538,20 @@ namespace DurableTask.Core
                         ExecutionId = null
                     },
                     Event = new EventRaisedEvent(-1, serializedEventData) { Name = eventName }
-                });
+                };
             }
 
+            this.logHelper.SchedulingOrchestration(startedEvent);
+
             // Raised events and create orchestration calls use different methods so get handled separately
-            await Task.WhenAll(taskMessages.Where(t => !(t.Event is EventRaisedEvent)).Select(sEvent => ServiceClient.CreateTaskOrchestrationAsync(sEvent, dedupeStatuses)));
-            await ServiceClient.SendTaskOrchestrationMessageBatchAsync(taskMessages.Where(t => (t.Event is EventRaisedEvent)).ToArray());
+            await this.ServiceClient.CreateTaskOrchestrationAsync(startMessage, dedupeStatuses);
+
+            if (eventMessage != null)
+            {
+                this.logHelper.RaisingEvent(orchestrationInstance, (EventRaisedEvent)eventMessage.Event);
+                await this.ServiceClient.SendTaskOrchestrationMessageAsync(eventMessage);
+            }
+
             return orchestrationInstance;
         }
 
@@ -525,7 +576,8 @@ namespace DurableTask.Core
                 Event = new EventRaisedEvent(-1, serializedInput) { Name = eventName }
             };
 
-            await ServiceClient.SendTaskOrchestrationMessageAsync(taskMessage);
+            this.logHelper.RaisingEvent(orchestrationInstance, (EventRaisedEvent)taskMessage.Event);
+            await this.ServiceClient.SendTaskOrchestrationMessageAsync(taskMessage);
         }
 
         /// <summary>
@@ -534,7 +586,7 @@ namespace DurableTask.Core
         /// <param name="orchestrationInstance">Instance to terminate</param>
         public Task TerminateInstanceAsync(OrchestrationInstance orchestrationInstance)
         {
-            return TerminateInstanceAsync(orchestrationInstance, string.Empty);
+            return this.TerminateInstanceAsync(orchestrationInstance, string.Empty);
         }
 
         /// <summary>
@@ -549,7 +601,8 @@ namespace DurableTask.Core
                 throw new ArgumentException("orchestrationInstance");
             }
 
-            await ServiceClient.ForceTerminateTaskOrchestrationAsync(orchestrationInstance.InstanceId, reason);
+            this.logHelper.TerminatingInstance(orchestrationInstance, reason);
+            await this.ServiceClient.ForceTerminateTaskOrchestrationAsync(orchestrationInstance.InstanceId, reason);
         }
 
         /// <summary>
@@ -566,7 +619,8 @@ namespace DurableTask.Core
                 throw new ArgumentException(nameof(orchestrationInstance));
             }
 
-            return ServiceClient.WaitForOrchestrationAsync(
+            this.logHelper.WaitingForInstance(orchestrationInstance, timeout);
+            return this.ServiceClient.WaitForOrchestrationAsync(
                 orchestrationInstance.InstanceId,
                 orchestrationInstance.ExecutionId,
                 timeout,
@@ -589,7 +643,8 @@ namespace DurableTask.Core
                 throw new ArgumentException(nameof(orchestrationInstance));
             }
 
-            return ServiceClient.WaitForOrchestrationAsync(
+            this.logHelper.WaitingForInstance(orchestrationInstance, timeout);
+            return this.ServiceClient.WaitForOrchestrationAsync(
                 orchestrationInstance.InstanceId,
                 orchestrationInstance.ExecutionId,
                 timeout,
@@ -607,7 +662,7 @@ namespace DurableTask.Core
         /// <exception cref="InvalidOperationException">Thrown if instance store not configured</exception>
         public async Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId)
         {
-            IList<OrchestrationState> state = await GetOrchestrationStateAsync(instanceId, false);
+            IList<OrchestrationState> state = await this.GetOrchestrationStateAsync(instanceId, false);
             return state?.FirstOrDefault();
         }
 
@@ -627,7 +682,8 @@ namespace DurableTask.Core
         /// <exception cref="InvalidOperationException">Thrown if instance store not configured</exception>
         public Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
         {
-            return ServiceClient.GetOrchestrationStateAsync(instanceId, allExecutions);
+            this.logHelper.FetchingInstanceState(instanceId);
+            return this.ServiceClient.GetOrchestrationStateAsync(instanceId, allExecutions);
         }
 
         /// <summary>
@@ -639,7 +695,7 @@ namespace DurableTask.Core
         /// <exception cref="InvalidOperationException">Thrown if instance store not configured</exception>
         public Task<OrchestrationState> GetOrchestrationStateAsync(OrchestrationInstance instance)
         {
-            return GetOrchestrationStateAsync(instance.InstanceId, instance.ExecutionId);
+            return this.GetOrchestrationStateAsync(instance.InstanceId, instance.ExecutionId);
         }
 
         /// <summary>
@@ -652,7 +708,8 @@ namespace DurableTask.Core
         /// <exception cref="InvalidOperationException">Thrown if instance store not configured</exception>
         public Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)
         {
-            return ServiceClient.GetOrchestrationStateAsync(instanceId, executionId);
+            this.logHelper.FetchingInstanceState(instanceId, executionId);
+            return this.ServiceClient.GetOrchestrationStateAsync(instanceId, executionId);
         }
 
         // Orchestration History
@@ -672,7 +729,8 @@ namespace DurableTask.Core
                 throw new ArgumentException("instance, instanceId and/or ExecutionId cannot be null or empty", nameof(instance));
             }
 
-            return ServiceClient.GetOrchestrationHistoryAsync(instance.InstanceId, instance.ExecutionId);
+            this.logHelper.FetchingInstanceHistory(instance);
+            return this.ServiceClient.GetOrchestrationHistoryAsync(instance.InstanceId, instance.ExecutionId);
         }
 
         /// <summary>
@@ -682,10 +740,11 @@ namespace DurableTask.Core
         /// <param name="timeRangeFilterType">What to compare the threshold date time against</param>
         /// <returns></returns>
         /// <exception cref="InvalidOperationException">Thrown if instance store not configured</exception>
-        public Task PurgeOrchestrationInstanceHistoryAsync(DateTime thresholdDateTimeUtc,
+        public Task PurgeOrchestrationInstanceHistoryAsync(
+            DateTime thresholdDateTimeUtc,
             OrchestrationStateTimeRangeFilterType timeRangeFilterType)
         {
-            return ServiceClient.PurgeOrchestrationHistoryAsync(thresholdDateTimeUtc, timeRangeFilterType);
+            return this.ServiceClient.PurgeOrchestrationHistoryAsync(thresholdDateTimeUtc, timeRangeFilterType);
         }
     }
 }

@@ -22,6 +22,12 @@ namespace DurableTask.Core
     [DataContract]
     public class OrchestrationInstance : IExtensibleDataObject
     {
+        internal readonly static OrchestrationInstance Empty = new OrchestrationInstance
+        {
+            InstanceId = string.Empty,
+            ExecutionId = string.Empty,
+        };
+
         /// <summary>
         /// The instance id, assigned as unique to the orchestration
         /// </summary>
@@ -52,7 +58,7 @@ namespace DurableTask.Core
         [SuppressMessage("ReSharper", "NonReadonlyMemberInGetHashCode")]
         public override int GetHashCode()
         {
-            return (InstanceId ?? string.Empty).GetHashCode() ^ (ExecutionId ?? string.Empty).GetHashCode();
+            return (this.InstanceId ?? string.Empty).GetHashCode() ^ (this.ExecutionId ?? string.Empty).GetHashCode();
         }
 
         /// <summary>
@@ -63,7 +69,7 @@ namespace DurableTask.Core
         /// </returns>
         public override string ToString()
         {
-            return $"[InstanceId: {InstanceId}, ExecutionId: {ExecutionId}]";
+            return $"[InstanceId: {this.InstanceId}, ExecutionId: {this.ExecutionId}]";
         }
 
         /// <summary>

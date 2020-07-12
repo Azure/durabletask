@@ -25,6 +25,7 @@ namespace DurableTask.Core.Common
     using DurableTask.Core.Serializing;
     using Tracing;
     using System.Threading;
+    using DurableTask.Core.History;
 
     /// <summary>
     /// Utility Methods
@@ -433,6 +434,46 @@ namespace DurableTask.Core.Common
             var tcs = new TaskCompletionSource<bool>();
             cancellationToken.Register(s => ((TaskCompletionSource<bool>)s).SetResult(true), tcs);
             return Task.WhenAny(Task.Delay(timeout), tcs.Task);
+        }
+
+        /// <summary>
+        /// Gets the task event ID for the specified <see cref="HistoryEvent"/>.
+        /// </summary>
+        /// <param name="historyEvent">The history which may or may not contain a task event ID.</param>
+        /// <returns>Returns the task event ID or <c>-1</c> if none exists.</returns>
+        public static int GetTaskEventId(HistoryEvent historyEvent)
+        {
+            if (TryGetTaskScheduledId(historyEvent, out int taskScheduledId))
+            {
+                return taskScheduledId;
+            }
+
+            return historyEvent.EventId;
+        }
+
+        static bool TryGetTaskScheduledId(HistoryEvent historyEvent, out int taskScheduledId)
+        {
+            switch (historyEvent.EventType)
+            {
+                case EventType.TaskCompleted:
+                    taskScheduledId = ((TaskCompletedEvent)historyEvent).TaskScheduledId;
+                    return true;
+                case EventType.TaskFailed:
+                    taskScheduledId = ((TaskFailedEvent)historyEvent).TaskScheduledId;
+                    return true;
+                case EventType.SubOrchestrationInstanceCompleted:
+                    taskScheduledId = ((SubOrchestrationInstanceCompletedEvent)historyEvent).TaskScheduledId;
+                    return true;
+                case EventType.SubOrchestrationInstanceFailed:
+                    taskScheduledId = ((SubOrchestrationInstanceFailedEvent)historyEvent).TaskScheduledId;
+                    return true;
+                case EventType.TimerFired:
+                    taskScheduledId = ((TimerFiredEvent)historyEvent).TimerId;
+                    return true;
+                default:
+                    taskScheduledId = -1;
+                    return false;
+            }
         }
     }
 }
