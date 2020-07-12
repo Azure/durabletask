@@ -15,6 +15,7 @@ namespace DurableTask.AzureStorage
 {
     using System;
     using DurableTask.Core;
+    using Microsoft.Extensions.Logging;
     using Microsoft.WindowsAzure.Storage.Queue;
     using Microsoft.WindowsAzure.Storage.Table;
 
@@ -178,9 +179,14 @@ namespace DurableTask.AzureStorage
         public bool ThrowExceptionOnInvalidDedupeStatus { get; set; } = false;
 
         /// <summary>
+        /// Gets or sets the optional <see cref="ILoggerFactory"/> to use for diagnostic logging.
+        /// </summary>
+        public ILoggerFactory LoggerFactory { get; set; }
+
+        /// <summary>
         /// Returns bool indicating is the TrackingStoreStorageAccount has been set.
         /// </summary>
-        public  bool HasTrackingStoreStorageAccount => TrackingStoreStorageAccountDetails != null;
+        public  bool HasTrackingStoreStorageAccount => this.TrackingStoreStorageAccountDetails != null;
 
         internal string HistoryTableName => this.HasTrackingStoreStorageAccount ? $"{this.TrackingStoreNamePrefix}History" : $"{this.TaskHubName}History";
 
