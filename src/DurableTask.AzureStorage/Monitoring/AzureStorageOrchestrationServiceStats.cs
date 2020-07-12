@@ -14,6 +14,7 @@
 namespace DurableTask.AzureStorage.Monitoring
 {
     using DurableTask.Core.Stats;
+    using System.Collections.Concurrent;
 
     class AzureStorageOrchestrationServiceStats
     {
@@ -31,6 +32,8 @@ namespace DurableTask.AzureStorage.Monitoring
 
         public Counter ActiveActivityExecutions { get; } = new Counter();
 
-        public Counter PendingOrchestratorMessages { get; } = new Counter();
+        // The standard library does not support a concurrent hashset, so use ConcurrentDictionary with the
+        // value as a byte, as the value does not matter.
+        public ConcurrentDictionary<string, byte> PendingOrchestratorMessages { get; } = new ConcurrentDictionary<string, byte>();
     }
 }

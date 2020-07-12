@@ -413,7 +413,7 @@ namespace DurableTask.AzureStorage
             lock (this.messageAndSessionLock)
             {
                 pendingOrchestratorInstances = this.pendingOrchestrationMessageBatches.Count;
-                pendingOrchestrationMessages = (int)this.stats.PendingOrchestratorMessages.Value;
+                pendingOrchestrationMessages = (int)this.stats.PendingOrchestratorMessages.Count;
                 activeOrchestrationSessions = this.activeOrchestrationSessions.Count;
             }
         }

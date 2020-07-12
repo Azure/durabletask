@@ -173,11 +173,10 @@ namespace DurableTask.Core
                 if (!forced)
                 {
                     var retryCount = 7;
-                    //TODO: race condition in graceful shutdown.
-                    while ((this.concurrentWorkItemCount > 0 || this.activeFetchers > 0) && retryCount-- >= 0)
+                    while (!this.AllWorkItemsCompleted() && retryCount-- >= 0)
                     {
                         TraceHelper.Trace(TraceEventType.Information, "WorkItemDispatcherStop-Waiting", $"WorkItemDispatcher('{this.name}') waiting to stop. Id {this.id}. WorkItemCount: {this.concurrentWorkItemCount}, ActiveFetchers: {this.activeFetchers}");
-                        await Task.Delay(4000);
+                        await Task.Delay(1000);
                     }
                 }
 
@@ -187,6 +186,28 @@ namespace DurableTask.Core
             {
                 this.initializationLock.Release();
             }
+        }
+
+        private bool AllWorkItemsCompleted()
+        {
+            if (this.isStarted == true)
+            {
+                // If we are still started, we can make no guarantees that there won't be
+                // more scheduled work items.
+                return false;
+            }
+
+            if (this.activeFetchers == 0)
+            {
+                // We can assume that no more active fetchers will be scheduled. Since there are no active
+                // fetchers, and no more can be scheduled, we can trust the concurrent work item count
+                if (this.concurrentWorkItemCount == 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         async Task DispatchAsync(string dispatcherId)

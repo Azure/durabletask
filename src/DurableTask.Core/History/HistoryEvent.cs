@@ -70,13 +70,13 @@ namespace DurableTask.Core.History
         /// Gets the IsPlayed status
         /// </summary>
         [DataMember]
-        public bool IsPlayed { get; internal set; }
+        public bool IsPlayed { get; set; }
 
         /// <summary>
         /// Gets the event timestamp
         /// </summary>
         [DataMember]
-        public DateTime Timestamp { get; internal set; }
+        public DateTime Timestamp { get; set; }
 
         /// <summary>
         /// Gets the event type
