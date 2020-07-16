@@ -1239,10 +1239,13 @@ namespace DurableTask.AzureStorage.Tracking
             IList<TableResult> tableResultList;
             try
             {
-                tableResultList = await this.HistoryTable.ExecuteBatchAsync(
-                    historyEventBatch,
-                    this.StorageTableRequestOptions,
-                    null);
+                var operationContext = new OperationContext { ClientRequestID = Guid.NewGuid().ToString() };
+                tableResultList = await TimeoutHandler.ExecuteWithTimeout(
+                    nameof(UploadHistoryBatch),
+                    operationContext.ClientRequestID,
+                    this.storageAccountName,
+                    this.taskHubName, 
+                    () => this.HistoryTable.ExecuteBatchAsync(historyEventBatch, this.StorageTableRequestOptions, operationContext));
             }
             catch (StorageException ex)
             {
