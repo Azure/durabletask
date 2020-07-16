@@ -91,7 +91,7 @@ namespace DurableTask.ServiceFabric
                 throw new ArgumentException($"No execution id found for given instanceId {instanceId}, can only terminate the latest execution of a given orchestration");
             }
 
-            if (reason.Trim().StartsWith("CleanupStore", StringComparison.OrdinalIgnoreCase))
+            if (reason!= null && reason.Trim().StartsWith("CleanupStore", StringComparison.OrdinalIgnoreCase))
             {
                 using (var txn = this.stateManager.CreateTransaction())
                 {
