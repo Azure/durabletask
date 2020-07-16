@@ -45,10 +45,10 @@ namespace DurableTask.AzureStorage.Messaging
                     CloudQueueMessage queueMessage = await TimeoutHandler.ExecuteWithTimeout("GetMessage", context.ClientRequestID, storageAccountName, settings.TaskHubName, () =>
                     {
                         return this.storageQueue.GetMessageAsync(
-                        this.settings.WorkItemQueueVisibilityTimeout,
-                        this.settings.WorkItemQueueRequestOptions,
-                        context,
-                        cancellationToken);
+                            this.settings.WorkItemQueueVisibilityTimeout,
+                            this.settings.WorkItemQueueRequestOptions,
+                            context,
+                            cancellationToken);
                     });
 
                     this.stats.StorageRequests.Increment();

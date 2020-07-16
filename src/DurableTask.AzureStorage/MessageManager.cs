@@ -145,10 +145,14 @@ namespace DurableTask.AzureStorage
                     decompressedMessage,
                     this.taskMessageSerializerSettings);
                 envelope.MessageFormat = MessageFormatFlags.StorageBlob;
+                envelope.TotalMessageSizeBytes = Encoding.Unicode.GetByteCount(decompressedMessage);
+            }
+            else
+            {
+                envelope.TotalMessageSizeBytes = Encoding.Unicode.GetByteCount(queueMessage.AsString);
             }
 
             envelope.OriginalQueueMessage = queueMessage;
-            envelope.TotalMessageSizeBytes = Encoding.Unicode.GetByteCount(queueMessage.AsString);
             envelope.QueueName = queueName;
             return envelope;
         }
