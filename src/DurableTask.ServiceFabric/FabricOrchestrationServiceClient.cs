@@ -107,7 +107,6 @@ namespace DurableTask.ServiceFabric
             }
             else
             {
-
                 var taskMessage = new TaskMessage
                 {
                     OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId, ExecutionId = latestExecutionId },
@@ -123,7 +122,7 @@ namespace DurableTask.ServiceFabric
             var stateInstances = await this.instanceStore.GetOrchestrationStateAsync(instanceId, allExecutions);
 
             var result = new List<OrchestrationState>();
-            foreach(var stateInstance in stateInstances)
+            foreach (var stateInstance in stateInstances)
             {
                 if (stateInstance != null)
                 {
