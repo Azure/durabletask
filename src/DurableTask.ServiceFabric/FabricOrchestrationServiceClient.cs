@@ -95,7 +95,6 @@ namespace DurableTask.ServiceFabric
             {
                 using (var txn = this.stateManager.CreateTransaction())
                 {
-
                     // DropSession does 2 things (like mentioned in the comments above) - remove the row from sessions dictionary
                     // and delete the session messages dictionary. The second step is in a background thread and not part of transaction.
                     // However even if this transaction failed but we ended up deleting session messages dictionary, that's ok - at
