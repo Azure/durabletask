@@ -91,13 +91,32 @@ namespace DurableTask.ServiceFabric
                 throw new ArgumentException($"No execution id found for given instanceId {instanceId}, can only terminate the latest execution of a given orchestration");
             }
 
-            var taskMessage = new TaskMessage
+            if (reason.Trim().StartsWith("CleanupStore", StringComparison.OrdinalIgnoreCase))
             {
-                OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId, ExecutionId = latestExecutionId },
-                Event = new ExecutionTerminatedEvent(-1, reason)
-            };
+                using (var txn = this.stateManager.CreateTransaction())
+                {
 
-            await SendTaskOrchestrationMessageAsync(taskMessage);
+                    // DropSession does 2 things (like mentioned in the comments above) - remove the row from sessions dictionary
+                    // and delete the session messages dictionary. The second step is in a background thread and not part of transaction.
+                    // However even if this transaction failed but we ended up deleting session messages dictionary, that's ok - at
+                    // that time, it should be an empty dictionary and we would have updated the runtime session state to full completed
+                    // state in the transaction from Complete method. So the subsequent attempt would be able to complete the session.
+                    var instance = new OrchestrationInstance { InstanceId = instanceId, ExecutionId = latestExecutionId };
+                    await this.orchestrationProvider.DropSession(txn, instance);
+                    await txn.CommitAsync();
+                }
+            }
+            else
+            {
+
+                var taskMessage = new TaskMessage
+                {
+                    OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId, ExecutionId = latestExecutionId },
+                    Event = new ExecutionTerminatedEvent(-1, reason)
+                };
+
+                await SendTaskOrchestrationMessageAsync(taskMessage);
+            }
         }
 
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
