@@ -48,6 +48,19 @@ namespace DurableTask.Core.Logging
 
             if (logEvent is IEventSourceEvent eventSourceEvent)
             {
+                // TODO: Uncomment this code when distributed tracing is integrated
+                ////// If there is an Activity.Current, use it for the EventSource activity ID
+                ////if (Activity.Current != null)
+                ////{
+                ////    Guid activityId = new Guid(Activity.Current.TraceId.ToString());
+                ////    StructuredEventSource.SetLogicalTraceActivityId(activityId);
+                ////}
+                ////else
+                ////{
+                    // Otherwise, use our own built-in activity ID tracking
+                    StructuredEventSource.EnsureLogicalTraceActivityId();
+                ////}
+
                 eventSourceEvent.WriteEventSource();
             }
         }

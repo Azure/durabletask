@@ -34,7 +34,7 @@ namespace DurableTask.Core.Logging
         }
 
         [NonEvent]
-        static void EnsureLogicalTraceActivityId()
+        internal static void EnsureLogicalTraceActivityId()
         {
             Guid currentActivityId = ActivityIdState.Value;
             if (currentActivityId != CurrentThreadActivityId)
@@ -48,49 +48,42 @@ namespace DurableTask.Core.Logging
         [Event(EventIds.TaskHubWorkerStarting, Level = EventLevel.Informational, Version = 1)]
         public void TaskHubWorkerStarting()
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(EventIds.TaskHubWorkerStarting);
         }
 
         [Event(EventIds.TaskHubWorkerStarted, Level = EventLevel.Informational, Version = 1)]
         public void TaskHubWorkerStarted(long LatencyMs)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(EventIds.TaskHubWorkerStarted, LatencyMs);
         }
 
         [Event(EventIds.TaskHubWorkerStopping, Level = EventLevel.Informational, Version = 1)]
         public void TaskHubWorkerStopping(bool IsForced)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(EventIds.TaskHubWorkerStopping, IsForced);
         }
 
         [Event(EventIds.TaskHubWorkerStopped, Level = EventLevel.Informational, Version = 1)]
         public void TaskHubWorkerStopped(long LatencyMs)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(EventIds.TaskHubWorkerStopped, LatencyMs);
         }
 
         [Event(EventIds.DispatcherStarting, Level = EventLevel.Verbose, Version = 1)]
         public void DispatcherStarting(string Dispatcher)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(EventIds.DispatcherStarting, Dispatcher);
         }
 
         [Event(EventIds.DispatcherStopped, Level = EventLevel.Verbose, Version = 1)]
         public void DispatcherStopped(string Dispatcher)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(EventIds.DispatcherStopped, Dispatcher);
         }
 
         [Event(EventIds.DispatchersStopping, Level = EventLevel.Verbose, Version = 1)]
         public void DispatchersStopping(string Dispatcher, int WorkItemCount, int ActiveFetcherCount)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(EventIds.DispatchersStopping, Dispatcher, WorkItemCount, ActiveFetcherCount);
         }
 
@@ -101,8 +94,9 @@ namespace DurableTask.Core.Logging
             int WorkItemCount,
             int MaxWorkItemCount)
         {
-            if (this.IsEnabled() && ActivityIdState.Value == Guid.Empty)
+            if (this.IsEnabled())
             {
+                // Fetching a work item is always the start of a new operation
                 SetLogicalTraceActivityId(Guid.NewGuid());
             }
 
@@ -128,7 +122,6 @@ namespace DurableTask.Core.Logging
         {
             if (this.IsEnabled(EventLevel.Verbose))
             {
-                EnsureLogicalTraceActivityId();
                 // CONSIDER: Use WriteEventCore for better performance
                 this.WriteEvent(
                     EventIds.FetchedWorkItem,
@@ -143,35 +136,30 @@ namespace DurableTask.Core.Logging
         [Event(EventIds.FetchWorkItemFailure, Level = EventLevel.Error, Version = 1)]
         internal void FetchWorkItemFailure(string Dispatcher, string Details)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(EventIds.FetchWorkItemFailure, Dispatcher, Details);
         }
 
         [Event(EventIds.FetchingThrottled, Level = EventLevel.Informational, Version = 1)]
         internal void FetchingThrottled(string Dispatcher, int WorkItemCount, int MaxWorkItemCount)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(EventIds.FetchingThrottled, Dispatcher, WorkItemCount, MaxWorkItemCount);
         }
 
         [Event(EventIds.ProcessWorkItemStarting, Level = EventLevel.Verbose, Version = 1)]
         internal void ProcessWorkItemStarting(string Dispatcher, string WorkItemId)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(EventIds.ProcessWorkItemStarting, Dispatcher, WorkItemId);
         }
 
         [Event(EventIds.ProcessWorkItemCompleted, Level = EventLevel.Verbose, Version = 1)]
         internal void ProcessWorkItemCompleted(string Dispatcher, string WorkItemId)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(EventIds.ProcessWorkItemCompleted, Dispatcher, WorkItemId);
         }
 
         [Event(EventIds.ProcessWorkItemFailed, Level = EventLevel.Error, Version = 1)]
         public void ProcessWorkItemFailed(string Dispatcher, string WorkItemId, string Details)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(EventIds.ProcessWorkItemFailed, Dispatcher, WorkItemId, Details);
         }
 
@@ -187,7 +175,6 @@ namespace DurableTask.Core.Logging
         {
             if (this.IsEnabled(EventLevel.Informational))
             {
-                EnsureLogicalTraceActivityId();
                 // TODO: Use WriteEventCore for better performance
                 this.WriteEvent(
                     EventIds.SchedulingOrchestration,
@@ -212,7 +199,6 @@ namespace DurableTask.Core.Logging
         {
             if (this.IsEnabled(EventLevel.Informational))
             {
-                EnsureLogicalTraceActivityId();
                 // TODO: Use WriteEventCore for better performance
                 this.WriteEvent(
                     EventIds.RaisingEvent,
@@ -228,7 +214,6 @@ namespace DurableTask.Core.Logging
         [Event(EventIds.TerminatingInstance, Level = EventLevel.Informational, Version = 1)]
         internal void TerminatingInstance(string InstanceId, string ExecutionId, string Details)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(
                 EventIds.TerminatingInstance,
                 InstanceId,
@@ -242,7 +227,6 @@ namespace DurableTask.Core.Logging
             string ExecutionId,
             int TimeoutSeconds)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(
                 EventIds.WaitingForInstance,
                 InstanceId,
@@ -253,7 +237,6 @@ namespace DurableTask.Core.Logging
         [Event(EventIds.FetchingInstanceState, Level = EventLevel.Informational, Version = 1)]
         internal void FetchingInstanceState(string InstanceId, string ExecutionId)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(
                 EventIds.FetchingInstanceState,
                 InstanceId,
@@ -263,7 +246,6 @@ namespace DurableTask.Core.Logging
         [Event(EventIds.FetchingInstanceHistory, Level = EventLevel.Informational, Version = 1)]
         internal void FetchingInstanceHistory(string InstanceId, string ExecutionId)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(
                 EventIds.FetchingInstanceHistory,
                 InstanceId,
@@ -279,7 +261,6 @@ namespace DurableTask.Core.Logging
         {
             if (this.IsEnabled(EventLevel.Verbose))
             {
-                EnsureLogicalTraceActivityId();
                 // TODO: Use WriteEventCore for better performance
                 this.WriteEvent(
                     EventIds.ProcessingOrchestrationMessage,
@@ -296,7 +277,6 @@ namespace DurableTask.Core.Logging
             string ExecutionId,
             string Name)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(
                 EventIds.OrchestrationExecuting,
                 InstanceId,
@@ -313,7 +293,6 @@ namespace DurableTask.Core.Logging
         {
             if (this.IsEnabled(EventLevel.Informational))
             {
-                EnsureLogicalTraceActivityId();
                 // TODO: Use WriteEventCore for better performance
                 this.WriteEvent(
                     EventIds.OrchestrationExecuted,
@@ -334,7 +313,6 @@ namespace DurableTask.Core.Logging
         {
             if (this.IsEnabled(EventLevel.Informational))
             {
-                EnsureLogicalTraceActivityId();
                 // TODO: Use WriteEventCore for better performance
                 this.WriteEvent(
                     EventIds.SchedulingActivity,
@@ -356,7 +334,6 @@ namespace DurableTask.Core.Logging
         {
             if (this.IsEnabled(EventLevel.Informational))
             {
-                EnsureLogicalTraceActivityId();
                 // TODO: Use WriteEventCore for better performance
                 this.WriteEvent(
                     EventIds.CreatingTimer,
@@ -378,7 +355,6 @@ namespace DurableTask.Core.Logging
         {
             if (this.IsEnabled(EventLevel.Informational))
             {
-                EnsureLogicalTraceActivityId();
                 // TODO: Use WriteEventCore for better performance
                 this.WriteEvent(
                     EventIds.OrchestrationCompleted,
@@ -398,7 +374,6 @@ namespace DurableTask.Core.Logging
         {
             if (this.IsEnabled(EventLevel.Warning))
             {
-                EnsureLogicalTraceActivityId();
                 this.WriteEvent(
                     EventIds.OrchestrationAborted,
                     InstanceId,
@@ -417,7 +392,6 @@ namespace DurableTask.Core.Logging
         {
             if (this.IsEnabled(EventLevel.Warning))
             {
-                EnsureLogicalTraceActivityId();
                 // TODO: Use WriteEventCore for better performance
                 this.WriteEvent(
                     EventIds.DiscardingMessage,
@@ -438,7 +412,6 @@ namespace DurableTask.Core.Logging
         {
             if (this.IsEnabled(EventLevel.Informational))
             {
-                EnsureLogicalTraceActivityId();
                 // TODO: Use WriteEventCore for better performance
                 this.WriteEvent(
                     EventIds.TaskActivityStarting,
@@ -459,7 +432,6 @@ namespace DurableTask.Core.Logging
         {
             if (this.IsEnabled(EventLevel.Informational))
             {
-                EnsureLogicalTraceActivityId();
                 // TODO: Use WriteEventCore for better performance
                 this.WriteEvent(
                     EventIds.TaskActivityCompleted,
@@ -481,7 +453,6 @@ namespace DurableTask.Core.Logging
         {
             if (this.IsEnabled(EventLevel.Warning))
             {
-                EnsureLogicalTraceActivityId();
                 // TODO: Use WriteEventCore for better performance
                 this.WriteEvent(
                     EventIds.TaskActivityFailure,
@@ -503,7 +474,6 @@ namespace DurableTask.Core.Logging
         {
             if (this.IsEnabled(EventLevel.Warning))
             {
-                EnsureLogicalTraceActivityId();
                 // TODO: Use WriteEventCore for better performance
                 this.WriteEvent(
                     EventIds.TaskActivityAborted,
@@ -523,7 +493,6 @@ namespace DurableTask.Core.Logging
         {
             if (this.IsEnabled(EventLevel.Error))
             {
-                EnsureLogicalTraceActivityId();
                 this.WriteEvent(
                     EventIds.TaskActivityDispatcherError,
                     InstanceId,
@@ -541,7 +510,6 @@ namespace DurableTask.Core.Logging
         {
             if (this.IsEnabled(EventLevel.Verbose))
             {
-                EnsureLogicalTraceActivityId();
                 // TODO: Use WriteEventCore for better performance
                 this.WriteEvent(
                     EventIds.RenewActivityMessageStarting,
@@ -562,7 +530,6 @@ namespace DurableTask.Core.Logging
         {
             if (this.IsEnabled(EventLevel.Verbose))
             {
-                EnsureLogicalTraceActivityId();
                 // TODO: Use WriteEventCore for better performance
                 this.WriteEvent(
                     EventIds.RenewActivityMessageCompleted,
@@ -584,7 +551,6 @@ namespace DurableTask.Core.Logging
         {
             if (this.IsEnabled(EventLevel.Error))
             {
-                EnsureLogicalTraceActivityId();
                 this.WriteEvent(
                     EventIds.RenewActivityMessageFailed,
                     InstanceId,
