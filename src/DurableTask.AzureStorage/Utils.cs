@@ -128,5 +128,22 @@ namespace DurableTask.AzureStorage
                     return false;
             }
         }
+
+        /// <summary>
+        /// Get the ClassName part delimited by +
+        /// e.g. DurableTask.AzureStorage.Tests.Correlation.CorrelationScenarioTest+SayHelloActivity
+        /// should be "SayHelloActivity"
+        /// </summary>
+        /// <param name="s"></param>
+        public static string GetTargetClassName(this string s)
+        {
+            if (s == null)
+            {
+                return null;
+            }
+
+            int index = s.IndexOf('+');
+            return s.Substring(index + 1, s.Length - index - 1);
+        }
     }
 }
