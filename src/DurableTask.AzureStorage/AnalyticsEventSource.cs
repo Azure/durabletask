@@ -41,16 +41,6 @@ namespace DurableTask.AzureStorage
             SetCurrentThreadActivityId(activityId);
         }
 
-        [NonEvent]
-        private static void EnsureLogicalTraceActivityId()
-        {
-            Guid currentActivityId = ActivityIdState.Value;
-            if (currentActivityId != CurrentThreadActivityId)
-            {
-                SetCurrentThreadActivityId(currentActivityId);
-            }
-        }
-
         [Event(101, Level = EventLevel.Informational, Opcode = EventOpcode.Send, Task = Tasks.Enqueue, Version = 5)]
         public void SendingMessage(
             Guid relatedActivityId,
@@ -68,7 +58,6 @@ namespace DurableTask.AzureStorage
             int Episode,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEventWithRelatedActivityId(
                 101,
                 relatedActivityId,
@@ -106,7 +95,6 @@ namespace DurableTask.AzureStorage
             int Episode,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEventWithRelatedActivityId(
                 102,
                 relatedActivityId,
@@ -140,7 +128,6 @@ namespace DurableTask.AzureStorage
             long SequenceNumber,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(
                 103,
                 Account,
@@ -169,7 +156,6 @@ namespace DurableTask.AzureStorage
             int VisibilityTimeoutSeconds,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(
                 104,
                 Account,
@@ -192,7 +178,6 @@ namespace DurableTask.AzureStorage
             string Details,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(105, Account, TaskHub, Details, ExtensionVersion);
         }
 
@@ -209,7 +194,6 @@ namespace DurableTask.AzureStorage
             string Details,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(
                 106,
                 Account,
@@ -227,7 +211,6 @@ namespace DurableTask.AzureStorage
         [Event(107, Level = EventLevel.Error)]
         public void GeneralError(string Account, string TaskHub, string Details, string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(107, Account, TaskHub, Details, ExtensionVersion);
         }
 
@@ -242,7 +225,6 @@ namespace DurableTask.AzureStorage
             int DequeueCount,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(
                 108,
                 Account,
@@ -266,7 +248,6 @@ namespace DurableTask.AzureStorage
             int DequeueCount,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(
                 109,
                 Account,
@@ -293,7 +274,6 @@ namespace DurableTask.AzureStorage
             DateTime LastCheckpointTime,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(
                 110,
                 Account,
@@ -325,7 +305,6 @@ namespace DurableTask.AzureStorage
             bool IsCheckpointComplete,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(
                 111,
                 Account,
@@ -389,7 +368,6 @@ namespace DurableTask.AzureStorage
             int VisibilityTimeoutSeconds,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(
                 113,
                 Account,
@@ -417,7 +395,6 @@ namespace DurableTask.AzureStorage
             string Details,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(
                 114,
                 Account,
@@ -441,7 +418,6 @@ namespace DurableTask.AzureStorage
             string Details,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(
                 115,
                 Account,
@@ -460,7 +436,6 @@ namespace DurableTask.AzureStorage
             long PendingOrchestratorMessages,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(
                 116,
                 Account,
@@ -477,7 +452,6 @@ namespace DurableTask.AzureStorage
             string PartitionId,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(
                 117,
                 Account,
@@ -500,7 +474,6 @@ namespace DurableTask.AzureStorage
             DateTime LastCheckpointTime,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(
                 118,
                 Account,
@@ -525,7 +498,6 @@ namespace DurableTask.AzureStorage
             string Details,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(120, Account, TaskHub, WorkerName ?? string.Empty, PartitionId ?? string.Empty, Details, ExtensionVersion);
         }
 
@@ -538,7 +510,6 @@ namespace DurableTask.AzureStorage
             string Details,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(121, Account, TaskHub, WorkerName ?? string.Empty, PartitionId ?? string.Empty, Details ?? string.Empty, ExtensionVersion);
         }
 
@@ -563,7 +534,6 @@ namespace DurableTask.AzureStorage
             string Details,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(122, Account, TaskHub, WorkerName ?? string.Empty, PartitionId ?? string.Empty, Details ?? string.Empty, ExtensionVersion);
         }
 
@@ -576,7 +546,6 @@ namespace DurableTask.AzureStorage
             string Token,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(
                 123,
                 Account,
@@ -598,7 +567,6 @@ namespace DurableTask.AzureStorage
             string Details,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(
                 124,
                 Account,
@@ -621,7 +589,6 @@ namespace DurableTask.AzureStorage
             string Details,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(
                 125,
                 Account,
@@ -641,7 +608,6 @@ namespace DurableTask.AzureStorage
             string PartitionId,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(126, Account, TaskHub, WorkerName ?? string.Empty, PartitionId ?? string.Empty, ExtensionVersion);
         }
 
@@ -653,7 +619,6 @@ namespace DurableTask.AzureStorage
             string PartitionId,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(127, Account, TaskHub, WorkerName ?? string.Empty, PartitionId ?? string.Empty, ExtensionVersion);
         }
 
@@ -665,7 +630,6 @@ namespace DurableTask.AzureStorage
             string PartitionId,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(128, Account, TaskHub, WorkerName ?? string.Empty, PartitionId ?? string.Empty, ExtensionVersion);
         }
 
@@ -678,7 +642,6 @@ namespace DurableTask.AzureStorage
             string PartitionId,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(
                 129,
                 Account,
@@ -698,7 +661,6 @@ namespace DurableTask.AzureStorage
             string PartitionId,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(
                 130,
                 Account,
@@ -717,7 +679,6 @@ namespace DurableTask.AzureStorage
             string PartitionId,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(131, Account, TaskHub, WorkerName ?? string.Empty, PartitionId ?? string.Empty, ExtensionVersion);
         }
 
@@ -730,7 +691,6 @@ namespace DurableTask.AzureStorage
             string Token,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(
                 132,
                 Account,
@@ -750,7 +710,6 @@ namespace DurableTask.AzureStorage
             string Token,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(
                 133,
                 Account,
@@ -770,7 +729,6 @@ namespace DurableTask.AzureStorage
             string Token,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(
                 134,
                 Account,
@@ -792,7 +750,6 @@ namespace DurableTask.AzureStorage
             long LatencyMs,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(
                 135,
                 Account,
@@ -814,14 +771,12 @@ namespace DurableTask.AzureStorage
             long LatencyMs,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(136, Account, TaskHub, InstanceId, ExecutionId ?? string.Empty, LatencyMs, ExtensionVersion);
         }
 
         [Event(137, Level = EventLevel.Warning)]
         public void GeneralWarning(string Account, string TaskHub, string Details, string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(137, Account, TaskHub, Details, ExtensionVersion);
         }
 
@@ -838,7 +793,6 @@ namespace DurableTask.AzureStorage
             string ETag,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(
                 138,
                 Account,
@@ -865,7 +819,6 @@ namespace DurableTask.AzureStorage
             string Details,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(
                 139,
                 Account,
@@ -895,7 +848,6 @@ namespace DurableTask.AzureStorage
             bool IsExtendedSession,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEventWithRelatedActivityId(
                 140,
                 relatedActivityId,
@@ -913,27 +865,26 @@ namespace DurableTask.AzureStorage
                 ExtensionVersion);
         }
 
-        [Event(141, Level = EventLevel.Informational)]
+        [Event(141, Level = EventLevel.Informational, Version = 2)]
         public void PurgeInstanceHistory(
             string Account,
             string TaskHub,
             string InstanceId,
-            string createdTimeFrom,
-            string createdTimeTo,
-            string runtimeStatus,
+            string CreatedTimeFrom,
+            string CreatedTimeTo,
+            string RuntimeStatus,
             int RequestCount,
             long LatencyMs,
             string ExtensionVersion)
         {
-            EnsureLogicalTraceActivityId();
             this.WriteEvent(
                 141,
                 Account,
                 TaskHub,
                 InstanceId,
-                createdTimeFrom,
-                createdTimeTo,
-                runtimeStatus,
+                CreatedTimeFrom,
+                CreatedTimeTo,
+                RuntimeStatus,
                 RequestCount,
                 LatencyMs,
                 ExtensionVersion);

@@ -37,8 +37,8 @@ namespace DurableTask.AzureStorage.Tests
 
             this.settings = settings;
 
-            this.worker = new TaskHubWorker(service);
-            this.client = new TaskHubClient(service);
+            this.worker = new TaskHubWorker(service, loggerFactory: settings.LoggerFactory);
+            this.client = new TaskHubClient(service, loggerFactory: settings.LoggerFactory);
             this.addedOrchestrationTypes = new HashSet<Type>();
             this.addedActivityTypes = new HashSet<Type>();
         }

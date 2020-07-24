@@ -30,6 +30,7 @@ namespace DurableTask.AzureStorage.Partitioning
         const string TaskHubInfoBlobName = "taskhub.json";
         static readonly TimeSpan StorageMaximumExecutionTime = TimeSpan.FromMinutes(2);
 
+        readonly AzureStorageOrchestrationServiceSettings settings;
         readonly string storageAccountName;
         readonly string taskHubName;
         readonly string workerName;
@@ -38,7 +39,6 @@ namespace DurableTask.AzureStorage.Partitioning
         readonly string consumerGroupName;
         readonly bool skipBlobContainerCreation;
         readonly TimeSpan leaseInterval;
-        readonly TimeSpan renewInterval;
         readonly CloudBlobClient storageClient;
         readonly BlobRequestOptions renewRequestOptions;
         readonly AzureStorageOrchestrationServiceStats stats;
@@ -48,28 +48,25 @@ namespace DurableTask.AzureStorage.Partitioning
         CloudBlockBlob taskHubInfoBlob;
 
         public BlobLeaseManager(
-            string taskHubName,
-            string workerName,
+            AzureStorageOrchestrationServiceSettings settings,
             string leaseContainerName,
             string blobPrefix,
             string consumerGroupName,
             CloudBlobClient storageClient,
-            TimeSpan leaseInterval,
-            TimeSpan renewInterval,
             bool skipBlobContainerCreation,
             AzureStorageOrchestrationServiceStats stats)
         {
+            this.settings = settings;
             this.storageAccountName = storageClient.Credentials.AccountName;
-            this.taskHubName = taskHubName;
-            this.workerName = workerName;
+            this.taskHubName = settings.TaskHubName;
+            this.workerName = settings.WorkerId;
             this.leaseContainerName = leaseContainerName;
             this.blobPrefix = blobPrefix;
             this.consumerGroupName = consumerGroupName;
             this.storageClient = storageClient;
-            this.leaseInterval = leaseInterval;
-            this.renewInterval = renewInterval;
+            this.leaseInterval = settings.LeaseInterval;
             this.skipBlobContainerCreation = skipBlobContainerCreation;
-            this.renewRequestOptions = new BlobRequestOptions { ServerTimeout = renewInterval };
+            this.renewRequestOptions = new BlobRequestOptions { ServerTimeout = settings.LeaseRenewInterval };
             this.stats = stats ?? new AzureStorageOrchestrationServiceStats();
 
             this.Initialize();
@@ -109,7 +106,7 @@ namespace DurableTask.AzureStorage.Partitioning
             do
             {
                 OperationContext context = new OperationContext { ClientRequestID = Guid.NewGuid().ToString() };
-                BlobResultSegment segment = await TimeoutHandler.ExecuteWithTimeout("ListLeases", context.ClientRequestID, storageAccountName, taskHubName, () =>
+                BlobResultSegment segment = await TimeoutHandler.ExecuteWithTimeout("ListLeases", context.ClientRequestID, this.storageAccountName, this.settings, () =>
                 {
                     return this.consumerGroupDirectory.ListBlobsSegmentedAsync(continuationToken);
                 });
@@ -142,7 +139,7 @@ namespace DurableTask.AzureStorage.Partitioning
             string serializedLease = JsonConvert.SerializeObject(lease);
             try
             {
-                AnalyticsEventSource.Log.PartitionManagerInfo(
+                this.settings.Logger.PartitionManagerInfo(
                     this.storageAccountName,
                     this.taskHubName,
                     this.workerName,
@@ -153,8 +150,7 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.leaseContainerName,
                         this.consumerGroupName,
                         partitionId,
-                        this.blobPrefix ?? string.Empty),
-                    Utils.ExtensionVersion);
+                        this.blobPrefix ?? string.Empty));
 
                 await leaseBlob.UploadTextAsync(serializedLease, null, AccessCondition.GenerateIfNoneMatchCondition("*"), null, null);
             }
@@ -162,7 +158,7 @@ namespace DurableTask.AzureStorage.Partitioning
             {
                 // eat any storage exception related to conflict
                 // this means the blob already exist
-                AnalyticsEventSource.Log.PartitionManagerInfo(
+                this.settings.Logger.PartitionManagerInfo(
                     this.storageAccountName,
                     this.taskHubName,
                     this.workerName,
@@ -174,8 +170,7 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.consumerGroupName,
                         partitionId,
                         this.blobPrefix ?? string.Empty,
-                        se.Message),
-                    Utils.ExtensionVersion);
+                        se.Message));
             }
             finally
             {

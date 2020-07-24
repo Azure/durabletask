@@ -14,8 +14,10 @@
 namespace DurableTask.AzureStorage
 {
     using System;
+    using DurableTask.AzureStorage.Logging;
     using DurableTask.Core;
     using Microsoft.Extensions.Logging;
+    using Microsoft.Extensions.Logging.Abstractions;
     using Microsoft.WindowsAzure.Storage.Queue;
     using Microsoft.WindowsAzure.Storage.Table;
 
@@ -27,6 +29,8 @@ namespace DurableTask.AzureStorage
         internal const int DefaultPartitionCount = 4;
 
         internal static readonly TimeSpan DefaultMaxQueuePollingInterval = TimeSpan.FromSeconds(30);
+
+        LogHelper logHelper;
 
         /// <summary>
         /// Gets or sets the number of messages to pull from the control queue at a time. The default is 32.
@@ -181,7 +185,7 @@ namespace DurableTask.AzureStorage
         /// <summary>
         /// Gets or sets the optional <see cref="ILoggerFactory"/> to use for diagnostic logging.
         /// </summary>
-        public ILoggerFactory LoggerFactory { get; set; }
+        public ILoggerFactory LoggerFactory { get; set; } = NullLoggerFactory.Instance;
 
         /// <summary>
         /// Returns bool indicating is the TrackingStoreStorageAccount has been set.
@@ -191,5 +195,18 @@ namespace DurableTask.AzureStorage
         internal string HistoryTableName => this.HasTrackingStoreStorageAccount ? $"{this.TrackingStoreNamePrefix}History" : $"{this.TaskHubName}History";
 
         internal string InstanceTableName => this.HasTrackingStoreStorageAccount ? $"{this.TrackingStoreNamePrefix}Instances" : $"{this.TaskHubName}Instances";
+
+        internal LogHelper Logger
+        {
+            get
+            {
+                if (this.logHelper == null)
+                {
+                    this.logHelper = new LogHelper(this.LoggerFactory.CreateLogger("DurableTask.Core"));
+                }
+
+                return this.logHelper;
+            }
+        }
     }
 }

@@ -28,8 +28,8 @@ namespace DurableTask.AzureStorage.Messaging
         readonly MessageCollection nextMessageBatch;
 
         public OrchestrationSession(
+            AzureStorageOrchestrationServiceSettings settings,
             string storageAccountName,
-            string taskHubName,
             OrchestrationInstance orchestrationInstance,
             ControlQueue controlQueue,
             List<MessageData> initialMessageBatch,
@@ -38,7 +38,7 @@ namespace DurableTask.AzureStorage.Messaging
             DateTime lastCheckpointTime,
             TimeSpan idleTimeout,
             Guid traceActivityId)
-            : base(storageAccountName, taskHubName, orchestrationInstance, traceActivityId)
+            : base(settings, storageAccountName, orchestrationInstance, traceActivityId)
         {
             this.idleTimeout = idleTimeout;
             this.ControlQueue = controlQueue ?? throw new ArgumentNullException(nameof(controlQueue));

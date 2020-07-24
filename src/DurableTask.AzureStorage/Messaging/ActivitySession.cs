@@ -20,11 +20,11 @@ namespace DurableTask.AzureStorage.Messaging
         readonly int orchestrationEpisode;
 
         public ActivitySession(
+            AzureStorageOrchestrationServiceSettings settings,
             string storageAccountName,
-            string taskHubName,
             MessageData message,
             Guid traceActivityId)
-            : base(storageAccountName, taskHubName, message.TaskMessage.OrchestrationInstance, traceActivityId)
+            : base(settings, storageAccountName, message.TaskMessage.OrchestrationInstance, traceActivityId)
         {
             this.MessageData = message ?? throw new ArgumentNullException(nameof(message));
             this.orchestrationEpisode = message.Episode ?? -1;
