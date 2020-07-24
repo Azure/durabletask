@@ -252,7 +252,7 @@ namespace DurableTask.Core
                 try
                 {
                     Interlocked.Increment(ref this.activeFetchers);
-                    this.LogHelper.FetchingWorkItem(context, DefaultReceiveTimeout, this.concurrentWorkItemCount, this.MaxConcurrentWorkItems);
+                    this.LogHelper.FetchWorkItemStarting(context, DefaultReceiveTimeout, this.concurrentWorkItemCount, this.MaxConcurrentWorkItems);
                     TraceHelper.Trace(
                         TraceEventType.Verbose, 
                         "WorkItemDispatcherDispatch-StartFetch",
@@ -264,7 +264,7 @@ namespace DurableTask.Core
                     if (!IsNull(workItem))
                     {
                         string workItemId = this.workItemIdentifier(workItem);
-                        this.LogHelper.FetchedWorkItem(
+                        this.LogHelper.FetchWorkItemCompleted(
                             context,
                             workItemId,
                             timer.Elapsed,

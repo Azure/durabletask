@@ -128,7 +128,7 @@ namespace DurableTask.Core.Logging
         /// <param name="timeout">The fetch timeout.</param>
         /// <param name="concurrentWorkItemCount">The current number of concurrent work items.</param>
         /// <param name="maxConcurrentWorkItems">The maximum number of concurrent work items.</param>
-        internal void FetchingWorkItem(
+        internal void FetchWorkItemStarting(
             WorkItemDispatcherContext context,
             TimeSpan timeout,
             int concurrentWorkItemCount,
@@ -137,7 +137,7 @@ namespace DurableTask.Core.Logging
             if (this.IsStructuredLoggingEnabled)
             {
                 this.WriteStructuredLog(
-                    new LogEvents.FetchingWorkItem(
+                    new LogEvents.FetchWorkItemStarting(
                         context,
                         timeout,
                         concurrentWorkItemCount,
@@ -154,7 +154,7 @@ namespace DurableTask.Core.Logging
         /// <param name="latency">The latency of the fetch operation.</param>
         /// <param name="concurrentWorkItemCount">The current number of concurrent work items.</param>
         /// <param name="maxConcurrentWorkItems">The maximum number of concurrent work items.</param>
-        internal void FetchedWorkItem(
+        internal void FetchWorkItemCompleted(
             WorkItemDispatcherContext context,
             string workItemId,
             TimeSpan latency,
@@ -164,7 +164,7 @@ namespace DurableTask.Core.Logging
             if (this.IsStructuredLoggingEnabled)
             {
                 this.WriteStructuredLog(
-                    new LogEvents.FetchedWorkItem(
+                    new LogEvents.FetchWorkItemCompleted(
                         context,
                         workItemId,
                         latency,

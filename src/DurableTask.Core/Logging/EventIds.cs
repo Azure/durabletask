@@ -24,8 +24,8 @@ namespace DurableTask.Core.Logging
         public const int DispatcherStarting = 20;
         public const int DispatcherStopped = 21;
         public const int DispatchersStopping = 22;
-        public const int FetchingWorkItem = 23;
-        public const int FetchedWorkItem = 24;
+        public const int FetchWorkItemStarting = 23;
+        public const int FetchWorkItemCompleted = 24;
         public const int FetchWorkItemFailure = 25;
         public const int FetchingThrottled = 26;
         public const int ProcessWorkItemStarting = 27;

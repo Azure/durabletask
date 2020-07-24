@@ -87,8 +87,8 @@ namespace DurableTask.Core.Logging
             this.WriteEvent(EventIds.DispatchersStopping, Dispatcher, WorkItemCount, ActiveFetcherCount);
         }
 
-        [Event(EventIds.FetchingWorkItem, Level = EventLevel.Verbose, Version = 1)]
-        internal void FetchingWorkItem(
+        [Event(EventIds.FetchWorkItemStarting, Level = EventLevel.Verbose, Version = 1)]
+        internal void FetchWorkItemStarting(
             string Dispatcher,
             int TimeoutSeconds,
             int WorkItemCount,
@@ -104,7 +104,7 @@ namespace DurableTask.Core.Logging
             {
                 // CONSIDER: Use WriteEventCore for better performance
                 this.WriteEvent(
-                    EventIds.FetchingWorkItem,
+                    EventIds.FetchWorkItemStarting,
                     Dispatcher,
                     TimeoutSeconds,
                     WorkItemCount,
@@ -112,8 +112,8 @@ namespace DurableTask.Core.Logging
             }
         }
 
-        [Event(EventIds.FetchedWorkItem, Level = EventLevel.Verbose, Version = 1)]
-        internal void FetchedWorkItem(
+        [Event(EventIds.FetchWorkItemCompleted, Level = EventLevel.Verbose, Version = 1)]
+        internal void FetchWorkItemCompleted(
             string Dispatcher,
             string WorkItemId,
             long LatencyMs,
@@ -124,7 +124,7 @@ namespace DurableTask.Core.Logging
             {
                 // CONSIDER: Use WriteEventCore for better performance
                 this.WriteEvent(
-                    EventIds.FetchedWorkItem,
+                    EventIds.FetchWorkItemCompleted,
                     Dispatcher,
                     WorkItemId,
                     LatencyMs,
@@ -349,7 +349,7 @@ namespace DurableTask.Core.Logging
         internal void OrchestrationCompleted(
             string InstanceId,
             string ExecutionId,
-            string Status,
+            string RuntimeStatus,
             string Details,
             int SizeInBytes)
         {
@@ -360,7 +360,7 @@ namespace DurableTask.Core.Logging
                     EventIds.OrchestrationCompleted,
                     InstanceId,
                     ExecutionId,
-                    Status,
+                    RuntimeStatus,
                     Details,
                     SizeInBytes);
             }

@@ -180,9 +180,9 @@ namespace DurableTask.Core.Logging
                 StructuredEventSource.Log.DispatchersStopping(this.Dispatcher, this.WorkItemCount, this.ActiveFetcherCount);
         }
 
-        internal class FetchingWorkItem : StructuredLogEvent, IEventSourceEvent
+        internal class FetchWorkItemStarting : StructuredLogEvent, IEventSourceEvent
         {
-            public FetchingWorkItem(
+            public FetchWorkItemStarting(
                 WorkItemDispatcherContext context,
                 TimeSpan timeout,
                 int concurrentWorkItemCount,
@@ -207,8 +207,8 @@ namespace DurableTask.Core.Logging
             public int MaxWorkItemCount { get; }
 
             public override EventId EventId => new EventId(
-                EventIds.FetchingWorkItem,
-                nameof(EventIds.FetchingWorkItem));
+                EventIds.FetchWorkItemStarting,
+                nameof(EventIds.FetchWorkItemStarting));
 
             public override LogLevel Level => LogLevel.Debug;
 
@@ -217,16 +217,16 @@ namespace DurableTask.Core.Logging
                 $"Maximum active work-item count: {this.MaxWorkItemCount}. Timeout: {this.TimeoutSeconds}s";
 
             void IEventSourceEvent.WriteEventSource() =>
-                StructuredEventSource.Log.FetchingWorkItem(
+                StructuredEventSource.Log.FetchWorkItemStarting(
                     this.Dispatcher,
                     this.TimeoutSeconds,
                     this.WorkItemCount,
                     this.MaxWorkItemCount);
         }
 
-        internal class FetchedWorkItem : StructuredLogEvent, IEventSourceEvent
+        internal class FetchWorkItemCompleted : StructuredLogEvent, IEventSourceEvent
         {
-            public FetchedWorkItem(
+            public FetchWorkItemCompleted(
                 WorkItemDispatcherContext context,
                 string workItemId,
                 TimeSpan latency,
@@ -256,8 +256,8 @@ namespace DurableTask.Core.Logging
             public int MaxWorkItemCount { get; }
 
             public override EventId EventId => new EventId(
-                EventIds.FetchedWorkItem,
-                nameof(EventIds.FetchedWorkItem));
+                EventIds.FetchWorkItemCompleted,
+                nameof(EventIds.FetchWorkItemCompleted));
 
             public override LogLevel Level => LogLevel.Debug;
 
@@ -266,7 +266,7 @@ namespace DurableTask.Core.Logging
                 $"Current active work-item count: {this.WorkItemCount}. Maximum active work-item count: {this.MaxWorkItemCount}.";
 
             void IEventSourceEvent.WriteEventSource() =>
-                StructuredEventSource.Log.FetchedWorkItem(
+                StructuredEventSource.Log.FetchWorkItemCompleted(
                     this.Dispatcher,
                     this.WorkItemId,
                     this.LatencyMs,
@@ -877,7 +877,7 @@ namespace DurableTask.Core.Logging
             {
                 this.InstanceId = runtimeState.OrchestrationInstance.InstanceId;
                 this.ExecutionId = runtimeState.OrchestrationInstance.ExecutionId;
-                this.Status = action.OrchestrationStatus.ToString();
+                this.RuntimeStatus = action.OrchestrationStatus.ToString();
                 this.Details = action.Details;
                 this.SizeInBytes = Encoding.UTF8.GetByteCount(action.Result ?? string.Empty);
             }
@@ -889,7 +889,7 @@ namespace DurableTask.Core.Logging
             public string ExecutionId { get; }
 
             [StructuredLogField]
-            public string Status { get; }
+            public string RuntimeStatus { get; }
 
             [StructuredLogField]
             public string Details { get; }
@@ -904,13 +904,13 @@ namespace DurableTask.Core.Logging
             public override LogLevel Level => LogLevel.Information;
 
             public override string GetLogMessage() =>
-                $"{this.InstanceId}: Orchestration completed. Status: {this.Status}. Details: {this.Details}";
+                $"{this.InstanceId}: Orchestration completed. Status: {this.RuntimeStatus}. Details: {this.Details}";
 
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.OrchestrationCompleted(
                     this.InstanceId,
                     this.ExecutionId,
-                    this.Status,
+                    this.RuntimeStatus,
                     this.Details,
                     this.SizeInBytes);
         }

@@ -29,17 +29,12 @@ namespace DurableTask.Core.Logging
         /// <param name="exception">Optional exception parameter for logging.</param>
         public static void LogDurableEvent(this ILogger logger, ILogEvent logEvent, Exception exception = null)
         {
-            if (logger == null)
-            {
-                throw new ArgumentNullException(nameof(logger));
-            }
-
             if (logEvent == null)
             {
                 throw new ArgumentNullException(nameof(logEvent));
             }
 
-            logger.Log(
+            logger?.Log(
                 logEvent.Level,
                 logEvent.EventId,
                 logEvent,
@@ -48,19 +43,7 @@ namespace DurableTask.Core.Logging
 
             if (logEvent is IEventSourceEvent eventSourceEvent)
             {
-                // TODO: Uncomment this code when distributed tracing is integrated
-                ////// If there is an Activity.Current, use it for the EventSource activity ID
-                ////if (Activity.Current != null)
-                ////{
-                ////    Guid activityId = new Guid(Activity.Current.TraceId.ToString());
-                ////    StructuredEventSource.SetLogicalTraceActivityId(activityId);
-                ////}
-                ////else
-                ////{
-                    // Otherwise, use our own built-in activity ID tracking
-                    StructuredEventSource.EnsureLogicalTraceActivityId();
-                ////}
-
+                StructuredEventSource.EnsureLogicalTraceActivityId();
                 eventSourceEvent.WriteEventSource();
             }
         }
