@@ -79,12 +79,12 @@ namespace DurableTask.Core
             return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 NameVersionHelper.GetDefaultName(orchestrationType),
                 NameVersionHelper.GetDefaultVersion(orchestrationType),
-                null,
-                input,
-                null,
-                null,
-                null,
-                null);
+                orchestrationInstanceId: null,
+                orchestrationInput: input,
+                orchestrationTags: null,
+                dedupeStatuses: null,
+                eventName: null,
+                eventData: null);
         }
 
         /// <summary>
@@ -104,10 +104,10 @@ namespace DurableTask.Core
                 NameVersionHelper.GetDefaultVersion(orchestrationType),
                 instanceId,
                 input,
-                null,
-                null,
-                null,
-                null);
+                orchestrationTags: null,
+                dedupeStatuses: null,
+                eventName: null,
+                eventData: null);
         }
 
         /// <summary>
@@ -129,10 +129,10 @@ namespace DurableTask.Core
                 NameVersionHelper.GetDefaultVersion(orchestrationType),
                 instanceId,
                 input,
-                null,
+                orchestrationTags: null,
                 dedupeStatuses,
-                null,
-                null);
+                eventName: null,
+                eventData: null);
         }
 
         /// <summary>
@@ -147,12 +147,12 @@ namespace DurableTask.Core
             return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 name,
                 version,
-                null,
+                orchestrationInstanceId: null,
                 input,
-                null,
-                null,
-                null,
-                null);
+                orchestrationTags: null,
+                dedupeStatuses: null,
+                eventName: null,
+                eventData: null);
         }
 
         /// <summary>
@@ -170,10 +170,10 @@ namespace DurableTask.Core
                 version,
                 instanceId,
                 input,
-                null,
-                null,
-                null,
-                null);
+                orchestrationTags: null,
+                dedupeStatuses: null,
+                eventName: null,
+                eventData: null);
         }
 
         /// <summary>
@@ -198,9 +198,9 @@ namespace DurableTask.Core
                 instanceId,
                 input,
                 tags,
-                null,
-                null,
-                null);
+                dedupeStatuses: null,
+                eventName: null,
+                eventData: null);
         }
 
         /// <summary>
@@ -228,8 +228,8 @@ namespace DurableTask.Core
                 input,
                 tags,
                 dedupeStatuses,
-                null,
-                null);
+                eventName: null,
+                eventData: null);
         }
 
         /// <summary>
@@ -250,10 +250,10 @@ namespace DurableTask.Core
             return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 NameVersionHelper.GetDefaultName(orchestrationType),
                 NameVersionHelper.GetDefaultVersion(orchestrationType),
-                null,
+                orchestrationInstanceId: null,
                 orchestrationInput,
-                null,
-                null,
+                orchestrationTags: null,
+                dedupeStatuses: null,
                 eventName,
                 eventData);
         }
@@ -280,8 +280,8 @@ namespace DurableTask.Core
                 NameVersionHelper.GetDefaultVersion(orchestrationType),
                 instanceId,
                 orchestrationInput,
-                null,
-                null,
+                orchestrationTags: null,
+                dedupeStatuses: null,
                 eventName,
                 eventData);
         }
@@ -310,7 +310,7 @@ namespace DurableTask.Core
                 NameVersionHelper.GetDefaultVersion(orchestrationType),
                 instanceId,
                 orchestrationInput,
-                null,
+                orchestrationTags: null,
                 dedupeStatuses,
                 eventName,
                 eventData);
@@ -333,10 +333,12 @@ namespace DurableTask.Core
             return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 orchestrationName,
                 orchestrationVersion,
-                null,
-                null,
-                null,
-                null, eventName, eventData);
+                orchestrationInstanceId: null,
+                orchestrationInput: null,
+                orchestrationTags: null,
+                dedupeStatuses: null,
+                eventName,
+                eventData);
         }
 
         /// <summary>
@@ -359,9 +361,10 @@ namespace DurableTask.Core
             return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 orchestrationName,
                 orchestrationVersion,
-                null, orchestrationInput,
-                null,
-                null,
+                orchestrationInstanceId: null,
+                orchestrationInput,
+                orchestrationTags: null,
+                dedupeStatuses: null,
                 eventName,
                 eventData);
         }
@@ -389,7 +392,9 @@ namespace DurableTask.Core
                 orchestrationName,
                 orchestrationVersion,
                 instanceId,
-                orchestrationInput, null, null,
+                orchestrationInput,
+                orchestrationTags: null,
+                dedupeStatuses: null,
                 eventName,
                 eventData);
         }
@@ -421,7 +426,7 @@ namespace DurableTask.Core
                 instanceId,
                 orchestrationInput,
                 orchestrationTags,
-                null,
+                dedupeStatuses: null,
                 eventName,
                 eventData);
         }
@@ -480,9 +485,11 @@ namespace DurableTask.Core
                 orchestrationName,
                 orchestrationVersion,
                 instanceId,
-                null,
-                null,
-                null, eventName, eventData);
+                orchestrationInput: null,
+                orchestrationTags: null,
+                dedupeStatuses: null,
+                eventName,
+                eventData);
         }
 
         async Task<OrchestrationInstance> InternalCreateOrchestrationInstanceWithRaisedEventAsync(

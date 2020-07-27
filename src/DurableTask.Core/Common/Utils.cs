@@ -451,7 +451,13 @@ namespace DurableTask.Core.Common
             return historyEvent.EventId;
         }
 
-        static bool TryGetTaskScheduledId(HistoryEvent historyEvent, out int taskScheduledId)
+        /// <summary>
+        /// Gets the task event ID for the specified <see cref="HistoryEvent"/> if one exists.
+        /// </summary>
+        /// <param name="historyEvent">The history which may or may not contain a task event ID.</param>
+        /// <param name="taskScheduledId">The task event ID or <c>-1</c> if none exists.</param>
+        /// <returns>Returns <c>true</c> if a task event ID was found; <c>false</c> otherwise.</returns>
+        public static bool TryGetTaskScheduledId(HistoryEvent historyEvent, out int taskScheduledId)
         {
             switch (historyEvent.EventType)
             {

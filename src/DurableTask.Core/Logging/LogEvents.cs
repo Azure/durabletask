@@ -20,6 +20,13 @@ namespace DurableTask.Core.Logging
     using DurableTask.Core.History;
     using Microsoft.Extensions.Logging;
 
+    /// <summary>
+    /// This class defines all log events supported by DurableTask.Core.
+    /// </summary>
+    /// <remarks>
+    /// Each inner-class represents a single log event that derives from <see cref="StructuredLogEvent"/> and
+    /// optionally implements <see cref="IEventSourceEvent"/>.
+    /// </remarks>
     static class LogEvents
     {
         internal class TaskHubWorkerStarting : StructuredLogEvent, IEventSourceEvent

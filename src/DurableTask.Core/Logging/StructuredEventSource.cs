@@ -18,6 +18,9 @@ namespace DurableTask.Core.Logging
     using System.Threading;
 
     // NOTE: This is intended to eventually replace the other DurableTask-Core provider
+    /// <summary>
+    /// Event source logger for DurableTask.Core that uses structured events rather than log messages.
+    /// </summary>
     [EventSource(Name = "DurableTask-Core")]
     class StructuredEventSource : EventSource
     {

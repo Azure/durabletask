@@ -22,12 +22,6 @@ namespace DurableTask.Core
     [DataContract]
     public class OrchestrationInstance : IExtensibleDataObject
     {
-        internal readonly static OrchestrationInstance Empty = new OrchestrationInstance
-        {
-            InstanceId = string.Empty,
-            ExecutionId = string.Empty,
-        };
-
         /// <summary>
         /// The instance id, assigned as unique to the orchestration
         /// </summary>

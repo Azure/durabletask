@@ -25,16 +25,16 @@ var worker = new TaskHubWorker(orchestrationService, loggerFactory);
 
 ## Event Source configuration
 
-Event Source logging is always enabled and does not have any _explicit_ configuration. However, there are currently two flavors of event source logging, _structured_ and _unstructured_. By default, Event Source logs are _unstructured_.
+Event Source logging is always enabled and does not have any _explicit_ configuration. However, there are currently two flavors of event source logging, _structured_ and _unstructured_. By default, Event Source logs are _unstructured_. This means that every log uses a common schema such that the important information is included in a text message.
 
-Starting in **DurableTask.Core v2.4.0**, a more modern _structured_ Event Source logging is available. To enable the structured Event Source logging, a non-null `loggerFactory` must be configured. Even using [NullLoggerFactory.Instance](https://docs.microsoft.com/dotnet/api/microsoft.extensions.logging.abstractions.nullloggerfactory.instance) can be used to enabled structured event source logging.
+Starting in **DurableTask.Core v2.4.0**, a more modern _structured_ Event Source logging is available. Rather than logging text messages, each log event has its own unique schema, making it easier to query for very specific information when logs are stored in places like Kusto. To enable the structured Event Source logging, a non-null `loggerFactory` must be configured. Even using [NullLoggerFactory.Instance](https://docs.microsoft.com/dotnet/api/microsoft.extensions.logging.abstractions.nullloggerfactory.instance) can be used to enabled structured event source logging.
 
-The difference between the legacy and structured event source providers is the provider GUID values, as shown in the following table.
+Both the legacy and structured event source providers have a provider name of `DurableTask-Core`. However, they have different provider GUID values, as shown in the following table.
 
 | Event Source Type | Provider Name | Provider GUID |
 |-|-|-|
-| Structured (recommended) | [DurableTask-Core](src/DurableTask.Core/Logging/StructuredEventSource.cs) | 413F7E86-75A9-5E9C-35DD-51DB8427E7E7 |
-| Unstructured (legacy) | [DurableTask-Core](src/DurableTask.Core/Tracing/DefaultEventSource.cs) | 7DA4779A-152E-44A2-A6F2-F80D991A5BEE |
+| Structured (recommended) | [DurableTask-Core](StructuredEventSource.cs) | 413F7E86-75A9-5E9C-35DD-51DB8427E7E7 |
+| Unstructured (legacy) | [DurableTask-Core](../Tracing/DefaultEventSource.cs) | 7DA4779A-152E-44A2-A6F2-F80D991A5BEE |
 
 Note that some transaction store providers, like **DurableTask.AzureStorage** also support Event Source logging.
 
@@ -45,9 +45,9 @@ Note that some transaction store providers, like **DurableTask.AzureStorage** al
 
 ## Structured logging
 
-There are a large number of log events emitted by DurableTask.Core. The full list, including their event IDs, verbosity, and schemas can be found in [LogEvents.cs](src/DurableTask.Core/Logging/LogEvents.cs).
+There are a large number of log events emitted by DurableTask.Core. The full list, including their event IDs, verbosity, and schemas can be found in [LogEvents.cs](LogEvents.cs).
 
-Each log event is represented as a class that derives from [StructuredLogEvent](src/DurableTask.Core/Logging/StructuredLogEvent.cs). Each data field of the event is declared as a property with the [StructuredLogField](src/DurableTask.Core/Logging/StructuredLogFieldAttribute.cs) attribute. If a log event supports being written to Event Source, then it also implements the [IEventSourceEvent](src/DurableTask.Core/Logging/IEventSourceEvent.cs) interface.
+Each log event is represented as a class that derives from [StructuredLogEvent](StructuredLogEvent.cs). Each data field of the event is declared as a property with the [StructuredLogField](StructuredLogFieldAttribute.cs) attribute. If a log event supports being written to Event Source, then it also implements the [IEventSourceEvent](IEventSourceEvent.cs) interface.
 
 Note that these classes are public. It is recommended that all Durable Task transaction store implementations leverage these classes to implement their own logging. This will enable those providers to participate in [end-to-end tracing](#end-to-end-tracing).
 

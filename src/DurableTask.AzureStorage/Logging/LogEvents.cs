@@ -714,7 +714,7 @@
                 long latencyMs,
                 int sizeInBytes,
                 string eTag,
-                Boolean isCheckpointComplete)
+                bool isCheckpointComplete)
             {
                 this.Account = account;
                 this.TaskHub = taskHub;
@@ -764,7 +764,7 @@
             public string ETag { get; }
 
             [StructuredLogField]
-            public Boolean IsCheckpointComplete { get; }
+            public bool IsCheckpointComplete { get; }
 
             public override EventId EventId => new EventId(
                 EventIds.AppendedInstanceHistory,
@@ -1427,7 +1427,7 @@
                 string taskHub,
                 string workerName,
                 string partitionId,
-                Boolean success,
+                bool success,
                 string token,
                 string details)
             {
@@ -1453,7 +1453,7 @@
             public string PartitionId { get; }
 
             [StructuredLogField]
-            public Boolean Success { get; }
+            public bool Success { get; }
 
             [StructuredLogField]
             public string Token { get; }
@@ -2238,7 +2238,7 @@
                 int age,
                 long sequenceNumber,
                 int episode,
-                Boolean isExtendedSession)
+                bool isExtendedSession)
             {
                 this.RelatedActivityId = relatedActivityId;
                 this.Account = account;
@@ -2287,7 +2287,7 @@
             public int Episode { get; }
 
             [StructuredLogField]
-            public Boolean IsExtendedSession { get; }
+            public bool IsExtendedSession { get; }
 
             public override EventId EventId => new EventId(
                 EventIds.ProcessingMessage,
