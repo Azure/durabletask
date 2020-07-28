@@ -13,11 +13,30 @@
 
 namespace DurableTask.AzureStorage.Partitioning
 {
+    using System;
     using System.Threading.Tasks;
 
-    interface IPartitionObserver<T> where T : Lease
+    sealed class LeaseObserver<T> where T : Lease
     {
-        Task OnPartitionAcquiredAsync(T l);
-        Task OnPartitionReleasedAsync(T l, CloseReason reason);
+        private readonly Func<T, Task> leaseAquiredDelegate;
+        private readonly Func<T, CloseReason, Task> leaseReleasedDelegate;
+
+        public LeaseObserver(
+            Func<T, Task> leaseAquiredDelegate,
+            Func<T, CloseReason, Task> leaseReleasedDelegate)
+        {
+            this.leaseAquiredDelegate = leaseAquiredDelegate;
+            this.leaseReleasedDelegate = leaseReleasedDelegate;
+        }
+
+        public Task OnLeaseAquiredAsync(T lease)
+        {
+            return leaseAquiredDelegate.Invoke(lease);
+        }
+
+        public Task OnLeaseReleasedAsync(T lease, CloseReason reason)
+        {
+            return leaseReleasedDelegate.Invoke(lease, reason);
+        }
     }
 }

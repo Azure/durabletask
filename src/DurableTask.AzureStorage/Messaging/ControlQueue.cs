@@ -20,6 +20,7 @@ namespace DurableTask.AzureStorage.Messaging
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Monitoring;
+    using ImpromptuInterface;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Queue;
 
@@ -27,8 +28,9 @@ namespace DurableTask.AzureStorage.Messaging
     {
         static readonly List<MessageData> EmptyMessageList = new List<MessageData>();
 
-        readonly CancellationTokenSource releaseTokenSource;
-        readonly CancellationToken releaseCancellationToken;
+
+        CancellationTokenSource releaseTokenSource;
+        CancellationToken releaseCancellationToken;
 
         public ControlQueue(
             CloudQueue storageQueue,
@@ -200,6 +202,12 @@ namespace DurableTask.AzureStorage.Messaging
             // Note that we also set IsReleased to true when the dequeue loop ends, so this is
             // somewhat redundant. This one was added mostly to make tests run more predictably.
             this.IsReleased = true;
+        }
+
+        public void Reaquire()
+        {
+            this.releaseTokenSource = new CancellationTokenSource();
+            this.releaseCancellationToken = this.releaseTokenSource.Token;
         }
 
         public virtual void Dispose()
