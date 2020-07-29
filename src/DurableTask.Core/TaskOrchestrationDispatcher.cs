@@ -52,7 +52,7 @@ namespace DurableTask.Core
             this.objectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
             this.orchestrationService = orchestrationService ?? throw new ArgumentNullException(nameof(orchestrationService));
             this.dispatchPipeline = dispatchPipeline ?? throw new ArgumentNullException(nameof(dispatchPipeline));
-            this.logHelper = logHelper;
+            this.logHelper = logHelper ?? throw new ArgumentNullException(nameof(logHelper));
 
             this.dispatcher = new WorkItemDispatcher<TaskOrchestrationWorkItem>(
                 "TaskOrchestrationDispatcher",
@@ -222,7 +222,7 @@ namespace DurableTask.Core
             if (!this.ReconcileMessagesWithState(workItem))
             {
                 // TODO : mark an orchestration as faulted if there is data corruption
-                this.logHelper?.DroppingOrchestrationWorkItem(workItem, "Received result for a deleted orchestration");
+                this.logHelper.DroppingOrchestrationWorkItem(workItem, "Received result for a deleted orchestration");
                 TraceHelper.TraceSession(
                     TraceEventType.Error,
                     "TaskOrchestrationDispatcher-DeletedOrchestration",
@@ -237,7 +237,7 @@ namespace DurableTask.Core
                     continuedAsNew = false;
                     continuedAsNewMessage = null;
 
-                    this.logHelper?.OrchestrationExecuting(runtimeState.OrchestrationInstance, runtimeState.Name);
+                    this.logHelper.OrchestrationExecuting(runtimeState.OrchestrationInstance, runtimeState.Name);
                     TraceHelper.TraceInstance(
                         TraceEventType.Verbose,
                         "TaskOrchestrationDispatcher-ExecuteUserOrchestration-Begin",
@@ -256,7 +256,7 @@ namespace DurableTask.Core
 
                     IReadOnlyList<OrchestratorAction> decisions = workItem.Cursor.LatestDecisions.ToList();
 
-                    this.logHelper?.OrchestrationExecuted(
+                    this.logHelper.OrchestrationExecuted(
                         runtimeState.OrchestrationInstance,
                         runtimeState.Name,
                         decisions);
@@ -600,7 +600,7 @@ namespace DurableTask.Core
 
             runtimeState.AddEvent(executionCompletedEvent);
 
-            this.logHelper?.OrchestrationCompleted(runtimeState, completeOrchestratorAction);
+            this.logHelper.OrchestrationCompleted(runtimeState, completeOrchestratorAction);
             TraceHelper.TraceInstance(
                 runtimeState.OrchestrationStatus == OrchestrationStatus.Failed ? TraceEventType.Warning : TraceEventType.Information,
                 "TaskOrchestrationDispatcher-InstanceCompleted",

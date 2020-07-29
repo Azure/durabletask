@@ -528,11 +528,18 @@ namespace DurableTask.Core
                 Event = startedEvent
             };
 
-            TaskMessage eventMessage = null;
+            this.logHelper.SchedulingOrchestration(startedEvent);
+
+            // Raised events and create orchestration calls use different methods so get handled separately
+            await this.ServiceClient.CreateTaskOrchestrationAsync(startMessage, dedupeStatuses);
+
             if (eventData != null)
             {
                 string serializedEventData = this.defaultConverter.Serialize(eventData);
-                eventMessage = new TaskMessage
+                var eventRaisedEvent = new EventRaisedEvent(-1, serializedEventData) { Name = eventName };
+                this.logHelper.RaisingEvent(orchestrationInstance, eventRaisedEvent);
+                
+                var eventMessage = new TaskMessage
                 {
                     OrchestrationInstance = new OrchestrationInstance
                     {
@@ -544,18 +551,8 @@ namespace DurableTask.Core
                         // it should use for processing
                         ExecutionId = null
                     },
-                    Event = new EventRaisedEvent(-1, serializedEventData) { Name = eventName }
+                    Event = eventRaisedEvent,
                 };
-            }
-
-            this.logHelper.SchedulingOrchestration(startedEvent);
-
-            // Raised events and create orchestration calls use different methods so get handled separately
-            await this.ServiceClient.CreateTaskOrchestrationAsync(startMessage, dedupeStatuses);
-
-            if (eventMessage != null)
-            {
-                this.logHelper.RaisingEvent(orchestrationInstance, (EventRaisedEvent)eventMessage.Event);
                 await this.ServiceClient.SendTaskOrchestrationMessageAsync(eventMessage);
             }
 

@@ -1,4 +1,17 @@
-﻿namespace DurableTask.AzureStorage.Logging
+﻿//  ----------------------------------------------------------------------------------
+//  Copyright Microsoft Corporation
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//  http://www.apache.org/licenses/LICENSE-2.0
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+//  ----------------------------------------------------------------------------------
+
+namespace DurableTask.AzureStorage.Logging
 {
     using System;
     using DurableTask.Core.Logging;
@@ -82,7 +95,11 @@
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => string.Format(
+                "Sending {0} message to {1} for instance '{2}'",
+                GetHistoryEventDescription(this.EventType, this.TaskEventId),
+                this.PartitionId,
+                this.TargetInstanceId);
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.SendingMessage(
                 this.RelatedActivityId,
@@ -187,7 +204,12 @@
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => string.Format(
+                "Fetched {0} message from {1} for instance '{2}'; delay = {3}ms",
+                GetHistoryEventDescription(this.EventType, this.TaskEventId),
+                this.PartitionId,
+                this.InstanceId,
+                this.Age);
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.ReceivedMessage(
                 this.RelatedActivityId,
@@ -265,7 +287,11 @@
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => string.Format(
+                "Deleting {0} message from {1} for instance '{2}'",
+                GetHistoryEventDescription(this.EventType, this.TaskEventId),
+                this.PartitionId,
+                this.InstanceId);
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.DeletingMessage(
                 this.Account,
@@ -342,7 +368,11 @@
 
             public override LogLevel Level => LogLevel.Warning;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => string.Format(
+                "Abandoning {0} message for instance '{1}' and adding a delay of {2}ms",
+                GetHistoryEventDescription(this.EventType, this.TaskEventId),
+                this.InstanceId,
+                this.VisibilityTimeoutSeconds);
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.AbandoningMessage(
                 this.Account,
@@ -385,7 +415,7 @@
 
             public override LogLevel Level => LogLevel.Warning;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => "Internal assert failure: " + this.Details;
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.AssertFailure(
                 this.Account,
@@ -409,12 +439,12 @@
             {
                 this.Account = account;
                 this.TaskHub = taskHub;
+                this.EventType = eventType;
+                this.TaskEventId = taskEventId;
                 this.MessageId = messageId;
                 this.InstanceId = instanceId;
                 this.ExecutionId = executionId;
                 this.PartitionId = partitionId;
-                this.EventType = eventType;
-                this.TaskEventId = taskEventId;
                 this.Details = details;
             }
 
@@ -423,6 +453,12 @@
 
             [StructuredLogField]
             public string TaskHub { get; }
+
+            [StructuredLogField]
+            public string EventType { get; }
+
+            [StructuredLogField]
+            public int TaskEventId { get; }
 
             [StructuredLogField]
             public string MessageId { get; }
@@ -437,12 +473,6 @@
             public string PartitionId { get; }
 
             [StructuredLogField]
-            public string EventType { get; }
-
-            [StructuredLogField]
-            public int TaskEventId { get; }
-
-            [StructuredLogField]
             public string Details { get; }
 
             public override EventId EventId => new EventId(
@@ -451,17 +481,21 @@
 
             public override LogLevel Level => LogLevel.Warning;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => string.Format(
+                "Failed to update or delete message {0} for instance '{1}' because it no longer exists; message ID = {2}",
+                GetHistoryEventDescription(this.EventType, this.TaskEventId),
+                this.InstanceId,
+                this.MessageId);
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.MessageGone(
                 this.Account,
                 this.TaskHub,
+                this.EventType,
+                this.TaskEventId,
                 this.MessageId,
                 this.InstanceId,
                 this.ExecutionId,
                 this.PartitionId,
-                this.EventType,
-                this.TaskEventId,
                 this.Details,
                 Utils.ExtensionVersion);
         }
@@ -493,7 +527,7 @@
 
             public override LogLevel Level => LogLevel.Error;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => "General error: " + this.Details;
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.GeneralError(
                 this.Account,
@@ -507,6 +541,8 @@
             public DuplicateMessageDetected(
                 string account,
                 string taskHub,
+                string eventType,
+                int taskEventId,
                 string messageId,
                 string instanceId,
                 string executionId,
@@ -515,6 +551,8 @@
             {
                 this.Account = account;
                 this.TaskHub = taskHub;
+                this.EventType = eventType;
+                this.TaskEventId = taskEventId;
                 this.MessageId = messageId;
                 this.InstanceId = instanceId;
                 this.ExecutionId = executionId;
@@ -527,6 +565,12 @@
 
             [StructuredLogField]
             public string TaskHub { get; }
+
+            [StructuredLogField]
+            public string EventType { get; }
+
+            [StructuredLogField]
+            public int TaskEventId { get; }
 
             [StructuredLogField]
             public string MessageId { get; }
@@ -549,11 +593,19 @@
 
             public override LogLevel Level => LogLevel.Warning;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => string.Format(
+                "Received a duplicate message {0} for instance '{1}' from {2}; message ID = {3}; dequeue count = {4}",
+                GetHistoryEventDescription(this.EventType, this.TaskEventId),
+                this.InstanceId,
+                this.PartitionId,
+                this.MessageId,
+                this.DequeueCount);
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.DuplicateMessageDetected(
                 this.Account,
                 this.TaskHub,
+                this.EventType,
+                this.TaskEventId,
                 this.MessageId,
                 this.InstanceId,
                 this.ExecutionId,
@@ -567,6 +619,8 @@
             public PoisonMessageDetected(
                 string account,
                 string taskHub,
+                string eventType,
+                int taskEventId,
                 string messageId,
                 string instanceId,
                 string executionId,
@@ -575,6 +629,8 @@
             {
                 this.Account = account;
                 this.TaskHub = taskHub;
+                this.EventType = eventType;
+                this.TaskEventId = taskEventId;
                 this.MessageId = messageId;
                 this.InstanceId = instanceId;
                 this.ExecutionId = executionId;
@@ -587,6 +643,12 @@
 
             [StructuredLogField]
             public string TaskHub { get; }
+
+            [StructuredLogField]
+            public string EventType { get; }
+
+            [StructuredLogField]
+            public int TaskEventId { get; }
 
             [StructuredLogField]
             public string MessageId { get; }
@@ -609,11 +671,18 @@
 
             public override LogLevel Level => LogLevel.Warning;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => string.Format(
+                "Poison {0} message for instance '{1}' was detected; message ID = {2}; dequeue count = {3}",
+                GetHistoryEventDescription(this.EventType, this.TaskEventId),
+                this.InstanceId,
+                this.MessageId,
+                this.DequeueCount);
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.PoisonMessageDetected(
                 this.Account,
                 this.TaskHub,
+                this.EventType,
+                this.TaskEventId,
                 this.MessageId,
                 this.InstanceId,
                 this.ExecutionId,

@@ -28,6 +28,8 @@ namespace DurableTask.Core.Logging
     /// </summary>
     public abstract class StructuredLogEvent : ILogEvent, IReadOnlyDictionary<string, object>
     {
+        // We reflect over all the properties just once and reuse the cached property set for subsequent log
+        // statements to minimize the overhead of using reflection.
         static readonly ConcurrentDictionary<Type, ConcurrentDictionary<string, PropertyInfo>> SharedPropertiesCache =
             new ConcurrentDictionary<Type, ConcurrentDictionary<string, PropertyInfo>>();
 
@@ -97,6 +99,24 @@ namespace DurableTask.Core.Logging
 
                 return properties;
             });
+        }
+
+        /// <summary>
+        /// Gets a log-friendly description of a history event.
+        /// </summary>
+        /// <param name="eventType">The type of history event in string-form.</param>
+        /// <param name="taskEventId">The task event ID.</param>
+        /// <returns>Returns <paramref name="eventType"/> and appends <paramref name="taskEventId"/> in parenthesis if it is a non-negative number - e.g. "TaskActivityScheduled(1)".</returns>
+        protected static string GetHistoryEventDescription(string eventType, int taskEventId)
+        {
+            if (taskEventId >= 0)
+            {
+                return eventType + "(" + taskEventId + ")";
+            }
+            else
+            {
+                return eventType;
+            }
         }
     }
 }

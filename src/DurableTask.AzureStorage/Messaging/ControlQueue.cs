@@ -19,7 +19,6 @@ namespace DurableTask.AzureStorage.Messaging
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-    using DurableTask.AzureStorage.Logging;
     using DurableTask.AzureStorage.Monitoring;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Queue;
@@ -131,6 +130,8 @@ namespace DurableTask.AzureStorage.Messaging
                                 this.settings.Logger.DuplicateMessageDetected(
                                     this.storageAccountName,
                                     this.settings.TaskHubName,
+                                    messageData.TaskMessage.Event.EventType.ToString(),
+                                    Utils.GetTaskEventId(messageData.TaskMessage.Event),
                                     queueMessage.Id,
                                     messageData.TaskMessage.OrchestrationInstance.InstanceId,
                                     messageData.TaskMessage.OrchestrationInstance.ExecutionId,

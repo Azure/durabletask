@@ -195,6 +195,8 @@ namespace DurableTask.AzureStorage.Logging
         internal void DuplicateMessageDetected(
             string account,
             string taskHub,
+            string eventType,
+            int taskEventId,
             string messageId,
             string instanceId,
             string executionId,
@@ -204,6 +206,8 @@ namespace DurableTask.AzureStorage.Logging
             var logEvent = new LogEvents.DuplicateMessageDetected(
                 account,
                 taskHub,
+                eventType,
+                taskEventId,
                 messageId,
                 instanceId,
                 executionId,
@@ -215,6 +219,8 @@ namespace DurableTask.AzureStorage.Logging
         internal void PoisonMessageDetected(
             string account,
             string taskHub,
+            string eventType,
+            int taskEventId,
             string messageId,
             string instanceId,
             string executionId,
@@ -224,6 +230,8 @@ namespace DurableTask.AzureStorage.Logging
             var logEvent = new LogEvents.PoisonMessageDetected(
                 account,
                 taskHub,
+                eventType,
+                taskEventId,
                 messageId,
                 instanceId,
                 executionId,

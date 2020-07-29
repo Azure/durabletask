@@ -209,6 +209,8 @@ namespace DurableTask.AzureStorage.Messaging
                 this.settings.Logger.PoisonMessageDetected(
                     this.storageAccountName,
                     this.settings.TaskHubName,
+                    taskMessage.Event.EventType.ToString(),
+                    Utils.GetTaskEventId(taskMessage.Event),
                     queueMessage.Id,
                     instance.InstanceId,
                     instance.ExecutionId,
