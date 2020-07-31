@@ -763,7 +763,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             if (orchestrationInstanceStatus != null)
             {
-                var deletionStats = await this.DeleteAllDataForOrchestrationInstance(orchestrationInstanceStatus);
+                PurgeHistoryResult result = await this.DeleteAllDataForOrchestrationInstance(orchestrationInstanceStatus);
 
                 this.settings.Logger.PurgeInstanceHistory(
                     this.storageAccountName,
@@ -771,27 +771,31 @@ namespace DurableTask.AzureStorage.Tracking
                     instanceId,
                     DateTime.MinValue.ToString(),
                     DateTime.MinValue.ToString(),
-                    null,
-                    deletionStats.StorageRequests,
+                    string.Empty,
+                    result.StorageRequests,
+                    result.InstancesDeleted,
                     stopwatch.ElapsedMilliseconds);
 
-                return deletionStats;
+                return result;
             }
 
             return new PurgeHistoryResult(0, 0, 0);
         }
 
         /// <inheritdoc />
-        public override async Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
+        public override async Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(
+            DateTime createdTimeFrom,
+            DateTime? createdTimeTo,
+            IEnumerable<OrchestrationStatus> runtimeStatus)
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
             List<OrchestrationStatus> runtimeStatusList =  runtimeStatus?.Where(
-               x => x == OrchestrationStatus.Completed ||
-                    x == OrchestrationStatus.Terminated ||
-                    x == OrchestrationStatus.Canceled ||
-                    x == OrchestrationStatus.Failed).ToList();
+               status => status == OrchestrationStatus.Completed ||
+                    status == OrchestrationStatus.Terminated ||
+                    status == OrchestrationStatus.Canceled ||
+                    status == OrchestrationStatus.Failed).ToList();
 
-            var stats = await this.DeleteHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatusList);
+            PurgeHistoryResult result = await this.DeleteHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatusList);
 
             this.settings.Logger.PurgeInstanceHistory(
                 this.storageAccountName,
@@ -800,12 +804,13 @@ namespace DurableTask.AzureStorage.Tracking
                 createdTimeFrom.ToString(),
                 createdTimeTo.ToString() ?? DateTime.MinValue.ToString(),
                 runtimeStatus != null ?
-                    string.Join(",", runtimeStatus.Select(x => x.ToString()).ToArray()) :
+                    string.Join(",", runtimeStatus.Select(x => x.ToString())) :
                     string.Empty,
-                stats.StorageRequests,
+                result.StorageRequests,
+                result.InstancesDeleted,
                 stopwatch.ElapsedMilliseconds);
 
-            return stats;
+            return result;
         }
 
         /// <inheritdoc />

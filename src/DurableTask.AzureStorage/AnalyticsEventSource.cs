@@ -926,7 +926,7 @@ namespace DurableTask.AzureStorage
                 ExtensionVersion);
         }
 
-        [Event(EventIds.PurgeInstanceHistory, Level = EventLevel.Informational, Version = 2)]
+        [Event(EventIds.PurgeInstanceHistory, Level = EventLevel.Informational, Version = 3)]
         public void PurgeInstanceHistory(
             string Account,
             string TaskHub,
@@ -935,6 +935,7 @@ namespace DurableTask.AzureStorage
             string CreatedTimeTo,
             string RuntimeStatus,
             int RequestCount,
+            int InstanceCount,
             long LatencyMs,
             string ExtensionVersion)
         {
@@ -942,11 +943,12 @@ namespace DurableTask.AzureStorage
                 EventIds.PurgeInstanceHistory,
                 Account,
                 TaskHub,
-                InstanceId,
+                InstanceId ?? string.Empty,
                 CreatedTimeFrom,
                 CreatedTimeTo,
-                RuntimeStatus,
+                RuntimeStatus ?? string.Empty,
                 RequestCount,
+                InstanceCount,
                 LatencyMs,
                 ExtensionVersion);
         }

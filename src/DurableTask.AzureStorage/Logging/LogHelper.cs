@@ -812,6 +812,7 @@ namespace DurableTask.AzureStorage.Logging
             string createdTimeTo,
             string runtimeStatus,
             int requestCount,
+            int instanceCount,
             long latencyMs)
         {
             var logEvent = new LogEvents.PurgeInstanceHistory(
@@ -822,6 +823,7 @@ namespace DurableTask.AzureStorage.Logging
                 createdTimeTo,
                 runtimeStatus,
                 requestCount,
+                instanceCount,
                 latencyMs);
             this.WriteStructuredLog(logEvent);
         }

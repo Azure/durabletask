@@ -753,7 +753,8 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => 
+                $"Fetched {this.EventCount} history events for instance '{this.InstanceId}'";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.FetchedInstanceHistory(
                 this.Account,
@@ -841,7 +842,8 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => 
+                $"Saved {this.NewEventCount} new events to the history table for instance '{this.InstanceId}'; total events = {this.TotalEventCount}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.AppendedInstanceHistory(
                 this.Account,
@@ -931,7 +933,8 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => 
+                $"There are currently {this.ActiveOrchestrators + this.PendingOrchestrators} orchestration and {this.ActiveActivities} activities loaded into memory on this worker";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.OrchestrationServiceStats(
                 this.Account,
@@ -1006,7 +1009,12 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => string.Format(
+                "Renewing {0} message from {1} for instance '{2}' for an additional {3} seconds",
+                GetHistoryEventDescription(this.EventType, this.TaskEventId),
+                this.PartitionId,
+                this.InstanceId,
+                this.VisibilityTimeoutSeconds);
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.RenewingMessage(
                 this.Account,
@@ -1078,7 +1086,11 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Error;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => string.Format(
+                "An error occurred while processing message {0} for instance '{1}': {2}",
+                GetHistoryEventDescription(this.EventType, this.TaskEventId),
+                this.InstanceId,
+                this.Details);
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.MessageFailure(
                 this.Account,
@@ -1130,7 +1142,8 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Error;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => 
+                $"An unexpected failure occurred while processing instance '{this.InstanceId}': {this.Details}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.OrchestrationProcessingFailure(
                 this.Account,
@@ -1173,7 +1186,9 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => 
+                $"The maximum orchestration message prefetch limit of {this.PendingOrchestratorMessages} has been reached; " +
+                $"fetching from {this.PartitionId} will be temporarily suspended until existing messages are consumed";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.PendingOrchestratorMessageLimitReached(
                 this.Account,
@@ -1210,7 +1225,8 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => 
+                $"No messages were found on {this.PartitionId}; backing off to reduce polling transaction costs";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.WaitingForMoreMessages(
                 this.Account,
@@ -1281,7 +1297,11 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Warning;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => string.Format(
+                "Message {0} for instance '{1}' was received out of order; returning it back to {2}",
+                GetHistoryEventDescription(this.EventType, this.TaskEventId),
+                this.InstanceId,
+                this.PartitionId);
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.ReceivedOutOfOrderMessage(
                 this.Account,
@@ -1334,7 +1354,7 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => $"{this.PartitionId}: {this.Details}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.PartitionManagerInfo(
                 this.Account,
@@ -1382,7 +1402,7 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Warning;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => $"{this.PartitionId}: {this.Details}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.PartitionManagerWarning(
                 this.Account,
@@ -1430,7 +1450,7 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Error;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => $"{this.PartitionId}: {this.Details}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.PartitionManagerError(
                 this.Account,
@@ -1478,7 +1498,7 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Debug;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => $"Starting lease renewal for {this.PartitionId}; token = {this.Token}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.StartingLeaseRenewal(
                 this.Account,
@@ -1536,7 +1556,7 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Debug;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => $"Lease renewal result for {this.PartitionId}: Success = {this.Success}; token = {this.Token}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.LeaseRenewalResult(
                 this.Account,
@@ -1591,7 +1611,7 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => $"Failed to renew lease for {this.PartitionId}: {this.Details}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.LeaseRenewalFailed(
                 this.Account,
@@ -1635,7 +1655,7 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => $"Attempting to acquire lease for {this.PartitionId}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.LeaseAcquisitionStarted(
                 this.Account,
@@ -1677,7 +1697,7 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => $"Successfully acquired lease for {this.PartitionId}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.LeaseAcquisitionSucceeded(
                 this.Account,
@@ -1719,7 +1739,7 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => $"Failed to acquire lease for {this.PartitionId}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.LeaseAcquisitionFailed(
                 this.Account,
@@ -1766,7 +1786,7 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => $"Attempting to steal lease for {this.PartitionId} from {this.FromWorkerName}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.AttemptingToStealLease(
                 this.Account,
@@ -1814,7 +1834,7 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => $"Successfully stole lease for {this.PartitionId} from {this.FromWorkerName}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.LeaseStealingSucceeded(
                 this.Account,
@@ -1857,7 +1877,7 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => $"Failed to steal lease for {this.PartitionId}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.LeaseStealingFailed(
                 this.Account,
@@ -1904,7 +1924,7 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => $"Stopped processing messages for partition {this.PartitionId}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.PartitionRemoved(
                 this.Account,
@@ -1952,7 +1972,7 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => $"Released lease for {this.PartitionId}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.LeaseRemoved(
                 this.Account,
@@ -2000,7 +2020,7 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Warning;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => $"Failed to release lease for {this.PartitionId} due to a conflict";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.LeaseRemovalFailed(
                 this.Account,
@@ -2058,7 +2078,10 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() =>
+                string.IsNullOrEmpty(this.EventType) ?
+                    $"Updated instance status for {this.InstanceId}" :
+                    $"Updated instance status for {this.InstanceId} with a {this.EventType} runtime status";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.InstanceStatusUpdate(
                 this.Account,
@@ -2108,7 +2131,7 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => $"Fetched instance status for {this.InstanceId}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.FetchedInstanceStatus(
                 this.Account,
@@ -2146,7 +2169,7 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Warning;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => $"WARNING: {this.Details}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.GeneralWarning(
                 this.Account,
@@ -2212,7 +2235,8 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Warning;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() =>
+                $"Split brain was detected for {this.InstanceId} and {this.NewEventCount} new history events need to be abandoned";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.SplitBrainDetected(
                 this.Account,
@@ -2279,7 +2303,8 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Warning;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => 
+                $"A work item for '{this.InstanceId}' with {this.NewEventCount} history event(s) is being discarded: {this.Details}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.DiscardingWorkItem(
                 this.Account,
@@ -2364,7 +2389,10 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() => string.Format(
+                "Starting to process the {0} message for instance '{1}'",
+                GetHistoryEventDescription(this.EventType, this.TaskEventId),
+                this.InstanceId);
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.ProcessingMessage(
                 this.RelatedActivityId,
@@ -2392,6 +2420,7 @@ namespace DurableTask.AzureStorage.Logging
                 string createdTimeTo,
                 string runtimeStatus,
                 int requestCount,
+                int instanceCount,
                 long latencyMs)
             {
                 this.Account = account;
@@ -2401,6 +2430,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.CreatedTimeTo = createdTimeTo;
                 this.RuntimeStatus = runtimeStatus;
                 this.RequestCount = requestCount;
+                this.InstanceCount = instanceCount;
                 this.LatencyMs = latencyMs;
             }
 
@@ -2426,6 +2456,9 @@ namespace DurableTask.AzureStorage.Logging
             public int RequestCount { get; }
 
             [StructuredLogField]
+            public int InstanceCount { get; }
+
+            [StructuredLogField]
             public long LatencyMs { get; }
 
             public override EventId EventId => new EventId(
@@ -2434,7 +2467,10 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => $"TODO: Add formatted message here";
+            public override string GetLogMessage() =>
+                !string.IsNullOrEmpty(this.InstanceId) ?
+                    $"Purged instance history data for instance '{this.InstanceId}' in {this.LatencyMs / 1000.0:F} seconds" :
+                    $"Purged instance history data for {this.InstanceCount} instance(s) in {this.LatencyMs / 1000.0:F} seconds";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.PurgeInstanceHistory(
                 this.Account,
@@ -2444,6 +2480,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.CreatedTimeTo,
                 this.RuntimeStatus,
                 this.RequestCount,
+                this.InstanceCount,
                 this.LatencyMs,
                 Utils.ExtensionVersion);
         }
