@@ -39,7 +39,7 @@ namespace DurableTask.Core.Logging
                 logEvent.EventId,
                 logEvent,
                 exception,
-                formatter: (s, e) => s.GetLogMessage());
+                formatter: (s, e) => s.FormattedMessage);
 
             if (logEvent is IEventSourceEvent eventSourceEvent)
             {

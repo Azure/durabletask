@@ -331,7 +331,7 @@ namespace DurableTask.AzureStorage
                 ExtensionVersion);
         }
 
-        [Event(EventIds.OrchestrationServiceStats, Level = EventLevel.Informational)]
+        [Event(EventIds.OrchestrationServiceStats, Level = EventLevel.Verbose, Version = 2)]
         public void OrchestrationServiceStats(
             string Account,
             string TaskHub,
@@ -408,11 +408,11 @@ namespace DurableTask.AzureStorage
                 EventIds.MessageFailure,
                 Account,
                 TaskHub,
-                MessageId,
-                InstanceId,
+                MessageId ?? string.Empty,
+                InstanceId ?? string.Empty,
                 ExecutionId ?? string.Empty,
                 PartitionId,
-                EventType,
+                EventType ?? string.Empty,
                 TaskEventId,
                 Details,
                 ExtensionVersion);
@@ -793,13 +793,13 @@ namespace DurableTask.AzureStorage
                 ExtensionVersion);
         }
 
-        [Event(EventIds.InstanceStatusUpdate, Level = EventLevel.Informational, Version = 2)]
+        [Event(EventIds.InstanceStatusUpdate, Level = EventLevel.Informational, Version = 3)]
         public void InstanceStatusUpdate(
             string Account,
             string TaskHub,
             string InstanceId,
             string ExecutionId,
-            string EventType,
+            string RuntimeStatus,
             int Episode,
             long LatencyMs,
             string ExtensionVersion)
@@ -810,7 +810,7 @@ namespace DurableTask.AzureStorage
                 TaskHub,
                 InstanceId,
                 ExecutionId ?? string.Empty,
-                EventType,
+                RuntimeStatus ?? string.Empty,
                 Episode,
                 LatencyMs,
                 ExtensionVersion);

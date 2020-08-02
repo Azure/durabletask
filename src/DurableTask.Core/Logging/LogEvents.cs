@@ -37,7 +37,7 @@ namespace DurableTask.Core.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => "Durable task hub worker is starting";
+            protected override string CreateLogMessage() => "Durable task hub worker is starting";
 
             void IEventSourceEvent.WriteEventSource() => 
                 StructuredEventSource.Log.TaskHubWorkerStarting();
@@ -59,7 +59,8 @@ namespace DurableTask.Core.Logging
             [StructuredLogField]
             public long LatencyMs { get; }
 
-            public override string GetLogMessage() => $"Durable task hub worker started successfully after {this.LatencyMs}ms";
+            protected override string CreateLogMessage() => 
+                $"Durable task hub worker started successfully after {this.LatencyMs}ms";
 
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.TaskHubWorkerStarted(this.LatencyMs);
@@ -81,7 +82,8 @@ namespace DurableTask.Core.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => $"Durable task hub worker is stopping (isForced = {this.IsForced})";
+            protected override string CreateLogMessage() =>
+                $"Durable task hub worker is stopping (isForced = {this.IsForced})";
 
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.TaskHubWorkerStopping(this.IsForced);
@@ -103,7 +105,7 @@ namespace DurableTask.Core.Logging
             [StructuredLogField]
             public long LatencyMs { get; }
 
-            public override string GetLogMessage() => 
+            protected override string CreateLogMessage() => 
                 $"Durable task hub worker stopped successfully after {this.LatencyMs}ms";
 
             void IEventSourceEvent.WriteEventSource() =>
@@ -126,7 +128,7 @@ namespace DurableTask.Core.Logging
 
             public override LogLevel Level => LogLevel.Debug;
 
-            public override string GetLogMessage() => $"Starting {this.Dispatcher}";
+            protected override string CreateLogMessage() => $"{this.Dispatcher}: Starting dispatch loop";
 
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.DispatcherStarting(this.Dispatcher);
@@ -148,7 +150,7 @@ namespace DurableTask.Core.Logging
 
             public override LogLevel Level => LogLevel.Debug;
 
-            public override string GetLogMessage() => $"{this.Dispatcher} stopped";
+            protected override string CreateLogMessage() => $"{this.Dispatcher}: Stopped dispatch loop";
 
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.DispatcherStopped(this.Dispatcher);
@@ -179,9 +181,9 @@ namespace DurableTask.Core.Logging
 
             public override LogLevel Level => LogLevel.Debug;
 
-            public override string GetLogMessage() =>
-                $"{this.Dispatcher} dispatchers are draining. Remaining work items: {this.WorkItemCount}. " +
-                $"Remaining work item fetchers: {this.ActiveFetcherCount}.";
+            protected override string CreateLogMessage() =>
+                $"{this.Dispatcher}: Dispatchers are draining. Remaining work items: {this.WorkItemCount}. " +
+                $"Remaining work item fetchers: {this.ActiveFetcherCount}";
 
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.DispatchersStopping(this.Dispatcher, this.WorkItemCount, this.ActiveFetcherCount);
@@ -219,7 +221,7 @@ namespace DurableTask.Core.Logging
 
             public override LogLevel Level => LogLevel.Debug;
 
-            public override string GetLogMessage() =>
+            protected override string CreateLogMessage() =>
                 $"{this.Dispatcher}: Fetching next work item. Current active work-item count: {this.WorkItemCount}. " +
                 $"Maximum active work-item count: {this.MaxWorkItemCount}. Timeout: {this.TimeoutSeconds}s";
 
@@ -268,9 +270,9 @@ namespace DurableTask.Core.Logging
 
             public override LogLevel Level => LogLevel.Debug;
 
-            public override string GetLogMessage() =>
+            protected override string CreateLogMessage() =>
                 $"{this.Dispatcher}: Fetched next work item '{this.WorkItemId}' after {this.LatencyMs}ms. " +
-                $"Current active work-item count: {this.WorkItemCount}. Maximum active work-item count: {this.MaxWorkItemCount}.";
+                $"Current active work-item count: {this.WorkItemCount}. Maximum active work-item count: {this.MaxWorkItemCount}";
 
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.FetchWorkItemCompleted(
@@ -301,7 +303,8 @@ namespace DurableTask.Core.Logging
 
             public override LogLevel Level => LogLevel.Error;
 
-            public override string GetLogMessage() => $"{this.Dispatcher} failed to fetch a work-item: {this.Details}";
+            protected override string CreateLogMessage() =>
+                $"{this.Dispatcher}: Failed to fetch a work-item: {this.Details}";
 
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.FetchWorkItemFailure(this.Dispatcher, this.Details);
@@ -334,7 +337,7 @@ namespace DurableTask.Core.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() =>
+            protected override string CreateLogMessage() =>
                 $"{this.Dispatcher}: Delaying work item fetching because the current active work-item count ({this.WorkItemCount}) " +
                 $"exceeds the configured maximum active work-item count ({this.MaxWorkItemCount})";
 
@@ -365,7 +368,8 @@ namespace DurableTask.Core.Logging
 
             public override LogLevel Level => LogLevel.Debug;
 
-            public override string GetLogMessage() => $"{this.Dispatcher}: Processing work-item '{this.WorkItemId}'";
+            protected override string CreateLogMessage() =>
+                $"{this.Dispatcher}: Processing work-item '{this.WorkItemId}'";
 
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.ProcessWorkItemStarting(this.Dispatcher, this.WorkItemId);
@@ -391,7 +395,8 @@ namespace DurableTask.Core.Logging
 
             public override LogLevel Level => LogLevel.Debug;
 
-            public override string GetLogMessage() => $"{this.Dispatcher}: Finished processing work-item '{this.WorkItemId}'";
+            protected override string CreateLogMessage() =>
+                $"{this.Dispatcher}: Finished processing work-item '{this.WorkItemId}'";
 
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.ProcessWorkItemCompleted(this.Dispatcher, this.WorkItemId);
@@ -425,8 +430,8 @@ namespace DurableTask.Core.Logging
 
             public override LogLevel Level => LogLevel.Error;
 
-            public override string GetLogMessage() =>
-                $"Unhandled exception with work item '{this.WorkItemId}' in {this.Dispatcher}: {this.Details}";
+            protected override string CreateLogMessage() =>
+                $"{this.Dispatcher}: Unhandled exception with work item '{this.WorkItemId}': {this.Details}";
 
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.ProcessWorkItemFailed(this.Dispatcher, this.WorkItemId, this.Details);
@@ -472,9 +477,17 @@ namespace DurableTask.Core.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() =>
-                $"Scheduling orchestration '{this.Name}' with ID: '{this.InstanceId}'. " +
-                $"Input size (in bytes): {this.SizeInBytes}";
+            protected override string CreateLogMessage()
+            {
+                string message = $"Scheduling orchestration '{this.Name}' with instance ID = '{this.TargetInstanceId}' and {this.SizeInBytes} bytes of input";
+                if (!string.IsNullOrEmpty(this.InstanceId))
+                {
+                    // This is the case where a parent orchestration is scheduling a child-orchestration
+                    message = this.InstanceId + ": " + message;
+                }
+
+                return message;
+            }
 
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.SchedulingOrchestration(
@@ -533,8 +546,16 @@ namespace DurableTask.Core.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() =>
-                $"Raising event '{this.Name}' with {this.SizeInBytes} bytes to '{this.InstanceId}'";
+            protected override string CreateLogMessage()
+            {
+                string message = $"Raising '{this.Name}' event with {this.SizeInBytes} bytes to '{this.TargetInstanceId}'";
+                if (!string.IsNullOrEmpty(this.InstanceId))
+                {
+                    message = this.InstanceId + ": " + message;
+                }
+
+                return message;
+            }
 
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.RaisingEvent(
@@ -570,7 +591,7 @@ namespace DurableTask.Core.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() =>
+            protected override string CreateLogMessage() =>
                 $"Terminating instance '{this.InstanceId}': {this.Details}";
 
             void IEventSourceEvent.WriteEventSource() =>
@@ -604,7 +625,7 @@ namespace DurableTask.Core.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() =>
+            protected override string CreateLogMessage() =>
                 $"Waiting up to {this.TimeoutSeconds} seconds for instance '{this.InstanceId}' to complete, fail, or be terminated";
 
             void IEventSourceEvent.WriteEventSource() =>
@@ -634,8 +655,8 @@ namespace DurableTask.Core.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() =>
-                $"Fetching state for instance: {this.InstanceId}";
+            protected override string CreateLogMessage() =>
+                $"Fetching tracking state for instance '{this.InstanceId}'";
 
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.FetchingInstanceState(
@@ -643,6 +664,9 @@ namespace DurableTask.Core.Logging
                     this.ExecutionId);
         }
 
+        /// <summary>
+        /// Log event representing a task hub client querying for orchestration instance history.
+        /// </summary>
         internal class FetchingInstanceHistory : StructuredLogEvent, IEventSourceEvent
         {
             public FetchingInstanceHistory(OrchestrationInstance instance)
@@ -663,8 +687,8 @@ namespace DurableTask.Core.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() =>
-                $"Fetching history for instance: {this.InstanceId}";
+            protected override string CreateLogMessage() =>
+                $"Fetching history for instance '{this.InstanceId}'";
 
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.FetchingInstanceHistory(
@@ -672,6 +696,9 @@ namespace DurableTask.Core.Logging
                     this.ExecutionId);
         }
 
+        /// <summary>
+        /// Log event representing a task hub worker processing a new message from a fetched work item.
+        /// </summary>
         internal class ProcessingOrchestrationMessage : StructuredLogEvent, IEventSourceEvent
         {
             public ProcessingOrchestrationMessage(TaskOrchestrationWorkItem workItem, TaskMessage message)
@@ -700,8 +727,8 @@ namespace DurableTask.Core.Logging
 
             public override LogLevel Level => LogLevel.Debug;
 
-            public override string GetLogMessage() =>
-                $"Fetching history for instance: {this.InstanceId}";
+            protected override string CreateLogMessage() =>
+                $"{this.InstanceId}: Preparing to process a {GetEventDescription(this.EventType, this.TaskEventId)} message";
 
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.ProcessingOrchestrationMessage(
@@ -711,6 +738,9 @@ namespace DurableTask.Core.Logging
                     this.TaskEventId);
         }
 
+        /// <summary>
+        /// Log event representing a task hub worker beginning an orchestration instance execution.
+        /// </summary>
         internal class OrchestrationExecuting : StructuredLogEvent, IEventSourceEvent
         {
             public OrchestrationExecuting(OrchestrationInstance instance, string name)
@@ -735,8 +765,8 @@ namespace DurableTask.Core.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() =>
-                $"Executing orchestration '{this.Name}' with ID '{this.InstanceId}'";
+            protected override string CreateLogMessage() =>
+                $"{this.InstanceId}: Executing '{this.Name}' orchestration logic";
 
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.OrchestrationExecuting(
@@ -745,6 +775,9 @@ namespace DurableTask.Core.Logging
                     this.Name);
         }
 
+        /// <summary>
+        /// Log event representing a task hub worker completed an orchestration instance execution.
+        /// </summary>
         internal class OrchestrationExecuted : StructuredLogEvent, IEventSourceEvent
         {
             public OrchestrationExecuted(OrchestrationInstance instance, string name, int actionCount)
@@ -773,8 +806,8 @@ namespace DurableTask.Core.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() =>
-                $"Execution of orchestration '{this.Name}' with ID '{this.InstanceId}' resulted in {this.ActionCount} new action(s).";
+            protected override string CreateLogMessage() =>
+                $"{this.InstanceId}: Orchestration '{this.Name}' awaited and scheduled {this.ActionCount} durable operation(s).";
 
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.OrchestrationExecuted(
@@ -784,6 +817,9 @@ namespace DurableTask.Core.Logging
                     this.ActionCount);
         }
 
+        /// <summary>
+        /// Log event representing an orchestration instance scheduling an activity as part of its execution.
+        /// </summary>
         internal class SchedulingActivity : StructuredLogEvent, IEventSourceEvent
         {
             public SchedulingActivity(OrchestrationInstance instance, TaskScheduledEvent taskScheduledEvent)
@@ -816,9 +852,8 @@ namespace DurableTask.Core.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() =>
-                $"Scheduling activity '{this.Name}' with task event ID {this.TaskEventId}. " +
-                $"Input size (in bytes): {this.SizeInBytes}";
+            protected override string CreateLogMessage() =>
+                $"{this.InstanceId}: Scheduling activity {GetEventDescription(this.Name, this.TaskEventId)} with {this.SizeInBytes} bytes of input";
 
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.SchedulingActivity(
@@ -829,6 +864,10 @@ namespace DurableTask.Core.Logging
                     this.SizeInBytes);
         }
 
+        /// <summary>
+        /// Log event representing an orchestration instance scheduling an activity as part of its execution.
+        /// This could be an explicit timer created by the orchestration or an implicit one created by the dispatcher.
+        /// </summary>
         internal class CreatingTimer : StructuredLogEvent, IEventSourceEvent
         {
             public CreatingTimer(
@@ -864,8 +903,8 @@ namespace DurableTask.Core.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() =>
-                $"Scheduling timer with ID = {this.TaskEventId} to fire at {this.FireAt:o}";
+            protected override string CreateLogMessage() =>
+                $"{this.InstanceId}: Scheduling {GetEventDescription(EventType.TimerFired.ToString(), this.TaskEventId)} to fire at {this.FireAt:o}";
 
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.CreatingTimer(
@@ -876,6 +915,10 @@ namespace DurableTask.Core.Logging
                     this.IsInternal);
         }
 
+        /// <summary>
+        /// Log event representing an orchestration instance ran to completion.
+        /// This could be a success or a failure.
+        /// </summary>
         internal class OrchestrationCompleted : StructuredLogEvent, IEventSourceEvent
         {
             public OrchestrationCompleted(
@@ -910,8 +953,8 @@ namespace DurableTask.Core.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() =>
-                $"{this.InstanceId}: Orchestration completed. Status: {this.RuntimeStatus}. Details: {this.Details}";
+            protected override string CreateLogMessage() =>
+                $"{this.InstanceId}: Orchestration completed with a '{this.RuntimeStatus}' status and {this.SizeInBytes} bytes of output. Details: {this.Details}";
 
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.OrchestrationCompleted(
@@ -922,6 +965,9 @@ namespace DurableTask.Core.Logging
                     this.SizeInBytes);
         }
 
+        /// <summary>
+        /// Log event representing an orchestration aborted event, which can happen if the host is shutting down.
+        /// </summary>
         internal class OrchestrationAborted : StructuredLogEvent, IEventSourceEvent
         {
             public OrchestrationAborted(OrchestrationInstance instance, string reason)
@@ -946,7 +992,7 @@ namespace DurableTask.Core.Logging
 
             public override LogLevel Level => LogLevel.Warning;
 
-            public override string GetLogMessage() =>
+            protected override string CreateLogMessage() =>
                 $"{this.InstanceId}: Orchestration execution was aborted: {this.Details}";
 
             void IEventSourceEvent.WriteEventSource() =>
@@ -956,6 +1002,9 @@ namespace DurableTask.Core.Logging
                     this.Details);
         }
 
+        /// <summary>
+        /// Log event representing the discarding of an orchestration message that cannot be processed.
+        /// </summary>
         internal class DiscardingMessage : StructuredLogEvent, IEventSourceEvent
         {
             public DiscardingMessage(TaskOrchestrationWorkItem workItem, TaskMessage message, string reason)
@@ -988,8 +1037,8 @@ namespace DurableTask.Core.Logging
 
             public override LogLevel Level => LogLevel.Warning;
 
-            public override string GetLogMessage() =>
-                $"{this.InstanceId}: Discarding {this.EventType} message with ID = {this.TaskEventId}: {this.Details}";
+            protected override string CreateLogMessage() =>
+                $"{this.InstanceId}: Discarding {GetEventDescription(this.EventType, this.TaskEventId)}: {this.Details}";
 
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.DiscardingMessage(
@@ -1000,6 +1049,9 @@ namespace DurableTask.Core.Logging
                     this.Details);
         }
 
+        /// <summary>
+        /// Log event indicating that an activity execution is starting.
+        /// </summary>
         internal class TaskActivityStarting : StructuredLogEvent, IEventSourceEvent
         {
             public TaskActivityStarting(OrchestrationInstance instance, TaskScheduledEvent taskEvent)
@@ -1028,8 +1080,8 @@ namespace DurableTask.Core.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() =>
-                $"{this.InstanceId}: Starting task activity {this.Name} with ID = {this.TaskEventId}";
+            protected override string CreateLogMessage() =>
+                $"{this.InstanceId}: Starting task activity {GetEventDescription(this.Name, this.TaskEventId)}";
 
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.TaskActivityStarting(
@@ -1039,6 +1091,9 @@ namespace DurableTask.Core.Logging
                     this.TaskEventId);
         }
 
+        /// <summary>
+        /// Log event indicating that an activity execution has completed successfully.
+        /// </summary>
         internal class TaskActivityCompleted : StructuredLogEvent, IEventSourceEvent
         {
             public TaskActivityCompleted(
@@ -1074,8 +1129,8 @@ namespace DurableTask.Core.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() =>
-                $"{this.InstanceId}: Task activity {this.Name} with ID = {this.TaskEventId} completed successfully";
+            protected override string CreateLogMessage() =>
+                $"{this.InstanceId}: Task activity {GetEventDescription(this.Name, this.TaskEventId)} completed successfully";
 
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.TaskActivityCompleted(
@@ -1120,10 +1175,10 @@ namespace DurableTask.Core.Logging
                 EventIds.TaskActivityFailure,
                 nameof(EventIds.TaskActivityFailure));
 
-            public override LogLevel Level => LogLevel.Warning;
+            public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() =>
-                $"{this.InstanceId}: Task activity {this.Name} with ID = {this.TaskEventId} failed: {this.Details}";
+            protected override string CreateLogMessage() =>
+                $"{this.InstanceId}: Task activity {GetEventDescription(this.Name, this.TaskEventId)} failed: {this.Details}";
 
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.TaskActivityFailure(
@@ -1166,8 +1221,8 @@ namespace DurableTask.Core.Logging
 
             public override LogLevel Level => LogLevel.Warning;
 
-            public override string GetLogMessage() =>
-                $"{this.InstanceId}: Task activity {this.Name} with ID = {this.TaskEventId} was aborted: {this.Details}";
+            protected override string CreateLogMessage() =>
+                $"{this.InstanceId}: Task activity {GetEventDescription(this.Name, this.TaskEventId)} was aborted: {this.Details}";
 
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.TaskActivityAborted(
@@ -1203,7 +1258,7 @@ namespace DurableTask.Core.Logging
 
             public override LogLevel Level => LogLevel.Error;
 
-            public override string GetLogMessage() => this.Details;
+            protected override string CreateLogMessage() => this.Details;
 
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.TaskActivityDispatcherError(
@@ -1241,8 +1296,8 @@ namespace DurableTask.Core.Logging
 
             public override LogLevel Level => LogLevel.Debug;
 
-            public override string GetLogMessage() =>
-                $"{this.InstanceId}: Renewing message for task activity {this.Name} (ID = {this.TaskEventId})";
+            protected override string CreateLogMessage() =>
+                $"{this.InstanceId}: Renewing message for task activity {GetEventDescription(this.Name, this.TaskEventId)}";
 
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.RenewActivityMessageStarting(
@@ -1286,8 +1341,8 @@ namespace DurableTask.Core.Logging
 
             public override LogLevel Level => LogLevel.Debug;
 
-            public override string GetLogMessage() =>
-                $"{this.InstanceId}: Renewed message for task activity {this.Name} (ID = {this.TaskEventId}) successfully. " +
+            protected override string CreateLogMessage() =>
+                $"{this.InstanceId}: Renewed message for task activity {GetEventDescription(this.Name, this.TaskEventId)} successfully. " +
                 $"Next renewal time is {this.NextRenewal:o}";
 
             void IEventSourceEvent.WriteEventSource() =>
@@ -1331,10 +1386,10 @@ namespace DurableTask.Core.Logging
                 EventIds.RenewActivityMessageFailed,
                 nameof(EventIds.RenewActivityMessageFailed));
 
-            public override LogLevel Level => LogLevel.Error;
+            public override LogLevel Level => LogLevel.Warning;
 
-            public override string GetLogMessage() =>
-                $"{this.InstanceId}: Failed to renew message for task activity {this.Name} (ID = {this.TaskEventId}): {this.Details}";
+            protected override string CreateLogMessage() =>
+                $"{this.InstanceId}: Failed to renew message for task activity {GetEventDescription(this.Name, this.TaskEventId)}: {this.Details}";
 
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.RenewActivityMessageFailed(

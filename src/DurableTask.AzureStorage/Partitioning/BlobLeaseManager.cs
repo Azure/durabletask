@@ -156,21 +156,24 @@ namespace DurableTask.AzureStorage.Partitioning
             }
             catch (StorageException se)
             {
-                // eat any storage exception related to conflict
-                // this means the blob already exist
-                this.settings.Logger.PartitionManagerInfo(
-                    this.storageAccountName,
-                    this.taskHubName,
-                    this.workerName,
-                    partitionId,
-                    string.Format(
-                        CultureInfo.InvariantCulture,
-                        "CreateLeaseIfNotExistAsync - leaseContainerName: {0}, consumerGroupName: {1}, partitionId: {2}, blobPrefix: {3}, exception: {4}.",
-                        this.leaseContainerName,
-                        this.consumerGroupName,
+                if (se.RequestInformation.HttpStatusCode != 409)
+                {
+                    // eat any storage exception related to conflict
+                    // this means the blob already exist
+                    this.settings.Logger.PartitionManagerInfo(
+                        this.storageAccountName,
+                        this.taskHubName,
+                        this.workerName,
                         partitionId,
-                        this.blobPrefix ?? string.Empty,
-                        se.Message));
+                        string.Format(
+                            CultureInfo.InvariantCulture,
+                            "CreateLeaseIfNotExistAsync - leaseContainerName: {0}, consumerGroupName: {1}, partitionId: {2}, blobPrefix: {3}, exception: {4}",
+                            this.leaseContainerName,
+                            this.consumerGroupName,
+                            partitionId,
+                            this.blobPrefix ?? string.Empty,
+                            se.Message));
+                }
             }
             finally
             {

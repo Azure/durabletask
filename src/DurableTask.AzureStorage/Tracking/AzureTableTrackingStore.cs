@@ -870,7 +870,7 @@ namespace DurableTask.AzureStorage.Tracking
                 this.taskHubName,
                 executionStartedEvent.OrchestrationInstance.InstanceId,
                 executionStartedEvent.OrchestrationInstance.ExecutionId,
-                executionStartedEvent.EventType.ToString(),
+                OrchestrationStatus.Pending,
                 currentEpisodeNumber,
                 stopwatch.ElapsedMilliseconds);
 
@@ -904,7 +904,7 @@ namespace DurableTask.AzureStorage.Tracking
                 this.taskHubName,
                 instanceId,
                 string.Empty,
-                nameof(EventType.GenericEvent),
+                OrchestrationStatus.Pending,
                 currentEpisodeNumber,
                 stopwatch.ElapsedMilliseconds);
         }
@@ -935,7 +935,7 @@ namespace DurableTask.AzureStorage.Tracking
             var newEventListBuffer = new StringBuilder(4000);
             var historyEventBatch = new TableBatchOperation();
 
-            EventType? orchestratorEventType = null;
+            OrchestrationStatus runtimeStatus = OrchestrationStatus.Running;
 
             var instanceEntity = new DynamicTableEntity(instanceId, string.Empty)
             {
@@ -974,7 +974,7 @@ namespace DurableTask.AzureStorage.Tracking
                 switch (historyEvent.EventType)
                 {
                     case EventType.ExecutionStarted:
-                        orchestratorEventType = historyEvent.EventType;
+                        runtimeStatus = OrchestrationStatus.Running;
                         ExecutionStartedEvent executionStartedEvent = (ExecutionStartedEvent)historyEvent;
                         instanceEntity.Properties["Name"] = new EntityProperty(executionStartedEvent.Name);
                         instanceEntity.Properties["Version"] = new EntityProperty(executionStartedEvent.Version);
@@ -988,8 +988,8 @@ namespace DurableTask.AzureStorage.Tracking
                             data: executionStartedEvent.Input);
                         break;
                     case EventType.ExecutionCompleted:
-                        orchestratorEventType = historyEvent.EventType;
                         ExecutionCompletedEvent executionCompleted = (ExecutionCompletedEvent)historyEvent;
+                        runtimeStatus = executionCompleted.OrchestrationStatus;
                         instanceEntity.Properties["RuntimeStatus"] = new EntityProperty(executionCompleted.OrchestrationStatus.ToString());
                         this.SetInstancesTablePropertyFromHistoryProperty(
                             historyEntity,
@@ -999,7 +999,7 @@ namespace DurableTask.AzureStorage.Tracking
                             data: executionCompleted.Result);
                         break;
                     case EventType.ExecutionTerminated:
-                        orchestratorEventType = historyEvent.EventType;
+                        runtimeStatus = OrchestrationStatus.Terminated;
                         ExecutionTerminatedEvent executionTerminatedEvent = (ExecutionTerminatedEvent)historyEvent;
                         instanceEntity.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Terminated.ToString());
                         this.SetInstancesTablePropertyFromHistoryProperty(
@@ -1010,7 +1010,7 @@ namespace DurableTask.AzureStorage.Tracking
                             data: executionTerminatedEvent.Input);
                         break;
                     case EventType.ContinueAsNew:
-                        orchestratorEventType = historyEvent.EventType;
+                        runtimeStatus = OrchestrationStatus.ContinuedAsNew;
                         ExecutionCompletedEvent executionCompletedEvent = (ExecutionCompletedEvent)historyEvent;
                         instanceEntity.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.ContinuedAsNew.ToString());
                         this.SetInstancesTablePropertyFromHistoryProperty(
@@ -1069,7 +1069,7 @@ namespace DurableTask.AzureStorage.Tracking
                 this.taskHubName,
                 instanceId,
                 executionId,
-                orchestratorEventType?.ToString() ?? string.Empty,
+                runtimeStatus,
                 episodeNumber,
                 orchestrationInstanceUpdateStopwatch.ElapsedMilliseconds);
 
@@ -1253,7 +1253,7 @@ namespace DurableTask.AzureStorage.Tracking
                         this.taskHubName,
                         instanceId,
                         executionId,
-                        historyEventBatch.Count,
+                        historyEventBatch.Count - 1, // exclude sentinel from count
                         numberOfTotalEvents,
                         historyEventNamesBuffer.ToString(0, historyEventNamesBuffer.Length - 1), // remove trailing comma
                         stopwatch.ElapsedMilliseconds,
@@ -1282,7 +1282,7 @@ namespace DurableTask.AzureStorage.Tracking
                 this.taskHubName,
                 instanceId,
                 executionId,
-                historyEventBatch.Count,
+                historyEventBatch.Count - 1, // exclude sentinel from count
                 numberOfTotalEvents,
                 historyEventNamesBuffer.ToString(0, historyEventNamesBuffer.Length - 1), // remove trailing comma
                 episodeNumber,

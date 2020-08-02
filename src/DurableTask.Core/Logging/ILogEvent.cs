@@ -35,6 +35,6 @@ namespace DurableTask.Core.Logging
         /// Gets the message to write to the <see cref="ILogger"/> infrastructure.
         /// This method will not be called if the corresponding event is filtered out.
         /// </summary>
-        string GetLogMessage();
+        string FormattedMessage { get; }
     }
 }

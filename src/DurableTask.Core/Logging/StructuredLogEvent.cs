@@ -35,14 +35,34 @@ namespace DurableTask.Core.Logging
 
         ConcurrentDictionary<string, PropertyInfo> Properties => GetProperties(this.GetType());
 
+        string logMessage;
+
         /// <inheritdoc />
         public abstract EventId EventId { get; }
 
         /// <inheritdoc />
         public abstract LogLevel Level { get; }
 
-        /// <inheritdoc />
-        public abstract string GetLogMessage();
+        string ILogEvent.FormattedMessage
+        {
+            get
+            {
+                // We assume all log events are immutable, which means we can cache the generated
+                // log message. This is useful in cases where there are multiple ILoggers in the pipeline
+                // because we can avoid generating the formatted message multiple times for the same event.
+                if (this.logMessage == null)
+                {
+                    this.logMessage = this.CreateLogMessage();
+                }
+
+                return this.logMessage;
+            }
+        }
+
+        /// <summary>
+        /// When implemented by a derived class, generates a formatted log message.
+        /// </summary>
+        protected abstract string CreateLogMessage();
 
         IEnumerable<string> IReadOnlyDictionary<string, object>.Keys => this.Properties.Keys;
 
@@ -107,15 +127,15 @@ namespace DurableTask.Core.Logging
         /// <param name="eventType">The type of history event in string-form.</param>
         /// <param name="taskEventId">The task event ID.</param>
         /// <returns>Returns <paramref name="eventType"/> and appends <paramref name="taskEventId"/> in parenthesis if it is a non-negative number - e.g. "TaskActivityScheduled(1)".</returns>
-        protected static string GetHistoryEventDescription(string eventType, int taskEventId)
+        protected static string GetEventDescription(string eventType, int taskEventId)
         {
             if (taskEventId >= 0)
             {
-                return eventType + "(" + taskEventId + ")";
+                return $"[{eventType}#{taskEventId}]";
             }
             else
             {
-                return eventType;
+                return $"[{eventType}]";
             }
         }
     }

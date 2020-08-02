@@ -14,6 +14,7 @@
 namespace DurableTask.AzureStorage.Logging
 {
     using System;
+    using DurableTask.Core;
     using DurableTask.Core.Logging;
     using Microsoft.Extensions.Logging;
 
@@ -685,7 +686,7 @@ namespace DurableTask.AzureStorage.Logging
             string taskHub,
             string instanceId,
             string executionId,
-            string eventType,
+            OrchestrationStatus runtimeStatus,
             int episode,
             long latencyMs)
         {
@@ -694,7 +695,7 @@ namespace DurableTask.AzureStorage.Logging
                 taskHub,
                 instanceId,
                 executionId,
-                eventType,
+                runtimeStatus,
                 episode,
                 latencyMs);
             this.WriteStructuredLog(logEvent);

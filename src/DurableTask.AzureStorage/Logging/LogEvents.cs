@@ -14,6 +14,7 @@
 namespace DurableTask.AzureStorage.Logging
 {
     using System;
+    using DurableTask.Core;
     using DurableTask.Core.Logging;
     using Microsoft.Extensions.Logging;
 
@@ -95,9 +96,10 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => string.Format(
-                "Sending {0} message to {1} for instance '{2}'",
-                GetHistoryEventDescription(this.EventType, this.TaskEventId),
+            protected override string CreateLogMessage() => string.Format(
+                "{0}Sending {1} message to {2} for instance '{3}'",
+                string.IsNullOrEmpty(this.InstanceId) ? string.Empty : this.InstanceId + ": ",
+                GetEventDescription(this.EventType, this.TaskEventId),
                 this.PartitionId,
                 this.TargetInstanceId);
 
@@ -204,11 +206,11 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => string.Format(
-                "Fetched {0} message from {1} for instance '{2}'; delay = {3}ms",
-                GetHistoryEventDescription(this.EventType, this.TaskEventId),
-                this.PartitionId,
+            protected override string CreateLogMessage() => string.Format(
+                "{0}: Fetched {1} message from {2} (delay = {3}ms)",
                 this.InstanceId,
+                GetEventDescription(this.EventType, this.TaskEventId),
+                this.PartitionId,
                 this.Age);
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.ReceivedMessage(
@@ -287,11 +289,11 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => string.Format(
-                "Deleting {0} message from {1} for instance '{2}'",
-                GetHistoryEventDescription(this.EventType, this.TaskEventId),
-                this.PartitionId,
-                this.InstanceId);
+            protected override string CreateLogMessage() => string.Format(
+                "{0}: Deleting {1} message from {2}",
+                this.InstanceId,
+                GetEventDescription(this.EventType, this.TaskEventId),
+                this.PartitionId);
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.DeletingMessage(
                 this.Account,
@@ -368,10 +370,11 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Warning;
 
-            public override string GetLogMessage() => string.Format(
-                "Abandoning {0} message for instance '{1}' and adding a delay of {2}ms",
-                GetHistoryEventDescription(this.EventType, this.TaskEventId),
+            protected override string CreateLogMessage() => string.Format(
+                "{0}: Abandoning {1} message back to {2} and setting a visibility delay of {3}ms",
                 this.InstanceId,
+                GetEventDescription(this.EventType, this.TaskEventId),
+                this.PartitionId,
                 this.VisibilityTimeoutSeconds);
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.AbandoningMessage(
@@ -415,7 +418,7 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Warning;
 
-            public override string GetLogMessage() => "Internal assert failure: " + this.Details;
+            protected override string CreateLogMessage() => "Internal assert failure: " + this.Details;
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.AssertFailure(
                 this.Account,
@@ -481,10 +484,10 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Warning;
 
-            public override string GetLogMessage() => string.Format(
-                "Failed to update or delete message {0} for instance '{1}' because it no longer exists; message ID = {2}",
-                GetHistoryEventDescription(this.EventType, this.TaskEventId),
+            protected override string CreateLogMessage() => string.Format(
+                "{0}: Failed to update or delete message {1} with ID = {2} because it no longer exists",
                 this.InstanceId,
+                GetEventDescription(this.EventType, this.TaskEventId),
                 this.MessageId);
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.MessageGone(
@@ -527,7 +530,7 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Error;
 
-            public override string GetLogMessage() => "General error: " + this.Details;
+            protected override string CreateLogMessage() => "General error: " + this.Details;
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.GeneralError(
                 this.Account,
@@ -593,10 +596,10 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Warning;
 
-            public override string GetLogMessage() => string.Format(
-                "Received a duplicate message {0} for instance '{1}' from {2}; message ID = {3}; dequeue count = {4}",
-                GetHistoryEventDescription(this.EventType, this.TaskEventId),
+            protected override string CreateLogMessage() => string.Format(
+                "{0}: Received a duplicate message {1} from {2} with ID = {3} and dequeue count = {4}",
                 this.InstanceId,
+                GetEventDescription(this.EventType, this.TaskEventId),
                 this.PartitionId,
                 this.MessageId,
                 this.DequeueCount);
@@ -671,10 +674,10 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Warning;
 
-            public override string GetLogMessage() => string.Format(
-                "Poison {0} message for instance '{1}' was detected; message ID = {2}; dequeue count = {3}",
-                GetHistoryEventDescription(this.EventType, this.TaskEventId),
+            protected override string CreateLogMessage() => string.Format(
+                "{0}: Message {1} with ID {2} has been dequeued {3} times and is now considered poison",
                 this.InstanceId,
+                GetEventDescription(this.EventType, this.TaskEventId),
                 this.MessageId,
                 this.DequeueCount);
 
@@ -753,8 +756,10 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => 
-                $"Fetched {this.EventCount} history events for instance '{this.InstanceId}'";
+            protected override string CreateLogMessage() =>
+                this.EventCount > 0 ?
+                    $"{this.InstanceId}: Fetched {this.EventCount} history events from the history table in {this.LatencyMs}ms" :
+                    $"{this.InstanceId}: No history events were found";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.FetchedInstanceHistory(
                 this.Account,
@@ -842,8 +847,8 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => 
-                $"Saved {this.NewEventCount} new events to the history table for instance '{this.InstanceId}'; total events = {this.TotalEventCount}";
+            protected override string CreateLogMessage() => 
+                $"{this.InstanceId}: Appended {this.NewEventCount} new events to the history table in {this.LatencyMs}ms";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.AppendedInstanceHistory(
                 this.Account,
@@ -931,10 +936,10 @@ namespace DurableTask.AzureStorage.Logging
                 EventIds.OrchestrationServiceStats,
                 nameof(EventIds.OrchestrationServiceStats));
 
-            public override LogLevel Level => LogLevel.Information;
+            public override LogLevel Level => LogLevel.Debug;
 
-            public override string GetLogMessage() => 
-                $"There are currently {this.ActiveOrchestrators + this.PendingOrchestrators} orchestration and {this.ActiveActivities} activities loaded into memory on this worker";
+            protected override string CreateLogMessage() => 
+                $"There are currently {this.ActiveOrchestrators + this.PendingOrchestrators} orchestration(s) and {this.ActiveActivities} activities loaded into memory on this worker";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.OrchestrationServiceStats(
                 this.Account,
@@ -1009,11 +1014,11 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => string.Format(
-                "Renewing {0} message from {1} for instance '{2}' for an additional {3} seconds",
-                GetHistoryEventDescription(this.EventType, this.TaskEventId),
-                this.PartitionId,
+            protected override string CreateLogMessage() => string.Format(
+                "{0}: Renewing {1} message on {2} for an additional {3} seconds",
                 this.InstanceId,
+                GetEventDescription(this.EventType, this.TaskEventId),
+                this.PartitionId,
                 this.VisibilityTimeoutSeconds);
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.RenewingMessage(
@@ -1086,11 +1091,17 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Error;
 
-            public override string GetLogMessage() => string.Format(
-                "An error occurred while processing message {0} for instance '{1}': {2}",
-                GetHistoryEventDescription(this.EventType, this.TaskEventId),
-                this.InstanceId,
-                this.Details);
+            protected override string CreateLogMessage()
+            {
+                if (!string.IsNullOrEmpty(this.InstanceId))
+                {
+                    return $"{this.InstanceId}: An error occurred while processing message {GetEventDescription(this.EventType, this.TaskEventId)}: {this.Details}";
+                }
+                else
+                {
+                    return $"An error occurred while processing messages on {this.PartitionId}: {this.Details}";
+                }
+            }
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.MessageFailure(
                 this.Account,
@@ -1142,7 +1153,7 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Error;
 
-            public override string GetLogMessage() => 
+            protected override string CreateLogMessage() => 
                 $"An unexpected failure occurred while processing instance '{this.InstanceId}': {this.Details}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.OrchestrationProcessingFailure(
@@ -1186,7 +1197,7 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => 
+            protected override string CreateLogMessage() => 
                 $"The maximum orchestration message prefetch limit of {this.PendingOrchestratorMessages} has been reached; " +
                 $"fetching from {this.PartitionId} will be temporarily suspended until existing messages are consumed";
 
@@ -1225,8 +1236,8 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => 
-                $"No messages were found on {this.PartitionId}; backing off to reduce polling transaction costs";
+            protected override string CreateLogMessage() => 
+                $"{this.PartitionId}: No new messages were found - backing off";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.WaitingForMoreMessages(
                 this.Account,
@@ -1297,10 +1308,10 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Warning;
 
-            public override string GetLogMessage() => string.Format(
-                "Message {0} for instance '{1}' was received out of order; returning it back to {2}",
-                GetHistoryEventDescription(this.EventType, this.TaskEventId),
+            protected override string CreateLogMessage() => string.Format(
+                "{0}: Message {1} was received out of order and will be temporarily returned back to {2}",
                 this.InstanceId,
+                GetEventDescription(this.EventType, this.TaskEventId),
                 this.PartitionId);
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.ReceivedOutOfOrderMessage(
@@ -1354,7 +1365,8 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => $"{this.PartitionId}: {this.Details}";
+            protected override string CreateLogMessage() => 
+                !string.IsNullOrEmpty(this.PartitionId) ? $"{this.PartitionId}: {this.Details}" : this.Details;
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.PartitionManagerInfo(
                 this.Account,
@@ -1402,7 +1414,8 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Warning;
 
-            public override string GetLogMessage() => $"{this.PartitionId}: {this.Details}";
+            protected override string CreateLogMessage() =>
+                !string.IsNullOrEmpty(this.PartitionId) ? $"{this.PartitionId}: {this.Details}" : this.Details;
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.PartitionManagerWarning(
                 this.Account,
@@ -1450,7 +1463,8 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Error;
 
-            public override string GetLogMessage() => $"{this.PartitionId}: {this.Details}";
+            protected override string CreateLogMessage() =>
+                !string.IsNullOrEmpty(this.PartitionId) ? $"{this.PartitionId}: {this.Details}" : this.Details;
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.PartitionManagerError(
                 this.Account,
@@ -1498,7 +1512,8 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Debug;
 
-            public override string GetLogMessage() => $"Starting lease renewal for {this.PartitionId}; token = {this.Token}";
+            protected override string CreateLogMessage() =>
+                $"{this.PartitionId}: Starting lease renewal with token {this.Token}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.StartingLeaseRenewal(
                 this.Account,
@@ -1556,7 +1571,8 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Debug;
 
-            public override string GetLogMessage() => $"Lease renewal result for {this.PartitionId}: Success = {this.Success}; token = {this.Token}";
+            protected override string CreateLogMessage() =>
+                $"{this.PartitionId}: Lease renewal with token {this.Token} {(this.Success ? "succeeded" : "failed")}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.LeaseRenewalResult(
                 this.Account,
@@ -1611,7 +1627,8 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => $"Failed to renew lease for {this.PartitionId}: {this.Details}";
+            protected override string CreateLogMessage() =>
+                $"{this.PartitionId}: Lease renewal with token {this.Token} failed: {this.Details}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.LeaseRenewalFailed(
                 this.Account,
@@ -1655,7 +1672,7 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => $"Attempting to acquire lease for {this.PartitionId}";
+            protected override string CreateLogMessage() => $"{this.PartitionId}: Attempting to acquire lease";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.LeaseAcquisitionStarted(
                 this.Account,
@@ -1697,7 +1714,7 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => $"Successfully acquired lease for {this.PartitionId}";
+            protected override string CreateLogMessage() => $"{this.PartitionId}: Successfully acquired lease";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.LeaseAcquisitionSucceeded(
                 this.Account,
@@ -1739,7 +1756,7 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => $"Failed to acquire lease for {this.PartitionId}";
+            protected override string CreateLogMessage() => $"{this.PartitionId}: Failed to acquire lease";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.LeaseAcquisitionFailed(
                 this.Account,
@@ -1786,7 +1803,8 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => $"Attempting to steal lease for {this.PartitionId} from {this.FromWorkerName}";
+            protected override string CreateLogMessage() =>
+                $"{this.PartitionId}: Attempting to steal lease from {this.FromWorkerName}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.AttemptingToStealLease(
                 this.Account,
@@ -1834,7 +1852,8 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => $"Successfully stole lease for {this.PartitionId} from {this.FromWorkerName}";
+            protected override string CreateLogMessage() =>
+                $"{this.PartitionId}: Successfully stole lease from {this.FromWorkerName}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.LeaseStealingSucceeded(
                 this.Account,
@@ -1877,7 +1896,7 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => $"Failed to steal lease for {this.PartitionId}";
+            protected override string CreateLogMessage() => $"{this.PartitionId}: Failed to steal lease";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.LeaseStealingFailed(
                 this.Account,
@@ -1924,7 +1943,7 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => $"Stopped processing messages for partition {this.PartitionId}";
+            protected override string CreateLogMessage() => $"{this.PartitionId}: {this.WorkerName} is no longer processing messages for this partition";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.PartitionRemoved(
                 this.Account,
@@ -1972,7 +1991,7 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => $"Released lease for {this.PartitionId}";
+            protected override string CreateLogMessage() => $"{this.PartitionId}: {this.WorkerName} has released its lease";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.LeaseRemoved(
                 this.Account,
@@ -2020,7 +2039,8 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Warning;
 
-            public override string GetLogMessage() => $"Failed to release lease for {this.PartitionId} due to a conflict";
+            protected override string CreateLogMessage() =>
+                $"{this.PartitionId}: {this.WorkerName} failed to release its lease due to a conflict";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.LeaseRemovalFailed(
                 this.Account,
@@ -2038,7 +2058,7 @@ namespace DurableTask.AzureStorage.Logging
                 string taskHub,
                 string instanceId,
                 string executionId,
-                string eventType,
+                OrchestrationStatus runtimeStatus,
                 int episode,
                 long latencyMs)
             {
@@ -2046,7 +2066,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.TaskHub = taskHub;
                 this.InstanceId = instanceId;
                 this.ExecutionId = executionId;
-                this.EventType = eventType;
+                this.RuntimeStatus = runtimeStatus.ToString();
                 this.Episode = episode;
                 this.LatencyMs = latencyMs;
             }
@@ -2064,7 +2084,7 @@ namespace DurableTask.AzureStorage.Logging
             public string ExecutionId { get; }
 
             [StructuredLogField]
-            public string EventType { get; }
+            public string RuntimeStatus { get; }
 
             [StructuredLogField]
             public int Episode { get; }
@@ -2078,17 +2098,15 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() =>
-                string.IsNullOrEmpty(this.EventType) ?
-                    $"Updated instance status for {this.InstanceId}" :
-                    $"Updated instance status for {this.InstanceId} with a {this.EventType} runtime status";
+            protected override string CreateLogMessage() =>
+                $"{this.InstanceId}: Updated Instances table and set the runtime status to '{this.RuntimeStatus}'";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.InstanceStatusUpdate(
                 this.Account,
                 this.TaskHub,
                 this.InstanceId,
                 this.ExecutionId,
-                this.EventType,
+                this.RuntimeStatus,
                 this.Episode,
                 this.LatencyMs,
                 Utils.ExtensionVersion);
@@ -2131,7 +2149,7 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => $"Fetched instance status for {this.InstanceId}";
+            protected override string CreateLogMessage() => $"Fetched instance status for {this.InstanceId}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.FetchedInstanceStatus(
                 this.Account,
@@ -2169,7 +2187,7 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Warning;
 
-            public override string GetLogMessage() => $"WARNING: {this.Details}";
+            protected override string CreateLogMessage() => $"WARNING: {this.Details}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.GeneralWarning(
                 this.Account,
@@ -2235,8 +2253,8 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Warning;
 
-            public override string GetLogMessage() =>
-                $"Split brain was detected for {this.InstanceId} and {this.NewEventCount} new history events need to be abandoned";
+            protected override string CreateLogMessage() =>
+                $"{this.InstanceId}: Split brain detected: Another worker already updated the history for this instance - the {this.NewEventCount} history event result(s) will be discarded";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.SplitBrainDetected(
                 this.Account,
@@ -2303,8 +2321,8 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Warning;
 
-            public override string GetLogMessage() => 
-                $"A work item for '{this.InstanceId}' with {this.NewEventCount} history event(s) is being discarded: {this.Details}";
+            protected override string CreateLogMessage() => 
+                $"{this.InstanceId}: Discarding {this.NewEventCount} dequeued history event(s): {this.Details}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.DiscardingWorkItem(
                 this.Account,
@@ -2389,10 +2407,8 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() => string.Format(
-                "Starting to process the {0} message for instance '{1}'",
-                GetHistoryEventDescription(this.EventType, this.TaskEventId),
-                this.InstanceId);
+            protected override string CreateLogMessage() =>
+                $"{this.InstanceId}: Processing {GetEventDescription(this.EventType, this.TaskEventId)} (total delay = {this.Age}ms)";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.ProcessingMessage(
                 this.RelatedActivityId,
@@ -2467,7 +2483,7 @@ namespace DurableTask.AzureStorage.Logging
 
             public override LogLevel Level => LogLevel.Information;
 
-            public override string GetLogMessage() =>
+            protected override string CreateLogMessage() =>
                 !string.IsNullOrEmpty(this.InstanceId) ?
                     $"Purged instance history data for instance '{this.InstanceId}' in {this.LatencyMs / 1000.0:F} seconds" :
                     $"Purged instance history data for {this.InstanceCount} instance(s) in {this.LatencyMs / 1000.0:F} seconds";
