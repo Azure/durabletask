@@ -49,45 +49,56 @@ namespace DurableTask.Core.Logging
         bool IsEnabled(EventLevel level) => this.IsEnabled(level, EventKeywords.None);
 
         [Event(EventIds.TaskHubWorkerStarting, Level = EventLevel.Informational, Version = 1)]
-        public void TaskHubWorkerStarting()
+        public void TaskHubWorkerStarting(string AppName, string ExtensionVersion)
         {
-            this.WriteEvent(EventIds.TaskHubWorkerStarting);
+            this.WriteEvent(EventIds.TaskHubWorkerStarting, AppName, ExtensionVersion);
         }
 
         [Event(EventIds.TaskHubWorkerStarted, Level = EventLevel.Informational, Version = 1)]
-        public void TaskHubWorkerStarted(long LatencyMs)
+        public void TaskHubWorkerStarted(long LatencyMs, string AppName, string ExtensionVersion)
         {
-            this.WriteEvent(EventIds.TaskHubWorkerStarted, LatencyMs);
+            this.WriteEvent(EventIds.TaskHubWorkerStarted, LatencyMs, AppName, ExtensionVersion);
         }
 
         [Event(EventIds.TaskHubWorkerStopping, Level = EventLevel.Informational, Version = 1)]
-        public void TaskHubWorkerStopping(bool IsForced)
+        public void TaskHubWorkerStopping(bool IsForced, string AppName, string ExtensionVersion)
         {
-            this.WriteEvent(EventIds.TaskHubWorkerStopping, IsForced);
+            this.WriteEvent(EventIds.TaskHubWorkerStopping, IsForced, AppName, ExtensionVersion);
         }
 
         [Event(EventIds.TaskHubWorkerStopped, Level = EventLevel.Informational, Version = 1)]
-        public void TaskHubWorkerStopped(long LatencyMs)
+        public void TaskHubWorkerStopped(long LatencyMs, string AppName, string ExtensionVersion)
         {
-            this.WriteEvent(EventIds.TaskHubWorkerStopped, LatencyMs);
+            this.WriteEvent(EventIds.TaskHubWorkerStopped, LatencyMs, AppName, ExtensionVersion);
         }
 
         [Event(EventIds.DispatcherStarting, Level = EventLevel.Verbose, Version = 1)]
-        public void DispatcherStarting(string Dispatcher)
+        public void DispatcherStarting(string Dispatcher, string AppName, string ExtensionVersion)
         {
-            this.WriteEvent(EventIds.DispatcherStarting, Dispatcher);
+            this.WriteEvent(EventIds.DispatcherStarting, Dispatcher, AppName, ExtensionVersion);
         }
 
         [Event(EventIds.DispatcherStopped, Level = EventLevel.Verbose, Version = 1)]
-        public void DispatcherStopped(string Dispatcher)
+        public void DispatcherStopped(string Dispatcher, string AppName, string ExtensionVersion)
         {
-            this.WriteEvent(EventIds.DispatcherStopped, Dispatcher);
+            this.WriteEvent(EventIds.DispatcherStopped, Dispatcher, AppName, ExtensionVersion);
         }
 
         [Event(EventIds.DispatchersStopping, Level = EventLevel.Verbose, Version = 1)]
-        public void DispatchersStopping(string Dispatcher, int WorkItemCount, int ActiveFetcherCount)
+        public void DispatchersStopping(
+            string Dispatcher,
+            int WorkItemCount,
+            int ActiveFetcherCount,
+            string AppName,
+            string ExtensionVersion)
         {
-            this.WriteEvent(EventIds.DispatchersStopping, Dispatcher, WorkItemCount, ActiveFetcherCount);
+            this.WriteEvent(
+                EventIds.DispatchersStopping,
+                Dispatcher,
+                WorkItemCount,
+                ActiveFetcherCount,
+                AppName,
+                ExtensionVersion);
         }
 
         [Event(EventIds.FetchWorkItemStarting, Level = EventLevel.Verbose, Version = 1)]
@@ -95,7 +106,9 @@ namespace DurableTask.Core.Logging
             string Dispatcher,
             int TimeoutSeconds,
             int WorkItemCount,
-            int MaxWorkItemCount)
+            int MaxWorkItemCount,
+            string AppName,
+            string ExtensionVersion)
         {
             if (this.IsEnabled())
             {
@@ -111,7 +124,9 @@ namespace DurableTask.Core.Logging
                     Dispatcher,
                     TimeoutSeconds,
                     WorkItemCount,
-                    MaxWorkItemCount);
+                    MaxWorkItemCount,
+                    AppName,
+                    ExtensionVersion);
             }
         }
 
@@ -121,7 +136,9 @@ namespace DurableTask.Core.Logging
             string WorkItemId,
             long LatencyMs,
             int WorkItemCount,
-            int MaxWorkItemCount)
+            int MaxWorkItemCount,
+            string AppName,
+            string ExtensionVersion)
         {
             if (this.IsEnabled(EventLevel.Verbose))
             {
@@ -132,38 +149,85 @@ namespace DurableTask.Core.Logging
                     WorkItemId,
                     LatencyMs,
                     WorkItemCount,
-                    MaxWorkItemCount);
+                    MaxWorkItemCount,
+                    AppName,
+                    ExtensionVersion);
             }
         }
 
         [Event(EventIds.FetchWorkItemFailure, Level = EventLevel.Error, Version = 1)]
-        internal void FetchWorkItemFailure(string Dispatcher, string Details)
+        internal void FetchWorkItemFailure(string Dispatcher, string Details, string AppName, string ExtensionVersion)
         {
-            this.WriteEvent(EventIds.FetchWorkItemFailure, Dispatcher, Details);
+            this.WriteEvent(
+                EventIds.FetchWorkItemFailure,
+                Dispatcher,
+                Details,
+                AppName,
+                ExtensionVersion);
         }
 
         [Event(EventIds.FetchingThrottled, Level = EventLevel.Informational, Version = 1)]
-        internal void FetchingThrottled(string Dispatcher, int WorkItemCount, int MaxWorkItemCount)
+        internal void FetchingThrottled(
+            string Dispatcher,
+            int WorkItemCount,
+            int MaxWorkItemCount,
+            string AppName,
+            string ExtensionVersion)
         {
-            this.WriteEvent(EventIds.FetchingThrottled, Dispatcher, WorkItemCount, MaxWorkItemCount);
+            this.WriteEvent(
+                EventIds.FetchingThrottled,
+                Dispatcher,
+                WorkItemCount,
+                MaxWorkItemCount,
+                AppName,
+                ExtensionVersion);
         }
 
         [Event(EventIds.ProcessWorkItemStarting, Level = EventLevel.Verbose, Version = 1)]
-        internal void ProcessWorkItemStarting(string Dispatcher, string WorkItemId)
+        internal void ProcessWorkItemStarting(
+            string Dispatcher,
+            string WorkItemId,
+            string AppName,
+            string ExtensionVersion)
         {
-            this.WriteEvent(EventIds.ProcessWorkItemStarting, Dispatcher, WorkItemId);
+            this.WriteEvent(
+                EventIds.ProcessWorkItemStarting,
+                Dispatcher,
+                WorkItemId,
+                AppName,
+                ExtensionVersion);
         }
 
         [Event(EventIds.ProcessWorkItemCompleted, Level = EventLevel.Verbose, Version = 1)]
-        internal void ProcessWorkItemCompleted(string Dispatcher, string WorkItemId)
+        internal void ProcessWorkItemCompleted(
+            string Dispatcher,
+            string WorkItemId,
+            string AppName,
+            string ExtensionVersion)
         {
-            this.WriteEvent(EventIds.ProcessWorkItemCompleted, Dispatcher, WorkItemId);
+            this.WriteEvent(
+                EventIds.ProcessWorkItemCompleted,
+                Dispatcher,
+                WorkItemId,
+                AppName,
+                ExtensionVersion);
         }
 
         [Event(EventIds.ProcessWorkItemFailed, Level = EventLevel.Error, Version = 1)]
-        public void ProcessWorkItemFailed(string Dispatcher, string WorkItemId, string Details)
+        public void ProcessWorkItemFailed(
+            string Dispatcher,
+            string WorkItemId,
+            string Details,
+            string AppName,
+            string ExtensionVersion)
         {
-            this.WriteEvent(EventIds.ProcessWorkItemFailed, Dispatcher, WorkItemId, Details);
+            this.WriteEvent(
+                EventIds.ProcessWorkItemFailed,
+                Dispatcher,
+                WorkItemId,
+                Details,
+                AppName,
+                ExtensionVersion);
         }
 
         [Event(EventIds.SchedulingOrchestration, Level = EventLevel.Informational, Version = 1)]
@@ -174,7 +238,9 @@ namespace DurableTask.Core.Logging
             string TargetExecutionId,
             string Name,
             int TaskEventId,
-            int SizeInBytes)
+            int SizeInBytes,
+            string AppName,
+            string ExtensionVersion)
         {
             if (this.IsEnabled(EventLevel.Informational))
             {
@@ -187,7 +253,9 @@ namespace DurableTask.Core.Logging
                     TargetExecutionId,
                     Name,
                     TaskEventId,
-                    SizeInBytes);
+                    SizeInBytes,
+                    AppName,
+                    ExtensionVersion);
             }
         }
 
@@ -198,7 +266,9 @@ namespace DurableTask.Core.Logging
             string TargetInstanceId,
             string Name,
             int TaskEventId,
-            int SizeInBytes)
+            int SizeInBytes,
+            string AppName,
+            string ExtensionVersion)
         {
             if (this.IsEnabled(EventLevel.Informational))
             {
@@ -210,49 +280,74 @@ namespace DurableTask.Core.Logging
                     TargetInstanceId,
                     Name,
                     TaskEventId,
-                    SizeInBytes);
+                    SizeInBytes,
+                    AppName,
+                    ExtensionVersion);
             }
         }
 
         [Event(EventIds.TerminatingInstance, Level = EventLevel.Informational, Version = 1)]
-        internal void TerminatingInstance(string InstanceId, string ExecutionId, string Details)
+        internal void TerminatingInstance(
+            string InstanceId,
+            string ExecutionId,
+            string Details,
+            string AppName,
+            string ExtensionVersion)
         {
             this.WriteEvent(
                 EventIds.TerminatingInstance,
                 InstanceId,
                 ExecutionId ?? string.Empty,
-                Details ?? string.Empty);
+                Details ?? string.Empty,
+                AppName,
+                ExtensionVersion);
         }
 
         [Event(EventIds.WaitingForInstance, Level = EventLevel.Informational, Version = 1)]
         internal void WaitingForInstance(
             string InstanceId,
             string ExecutionId,
-            int TimeoutSeconds)
+            int TimeoutSeconds,
+            string AppName,
+            string ExtensionVersion)
         {
             this.WriteEvent(
                 EventIds.WaitingForInstance,
                 InstanceId,
                 ExecutionId ?? string.Empty,
-                TimeoutSeconds);
+                TimeoutSeconds,
+                AppName,
+                ExtensionVersion);
         }
 
         [Event(EventIds.FetchingInstanceState, Level = EventLevel.Informational, Version = 1)]
-        internal void FetchingInstanceState(string InstanceId, string ExecutionId)
+        internal void FetchingInstanceState(
+            string InstanceId,
+            string ExecutionId,
+            string AppName,
+            string ExtensionVersion)
         {
             this.WriteEvent(
                 EventIds.FetchingInstanceState,
                 InstanceId,
-                ExecutionId ?? string.Empty);
+                ExecutionId ?? string.Empty,
+                AppName,
+                ExtensionVersion);
         }
 
         [Event(EventIds.FetchingInstanceHistory, Level = EventLevel.Informational, Version = 1)]
-        internal void FetchingInstanceHistory(string InstanceId, string ExecutionId)
+        internal void FetchingInstanceHistory(
+            string InstanceId,
+            string ExecutionId,
+            string AppName,
+            string ExtensionVersion)
         {
             this.WriteEvent(
                 EventIds.FetchingInstanceHistory,
                 InstanceId,
-                ExecutionId ?? string.Empty);
+                ExecutionId ?? string.Empty,
+                AppName,
+                ExtensionVersion);
         }
 
         [Event(EventIds.ProcessingOrchestrationMessage, Level = EventLevel.Verbose, Version = 1)]
@@ -260,7 +355,9 @@ namespace DurableTask.Core.Logging
             string InstanceId,
             string ExecutionId,
             string EventType,
-            int TaskEventId)
+            int TaskEventId,
+            string AppName,
+            string ExtensionVersion)
         {
             if (this.IsEnabled(EventLevel.Verbose))
             {
@@ -270,7 +367,9 @@ namespace DurableTask.Core.Logging
                     InstanceId,
                     ExecutionId ?? string.Empty,
                     EventType,
-                    TaskEventId);
+                    TaskEventId,
+                    AppName,
+                    ExtensionVersion);
             }
         }
 
@@ -278,13 +377,20 @@ namespace DurableTask.Core.Logging
         internal void OrchestrationExecuting(
             string InstanceId,
             string ExecutionId,
-            string Name)
+            string Name,
+            string AppName,
+            string ExtensionVersion)
         {
-            this.WriteEvent(
-                EventIds.OrchestrationExecuting,
-                InstanceId,
-                ExecutionId,
-                Name);
+            if (this.IsEnabled(EventLevel.Informational))
+            {
+                this.WriteEvent(
+                    EventIds.OrchestrationExecuting,
+                    InstanceId,
+                    ExecutionId,
+                    Name,
+                    AppName,
+                    ExtensionVersion);
+            }
         }
 
         [Event(EventIds.OrchestrationExecuted, Level = EventLevel.Informational, Version = 1)]
@@ -292,7 +398,9 @@ namespace DurableTask.Core.Logging
             string InstanceId,
             string ExecutionId,
             string Name,
-            int ActionCount)
+            int ActionCount,
+            string AppName,
+            string ExtensionVersion)
         {
             if (this.IsEnabled(EventLevel.Informational))
             {
@@ -302,7 +410,9 @@ namespace DurableTask.Core.Logging
                     InstanceId,
                     ExecutionId,
                     Name,
-                    ActionCount);
+                    ActionCount,
+                    AppName,
+                    ExtensionVersion);
             }
         }
 
@@ -312,7 +422,9 @@ namespace DurableTask.Core.Logging
             string ExecutionId,
             string Name,
             int TaskEventId,
-            int SizeInBytes)
+            int SizeInBytes,
+            string AppName,
+            string ExtensionVersion)
         {
             if (this.IsEnabled(EventLevel.Informational))
             {
@@ -323,7 +435,9 @@ namespace DurableTask.Core.Logging
                     ExecutionId,
                     Name,
                     TaskEventId,
-                    SizeInBytes);
+                    SizeInBytes,
+                    AppName,
+                    ExtensionVersion);
             }
         }
 
@@ -333,7 +447,9 @@ namespace DurableTask.Core.Logging
             string ExecutionId,
             DateTime FireAt,
             int TaskEventId,
-            bool IsInternal)
+            bool IsInternal,
+            string AppName,
+            string ExtensionVersion)
         {
             if (this.IsEnabled(EventLevel.Informational))
             {
@@ -344,7 +460,9 @@ namespace DurableTask.Core.Logging
                     ExecutionId,
                     FireAt,
                     TaskEventId,
-                    IsInternal);
+                    IsInternal,
+                    AppName,
+                    ExtensionVersion);
             }
         }
 
@@ -354,7 +472,9 @@ namespace DurableTask.Core.Logging
             string ExecutionId,
             string RuntimeStatus,
             string Details,
-            int SizeInBytes)
+            int SizeInBytes,
+            string AppName,
+            string ExtensionVersion)
         {
             if (this.IsEnabled(EventLevel.Informational))
             {
@@ -365,7 +485,9 @@ namespace DurableTask.Core.Logging
                     ExecutionId,
                     RuntimeStatus,
                     Details,
-                    SizeInBytes);
+                    SizeInBytes,
+                    AppName,
+                    ExtensionVersion);
             }
         }
 
@@ -373,7 +495,9 @@ namespace DurableTask.Core.Logging
         internal void OrchestrationAborted(
             string InstanceId,
             string ExecutionId,
-            string Details)
+            string Details,
+            string AppName,
+            string ExtensionVersion)
         {
             if (this.IsEnabled(EventLevel.Warning))
             {
@@ -381,7 +505,9 @@ namespace DurableTask.Core.Logging
                     EventIds.OrchestrationAborted,
                     InstanceId,
                     ExecutionId,
-                    Details);
+                    Details,
+                    AppName,
+                    ExtensionVersion);
             }
         }
 
@@ -391,7 +517,9 @@ namespace DurableTask.Core.Logging
             string ExecutionId,
             string EventType,
             int TaskEventId,
-            string Details)
+            string Details,
+            string AppName,
+            string ExtensionVersion)
         {
             if (this.IsEnabled(EventLevel.Warning))
             {
@@ -402,7 +530,9 @@ namespace DurableTask.Core.Logging
                     ExecutionId ?? string.Empty,
                     EventType,
                     TaskEventId,
-                    Details);
+                    Details,
+                    AppName,
+                    ExtensionVersion);
             }
         }
 
@@ -411,7 +541,9 @@ namespace DurableTask.Core.Logging
             string InstanceId,
             string ExecutionId,
             string Name,
-            int TaskEventId)
+            int TaskEventId,
+            string AppName,
+            string ExtensionVersion)
         {
             if (this.IsEnabled(EventLevel.Informational))
             {
@@ -421,7 +553,9 @@ namespace DurableTask.Core.Logging
                     InstanceId,
                     ExecutionId,
                     Name,
-                    TaskEventId);
+                    TaskEventId,
+                    AppName,
+                    ExtensionVersion);
             }
         }
 
@@ -431,7 +565,9 @@ namespace DurableTask.Core.Logging
             string ExecutionId,
             string Name,
             int TaskEventId,
-            int SizeInBytes)
+            int SizeInBytes,
+            string AppName,
+            string ExtensionVersion)
         {
             if (this.IsEnabled(EventLevel.Informational))
             {
@@ -442,7 +578,9 @@ namespace DurableTask.Core.Logging
                     ExecutionId,
                     Name,
                     TaskEventId,
-                    SizeInBytes);
+                    SizeInBytes,
+                    AppName,
+                    ExtensionVersion);
             }
         }
 
@@ -452,7 +590,9 @@ namespace DurableTask.Core.Logging
             string ExecutionId,
             string Name,
             int TaskEventId,
-            string Details)
+            string Details,
+            string AppName,
+            string ExtensionVersion)
         {
             if (this.IsEnabled(EventLevel.Warning))
             {
@@ -463,7 +603,9 @@ namespace DurableTask.Core.Logging
                     ExecutionId,
                     Name,
                     TaskEventId,
-                    Details);
+                    Details,
+                    AppName,
+                    ExtensionVersion);
             }
         }
 
@@ -473,7 +615,9 @@ namespace DurableTask.Core.Logging
             string ExecutionId,
             string Name,
             int TaskEventId,
-            string Details)
+            string Details,
+            string AppName,
+            string ExtensionVersion)
         {
             if (this.IsEnabled(EventLevel.Warning))
             {
@@ -484,7 +628,9 @@ namespace DurableTask.Core.Logging
                     ExecutionId,
                     Name,
                     TaskEventId,
-                    Details);
+                    Details,
+                    AppName,
+                    ExtensionVersion);
             }
         }
 
@@ -492,7 +638,9 @@ namespace DurableTask.Core.Logging
         internal void TaskActivityDispatcherError(
             string InstanceId,
             string ExecutionId,
-            string Details)
+            string Details,
+            string AppName,
+            string ExtensionVersion)
         {
             if (this.IsEnabled(EventLevel.Error))
             {
@@ -500,7 +648,9 @@ namespace DurableTask.Core.Logging
                     EventIds.TaskActivityDispatcherError,
                     InstanceId,
                     ExecutionId,
-                    Details);
+                    Details,
+                    AppName,
+                    ExtensionVersion);
             }
         }
 
@@ -509,7 +659,9 @@ namespace DurableTask.Core.Logging
             string InstanceId,
             string ExecutionId,
             string Name,
-            int TaskEventId)
+            int TaskEventId,
+            string AppName,
+            string ExtensionVersion)
         {
             if (this.IsEnabled(EventLevel.Verbose))
             {
@@ -519,7 +671,9 @@ namespace DurableTask.Core.Logging
                     InstanceId,
                     ExecutionId,
                     Name,
-                    TaskEventId);
+                    TaskEventId,
+                    AppName,
+                    ExtensionVersion);
             }
         }
 
@@ -529,7 +683,9 @@ namespace DurableTask.Core.Logging
             string ExecutionId,
             string Name,
             int TaskEventId,
-            DateTime NextRenewal)
+            DateTime NextRenewal,
+            string AppName,
+            string ExtensionVersion)
         {
             if (this.IsEnabled(EventLevel.Verbose))
             {
@@ -540,7 +696,9 @@ namespace DurableTask.Core.Logging
                     ExecutionId,
                     Name,
                     TaskEventId,
-                    NextRenewal);
+                    NextRenewal,
+                    AppName,
+                    ExtensionVersion);
             }
         }
 
@@ -550,7 +708,9 @@ namespace DurableTask.Core.Logging
             string ExecutionId,
             string Name,
             int TaskEventId,
-            string Details)
+            string Details,
+            string AppName,
+            string ExtensionVersion)
         {
             if (this.IsEnabled(EventLevel.Error))
             {
@@ -560,7 +720,9 @@ namespace DurableTask.Core.Logging
                     ExecutionId,
                     Name,
                     TaskEventId,
-                    Details);
+                    Details,
+                    AppName,
+                    ExtensionVersion);
             }
         }
     }

@@ -40,7 +40,7 @@ namespace DurableTask.Core.Logging
             protected override string CreateLogMessage() => "Durable task hub worker is starting";
 
             void IEventSourceEvent.WriteEventSource() => 
-                StructuredEventSource.Log.TaskHubWorkerStarting();
+                StructuredEventSource.Log.TaskHubWorkerStarting(Utils.AppName, Utils.PackageVersion);
         }
 
         internal class TaskHubWorkerStarted : StructuredLogEvent, IEventSourceEvent
@@ -63,7 +63,7 @@ namespace DurableTask.Core.Logging
                 $"Durable task hub worker started successfully after {this.LatencyMs}ms";
 
             void IEventSourceEvent.WriteEventSource() =>
-                StructuredEventSource.Log.TaskHubWorkerStarted(this.LatencyMs);
+                StructuredEventSource.Log.TaskHubWorkerStarted(this.LatencyMs, Utils.AppName, Utils.PackageVersion);
         }
 
         internal class TaskHubWorkerStopping : StructuredLogEvent, IEventSourceEvent
@@ -86,7 +86,7 @@ namespace DurableTask.Core.Logging
                 $"Durable task hub worker is stopping (isForced = {this.IsForced})";
 
             void IEventSourceEvent.WriteEventSource() =>
-                StructuredEventSource.Log.TaskHubWorkerStopping(this.IsForced);
+                StructuredEventSource.Log.TaskHubWorkerStopping(this.IsForced, Utils.AppName, Utils.PackageVersion);
         }
 
         internal class TaskHubWorkerStopped : StructuredLogEvent, IEventSourceEvent
@@ -109,7 +109,7 @@ namespace DurableTask.Core.Logging
                 $"Durable task hub worker stopped successfully after {this.LatencyMs}ms";
 
             void IEventSourceEvent.WriteEventSource() =>
-                StructuredEventSource.Log.TaskHubWorkerStopped(this.LatencyMs);
+                StructuredEventSource.Log.TaskHubWorkerStopped(this.LatencyMs, Utils.AppName, Utils.PackageVersion);
         }
 
         internal class DispatcherStarting : StructuredLogEvent, IEventSourceEvent
@@ -131,7 +131,7 @@ namespace DurableTask.Core.Logging
             protected override string CreateLogMessage() => $"{this.Dispatcher}: Starting dispatch loop";
 
             void IEventSourceEvent.WriteEventSource() =>
-                StructuredEventSource.Log.DispatcherStarting(this.Dispatcher);
+                StructuredEventSource.Log.DispatcherStarting(this.Dispatcher, Utils.AppName, Utils.PackageVersion);
         }
 
         internal class DispatcherStopped : StructuredLogEvent, IEventSourceEvent
@@ -153,7 +153,7 @@ namespace DurableTask.Core.Logging
             protected override string CreateLogMessage() => $"{this.Dispatcher}: Stopped dispatch loop";
 
             void IEventSourceEvent.WriteEventSource() =>
-                StructuredEventSource.Log.DispatcherStopped(this.Dispatcher);
+                StructuredEventSource.Log.DispatcherStopped(this.Dispatcher, Utils.AppName, Utils.PackageVersion);
         }
 
         internal class DispatchersStopping : StructuredLogEvent, IEventSourceEvent
@@ -186,7 +186,12 @@ namespace DurableTask.Core.Logging
                 $"Remaining work item fetchers: {this.ActiveFetcherCount}";
 
             void IEventSourceEvent.WriteEventSource() =>
-                StructuredEventSource.Log.DispatchersStopping(this.Dispatcher, this.WorkItemCount, this.ActiveFetcherCount);
+                StructuredEventSource.Log.DispatchersStopping(
+                    this.Dispatcher,
+                    this.WorkItemCount,
+                    this.ActiveFetcherCount,
+                    Utils.AppName,
+                    Utils.PackageVersion);
         }
 
         internal class FetchWorkItemStarting : StructuredLogEvent, IEventSourceEvent
@@ -230,7 +235,9 @@ namespace DurableTask.Core.Logging
                     this.Dispatcher,
                     this.TimeoutSeconds,
                     this.WorkItemCount,
-                    this.MaxWorkItemCount);
+                    this.MaxWorkItemCount,
+                    Utils.AppName,
+                    Utils.PackageVersion);
         }
 
         internal class FetchWorkItemCompleted : StructuredLogEvent, IEventSourceEvent
@@ -280,7 +287,9 @@ namespace DurableTask.Core.Logging
                     this.WorkItemId,
                     this.LatencyMs,
                     this.WorkItemCount,
-                    this.MaxWorkItemCount);
+                    this.MaxWorkItemCount,
+                    Utils.AppName,
+                    Utils.PackageVersion);
         }
 
         internal class FetchWorkItemFailure : StructuredLogEvent, IEventSourceEvent
@@ -307,7 +316,11 @@ namespace DurableTask.Core.Logging
                 $"{this.Dispatcher}: Failed to fetch a work-item: {this.Details}";
 
             void IEventSourceEvent.WriteEventSource() =>
-                StructuredEventSource.Log.FetchWorkItemFailure(this.Dispatcher, this.Details);
+                StructuredEventSource.Log.FetchWorkItemFailure(
+                    this.Dispatcher,
+                    this.Details,
+                    Utils.AppName,
+                    Utils.PackageVersion);
         }
 
         internal class FetchingThrottled : StructuredLogEvent, IEventSourceEvent
@@ -345,7 +358,9 @@ namespace DurableTask.Core.Logging
                 StructuredEventSource.Log.FetchingThrottled(
                     this.Dispatcher,
                     this.WorkItemCount,
-                    this.MaxWorkItemCount);
+                    this.MaxWorkItemCount,
+                    Utils.AppName,
+                    Utils.PackageVersion);
         }
 
         internal class ProcessWorkItemStarting : StructuredLogEvent, IEventSourceEvent
@@ -372,7 +387,11 @@ namespace DurableTask.Core.Logging
                 $"{this.Dispatcher}: Processing work-item '{this.WorkItemId}'";
 
             void IEventSourceEvent.WriteEventSource() =>
-                StructuredEventSource.Log.ProcessWorkItemStarting(this.Dispatcher, this.WorkItemId);
+                StructuredEventSource.Log.ProcessWorkItemStarting(
+                    this.Dispatcher,
+                    this.WorkItemId,
+                    Utils.AppName,
+                    Utils.PackageVersion);
         }
 
         internal class ProcessWorkItemCompleted : StructuredLogEvent, IEventSourceEvent
@@ -399,7 +418,11 @@ namespace DurableTask.Core.Logging
                 $"{this.Dispatcher}: Finished processing work-item '{this.WorkItemId}'";
 
             void IEventSourceEvent.WriteEventSource() =>
-                StructuredEventSource.Log.ProcessWorkItemCompleted(this.Dispatcher, this.WorkItemId);
+                StructuredEventSource.Log.ProcessWorkItemCompleted(
+                    this.Dispatcher,
+                    this.WorkItemId,
+                    Utils.AppName,
+                    Utils.PackageVersion);
         }
 
         internal class ProcessWorkItemFailed : StructuredLogEvent, IEventSourceEvent
@@ -434,7 +457,12 @@ namespace DurableTask.Core.Logging
                 $"{this.Dispatcher}: Unhandled exception with work item '{this.WorkItemId}': {this.Details}";
 
             void IEventSourceEvent.WriteEventSource() =>
-                StructuredEventSource.Log.ProcessWorkItemFailed(this.Dispatcher, this.WorkItemId, this.Details);
+                StructuredEventSource.Log.ProcessWorkItemFailed(
+                    this.Dispatcher,
+                    this.WorkItemId,
+                    this.Details,
+                    Utils.AppName,
+                    Utils.PackageVersion);
         }
 
         internal class SchedulingOrchestration : StructuredLogEvent, IEventSourceEvent
@@ -497,7 +525,9 @@ namespace DurableTask.Core.Logging
                     this.TargetExecutionId,
                     this.Name,
                     this.TaskEventId,
-                    this.SizeInBytes);
+                    this.SizeInBytes,
+                    Utils.AppName,
+                    Utils.PackageVersion);
         }
 
         internal class RaisingEvent : StructuredLogEvent, IEventSourceEvent
@@ -564,7 +594,9 @@ namespace DurableTask.Core.Logging
                     this.TargetInstanceId,
                     this.Name,
                     this.TaskEventId,
-                    this.SizeInBytes);
+                    this.SizeInBytes,
+                    Utils.AppName,
+                    Utils.PackageVersion);
         }
 
         internal class TerminatingInstance : StructuredLogEvent, IEventSourceEvent
@@ -598,7 +630,9 @@ namespace DurableTask.Core.Logging
                 StructuredEventSource.Log.TerminatingInstance(
                     this.InstanceId,
                     this.ExecutionId,
-                    this.Details);
+                    this.Details,
+                    Utils.AppName,
+                    Utils.PackageVersion);
         }
 
         internal class WaitingForInstance : StructuredLogEvent, IEventSourceEvent
@@ -632,7 +666,9 @@ namespace DurableTask.Core.Logging
                 StructuredEventSource.Log.WaitingForInstance(
                     this.InstanceId,
                     this.ExecutionId,
-                    this.TimeoutSeconds);
+                    this.TimeoutSeconds,
+                    Utils.AppName,
+                    Utils.PackageVersion);
         }
 
         internal class FetchingInstanceState : StructuredLogEvent, IEventSourceEvent
@@ -661,7 +697,9 @@ namespace DurableTask.Core.Logging
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.FetchingInstanceState(
                     this.InstanceId,
-                    this.ExecutionId);
+                    this.ExecutionId,
+                    Utils.AppName,
+                    Utils.PackageVersion);
         }
 
         /// <summary>
@@ -693,7 +731,9 @@ namespace DurableTask.Core.Logging
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.FetchingInstanceHistory(
                     this.InstanceId,
-                    this.ExecutionId);
+                    this.ExecutionId,
+                    Utils.AppName,
+                    Utils.PackageVersion);
         }
 
         /// <summary>
@@ -735,7 +775,9 @@ namespace DurableTask.Core.Logging
                     this.InstanceId,
                     this.ExecutionId,
                     this.EventType,
-                    this.TaskEventId);
+                    this.TaskEventId,
+                    Utils.AppName,
+                    Utils.PackageVersion);
         }
 
         /// <summary>
@@ -772,7 +814,9 @@ namespace DurableTask.Core.Logging
                 StructuredEventSource.Log.OrchestrationExecuting(
                     this.InstanceId,
                     this.ExecutionId,
-                    this.Name);
+                    this.Name,
+                    Utils.AppName,
+                    Utils.PackageVersion);
         }
 
         /// <summary>
@@ -814,7 +858,9 @@ namespace DurableTask.Core.Logging
                     this.InstanceId,
                     this.ExecutionId,
                     this.Name,
-                    this.ActionCount);
+                    this.ActionCount,
+                    Utils.AppName,
+                    Utils.PackageVersion);
         }
 
         /// <summary>
@@ -861,7 +907,9 @@ namespace DurableTask.Core.Logging
                     this.ExecutionId,
                     this.Name,
                     this.TaskEventId,
-                    this.SizeInBytes);
+                    this.SizeInBytes,
+                    Utils.AppName,
+                    Utils.PackageVersion);
         }
 
         /// <summary>
@@ -912,7 +960,9 @@ namespace DurableTask.Core.Logging
                     this.ExecutionId,
                     this.FireAt,
                     this.TaskEventId,
-                    this.IsInternal);
+                    this.IsInternal,
+                    Utils.AppName,
+                    Utils.PackageVersion);
         }
 
         /// <summary>
@@ -962,7 +1012,9 @@ namespace DurableTask.Core.Logging
                     this.ExecutionId,
                     this.RuntimeStatus,
                     this.Details,
-                    this.SizeInBytes);
+                    this.SizeInBytes,
+                    Utils.AppName,
+                    Utils.PackageVersion);
         }
 
         /// <summary>
@@ -999,7 +1051,9 @@ namespace DurableTask.Core.Logging
                 StructuredEventSource.Log.OrchestrationAborted(
                     this.InstanceId,
                     this.ExecutionId,
-                    this.Details);
+                    this.Details,
+                    Utils.AppName,
+                    Utils.PackageVersion);
         }
 
         /// <summary>
@@ -1046,7 +1100,9 @@ namespace DurableTask.Core.Logging
                     this.ExecutionId,
                     this.EventType,
                     this.TaskEventId,
-                    this.Details);
+                    this.Details,
+                    Utils.AppName,
+                    Utils.PackageVersion);
         }
 
         /// <summary>
@@ -1088,7 +1144,9 @@ namespace DurableTask.Core.Logging
                     this.InstanceId,
                     this.ExecutionId,
                     this.Name,
-                    this.TaskEventId);
+                    this.TaskEventId,
+                    Utils.AppName,
+                    Utils.PackageVersion);
         }
 
         /// <summary>
@@ -1138,7 +1196,9 @@ namespace DurableTask.Core.Logging
                     this.ExecutionId,
                     this.Name,
                     this.TaskEventId,
-                    this.SizeInBytes);
+                    this.SizeInBytes,
+                    Utils.AppName,
+                    Utils.PackageVersion);
         }
 
         internal class TaskActivityFailure : StructuredLogEvent, IEventSourceEvent
@@ -1186,7 +1246,9 @@ namespace DurableTask.Core.Logging
                     this.ExecutionId,
                     this.Name,
                     this.TaskEventId,
-                    this.Details);
+                    this.Details,
+                    Utils.AppName,
+                    Utils.PackageVersion);
         }
 
         internal class TaskActivityAborted : StructuredLogEvent, IEventSourceEvent
@@ -1230,7 +1292,9 @@ namespace DurableTask.Core.Logging
                     this.ExecutionId,
                     this.Name,
                     this.TaskEventId,
-                    this.Details);
+                    this.Details,
+                    Utils.AppName,
+                    Utils.PackageVersion);
         }
 
         internal class TaskActivityDispatcherError : StructuredLogEvent, IEventSourceEvent
@@ -1264,7 +1328,9 @@ namespace DurableTask.Core.Logging
                 StructuredEventSource.Log.TaskActivityDispatcherError(
                     this.InstanceId,
                     this.ExecutionId,
-                    this.Details);
+                    this.Details,
+                    Utils.AppName,
+                    Utils.PackageVersion);
         }
 
         internal class RenewActivityMessageStarting : StructuredLogEvent, IEventSourceEvent
@@ -1304,7 +1370,9 @@ namespace DurableTask.Core.Logging
                     this.InstanceId,
                     this.ExecutionId,
                     this.Name,
-                    this.TaskEventId);
+                    this.TaskEventId,
+                    Utils.AppName,
+                    Utils.PackageVersion);
         }
 
         internal class RenewActivityMessageCompleted : StructuredLogEvent, IEventSourceEvent
@@ -1351,7 +1419,9 @@ namespace DurableTask.Core.Logging
                     this.ExecutionId,
                     this.Name,
                     this.TaskEventId,
-                    this.NextRenewal);
+                    this.NextRenewal,
+                    Utils.AppName,
+                    Utils.PackageVersion);
         }
 
         internal class RenewActivityMessageFailed : StructuredLogEvent, IEventSourceEvent
@@ -1397,7 +1467,9 @@ namespace DurableTask.Core.Logging
                     this.ExecutionId,
                     this.Name,
                     this.TaskEventId,
-                    this.Details);
+                    this.Details,
+                    Utils.AppName,
+                    Utils.PackageVersion);
         }
     }
 }

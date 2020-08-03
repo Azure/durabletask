@@ -117,6 +117,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.TargetExecutionId,
                 this.SequenceNumber,
                 this.Episode,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -229,6 +230,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.PartitionId,
                 this.SequenceNumber,
                 this.Episode,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -305,6 +307,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.ExecutionId,
                 this.PartitionId,
                 this.SequenceNumber,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -388,6 +391,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.PartitionId,
                 this.SequenceNumber,
                 this.VisibilityTimeoutSeconds,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -424,6 +428,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.Account,
                 this.TaskHub,
                 this.Details,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -500,6 +505,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.ExecutionId,
                 this.PartitionId,
                 this.Details,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -536,6 +542,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.Account,
                 this.TaskHub,
                 this.Details,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -614,6 +621,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.ExecutionId,
                 this.PartitionId,
                 this.DequeueCount,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -691,6 +699,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.ExecutionId,
                 this.PartitionId,
                 this.DequeueCount,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -772,6 +781,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.LatencyMs,
                 this.ETag,
                 this.LastCheckpointTime,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -863,6 +873,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.SizeInBytes,
                 this.ETag,
                 this.IsCheckpointComplete,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -954,6 +965,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.PendingOrchestratorMessages,
                 this.ActiveOrchestrators,
                 this.ActiveActivities,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -1031,6 +1043,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.TaskEventId,
                 this.MessageId,
                 this.VisibilityTimeoutSeconds,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -1113,6 +1126,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.EventType,
                 this.TaskEventId,
                 this.Details,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -1162,6 +1176,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.InstanceId,
                 this.ExecutionId,
                 this.Details,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -1206,6 +1221,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.TaskHub,
                 this.PartitionId,
                 this.PendingOrchestratorMessages,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -1243,6 +1259,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.Account,
                 this.TaskHub,
                 this.PartitionId,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -1325,6 +1342,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.MessageId,
                 this.Episode,
                 this.LastCheckpointTime,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -1374,6 +1392,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.WorkerName,
                 this.PartitionId,
                 this.Details,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -1423,6 +1442,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.WorkerName,
                 this.PartitionId,
                 this.Details,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -1472,6 +1492,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.WorkerName,
                 this.PartitionId,
                 this.Details,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -1521,6 +1542,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.WorkerName,
                 this.PartitionId,
                 this.Token,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -1582,6 +1604,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.Success,
                 this.Token,
                 this.Details,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -1637,6 +1660,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.PartitionId,
                 this.Token,
                 this.Details,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -1679,6 +1703,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.TaskHub,
                 this.WorkerName,
                 this.PartitionId,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -1721,6 +1746,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.TaskHub,
                 this.WorkerName,
                 this.PartitionId,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -1763,6 +1789,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.TaskHub,
                 this.WorkerName,
                 this.PartitionId,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -1812,6 +1839,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.WorkerName,
                 this.FromWorkerName,
                 this.PartitionId,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -1861,6 +1889,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.WorkerName,
                 this.FromWorkerName,
                 this.PartitionId,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -1903,6 +1932,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.TaskHub,
                 this.WorkerName,
                 this.PartitionId,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -1951,6 +1981,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.WorkerName,
                 this.PartitionId,
                 this.Token,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -1999,6 +2030,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.WorkerName,
                 this.PartitionId,
                 this.Token,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -2048,6 +2080,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.WorkerName,
                 this.PartitionId,
                 this.Token,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -2109,6 +2142,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.RuntimeStatus,
                 this.Episode,
                 this.LatencyMs,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -2157,6 +2191,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.InstanceId,
                 this.ExecutionId,
                 this.LatencyMs,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -2193,6 +2228,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.Account,
                 this.TaskHub,
                 this.Details,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -2266,6 +2302,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.NewEvents,
                 this.LatencyMs,
                 this.ETag,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -2333,6 +2370,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.TotalEventCount,
                 this.NewEvents,
                 this.Details,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -2423,6 +2461,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.SequenceNumber,
                 this.Episode,
                 this.IsExtendedSession,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
 
@@ -2498,6 +2537,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.RequestCount,
                 this.InstanceCount,
                 this.LatencyMs,
+                Utils.AppName,
                 Utils.ExtensionVersion);
         }
     }

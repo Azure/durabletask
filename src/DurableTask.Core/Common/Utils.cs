@@ -19,13 +19,13 @@ namespace DurableTask.Core.Common
     using System.IO.Compression;
     using System.Runtime.ExceptionServices;
     using System.Text;
-    using System.Threading.Tasks;
-    using Newtonsoft.Json;
-    using DurableTask.Core.Exceptions;
-    using DurableTask.Core.Serializing;
-    using Tracing;
     using System.Threading;
+    using System.Threading.Tasks;
+    using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
+    using DurableTask.Core.Serializing;
+    using DurableTask.Core.Tracing;
+    using Newtonsoft.Json;
 
     /// <summary>
     /// Utility Methods
@@ -41,6 +41,20 @@ namespace DurableTask.Core.Common
             DateTime.MaxValue.Subtract(TimeSpan.FromDays(1)).ToUniversalTime();
 
         static readonly byte[] GzipHeader = { 0x1f, 0x8b };
+
+        /// <summary>
+        /// Gets the version of the DurableTask.Core nuget package, which by convension is the same as the assembly file version.
+        /// </summary>
+        internal static readonly string PackageVersion = FileVersionInfo.GetVersionInfo(typeof(TaskOrchestration).Assembly.Location).FileVersion;
+
+        /// <summary>
+        /// Gets or sets the name of the app, for use when writing structured event source traces.
+        /// </summary>
+        /// <remarks>
+        /// The default value comes from the WEBSITE_SITE_NAME environment variable, which is defined
+        /// in Azure App Service.
+        /// </remarks>
+        public static string AppName { get; set; } = Environment.GetEnvironmentVariable("WEBSITE_SITE_NAME") ?? string.Empty;
 
         /// <summary>
         /// NoOp utility method
