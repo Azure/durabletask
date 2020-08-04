@@ -52,9 +52,12 @@ namespace DurableTask.Core.Common
         /// </summary>
         /// <remarks>
         /// The default value comes from the WEBSITE_SITE_NAME environment variable, which is defined
-        /// in Azure App Service.
+        /// in Azure App Service. Other environments can use DTFX_APP_NAME to set this value.
         /// </remarks>
-        public static string AppName { get; set; } = Environment.GetEnvironmentVariable("WEBSITE_SITE_NAME") ?? string.Empty;
+        public static string AppName { get; set; } = 
+            Environment.GetEnvironmentVariable("WEBSITE_SITE_NAME") ??
+            Environment.GetEnvironmentVariable("DTFX_APP_NAME") ??
+            string.Empty;
 
         /// <summary>
         /// NoOp utility method
