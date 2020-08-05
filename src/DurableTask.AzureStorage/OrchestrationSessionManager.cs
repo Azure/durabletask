@@ -106,15 +106,15 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        public bool TryReaquireQueue(string partitionId)
+        public bool ResumeListentingIfOwnQueue(string partitionId)
         {
             if (this.ownedControlQueues.TryGetValue(partitionId, out ControlQueue controlQueue))
             {
                 if (controlQueue.IsReleased)
                 {
-                    controlQueue.Reaquire();
+                    controlQueue.ResumeListening();
                     return true;
-                } 
+                }
                 else
                 {
                     this.settings.Logger.PartitionManagerWarning(
@@ -122,17 +122,8 @@ namespace DurableTask.AzureStorage
                         this.settings.TaskHubName,
                         this.settings.WorkerId,
                         partitionId,
-                        $"Attempted to reaquire control queue {controlQueue.Name}, which wasn't released!");
+                        $"Attempted to resume listening on control queue {controlQueue.Name}, which wasn't released!");
                 }
-            }
-            else
-            {
-                this.settings.Logger.PartitionManagerWarning(
-                    this.storageAccountName,
-                    this.settings.TaskHubName,
-                    this.settings.WorkerId,
-                    partitionId,
-                    $"Attempted to reaquire control queue {partitionId}, which wasn't being watched'!");
             }
 
             return false;

@@ -571,7 +571,7 @@ namespace DurableTask.AzureStorage
 
         Task OnIntentLeaseAquiredAsync(BlobLease lease)
         {
-            this.orchestrationSessionManager.TryReaquireQueue(lease.PartitionId);
+            this.orchestrationSessionManager.ResumeListentingIfOwnQueue(lease.PartitionId);
             return Utils.CompletedTask;
         }
 

@@ -20,14 +20,12 @@ namespace DurableTask.AzureStorage.Messaging
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Monitoring;
-    using ImpromptuInterface;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Queue;
 
     class ControlQueue : TaskHubQueue, IDisposable
     {
         static readonly List<MessageData> EmptyMessageList = new List<MessageData>();
-
 
         CancellationTokenSource releaseTokenSource;
         CancellationToken releaseCancellationToken;
@@ -204,10 +202,12 @@ namespace DurableTask.AzureStorage.Messaging
             this.IsReleased = true;
         }
 
-        public void Reaquire()
+        public void ResumeListening()
         {
+            var oldTokenSource = this.releaseTokenSource;
             this.releaseTokenSource = new CancellationTokenSource();
             this.releaseCancellationToken = this.releaseTokenSource.Token;
+            oldTokenSource.Dispose();
         }
 
         public virtual void Dispose()
