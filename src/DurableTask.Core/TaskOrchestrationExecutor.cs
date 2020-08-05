@@ -48,13 +48,13 @@ namespace DurableTask.Core
 
         public IEnumerable<OrchestratorAction> Execute()
         {
-            return ExecuteCore(this.orchestrationRuntimeState.Events);
+            return this.ExecuteCore(this.orchestrationRuntimeState.Events);
         }
 
         public IEnumerable<OrchestratorAction> ExecuteNewEvents()
         {
             this.context.ClearPendingActions();
-            return ExecuteCore(this.orchestrationRuntimeState.NewEvents);
+            return this.ExecuteCore(this.orchestrationRuntimeState.NewEvents);
         }
 
         IEnumerable<OrchestratorAction> ExecuteCore(IEnumerable<HistoryEvent> eventHistory)
@@ -79,7 +79,7 @@ namespace DurableTask.Core
                         }
 
                         this.context.IsReplaying = historyEvent.IsPlayed;
-                        ProcessEvent(historyEvent);
+                        this.ProcessEvent(historyEvent);
                         historyEvent.IsPlayed = true;
                     }
 
