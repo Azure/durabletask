@@ -1,9 +1,9 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-	<Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
-	<PropertyGroup>
-		<TargetFrameworks>netcoreapp2.1;net461</TargetFrameworks>
-	</PropertyGroup>
+  <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
+  <PropertyGroup>
+    <TargetFrameworks>netcoreapp2.1;net461</TargetFrameworks>
+  </PropertyGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net461'">
     <PackageReference Include="EnterpriseLibrary.SemanticLogging.EventSourceAnalyzer" Version="2.0.1406.1" />
@@ -13,23 +13,23 @@
     <PackageReference Include="Newtonsoft.Json" version="7.0.1" />
   </ItemGroup>
 
-	<ItemGroup Condition="'$(TargetFramework)' == 'netcoreapp2.1'">
-	  <PackageReference Include="EnterpriseLibrary.SemanticLogging.EventSourceAnalyzer.NetCore" Version="2.0.1406.4" />
-	  <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.9.0" />
-	  <PackageReference Include="MSTest.TestAdapter" Version="1.4.0" />
-	  <PackageReference Include="MSTest.TestFramework" Version="1.4.0" />
-	  <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
-	</ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'netcoreapp2.1'">
+    <PackageReference Include="EnterpriseLibrary.SemanticLogging.EventSourceAnalyzer.NetCore" Version="2.0.1406.4" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.9.0" />
+    <PackageReference Include="MSTest.TestAdapter" Version="1.4.0" />
+    <PackageReference Include="MSTest.TestFramework" Version="1.4.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
+  </ItemGroup>
 
-	<ItemGroup>
-	  <ProjectReference Include="..\..\src\DurableTask.Core\DurableTask.Core.csproj" />
-	  <ProjectReference Include="..\..\src\DurableTask.Emulator\DurableTask.Emulator.csproj" />
-	  <ProjectReference Include="..\..\src\DurableTask.ServiceBus\DurableTask.ServiceBus.csproj" />
-	  <ProjectReference Include="..\DurableTask.Test.Orchestrations\DurableTask.Test.Orchestrations.csproj" />
-	</ItemGroup>	
-	
-	<ItemGroup>
-		<Service Include="{82a7f48d-3b50-4b1e-b82e-3ada8210c358}" />
-	</ItemGroup>
-	
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\DurableTask.Core\DurableTask.Core.csproj" />
+    <ProjectReference Include="..\..\src\DurableTask.Emulator\DurableTask.Emulator.csproj" />
+    <ProjectReference Include="..\..\src\DurableTask.ServiceBus\DurableTask.ServiceBus.csproj" />
+    <ProjectReference Include="..\DurableTask.Test.Orchestrations\DurableTask.Test.Orchestrations.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Service Include="{82a7f48d-3b50-4b1e-b82e-3ada8210c358}" />
+  </ItemGroup>
+
 </Project>
