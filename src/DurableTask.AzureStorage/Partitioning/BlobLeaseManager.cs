@@ -156,10 +156,10 @@ namespace DurableTask.AzureStorage.Partitioning
             }
             catch (StorageException se)
             {
+                // eat any storage exception related to conflict
+                // this means the blob already exist
                 if (se.RequestInformation.HttpStatusCode != 409)
                 {
-                    // eat any storage exception related to conflict
-                    // this means the blob already exist
                     this.settings.Logger.PartitionManagerInfo(
                         this.storageAccountName,
                         this.taskHubName,
