@@ -59,14 +59,11 @@ namespace DurableTask.AzureStorage.Partitioning
         {
             this.taskHubContainer = this.storageClient.GetContainerReference(this.taskHubContainerName);
 
-            //using (MD5 md5 = MD5.Create())
-            //{
-            //byte[] hash = md5.ComputeHash(Encoding.Default.GetBytes(appName));
-            //this.appId = new Guid(hash).ToString();
-            //}
-
-            //For local testing purposes
-            this.appId = Guid.NewGuid().ToString();
+            using (MD5 md5 = MD5.Create())
+            {
+                byte[] hash = md5.ComputeHash(Encoding.Default.GetBytes(appName));
+                this.appId = new Guid(hash).ToString();
+            }
         }
 
         public async Task StartAsync()
