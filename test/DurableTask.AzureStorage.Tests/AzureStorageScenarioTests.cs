@@ -1286,7 +1286,18 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public void ValidateEventSource()
         {
+#if NETCOREAPP
             EventSourceAnalyzer.InspectAll(AnalyticsEventSource.Log);
+#else
+            try
+            {
+                EventSourceAnalyzer.InspectAll(AnalyticsEventSource.Log);
+            }
+            catch (FormatException)
+            {
+                Assert.Inconclusive("Known issue with .NET Framework, EventSourceAnalyzer, and DateTime parameters");
+            }
+#endif
         }
 
         /// <summary>

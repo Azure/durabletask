@@ -22,7 +22,6 @@ namespace DurableTask.AzureStorage
     using System.Text;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Monitoring;
-    using DurableTask.Core;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Blob;
     using Microsoft.WindowsAzure.Storage.Queue;
@@ -36,9 +35,6 @@ namespace DurableTask.AzureStorage
     {
         const int MaxStorageQueuePayloadSizeInBytes = 60 * 1024; // 60KB
         const int DefaultBufferSize = 64 * 2014; // 64KB
-
-        const string LargeMessageBlobNameSeparator = "/";
-        const string blobExtension = ".json.gz";
 
         readonly string blobContainerName;
         readonly CloudBlobContainer cloudBlobContainer;

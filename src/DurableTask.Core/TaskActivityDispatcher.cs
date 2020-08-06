@@ -21,6 +21,7 @@ namespace DurableTask.Core
     using DurableTask.Core.Common;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
+    using DurableTask.Core.Logging;
     using DurableTask.Core.Middleware;
     using DurableTask.Core.Tracing;
 
@@ -33,27 +34,31 @@ namespace DurableTask.Core
         readonly WorkItemDispatcher<TaskActivityWorkItem> dispatcher;
         readonly IOrchestrationService orchestrationService;
         readonly DispatchMiddlewarePipeline dispatchPipeline;
+        readonly LogHelper logHelper;
 
         internal TaskActivityDispatcher(
             IOrchestrationService orchestrationService,
             INameVersionObjectManager<TaskActivity> objectManager,
-            DispatchMiddlewarePipeline dispatchPipeline)
+            DispatchMiddlewarePipeline dispatchPipeline,
+            LogHelper logHelper)
         {
             this.orchestrationService = orchestrationService ?? throw new ArgumentNullException(nameof(orchestrationService));
             this.objectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
             this.dispatchPipeline = dispatchPipeline ?? throw new ArgumentNullException(nameof(dispatchPipeline));
+            this.logHelper = logHelper;
 
             this.dispatcher = new WorkItemDispatcher<TaskActivityWorkItem>(
                 "TaskActivityDispatcher",
                 item => item.Id,
-                OnFetchWorkItemAsync,
-                OnProcessWorkItemAsync)
+                this.OnFetchWorkItemAsync,
+                this.OnProcessWorkItemAsync)
             {
                 AbortWorkItem = orchestrationService.AbandonTaskActivityWorkItemAsync,
                 GetDelayInSecondsAfterOnFetchException = orchestrationService.GetDelayInSecondsAfterOnFetchException,
                 GetDelayInSecondsAfterOnProcessException = orchestrationService.GetDelayInSecondsAfterOnProcessException,
                 DispatcherCount = orchestrationService.TaskActivityDispatcherCount,
-                MaxConcurrentWorkItems = orchestrationService.MaxConcurrentTaskActivityWorkItems
+                MaxConcurrentWorkItems = orchestrationService.MaxConcurrentTaskActivityWorkItems,
+                LogHelper = logHelper,
             };
         }
 
@@ -96,6 +101,9 @@ namespace DurableTask.Core
             {
                 if (string.IsNullOrWhiteSpace(orchestrationInstance?.InstanceId))
                 {
+                    this.logHelper.TaskActivityDispatcherError(
+                        workItem,
+                        $"The activity worker received a message that does not have any OrchestrationInstance information.");
                     throw TraceHelper.TraceException(
                         TraceEventType.Error,
                         "TaskActivityDispatcher-MissingOrchestrationInstance",
@@ -104,6 +112,9 @@ namespace DurableTask.Core
 
                 if (taskMessage.Event.EventType != EventType.TaskScheduled)
                 {
+                    this.logHelper.TaskActivityDispatcherError(
+                        workItem, 
+                        $"The activity worker received an event of type '{taskMessage.Event.EventType}' but only '{EventType.TaskScheduled}' is supported.");
                     throw TraceHelper.TraceException(
                         TraceEventType.Critical,
                         "TaskActivityDispatcher-UnsupportedEventType",
@@ -113,13 +124,16 @@ namespace DurableTask.Core
 
                 // call and get return message
                 scheduledEvent = (TaskScheduledEvent)taskMessage.Event;
+                this.logHelper.TaskActivityStarting(orchestrationInstance, scheduledEvent);
                 TaskActivity taskActivity = this.objectManager.GetObject(scheduledEvent.Name, scheduledEvent.Version);
                 if (taskActivity == null)
                 {
                     throw new TypeMissingException($"TaskActivity {scheduledEvent.Name} version {scheduledEvent.Version} was not found");
                 }
 
-                renewTask = Task.Factory.StartNew(() => RenewUntil(workItem, renewCancellationTokenSource.Token), renewCancellationTokenSource.Token);
+                renewTask = Task.Factory.StartNew(
+                    () => this.RenewUntil(workItem, renewCancellationTokenSource.Token),
+                    renewCancellationTokenSource.Token);
 
                 // TODO : pass workflow instance data
                 var context = new TaskContext(taskMessage.OrchestrationInstance);
@@ -143,17 +157,24 @@ namespace DurableTask.Core
                     catch (TaskFailureException e)
                     {
                         TraceHelper.TraceExceptionInstance(TraceEventType.Error, "TaskActivityDispatcher-ProcessTaskFailure", taskMessage.OrchestrationInstance, e);
-                        string details = IncludeDetails ? e.Details : null;
+                        string details = this.IncludeDetails ? e.Details : null;
                         eventToRespond = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details);
+                        this.logHelper.TaskActivityFailure(orchestrationInstance, scheduledEvent.Name, (TaskFailedEvent)eventToRespond, e);
                         CorrelationTraceClient.Propagate(() => CorrelationTraceClient.TrackException(e));
                     }
                     catch (Exception e) when (!Utils.IsFatal(e) && !Utils.IsExecutionAborting(e))
                     {
                         TraceHelper.TraceExceptionInstance(TraceEventType.Error, "TaskActivityDispatcher-ProcessException", taskMessage.OrchestrationInstance, e);
-                        string details = IncludeDetails
+                        string details = this.IncludeDetails
                             ? $"Unhandled exception while executing task: {e}\n\t{e.StackTrace}"
                             : null;
                         eventToRespond = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details);
+                        this.logHelper.TaskActivityFailure(orchestrationInstance, scheduledEvent.Name, (TaskFailedEvent)eventToRespond, e);
+                    }
+
+                    if (eventToRespond is TaskCompletedEvent completedEvent)
+                    {
+                        this.logHelper.TaskActivityCompleted(orchestrationInstance, scheduledEvent.Name, completedEvent);
                     }
                 });
 
@@ -168,8 +189,8 @@ namespace DurableTask.Core
             catch (SessionAbortedException e)
             {
                 // The activity aborted its execution
-                string activityName = scheduledEvent?.Name ?? "(unknown)";
-                TraceHelper.TraceInstance(TraceEventType.Warning, "TaskActivityDispatcher-ExecutionAborted", orchestrationInstance, "{0}: {1}", activityName, e.Message);
+                this.logHelper.TaskActivityAborted(orchestrationInstance, scheduledEvent, e.Message);
+                TraceHelper.TraceInstance(TraceEventType.Warning, "TaskActivityDispatcher-ExecutionAborted", orchestrationInstance, "{0}: {1}", scheduledEvent.Name, e.Message);
                 await this.orchestrationService.AbandonTaskActivityWorkItemAsync(workItem);
             }
             finally
@@ -204,7 +225,7 @@ namespace DurableTask.Core
                 // what the message.LockedUntilUtc says. if the sku is negative then in the worst case we will be
                 // renewing every 5 secs
                 //
-                renewAt = AdjustRenewAt(renewAt);
+                renewAt = this.AdjustRenewAt(renewAt);
 
                 while (!cancellationToken.IsCancellationRequested)
                 {
@@ -217,15 +238,18 @@ namespace DurableTask.Core
 
                     try
                     {
+                        this.logHelper.RenewActivityMessageStarting(workItem);
                         TraceHelper.Trace(TraceEventType.Information, "TaskActivityDispatcher-RenewLock", "Renewing lock for work item id {0}", workItem.Id);
                         workItem = await this.orchestrationService.RenewTaskActivityWorkItemLockAsync(workItem);
                         renewAt = workItem.LockedUntilUtc.Subtract(TimeSpan.FromSeconds(30));
-                        renewAt = AdjustRenewAt(renewAt);
+                        renewAt = this.AdjustRenewAt(renewAt);
+                        this.logHelper.RenewActivityMessageCompleted(workItem, renewAt);
                         TraceHelper.Trace(TraceEventType.Information, "TaskActivityDispatcher-RenewLockAt", "Next renew for work item id '{0}' at '{1}'", workItem.Id, renewAt);
                     }
                     catch (Exception exception) when (!Utils.IsFatal(exception))
                     {
                         // might have been completed
+                        this.logHelper.RenewActivityMessageFailed(workItem, exception);
                         TraceHelper.TraceException(TraceEventType.Warning, "TaskActivityDispatcher-RenewLockFailure", exception, "Failed to renew lock for work item {0}", workItem.Id);
                         break;
                     }
