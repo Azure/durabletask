@@ -245,7 +245,12 @@ namespace DurableTask.AzureStorage.Partitioning
                 }
                 catch (Exception ex)
                 {
-                    this.settings.Logger.PartitionManagerError(this.accountName, this.taskHub, this.workerName, string.Empty, ex.ToString());
+                    this.settings.Logger.PartitionManagerError(
+                        this.accountName,
+                        this.taskHub,
+                        this.workerName,
+                        string.Empty,
+                        $"Failed during {this.leaseType} lease renewal: {ex.ToString()}");
                 }
             }
 
@@ -284,7 +289,12 @@ namespace DurableTask.AzureStorage.Partitioning
                 }
                 catch (Exception ex)
                 {
-                    this.settings.Logger.PartitionManagerError(this.accountName, this.taskHub, this.workerName, string.Empty, ex.ToString());
+                    this.settings.Logger.PartitionManagerError(
+                        this.accountName, 
+                        this.taskHub,
+                        this.workerName,
+                        string.Empty,
+                        $"Failed during {this.leaseType} acquisition: {ex.ToString()}");
                 }
 
                 try
@@ -562,7 +572,12 @@ namespace DurableTask.AzureStorage.Partitioning
             catch (Exception ex)
             {
                 // Eat any exceptions during stealing
-                this.settings.Logger.PartitionManagerError(this.accountName, this.taskHub, this.workerName, lease.PartitionId, ex.ToString());
+                this.settings.Logger.PartitionManagerError(
+                    this.accountName,
+                    this.taskHub,
+                    this.workerName,
+                    lease.PartitionId,
+                    $"Failure in {this.leaseType} lease stealing: {ex.ToString()}");
             }
 
             return stolen;
@@ -582,7 +597,12 @@ namespace DurableTask.AzureStorage.Partitioning
                     failedToInitialize = true;
 
                     // Eat any exceptions during notification of observers
-                    this.settings.Logger.PartitionManagerError(this.accountName, this.taskHub, this.workerName, lease.PartitionId, ex.ToString());
+                    this.settings.Logger.PartitionManagerError(
+                        this.accountName,
+                        this.taskHub,
+                        this.workerName,
+                        lease.PartitionId,
+                        $"Failed to notify observers of {this.leaseType} lease acquisition: {ex}");
                 }
 
                 // We need to release the lease if we fail to initialize the processor, so some other node can pick up the parition
@@ -630,7 +650,7 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.taskHub,
                         this.workerName,
                         lease.PartitionId,
-                        ex.ToString());
+                        $"Encountered a failure when removing a {this.leaseType} lease we previuosly owned: {ex}");
                 }
             }
         }
@@ -661,7 +681,12 @@ namespace DurableTask.AzureStorage.Partitioning
                 catch (Exception ex)
                 {
                     // Eat any exceptions during notification of observers
-                    this.settings.Logger.PartitionManagerError(this.accountName, this.taskHub, this.workerName, lease.PartitionId, ex.ToString());
+                    this.settings.Logger.PartitionManagerError(
+                        this.accountName,
+                        this.taskHub,
+                        this.workerName,
+                        lease.PartitionId,
+                        $"Encountered exception while notifying observers of {this.leaseType} lease release: {ex}");
                 }
                 finally
                 {
@@ -695,7 +720,12 @@ namespace DurableTask.AzureStorage.Partitioning
                     }
                     catch (Exception ex)
                     {
-                        this.settings.Logger.PartitionManagerError(this.accountName, this.taskHub, this.workerName, lease.PartitionId, ex.ToString());
+                        this.settings.Logger.PartitionManagerError(
+                            this.accountName,
+                            this.taskHub,
+                            this.workerName,
+                            lease.PartitionId,
+                            $"Encountered failure while releasing owned {this.leaseType}: {ex}");
                     }
                 }
             }
@@ -733,7 +763,7 @@ namespace DurableTask.AzureStorage.Partitioning
                                 partitionManager.taskHub,
                                 partitionManager.workerName,
                                 lease.PartitionId,
-                                ex.ToString());
+                                $"Failed during notification of observers of {this.partitionManager.leaseManager} lease: {ex.ToString()}");
                         }
                     }
                 }
