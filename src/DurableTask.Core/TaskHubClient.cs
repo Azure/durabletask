@@ -535,6 +535,8 @@ namespace DurableTask.Core
             };
 
             this.logHelper.SchedulingOrchestration(startedEvent);
+            
+            CorrelationTraceClient.Propagate(() => CreateAndTrackDependencyTelemetry(requestTraceContext));
 
             // Raised events and create orchestration calls use different methods so get handled separately
             await this.ServiceClient.CreateTaskOrchestrationAsync(startMessage, dedupeStatuses);
@@ -559,10 +561,10 @@ namespace DurableTask.Core
                     },
                     Event = eventRaisedEvent,
                 };
+
                 await this.ServiceClient.SendTaskOrchestrationMessageAsync(eventMessage);
             }
 
-            CorrelationTraceClient.Propagate(() => CreateAndTrackDependencyTelemetry(requestTraceContext));
 
             return orchestrationInstance;
         }
