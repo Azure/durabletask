@@ -232,6 +232,10 @@ namespace DurableTask.AzureStorage.Partitioning
                     renewed = true;
                 }
             }
+            finally
+            {
+                this.stats.StorageRequests.Increment();
+            }
 
             AnalyticsEventSource.Log.AppLeaseRenewalResult(
                 this.accountName,
