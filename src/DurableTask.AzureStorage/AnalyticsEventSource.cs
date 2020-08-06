@@ -1095,7 +1095,7 @@ namespace DurableTask.AzureStorage
             string ExtensionVersion)
         {
             EnsureLogicalTraceActivityId();
-            this.WriteEvent(127, Account, TaskHub, WorkerName ?? string.Empty, Token ?? string.Empty, ExtensionVersion);
+            this.WriteEvent(149, Account, TaskHub, WorkerName ?? string.Empty, Token ?? string.Empty, ExtensionVersion);
         }
 
         [Event(150, Level = EventLevel.Informational, Message = "Host '{2}' failed to acquire app lease on task hub container with appId '{3}' due to conflict.")]
