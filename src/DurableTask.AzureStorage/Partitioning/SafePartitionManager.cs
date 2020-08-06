@@ -16,10 +16,10 @@ namespace DurableTask.AzureStorage.Partitioning
         private readonly OrchestrationSessionManager sessionManager;
 
         private readonly BlobLeaseManager intentLeaseManager;
-        private readonly LeaseCollectionManager<BlobLease> intentLeaseCollectionManager;
+        private readonly LeaseCollectionBalancer<BlobLease> intentLeaseCollectionManager;
 
         private readonly BlobLeaseManager ownershipLeaseManager;
-        private readonly LeaseCollectionManager<BlobLease> ownershipLeaseCollectionManager;
+        private readonly LeaseCollectionBalancer<BlobLease> ownershipLeaseCollectionManager;
 
         public SafePartitionManager(
             AzureStorageOrchestrationService service,
@@ -43,12 +43,12 @@ namespace DurableTask.AzureStorage.Partitioning
                 skipBlobContainerCreation: false,
                 stats);
 
-            this.intentLeaseCollectionManager = new LeaseCollectionManager<BlobLease>(
+            this.intentLeaseCollectionManager = new LeaseCollectionBalancer<BlobLease>(
                 "intent",
                 settings,
                 storageAccountName,
                 this.intentLeaseManager,
-                new LeaseCollectionManagerOptions
+                new LeaseCollectionBalancerOptions
                 {
                     AcquireInterval = settings.LeaseAcquireInterval,
                     RenewInterval = settings.LeaseRenewInterval,
@@ -66,12 +66,12 @@ namespace DurableTask.AzureStorage.Partitioning
                 skipBlobContainerCreation: false,
                 stats);
 
-            this.ownershipLeaseCollectionManager = new LeaseCollectionManager<BlobLease>(
+            this.ownershipLeaseCollectionManager = new LeaseCollectionBalancer<BlobLease>(
                 "ownership",
                 this.settings,
                 storageAccountName,
                 this.ownershipLeaseManager,
-                new LeaseCollectionManagerOptions
+                new LeaseCollectionBalancerOptions
                 {
                     AcquireInterval = TimeSpan.FromSeconds(5),
                     RenewInterval = TimeSpan.FromSeconds(10),

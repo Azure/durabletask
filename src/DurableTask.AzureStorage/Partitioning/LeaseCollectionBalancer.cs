@@ -20,14 +20,14 @@ namespace DurableTask.AzureStorage.Partitioning
     using System.Threading;
     using System.Threading.Tasks;
 
-    sealed class LeaseCollectionManager<T> where T : Lease
+    sealed class LeaseCollectionBalancer<T> where T : Lease
     {
         readonly string leaseType;
         readonly string accountName;
         readonly string taskHub;
         readonly string workerName;
         readonly ILeaseManager<T> leaseManager;
-        readonly LeaseCollectionManagerOptions options;
+        readonly LeaseCollectionBalancerOptions options;
         readonly AzureStorageOrchestrationServiceSettings settings;
 
         readonly ConcurrentDictionary<string, T> currentlyOwnedShards;
@@ -43,12 +43,12 @@ namespace DurableTask.AzureStorage.Partitioning
         CancellationTokenSource leaseTakerCancellationTokenSource;
         CancellationTokenSource leaseRenewerCancellationTokenSource;
 
-        public LeaseCollectionManager(
+        public LeaseCollectionBalancer(
             string leaseType,
             AzureStorageOrchestrationServiceSettings settings,
             string accountName,
             ILeaseManager<T> leaseManager, 
-            LeaseCollectionManagerOptions options,
+            LeaseCollectionBalancerOptions options,
             Func<string, bool> shouldAquireLeaseDelegate = null,
             Func<string, bool> shouldRenewLeaseDelegate = null)
 
@@ -114,7 +114,7 @@ namespace DurableTask.AzureStorage.Partitioning
         {
             if (Interlocked.CompareExchange(ref this.isStarted, 1, 0) != 0)
             {
-                throw new InvalidOperationException($"{nameof(LeaseCollectionManager<T>)} has already started");
+                throw new InvalidOperationException($"{nameof(LeaseCollectionBalancer<T>)} has already started");
             }
 
             this.shutdownComplete = false;
@@ -734,10 +734,10 @@ namespace DurableTask.AzureStorage.Partitioning
 
         sealed class LeaseObserverManager
         {
-            readonly LeaseCollectionManager<T> partitionManager;
+            readonly LeaseCollectionBalancer<T> partitionManager;
             readonly List<LeaseObserver<T>> observers;
 
-            public LeaseObserverManager(LeaseCollectionManager<T> partitionManager)
+            public LeaseObserverManager(LeaseCollectionBalancer<T> partitionManager)
             {
                 this.partitionManager = partitionManager;
                 this.observers = new List<LeaseObserver<T>>();

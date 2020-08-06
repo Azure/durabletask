@@ -15,7 +15,7 @@ namespace DurableTask.AzureStorage.Partitioning
         private readonly AzureStorageOrchestrationServiceStats stats;
 
         private readonly BlobLeaseManager leaseManager;
-        private readonly LeaseCollectionManager<BlobLease> leaseCollectionManager;
+        private readonly LeaseCollectionBalancer<BlobLease> leaseCollectionManager;
 
         public LegacyPartitionManager(
             AzureStorageOrchestrationService service,
@@ -35,12 +35,12 @@ namespace DurableTask.AzureStorage.Partitioning
                 skipBlobContainerCreation: false,
                 stats);
 
-            this.leaseCollectionManager = new LeaseCollectionManager<BlobLease>(
+            this.leaseCollectionManager = new LeaseCollectionBalancer<BlobLease>(
                 "default",
                 settings,
                 account.Credentials.AccountName,
                 leaseManager,
-                new LeaseCollectionManagerOptions
+                new LeaseCollectionBalancerOptions
                 {
                     AcquireInterval = settings.LeaseAcquireInterval,
                     RenewInterval = settings.LeaseRenewInterval,

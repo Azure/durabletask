@@ -18,7 +18,7 @@ namespace DurableTask.AzureStorage.Partitioning
     /// <summary>
     /// Options to control various aspects of partition distribution happening within the host instance.
     /// </summary> 
-    class LeaseCollectionManagerOptions
+    class LeaseCollectionBalancerOptions
     {
         /// <summary>
         /// Renew interval for all leases for partitions currently held by this instance.
@@ -44,17 +44,17 @@ namespace DurableTask.AzureStorage.Partitioning
         public bool ShouldStealLeases { get; set;} = true;
 
         /// <summary>
-        /// Creates an instance of <see cref="LeaseCollectionManagerOptions"/> with following default values:
+        /// Creates an instance of <see cref="LeaseCollectionBalancerOptions"/> with following default values:
         ///     a) RenewInterval = 10 seconds
         ///     b) AcquireInterval = 10 seconds
         ///     c) DefaultLeaseInterval = 30 seconds
         ///     d) MaxReceiveClients = 16,
         /// </summary>
-        public static LeaseCollectionManagerOptions DefaultOptions
+        public static LeaseCollectionBalancerOptions DefaultOptions
         {
             get
             {
-                return new LeaseCollectionManagerOptions();
+                return new LeaseCollectionBalancerOptions();
             }
         }
     }
