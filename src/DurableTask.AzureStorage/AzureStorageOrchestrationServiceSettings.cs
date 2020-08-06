@@ -14,6 +14,7 @@
 namespace DurableTask.AzureStorage
 {
     using System;
+    using DurableTask.AzureStorage.Partitioning;
     using DurableTask.Core;
     using Microsoft.WindowsAzure.Storage.Queue;
     using Microsoft.WindowsAzure.Storage.Table;
@@ -159,6 +160,16 @@ namespace DurableTask.AzureStorage
         /// Maximum interval for polling control and work-item queues.
         /// </summary>
         public TimeSpan MaxQueuePollingInterval { get; set; } = DefaultMaxQueuePollingInterval;
+
+        /// <summary>
+        /// If true, takes a lease on the task hub container, allowing for only one app to start per task hub name.
+        /// </summary>
+        public bool UseAppLease { get; set; } = true;
+
+        /// <summary>
+        /// Gets or sets the AppLeaaseOptions used for acquireing the lease to start the application.
+        /// </summary>
+        public AppLeaseOptions AppLeaseOptions { get; set; } = AppLeaseOptions.DefaultOptions;
 
         /// <summary>
         /// Gets or sets the Azure Storage Account details

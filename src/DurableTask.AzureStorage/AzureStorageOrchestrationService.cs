@@ -67,6 +67,7 @@ namespace DurableTask.AzureStorage
         readonly ResettableLazy<Task> taskHubCreator;
         readonly BlobLeaseManager leaseManager;
         readonly PartitionManager<BlobLease> partitionManager;
+        readonly AppLeaseManager appLeaseManager;
         readonly OrchestrationSessionManager orchestrationSessionManager;
         readonly object hubCreationLock;
 
@@ -151,7 +152,7 @@ namespace DurableTask.AzureStorage
             this.leaseManager = GetBlobLeaseManager(
                 settings.TaskHubName,
                 settings.WorkerId,
-                account,
+                this.blobClient,
                 settings.LeaseInterval,
                 settings.LeaseRenewInterval,
                 this.stats);
@@ -166,6 +167,16 @@ namespace DurableTask.AzureStorage
                     RenewInterval = settings.LeaseRenewInterval,
                     LeaseInterval = settings.LeaseInterval,
                 });
+
+            this.appLeaseManager = new AppLeaseManager(
+                this.storageAccountName,
+                this.settings.TaskHubName,
+                settings.WorkerId,
+                this.blobClient,
+                GetLeaseContainerName(settings.TaskHubName),
+                settings.AppName,
+                settings.AppLeaseOptions,
+                this.stats);
 
             this.orchestrationSessionManager = new OrchestrationSessionManager(
                 this.storageAccountName,
@@ -230,7 +241,7 @@ namespace DurableTask.AzureStorage
         static BlobLeaseManager GetBlobLeaseManager(
             string taskHub,
             string workerName,
-            CloudStorageAccount account,
+            CloudBlobClient blobClient,
             TimeSpan leaseInterval,
             TimeSpan renewalInterval,
             AzureStorageOrchestrationServiceStats stats)
@@ -238,14 +249,19 @@ namespace DurableTask.AzureStorage
             return new BlobLeaseManager(
                 taskHubName: taskHub,
                 workerName: workerName,
-                leaseContainerName: taskHub.ToLowerInvariant() + "-leases",
+                leaseContainerName: GetLeaseContainerName(taskHub),
                 blobPrefix: string.Empty,
                 consumerGroupName: "default",
-                storageClient: account.CreateCloudBlobClient(),
+                storageClient: blobClient,
                 leaseInterval: leaseInterval,
                 renewInterval: renewalInterval,
                 skipBlobContainerCreation: false,
                 stats: stats);
+        }
+
+        private static string GetLeaseContainerName(string taskHub)
+        {
+            return taskHub.ToLowerInvariant() + "-leases";
         }
 
         static void ValidateSettings(AzureStorageOrchestrationServiceSettings settings)
@@ -443,6 +459,16 @@ namespace DurableTask.AzureStorage
             this.shutdownSource = new CancellationTokenSource();
             this.statsLoop = Task.Run(() => this.ReportStatsLoop(this.shutdownSource.Token));
 
+            if (this.settings.UseAppLease)
+            {
+                while (!await appLeaseManager.TryAquireAppLeaseAsync())
+                {
+                    await Task.Delay(this.settings.AppLeaseOptions.AcquireInterval);
+                }
+
+                await appLeaseManager.StartAsync();
+            }
+
             await this.partitionManager.InitializeAsync();
             await this.partitionManager.SubscribeAsync(this);
             await this.partitionManager.StartAsync();
@@ -564,7 +590,7 @@ namespace DurableTask.AzureStorage
                 throw new ArgumentNullException(nameof(taskHub));
             }
 
-            BlobLeaseManager inactiveLeaseManager = GetBlobLeaseManager(taskHub, "n/a", account, TimeSpan.Zero, TimeSpan.Zero, null);
+            BlobLeaseManager inactiveLeaseManager = GetBlobLeaseManager(taskHub, "n/a", account.CreateCloudBlobClient(), TimeSpan.Zero, TimeSpan.Zero, null);
             TaskHubInfo hubInfo = await inactiveLeaseManager.GetOrCreateTaskHubInfoAsync(
                 GetTaskHubInfo(taskHub, defaultPartitionCount));
 

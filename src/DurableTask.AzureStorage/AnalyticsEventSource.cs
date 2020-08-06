@@ -963,6 +963,171 @@ namespace DurableTask.AzureStorage
                 ExtensionVersion);
         }
 
+        [Event(142, Level = EventLevel.Informational, Version = 2)]
+        public void AppLeaseManagerInfo(
+           string Account,
+           string TaskHub,
+           string WorkerName,
+           string Token,
+           string Details,
+           string ExtensionVersion)
+        {
+            EnsureLogicalTraceActivityId();
+            this.WriteEvent(142, Account, TaskHub, WorkerName ?? string.Empty, Token ?? string.Empty, Details, ExtensionVersion);
+        }
+
+        [Event(143, Level = EventLevel.Warning, Version = 2)]
+        public void AppLeaseManagerWarning(
+            string Account,
+            string TaskHub,
+            string WorkerName,
+            string Token,
+            string Details,
+            string ExtensionVersion)
+        {
+            EnsureLogicalTraceActivityId();
+            this.WriteEvent(143, Account, TaskHub, WorkerName ?? string.Empty, Token ?? string.Empty, Details ?? string.Empty, ExtensionVersion);
+        }
+
+        [NonEvent]
+        public void AppLeaseManagerError(
+            string account,
+            string taskHub,
+            string workerName,
+            string token,
+            Exception exception,
+            string ExtensionVersion)
+        {
+            this.AppLeaseManagerError(account, taskHub, workerName, token, exception.ToString(), ExtensionVersion);
+        }
+
+        [Event(144, Level = EventLevel.Error, Version = 2)]
+        public void AppLeaseManagerError(
+            string Account,
+            string TaskHub,
+            string WorkerName,
+            string Token,
+            string Details,
+            string ExtensionVersion)
+        {
+            EnsureLogicalTraceActivityId();
+            this.WriteEvent(144, Account, TaskHub, WorkerName ?? string.Empty, Token ?? string.Empty, Details ?? string.Empty, ExtensionVersion);
+        }
+
+        [Event(145, Level = EventLevel.Verbose, Message = "Host '{2}' renewing app lease on task hub container with appId '{3}'.")]
+        public void StartingAppLeaseRenewal(
+            string Account,
+            string TaskHub,
+            string WorkerName,
+            string Token,
+            string ExtensionVersion)
+        {
+            EnsureLogicalTraceActivityId();
+            this.WriteEvent(
+                145,
+                Account,
+                TaskHub,
+                WorkerName ?? string.Empty,
+                Token ?? string.Empty,
+                ExtensionVersion);
+        }
+
+        [Event(146, Level = EventLevel.Verbose)]
+        public void AppLeaseRenewalResult(
+            string Account,
+            string TaskHub,
+            string WorkerName,
+            bool Success,
+            string Token,
+            string Details,
+            string ExtensionVersion)
+        {
+            EnsureLogicalTraceActivityId();
+            this.WriteEvent(
+                146,
+                Account,
+                TaskHub,
+                WorkerName ?? string.Empty,
+                Success,
+                Token ?? string.Empty,
+                Details ?? string.Empty,
+                ExtensionVersion);
+        }
+
+        [Event(147, Level = EventLevel.Informational)]
+        public void AppLeaseRenewalFailed(
+            string Account,
+            string TaskHub,
+            string WorkerName,
+            string Token,
+            string Details,
+            string ExtensionVersion)
+        {
+            EnsureLogicalTraceActivityId();
+            this.WriteEvent(
+                147,
+                Account,
+                TaskHub,
+                WorkerName ?? string.Empty,
+                Token ?? string.Empty,
+                Details ?? string.Empty,
+                ExtensionVersion);
+        }
+
+        [Event(148, Level = EventLevel.Informational, Message = "Host '{2}' attempting to take app lease on task hub container with appId '{3}'.")]
+        public void AppLeaseAcquisitionStarted(
+            string Account,
+            string TaskHub,
+            string WorkerName,
+            string Token,
+            string ExtensionVersion)
+        {
+            EnsureLogicalTraceActivityId();
+            this.WriteEvent(148, Account, TaskHub, WorkerName ?? string.Empty, Token ?? string.Empty, ExtensionVersion);
+        }
+
+        [Event(149, Level = EventLevel.Informational, Message = "Host '{2}' successfully acquired app lease on task hub container with appId '{3}'.")]
+        public void AppLeaseAcquisitionSucceeded(
+            string Account,
+            string TaskHub,
+            string WorkerName,
+            string Token,
+            string ExtensionVersion)
+        {
+            EnsureLogicalTraceActivityId();
+            this.WriteEvent(127, Account, TaskHub, WorkerName ?? string.Empty, Token ?? string.Empty, ExtensionVersion);
+        }
+
+        [Event(150, Level = EventLevel.Informational, Message = "Host '{2}' failed to acquire app lease on task hub container with appId '{3}' due to conflict.")]
+        public void AppLeaseAcquisitionFailed(
+            string Account,
+            string TaskHub,
+            string WorkerName,
+            string Token,
+            string ExtensionVersion)
+        {
+            EnsureLogicalTraceActivityId();
+            this.WriteEvent(150, Account, TaskHub, WorkerName ?? string.Empty, Token ?? string.Empty, ExtensionVersion);
+        }
+
+        [Event(151, Level = EventLevel.Informational, Message = "Host '{2}' releasing app lease on task hub container with appId '{3}'")]
+        public void ReleasingAppLease(
+            string Account,
+            string TaskHub,
+            string WorkerName,
+            string Token,
+            string ExtensionVersion)
+        {
+            EnsureLogicalTraceActivityId();
+            this.WriteEvent(
+                151,
+                Account,
+                TaskHub,
+                WorkerName ?? string.Empty,
+                Token ?? string.Empty,
+                ExtensionVersion);
+        }
+
         // Specifying tasks is necessary when using WriteEventWithRelatedActivityId
         // or else the "TaskName" property written to ETW is the name of the opcode instead
         // of the name of the trace method.
