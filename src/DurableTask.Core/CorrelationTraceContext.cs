@@ -13,17 +13,7 @@
 
 namespace DurableTask.Core
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Security;
-    using System.Text;
     using System.Threading;
-    using DurableTask.Core;
-#if NET451
-    using System.Runtime.Remoting;
-    using System.Runtime.Remoting.Messaging;
-
-#endif
 
     /// <summary>
     /// Manage TraceContext for Dependency.
@@ -31,10 +21,9 @@ namespace DurableTask.Core
     /// </summary>
     public class CorrelationTraceContext
     {
+        static readonly AsyncLocal<TraceContextBase> current = new AsyncLocal<TraceContextBase>();
+        static readonly AsyncLocal<bool> generateDependencyTracking = new AsyncLocal<bool>(); 
 
-#if NETSTANDARD2_0
-        static AsyncLocal<TraceContextBase> current = new AsyncLocal<TraceContextBase>();
-        static AsyncLocal<bool> generateDependencyTracking = new AsyncLocal<bool>(); 
         /// <summary>
         /// Share the TraceContext on the call graph contextBase.
         /// </summary>
@@ -52,56 +41,5 @@ namespace DurableTask.Core
             get { return generateDependencyTracking.Value;  }
             set { generateDependencyTracking.Value = value; }
         }
-#else
-
-        const string TraceContextCurrentInstance = "TraceContextCurrentInstance";
-        const string DependencyTelemetryShouldBeGenerated = "DependencyTelemetyShouldBeGenerated";
-
-        /// <summary>
-        /// Share the TraceContext on the call graph contextBase.
-        /// </summary>
-        public static TraceContextBase Current
-        {
-            [SecuritySafeCritical]
-            get
-            {
-                var data = (ObjectHandle) CallContext.LogicalGetData(TraceContextCurrentInstance);
-                if (data != null)
-                {
-                    return (TraceContextBase) data.Unwrap();                    
-                }
-
-                return (TraceContextBase) null;
-            }
-            [SecuritySafeCritical]
-            set
-            {
-                CallContext.LogicalSetData(TraceContextCurrentInstance, (object)new ObjectHandle((object)value));
-            }
-        }
-
-        /// <summary>
-        /// Set true if a DependencyTelemetry tracking is generated on the TaskHubQueue.
-        /// </summary>
-        public static bool GenerateDependencyTracking
-        {
-            [SecuritySafeCritical]
-            get
-            {
-                ObjectHandle data = (ObjectHandle)CallContext.LogicalGetData(DependencyTelemetryShouldBeGenerated);
-                if (data != null)
-                {
-                    return (bool)data.Unwrap();
-                }
-
-                return false;
-            }
-            [SecuritySafeCritical]
-            set
-            {
-                CallContext.LogicalSetData(DependencyTelemetryShouldBeGenerated, (object)new ObjectHandle((object)value));
-            }
-        }
-#endif
     }
 }
