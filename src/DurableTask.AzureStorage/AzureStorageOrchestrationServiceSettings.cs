@@ -185,7 +185,7 @@ namespace DurableTask.AzureStorage
         /// <summary>
         /// Gets or sets the optional <see cref="ILoggerFactory"/> to use for diagnostic logging.
         /// </summary>
-        public ILoggerFactory LoggerFactory { get; set; } = NullLoggerFactory.Instance;
+        public ILoggerFactory LoggerFactory { get; set; } = NoOpLoggerFactory.Instance;
 
         /// <summary>
         /// Returns bool indicating is the TrackingStoreStorageAccount has been set.
