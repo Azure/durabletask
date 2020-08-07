@@ -34,7 +34,10 @@ namespace DurableTask.AzureStorage
     /// </summary>
     class MessageManager
     {
-        const int MaxStorageQueuePayloadSizeInBytes = 60 * 1024; // 60KB
+        // NOTE: the original raw payload limit of 60KiB was a bit too large 
+        // when serialized with metadata so we now keep to 60kB.
+        const int MaxRawPayloadStorageQueueSize = 60000; // 60kB
+        const int MaxTotalPayloadStorageQueueSize = 65536; // 64 KiB
         const int DefaultBufferSize = 64 * 2014; // 64KB
 
         const string LargeMessageBlobNameSeparator = "/";
@@ -89,7 +92,7 @@ namespace DurableTask.AzureStorage
         /// </summary>
         /// <param name="messageData">Instance of <see cref="MessageData"/></param>
         /// <returns>JSON for the <see cref="MessageData"/> object</returns>
-        public async Task<string> SerializeMessageDataAsync(MessageData messageData)
+        public Task<string> SerializeMessageDataAsync(MessageData messageData)
         {
             string rawContent = JsonConvert.SerializeObject(messageData, this.taskMessageSerializerSettings);
             messageData.TotalMessageSizeBytes = Encoding.Unicode.GetByteCount(rawContent);
@@ -97,18 +100,29 @@ namespace DurableTask.AzureStorage
 
             if (messageFormat != MessageFormatFlags.InlineJson)
             {
-                // Get Compressed bytes and upload the full message to blob storage.
-                byte[] messageBytes = Encoding.UTF8.GetBytes(rawContent);
-                string blobName = this.GetNewLargeMessageBlobName(messageData);
-                messageData.CompressedBlobName = blobName;
-                await this.CompressAndUploadAsBytesAsync(messageBytes, blobName);
-
-                // Create a "wrapper" message which has the blob name but not a task message.
-                var wrapperMessageData = new MessageData { CompressedBlobName = blobName };
-                return JsonConvert.SerializeObject(wrapperMessageData, this.taskMessageSerializerSettings);
+                return this.WritePayloadToBlobAndReturnSerializedMessageDataAsync(messageData, rawContent);
             }
 
-            return JsonConvert.SerializeObject(messageData, this.taskMessageSerializerSettings);
+            string totalPayload = JsonConvert.SerializeObject(messageData, this.taskMessageSerializerSettings);
+            if (Encoding.Unicode.GetByteCount(totalPayload) > MaxTotalPayloadStorageQueueSize)
+            {
+                return this.WritePayloadToBlobAndReturnSerializedMessageDataAsync(messageData, rawContent);
+            }
+
+            return Task.FromResult(totalPayload);
+        }
+
+        private async Task<string> WritePayloadToBlobAndReturnSerializedMessageDataAsync(MessageData messageData, string rawContent)
+        {
+            // Get Compressed bytes and upload the full message to blob storage.
+            byte[] messageBytes = Encoding.UTF8.GetBytes(rawContent);
+            string blobName = this.GetNewLargeMessageBlobName(messageData);
+            messageData.CompressedBlobName = blobName;
+            await this.CompressAndUploadAsBytesAsync(messageBytes, blobName);
+
+            // Create a "wrapper" message which has the blob name but not a task message.
+            var wrapperMessageData = new MessageData { CompressedBlobName = blobName };
+            return JsonConvert.SerializeObject(wrapperMessageData, this.taskMessageSerializerSettings);
         }
 
         /// <summary>
@@ -220,7 +234,7 @@ namespace DurableTask.AzureStorage
         {
             using (GZipStream gZipStream = new GZipStream(blobStream, CompressionMode.Decompress))
             {
-                using (MemoryStream memory = new MemoryStream(MaxStorageQueuePayloadSizeInBytes * 2))
+                using (MemoryStream memory = new MemoryStream(MaxRawPayloadStorageQueueSize * 2))
                 {
                     byte[] buffer = SimpleBufferManager.Shared.TakeBuffer(DefaultBufferSize);
                     try
@@ -245,7 +259,7 @@ namespace DurableTask.AzureStorage
         {
             MessageFormatFlags messageFormatFlags = MessageFormatFlags.InlineJson;
 
-            if (messageData.TotalMessageSizeBytes > MaxStorageQueuePayloadSizeInBytes)
+            if (messageData.TotalMessageSizeBytes > MaxRawPayloadStorageQueueSize)
             {
                 messageFormatFlags = MessageFormatFlags.StorageBlob;
             }
