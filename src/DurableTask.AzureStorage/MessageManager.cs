@@ -34,7 +34,9 @@ namespace DurableTask.AzureStorage
     /// </summary>
     class MessageManager
     {
-        const int MaxStorageQueuePayloadSizeInBytes = 60 * 1024; // 60KB
+        // Use 45 KB, as the Storage SDK will base64 encode the message,
+        // increasing the size by a factor of 4/3.
+        const int MaxStorageQueuePayloadSizeInBytes = 45 * 1024; // 45KB
         const int DefaultBufferSize = 64 * 2014; // 64KB
 
         const string LargeMessageBlobNameSeparator = "/";
