@@ -459,6 +459,13 @@ namespace DurableTask.AzureStorage
             this.shutdownSource = new CancellationTokenSource();
             this.statsLoop = Task.Run(() => this.ReportStatsLoop(this.shutdownSource.Token));
 
+            await Task.Factory.StartNew(() => this.LeaseManagerStarter());
+
+            this.isStarted = true;
+        }
+
+        private async void LeaseManagerStarter()
+        {
             if (this.settings.UseAppLease)
             {
                 while (!await appLeaseManager.TryAquireAppLeaseAsync())
@@ -472,8 +479,6 @@ namespace DurableTask.AzureStorage
             await this.partitionManager.InitializeAsync();
             await this.partitionManager.SubscribeAsync(this);
             await this.partitionManager.StartAsync();
-
-            this.isStarted = true;
         }
 
         /// <inheritdoc />

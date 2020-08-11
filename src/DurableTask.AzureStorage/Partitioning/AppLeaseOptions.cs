@@ -11,12 +11,10 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-using System.Collections.Generic;
-using System.Text;
-
 namespace DurableTask.AzureStorage.Partitioning
 {
+    using System;
+
     /// <summary>
     /// Options to control timing intervals for the app lease.
     /// </summary> 
@@ -45,12 +43,6 @@ namespace DurableTask.AzureStorage.Partitioning
         ///     b) AcquireInterval = 300 seconds, or 5 minutes
         ///     c) DefaultLeaseInterval = 60 seconds
         /// </summary>
-        public static AppLeaseOptions DefaultOptions
-        {
-            get
-            {
-                return new AppLeaseOptions();
-            }
-        }
+        public static AppLeaseOptions DefaultOptions => new AppLeaseOptions();
     }
 }

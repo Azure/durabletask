@@ -167,7 +167,7 @@ namespace DurableTask.AzureStorage
         public bool UseAppLease { get; set; } = true;
 
         /// <summary>
-        /// Gets or sets the AppLeaaseOptions used for acquireing the lease to start the application.
+        /// Gets or sets the AppLeaaseOptions used for acquiring the lease to start the application.
         /// </summary>
         public AppLeaseOptions AppLeaseOptions { get; set; } = AppLeaseOptions.DefaultOptions;
 
