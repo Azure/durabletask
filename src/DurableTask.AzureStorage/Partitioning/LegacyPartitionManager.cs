@@ -57,6 +57,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     AcquireInterval = settings.LeaseAcquireInterval,
                     RenewInterval = settings.LeaseRenewInterval,
                     LeaseInterval = settings.LeaseInterval,
+                    ShouldStealLeases = true,
                 });
         }
 

@@ -132,23 +132,17 @@ namespace DurableTask.AzureStorage.Partitioning
 
         async Task IPartitionManager.StartAsync()
         {
-            await Task.WhenAll(
-                this.intentLeaseCollectionManager.InitializeAsync(),
-                this.ownershipLeaseCollectionManager.InitializeAsync());
-
-            await Task.WhenAll(
-                this.intentLeaseCollectionManager.SubscribeAsync(
+            await this.intentLeaseCollectionManager.InitializeAsync();
+            await this.intentLeaseCollectionManager.SubscribeAsync(
                     this.service.OnIntentLeaseAquiredAsync,
-                    this.service.OnIntentLeaseReleasedAsync),
-                this.ownershipLeaseCollectionManager.SubscribeAsync(
-                    this.service.OnOwnershipLeaseAquiredAsync,
-                    this.service.OnOwnershipLeaseReleasedAsync)
-            );
+                    this.service.OnIntentLeaseReleasedAsync);
+            await this.intentLeaseCollectionManager.StartAsync();
 
-            await Task.WhenAll(
-                this.intentLeaseCollectionManager.StartAsync(),
-                this.ownershipLeaseCollectionManager.StartAsync()
-                );
+            await this.ownershipLeaseCollectionManager.InitializeAsync();
+            await this.ownershipLeaseCollectionManager.SubscribeAsync(
+                    this.service.OnOwnershipLeaseAquiredAsync,
+                    this.service.OnOwnershipLeaseReleasedAsync);
+            await this.ownershipLeaseCollectionManager.StartAsync();
         }
 
         Task IPartitionManager.StopAsync()

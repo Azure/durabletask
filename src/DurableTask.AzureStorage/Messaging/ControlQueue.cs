@@ -27,8 +27,8 @@ namespace DurableTask.AzureStorage.Messaging
     {
         static readonly List<MessageData> EmptyMessageList = new List<MessageData>();
 
-        CancellationTokenSource releaseTokenSource;
-        CancellationToken releaseCancellationToken;
+        readonly CancellationTokenSource releaseTokenSource;
+        readonly CancellationToken releaseCancellationToken;
 
         public ControlQueue(
             CloudQueue storageQueue,

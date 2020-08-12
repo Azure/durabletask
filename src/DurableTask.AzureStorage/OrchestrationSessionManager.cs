@@ -141,7 +141,7 @@ namespace DurableTask.AzureStorage
             return this.activeOrchestrationSessions.Values.Where(session => string.Equals(session.ControlQueue.Name, partitionId)).Any();
         }
 
-        public async void DequeueLoop(string partitionId, ControlQueue controlQueue, CancellationToken cancellationToken)
+        async void DequeueLoop(string partitionId, ControlQueue controlQueue, CancellationToken cancellationToken)
         {
             this.settings.Logger.PartitionManagerInfo(
                 this.storageAccountName,
