@@ -36,7 +36,7 @@ namespace DurableTask.AzureStorage.Partitioning
         readonly string workerName;
         readonly string blobPrefix;
         readonly string leaseContainerName;
-        readonly string consumerGroupName;
+        readonly string leaseType;
         readonly bool skipBlobContainerCreation;
         readonly TimeSpan leaseInterval;
         readonly CloudBlobClient storageClient;
@@ -44,14 +44,14 @@ namespace DurableTask.AzureStorage.Partitioning
         readonly AzureStorageOrchestrationServiceStats stats;
 
         CloudBlobContainer taskHubContainer;
-        CloudBlobDirectory consumerGroupDirectory;
+        CloudBlobDirectory leaseDirectory;
         CloudBlockBlob taskHubInfoBlob;
 
         public BlobLeaseManager(
             AzureStorageOrchestrationServiceSettings settings,
             string leaseContainerName,
             string blobPrefix,
-            string consumerGroupName,
+            string leaseType,
             CloudBlobClient storageClient,
             bool skipBlobContainerCreation,
             AzureStorageOrchestrationServiceStats stats)
@@ -62,7 +62,7 @@ namespace DurableTask.AzureStorage.Partitioning
             this.workerName = settings.WorkerId;
             this.leaseContainerName = leaseContainerName;
             this.blobPrefix = blobPrefix;
-            this.consumerGroupName = consumerGroupName;
+            this.leaseType = leaseType;
             this.storageClient = storageClient;
             this.leaseInterval = settings.LeaseInterval;
             this.skipBlobContainerCreation = skipBlobContainerCreation;
@@ -108,7 +108,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 OperationContext context = new OperationContext { ClientRequestID = Guid.NewGuid().ToString() };
                 BlobResultSegment segment = await TimeoutHandler.ExecuteWithTimeout("ListLeases", context.ClientRequestID, this.storageAccountName, this.settings, () =>
                 {
-                    return this.consumerGroupDirectory.ListBlobsSegmentedAsync(continuationToken);
+                    return this.leaseDirectory.ListBlobsSegmentedAsync(continuationToken);
                 });
                 
                 continuationToken = segment.ContinuationToken;
@@ -134,7 +134,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
         public async Task CreateLeaseIfNotExistAsync(string partitionId)
         {
-            CloudBlockBlob leaseBlob = this.consumerGroupDirectory.GetBlockBlobReference(partitionId);
+            CloudBlockBlob leaseBlob = this.leaseDirectory.GetBlockBlobReference(partitionId);
             BlobLease lease = new BlobLease(leaseBlob) { PartitionId = partitionId };
             string serializedLease = JsonConvert.SerializeObject(lease);
             try
@@ -146,9 +146,9 @@ namespace DurableTask.AzureStorage.Partitioning
                     partitionId,
                     string.Format(
                         CultureInfo.InvariantCulture,
-                        "CreateLeaseIfNotExistAsync - leaseContainerName: {0}, consumerGroupName: {1}, partitionId: {2}. blobPrefix: {3}",
+                        "CreateLeaseIfNotExistAsync - leaseContainerName: {0}, leaseType: {1}, partitionId: {2}. blobPrefix: {3}",
                         this.leaseContainerName,
-                        this.consumerGroupName,
+                        this.leaseType,
                         partitionId,
                         this.blobPrefix ?? string.Empty));
 
@@ -167,9 +167,9 @@ namespace DurableTask.AzureStorage.Partitioning
                         partitionId,
                         string.Format(
                             CultureInfo.InvariantCulture,
-                            "CreateLeaseIfNotExistAsync - leaseContainerName: {0}, consumerGroupName: {1}, partitionId: {2}, blobPrefix: {3}, exception: {4}",
+                            "CreateLeaseIfNotExistAsync - leaseContainerName: {0}, leaseType: {1}, partitionId: {2}, blobPrefix: {3}, exception: {4}",
                             this.leaseContainerName,
-                            this.consumerGroupName,
+                            this.leaseType,
                             partitionId,
                             this.blobPrefix ?? string.Empty,
                             se.Message));
@@ -183,7 +183,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
         public async Task<BlobLease> GetLeaseAsync(string paritionId)
         {
-            CloudBlockBlob leaseBlob = this.consumerGroupDirectory.GetBlockBlobReference(paritionId);
+            CloudBlockBlob leaseBlob = this.leaseDirectory.GetBlockBlobReference(paritionId);
             if (await leaseBlob.ExistsAsync())
             {
                 return await this.DownloadLeaseBlob(leaseBlob);
@@ -382,10 +382,10 @@ namespace DurableTask.AzureStorage.Partitioning
 
             this.taskHubContainer = this.storageClient.GetContainerReference(this.leaseContainerName);
 
-            string consumerGroupDirectoryName = string.IsNullOrWhiteSpace(this.blobPrefix)
-                ? this.consumerGroupName
-                : this.blobPrefix + this.consumerGroupName;
-            this.consumerGroupDirectory = this.taskHubContainer.GetDirectoryReference(consumerGroupDirectoryName);
+            string leaseDirectoryName = string.IsNullOrWhiteSpace(this.blobPrefix)
+                ? this.leaseType
+                : this.blobPrefix + this.leaseType;
+            this.leaseDirectory = this.taskHubContainer.GetDirectoryReference(leaseDirectoryName);
 
             string taskHubInfoBlobFileName = string.IsNullOrWhiteSpace(this.blobPrefix)
                 ? TaskHubInfoBlobName

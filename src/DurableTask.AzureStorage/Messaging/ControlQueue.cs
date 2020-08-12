@@ -202,14 +202,6 @@ namespace DurableTask.AzureStorage.Messaging
             this.IsReleased = true;
         }
 
-        public void ResumeListening()
-        {
-            var oldTokenSource = this.releaseTokenSource;
-            this.releaseTokenSource = new CancellationTokenSource();
-            this.releaseCancellationToken = this.releaseTokenSource.Token;
-            oldTokenSource.Dispose();
-        }
-
         public virtual void Dispose()
         {
             this.releaseTokenSource.Dispose();

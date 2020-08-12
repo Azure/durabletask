@@ -19,7 +19,6 @@ namespace DurableTask.AzureStorage
     using System.Diagnostics.Tracing;
     using System.Linq;
     using System.Net;
-    using System.Runtime.ExceptionServices;
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
@@ -233,7 +232,7 @@ namespace DurableTask.AzureStorage
                 settings,
                 leaseContainerName: settings.TaskHubName.ToLowerInvariant() + "-leases",
                 blobPrefix: string.Empty,
-                consumerGroupName: leaseType,
+                leaseType: leaseType,
                 storageClient: account.CreateCloudBlobClient(),
                 skipBlobContainerCreation: false,
                 stats: stats);
@@ -496,10 +495,13 @@ namespace DurableTask.AzureStorage
                 this.stats.ActiveActivityExecutions.Value);
         }
 
-        internal Task OnIntentLeaseAquiredAsync(BlobLease lease)
+        internal async Task OnIntentLeaseAquiredAsync(BlobLease lease)
         {
-            this.orchestrationSessionManager.ResumeListentingIfOwnQueue(lease.PartitionId);
-            return Utils.CompletedTask;
+            CloudQueue storageQueue = this.queueClient.GetQueueReference(lease.PartitionId);
+            await storageQueue.CreateIfNotExistsAsync();
+            this.stats.StorageRequests.Increment();
+            var controlQueue = new ControlQueue(storageQueue, this.settings, this.stats, this.messageManager);
+            this.orchestrationSessionManager.ResumeListeningIfOwnQueue(lease.PartitionId, controlQueue, this.shutdownSource.Token);
         }
 
         internal Task OnIntentLeaseReleasedAsync(BlobLease lease, CloseReason reason)

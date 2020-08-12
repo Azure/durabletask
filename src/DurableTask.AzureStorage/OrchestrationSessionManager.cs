@@ -106,14 +106,15 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        public bool ResumeListentingIfOwnQueue(string partitionId)
+        public bool ResumeListeningIfOwnQueue(string partitionId, ControlQueue controlQueue, CancellationToken shutdownToken)
         {
-            if (this.ownedControlQueues.TryGetValue(partitionId, out ControlQueue controlQueue))
+            if (this.ownedControlQueues.TryGetValue(partitionId, out ControlQueue ownedControlQueue))
             {
-                if (controlQueue.IsReleased)
+                if (ownedControlQueue.IsReleased)
                 {
-                    controlQueue.ResumeListening();
-                    return true;
+                    // The easiest way to resume listening is to re-add a new queue that has not been released.
+                    this.RemoveQueue(partitionId);
+                    this.AddQueue(partitionId, controlQueue, shutdownToken);
                 }
                 else
                 {
@@ -140,7 +141,7 @@ namespace DurableTask.AzureStorage
             return this.activeOrchestrationSessions.Values.Where(session => string.Equals(session.ControlQueue.Name, partitionId)).Any();
         }
 
-        async void DequeueLoop(string partitionId, ControlQueue controlQueue, CancellationToken cancellationToken)
+        public async void DequeueLoop(string partitionId, ControlQueue controlQueue, CancellationToken cancellationToken)
         {
             this.settings.Logger.PartitionManagerInfo(
                 this.storageAccountName,

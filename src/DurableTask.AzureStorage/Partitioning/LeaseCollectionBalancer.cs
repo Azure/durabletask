@@ -61,15 +61,15 @@ namespace DurableTask.AzureStorage.Partitioning
             this.options = options;
             this.settings = settings;
 
-            this.shouldAquireLeaseDelegate = shouldAquireLeaseDelegate ?? DefaultShouldQueryLeaseDelegate;
-            this.shouldRenewLeaseDelegate = shouldRenewLeaseDelegate ?? DefaultShouldQueryLeaseDelegate;
+            this.shouldAquireLeaseDelegate = shouldAquireLeaseDelegate ?? DefaultLeaseDecisionDelegate;
+            this.shouldRenewLeaseDelegate = shouldRenewLeaseDelegate ?? DefaultLeaseDecisionDelegate;
 
             this.currentlyOwnedShards = new ConcurrentDictionary<string, T>();
             this.keepRenewingDuringClose = new ConcurrentDictionary<string, T>();
             this.leaseObserverManager = new LeaseObserverManager(this);
         }
 
-        private static bool DefaultShouldQueryLeaseDelegate(string leaseId)
+        private static bool DefaultLeaseDecisionDelegate(string leaseId)
         {
             return true;
         }
