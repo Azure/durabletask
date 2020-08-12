@@ -23,6 +23,7 @@ namespace DurableTask.Core
     using DurableTask.Core.Common;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
+    using DurableTask.Core.Logging;
     using DurableTask.Core.Middleware;
     using DurableTask.Core.Serializing;
     using DurableTask.Core.Tracing;
@@ -39,29 +40,33 @@ namespace DurableTask.Core
         readonly IOrchestrationService orchestrationService;
         readonly WorkItemDispatcher<TaskOrchestrationWorkItem> dispatcher;
         readonly DispatchMiddlewarePipeline dispatchPipeline;
+        readonly LogHelper logHelper;
         readonly NonBlockingCountdownLock concurrentSessionLock;
 
         internal TaskOrchestrationDispatcher(
             IOrchestrationService orchestrationService,
             INameVersionObjectManager<TaskOrchestration> objectManager,
-            DispatchMiddlewarePipeline dispatchPipeline)
+            DispatchMiddlewarePipeline dispatchPipeline,
+            LogHelper logHelper)
         {
             this.objectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
             this.orchestrationService = orchestrationService ?? throw new ArgumentNullException(nameof(orchestrationService));
             this.dispatchPipeline = dispatchPipeline ?? throw new ArgumentNullException(nameof(dispatchPipeline));
+            this.logHelper = logHelper ?? throw new ArgumentNullException(nameof(logHelper));
 
             this.dispatcher = new WorkItemDispatcher<TaskOrchestrationWorkItem>(
                 "TaskOrchestrationDispatcher",
                 item => item == null ? string.Empty : item.InstanceId,
-                OnFetchWorkItemAsync,
-                OnProcessWorkItemSessionAsync)
+                this.OnFetchWorkItemAsync,
+                this.OnProcessWorkItemSessionAsync)
             {
                 GetDelayInSecondsAfterOnFetchException = orchestrationService.GetDelayInSecondsAfterOnFetchException,
                 GetDelayInSecondsAfterOnProcessException = orchestrationService.GetDelayInSecondsAfterOnProcessException,
                 SafeReleaseWorkItem = orchestrationService.ReleaseTaskOrchestrationWorkItemAsync,
                 AbortWorkItem = orchestrationService.AbandonTaskOrchestrationWorkItemAsync,
                 DispatcherCount = orchestrationService.TaskOrchestrationDispatcherCount,
-                MaxConcurrentWorkItems = orchestrationService.MaxConcurrentTaskOrchestrationWorkItems
+                MaxConcurrentWorkItems = orchestrationService.MaxConcurrentTaskOrchestrationWorkItems,
+                LogHelper = logHelper,
             };
 
             // To avoid starvation, we only allow half of all concurrently execution orchestrations to
@@ -115,7 +120,7 @@ namespace DurableTask.Core
                 if (workItem.Session == null)
                 {
                     // Legacy behavior
-                    await OnProcessWorkItemAsync(workItem);
+                    await this.OnProcessWorkItemAsync(workItem);
                     return;
                 }
 
@@ -128,7 +133,7 @@ namespace DurableTask.Core
                         // If the provider provided work items, execute them.
                         if (workItem.NewMessages?.Count > 0)
                         {
-                            bool isCompletedOrInterrupted = await OnProcessWorkItemAsync(workItem);
+                            bool isCompletedOrInterrupted = await this.OnProcessWorkItemAsync(workItem);
                             if (isCompletedOrInterrupted)
                             {
                                 break;
@@ -182,6 +187,7 @@ namespace DurableTask.Core
             {
                 // Either the orchestration or the orchestration service explicitly abandoned the session.
                 OrchestrationInstance instance = workItem.OrchestrationRuntimeState?.OrchestrationInstance ?? new OrchestrationInstance { InstanceId = workItem.InstanceId };
+                this.logHelper.OrchestrationAborted(instance, e.Message);
                 TraceHelper.TraceInstance(TraceEventType.Warning, "TaskOrchestrationDispatcher-ExecutionAborted", instance, "{0}", e.Message);
                 await this.orchestrationService.AbandonTaskOrchestrationWorkItemAsync(workItem);
             }
@@ -213,9 +219,10 @@ namespace DurableTask.Core
 
             OrchestrationState instanceState = null;
 
-            if (!ReconcileMessagesWithState(workItem))
+            if (!this.ReconcileMessagesWithState(workItem))
             {
                 // TODO : mark an orchestration as faulted if there is data corruption
+                this.logHelper.DroppingOrchestrationWorkItem(workItem, "Received result for a deleted orchestration");
                 TraceHelper.TraceSession(
                     TraceEventType.Error,
                     "TaskOrchestrationDispatcher-DeletedOrchestration",
@@ -230,6 +237,7 @@ namespace DurableTask.Core
                     continuedAsNew = false;
                     continuedAsNewMessage = null;
 
+                    this.logHelper.OrchestrationExecuting(runtimeState.OrchestrationInstance, runtimeState.Name);
                     TraceHelper.TraceInstance(
                         TraceEventType.Verbose,
                         "TaskOrchestrationDispatcher-ExecuteUserOrchestration-Begin",
@@ -239,15 +247,19 @@ namespace DurableTask.Core
 
                     if (workItem.Cursor == null)
                     {
-                        workItem.Cursor = await ExecuteOrchestrationAsync(runtimeState);
+                        workItem.Cursor = await this.ExecuteOrchestrationAsync(runtimeState);
                     }
                     else
                     {
-                        await ResumeOrchestrationAsync(workItem.Cursor);
+                        await this.ResumeOrchestrationAsync(workItem.Cursor);
                     }
 
                     IReadOnlyList<OrchestratorAction> decisions = workItem.Cursor.LatestDecisions.ToList();
 
+                    this.logHelper.OrchestrationExecuted(
+                        runtimeState.OrchestrationInstance,
+                        runtimeState.Name,
+                        decisions);
                     TraceHelper.TraceInstance(
                         TraceEventType.Information,
                         "TaskOrchestrationDispatcher-ExecuteUserOrchestration-End",
@@ -267,29 +279,37 @@ namespace DurableTask.Core
                         switch (decision.OrchestratorActionType)
                         {
                             case OrchestratorActionType.ScheduleOrchestrator:
-                                messagesToSend.Add(
-                                    ProcessScheduleTaskDecision((ScheduleTaskOrchestratorAction)decision, runtimeState,
-                                        IncludeParameters));
+                                var scheduleTaskAction = (ScheduleTaskOrchestratorAction)decision;
+                                var message = this.ProcessScheduleTaskDecision(
+                                    scheduleTaskAction,
+                                    runtimeState,
+                                    this.IncludeParameters);
+                                messagesToSend.Add(message);
                                 break;
                             case OrchestratorActionType.CreateTimer:
                                 var timerOrchestratorAction = (CreateTimerOrchestratorAction)decision;
-                                timerMessages.Add(ProcessCreateTimerDecision(timerOrchestratorAction, runtimeState));
+                                timerMessages.Add(this.ProcessCreateTimerDecision(
+                                    timerOrchestratorAction,
+                                    runtimeState,
+                                    isInternal: false));
                                 break;
                             case OrchestratorActionType.CreateSubOrchestration:
                                 var createSubOrchestrationAction = (CreateSubOrchestrationAction)decision;
                                 orchestratorMessages.Add(
-                                    ProcessCreateSubOrchestrationInstanceDecision(createSubOrchestrationAction,
-                                        runtimeState, IncludeParameters));
+                                    this.ProcessCreateSubOrchestrationInstanceDecision(
+                                        createSubOrchestrationAction,
+                                        runtimeState,
+                                        this.IncludeParameters));
                                 break;
                             case OrchestratorActionType.SendEvent:
                                 var sendEventAction = (SendEventOrchestratorAction)decision;
                                 orchestratorMessages.Add(
-                                   ProcessSendEventDecision(sendEventAction, runtimeState));
+                                    this.ProcessSendEventDecision(sendEventAction, runtimeState));
                                 break;
                             case OrchestratorActionType.OrchestrationComplete:
                                 OrchestrationCompleteOrchestratorAction completeDecision = (OrchestrationCompleteOrchestratorAction)decision;
                                 TaskMessage workflowInstanceCompletedMessage =
-                                    ProcessWorkflowCompletedTaskDecision(completeDecision, runtimeState, IncludeDetails, out continuedAsNew);
+                                    this.ProcessWorkflowCompletedTaskDecision(completeDecision, runtimeState, this.IncludeDetails, out continuedAsNew);
                                 if (workflowInstanceCompletedMessage != null)
                                 {
                                     // Send complete message to parent workflow or to itself to start a new execution
@@ -318,7 +338,7 @@ namespace DurableTask.Core
                                     TraceEventType.Error,
                                     "TaskOrchestrationDispatcher-UnsupportedDecisionType",
                                     runtimeState.OrchestrationInstance,
-                                    new NotSupportedException("decision type not supported"));
+                                    new NotSupportedException($"Decision type '{decision.OrchestratorActionType}' not supported"));
                         }
 
                         // Underlying orchestration service provider may have a limit of messages per call, to avoid the situation
@@ -350,7 +370,10 @@ namespace DurableTask.Core
                                 FireAt = DateTime.UtcNow
                             };
 
-                            timerMessages.Add(ProcessCreateTimerDecision(dummyTimer, runtimeState));
+                            timerMessages.Add(this.ProcessCreateTimerDecision(
+                                dummyTimer,
+                                runtimeState,
+                                isInternal: true));
                             isInterrupted = true;
                             break;
                         }
@@ -407,12 +430,12 @@ namespace DurableTask.Core
                                 new TaskOrchestrationExecutor(
                                     runtimeState,
                                     newOrchestration,
-                                    orchestrationService.EventBehaviourForContinueAsNew),
+                                    this.orchestrationService.EventBehaviourForContinueAsNew),
                                 latestDecisions: null);
 
                             if (workItem.LockedUntilUtc < DateTime.UtcNow.AddMinutes(1))
                             {
-                                await orchestrationService.RenewTaskOrchestrationWorkItemLockAsync(workItem);
+                                await this.orchestrationService.RenewTaskOrchestrationWorkItemLockAsync(workItem);
                             }
                         }
 
@@ -456,7 +479,7 @@ namespace DurableTask.Core
             dispatchContext.SetProperty(taskOrchestration);
             dispatchContext.SetProperty(runtimeState);
 
-            var executor = new TaskOrchestrationExecutor(runtimeState, taskOrchestration, orchestrationService.EventBehaviourForContinueAsNew);
+            var executor = new TaskOrchestrationExecutor(runtimeState, taskOrchestration, this.orchestrationService.EventBehaviourForContinueAsNew);
 
             IEnumerable<OrchestratorAction> decisions = Enumerable.Empty<OrchestratorAction>();
             await this.dispatchPipeline.RunAsync(dispatchContext, _ =>
@@ -483,7 +506,7 @@ namespace DurableTask.Core
             });
         }
 
-        static bool ReconcileMessagesWithState(TaskOrchestrationWorkItem workItem)
+        bool ReconcileMessagesWithState(TaskOrchestrationWorkItem workItem)
         {
             foreach (TaskMessage message in workItem.NewMessages)
             {
@@ -504,6 +527,7 @@ namespace DurableTask.Core
                     return false;
                 }
 
+                this.logHelper.ProcessingOrchestrationMessage(workItem, message);
                 TraceHelper.TraceInstance(
                     TraceEventType.Information,
                     "TaskOrchestrationDispatcher-ProcessEvent",
@@ -517,6 +541,7 @@ namespace DurableTask.Core
                     if (workItem.OrchestrationRuntimeState.Events.Count > 1)
                     {
                         // this was caused due to a dupe execution started event, swallow this one
+                        this.logHelper.DroppingOrchestrationMessage(workItem, message, "Duplicate start event");
                         TraceHelper.TraceInstance(
                             TraceEventType.Warning,
                             "TaskOrchestrationDispatcher-DuplicateStartEvent",
@@ -533,6 +558,10 @@ namespace DurableTask.Core
                              workItem.OrchestrationRuntimeState.OrchestrationInstance.ExecutionId))
                 {
                     // eat up any events for previous executions
+                    this.logHelper.DroppingOrchestrationMessage(
+                        workItem,
+                        message,
+                        $"ExecutionId of event ({orchestrationInstance.ExecutionId}) does not match current executionId");
                     TraceHelper.TraceInstance(
                         TraceEventType.Warning,
                         "TaskOrchestrationDispatcher-ExecutionIdMismatch",
@@ -549,7 +578,7 @@ namespace DurableTask.Core
             return true;
         }
 
-        static TaskMessage ProcessWorkflowCompletedTaskDecision(
+        TaskMessage ProcessWorkflowCompletedTaskDecision(
             OrchestrationCompleteOrchestratorAction completeOrchestratorAction,
             OrchestrationRuntimeState runtimeState,
             bool includeDetails,
@@ -571,6 +600,7 @@ namespace DurableTask.Core
 
             runtimeState.AddEvent(executionCompletedEvent);
 
+            this.logHelper.OrchestrationCompleted(runtimeState, completeOrchestratorAction);
             TraceHelper.TraceInstance(
                 runtimeState.OrchestrationStatus == OrchestrationStatus.Failed ? TraceEventType.Warning : TraceEventType.Information,
                 "TaskOrchestrationDispatcher-InstanceCompleted",
@@ -643,7 +673,7 @@ namespace DurableTask.Core
             return null;
         }
 
-        static TaskMessage ProcessScheduleTaskDecision(
+        TaskMessage ProcessScheduleTaskDecision(
             ScheduleTaskOrchestratorAction scheduleTaskOrchestratorAction,
             OrchestrationRuntimeState runtimeState,
             bool includeParameters)
@@ -669,20 +699,27 @@ namespace DurableTask.Core
                 };
             }
 
+            this.logHelper.SchedulingActivity(
+                runtimeState.OrchestrationInstance,
+                scheduledEvent);
+
             runtimeState.AddEvent(scheduledEvent);
             return taskMessage;
         }
 
-        static TaskMessage ProcessCreateTimerDecision(
+        TaskMessage ProcessCreateTimerDecision(
             CreateTimerOrchestratorAction createTimerOrchestratorAction,
-            OrchestrationRuntimeState runtimeState)
+            OrchestrationRuntimeState runtimeState,
+            bool isInternal)
         {
             var taskMessage = new TaskMessage();
 
-            runtimeState.AddEvent(new TimerCreatedEvent(createTimerOrchestratorAction.Id)
+            var timerCreatedEvent = new TimerCreatedEvent(createTimerOrchestratorAction.Id)
             {
                 FireAt = createTimerOrchestratorAction.FireAt
-            });
+            };
+
+            runtimeState.AddEvent(timerCreatedEvent);
 
             taskMessage.Event = new TimerFiredEvent(-1)
             {
@@ -690,12 +727,17 @@ namespace DurableTask.Core
                 FireAt = createTimerOrchestratorAction.FireAt
             };
 
+            this.logHelper.CreatingTimer(
+                runtimeState.OrchestrationInstance,
+                timerCreatedEvent,
+                isInternal);
+
             taskMessage.OrchestrationInstance = runtimeState.OrchestrationInstance;
 
             return taskMessage;
         }
 
-        static TaskMessage ProcessCreateSubOrchestrationInstanceDecision(
+        TaskMessage ProcessCreateSubOrchestrationInstanceDecision(
             CreateSubOrchestrationAction createSubOrchestrationAction,
             OrchestrationRuntimeState runtimeState,
             bool includeParameters)
@@ -734,13 +776,15 @@ namespace DurableTask.Core
                 Version = createSubOrchestrationAction.Version
             };
 
+            this.logHelper.SchedulingOrchestration(startedEvent);
+
             taskMessage.OrchestrationInstance = startedEvent.OrchestrationInstance;
             taskMessage.Event = startedEvent;
 
             return taskMessage;
         }
 
-        static TaskMessage ProcessSendEventDecision(
+        TaskMessage ProcessSendEventDecision(
             SendEventOrchestratorAction sendEventAction,
             OrchestrationRuntimeState runtimeState)
         {
@@ -753,6 +797,8 @@ namespace DurableTask.Core
             
             runtimeState.AddEvent(historyEvent);
 
+            this.logHelper.RaisingEvent(runtimeState.OrchestrationInstance, historyEvent);
+
             return new TaskMessage
             {
                 OrchestrationInstance = sendEventAction.Instance,
@@ -762,7 +808,6 @@ namespace DurableTask.Core
                 }
             };
         }
-
  
         class NonBlockingCountdownLock
         {
@@ -776,7 +821,10 @@ namespace DurableTask.Core
                 }
 
                 this.available = available;
+                this.Capacity = available;
             }
+
+            public int Capacity { get; }
 
             public bool Acquire()
             {

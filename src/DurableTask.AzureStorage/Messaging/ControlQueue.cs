@@ -63,12 +63,11 @@ namespace DurableTask.AzureStorage.Messaging
                         if (!pendingOrchestratorMessageLimitReached)
                         {
                             pendingOrchestratorMessageLimitReached = true;
-                            AnalyticsEventSource.Log.PendingOrchestratorMessageLimitReached(
+                            this.settings.Logger.PendingOrchestratorMessageLimitReached(
                                 this.storageAccountName,
                                 this.settings.TaskHubName,
                                 this.Name,
-                                pendingOrchestratorMessages,
-                                Utils.ExtensionVersion);
+                                pendingOrchestratorMessages);
                         }
 
                         await Task.Delay(TimeSpan.FromSeconds(1));
@@ -84,7 +83,7 @@ namespace DurableTask.AzureStorage.Messaging
                             "GetMessages",
                             context.ClientRequestID,
                             this.storageAccountName,
-                            this.settings.TaskHubName,
+                            this.settings,
                             () =>
                             {
                                 return this.storageQueue.GetMessagesAsync(
@@ -102,11 +101,10 @@ namespace DurableTask.AzureStorage.Messaging
                             if (!isWaitingForMoreMessages)
                             {
                                 isWaitingForMoreMessages = true;
-                                AnalyticsEventSource.Log.WaitingForMoreMessages(
+                                this.settings.Logger.WaitingForMoreMessages(
                                     this.storageAccountName,
                                     this.settings.TaskHubName,
-                                    this.storageQueue.Name,
-                                    Utils.ExtensionVersion);
+                                    this.storageQueue.Name);
                             }
 
                             await this.backoffHelper.WaitAsync(linkedCts.Token);
@@ -129,15 +127,16 @@ namespace DurableTask.AzureStorage.Messaging
                             {
                                 // This message is already loaded in memory and is therefore a duplicate.
                                 // We will continue to process it because we need the updated pop receipt.
-                                AnalyticsEventSource.Log.DuplicateMessageDetected(
+                                this.settings.Logger.DuplicateMessageDetected(
                                     this.storageAccountName,
                                     this.settings.TaskHubName,
+                                    messageData.TaskMessage.Event.EventType.ToString(),
+                                    Utils.GetTaskEventId(messageData.TaskMessage.Event),
                                     queueMessage.Id,
                                     messageData.TaskMessage.OrchestrationInstance.InstanceId,
                                     messageData.TaskMessage.OrchestrationInstance.ExecutionId,
                                     this.Name,
-                                    queueMessage.DequeueCount,
-                                    Utils.ExtensionVersion);
+                                    queueMessage.DequeueCount);
                             }
 
                             batchMessages.Add(messageData);
@@ -150,9 +149,9 @@ namespace DurableTask.AzureStorage.Messaging
                         foreach (MessageData message in sortedMessages)
                         {
                             AzureStorageOrchestrationService.TraceMessageReceived(
+                                this.settings,
                                 message,
-                                this.storageAccountName,
-                                this.settings.TaskHubName);
+                                this.storageAccountName);
                         }
 
                         return sortedMessages;
@@ -161,7 +160,7 @@ namespace DurableTask.AzureStorage.Messaging
                     {
                         if (!linkedCts.IsCancellationRequested)
                         {
-                            AnalyticsEventSource.Log.MessageFailure(
+                            this.settings.Logger.MessageFailure(
                                 this.storageAccountName,
                                 this.settings.TaskHubName,
                                 string.Empty /* MessageId */,
@@ -170,8 +169,7 @@ namespace DurableTask.AzureStorage.Messaging
                                 this.storageQueue.Name,
                                 string.Empty /* EventType */,
                                 0 /* TaskEventId */,
-                                e.ToString(),
-                                Utils.ExtensionVersion);
+                                e.ToString());
 
                             await this.backoffHelper.WaitAsync(linkedCts.Token);
                         }

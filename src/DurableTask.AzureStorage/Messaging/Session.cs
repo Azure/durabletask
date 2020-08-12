@@ -20,13 +20,15 @@ namespace DurableTask.AzureStorage.Messaging
 
     abstract class SessionBase
     {
+        readonly AzureStorageOrchestrationServiceSettings settings;
         readonly string storageAccountName;
         readonly string taskHubName;
 
-        public SessionBase(string storageAccountName, string taskHubName, OrchestrationInstance orchestrationInstance, Guid traceActivityId)
+        public SessionBase(AzureStorageOrchestrationServiceSettings settings, string storageAccountName, OrchestrationInstance orchestrationInstance, Guid traceActivityId)
         {
+            this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
             this.storageAccountName = storageAccountName ?? throw new ArgumentNullException(nameof(storageAccountName));
-            this.taskHubName = taskHubName ?? throw new ArgumentNullException(nameof(taskHubName));
+            this.taskHubName = settings.TaskHubName ?? throw new ArgumentNullException(nameof(settings.TaskHubName));
             this.Instance = orchestrationInstance ?? throw new ArgumentNullException(nameof(orchestrationInstance));
 
             this.TraceActivityId = traceActivityId;
@@ -60,7 +62,7 @@ namespace DurableTask.AzureStorage.Messaging
             TaskMessage taskMessage = data.TaskMessage;
             CloudQueueMessage queueMessage = data.OriginalQueueMessage;
 
-            AnalyticsEventSource.Log.ProcessingMessage(
+            this.settings.Logger.ProcessingMessage(
                 data.ActivityId,
                 this.storageAccountName,
                 this.taskHubName,
@@ -72,8 +74,7 @@ namespace DurableTask.AzureStorage.Messaging
                 Math.Max(0, (int)DateTimeOffset.UtcNow.Subtract(queueMessage.InsertionTime.Value).TotalMilliseconds),
                 data.SequenceNumber,
                 data.Episode.GetValueOrDefault(-1),
-                isExtendedSession,
-                Utils.ExtensionVersion);
+                isExtendedSession);
         }
 
         public abstract int GetCurrentEpisode();

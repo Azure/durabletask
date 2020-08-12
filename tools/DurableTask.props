@@ -5,7 +5,9 @@
     <DebugType Condition="'$(Configuration)'=='Release'">pdbonly</DebugType>
     <DebugSymbols>True</DebugSymbols>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-
+    <LangVersion>7.3</LangVersion>
+    <!-- See https://github.com/Azure/durabletask/issues/428 -->
+    <NoWarn>NU5125,NU5048</NoWarn>
     <!-- Code Analysis Settings -->
     <RunCodeAnalysis>True</RunCodeAnalysis>
     <RunCodeAnalysis Condition=" '$(Configuration)' == 'Debug' ">False</RunCodeAnalysis>
@@ -43,9 +45,9 @@
   <!-- Nuget Package Settings -->
   <PropertyGroup>
     <PackageOutputPath>..\..\build_output\packages</PackageOutputPath>
-    <AssemblyVersion>2.3.0</AssemblyVersion>
-    <FileVersion>2.3.0</FileVersion>
-    <Version>2.3.0</Version>
+    <AssemblyVersion>2.4.0</AssemblyVersion>
+    <FileVersion>2.4.0</FileVersion>
+    <Version>2.4.0</Version>
     <Company>Microsoft</Company>
     <Authors>Microsoft</Authors>
     <Product>Durable Task Framework</Product>

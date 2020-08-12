@@ -42,13 +42,13 @@ namespace DurableTask.AzureStorage.Messaging
                 try
                 {
                     OperationContext context = new OperationContext { ClientRequestID = Guid.NewGuid().ToString() };
-                    CloudQueueMessage queueMessage = await TimeoutHandler.ExecuteWithTimeout("GetMessage", context.ClientRequestID, storageAccountName, settings.TaskHubName, () =>
+                    CloudQueueMessage queueMessage = await TimeoutHandler.ExecuteWithTimeout("GetMessage", context.ClientRequestID, storageAccountName, settings, () =>
                     {
                         return this.storageQueue.GetMessageAsync(
-                        this.settings.WorkItemQueueVisibilityTimeout,
-                        this.settings.WorkItemQueueRequestOptions,
-                        context,
-                        cancellationToken);
+                            this.settings.WorkItemQueueVisibilityTimeout,
+                            this.settings.WorkItemQueueRequestOptions,
+                            context,
+                            cancellationToken);
                     });
 
                     this.stats.StorageRequests.Increment();
@@ -72,7 +72,7 @@ namespace DurableTask.AzureStorage.Messaging
                 {
                     if (!cancellationToken.IsCancellationRequested)
                     {
-                        AnalyticsEventSource.Log.MessageFailure(
+                        this.settings.Logger.MessageFailure(
                             this.storageAccountName,
                             this.settings.TaskHubName,
                             string.Empty /* MessageId */,
@@ -81,8 +81,7 @@ namespace DurableTask.AzureStorage.Messaging
                             this.storageQueue.Name,
                             string.Empty /* EventType */,
                             0 /* TaskEventId */,
-                            e.ToString(),
-                            Utils.ExtensionVersion);
+                            e.ToString());
 
                         await this.backoffHelper.WaitAsync(cancellationToken);
                     }
