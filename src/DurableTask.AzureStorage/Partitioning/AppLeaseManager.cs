@@ -35,7 +35,7 @@ namespace DurableTask.AzureStorage.Partitioning
         readonly AzureStorageOrchestrationServiceSettings settings;
 
         private readonly CloudBlobContainer taskHubContainer;
-        private string appLeaseId;
+        private readonly string appLeaseId;
 
         private int isStarted;
         private bool shutdownComplete;
@@ -115,7 +115,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.workerName,
                     this.taskHubContainerName);
 
-                this.appLeaseId = await taskHubContainer.AcquireLeaseAsync(this.options.LeaseInterval, appLeaseId);
+                await taskHubContainer.AcquireLeaseAsync(this.options.LeaseInterval, this.appLeaseId);
                 leaseAcquired = true;
 
                 this.settings.Logger.LeaseAcquisitionSucceeded(
