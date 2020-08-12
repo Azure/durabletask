@@ -453,19 +453,39 @@ namespace DurableTask.AzureStorage
 
         private async void LeaseManagerStarter()
         {
-            if (this.settings.UseAppLease)
+            while (!this.shutdownSource.Token.IsCancellationRequested)
             {
-                while (!await appLeaseManager.TryAquireAppLeaseAsync())
+                try
                 {
-                    await Task.Delay(this.settings.AppLeaseOptions.AcquireInterval);
+                    if (this.settings.UseAppLease)
+                    {
+                        while (!await appLeaseManager.TryAquireAppLeaseAsync())
+                        {
+                            await Task.Delay(this.settings.AppLeaseOptions.AcquireInterval);
+                        }
+
+                        await appLeaseManager.StartAsync();
+                    }
+
+                    await this.partitionManager.InitializeAsync();
+                    await this.partitionManager.SubscribeAsync(this);
+                    await this.partitionManager.StartAsync();
+                }
+                catch (Exception e)
+                {
+                    this.settings.Logger.PartitionManagerError(
+                        this.storageAccountName, 
+                        this.settings.TaskHubName, 
+                        this.WorkerId, 
+                        null, 
+                        $"Error in LeaseManagerStarter task. Exception: {e}");
+
+                    await Task.Delay(TimeSpan.FromSeconds(10), this.shutdownSource.Token);
+                    continue;
                 }
 
-                await appLeaseManager.StartAsync();
+                break;
             }
-
-            await this.partitionManager.InitializeAsync();
-            await this.partitionManager.SubscribeAsync(this);
-            await this.partitionManager.StartAsync();
         }
 
         /// <inheritdoc />
