@@ -415,6 +415,8 @@ namespace DurableTask.AzureStorage
                 }
             }));
 
+            tasks.Add(this.appLeaseManager.DeleteContainerAsync());
+
             tasks.Add(this.messageManager.DeleteContainerAsync());
 
             await Task.WhenAll(tasks.ToArray());

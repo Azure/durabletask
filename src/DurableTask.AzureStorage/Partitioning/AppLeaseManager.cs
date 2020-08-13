@@ -21,6 +21,7 @@ namespace DurableTask.AzureStorage.Partitioning
     using DurableTask.AzureStorage.Monitoring;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Blob;
+    using System.Runtime.ExceptionServices;
 
     sealed class AppLeaseManager
     {
@@ -37,6 +38,7 @@ namespace DurableTask.AzureStorage.Partitioning
         private readonly CloudBlobContainer taskHubContainer;
         private readonly string appLeaseId;
 
+        private bool isLeaseOwner;
         private int isStarted;
         private bool shutdownComplete;
         private Task renewTask;
@@ -59,6 +61,8 @@ namespace DurableTask.AzureStorage.Partitioning
             this.appName = settings.AppName;
             this.options = options;
             this.stats = stats ?? new AzureStorageOrchestrationServiceStats();
+
+            this.isLeaseOwner = false;
 
             this.taskHubContainer = this.storageClient.GetContainerReference(this.taskHubContainerName);
 
@@ -117,6 +121,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
                 await taskHubContainer.AcquireLeaseAsync(this.options.LeaseInterval, this.appLeaseId);
                 leaseAcquired = true;
+                this.isLeaseOwner = true;
 
                 this.settings.Logger.LeaseAcquisitionSucceeded(
                     this.accountName,
@@ -226,6 +231,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     ex is ArgumentException)
                 {
                     renewed = false;
+                    this.isLeaseOwner = false;
 
                     this.settings.Logger.LeaseRenewalFailed(
                         this.accountName,
@@ -273,6 +279,8 @@ namespace DurableTask.AzureStorage.Partitioning
                 AccessCondition accessCondition = new AccessCondition() { LeaseId = this.appLeaseId };
                 await this.taskHubContainer.ReleaseLeaseAsync(accessCondition);
 
+                this.isLeaseOwner = false;
+
                 this.settings.Logger.LeaseRemoved(
                     this.accountName,
                     this.taskHub,
@@ -288,6 +296,33 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.workerName,
                     this.taskHubContainerName, 
                     this.appLeaseId);
+            }
+        }
+
+        public async Task DeleteContainerAsync()
+        {
+            try
+            {
+                if (this.isLeaseOwner)
+                {
+                    AccessCondition accessCondition = new AccessCondition() { LeaseId = appLeaseId };
+                    await this.taskHubContainer.DeleteIfExistsAsync(accessCondition, null, null);
+                }
+                else
+                {
+                    await this.taskHubContainer.DeleteIfExistsAsync();
+                }
+            }
+            catch (StorageException ex)
+            { 
+                if (ex.RequestInformation.HttpStatusCode != 404)
+                {
+                    ExceptionDispatchInfo.Capture(ex).Throw();
+                }
+            }
+            finally
+            {
+                this.stats.StorageRequests.Increment();
             }
         }
     }
