@@ -499,6 +499,7 @@ namespace DurableTask.AzureStorage
         {
             this.shutdownSource.Cancel();
             await this.statsLoop;
+            await this.appLeaseManager.StopAsync();
             await this.partitionManager.StopAsync();
             this.isStarted = false;
         }
