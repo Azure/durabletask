@@ -168,7 +168,7 @@ namespace DurableTask.AzureStorage
                 this.settings,
                 this.storageAccountName,
                 this.blobClient,
-                GetLeaseContainerName(this.settings.TaskHubName),
+                this.settings.TaskHubName.ToLowerInvariant() + "-applease",
                 this.settings.AppLeaseOptions,
                 this.stats);
 
@@ -239,17 +239,12 @@ namespace DurableTask.AzureStorage
         {
             return new BlobLeaseManager(
                 settings,
-                leaseContainerName: GetLeaseContainerName(settings.TaskHubName),
+                leaseContainerName: settings.TaskHubName.ToLowerInvariant() + "-leases",
                 blobPrefix: string.Empty,
                 consumerGroupName: "default",
                 storageClient: blobClient,
                 skipBlobContainerCreation: false,
                 stats: stats);
-        }
-
-        private static string GetLeaseContainerName(string taskHub)
-        {
-            return taskHub.ToLowerInvariant() + "-leases";
         }
 
         static void ValidateSettings(AzureStorageOrchestrationServiceSettings settings)

@@ -282,10 +282,13 @@ namespace DurableTask.AzureStorage.Partitioning
 
         public async Task DeleteAllAsync()
         {
-            IEnumerable<BlobLease> blobs = await ListLeasesAsync();
-            foreach(BlobLease blob in blobs)
+            try
             {
-                await DeleteAsync(blob);
+                await this.taskHubContainer.DeleteIfExistsAsync();
+            }
+            finally
+            {
+                this.stats.StorageRequests.Increment();
             }
         }
 

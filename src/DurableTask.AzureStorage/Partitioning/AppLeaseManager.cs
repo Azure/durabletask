@@ -317,7 +317,7 @@ namespace DurableTask.AzureStorage.Partitioning
             { 
                 if (ex.RequestInformation.HttpStatusCode != 404)
                 {
-                    ExceptionDispatchInfo.Capture(ex).Throw();
+                    throw;
                 }
             }
             finally
