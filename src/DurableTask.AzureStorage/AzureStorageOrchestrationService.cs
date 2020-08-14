@@ -336,6 +336,7 @@ namespace DurableTask.AzureStorage
         {
             TaskHubInfo hubInfo = GetTaskHubInfo(this.settings.TaskHubName, this.settings.PartitionCount);
             await this.leaseManager.CreateLeaseStoreIfNotExistsAsync(hubInfo);
+            await this.appLeaseManager.CreateContainerIfNotExistsAsync();
             this.stats.StorageRequests.Increment();
 
             var tasks = new List<Task>();
