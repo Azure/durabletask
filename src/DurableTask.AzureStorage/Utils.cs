@@ -28,6 +28,9 @@ namespace DurableTask.AzureStorage
 
         public static readonly string ExtensionVersion = FileVersionInfo.GetVersionInfo(typeof(AzureStorageOrchestrationService).Assembly.Location).FileVersion;
 
+        // DurableTask.Core has a public static variable that contains the app name
+        public static readonly string AppName = DurableTask.Core.Common.Utils.AppName;
+
         public static async Task ParallelForEachAsync<TSource>(
             this IEnumerable<TSource> enumerable,
             Func<TSource, Task> action)

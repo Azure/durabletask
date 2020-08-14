@@ -167,7 +167,7 @@ namespace DurableTask.ServiceBus.Tracking
             }
 
             // ReSharper disable once PossibleMultipleEnumeration
-            return new List<OrchestrationStateInstanceEntity> { TableStateToStateEvent(newStates.OrderBy(x => x.LastUpdatedTime).FirstOrDefault()) };
+            return new List<OrchestrationStateInstanceEntity> { TableStateToStateEvent(newStates.OrderByDescending(x => x.LastUpdatedTime).FirstOrDefault()) };
         }
 
         /// <summary>

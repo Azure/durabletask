@@ -2,7 +2,7 @@
 
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
   <PropertyGroup>
-    <TargetFrameworks>net451;netcoreapp2.1</TargetFrameworks>
+    <TargetFrameworks>net461;netcoreapp2.1</TargetFrameworks>
   </PropertyGroup>
 
   <ItemGroup>

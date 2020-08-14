@@ -473,7 +473,7 @@ namespace DurableTask.ServiceBus.Tests
         }
 
         [Ignore]
-        [TestMethod]
+        ////[TestMethod]
         // Disabled until bug https://github.com/Azure/durabletask/issues/47 is fixed
         // Also the test does not work as expected due to debug mode suppressing UnobservedTaskException's
         public async Task ParallelInterfaceExceptionsTest()

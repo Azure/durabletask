@@ -14,10 +14,13 @@
 namespace DurableTask.Core
 {
     using System;
+    using System.Diagnostics;
     using System.Reflection;
     using System.Threading;
     using System.Threading.Tasks;
+    using DurableTask.Core.Logging;
     using DurableTask.Core.Middleware;
+    using Microsoft.Extensions.Logging;
 
     /// <summary>
     ///     Allows users to load the TaskOrchestration and TaskActivity classes and start
@@ -32,6 +35,7 @@ namespace DurableTask.Core
         readonly DispatchMiddlewarePipeline activityDispatchPipeline = new DispatchMiddlewarePipeline();
 
         readonly SemaphoreSlim slimLock = new SemaphoreSlim(1, 1);
+        readonly LogHelper logHelper;
 
         /// <summary>
         /// Reference to the orchestration service used by the task hub worker
@@ -56,6 +60,21 @@ namespace DurableTask.Core
         {
         }
 
+
+        /// <summary>
+        ///     Create a new TaskHubWorker with given OrchestrationService
+        /// </summary>
+        /// <param name="orchestrationService">Reference the orchestration service implementation</param>
+        /// <param name="loggerFactory">The <see cref="ILoggerFactory"/> to use for logging</param>
+        public TaskHubWorker(IOrchestrationService orchestrationService, ILoggerFactory loggerFactory = null)
+            : this(
+                  orchestrationService,
+                  new NameVersionObjectManager<TaskOrchestration>(),
+                  new NameVersionObjectManager<TaskActivity>(),
+                  loggerFactory)
+        {
+        }
+
         /// <summary>
         ///     Create a new TaskHubWorker with given OrchestrationService and name version managers
         /// </summary>
@@ -66,10 +85,32 @@ namespace DurableTask.Core
             IOrchestrationService orchestrationService,
             INameVersionObjectManager<TaskOrchestration> orchestrationObjectManager,
             INameVersionObjectManager<TaskActivity> activityObjectManager)
+            : this(
+                orchestrationService,
+                orchestrationObjectManager,
+                activityObjectManager,
+                loggerFactory: null)
+        {
+        }
+
+
+        /// <summary>
+        ///     Create a new <see cref="TaskHubWorker"/> with given <see cref="IOrchestrationService"/> and name version managers
+        /// </summary>
+        /// <param name="orchestrationService">The orchestration service implementation</param>
+        /// <param name="orchestrationObjectManager">The <see cref="INameVersionObjectManager{TaskOrchestration}"/> for orchestrations</param>
+        /// <param name="activityObjectManager">The <see cref="INameVersionObjectManager{TaskActivity}"/> for activities</param>
+        /// <param name="loggerFactory">The <see cref="ILoggerFactory"/> to use for logging</param>
+        public TaskHubWorker(
+            IOrchestrationService orchestrationService,
+            INameVersionObjectManager<TaskOrchestration> orchestrationObjectManager,
+            INameVersionObjectManager<TaskActivity> activityObjectManager,
+            ILoggerFactory loggerFactory = null)
         {
             this.orchestrationManager = orchestrationObjectManager ?? throw new ArgumentException("orchestrationObjectManager");
             this.activityManager = activityObjectManager ?? throw new ArgumentException("activityObjectManager");
             this.orchestrationService = orchestrationService ?? throw new ArgumentException("orchestrationService");
+            this.logHelper = new LogHelper(loggerFactory?.CreateLogger("DurableTask.Core"));
         }
 
         /// <summary>
@@ -114,19 +155,25 @@ namespace DurableTask.Core
                     throw new InvalidOperationException("Worker is already started");
                 }
 
-                this.orchestrationDispatcher = new TaskOrchestrationDispatcher(
-                    orchestrationService,
-                    this.orchestrationManager,
-                    this.orchestrationDispatchPipeline);
-                this.activityDispatcher = new TaskActivityDispatcher(
-                    orchestrationService,
-                    this.activityManager,
-                    this.activityDispatchPipeline);
+                this.logHelper.TaskHubWorkerStarting();
+                var sw = Stopwatch.StartNew();
 
-                await orchestrationService.StartAsync();
+                this.orchestrationDispatcher = new TaskOrchestrationDispatcher(
+                    this.orchestrationService,
+                    this.orchestrationManager,
+                    this.orchestrationDispatchPipeline,
+                    this.logHelper);
+                this.activityDispatcher = new TaskActivityDispatcher(
+                    this.orchestrationService,
+                    this.activityManager,
+                    this.activityDispatchPipeline,
+                    this.logHelper);
+
+                await this.orchestrationService.StartAsync();
                 await this.orchestrationDispatcher.StartAsync();
                 await this.activityDispatcher.StartAsync();
 
+                this.logHelper.TaskHubWorkerStarted(sw.Elapsed);
                 this.isStarted = true;
             }
             finally
@@ -142,7 +189,7 @@ namespace DurableTask.Core
         /// </summary>
         public async Task StopAsync()
         {
-            await StopAsync(false);
+            await this.StopAsync(false);
         }
 
         /// <summary>
@@ -156,6 +203,9 @@ namespace DurableTask.Core
             {
                 if (this.isStarted)
                 {
+                    this.logHelper.TaskHubWorkerStopping(isForced);
+                    var sw = Stopwatch.StartNew();
+
                     var dispatcherShutdowns = new Task[]
                     {
                         this.orchestrationDispatcher.StopAsync(isForced),
@@ -164,8 +214,9 @@ namespace DurableTask.Core
 
                     await Task.WhenAll(dispatcherShutdowns);
 
-                    await orchestrationService.StopAsync(isForced);
+                    await this.orchestrationService.StopAsync(isForced);
 
+                    this.logHelper.TaskHubWorkerStopped(sw.Elapsed);
                     this.isStarted = false;
                 }
             }
@@ -265,7 +316,7 @@ namespace DurableTask.Core
         /// <param name="activities">Object that implements this interface</param>
         public TaskHubWorker AddTaskActivitiesFromInterface<T>(T activities)
         {
-            return AddTaskActivitiesFromInterface(activities, false);
+            return this.AddTaskActivitiesFromInterface(activities, false);
         }
 
         /// <summary>

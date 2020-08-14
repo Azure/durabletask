@@ -26,24 +26,29 @@ namespace DurableTask.Core
         /// <param name="dispatcherId">The context dispatcher id</param>
         public WorkItemDispatcherContext(string name, string id, string dispatcherId)
         {
-            Name = name;
-            Id = id;
-            DispatcherId = dispatcherId;
+            this.Name = name;
+            this.Id = id;
+            this.DispatcherId = dispatcherId;
         }
 
         /// <summary>
         /// Gets the name from the context
         /// </summary>
-        public string Name { get; private set; }
+        public string Name { get; }
 
         /// <summary>
         /// Gets the id from the context
         /// </summary>
-        public string Id { get; private set; }
+        public string Id { get; }
 
         /// <summary>
         /// Gets the dispatcher id from the context
         /// </summary>
-        public string DispatcherId { get; private set; }
+        public string DispatcherId { get; }
+
+        internal string GetDisplayName() => $"{this.Name}-{this.Id}-{this.DispatcherId}";
+
+        /// <inheritdoc />
+        public override string ToString() => this.GetDisplayName();
     }
 }

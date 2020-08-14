@@ -22,7 +22,6 @@ namespace DurableTask.AzureStorage
     using System.Text;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Monitoring;
-    using DurableTask.Core;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Blob;
     using Microsoft.WindowsAzure.Storage.Queue;
@@ -36,9 +35,6 @@ namespace DurableTask.AzureStorage
     {
         const int MaxStorageQueuePayloadSizeInBytes = 60 * 1024; // 60KB
         const int DefaultBufferSize = 64 * 2014; // 64KB
-
-        const string LargeMessageBlobNameSeparator = "/";
-        const string blobExtension = ".json.gz";
 
         readonly string blobContainerName;
         readonly CloudBlobContainer cloudBlobContainer;
@@ -145,10 +141,14 @@ namespace DurableTask.AzureStorage
                     decompressedMessage,
                     this.taskMessageSerializerSettings);
                 envelope.MessageFormat = MessageFormatFlags.StorageBlob;
+                envelope.TotalMessageSizeBytes = Encoding.Unicode.GetByteCount(decompressedMessage);
+            }
+            else
+            {
+                envelope.TotalMessageSizeBytes = Encoding.Unicode.GetByteCount(queueMessage.AsString);
             }
 
             envelope.OriginalQueueMessage = queueMessage;
-            envelope.TotalMessageSizeBytes = Encoding.Unicode.GetByteCount(queueMessage.AsString);
             envelope.QueueName = queueName;
             return envelope;
         }
@@ -206,9 +206,14 @@ namespace DurableTask.AzureStorage
 
         private async Task<string> DownloadAndDecompressAsBytesAsync(CloudBlockBlob cloudBlockBlob)
         {
-            Stream downloadBlobAsStream = await cloudBlockBlob.OpenReadAsync();
-            ArraySegment<byte> decompressedSegment = this.Decompress(downloadBlobAsStream);
-            return Encoding.UTF8.GetString(decompressedSegment.Array, 0, decompressedSegment.Count);
+            using (MemoryStream memory = new MemoryStream(MaxStorageQueuePayloadSizeInBytes * 2))
+            {
+                await cloudBlockBlob.DownloadToStreamAsync(memory);
+                memory.Position = 0;
+
+                ArraySegment<byte> decompressedSegment = this.Decompress(memory);
+                return Encoding.UTF8.GetString(decompressedSegment.Array, 0, decompressedSegment.Count);
+            }
         }
 
         internal string GetBlobUrl(string blobName)
