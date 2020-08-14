@@ -29,13 +29,13 @@ namespace DurableTask.AzureStorage.Partitioning
         private readonly string taskHub;
         private readonly string workerName;
         private readonly CloudBlobClient storageClient;
-        private readonly string taskHubContainerName;
+        private readonly string appLeaseContainerName;
         private readonly string appName;
         private readonly AppLeaseOptions options;
         private readonly AzureStorageOrchestrationServiceStats stats;
         readonly AzureStorageOrchestrationServiceSettings settings;
 
-        private readonly CloudBlobContainer taskHubContainer;
+        private readonly CloudBlobContainer appLeaseContainer;
         private readonly string appLeaseId;
 
         private bool isLeaseOwner;
@@ -48,7 +48,7 @@ namespace DurableTask.AzureStorage.Partitioning
             AzureStorageOrchestrationServiceSettings settings,
             string accountName, 
             CloudBlobClient storageClient, 
-            string taskHubContainerName, 
+            string appLeaseContainerName, 
             AppLeaseOptions options, 
             AzureStorageOrchestrationServiceStats stats)
         {
@@ -57,20 +57,26 @@ namespace DurableTask.AzureStorage.Partitioning
             this.taskHub = settings.TaskHubName;
             this.workerName = settings.WorkerId;
             this.storageClient = storageClient;
-            this.taskHubContainerName = taskHubContainerName;
+            this.appLeaseContainerName = appLeaseContainerName;
             this.appName = settings.AppName;
             this.options = options;
             this.stats = stats ?? new AzureStorageOrchestrationServiceStats();
 
             this.isLeaseOwner = false;
 
-            this.taskHubContainer = this.storageClient.GetContainerReference(this.taskHubContainerName);
+            this.appLeaseContainer = this.storageClient.GetContainerReference(this.appLeaseContainerName);
 
             using (MD5 md5 = MD5.Create())
             {
                 byte[] hash = md5.ComputeHash(Encoding.Default.GetBytes(this.appName));
                this.appLeaseId = new Guid(hash).ToString();
             }
+        }
+
+        public async Task<bool> CreateContainerIfNotExistsAsync()
+        {
+            bool result = await appLeaseContainer.CreateIfNotExistsAsync();
+            return result;
         }
 
         public async Task StartAsync()
@@ -117,9 +123,9 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.accountName,
                     this.taskHub,
                     this.workerName,
-                    this.taskHubContainerName);
+                    this.appLeaseContainerName);
 
-                await taskHubContainer.AcquireLeaseAsync(this.options.LeaseInterval, this.appLeaseId);
+                await appLeaseContainer.AcquireLeaseAsync(this.options.LeaseInterval, this.appLeaseId);
                 leaseAcquired = true;
                 this.isLeaseOwner = true;
 
@@ -127,7 +133,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.accountName,
                     this.taskHub,
                     this.workerName,
-                    this.taskHubContainerName);
+                    this.appLeaseContainerName);
             }
             catch (StorageException e)
             {
@@ -137,13 +143,13 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.accountName,
                     this.taskHub,
                     this.workerName,
-                    this.taskHubContainerName);
+                    this.appLeaseContainerName);
 
                 this.settings.Logger.PartitionManagerWarning(
                     this.accountName,
                     this.taskHub,
                     this.workerName,
-                    this.taskHubContainerName,
+                    this.appLeaseContainerName,
                     $"Failed to acquire app lease with appLeaseId {this.appLeaseId}. Another app likely has the lease on this task hub container. Exception: {e.Message}");
             }
             finally
@@ -160,7 +166,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.accountName,
                 this.taskHub,
                 this.workerName,
-                this.taskHubContainerName,
+                this.appLeaseContainerName,
                 $"Starting background renewal of app lease with interval: {this.options.RenewInterval}.");
 
             while (this.isStarted == 1 || !shutdownComplete)
@@ -182,7 +188,7 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.accountName,
                         this.taskHub,
                         this.workerName,
-                        this.taskHubContainerName,
+                        this.appLeaseContainerName,
                         "Background renewal task was canceled.");
                 }
                 catch (Exception ex)
@@ -191,7 +197,7 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.accountName, 
                         this.taskHub, 
                         this.workerName,
-                        this.taskHubContainerName, 
+                        this.appLeaseContainerName, 
                         $"App lease renewer task failed. AppLeaseId: {this.appLeaseId} Exception: {ex}");
                 }
             }
@@ -200,7 +206,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.accountName,
                 this.taskHub,
                 this.workerName,
-                this.taskHubContainerName,
+                this.appLeaseContainerName,
                 "Background app lease renewer task completed.");
         }
 
@@ -215,11 +221,11 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.accountName,
                     this.taskHub,
                     this.workerName,
-                    this.taskHubContainerName,
+                    this.appLeaseContainerName,
                     this.appLeaseId);
 
                 AccessCondition accessCondition = new AccessCondition() { LeaseId = appLeaseId };
-                await taskHubContainer.RenewLeaseAsync(accessCondition);
+                await appLeaseContainer.RenewLeaseAsync(accessCondition);
 
                 renewed = true;
             }
@@ -237,7 +243,7 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.accountName,
                         this.taskHub,
                         this.workerName,
-                        this.taskHubContainerName,
+                        this.appLeaseContainerName,
                         this.appLeaseId,
                         ex.Message);
 
@@ -245,7 +251,7 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.accountName,
                         this.taskHub,
                         this.workerName,
-                        this.taskHubContainerName,
+                        this.appLeaseContainerName,
                         $"AppLeaseManager failed to renew lease. AppLeaseId: {this.appLeaseId} Exception: {ex}");
                 }
                 else
@@ -264,7 +270,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.accountName,
                 this.taskHub,
                 this.workerName,
-                this.taskHubContainerName,
+                this.appLeaseContainerName,
                 renewed,
                 this.appLeaseId,
                 errorMessage);
@@ -277,7 +283,7 @@ namespace DurableTask.AzureStorage.Partitioning
             try
             {
                 AccessCondition accessCondition = new AccessCondition() { LeaseId = this.appLeaseId };
-                await this.taskHubContainer.ReleaseLeaseAsync(accessCondition);
+                await this.appLeaseContainer.ReleaseLeaseAsync(accessCondition);
 
                 this.isLeaseOwner = false;
 
@@ -285,7 +291,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.accountName,
                     this.taskHub,
                     this.workerName,
-                    this.taskHubContainerName,
+                    this.appLeaseContainerName,
                     this.appLeaseId);
             }
             catch (Exception)
@@ -294,7 +300,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.accountName, 
                     this.taskHub, 
                     this.workerName,
-                    this.taskHubContainerName, 
+                    this.appLeaseContainerName, 
                     this.appLeaseId);
             }
         }
@@ -306,11 +312,11 @@ namespace DurableTask.AzureStorage.Partitioning
                 if (this.isLeaseOwner)
                 {
                     AccessCondition accessCondition = new AccessCondition() { LeaseId = appLeaseId };
-                    await this.taskHubContainer.DeleteIfExistsAsync(accessCondition, null, null);
+                    await this.appLeaseContainer.DeleteIfExistsAsync(accessCondition, null, null);
                 }
                 else
                 {
-                    await this.taskHubContainer.DeleteIfExistsAsync();
+                    await this.appLeaseContainer.DeleteIfExistsAsync();
                 }
             }
             catch (StorageException ex)
