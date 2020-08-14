@@ -150,7 +150,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.taskHub,
                     this.workerName,
                     this.appLeaseContainerName,
-                    $"Failed to acquire app lease with appLeaseId {this.appLeaseId}. Another app likely has the lease on this task hub container. Exception: {e.Message}");
+                    $"Failed to acquire app lease with appLeaseId {this.appLeaseId}. Another app likely has the lease on this container. Exception: {e.Message}");
             }
             finally
             {
