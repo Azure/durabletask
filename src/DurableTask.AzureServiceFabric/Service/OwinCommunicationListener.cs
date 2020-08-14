@@ -55,7 +55,10 @@ namespace DurableTask.AzureServiceFabric.Service
 
             try
             {
-                this.serverHandle = WebApp.Start(listeningAddress, appBuilder => this.owinAppBuilder.Startup(appBuilder));
+                var builder = new UriBuilder(listeningAddress);
+                builder.Host = "+";
+                var listeningAddressInPlusFormat = builder.ToString();
+                this.serverHandle = WebApp.Start(listeningAddressInPlusFormat, appBuilder => this.owinAppBuilder.Startup(appBuilder));
                 return Task.FromResult(listeningAddress);
             }
             catch (Exception ex)
