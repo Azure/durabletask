@@ -94,7 +94,7 @@ namespace DurableTask.AzureStorage
         public async Task<string> SerializeMessageDataAsync(MessageData messageData)
         {
             string rawContent = JsonConvert.SerializeObject(messageData, this.taskMessageSerializerSettings);
-            messageData.TotalMessageSizeBytes = Encoding.Unicode.GetByteCount(rawContent);
+            messageData.TotalMessageSizeBytes = Encoding.UTF8.GetByteCount(rawContent);
             MessageFormatFlags messageFormat = this.GetMessageFormatFlags(messageData);
 
             if (messageFormat != MessageFormatFlags.InlineJson)
@@ -150,7 +150,7 @@ namespace DurableTask.AzureStorage
             }
 
             envelope.OriginalQueueMessage = queueMessage;
-            envelope.TotalMessageSizeBytes = Encoding.Unicode.GetByteCount(queueMessage.AsString);
+            envelope.TotalMessageSizeBytes = Encoding.UTF8.GetByteCount(queueMessage.AsString);
             envelope.QueueName = queueName;
             return envelope;
         }
