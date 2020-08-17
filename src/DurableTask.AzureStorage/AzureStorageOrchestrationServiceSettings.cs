@@ -35,7 +35,7 @@ namespace DurableTask.AzureStorage
         /// <summary>
         /// Gets or sets the name of the app.
         /// </summary>
-        public string AppName { get; set; } = Utils.AppName;
+        public string AppName { get; set; } = "";
 
         /// <summary>
         /// Gets or sets the number of messages to pull from the control queue at a time. The default is 32.
