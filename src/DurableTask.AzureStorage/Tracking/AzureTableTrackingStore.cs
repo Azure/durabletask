@@ -553,6 +553,7 @@ namespace DurableTask.AzureStorage.Tracking
             orchestrationState.LastUpdatedTime = orchestrationInstanceStatus.LastUpdatedTime;
             orchestrationState.Input = orchestrationInstanceStatus.Input;
             orchestrationState.Output = orchestrationInstanceStatus.Output;
+            orchestrationState.ScheduledStartTime = orchestrationInstanceStatus.ScheduledStartTime;
 
             if (this.settings.FetchLargeMessageDataEnabled)
             {
@@ -830,7 +831,8 @@ namespace DurableTask.AzureStorage.Tracking
                     ["Version"] = new EntityProperty(executionStartedEvent.Version),
                     ["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Pending.ToString()),
                     ["LastUpdatedTime"] = new EntityProperty(DateTime.UtcNow),
-                    ["TaskHubName"] = new EntityProperty(this.settings.TaskHubName)
+                    ["TaskHubName"] = new EntityProperty(this.settings.TaskHubName),
+                    ["ScheduledStartTime"] = new EntityProperty(executionStartedEvent.ScheduledStartTime)
                 }
             };
 
@@ -980,6 +982,8 @@ namespace DurableTask.AzureStorage.Tracking
                         instanceEntity.Properties["Version"] = new EntityProperty(executionStartedEvent.Version);
                         instanceEntity.Properties["CreatedTime"] = new EntityProperty(executionStartedEvent.Timestamp);
                         instanceEntity.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Running.ToString());
+                        if (executionStartedEvent.ScheduledStartTime.HasValue)
+                            instanceEntity.Properties["ScheduledStartTime"] = new EntityProperty(executionStartedEvent.ScheduledStartTime);
                         this.SetInstancesTablePropertyFromHistoryProperty(
                             historyEntity,
                             instanceEntity,

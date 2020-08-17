@@ -371,6 +371,13 @@ namespace DurableTask.Redis
             {
                 await StartAsync();
             }
+
+            if (creationMessage.Event is ExecutionStartedEvent executionStarted &&
+                executionStarted.ScheduledStartTime.HasValue)
+            {
+                throw new NotSupportedException("Redis storage provider for Durable Tasks currently does not support scheduled starts");
+            }
+
             await this.partitionOrchestrationManager.CreateTaskOrchestration(creationMessage, dedupeStatuses);
         }
 
