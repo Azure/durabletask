@@ -186,6 +186,12 @@ namespace DurableTask.AzureStorage.Tests
                     timeout = debuggingTimeout;
                 }
             }
+            else
+            {
+                // Check to see if adding 30 seconds fixes CI
+                // to account for slower startup
+                timeout = timeout.Add(TimeSpan.FromSeconds(30));
+            }
 
             return timeout;
         }

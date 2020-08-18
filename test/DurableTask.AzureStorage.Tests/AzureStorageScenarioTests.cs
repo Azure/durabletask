@@ -37,7 +37,7 @@ namespace DurableTask.AzureStorage.Tests
     [TestClass]
     public class AzureStorageScenarioTests
     {
-        public static readonly TimeSpan StandardTimeout = Debugger.IsAttached ? TimeSpan.FromMinutes(5) : TimeSpan.FromSeconds(60);
+        public static readonly TimeSpan StandardTimeout = Debugger.IsAttached ? TimeSpan.FromMinutes(5) : TimeSpan.FromSeconds(30);
 
         /// <summary>
         /// End-to-end test which validates a simple orchestrator function which doesn't call any activity functions.
