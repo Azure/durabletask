@@ -186,6 +186,11 @@ namespace DurableTask.AzureStorage.Tests
                     timeout = debuggingTimeout;
                 }
             }
+            else
+            {
+                // Account for additional startup time after partition management PR.
+                requestedTimeout.Add(TimeSpan.FromSeconds(30));
+            }
 
             return timeout;
         }
