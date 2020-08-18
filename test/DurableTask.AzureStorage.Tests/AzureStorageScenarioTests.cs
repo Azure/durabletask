@@ -1286,7 +1286,18 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public void ValidateEventSource()
         {
+#if NETCOREAPP
             EventSourceAnalyzer.InspectAll(AnalyticsEventSource.Log);
+#else
+            try
+            {
+                EventSourceAnalyzer.InspectAll(AnalyticsEventSource.Log);
+            }
+            catch (FormatException)
+            {
+                Assert.Inconclusive("Known issue with .NET Framework, EventSourceAnalyzer, and DateTime parameters");
+            }
+#endif
         }
 
         /// <summary>
@@ -1791,6 +1802,122 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
                 Assert.IsNotNull(status.Output);
                 Assert.AreEqual("True", JToken.Parse(status.Output));
+                await host.StopAsync();
+            }
+        }
+
+                /// <summary>
+        /// Validates scheduled starts, ensuring they are executed according to defined start date time
+        /// </summary>
+        /// <param name="enableExtendedSessions"></param>
+        /// <returns></returns>
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task ScheduledStart_Inline(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                await host.StartAsync();
+
+                var expectedStartTime = DateTime.UtcNow.AddSeconds(30);
+                var clientStartingIn30Seconds = await host.StartOrchestrationAsync(typeof(Orchestrations.CurrentTimeInline), "Current Time!", startAt: expectedStartTime);
+                var clientStartingNow = await host.StartOrchestrationAsync(typeof(Orchestrations.CurrentTimeInline), "Current Time!");
+
+                var statusStartingNow = clientStartingNow.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                var statusStartingIn30Seconds = clientStartingIn30Seconds.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+
+                await Task.WhenAll(statusStartingNow, statusStartingIn30Seconds);
+
+                Assert.AreEqual(OrchestrationStatus.Completed, statusStartingNow.Result?.OrchestrationStatus);
+                Assert.AreEqual("Current Time!", JToken.Parse(statusStartingNow.Result?.Input));
+                Assert.IsNull(statusStartingNow.Result.ScheduledStartTime);
+
+                Assert.AreEqual(OrchestrationStatus.Completed, statusStartingIn30Seconds.Result?.OrchestrationStatus);
+                Assert.AreEqual("Current Time!", JToken.Parse(statusStartingIn30Seconds.Result?.Input));
+                Assert.AreEqual(expectedStartTime, statusStartingIn30Seconds.Result.ScheduledStartTime);
+
+                var startNowResult = (DateTime)JToken.Parse(statusStartingNow.Result?.Output);
+                var startIn30SecondsResult = (DateTime)JToken.Parse(statusStartingIn30Seconds.Result?.Output);
+
+                Assert.IsTrue(startIn30SecondsResult > startNowResult);
+                Assert.IsTrue(startIn30SecondsResult >= expectedStartTime);
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// Validates scheduled starts, ensuring they are executed according to defined start date time
+        /// </summary>
+        /// <param name="enableExtendedSessions"></param>
+        /// <returns></returns>
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task ScheduledStart_Activity(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                await host.StartAsync();
+
+                var expectedStartTime = DateTime.UtcNow.AddSeconds(30);
+                var clientStartingIn30Seconds = await host.StartOrchestrationAsync(typeof(Orchestrations.CurrentTimeActivity), "Current Time!", startAt: expectedStartTime);
+                var clientStartingNow = await host.StartOrchestrationAsync(typeof(Orchestrations.CurrentTimeActivity), "Current Time!");
+
+                var statusStartingNow = clientStartingNow.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                var statusStartingIn30Seconds = clientStartingIn30Seconds.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+
+                await Task.WhenAll(statusStartingNow, statusStartingIn30Seconds);
+
+                Assert.AreEqual(OrchestrationStatus.Completed, statusStartingNow.Result?.OrchestrationStatus);
+                Assert.AreEqual("Current Time!", JToken.Parse(statusStartingNow.Result?.Input));
+                Assert.IsNull(statusStartingNow.Result.ScheduledStartTime);
+
+                Assert.AreEqual(OrchestrationStatus.Completed, statusStartingIn30Seconds.Result?.OrchestrationStatus);
+                Assert.AreEqual("Current Time!", JToken.Parse(statusStartingIn30Seconds.Result?.Input));
+                Assert.AreEqual(expectedStartTime, statusStartingIn30Seconds.Result.ScheduledStartTime);
+
+                var startNowResult = (DateTime)JToken.Parse(statusStartingNow.Result?.Output);
+                var startIn30SecondsResult = (DateTime)JToken.Parse(statusStartingIn30Seconds.Result?.Output);
+
+                Assert.IsTrue(startIn30SecondsResult > startNowResult);
+                Assert.IsTrue(startIn30SecondsResult >= expectedStartTime);
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// Validates scheduled starts, ensuring they are executed according to defined start date time
+        /// </summary>
+        /// <param name="enableExtendedSessions"></param>
+        /// <returns></returns>
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task ScheduledStart_Activity_GetStatus_Returns_ScheduledStart(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                await host.StartAsync();
+
+                var expectedStartTime = DateTime.UtcNow.AddSeconds(30);
+                var clientStartingIn30Seconds = await host.StartOrchestrationAsync(typeof(Orchestrations.DelayedCurrentTimeActivity), "Delayed Current Time!", startAt: expectedStartTime);
+                var clientStartingNow = await host.StartOrchestrationAsync(typeof(Orchestrations.DelayedCurrentTimeActivity), "Delayed Current Time!");
+
+                var statusStartingIn30Seconds = await clientStartingIn30Seconds.GetStatusAsync();
+                Assert.IsNotNull(statusStartingIn30Seconds.ScheduledStartTime);
+                Assert.AreEqual(expectedStartTime, statusStartingIn30Seconds.ScheduledStartTime);
+
+                var statusStartingNow = await clientStartingNow.GetStatusAsync();
+                Assert.IsNull(statusStartingNow.ScheduledStartTime);
+
+                await Task.WhenAll(
+                    clientStartingNow.WaitForCompletionAsync(TimeSpan.FromSeconds(35)),
+                    clientStartingIn30Seconds.WaitForCompletionAsync(TimeSpan.FromSeconds(65))
+                    );
+
                 await host.StopAsync();
             }
         }
@@ -2506,6 +2633,41 @@ namespace DurableTask.AzureStorage.Tests
                     }
                 }
             }
+
+            internal class CurrentTimeInline : TaskOrchestration<DateTime, string>
+            {
+                public override Task<DateTime> RunTask(OrchestrationContext context, string input)
+                {
+                    return Task.FromResult(context.CurrentUtcDateTime);
+                }
+            }
+
+            [KnownType(typeof(Activities.CurrentTime))]
+            internal class CurrentTimeActivity : TaskOrchestration<DateTime, string>
+            {
+                public override Task<DateTime> RunTask(OrchestrationContext context, string input)
+                {
+                    return context.ScheduleTask<DateTime>(typeof(Activities.CurrentTime), input);
+                }
+            }
+
+            internal class DelayedCurrentTimeInline : TaskOrchestration<DateTime, string>
+            {
+                public override async Task<DateTime> RunTask(OrchestrationContext context, string input)
+                {
+                    await context.CreateTimer<bool>(context.CurrentUtcDateTime.Add(TimeSpan.FromSeconds(3)), true);
+                    return context.CurrentUtcDateTime;
+                }
+            }
+
+            [KnownType(typeof(Activities.DelayedCurrentTime))]
+            internal class DelayedCurrentTimeActivity : TaskOrchestration<DateTime, string>
+            {
+                public override Task<DateTime> RunTask(OrchestrationContext context, string input)
+                {
+                    return context.ScheduleTask<DateTime>(typeof(Activities.DelayedCurrentTime), input);
+                }
+            }
         }
 
         static class Activities
@@ -2740,6 +2902,33 @@ namespace DurableTask.AzureStorage.Tests
                 protected override byte[] Execute(TaskContext context, byte[] input)
                 {
                     return input;
+                }
+            }
+
+            internal class CurrentTime : TaskActivity<string, DateTime>
+            {
+                protected override DateTime Execute(TaskContext context, string input)
+                {
+                    if (string.IsNullOrEmpty(input))
+                    {
+                        throw new ArgumentNullException(nameof(input));
+                    }
+                    return DateTime.UtcNow;
+                }
+            }
+
+            internal class DelayedCurrentTime : TaskActivity<string, DateTime>
+            {
+                protected override DateTime Execute(TaskContext context, string input)
+                {
+                    if (string.IsNullOrEmpty(input))
+                    {
+                        throw new ArgumentNullException(nameof(input));
+                    }
+
+                    Thread.Sleep(TimeSpan.FromSeconds(3));
+
+                    return DateTime.UtcNow;
                 }
             }
         }

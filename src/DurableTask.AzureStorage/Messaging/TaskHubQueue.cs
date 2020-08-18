@@ -169,6 +169,17 @@ namespace DurableTask.AzureStorage.Messaging
                     initialVisibilityDelay = TimeSpan.Zero;
                 }
             }
+            else if (taskMessage.Event is ExecutionStartedEvent executionStartedEvent)
+            {
+                if (executionStartedEvent.ScheduledStartTime.HasValue)
+                {
+                    initialVisibilityDelay = executionStartedEvent.ScheduledStartTime.Value.Subtract(DateTime.UtcNow);
+                    if (initialVisibilityDelay < TimeSpan.Zero)
+                    {
+                        initialVisibilityDelay = TimeSpan.Zero;
+                    }
+                }
+            }
 
             // Special functionality for entity messages with a delivery delay 
             if (taskMessage.Event is EventRaisedEvent eventRaisedEvent
