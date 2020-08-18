@@ -47,6 +47,7 @@ namespace DurableTask.ServiceBus
 #if NETSTANDARD2_0
     using Microsoft.Azure.ServiceBus;
     using Microsoft.Azure.ServiceBus.Management;
+    using Microsoft.Azure.ServiceBus.Primitives;
 #else
     using Microsoft.ServiceBus.Messaging;
 #endif
@@ -87,7 +88,9 @@ namespace DurableTask.ServiceBus
         public readonly ServiceBusOrchestrationServiceStats ServiceStats;
 
         static readonly DataConverter DataConverter = new JsonDataConverter();
-        readonly string connectionString;
+
+        readonly ServiceBusConnectionSettings connectionSettings;
+
         readonly string hubName;
 
         MessageSender orchestratorSender;
@@ -103,14 +106,41 @@ namespace DurableTask.ServiceBus
         readonly string trackingEntityName;
         readonly WorkItemDispatcher<TrackingWorkItem> trackingDispatcher;
         readonly JumpStartManager jumpStartManager;
-        readonly ManagementClient managementClient;
-        readonly ServiceBusConnectionStringBuilder sbConnectionStringBuilder;
 
         ConcurrentDictionary<string, ServiceBusOrchestrationSession> orchestrationSessions;
         ConcurrentDictionary<string, Message> orchestrationMessages;
         CancellationTokenSource cancellationTokenSource;
 
         ServiceBusConnection serviceBusConnection;
+
+#if NETSTANDARD2_0
+
+        /// <summary>
+        ///     Create a new ServiceBusOrchestrationService to the given service bus namespace and hub name
+        /// </summary>
+        /// <param name="namespaceHostName">Service Bus namespace host name</param>
+        /// <param name="tokenProvider">Service Bus authentication token provider</param>
+        /// <param name="hubName">Hub name to use with the Service Bus namespace</param>
+        /// <param name="instanceStore">Instance store Provider, where state and history messages will be stored</param>
+        /// <param name="blobStore">Blob store Provider, where oversized messages and sessions will be stored</param>
+        /// <param name="settings">Settings object for service and client</param>
+        public ServiceBusOrchestrationService(
+            string namespaceHostName,
+            ITokenProvider tokenProvider,
+            string hubName,
+            IOrchestrationServiceInstanceStore instanceStore,
+            IOrchestrationServiceBlobStore blobStore,
+            ServiceBusOrchestrationServiceSettings settings) :
+                this(
+                      ServiceBusConnectionSettings.Create(namespaceHostName, tokenProvider),
+                      hubName,
+                      instanceStore,
+                      blobStore,
+                      settings)
+        {
+        }
+
+#endif
 
         /// <summary>
         ///     Create a new ServiceBusOrchestrationService to the given service bus connection string and hub name
@@ -125,26 +155,64 @@ namespace DurableTask.ServiceBus
             string hubName,
             IOrchestrationServiceInstanceStore instanceStore,
             IOrchestrationServiceBlobStore blobStore,
+            ServiceBusOrchestrationServiceSettings settings) :
+                this(
+                    ServiceBusConnectionSettings.Create(connectionString),
+                    hubName,
+                    instanceStore,
+                    blobStore,
+                    settings)
+        {
+        }
+
+        /// <summary>
+        ///     Create a new ServiceBusOrchestrationService to the given service bus connection and hub name
+        /// </summary>
+        /// <param name="connectionSettings">Service Bus connection settings</param>
+        /// <param name="hubName">Hub name to use with the Service Bus namespace</param>
+        /// <param name="instanceStore">Instance store Provider, where state and history messages will be stored</param>
+        /// <param name="blobStore">Blob store Provider, where oversized messages and sessions will be stored</param>
+        /// <param name="settings">Settings object for service and client</param>
+        public ServiceBusOrchestrationService(
+            ServiceBusConnectionSettings connectionSettings,
+            string hubName,
+            IOrchestrationServiceInstanceStore instanceStore,
+            IOrchestrationServiceBlobStore blobStore,
             ServiceBusOrchestrationServiceSettings settings)
         {
-            this.connectionString = connectionString;
+            this.connectionSettings = connectionSettings;
             this.hubName = hubName;
             this.ServiceStats = new ServiceBusOrchestrationServiceStats();
 
             this.workerEntityName = string.Format(ServiceBusConstants.WorkerEndpointFormat, this.hubName);
             this.orchestratorEntityName = string.Format(ServiceBusConstants.OrchestratorEndpointFormat, this.hubName);
             this.trackingEntityName = string.Format(ServiceBusConstants.TrackingEndpointFormat, this.hubName);
-            this.managementClient = new ManagementClient(connectionString);
-            this.sbConnectionStringBuilder = new ServiceBusConnectionStringBuilder(connectionString);
 
-            this.serviceBusConnection = new ServiceBusConnection(this.sbConnectionStringBuilder)
+            if (!string.IsNullOrEmpty(connectionSettings.ConnectionString))
             {
-                TokenProvider = TokenProvider.CreateSharedAccessSignatureTokenProvider(this.sbConnectionStringBuilder.SasKeyName,
-                    this.sbConnectionStringBuilder.SasKey, ServiceBusUtils.TokenTimeToLive)
-            };
+                var sbConnectionStringBuilder = new ServiceBusConnectionStringBuilder(connectionSettings.ConnectionString);
+                this.serviceBusConnection = new ServiceBusConnection(sbConnectionStringBuilder)
+                {
+                    TokenProvider = TokenProvider.CreateSharedAccessSignatureTokenProvider(sbConnectionStringBuilder.SasKeyName,
+                        sbConnectionStringBuilder.SasKey, ServiceBusUtils.TokenTimeToLive)
+                };
+            }
+#if NETSTANDARD2_0
+            else if (connectionSettings.Endpoint != null && connectionSettings.TokenProvider != null)
+            {
+                this.serviceBusConnection = new ServiceBusConnection(connectionSettings.Endpoint.ToString(), connectionSettings.TransportType)
+                {
+                    TokenProvider = connectionSettings.TokenProvider
+                };
+            }
+#endif
+            else
+            {
+                throw new ArgumentException("Invalid Service Bus connection settings.", nameof(connectionSettings));
+            }
 
             this.Settings = settings ?? new ServiceBusOrchestrationServiceSettings();
-            this.orchestrationBatchMessageSender = new MessageSender(this.serviceBusConnection,this.orchestratorEntityName);
+            this.orchestrationBatchMessageSender = new MessageSender(this.serviceBusConnection, this.orchestratorEntityName);
 
 
             this.BlobStore = blobStore;
@@ -253,7 +321,7 @@ namespace DurableTask.ServiceBus
         /// <param name="recreateInstanceStore">Flag indicating whether to drop and create instance store</param>
         public async Task CreateAsync(bool recreateInstanceStore)
         {
-            ManagementClient managementClient = new ManagementClient(this.connectionString);
+            ManagementClient managementClient = this.CreateManagementClient();
 
             await Task.WhenAll(
                 SafeDeleteAndCreateQueueAsync(managementClient, this.orchestratorEntityName, true, true, this.Settings.MaxTaskOrchestrationDeliveryCount, this.Settings.MaxQueueSizeInMegabytes),
@@ -272,7 +340,7 @@ namespace DurableTask.ServiceBus
         /// </summary>
         public async Task CreateIfNotExistsAsync()
         {
-            ManagementClient managementClient = new ManagementClient(this.connectionString);
+            ManagementClient managementClient = this.CreateManagementClient();
 
             await Task.WhenAll(
                 SafeCreateQueueAsync(managementClient, this.orchestratorEntityName, true, true, this.Settings.MaxTaskOrchestrationDeliveryCount, this.Settings.MaxQueueSizeInMegabytes),
@@ -299,7 +367,7 @@ namespace DurableTask.ServiceBus
         /// <param name="deleteInstanceStore">Flag indicating whether to drop instance store</param>
         public async Task DeleteAsync(bool deleteInstanceStore)
         {
-            ManagementClient managementClient = new ManagementClient(this.connectionString);
+            ManagementClient managementClient = this.CreateManagementClient();
 
             await Task.WhenAll(
                 SafeDeleteQueueAsync(managementClient, this.orchestratorEntityName),
@@ -328,7 +396,7 @@ namespace DurableTask.ServiceBus
         /// <returns>True if all needed queues are present, false otherwise</returns>
         public async Task<bool> HubExistsAsync()
         {
-            ManagementClient managementClient = new ManagementClient(this.connectionString);
+            ManagementClient managementClient = this.CreateManagementClient();
 
             IEnumerable<QueueDescription> queueDescriptions = (await managementClient.GetQueuesAsync()).Where(x => x.Path.StartsWith(this.hubName)).ToList();
 
@@ -360,7 +428,7 @@ namespace DurableTask.ServiceBus
         /// </summary>
         async Task<long> GetQueueCount(string entityName)
         {
-            ManagementClient managementClient = new ManagementClient(this.connectionString);
+            ManagementClient managementClient = this.CreateManagementClient();
             var queueDescription = await managementClient.GetQueueRuntimeInfoAsync(entityName);
             if (queueDescription == null)
             {
@@ -378,7 +446,7 @@ namespace DurableTask.ServiceBus
         /// </summary>
         internal async Task<Dictionary<string, int>> GetHubQueueMaxDeliveryCountsAsync()
         {
-            ManagementClient managementClient = new ManagementClient(this.connectionString);
+            ManagementClient managementClient = this.CreateManagementClient();
 
             var result = new Dictionary<string, int>(3);
 
@@ -555,7 +623,8 @@ namespace DurableTask.ServiceBus
                 CreatedTime = executionStartedEvent.Timestamp,
                 LastUpdatedTime = DateTime.UtcNow,
                 CompletedTime = DateTimeUtils.MinDateTime,
-                ParentInstance = executionStartedEvent.ParentInstance
+                ParentInstance = executionStartedEvent.ParentInstance,
+                ScheduledStartTime = executionStartedEvent.ScheduledStartTime
             };
 
             var orchestrationStateEntity = new OrchestrationStateInstanceEntity
@@ -1064,7 +1133,8 @@ namespace DurableTask.ServiceBus
                 Tags = executionStartedEvent?.Tags,
                 CreatedTime = createTime,
                 LastUpdatedTime = createTime,
-                CompletedTime = DateTimeUtils.MinDateTime
+                CompletedTime = DateTimeUtils.MinDateTime,
+                ScheduledStartTime = executionStartedEvent?.ScheduledStartTime
             };
 
             var jumpStartEntity = new OrchestrationJumpStartInstanceEntity
@@ -1121,6 +1191,11 @@ namespace DurableTask.ServiceBus
             if (message.Event is ExecutionStartedEvent executionStartedEvent)
             {
                 brokeredMessage.MessageId = $"{executionStartedEvent.OrchestrationInstance.InstanceId}_{executionStartedEvent.OrchestrationInstance.ExecutionId}";
+
+                // setting the enqueue time here as ServiceBusUtils.GetBrokeredMessageFromObjectAsync is not using the messageFireTime parameter
+                // in every scenario
+                if (executionStartedEvent.ScheduledStartTime.HasValue)
+                    brokeredMessage.ScheduledEnqueueTimeUtc = executionStartedEvent.ScheduledStartTime.Value.ToUniversalTime();
             }
 
             return brokeredMessage;
@@ -1392,21 +1467,21 @@ namespace DurableTask.ServiceBus
                 if (taskMessage.Event.EventType == EventType.HistoryState)
                 {
                     stateEntities.Add(new OrchestrationStateInstanceEntity
-                        {
-                            State = (taskMessage.Event as HistoryStateEvent)?.State,
-                            SequenceNumber = taskMessage.SequenceNumber
-                        });
+                    {
+                        State = (taskMessage.Event as HistoryStateEvent)?.State,
+                        SequenceNumber = taskMessage.SequenceNumber
+                    });
                 }
                 else
                 {
                     historyEntities.Add(new OrchestrationWorkItemInstanceEntity
-                        {
-                            InstanceId = taskMessage.OrchestrationInstance.InstanceId,
-                            ExecutionId = taskMessage.OrchestrationInstance.ExecutionId,
-                            SequenceNumber = taskMessage.SequenceNumber,
-                            EventTimestamp = DateTime.UtcNow,
-                            HistoryEvent = taskMessage.Event
-                        });
+                    {
+                        InstanceId = taskMessage.OrchestrationInstance.InstanceId,
+                        ExecutionId = taskMessage.OrchestrationInstance.ExecutionId,
+                        SequenceNumber = taskMessage.SequenceNumber,
+                        EventTimestamp = DateTime.UtcNow,
+                        HistoryEvent = taskMessage.Event
+                    });
                 }
             }
 
@@ -1707,6 +1782,24 @@ namespace DurableTask.ServiceBus
             if (this.InstanceStore == null)
             {
                 throw new InvalidOperationException("Instance store is not configured");
+            }
+        }
+
+        ManagementClient CreateManagementClient()
+        {
+            if (!string.IsNullOrEmpty(this.connectionSettings.ConnectionString))
+            {
+                return new ManagementClient(this.connectionSettings.ConnectionString);
+            }
+#if NETSTANDARD2_0
+            else if (connectionSettings.Endpoint != null && connectionSettings.TokenProvider != null)
+            {
+                return new ManagementClient(connectionSettings.Endpoint.ToString(), connectionSettings.TokenProvider);
+            }
+#endif
+            else
+            {
+                throw new Exception("Unable to create ManagementClient due to invalid connection settings.");
             }
         }
 

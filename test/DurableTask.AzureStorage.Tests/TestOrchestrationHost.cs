@@ -37,8 +37,8 @@ namespace DurableTask.AzureStorage.Tests
 
             this.settings = settings;
 
-            this.worker = new TaskHubWorker(service);
-            this.client = new TaskHubClient(service);
+            this.worker = new TaskHubWorker(service, loggerFactory: settings.LoggerFactory);
+            this.client = new TaskHubClient(service, loggerFactory: settings.LoggerFactory);
             this.addedOrchestrationTypes = new HashSet<Type>();
             this.addedActivityTypes = new HashSet<Type>();
         }
@@ -69,7 +69,8 @@ namespace DurableTask.AzureStorage.Tests
         public async Task<TestOrchestrationClient> StartOrchestrationAsync(
             Type orchestrationType,
             object input,
-            string instanceId = null)
+            string instanceId = null,
+            DateTime? startAt = null)
         {
             if (!this.addedOrchestrationTypes.Contains(orchestrationType))
             {
@@ -100,10 +101,17 @@ namespace DurableTask.AzureStorage.Tests
             }
 
             DateTime creationTime = DateTime.UtcNow;
-            OrchestrationInstance instance = await this.client.CreateOrchestrationInstanceAsync(
-                orchestrationType,
-                instanceId,
-                input);
+            OrchestrationInstance instance = startAt.HasValue ?
+                await this.client.CreateScheduledOrchestrationInstanceAsync(
+                    orchestrationType,
+                    instanceId,
+                    input,
+                    startAt.Value)
+                    : 
+                await this.client.CreateOrchestrationInstanceAsync(
+                    orchestrationType,
+                    instanceId,
+                    input);
 
             Trace.TraceInformation($"Started {orchestrationType.Name}, Instance ID = {instance.InstanceId}");
             return new TestOrchestrationClient(this.client, orchestrationType, instance.InstanceId, creationTime);

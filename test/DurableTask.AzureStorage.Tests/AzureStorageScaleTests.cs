@@ -71,6 +71,7 @@ namespace DurableTask.AzureStorage.Tests
                 TaskHubName = taskHubName,
                 StorageConnectionString = storageConnectionString,
                 WorkerId = workerId,
+                AppName = testName,
             };
 
             Trace.TraceInformation($"Task Hub name: {taskHubName}");
@@ -452,6 +453,7 @@ namespace DurableTask.AzureStorage.Tests
                 StorageConnectionString = TestHelpers.GetTestStorageAccountConnectionString(),
                 TaskHubName = nameof(MonitorIdleTaskHubDisconnected),
                 PartitionCount = 4,
+                UseAppLease = false,
             };
 
             var service = new AzureStorageOrchestrationService(settings);
@@ -504,6 +506,7 @@ namespace DurableTask.AzureStorage.Tests
                 StorageConnectionString = TestHelpers.GetTestStorageAccountConnectionString(),
                 TaskHubName = nameof(MonitorIncreasingControlQueueLoadDisconnected),
                 PartitionCount = 4,
+                UseAppLease = false,
             };
 
             var service = new AzureStorageOrchestrationService(settings);

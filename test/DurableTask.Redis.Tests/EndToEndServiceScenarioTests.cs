@@ -202,5 +202,32 @@ namespace DurableTask.Redis.Tests
                 await orchestrationService.DeleteAsync();
             }
         }
+
+
+        /// <summary>
+        /// Validates scheduled starts, ensuring that invalid operation exception is raised since the feature is not supported
+        /// </summary>
+        [Fact]
+        public async Task ScheduledStart_NotSupported()
+        {
+            var orchestrationService = TestHelpers.GetTestOrchestrationService(nameof(ScheduledStart_NotSupported));
+            var worker = new TaskHubWorker(orchestrationService);
+
+            try
+            {
+                await worker.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
+                   .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
+                   .StartAsync();
+
+                var client = new TaskHubClient(orchestrationService);
+                var expectedStartTime = DateTime.UtcNow.AddSeconds(30);
+                await Assert.ThrowsAsync<NotSupportedException>(() => client.CreateScheduledOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), null, expectedStartTime));
+            }
+            finally
+            {
+                await worker.StopAsync(true);
+                await orchestrationService.DeleteAsync();
+            }
+        }
     }
 }
