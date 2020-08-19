@@ -198,6 +198,12 @@ namespace DurableTask.AzureStorage
         public bool ThrowExceptionOnInvalidDedupeStatus { get; set; } = false;
 
         /// <summary>
+        /// Use the legacy partition management strategy, which improves performance at the cost of being less resiliant
+        /// to split brain.
+        /// </summary>
+        public bool UseLegacyPartitionManagement { get; set; } = true;
+
+        /// <summary>
         /// Gets or sets the optional <see cref="ILoggerFactory"/> to use for diagnostic logging.
         /// </summary>
         public ILoggerFactory LoggerFactory { get; set; } = NoOpLoggerFactory.Instance;
