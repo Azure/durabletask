@@ -344,13 +344,14 @@ namespace DurableTask.AzureStorage
             await this.appLeaseManager.CreateContainerIfNotExistsAsync();
             this.stats.StorageRequests.Increment();
 
+            await this.partitionManager.CreateLeaseStore();
+            this.stats.StorageRequests.Increment();
+
             var tasks = new List<Task>();
 
             tasks.Add(this.trackingStore.CreateAsync());
 
             tasks.Add(this.workItemQueue.CreateIfNotExistsAsync());
-
-            tasks.Add(this.partitionManager.CreateLeaseStore());
 
             foreach (ControlQueue controlQueue in this.allControlQueues.Values)
             {
