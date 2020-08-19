@@ -13,6 +13,7 @@
 
 namespace DurableTask.Core.Serializing
 {
+    using Newtonsoft.Json;
     using System;
 
     /// <summary>
@@ -20,6 +21,11 @@ namespace DurableTask.Core.Serializing
     /// </summary>
     public abstract class DataConverter
     {
+        /// <summary>
+        /// JsonSerializerSettings used with this JsonDataConverter
+        /// </summary>
+        public JsonSerializerSettings Settings { get; }
+
         /// <summary>
         /// Serialize an Object to string with default formatting
         /// </summary>

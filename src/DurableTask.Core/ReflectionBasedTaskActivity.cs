@@ -14,11 +14,13 @@
 namespace DurableTask.Core
 {
     using System;
+    using System.IO;
     using System.Reflection;
     using System.Threading.Tasks;
     using DurableTask.Core.Common;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.Serializing;
+    using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
 
     /// <summary>
@@ -71,7 +73,13 @@ namespace DurableTask.Core
         /// <returns>Serialized output from the execution</returns>
         public override async Task<string> RunAsync(TaskContext context, string input)
         {
-            JArray jArray = JArray.Parse(input);
+            JArray jArray;
+            using (var stringReader = new StringReader(input))
+            using (var jsonTextReader = new JsonTextReader(stringReader) { DateParseHandling = DataConverter.Settings.DateParseHandling })
+            {
+                jArray = JArray.Load(jsonTextReader);
+            }
+
             int parameterCount = jArray.Count;
             ParameterInfo[] methodParameters = MethodInfo.GetParameters();
             if (methodParameters.Length < parameterCount)
