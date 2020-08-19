@@ -14,13 +14,11 @@
 namespace DurableTask.Core
 {
     using System;
-    using System.IO;
     using System.Reflection;
     using System.Threading.Tasks;
     using DurableTask.Core.Common;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.Serializing;
-    using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
 
     /// <summary>
