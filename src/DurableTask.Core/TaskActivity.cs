@@ -106,34 +106,26 @@ namespace DurableTask.Core
         {
             TInput parameter = default(TInput);
 
-            JArray jArray;
-            using (var stringReader = new StringReader(input))
-            using (var jsonTextReader = new JsonTextReader(stringReader) { DateParseHandling = DataConverter.Settings.DateParseHandling })
+            var jArray = Utils.ConvertToJArray(input);
+
+            int parameterCount = jArray.Count;
+            if (parameterCount > 1)
             {
-                jArray = JArray.Load(jsonTextReader);
+                throw new TaskFailureException(
+                    "TaskActivity implementation cannot be invoked due to more than expected input parameters.  Signature mismatch.");
             }
-
-            if (jArray != null)
+            
+            if (parameterCount == 1)
             {
-                int parameterCount = jArray.Count;
-                if (parameterCount > 1)
+                JToken jToken = jArray[0];
+                if (jToken is JValue jValue)
                 {
-                    throw new TaskFailureException(
-                        "TaskActivity implementation cannot be invoked due to more than expected input parameters.  Signature mismatch.");
+                    parameter = jValue.ToObject<TInput>();
                 }
-
-                if (parameterCount == 1)
+                else
                 {
-                    JToken jToken = jArray[0];
-                    if (jToken is JValue jValue)
-                    {
-                        parameter = jValue.ToObject<TInput>();
-                    }
-                    else
-                    {
-                        string serializedValue = jToken.ToString();
-                        parameter = DataConverter.Deserialize<TInput>(serializedValue);
-                    }
+                    string serializedValue = jToken.ToString();
+                    parameter = DataConverter.Deserialize<TInput>(serializedValue);
                 }
             }
 

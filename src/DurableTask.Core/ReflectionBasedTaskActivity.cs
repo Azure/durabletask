@@ -73,12 +73,7 @@ namespace DurableTask.Core
         /// <returns>Serialized output from the execution</returns>
         public override async Task<string> RunAsync(TaskContext context, string input)
         {
-            JArray jArray;
-            using (var stringReader = new StringReader(input))
-            using (var jsonTextReader = new JsonTextReader(stringReader) { DateParseHandling = DataConverter.Settings.DateParseHandling })
-            {
-                jArray = JArray.Load(jsonTextReader);
-            }
+            var jArray = Utils.ConvertToJArray(input);
 
             int parameterCount = jArray.Count;
             ParameterInfo[] methodParameters = MethodInfo.GetParameters();
