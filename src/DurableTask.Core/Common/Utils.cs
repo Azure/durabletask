@@ -83,7 +83,7 @@ namespace DurableTask.Core.Common
 
         internal static JArray ConvertToJArray(string input)
         {
-            JArray jArray = new JArray();
+            JArray jArray;
             using (var stringReader = new StringReader(input))
             using (var jsonTextReader = new JsonTextReader(stringReader) { DateParseHandling = DateParseHandling.None })
             {
