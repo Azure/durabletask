@@ -26,6 +26,7 @@ namespace DurableTask.Core.Common
     using DurableTask.Core.Serializing;
     using DurableTask.Core.Tracing;
     using Newtonsoft.Json;
+    using Newtonsoft.Json.Linq;
 
     /// <summary>
     /// Utility Methods
@@ -78,6 +79,18 @@ namespace DurableTask.Core.Common
             }
 
             return input;
+        }
+
+        internal static JArray ConvertToJArray(string input)
+        {
+            JArray jArray;
+            using (var stringReader = new StringReader(input))
+            using (var jsonTextReader = new JsonTextReader(stringReader) { DateParseHandling = DateParseHandling.None })
+            {
+                jArray = JArray.Load(jsonTextReader);
+            }
+
+            return jArray;
         }
 
         /// <summary>

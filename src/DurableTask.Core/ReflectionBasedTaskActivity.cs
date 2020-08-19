@@ -71,7 +71,8 @@ namespace DurableTask.Core
         /// <returns>Serialized output from the execution</returns>
         public override async Task<string> RunAsync(TaskContext context, string input)
         {
-            JArray jArray = JArray.Parse(input);
+            var jArray = Utils.ConvertToJArray(input);
+
             int parameterCount = jArray.Count;
             ParameterInfo[] methodParameters = MethodInfo.GetParameters();
             if (methodParameters.Length < parameterCount)
