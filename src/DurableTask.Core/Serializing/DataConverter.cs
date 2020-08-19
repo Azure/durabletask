@@ -24,7 +24,7 @@ namespace DurableTask.Core.Serializing
         /// <summary>
         /// JsonSerializerSettings used with this JsonDataConverter
         /// </summary>
-        public JsonSerializerSettings Settings { get; }
+        public JsonSerializerSettings Settings { get; set; } = new JsonSerializerSettings();
 
         /// <summary>
         /// Serialize an Object to string with default formatting

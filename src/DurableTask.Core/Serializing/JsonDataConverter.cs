@@ -49,6 +49,7 @@ namespace DurableTask.Core.Serializing
         public JsonDataConverter(JsonSerializerSettings settings)
         {
             this.serializer = JsonSerializer.Create(settings);
+            this.Settings = settings;
         }
 
         /// <summary>
