@@ -14,7 +14,6 @@
 namespace DurableTask.AzureStorage.Monitoring
 {
     using System;
-    using System.Collections;
     using System.Collections.Generic;
     using System.Linq;
     using System.Text;
@@ -37,7 +36,7 @@ namespace DurableTask.AzureStorage.Monitoring
         readonly QueueMetricHistory workItemQueueLatencies = new QueueMetricHistory(QueueLengthSampleSize);
 
         readonly CloudStorageAccount storageAccount;
-        readonly string taskHub;
+        readonly AzureStorageOrchestrationServiceSettings settings;
         readonly int maxPollingLatency;
         readonly int highLatencyThreshold;
 
@@ -65,12 +64,23 @@ namespace DurableTask.AzureStorage.Monitoring
             CloudStorageAccount storageAccount,
             string taskHub,
             int? maxPollingIntervalMilliseconds = null)
+            : this(storageAccount, GetSettings(taskHub, maxPollingIntervalMilliseconds))
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="DisconnectedPerformanceMonitor"/> class.
+        /// </summary>
+        /// <param name="storageAccount">The Azure Storage account to monitor.</param>
+        /// <param name="settings">The orchestration service settings.</param>
+        public DisconnectedPerformanceMonitor(
+            CloudStorageAccount storageAccount,
+            AzureStorageOrchestrationServiceSettings settings)
         {
             this.storageAccount = storageAccount;
-            this.taskHub = taskHub;
-            this.maxPollingLatency = 
-                maxPollingIntervalMilliseconds ?? 
-                (int)AzureStorageOrchestrationServiceSettings.DefaultMaxQueuePollingInterval.TotalMilliseconds;
+            this.settings = settings;
+
+            this.maxPollingLatency = (int)settings.MaxQueuePollingInterval.TotalMilliseconds;
             this.highLatencyThreshold = Math.Min(this.maxPollingLatency, 1000);
         }
 
@@ -79,6 +89,19 @@ namespace DurableTask.AzureStorage.Monitoring
         internal List<QueueMetricHistory> ControlQueueLatencies => this.controlQueueLatencies;
 
         internal QueueMetricHistory WorkItemQueueLatencies => this.workItemQueueLatencies;
+
+        static AzureStorageOrchestrationServiceSettings GetSettings(
+            string taskHub,
+            int? maxPollingIntervalMilliseconds = null)
+        {
+            var settings = new AzureStorageOrchestrationServiceSettings { TaskHubName = taskHub };
+            if (maxPollingIntervalMilliseconds != null)
+            {
+                settings.MaxQueuePollingInterval = TimeSpan.FromMilliseconds(maxPollingIntervalMilliseconds.Value);
+            }
+
+            return settings;
+        }
 
         /// <summary>
         /// Collects and returns a sampling of all performance metrics being observed by this instance as well as a scale
@@ -125,10 +148,10 @@ namespace DurableTask.AzureStorage.Monitoring
 
         internal virtual async Task<bool> UpdateQueueMetrics()
         {
-            CloudQueue workItemQueue = AzureStorageOrchestrationService.GetWorkItemQueue(this.storageAccount, this.taskHub);
+            CloudQueue workItemQueue = AzureStorageOrchestrationService.GetWorkItemQueue(this.storageAccount, this.settings.TaskHubName);
             CloudQueue[] controlQueues = await AzureStorageOrchestrationService.GetControlQueuesAsync(
                 this.storageAccount,
-                this.taskHub,
+                this.settings,
                 defaultPartitionCount: AzureStorageOrchestrationServiceSettings.DefaultPartitionCount);
 
             Task<QueueMetric> workItemMetricTask = GetQueueMetricsAsync(workItemQueue);
@@ -145,11 +168,10 @@ namespace DurableTask.AzureStorage.Monitoring
             catch (StorageException e) when (e.RequestInformation?.HttpStatusCode == 404)
             {
                 // The queues are not yet provisioned.
-                AnalyticsEventSource.Log.GeneralWarning(
+                this.settings.Logger.GeneralWarning(
                     this.storageAccount.Credentials.AccountName,
-                    this.taskHub,
-                    $"Task hub has not been provisioned: {e.RequestInformation.ExtendedErrorInformation?.ErrorMessage}",
-                    Utils.ExtensionVersion);
+                    this.settings.TaskHubName,
+                    $"Task hub has not been provisioned: {e.RequestInformation.ExtendedErrorInformation?.ErrorMessage}");
                 return false;
             }
 
@@ -232,7 +254,7 @@ namespace DurableTask.AzureStorage.Monitoring
         /// <returns>The approximate number of messages in the work-item queue.</returns>
         protected virtual async Task<WorkItemQueueData> GetWorkItemQueueStatusAsync()
         {
-            CloudQueue workItemQueue = AzureStorageOrchestrationService.GetWorkItemQueue(this.storageAccount, this.taskHub);
+            CloudQueue workItemQueue = AzureStorageOrchestrationService.GetWorkItemQueue(this.storageAccount, this.settings.TaskHubName);
 
             DateTimeOffset now = DateTimeOffset.Now;
 
@@ -262,7 +284,7 @@ namespace DurableTask.AzureStorage.Monitoring
         {
             CloudQueue[] controlQueues = await AzureStorageOrchestrationService.GetControlQueuesAsync(
                 this.storageAccount,
-                this.taskHub,
+                this.settings,
                 defaultPartitionCount: AzureStorageOrchestrationServiceSettings.DefaultPartitionCount);
 
             // There is one queue per partition.

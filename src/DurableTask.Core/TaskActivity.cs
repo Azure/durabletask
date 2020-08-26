@@ -103,28 +103,27 @@ namespace DurableTask.Core
         public override async Task<string> RunAsync(TaskContext context, string input)
         {
             TInput parameter = default(TInput);
-            JArray jArray = JArray.Parse(input);
-            if (jArray != null)
-            {
-                int parameterCount = jArray.Count;
-                if (parameterCount > 1)
-                {
-                    throw new TaskFailureException(
-                        "TaskActivity implementation cannot be invoked due to more than expected input parameters.  Signature mismatch.");
-                }
 
-                if (parameterCount == 1)
+            var jArray = Utils.ConvertToJArray(input);
+
+            int parameterCount = jArray.Count;
+            if (parameterCount > 1)
+            {
+                throw new TaskFailureException(
+                    "TaskActivity implementation cannot be invoked due to more than expected input parameters.  Signature mismatch.");
+            }
+            
+            if (parameterCount == 1)
+            {
+                JToken jToken = jArray[0];
+                if (jToken is JValue jValue)
                 {
-                    JToken jToken = jArray[0];
-                    if (jToken is JValue jValue)
-                    {
-                        parameter = jValue.ToObject<TInput>();
-                    }
-                    else
-                    {
-                        string serializedValue = jToken.ToString();
-                        parameter = DataConverter.Deserialize<TInput>(serializedValue);
-                    }
+                    parameter = jValue.ToObject<TInput>();
+                }
+                else
+                {
+                    string serializedValue = jToken.ToString();
+                    parameter = DataConverter.Deserialize<TInput>(serializedValue);
                 }
             }
 

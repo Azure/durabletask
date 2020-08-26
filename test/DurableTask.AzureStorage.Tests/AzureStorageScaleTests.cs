@@ -71,6 +71,8 @@ namespace DurableTask.AzureStorage.Tests
                 TaskHubName = taskHubName,
                 StorageConnectionString = storageConnectionString,
                 WorkerId = workerId,
+                UseLegacyPartitionManagement = true,
+                AppName = testName,
             };
 
             Trace.TraceInformation($"Task Hub name: {taskHubName}");
@@ -120,16 +122,14 @@ namespace DurableTask.AzureStorage.Tests
             Assert.IsTrue(await infoBlob.ExistsAsync(), $"The blob {infoBlob.Name} was not created.");
 
             // Task Hub lease container
-            CloudBlobDirectory leaseDirectory = taskHubContainer.GetDirectoryReference("default");
-            IListBlobItem[] leaseBlobs = (await this.ListBlobsAsync(leaseDirectory)).ToArray();
-            Assert.AreEqual(controlQueues.Length, leaseBlobs.Length, "Expected to see the same number of control queues and lease blobs.");
-
-            foreach (IListBlobItem blobItem in leaseBlobs)
+            if (settings.UseLegacyPartitionManagement)
             {
-                string path = blobItem.Uri.AbsolutePath;
-                Assert.IsTrue(
-                    controlQueues.Where(q => path.Contains(q.Name)).Any(),
-                    $"Could not find any known control queue name in the lease name {path}");
+                await EnsureLeasesMatchControlQueue("default", taskHubContainer, controlQueues);
+            }
+            else
+            {
+                await EnsureLeasesMatchControlQueue("intent", taskHubContainer, controlQueues);
+                await EnsureLeasesMatchControlQueue("ownership", taskHubContainer, controlQueues);
             }
 
             if (testDeletion)
@@ -154,6 +154,20 @@ namespace DurableTask.AzureStorage.Tests
             }
 
             return service;
+        }
+
+        private async Task EnsureLeasesMatchControlQueue(string directoryReference, CloudBlobContainer taskHubContainer, ControlQueue[] controlQueues)
+        {
+            CloudBlobDirectory leaseDirectory = taskHubContainer.GetDirectoryReference(directoryReference);
+            IListBlobItem[] leaseBlobs = (await this.ListBlobsAsync(leaseDirectory)).ToArray();
+            Assert.AreEqual(controlQueues.Length, leaseBlobs.Length, "Expected to see the same number of control queues and lease blobs.");
+            foreach (IListBlobItem blobItem in leaseBlobs)
+            {
+                string path = blobItem.Uri.AbsolutePath;
+                Assert.IsTrue(
+                    controlQueues.Where(q => path.Contains(q.Name)).Any(),
+                    $"Could not find any known control queue name in the lease name {path}");
+            }
         }
 
         public async Task<List<IListBlobItem>> ListBlobsAsync(CloudBlobDirectory client)
@@ -452,6 +466,7 @@ namespace DurableTask.AzureStorage.Tests
                 StorageConnectionString = TestHelpers.GetTestStorageAccountConnectionString(),
                 TaskHubName = nameof(MonitorIdleTaskHubDisconnected),
                 PartitionCount = 4,
+                UseAppLease = false,
             };
 
             var service = new AzureStorageOrchestrationService(settings);
@@ -504,6 +519,7 @@ namespace DurableTask.AzureStorage.Tests
                 StorageConnectionString = TestHelpers.GetTestStorageAccountConnectionString(),
                 TaskHubName = nameof(MonitorIncreasingControlQueueLoadDisconnected),
                 PartitionCount = 4,
+                UseAppLease = false,
             };
 
             var service = new AzureStorageOrchestrationService(settings);

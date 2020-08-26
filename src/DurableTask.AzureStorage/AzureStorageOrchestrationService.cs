@@ -16,9 +16,9 @@ namespace DurableTask.AzureStorage
     using System;
     using System.Collections.Concurrent;
     using System.Collections.Generic;
+    using System.Diagnostics.Tracing;
     using System.Linq;
     using System.Net;
-    using System.Runtime.ExceptionServices;
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
@@ -40,7 +40,6 @@ namespace DurableTask.AzureStorage
     public sealed class AzureStorageOrchestrationService :
         IOrchestrationService,
         IOrchestrationServiceClient,
-        IPartitionObserver<BlobLease>,
         IDisposable
     {
         static readonly HistoryEvent[] EmptyHistoryEventList = new HistoryEvent[0];
@@ -62,12 +61,11 @@ namespace DurableTask.AzureStorage
 
         readonly ITrackingStore trackingStore;
 
-        readonly TableEntityConverter tableEntityConverter;
-
         readonly ResettableLazy<Task> taskHubCreator;
         readonly BlobLeaseManager leaseManager;
-        readonly PartitionManager<BlobLease> partitionManager;
+        readonly AppLeaseManager appLeaseManager;
         readonly OrchestrationSessionManager orchestrationSessionManager;
+        readonly IPartitionManager partitionManager;
         readonly object hubCreationLock;
 
         bool isStarted;
@@ -97,7 +95,6 @@ namespace DurableTask.AzureStorage
             ValidateSettings(settings);
 
             this.settings = settings;
-            this.tableEntityConverter = new TableEntityConverter();
  
             CloudStorageAccount account = settings.StorageAccountDetails == null
                 ? CloudStorageAccount.Parse(settings.StorageConnectionString)
@@ -149,29 +146,42 @@ namespace DurableTask.AzureStorage
                 LazyThreadSafetyMode.ExecutionAndPublication);
 
             this.leaseManager = GetBlobLeaseManager(
-                settings.TaskHubName,
-                settings.WorkerId,
+                this.settings,
+                "default",
                 account,
-                settings.LeaseInterval,
-                settings.LeaseRenewInterval,
                 this.stats);
-            this.partitionManager = new PartitionManager<BlobLease>(
+
+            this.appLeaseManager = new AppLeaseManager(
+                this.settings,
                 this.storageAccountName,
-                this.settings.TaskHubName,
-                settings.WorkerId,
-                this.leaseManager,
-                new PartitionManagerOptions
-                {
-                    AcquireInterval = settings.LeaseAcquireInterval,
-                    RenewInterval = settings.LeaseRenewInterval,
-                    LeaseInterval = settings.LeaseInterval,
-                });
+                this.blobClient,
+                this.settings.TaskHubName.ToLowerInvariant() + "-applease",
+                this.settings.AppLeaseOptions,
+                this.stats);
 
             this.orchestrationSessionManager = new OrchestrationSessionManager(
                 this.storageAccountName,
                 this.settings,
                 this.stats,
                 this.trackingStore);
+
+            if (this.settings.UseLegacyPartitionManagement)
+            {
+                this.partitionManager = new LegacyPartitionManager(
+                    this,
+                    this.settings,
+                    account,
+                    this.stats);
+            }
+            else
+            {
+                this.partitionManager = new SafePartitionManager(
+                    this,
+                    this.orchestrationSessionManager,
+                    this.settings,
+                    account,
+                    this.stats);
+            }
         }
 
         internal string WorkerId => this.settings.WorkerId;
@@ -228,22 +238,17 @@ namespace DurableTask.AzureStorage
         }
 
         static BlobLeaseManager GetBlobLeaseManager(
-            string taskHub,
-            string workerName,
+            AzureStorageOrchestrationServiceSettings settings,
+            string leaseType,
             CloudStorageAccount account,
-            TimeSpan leaseInterval,
-            TimeSpan renewalInterval,
             AzureStorageOrchestrationServiceStats stats)
         {
             return new BlobLeaseManager(
-                taskHubName: taskHub,
-                workerName: workerName,
-                leaseContainerName: taskHub.ToLowerInvariant() + "-leases",
+                settings,
+                leaseContainerName: settings.TaskHubName.ToLowerInvariant() + "-leases",
                 blobPrefix: string.Empty,
-                consumerGroupName: "default",
+                leaseType: leaseType,
                 storageClient: account.CreateCloudBlobClient(),
-                leaseInterval: leaseInterval,
-                renewInterval: renewalInterval,
                 skipBlobContainerCreation: false,
                 stats: stats);
         }
@@ -321,11 +326,10 @@ namespace DurableTask.AzureStorage
             }
             catch (Exception e)
             {
-                AnalyticsEventSource.Log.GeneralError(
+                this.settings.Logger.GeneralError(
                     this.storageAccountName,
                     this.settings.TaskHubName,
-                    $"Failed to create the task hub: {e}",
-                    Utils.ExtensionVersion);
+                    $"Failed to create the task hub: {e}");
 
                 // Don't want to cache the failed task
                 this.taskHubCreator.Reset();
@@ -337,7 +341,10 @@ namespace DurableTask.AzureStorage
         async Task GetTaskHubCreatorTask()
         {
             TaskHubInfo hubInfo = GetTaskHubInfo(this.settings.TaskHubName, this.settings.PartitionCount);
-            await this.leaseManager.CreateLeaseStoreIfNotExistsAsync(hubInfo);
+            await this.appLeaseManager.CreateContainerIfNotExistsAsync();
+            this.stats.StorageRequests.Increment();
+
+            await this.partitionManager.CreateLeaseStore();
             this.stats.StorageRequests.Increment();
 
             var tasks = new List<Task>();
@@ -349,7 +356,7 @@ namespace DurableTask.AzureStorage
             foreach (ControlQueue controlQueue in this.allControlQueues.Values)
             {
                 tasks.Add(controlQueue.CreateIfNotExistsAsync());
-                tasks.Add(this.leaseManager.CreateLeaseIfNotExistAsync(controlQueue.Name));
+                tasks.Add(this.partitionManager.CreateLease(controlQueue.Name));
             }
 
             await Task.WhenAll(tasks.ToArray());
@@ -397,20 +404,9 @@ namespace DurableTask.AzureStorage
                 tasks.Add(DeleteTrackingStore());
             }
 
-            tasks.Add(this.leaseManager.DeleteAllAsync().ContinueWith(t =>
-            {
-                if (t.Exception?.InnerExceptions?.Count > 0)
-                {
-                    foreach (Exception e in t.Exception.InnerExceptions)
-                    {
-                        StorageException storageException = e as StorageException;
-                        if (storageException == null || storageException.RequestInformation.HttpStatusCode != 404)
-                        {
-                            ExceptionDispatchInfo.Capture(e).Throw();
-                        }
-                    }
-                }
-            }));
+            tasks.Add(this.partitionManager.DeleteLeases());
+
+            tasks.Add(this.appLeaseManager.DeleteContainerAsync());
 
             tasks.Add(this.messageManager.DeleteContainerAsync());
 
@@ -443,11 +439,44 @@ namespace DurableTask.AzureStorage
             this.shutdownSource = new CancellationTokenSource();
             this.statsLoop = Task.Run(() => this.ReportStatsLoop(this.shutdownSource.Token));
 
-            await this.partitionManager.InitializeAsync();
-            await this.partitionManager.SubscribeAsync(this);
-            await this.partitionManager.StartAsync();
+            await Task.Factory.StartNew(() => this.LeaseManagerStarter());
 
             this.isStarted = true;
+        }
+
+        private async void LeaseManagerStarter()
+        {
+            while (!this.shutdownSource.Token.IsCancellationRequested)
+            {
+                try
+                {
+                    if (this.settings.UseAppLease)
+                    {
+                        while (!await appLeaseManager.TryAquireAppLeaseAsync())
+                        {
+                            await Task.Delay(this.settings.AppLeaseOptions.AcquireInterval);
+                        }
+
+                        await appLeaseManager.StartAsync();
+                    }
+
+                    await this.partitionManager.StartAsync();
+                }
+                catch (Exception e)
+                {
+                    this.settings.Logger.PartitionManagerError(
+                        this.storageAccountName, 
+                        this.settings.TaskHubName, 
+                        this.WorkerId, 
+                        null, 
+                        $"Error in LeaseManagerStarter task. Exception: {e}");
+
+                    await Task.Delay(TimeSpan.FromSeconds(10), this.shutdownSource.Token);
+                    continue;
+                }
+
+                break;
+            }
         }
 
         /// <inheritdoc />
@@ -461,6 +490,7 @@ namespace DurableTask.AzureStorage
         {
             this.shutdownSource.Cancel();
             await this.statsLoop;
+            await this.appLeaseManager.StopAsync();
             await this.partitionManager.StopAsync();
             this.isStarted = false;
         }
@@ -481,11 +511,10 @@ namespace DurableTask.AzureStorage
                 }
                 catch (Exception e)
                 {
-                    AnalyticsEventSource.Log.GeneralError(
+                    this.settings.Logger.GeneralError(
                         this.storageAccountName,
                         this.settings.TaskHubName,
-                        $"Unexpected error in {nameof(ReportStatsLoop)}: {e}",
-                        Utils.ExtensionVersion);
+                        $"Unexpected error in {nameof(ReportStatsLoop)}: {e}");
                 }
             }
 
@@ -509,7 +538,7 @@ namespace DurableTask.AzureStorage
                 out int pendingOrchestrationMessages,
                 out int activeOrchestrationSessions);
 
-            AnalyticsEventSource.Log.OrchestrationServiceStats(
+            this.settings.Logger.OrchestrationServiceStats(
                 this.storageAccountName,
                 this.settings.TaskHubName,
                 storageRequests,
@@ -521,11 +550,26 @@ namespace DurableTask.AzureStorage
                 pendingOrchestratorInstances,
                 pendingOrchestrationMessages,
                 activeOrchestrationSessions,
-                this.stats.ActiveActivityExecutions.Value,
-                Utils.ExtensionVersion);
+                this.stats.ActiveActivityExecutions.Value);
         }
 
-        async Task IPartitionObserver<BlobLease>.OnPartitionAcquiredAsync(BlobLease lease)
+        internal async Task OnIntentLeaseAquiredAsync(BlobLease lease)
+        {
+            CloudQueue storageQueue = this.queueClient.GetQueueReference(lease.PartitionId);
+            await storageQueue.CreateIfNotExistsAsync();
+            this.stats.StorageRequests.Increment();
+            var controlQueue = new ControlQueue(storageQueue, this.settings, this.stats, this.messageManager);
+            this.orchestrationSessionManager.ResumeListeningIfOwnQueue(lease.PartitionId, controlQueue, this.shutdownSource.Token);
+        }
+
+        internal Task OnIntentLeaseReleasedAsync(BlobLease lease, CloseReason reason)
+        {
+            // Mark the queue as released so it will stop grabbing new messages.
+            this.orchestrationSessionManager.ReleaseQueue(lease.PartitionId);
+            return Utils.CompletedTask;
+        }
+
+        internal async Task OnOwnershipLeaseAquiredAsync(BlobLease lease)
         {
             CloudQueue storageQueue = this.queueClient.GetQueueReference(lease.PartitionId);
             await storageQueue.CreateIfNotExistsAsync();
@@ -537,7 +581,7 @@ namespace DurableTask.AzureStorage
             this.allControlQueues[lease.PartitionId] = controlQueue;
         }
 
-        Task IPartitionObserver<BlobLease>.OnPartitionReleasedAsync(BlobLease lease, CloseReason reason)
+        internal Task OnOwnershipLeaseReleasedAsync(BlobLease lease, CloseReason reason)
         {
             this.orchestrationSessionManager.RemoveQueue(lease.PartitionId);
             return Utils.CompletedTask;
@@ -546,12 +590,12 @@ namespace DurableTask.AzureStorage
         // Used for testing
         internal Task<IEnumerable<BlobLease>> ListBlobLeasesAsync()
         {
-            return this.leaseManager.ListLeasesAsync();
+            return this.partitionManager.GetOwnershipBlobLeases();
         }
 
         internal static async Task<CloudQueue[]> GetControlQueuesAsync(
             CloudStorageAccount account,
-            string taskHub,
+            AzureStorageOrchestrationServiceSettings settings,
             int defaultPartitionCount)
         {
             if (account == null)
@@ -559,12 +603,15 @@ namespace DurableTask.AzureStorage
                 throw new ArgumentNullException(nameof(account));
             }
 
-            if (taskHub == null)
+            if (settings.TaskHubName == null)
             {
-                throw new ArgumentNullException(nameof(taskHub));
+                throw new ArgumentNullException(nameof(settings.TaskHubName));
             }
 
-            BlobLeaseManager inactiveLeaseManager = GetBlobLeaseManager(taskHub, "n/a", account, TimeSpan.Zero, TimeSpan.Zero, null);
+            string taskHub = settings.TaskHubName;
+
+            BlobLeaseManager inactiveLeaseManager = GetBlobLeaseManager(settings, "inactive", account, null);
+
             TaskHubInfo hubInfo = await inactiveLeaseManager.GetOrCreateTaskHubInfoAsync(
                 GetTaskHubInfo(taskHub, defaultPartitionCount));
 
@@ -592,7 +639,7 @@ namespace DurableTask.AzureStorage
             TimeSpan receiveTimeout,
             CancellationToken cancellationToken)
         {
-            Guid traceActivityId = StartNewLogicalTraceScope();
+            Guid traceActivityId = StartNewLogicalTraceScope(useExisting: true);
 
             await this.EnsureTaskHubAsync();
 
@@ -632,7 +679,7 @@ namespace DurableTask.AzureStorage
                             // This can happen if a lease change occurs and a new node receives a message for an 
                             // orchestration that has not yet checkpointed its history. We abandon such messages
                             // so that they can be reprocessed after the history checkpoint has completed.
-                            AnalyticsEventSource.Log.ReceivedOutOfOrderMessage(
+                            this.settings.Logger.ReceivedOutOfOrderMessage(
                                 this.storageAccountName,
                                 this.settings.TaskHubName,
                                 session.Instance.InstanceId,
@@ -642,8 +689,7 @@ namespace DurableTask.AzureStorage
                                 Utils.GetTaskEventId(message.TaskMessage.Event),
                                 message.OriginalQueueMessage.Id,
                                 message.Episode.GetValueOrDefault(-1),
-                                session.LastCheckpointTime,
-                                Utils.ExtensionVersion);
+                                session.LastCheckpointTime);
                             outOfOrderMessages.Add(message);
                         }
                         else
@@ -714,7 +760,7 @@ namespace DurableTask.AzureStorage
                             eventListBuilder.Append(msg.TaskMessage.Event.EventType.ToString()).Append(',');
                         }
 
-                        AnalyticsEventSource.Log.DiscardingWorkItem(
+                        this.settings.Logger.DiscardingWorkItem(
                             this.storageAccountName,
                             this.settings.TaskHubName,
                             session.Instance.InstanceId,
@@ -722,8 +768,7 @@ namespace DurableTask.AzureStorage
                             orchestrationWorkItem.NewMessages.Count,
                             session.RuntimeState.Events.Count,
                             eventListBuilder.ToString(0, eventListBuilder.Length - 1) /* remove trailing comma */,
-                            warningMessage,
-                            Utils.ExtensionVersion);
+                            warningMessage);
 
                         // The instance has already completed or never existed. Delete this message batch.
                         await this.DeleteMessageBatchAsync(session, messagesToDiscard);
@@ -745,13 +790,12 @@ namespace DurableTask.AzureStorage
                 }
                 catch (Exception e)
                 {
-                    AnalyticsEventSource.Log.OrchestrationProcessingFailure(
+                    this.settings.Logger.OrchestrationProcessingFailure(
                         this.storageAccountName,
                         this.settings.TaskHubName,
                         session?.Instance.InstanceId ?? string.Empty,
                         session?.Instance.ExecutionId ?? string.Empty,
-                        e.ToString(),
-                        Utils.ExtensionVersion);
+                        e.ToString());
 
                     if (orchestrationWorkItem != null)
                     {
@@ -764,18 +808,33 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        internal static Guid StartNewLogicalTraceScope()
+        internal static Guid StartNewLogicalTraceScope(bool useExisting)
         {
-            // This call sets the activity trace ID both on the current thread context
-            // and on the logical call context. AnalyticsEventSource will use this 
-            // activity ID for all trace operations.
-            Guid traceActivityId = Guid.NewGuid();
+            // Starting in DurableTask.Core v2.4.0, a new trace activity will already be
+            // started and we don't need to start one ourselves.
+            // TODO: When distributed correlation is merged, use that instead.
+            Guid traceActivityId;
+            if (useExisting && EventSource.CurrentThreadActivityId != Guid.Empty)
+            {
+                traceActivityId = EventSource.CurrentThreadActivityId;
+            }
+            else
+            {
+                // No ambient trace activity ID was found or doesn't apply - create a new one
+                traceActivityId = Guid.NewGuid();
+            }
+
             AnalyticsEventSource.SetLogicalTraceActivityId(traceActivityId);
             return traceActivityId;
         }
 
-        internal static void TraceMessageReceived(MessageData data, string storageAccountName, string taskHubName)
+        internal static void TraceMessageReceived(AzureStorageOrchestrationServiceSettings settings, MessageData data, string storageAccountName)
         {
+            if (settings == null)
+            {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
             if (data == null)
             {
                 throw new ArgumentNullException(nameof(data));
@@ -784,10 +843,10 @@ namespace DurableTask.AzureStorage
             TaskMessage taskMessage = data.TaskMessage;
             CloudQueueMessage queueMessage = data.OriginalQueueMessage;
 
-            AnalyticsEventSource.Log.ReceivedMessage(
+            settings.Logger.ReceivedMessage(
                 data.ActivityId,
                 storageAccountName,
-                taskHubName,
+                settings.TaskHubName,
                 taskMessage.Event.EventType.ToString(),
                 Utils.GetTaskEventId(taskMessage.Event),
                 taskMessage.OrchestrationInstance.InstanceId,
@@ -799,8 +858,7 @@ namespace DurableTask.AzureStorage
                 data.TotalMessageSizeBytes,
                 data.QueueName /* PartitionId */,
                 data.SequenceNumber,
-                data.Episode.GetValueOrDefault(-1),
-                Utils.ExtensionVersion);
+                data.Episode.GetValueOrDefault(-1));
         }
 
         bool IsExecutableInstance(OrchestrationRuntimeState runtimeState, IList<TaskMessage> newMessages, out string message)
@@ -876,11 +934,10 @@ namespace DurableTask.AzureStorage
             OrchestrationSession session;
             if (!this.orchestrationSessionManager.TryGetExistingSession(workItem.InstanceId, out session))
             {
-                AnalyticsEventSource.Log.AssertFailure(
+                this.settings.Logger.AssertFailure(
                     this.storageAccountName,
                     this.settings.TaskHubName,
-                    $"{nameof(CompleteTaskOrchestrationWorkItemAsync)}: Session for instance {workItem.InstanceId} was not found!",
-                    Utils.ExtensionVersion);
+                    $"{nameof(CompleteTaskOrchestrationWorkItemAsync)}: Session for instance {workItem.InstanceId} was not found!");
                 return;
             }
 
@@ -932,13 +989,12 @@ namespace DurableTask.AzureStorage
                     // TODO: https://github.com/Azure/azure-functions-durable-extension/issues/332
                     //       It's possible that history updates may have been partially committed at this point.
                     //       If so, what are the implications of this as far as DurableTask.Core are concerned?
-                    AnalyticsEventSource.Log.OrchestrationProcessingFailure(
+                    this.settings.Logger.OrchestrationProcessingFailure(
                         this.storageAccountName,
                         this.settings.TaskHubName,
                         instanceId,
                         executionId,
-                        e.ToString(),
-                        Utils.ExtensionVersion);
+                        e.ToString());
                 }
 
                 throw;
@@ -1016,11 +1072,10 @@ namespace DurableTask.AzureStorage
             OrchestrationSession session;
             if (!this.orchestrationSessionManager.TryGetExistingSession(workItem.InstanceId, out session))
             {
-                AnalyticsEventSource.Log.AssertFailure(
+                this.settings.Logger.AssertFailure(
                     this.storageAccountName,
                     this.settings.TaskHubName,
-                    $"{nameof(RenewTaskOrchestrationWorkItemLockAsync)}: Session for instance {workItem.InstanceId} was not found!",
-                    Utils.ExtensionVersion);
+                    $"{nameof(RenewTaskOrchestrationWorkItemLockAsync)}: Session for instance {workItem.InstanceId} was not found!");
                 return;
             }
 
@@ -1042,11 +1097,10 @@ namespace DurableTask.AzureStorage
             OrchestrationSession session;
             if (!this.orchestrationSessionManager.TryGetExistingSession(workItem.InstanceId, out session))
             {
-                AnalyticsEventSource.Log.AssertFailure(
+                this.settings.Logger.AssertFailure(
                     this.storageAccountName,
                     this.settings.TaskHubName,
-                    $"{nameof(AbandonTaskOrchestrationWorkItemAsync)}: Session for instance {workItem.InstanceId} was not found!",
-                    Utils.ExtensionVersion);
+                    $"{nameof(AbandonTaskOrchestrationWorkItemAsync)}: Session for instance {workItem.InstanceId} was not found!");
                 return Utils.CompletedTask;
             }
 
@@ -1115,20 +1169,19 @@ namespace DurableTask.AzureStorage
                 }
 
                 Guid traceActivityId = Guid.NewGuid();
-                var session = new ActivitySession(this.storageAccountName, this.settings.TaskHubName, message, traceActivityId);
+                var session = new ActivitySession(this.settings, this.storageAccountName, message, traceActivityId);
                 session.StartNewLogicalTraceScope();
-                TraceMessageReceived(session.MessageData, this.storageAccountName, this.settings.TaskHubName);
+                TraceMessageReceived(this.settings, session.MessageData, this.storageAccountName);
                 session.TraceProcessingMessage(message, isExtendedSession: false);
 
                 if (!this.activeActivitySessions.TryAdd(message.Id, session))
                 {
                     // This means we're already processing this message. This is never expected since the message
                     // should be kept invisible via background calls to RenewTaskActivityWorkItemLockAsync.
-                    AnalyticsEventSource.Log.AssertFailure(
+                    this.settings.Logger.AssertFailure(
                         this.storageAccountName,
                         this.settings.TaskHubName,
-                        $"Work item queue message with ID = {message.Id} is being processed multiple times concurrently.",
-                        Utils.ExtensionVersion);
+                        $"Work item queue message with ID = {message.Id} is being processed multiple times concurrently.");
                     return null;
                 }
 
@@ -1150,11 +1203,10 @@ namespace DurableTask.AzureStorage
             if (!this.activeActivitySessions.TryGetValue(workItem.Id, out session))
             {
                 // The context does not exist - possibly because it was already removed.
-                AnalyticsEventSource.Log.AssertFailure(
+                this.settings.Logger.AssertFailure(
                     this.storageAccountName,
                     this.settings.TaskHubName,
-                    $"Could not find context for work item with ID = {workItem.Id}.",
-                    Utils.ExtensionVersion);
+                    $"Could not find context for work item with ID = {workItem.Id}.");
                 return;
             }
 
@@ -1208,11 +1260,10 @@ namespace DurableTask.AzureStorage
             if (!this.activeActivitySessions.TryGetValue(workItem.Id, out session))
             {
                 // The context does not exist - possibly because it was already removed.
-                AnalyticsEventSource.Log.AssertFailure(
+                this.settings.Logger.AssertFailure(
                     this.storageAccountName,
                     this.settings.TaskHubName,
-                    $"Could not find context for work item with ID = {workItem.Id}.",
-                    Utils.ExtensionVersion);
+                    $"Could not find context for work item with ID = {workItem.Id}.");
                 return;
             }
 

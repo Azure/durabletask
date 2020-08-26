@@ -404,5 +404,15 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
 
             Assert.IsNull(state);
         }
+
+        /// <summary>
+        /// Validates scheduled starts, ensuring that invalid operation exception is raised since the feature is not supported
+        /// </summary>
+        [TestMethod]
+        public async Task ScheduledStartTest_NotSupported()
+        {
+            var expectedStartTime = DateTime.UtcNow.AddSeconds(30);
+            await Assert.ThrowsExceptionAsync<NotSupportedException>(() => this.taskHubClient.CreateScheduledOrchestrationInstanceAsync(typeof(SimpleOrchestrationWithTasks), null, expectedStartTime));
+        }
     }
 }

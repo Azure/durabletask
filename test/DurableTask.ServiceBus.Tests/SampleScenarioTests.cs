@@ -22,6 +22,7 @@ namespace DurableTask.ServiceBus.Tests
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.Tests;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
+    using DurableTask.Core.Common;
 
     [TestClass]
     public class SampleScenarioTests
@@ -839,6 +840,59 @@ namespace DurableTask.ServiceBus.Tests
             }
         }
 
+        #endregion
+
+        #region StartAt Test
+
+        public class StartAtTimeOrchestration : TaskOrchestration<DateTime, string>
+        {
+            public override Task<DateTime> RunTask(OrchestrationContext context, string input)
+            {
+                return Task.FromResult(context.CurrentUtcDateTime);
+            }
+        }
+
+        /// <summary>
+        /// Validates scheduled starts, ensuring they are executed according to defined start date time
+        /// </summary>
+        [TestMethod]
+        public async Task ScheduledStart()
+        {
+            const int MaxSecondsToCompleteNotDelayedOrchestration = 10;
+
+            await this.taskHub.AddTaskOrchestrations(typeof(StartAtTimeOrchestration))
+               .StartAsync();
+
+            // orchestrationId1 has delayed start
+            var delay = TimeSpan.FromSeconds(30);
+            var expectedStartTime = DateTime.UtcNow.Add(delay);            
+            OrchestrationInstance orchestrationId1 = await this.client.CreateScheduledOrchestrationInstanceAsync(typeof(StartAtTimeOrchestration), null, expectedStartTime);
+
+            // orchestrationId2 can start immediately
+            OrchestrationInstance orchestrationId2 = await this.client.CreateOrchestrationInstanceAsync(typeof(StartAtTimeOrchestration), null);
+
+            // Ensure that the orchestration with delay has been created properly
+            var orchestration1StateAfterCreation = await this.client.GetOrchestrationStateAsync(orchestrationId1);
+            Assert.AreEqual(OrchestrationStatus.Pending, orchestration1StateAfterCreation.OrchestrationStatus);
+
+            // Ensure that the orchestration without delay has been created properly
+            var orchestration2StateAfterCreation = await this.client.GetOrchestrationStateAsync(orchestrationId2);            
+            Assert.IsTrue(new[] { OrchestrationStatus.Pending, OrchestrationStatus.Running, OrchestrationStatus.Completed }.Contains(orchestration2StateAfterCreation.OrchestrationStatus));
+
+            // Wait until orchestration 2 (not delayed) is complete
+            bool isOrchestration2Complete = await TestHelpers.WaitForInstanceAsync(this.client, orchestrationId2, 60);
+            Assert.IsTrue(isOrchestration2Complete, TestHelpers.GetInstanceNotCompletedMessage(this.client, orchestrationId2, 60));
+            var orchestration2CompletedState = await client.GetOrchestrationStateAsync(orchestrationId2);
+            var orchestration2TimeToCompleteInSeconds = (int)orchestration2CompletedState.CompletedTime.Subtract(orchestration2CompletedState.CreatedTime).TotalSeconds;
+            Assert.IsTrue(orchestration2TimeToCompleteInSeconds < MaxSecondsToCompleteNotDelayedOrchestration, $"Expected not delayed orchestration to be complete in under {MaxSecondsToCompleteNotDelayedOrchestration} secs, but was {orchestration2TimeToCompleteInSeconds}");
+
+            // Wait until orchestration 1 (delayed) is complete
+            bool isOrchestration1Complete = await TestHelpers.WaitForInstanceAsync(this.client, orchestrationId1, 60);
+            Assert.IsTrue(isOrchestration1Complete, TestHelpers.GetInstanceNotCompletedMessage(this.client, orchestrationId1, 60));
+            var orchestration1CompletedState = await client.GetOrchestrationStateAsync(orchestrationId1);
+            var orchestration1TimeToCompleteInSeconds = (int)orchestration1CompletedState.CompletedTime.Subtract(orchestration1CompletedState.CreatedTime).TotalSeconds;
+            Assert.IsTrue(orchestration1TimeToCompleteInSeconds >= delay.TotalSeconds, $"Expected delayed orchestration to be completed after {delay.TotalSeconds} seconds or more relative to the creation time, but was {orchestration1TimeToCompleteInSeconds} seconds");
+        }
         #endregion
     }
 }

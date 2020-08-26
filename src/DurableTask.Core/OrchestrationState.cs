@@ -108,6 +108,12 @@ namespace DurableTask.Core
         public string Version;
 
         /// <summary>
+        /// Gets or sets date to start the orchestration
+        /// </summary>
+        [DataMember]
+        public DateTime? ScheduledStartTime { get; set; }
+
+        /// <summary>
         /// Implementation for <see cref="IExtensibleDataObject.ExtensionData"/>.
         /// </summary>
         public ExtensionDataObject ExtensionData { get; set; }

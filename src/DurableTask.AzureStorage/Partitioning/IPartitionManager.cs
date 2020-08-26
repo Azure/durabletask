@@ -13,11 +13,21 @@
 
 namespace DurableTask.AzureStorage.Partitioning
 {
+    using System.Collections.Generic;
     using System.Threading.Tasks;
 
-    interface IPartitionObserver<T> where T : Lease
+    interface IPartitionManager
     {
-        Task OnPartitionAcquiredAsync(T l);
-        Task OnPartitionReleasedAsync(T l, CloseReason reason);
+        Task StartAsync();
+
+        Task StopAsync();
+
+        Task CreateLeaseStore();
+
+        Task CreateLease(string leaseName);
+
+        Task DeleteLeases();
+
+        Task<IEnumerable<BlobLease>> GetOwnershipBlobLeases();
     }
 }

@@ -220,7 +220,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             int currentEpisodeNumber = Utils.GetEpisodeNumber(historyEvents);
 
-            AnalyticsEventSource.Log.FetchedInstanceHistory(
+            this.settings.Logger.FetchedInstanceHistory(
                 this.storageAccountName,
                 this.taskHubName,
                 instanceId,
@@ -230,8 +230,7 @@ namespace DurableTask.AzureStorage.Tracking
                 historyEntitiesResponseInfo.RequestCount,
                 historyEntitiesResponseInfo.ElapsedMilliseconds,
                 eTagValue,
-                checkpointCompletionTime,
-                Utils.ExtensionVersion);
+                checkpointCompletionTime);
 
             return new OrchestrationHistory(historyEvents, checkpointCompletionTime, eTagValue);
         }
@@ -341,7 +340,7 @@ namespace DurableTask.AzureStorage.Tracking
                 entities[0].Properties["ExecutionId"].StringValue :
                 string.Empty;
 
-            AnalyticsEventSource.Log.FetchedInstanceHistory(
+            this.settings.Logger.FetchedInstanceHistory(
                 this.storageAccountName,
                 this.taskHubName,
                 instanceId,
@@ -351,8 +350,7 @@ namespace DurableTask.AzureStorage.Tracking
                 requestCount,
                 stopwatch.ElapsedMilliseconds,
                 string.Empty /* ETag */,
-                DateTime.MinValue,
-                Utils.ExtensionVersion);
+                DateTime.MinValue);
 
             return entities; 
         }
@@ -516,13 +514,12 @@ namespace DurableTask.AzureStorage.Tracking
             this.stats.StorageRequests.Increment();
             this.stats.TableEntitiesRead.Increment(1);
 
-            AnalyticsEventSource.Log.FetchedInstanceStatus(
+            this.settings.Logger.FetchedInstanceStatus(
                 this.storageAccountName,
                 this.taskHubName,
                 instanceId,
                 executionId ?? string.Empty,
-                stopwatch.ElapsedMilliseconds,
-                Utils.ExtensionVersion);
+                stopwatch.ElapsedMilliseconds);
 
             OrchestrationInstanceStatus orchestrationInstanceStatus = (OrchestrationInstanceStatus)orchestration.Result;
             if (orchestrationInstanceStatus == null)
@@ -556,6 +553,7 @@ namespace DurableTask.AzureStorage.Tracking
             orchestrationState.LastUpdatedTime = orchestrationInstanceStatus.LastUpdatedTime;
             orchestrationState.Input = orchestrationInstanceStatus.Input;
             orchestrationState.Output = orchestrationInstanceStatus.Output;
+            orchestrationState.ScheduledStartTime = orchestrationInstanceStatus.ScheduledStartTime;
 
             if (this.settings.FetchLargeMessageDataEnabled)
             {
@@ -766,51 +764,54 @@ namespace DurableTask.AzureStorage.Tracking
 
             if (orchestrationInstanceStatus != null)
             {
-                var deletionStats = await this.DeleteAllDataForOrchestrationInstance(orchestrationInstanceStatus);
+                PurgeHistoryResult result = await this.DeleteAllDataForOrchestrationInstance(orchestrationInstanceStatus);
 
-                AnalyticsEventSource.Log.PurgeInstanceHistory(
+                this.settings.Logger.PurgeInstanceHistory(
                     this.storageAccountName,
                     this.taskHubName,
                     instanceId,
                     DateTime.MinValue.ToString(),
                     DateTime.MinValue.ToString(),
-                    null,
-                    deletionStats.StorageRequests,
-                    stopwatch.ElapsedMilliseconds,
-                    Utils.ExtensionVersion);
+                    string.Empty,
+                    result.StorageRequests,
+                    result.InstancesDeleted,
+                    stopwatch.ElapsedMilliseconds);
 
-                return deletionStats;
+                return result;
             }
 
             return new PurgeHistoryResult(0, 0, 0);
         }
 
         /// <inheritdoc />
-        public override async Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
+        public override async Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(
+            DateTime createdTimeFrom,
+            DateTime? createdTimeTo,
+            IEnumerable<OrchestrationStatus> runtimeStatus)
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
             List<OrchestrationStatus> runtimeStatusList =  runtimeStatus?.Where(
-               x => x == OrchestrationStatus.Completed ||
-                    x == OrchestrationStatus.Terminated ||
-                    x == OrchestrationStatus.Canceled ||
-                    x == OrchestrationStatus.Failed).ToList();
+               status => status == OrchestrationStatus.Completed ||
+                    status == OrchestrationStatus.Terminated ||
+                    status == OrchestrationStatus.Canceled ||
+                    status == OrchestrationStatus.Failed).ToList();
 
-            var stats = await this.DeleteHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatusList);
+            PurgeHistoryResult result = await this.DeleteHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatusList);
 
-            AnalyticsEventSource.Log.PurgeInstanceHistory(
+            this.settings.Logger.PurgeInstanceHistory(
                 this.storageAccountName,
                 this.taskHubName,
                 string.Empty,
                 createdTimeFrom.ToString(),
                 createdTimeTo.ToString() ?? DateTime.MinValue.ToString(),
                 runtimeStatus != null ?
-                    string.Join(",", runtimeStatus.Select(x => x.ToString()).ToArray()) :
+                    string.Join(",", runtimeStatus.Select(x => x.ToString())) :
                     string.Empty,
-                stats.StorageRequests,
-                stopwatch.ElapsedMilliseconds,
-                Utils.ExtensionVersion);
+                result.StorageRequests,
+                result.InstancesDeleted,
+                stopwatch.ElapsedMilliseconds);
 
-            return stats;
+            return result;
         }
 
         /// <inheritdoc />
@@ -830,7 +831,8 @@ namespace DurableTask.AzureStorage.Tracking
                     ["Version"] = new EntityProperty(executionStartedEvent.Version),
                     ["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Pending.ToString()),
                     ["LastUpdatedTime"] = new EntityProperty(DateTime.UtcNow),
-                    ["TaskHubName"] = new EntityProperty(this.settings.TaskHubName)
+                    ["TaskHubName"] = new EntityProperty(this.settings.TaskHubName),
+                    ["ScheduledStartTime"] = new EntityProperty(executionStartedEvent.ScheduledStartTime)
                 }
             };
 
@@ -865,15 +867,14 @@ namespace DurableTask.AzureStorage.Tracking
             // Episode 0 means the orchestrator hasn't started yet.
             int currentEpisodeNumber = 0;
 
-            AnalyticsEventSource.Log.InstanceStatusUpdate(
+            this.settings.Logger.InstanceStatusUpdate(
                 this.storageAccountName,
                 this.taskHubName,
                 executionStartedEvent.OrchestrationInstance.InstanceId,
                 executionStartedEvent.OrchestrationInstance.ExecutionId,
-                executionStartedEvent.EventType.ToString(),
+                OrchestrationStatus.Pending,
                 currentEpisodeNumber,
-                stopwatch.ElapsedMilliseconds,
-                Utils.ExtensionVersion);
+                stopwatch.ElapsedMilliseconds);
 
             return true;
         }
@@ -900,15 +901,14 @@ namespace DurableTask.AzureStorage.Tracking
             // It's also not important to have for this particular trace.
             int currentEpisodeNumber = 0;
 
-            AnalyticsEventSource.Log.InstanceStatusUpdate(
+            this.settings.Logger.InstanceStatusUpdate(
                 this.storageAccountName,
                 this.taskHubName,
                 instanceId,
                 string.Empty,
-                nameof(EventType.GenericEvent),
+                OrchestrationStatus.Pending,
                 currentEpisodeNumber,
-                stopwatch.ElapsedMilliseconds,
-                Utils.ExtensionVersion);
+                stopwatch.ElapsedMilliseconds);
         }
 
 
@@ -937,7 +937,7 @@ namespace DurableTask.AzureStorage.Tracking
             var newEventListBuffer = new StringBuilder(4000);
             var historyEventBatch = new TableBatchOperation();
 
-            EventType? orchestratorEventType = null;
+            OrchestrationStatus runtimeStatus = OrchestrationStatus.Running;
 
             var instanceEntity = new DynamicTableEntity(instanceId, string.Empty)
             {
@@ -976,12 +976,14 @@ namespace DurableTask.AzureStorage.Tracking
                 switch (historyEvent.EventType)
                 {
                     case EventType.ExecutionStarted:
-                        orchestratorEventType = historyEvent.EventType;
+                        runtimeStatus = OrchestrationStatus.Running;
                         ExecutionStartedEvent executionStartedEvent = (ExecutionStartedEvent)historyEvent;
                         instanceEntity.Properties["Name"] = new EntityProperty(executionStartedEvent.Name);
                         instanceEntity.Properties["Version"] = new EntityProperty(executionStartedEvent.Version);
                         instanceEntity.Properties["CreatedTime"] = new EntityProperty(executionStartedEvent.Timestamp);
                         instanceEntity.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Running.ToString());
+                        if (executionStartedEvent.ScheduledStartTime.HasValue)
+                            instanceEntity.Properties["ScheduledStartTime"] = new EntityProperty(executionStartedEvent.ScheduledStartTime);
                         this.SetInstancesTablePropertyFromHistoryProperty(
                             historyEntity,
                             instanceEntity,
@@ -990,8 +992,8 @@ namespace DurableTask.AzureStorage.Tracking
                             data: executionStartedEvent.Input);
                         break;
                     case EventType.ExecutionCompleted:
-                        orchestratorEventType = historyEvent.EventType;
                         ExecutionCompletedEvent executionCompleted = (ExecutionCompletedEvent)historyEvent;
+                        runtimeStatus = executionCompleted.OrchestrationStatus;
                         instanceEntity.Properties["RuntimeStatus"] = new EntityProperty(executionCompleted.OrchestrationStatus.ToString());
                         this.SetInstancesTablePropertyFromHistoryProperty(
                             historyEntity,
@@ -1001,7 +1003,7 @@ namespace DurableTask.AzureStorage.Tracking
                             data: executionCompleted.Result);
                         break;
                     case EventType.ExecutionTerminated:
-                        orchestratorEventType = historyEvent.EventType;
+                        runtimeStatus = OrchestrationStatus.Terminated;
                         ExecutionTerminatedEvent executionTerminatedEvent = (ExecutionTerminatedEvent)historyEvent;
                         instanceEntity.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Terminated.ToString());
                         this.SetInstancesTablePropertyFromHistoryProperty(
@@ -1012,7 +1014,7 @@ namespace DurableTask.AzureStorage.Tracking
                             data: executionTerminatedEvent.Input);
                         break;
                     case EventType.ContinueAsNew:
-                        orchestratorEventType = historyEvent.EventType;
+                        runtimeStatus = OrchestrationStatus.ContinuedAsNew;
                         ExecutionCompletedEvent executionCompletedEvent = (ExecutionCompletedEvent)historyEvent;
                         instanceEntity.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.ContinuedAsNew.ToString());
                         this.SetInstancesTablePropertyFromHistoryProperty(
@@ -1066,15 +1068,14 @@ namespace DurableTask.AzureStorage.Tracking
             this.stats.StorageRequests.Increment();
             this.stats.TableEntitiesWritten.Increment();
 
-            AnalyticsEventSource.Log.InstanceStatusUpdate(
+            this.settings.Logger.InstanceStatusUpdate(
                 this.storageAccountName,
                 this.taskHubName,
                 instanceId,
                 executionId,
-                orchestratorEventType?.ToString() ?? string.Empty,
+                runtimeStatus,
                 episodeNumber,
-                orchestrationInstanceUpdateStopwatch.ElapsedMilliseconds,
-                Utils.ExtensionVersion);
+                orchestrationInstanceUpdateStopwatch.ElapsedMilliseconds);
 
             return eTagValue;
         }
@@ -1239,26 +1240,28 @@ namespace DurableTask.AzureStorage.Tracking
             IList<TableResult> tableResultList;
             try
             {
-                tableResultList = await this.HistoryTable.ExecuteBatchAsync(
-                    historyEventBatch,
-                    this.StorageTableRequestOptions,
-                    null);
+                var operationContext = new OperationContext { ClientRequestID = Guid.NewGuid().ToString() };
+                tableResultList = await TimeoutHandler.ExecuteWithTimeout(
+                    nameof(UploadHistoryBatch),
+                    operationContext.ClientRequestID,
+                    this.storageAccountName,
+                    this.settings, 
+                    () => this.HistoryTable.ExecuteBatchAsync(historyEventBatch, this.StorageTableRequestOptions, operationContext));
             }
             catch (StorageException ex)
             {
                 if (ex.RequestInformation.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
                 {
-                    AnalyticsEventSource.Log.SplitBrainDetected(
+                    this.settings.Logger.SplitBrainDetected(
                         this.storageAccountName,
                         this.taskHubName,
                         instanceId,
                         executionId,
-                        historyEventBatch.Count,
+                        historyEventBatch.Count - 1, // exclude sentinel from count
                         numberOfTotalEvents,
                         historyEventNamesBuffer.ToString(0, historyEventNamesBuffer.Length - 1), // remove trailing comma
                         stopwatch.ElapsedMilliseconds,
-                        eTagValue,
-                        Utils.ExtensionVersion);
+                        eTagValue);
                 }
 
                 throw;
@@ -1278,20 +1281,19 @@ namespace DurableTask.AzureStorage.Tracking
                 }
             }
 
-            AnalyticsEventSource.Log.AppendedInstanceHistory(
+            this.settings.Logger.AppendedInstanceHistory(
                 this.storageAccountName,
                 this.taskHubName,
                 instanceId,
                 executionId,
-                historyEventBatch.Count,
+                historyEventBatch.Count - 1, // exclude sentinel from count
                 numberOfTotalEvents,
                 historyEventNamesBuffer.ToString(0, historyEventNamesBuffer.Length - 1), // remove trailing comma
                 episodeNumber,
                 stopwatch.ElapsedMilliseconds,
                 estimatedBatchSizeInBytes,
                 string.Concat(eTagValue ?? "(null)", " -->", Environment.NewLine, newETagValue ?? "(null)"),
-                isFinalBatch,
-                Utils.ExtensionVersion);
+                isFinalBatch);
 
             return newETagValue;
         }

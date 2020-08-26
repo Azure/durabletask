@@ -19,12 +19,14 @@ namespace DurableTask.Core.Common
     using System.IO.Compression;
     using System.Runtime.ExceptionServices;
     using System.Text;
-    using System.Threading.Tasks;
-    using Newtonsoft.Json;
-    using DurableTask.Core.Exceptions;
-    using DurableTask.Core.Serializing;
-    using Tracing;
     using System.Threading;
+    using System.Threading.Tasks;
+    using DurableTask.Core.Exceptions;
+    using DurableTask.Core.History;
+    using DurableTask.Core.Serializing;
+    using DurableTask.Core.Tracing;
+    using Newtonsoft.Json;
+    using Newtonsoft.Json.Linq;
 
     /// <summary>
     /// Utility Methods
@@ -40,6 +42,23 @@ namespace DurableTask.Core.Common
             DateTime.MaxValue.Subtract(TimeSpan.FromDays(1)).ToUniversalTime();
 
         static readonly byte[] GzipHeader = { 0x1f, 0x8b };
+
+        /// <summary>
+        /// Gets the version of the DurableTask.Core nuget package, which by convension is the same as the assembly file version.
+        /// </summary>
+        internal static readonly string PackageVersion = FileVersionInfo.GetVersionInfo(typeof(TaskOrchestration).Assembly.Location).FileVersion;
+
+        /// <summary>
+        /// Gets or sets the name of the app, for use when writing structured event source traces.
+        /// </summary>
+        /// <remarks>
+        /// The default value comes from the WEBSITE_SITE_NAME environment variable, which is defined
+        /// in Azure App Service. Other environments can use DTFX_APP_NAME to set this value.
+        /// </remarks>
+        public static string AppName { get; set; } = 
+            Environment.GetEnvironmentVariable("WEBSITE_SITE_NAME") ??
+            Environment.GetEnvironmentVariable("DTFX_APP_NAME") ??
+            string.Empty;
 
         /// <summary>
         /// NoOp utility method
@@ -60,6 +79,18 @@ namespace DurableTask.Core.Common
             }
 
             return input;
+        }
+
+        internal static JArray ConvertToJArray(string input)
+        {
+            JArray jArray;
+            using (var stringReader = new StringReader(input))
+            using (var jsonTextReader = new JsonTextReader(stringReader) { DateParseHandling = DateParseHandling.None })
+            {
+                jArray = JArray.Load(jsonTextReader);
+            }
+
+            return jArray;
         }
 
         /// <summary>
@@ -433,6 +464,52 @@ namespace DurableTask.Core.Common
             var tcs = new TaskCompletionSource<bool>();
             cancellationToken.Register(s => ((TaskCompletionSource<bool>)s).SetResult(true), tcs);
             return Task.WhenAny(Task.Delay(timeout), tcs.Task);
+        }
+
+        /// <summary>
+        /// Gets the task event ID for the specified <see cref="HistoryEvent"/>.
+        /// </summary>
+        /// <param name="historyEvent">The history which may or may not contain a task event ID.</param>
+        /// <returns>Returns the task event ID or <c>-1</c> if none exists.</returns>
+        public static int GetTaskEventId(HistoryEvent historyEvent)
+        {
+            if (TryGetTaskScheduledId(historyEvent, out int taskScheduledId))
+            {
+                return taskScheduledId;
+            }
+
+            return historyEvent.EventId;
+        }
+
+        /// <summary>
+        /// Gets the task event ID for the specified <see cref="HistoryEvent"/> if one exists.
+        /// </summary>
+        /// <param name="historyEvent">The history which may or may not contain a task event ID.</param>
+        /// <param name="taskScheduledId">The task event ID or <c>-1</c> if none exists.</param>
+        /// <returns>Returns <c>true</c> if a task event ID was found; <c>false</c> otherwise.</returns>
+        public static bool TryGetTaskScheduledId(HistoryEvent historyEvent, out int taskScheduledId)
+        {
+            switch (historyEvent.EventType)
+            {
+                case EventType.TaskCompleted:
+                    taskScheduledId = ((TaskCompletedEvent)historyEvent).TaskScheduledId;
+                    return true;
+                case EventType.TaskFailed:
+                    taskScheduledId = ((TaskFailedEvent)historyEvent).TaskScheduledId;
+                    return true;
+                case EventType.SubOrchestrationInstanceCompleted:
+                    taskScheduledId = ((SubOrchestrationInstanceCompletedEvent)historyEvent).TaskScheduledId;
+                    return true;
+                case EventType.SubOrchestrationInstanceFailed:
+                    taskScheduledId = ((SubOrchestrationInstanceFailedEvent)historyEvent).TaskScheduledId;
+                    return true;
+                case EventType.TimerFired:
+                    taskScheduledId = ((TimerFiredEvent)historyEvent).TimerId;
+                    return true;
+                default:
+                    taskScheduledId = -1;
+                    return false;
+            }
         }
     }
 }

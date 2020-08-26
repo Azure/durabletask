@@ -19,6 +19,7 @@ namespace DurableTask.Core
     using System.Threading.Tasks;
     using DurableTask.Core.Common;
     using DurableTask.Core.Exceptions;
+    using DurableTask.Core.Logging;
     using DurableTask.Core.Tracing;
 
     /// <summary>
@@ -84,6 +85,9 @@ namespace DurableTask.Core
         /// </summary>
         public Func<Exception, int> GetDelayInSecondsAfterOnProcessException = (exception) => 0;
 
+        // The default log helper is a no-op
+        internal LogHelper LogHelper { get; set; } = new LogHelper(null);
+
         /// <summary>
         /// Creates a new Work Item Dispatcher with given name and identifier method
         /// </summary>
@@ -95,14 +99,13 @@ namespace DurableTask.Core
             string name, 
             Func<T, string> workItemIdentifier,
             Func<TimeSpan, CancellationToken, Task<T>> fetchWorkItem,
-            Func<T, Task> processWorkItem
-            )
+            Func<T, Task> processWorkItem)
         {
             this.name = name;
             this.id = Guid.NewGuid().ToString("N");
             this.workItemIdentifier = workItemIdentifier ?? throw new ArgumentNullException(nameof(workItemIdentifier));
-            FetchWorkItem = fetchWorkItem ?? throw new ArgumentNullException(nameof(fetchWorkItem));
-            ProcessWorkItem = processWorkItem ?? throw new ArgumentNullException(nameof(processWorkItem));
+            this.FetchWorkItem = fetchWorkItem ?? throw new ArgumentNullException(nameof(fetchWorkItem));
+            this.ProcessWorkItem = processWorkItem ?? throw new ArgumentNullException(nameof(processWorkItem));
         }
 
         /// <summary>
@@ -122,7 +125,7 @@ namespace DurableTask.Core
                     }
 
                     this.concurrencyLock?.Dispose();
-                    this.concurrencyLock = new SemaphoreSlim(MaxConcurrentWorkItems);
+                    this.concurrencyLock = new SemaphoreSlim(this.MaxConcurrentWorkItems);
 
                     this.shutdownCancellationTokenSource?.Dispose();
                     this.shutdownCancellationTokenSource = new CancellationTokenSource();
@@ -131,12 +134,15 @@ namespace DurableTask.Core
 
                     TraceHelper.Trace(TraceEventType.Information, "WorkItemDispatcherStart", $"WorkItemDispatcher('{this.name}') starting. Id {this.id}.");
 
-                    for (var i = 0; i < DispatcherCount; i++)
+                    for (var i = 0; i < this.DispatcherCount; i++)
                     {
                         string dispatcherId = i.ToString();
+                        var context = new WorkItemDispatcherContext(this.name, this.id, dispatcherId);
+                        this.LogHelper.DispatcherStarting(context);
+
                         // We just want this to Run we intentionally don't wait
                         #pragma warning disable 4014
-                        Task.Run(() => DispatchAsync(dispatcherId));
+                        Task.Run(() => this.DispatchAsync(context));
                         #pragma warning restore 4014
                     }
                 }
@@ -175,6 +181,7 @@ namespace DurableTask.Core
                     var retryCount = 7;
                     while (!this.AllWorkItemsCompleted() && retryCount-- >= 0)
                     {
+                        this.LogHelper.DispatchersStopping(this.name, this.id, this.concurrentWorkItemCount, this.activeFetchers);
                         TraceHelper.Trace(TraceEventType.Information, "WorkItemDispatcherStop-Waiting", $"WorkItemDispatcher('{this.name}') waiting to stop. Id {this.id}. WorkItemCount: {this.concurrentWorkItemCount}, ActiveFetchers: {this.activeFetchers}");
                         await Task.Delay(1000);
                     }
@@ -210,36 +217,65 @@ namespace DurableTask.Core
             return false;
         }
 
-        async Task DispatchAsync(string dispatcherId)
+        async Task DispatchAsync(WorkItemDispatcherContext context)
         {
-            var context = new WorkItemDispatcherContext(this.name, this.id, dispatcherId);
+            string dispatcherId = context.DispatcherId;
 
+            bool logThrottle = true;
             while (this.isStarted)
             {
                 if (!await this.concurrencyLock.WaitAsync(TimeSpan.FromSeconds(5)))
                 {
-                    TraceHelper.Trace(
-                        TraceEventType.Warning,
-                        "WorkItemDispatcherDispatch-MaxOperations",
-                        GetFormattedLog(dispatcherId, $"Max concurrent operations ({this.concurrentWorkItemCount}) are already in progress. Still waiting for next accept."));
+                    if (logThrottle)
+                    {
+                        // This can happen frequently under heavy load.
+                        // To avoid log spam, we log just once until we can proceed.
+                        this.LogHelper.FetchingThrottled(
+                            context,
+                            this.concurrentWorkItemCount,
+                            this.MaxConcurrentWorkItems);
+                        TraceHelper.Trace(
+                            TraceEventType.Warning,
+                            "WorkItemDispatcherDispatch-MaxOperations",
+                            this.GetFormattedLog(dispatcherId, $"Max concurrent operations ({this.concurrentWorkItemCount}) are already in progress. Still waiting for next accept."));
+                        
+                        logThrottle = false;
+                    }
+
                     continue;
                 }
+
+                logThrottle = true;
 
                 var delaySecs = 0;
                 T workItem = default(T);
                 try
                 {
                     Interlocked.Increment(ref this.activeFetchers);
+                    this.LogHelper.FetchWorkItemStarting(context, DefaultReceiveTimeout, this.concurrentWorkItemCount, this.MaxConcurrentWorkItems);
                     TraceHelper.Trace(
                         TraceEventType.Verbose, 
                         "WorkItemDispatcherDispatch-StartFetch",
-                        GetFormattedLog(dispatcherId, $"Starting fetch with timeout of {DefaultReceiveTimeout} ({this.concurrentWorkItemCount}/{MaxConcurrentWorkItems} max)"));
+                        this.GetFormattedLog(dispatcherId, $"Starting fetch with timeout of {DefaultReceiveTimeout} ({this.concurrentWorkItemCount}/{this.MaxConcurrentWorkItems} max)"));
+
                     Stopwatch timer = Stopwatch.StartNew();
-                    workItem = await FetchWorkItem(DefaultReceiveTimeout, this.shutdownCancellationTokenSource.Token);
+                    workItem = await this.FetchWorkItem(DefaultReceiveTimeout, this.shutdownCancellationTokenSource.Token);
+
+                    if (!IsNull(workItem))
+                    {
+                        string workItemId = this.workItemIdentifier(workItem);
+                        this.LogHelper.FetchWorkItemCompleted(
+                            context,
+                            workItemId,
+                            timer.Elapsed,
+                            this.concurrentWorkItemCount,
+                            this.MaxConcurrentWorkItems);
+                    }
+
                     TraceHelper.Trace(
                         TraceEventType.Verbose, 
                         "WorkItemDispatcherDispatch-EndFetch",
-                        GetFormattedLog(dispatcherId, $"After fetch ({timer.ElapsedMilliseconds} ms) ({this.concurrentWorkItemCount}/{MaxConcurrentWorkItems} max)"));
+                        this.GetFormattedLog(dispatcherId, $"After fetch ({timer.ElapsedMilliseconds} ms) ({this.concurrentWorkItemCount}/{this.MaxConcurrentWorkItems} max)"));
                 }
                 catch (TimeoutException)
                 {
@@ -250,7 +286,7 @@ namespace DurableTask.Core
                     TraceHelper.Trace(
                         TraceEventType.Information,
                         "WorkItemDispatcherDispatch-TaskCanceledException",
-                        GetFormattedLog(dispatcherId, $"TaskCanceledException while fetching workItem, should be harmless: {exception.Message}"));
+                        this.GetFormattedLog(dispatcherId, $"TaskCanceledException while fetching workItem, should be harmless: {exception.Message}"));
                     delaySecs = this.GetDelayInSecondsAfterOnFetchException(exception);
                 }
                 catch (Exception exception)
@@ -260,16 +296,17 @@ namespace DurableTask.Core
                         TraceHelper.Trace(
                             TraceEventType.Information, 
                             "WorkItemDispatcherDispatch-HarmlessException",
-                            GetFormattedLog(dispatcherId, $"Harmless exception while fetching workItem after Stop(): {exception.Message}"));
+                            this.GetFormattedLog(dispatcherId, $"Harmless exception while fetching workItem after Stop(): {exception.Message}"));
                     }
                     else
                     {
+                        this.LogHelper.FetchWorkItemFailure(context, exception);
                         // TODO : dump full node context here
                         TraceHelper.TraceException(
                             TraceEventType.Warning, 
                             "WorkItemDispatcherDispatch-Exception", 
                             exception,
-                            GetFormattedLog(dispatcherId, $"Exception while fetching workItem: {exception.Message}"));
+                            this.GetFormattedLog(dispatcherId, $"Exception while fetching workItem: {exception.Message}"));
                         delaySecs = this.GetDelayInSecondsAfterOnFetchException(exception);
                     }
                 }
@@ -279,7 +316,7 @@ namespace DurableTask.Core
                 }
 
                 var scheduledWorkItem = false;
-                if (!(Equals(workItem, default(T))))
+                if (!IsNull(workItem))
                 {
                     if (!this.isStarted)
                     {
@@ -293,7 +330,7 @@ namespace DurableTask.Core
                         Interlocked.Increment(ref this.concurrentWorkItemCount);
                         // We just want this to Run we intentionally don't wait
                         #pragma warning disable 4014 
-                        Task.Run(() => ProcessWorkItemAsync(context, workItem));
+                        Task.Run(() => this.ProcessWorkItemAsync(context, workItem));
                         #pragma warning restore 4014
 
                         scheduledWorkItem = true;
@@ -311,7 +348,11 @@ namespace DurableTask.Core
                     this.concurrencyLock.Release();
                 }
             }
+
+            this.LogHelper.DispatcherStopped(context);
         }
+
+        static bool IsNull(T value) => Equals(value, default(T));
 
         async Task ProcessWorkItemAsync(WorkItemDispatcherContext context, object workItemObj)
         {
@@ -323,36 +364,43 @@ namespace DurableTask.Core
             {
                 workItemId = this.workItemIdentifier(workItem);
 
+                this.LogHelper.ProcessWorkItemStarting(context, workItemId);
                 TraceHelper.Trace(
                     TraceEventType.Information, 
                     "WorkItemDispatcherProcess-Begin",
-                    GetFormattedLog(context.DispatcherId, $"Starting to process workItem {workItemId}"));
+                    this.GetFormattedLog(context.DispatcherId, $"Starting to process workItem {workItemId}"));
 
-                await ProcessWorkItem(workItem);
+                await this.ProcessWorkItem(workItem);
 
-                AdjustDelayModifierOnSuccess();
+                this.AdjustDelayModifierOnSuccess();
 
+                this.LogHelper.ProcessWorkItemCompleted(context, workItemId);
                 TraceHelper.Trace(
                     TraceEventType.Information, 
                     "WorkItemDispatcherProcess-End",
-                    GetFormattedLog(context.DispatcherId, $"Finished processing workItem {workItemId}"));
+                    this.GetFormattedLog(context.DispatcherId, $"Finished processing workItem {workItemId}"));
 
                 abortWorkItem = false;
             }
             catch (TypeMissingException exception)
             {
+                this.LogHelper.ProcessWorkItemFailed(
+                    context,
+                    workItemId,
+                    $"Backing off for {BackOffIntervalOnInvalidOperationSecs} seconds",
+                    exception);
                 TraceHelper.TraceException(
                     TraceEventType.Error, 
                     "WorkItemDispatcherProcess-TypeMissingException", 
                     exception,
-                    GetFormattedLog(context.DispatcherId, $"Exception while processing workItem {workItemId}"));
+                    this.GetFormattedLog(context.DispatcherId, $"Exception while processing workItem {workItemId}"));
                 TraceHelper.Trace(
                     TraceEventType.Error, 
                     "WorkItemDispatcherProcess-TypeMissingBackingOff",
                     "Backing off after invalid operation by " + BackOffIntervalOnInvalidOperationSecs);
 
                 // every time we hit invalid operation exception we back off the dispatcher
-                AdjustDelayModifierOnFailure(BackOffIntervalOnInvalidOperationSecs);
+                this.AdjustDelayModifierOnFailure(BackOffIntervalOnInvalidOperationSecs);
             }
             catch (Exception exception) when (!Utils.IsFatal(exception))
             {
@@ -360,24 +408,29 @@ namespace DurableTask.Core
                     TraceEventType.Error, 
                     "WorkItemDispatcherProcess-Exception", 
                     exception,
-                    GetFormattedLog(context.DispatcherId, $"Exception while processing workItem {workItemId}"));
+                    this.GetFormattedLog(context.DispatcherId, $"Exception while processing workItem {workItemId}"));
 
                 int delayInSecs = this.GetDelayInSecondsAfterOnProcessException(exception);
                 if (delayInSecs > 0)
                 {
+                    this.LogHelper.ProcessWorkItemFailed(
+                        context,
+                        workItemId,
+                        $"Backing off for {delayInSecs} seconds until {CountDownToZeroDelay} successful operations",
+                        exception);
                     TraceHelper.Trace(
                         TraceEventType.Error, 
                         "WorkItemDispatcherProcess-BackingOff",
                         "Backing off after exception by at least " + delayInSecs + " until " + CountDownToZeroDelay +
                         " successful operations");
 
-                    AdjustDelayModifierOnFailure(delayInSecs);
+                    this.AdjustDelayModifierOnFailure(delayInSecs);
                 }
                 else
                 {
                     // if the derived dispatcher doesn't think this exception worthy of back-off then
                     // count it as a 'successful' operation
-                    AdjustDelayModifierOnSuccess();
+                    this.AdjustDelayModifierOnSuccess();
                 }
             }
             finally
@@ -388,12 +441,20 @@ namespace DurableTask.Core
 
             if (abortWorkItem && this.AbortWorkItem != null)
             {
-                await ExceptionTraceWrapperAsync(() => this.AbortWorkItem(workItem));
+                await this.ExceptionTraceWrapperAsync(
+                    context,
+                    workItemId,
+                    nameof(this.AbortWorkItem),
+                    () => this.AbortWorkItem(workItem));
             }
 
             if (this.SafeReleaseWorkItem != null)
             {
-                await ExceptionTraceWrapperAsync(() => this.SafeReleaseWorkItem(workItem));
+                await this.ExceptionTraceWrapperAsync(
+                    context,
+                    workItemId,
+                    nameof(this.SafeReleaseWorkItem),
+                    () => this.SafeReleaseWorkItem(workItem));
             }
         }
 
@@ -422,7 +483,11 @@ namespace DurableTask.Core
             }
         }
 
-        async Task ExceptionTraceWrapperAsync(Func<Task> asyncAction)
+        async Task ExceptionTraceWrapperAsync(
+            WorkItemDispatcherContext context,
+            string workItemId,
+            string operation,
+            Func<Task> asyncAction)
         {
             try
             {
@@ -431,6 +496,7 @@ namespace DurableTask.Core
             catch (Exception exception) when (!Utils.IsFatal(exception))
             {
                 // eat and move on 
+                this.LogHelper.ProcessWorkItemFailed(context, workItemId, operation, exception);
                 TraceHelper.TraceException(TraceEventType.Error, "WorkItemDispatcher-ExceptionTraceError", exception);
             }
         }
@@ -449,7 +515,7 @@ namespace DurableTask.Core
         /// <inheritdoc />
         public void Dispose()
         {
-            Dispose(true);
+            this.Dispose(true);
             GC.SuppressFinalize(this);
         }
 

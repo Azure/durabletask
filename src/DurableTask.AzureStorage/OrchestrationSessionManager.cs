@@ -62,13 +62,12 @@ namespace DurableTask.AzureStorage
             }
             else
             {
-                AnalyticsEventSource.Log.PartitionManagerWarning(
+                this.settings.Logger.PartitionManagerWarning(
                     this.storageAccountName,
                     this.settings.TaskHubName,
                     this.settings.WorkerId,
                     partitionId,
-                    $"Attempted to add a control queue {controlQueue.Name} multiple times!",
-                    Utils.ExtensionVersion);
+                    $"Attempted to add a control queue {controlQueue.Name} multiple times!");
             }
         }
 
@@ -80,25 +79,76 @@ namespace DurableTask.AzureStorage
             }
             else
             {
-                AnalyticsEventSource.Log.PartitionManagerWarning(
+                this.settings.Logger.PartitionManagerWarning(
                     this.storageAccountName,
                     this.settings.TaskHubName,
                     this.settings.WorkerId,
                     partitionId,
-                    $"Attempted to remove control queue {controlQueue.Name}, which wasn't being watched!",
-                    Utils.ExtensionVersion);
+                    $"Attempted to remove control queue {partitionId}, which wasn't being watched!");
             }
+        }
+
+
+        public void ReleaseQueue(string partitionId)
+        {
+            if (this.ownedControlQueues.TryGetValue(partitionId, out ControlQueue controlQueue))
+            {
+                controlQueue.Release();
+            }
+            else
+            {
+                this.settings.Logger.PartitionManagerWarning(
+                    this.storageAccountName,
+                    this.settings.TaskHubName,
+                    this.settings.WorkerId,
+                    partitionId,
+                    $"Attempted to release control queue {partitionId}, which wasn't being watched!");
+            }
+        }
+
+        public bool ResumeListeningIfOwnQueue(string partitionId, ControlQueue controlQueue, CancellationToken shutdownToken)
+        {
+            if (this.ownedControlQueues.TryGetValue(partitionId, out ControlQueue ownedControlQueue))
+            {
+                if (ownedControlQueue.IsReleased)
+                {
+                    // The easiest way to resume listening is to re-add a new queue that has not been released.
+                    this.RemoveQueue(partitionId);
+                    this.AddQueue(partitionId, controlQueue, shutdownToken);
+                }
+                else
+                {
+                    this.settings.Logger.PartitionManagerWarning(
+                        this.storageAccountName,
+                        this.settings.TaskHubName,
+                        this.settings.WorkerId,
+                        partitionId,
+                        $"Attempted to resume listening on control queue {controlQueue.Name}, which wasn't released!");
+                }
+            }
+
+            return false;
+        }
+
+        public bool IsControlQueueReceivingMessages(string partitionId)
+        {
+            return this.ownedControlQueues.TryGetValue(partitionId, out ControlQueue controlQueue)
+                && !controlQueue.IsReleased;
+        }
+
+        public bool IsControlQueueProcessingMessages(string partitionId)
+        {
+            return this.activeOrchestrationSessions.Values.Where(session => string.Equals(session.ControlQueue.Name, partitionId)).Any();
         }
 
         async void DequeueLoop(string partitionId, ControlQueue controlQueue, CancellationToken cancellationToken)
         {
-            AnalyticsEventSource.Log.PartitionManagerInfo(
+            this.settings.Logger.PartitionManagerInfo(
                 this.storageAccountName,
                 this.settings.TaskHubName,
                 this.settings.WorkerId,
                 partitionId,
-                $"Started listening for messages on queue {controlQueue.Name}.",
-                Utils.ExtensionVersion);
+                $"Started listening for messages on queue {controlQueue.Name}.");
 
             try
             {
@@ -106,7 +156,7 @@ namespace DurableTask.AzureStorage
                 {
                     // Every dequeue operation has a common trace ID so that batches of dequeued messages can be correlated together.
                     // Both the dequeue traces and the processing traces will share the same "related" trace activity ID.
-                    Guid traceActivityId = AzureStorageOrchestrationService.StartNewLogicalTraceScope();
+                    Guid traceActivityId = AzureStorageOrchestrationService.StartNewLogicalTraceScope(useExisting: false);
 
                     // This will block until either new messages arrive or the queue is released.
                     IReadOnlyList<MessageData> messages = await controlQueue.GetMessagesAsync(cancellationToken);
@@ -119,13 +169,12 @@ namespace DurableTask.AzureStorage
             }
             finally
             {
-                AnalyticsEventSource.Log.PartitionManagerInfo(
+                this.settings.Logger.PartitionManagerInfo(
                     this.storageAccountName,
                     this.settings.TaskHubName,
                     this.settings.WorkerId,
                     partitionId,
-                    $"Stopped listening for messages on queue {controlQueue.Name}.",
-                    Utils.ExtensionVersion);
+                    $"Stopped listening for messages on queue {controlQueue.Name}.");
             }
         }
 
@@ -271,13 +320,12 @@ namespace DurableTask.AzureStorage
                 }
                 catch (Exception e)
                 {
-                    AnalyticsEventSource.Log.OrchestrationProcessingFailure(
+                    this.settings.Logger.OrchestrationProcessingFailure(
                         this.storageAccountName,
                         this.settings.TaskHubName,
                         batch.OrchestrationInstanceId,
                         batch.OrchestrationExecutionId,
-                        e.ToString(),
-                        Utils.ExtensionVersion);
+                        e.ToString());
 
                     // Sleep briefly to avoid a tight failure loop.
                     await Task.Delay(TimeSpan.FromSeconds(5));
@@ -312,11 +360,11 @@ namespace DurableTask.AzureStorage
                                 ExecutionId = nextBatch.OrchestrationExecutionId,
                             };
 
-                        Guid traceActivityId = AzureStorageOrchestrationService.StartNewLogicalTraceScope();
+                        Guid traceActivityId = AzureStorageOrchestrationService.StartNewLogicalTraceScope(useExisting: true);
 
                         OrchestrationSession session = new OrchestrationSession(
+                            this.settings,
                             this.storageAccountName,
-                            this.settings.TaskHubName,
                             instance,
                             nextBatch.ControlQueue,
                             nextBatch.Messages,
@@ -395,11 +443,10 @@ namespace DurableTask.AzureStorage
                 }
                 else
                 {
-                    AnalyticsEventSource.Log.AssertFailure(
+                    this.settings.Logger.AssertFailure(
                         this.storageAccountName,
                         this.settings.TaskHubName,
-                        $"{nameof(TryReleaseSession)}: Session for instance {instanceId} was not found!",
-                        Utils.ExtensionVersion);
+                        $"{nameof(TryReleaseSession)}: Session for instance {instanceId} was not found!");
                     return false;
                 }
             }

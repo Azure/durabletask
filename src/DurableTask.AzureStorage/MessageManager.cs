@@ -22,7 +22,6 @@ namespace DurableTask.AzureStorage
     using System.Text;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Monitoring;
-    using DurableTask.Core;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Blob;
     using Microsoft.WindowsAzure.Storage.Queue;
@@ -34,11 +33,10 @@ namespace DurableTask.AzureStorage
     /// </summary>
     class MessageManager
     {
-        const int MaxStorageQueuePayloadSizeInBytes = 60 * 1024; // 60KB
+        // Use 45 KB, as the Storage SDK will base64 encode the message,
+        // increasing the size by a factor of 4/3.
+        const int MaxStorageQueuePayloadSizeInBytes = 45 * 1024; // 45KB
         const int DefaultBufferSize = 64 * 2014; // 64KB
-
-        const string LargeMessageBlobNameSeparator = "/";
-        const string blobExtension = ".json.gz";
 
         readonly string blobContainerName;
         readonly CloudBlobContainer cloudBlobContainer;
@@ -92,7 +90,7 @@ namespace DurableTask.AzureStorage
         public async Task<string> SerializeMessageDataAsync(MessageData messageData)
         {
             string rawContent = JsonConvert.SerializeObject(messageData, this.taskMessageSerializerSettings);
-            messageData.TotalMessageSizeBytes = Encoding.Unicode.GetByteCount(rawContent);
+            messageData.TotalMessageSizeBytes = Encoding.UTF8.GetByteCount(rawContent);
             MessageFormatFlags messageFormat = this.GetMessageFormatFlags(messageData);
 
             if (messageFormat != MessageFormatFlags.InlineJson)
@@ -148,7 +146,7 @@ namespace DurableTask.AzureStorage
             }
 
             envelope.OriginalQueueMessage = queueMessage;
-            envelope.TotalMessageSizeBytes = Encoding.Unicode.GetByteCount(queueMessage.AsString);
+            envelope.TotalMessageSizeBytes = Encoding.UTF8.GetByteCount(queueMessage.AsString);
             envelope.QueueName = queueName;
             return envelope;
         }
@@ -206,9 +204,14 @@ namespace DurableTask.AzureStorage
 
         private async Task<string> DownloadAndDecompressAsBytesAsync(CloudBlockBlob cloudBlockBlob)
         {
-            Stream downloadBlobAsStream = await cloudBlockBlob.OpenReadAsync();
-            ArraySegment<byte> decompressedSegment = this.Decompress(downloadBlobAsStream);
-            return Encoding.UTF8.GetString(decompressedSegment.Array, 0, decompressedSegment.Count);
+            using (MemoryStream memory = new MemoryStream(MaxStorageQueuePayloadSizeInBytes * 2))
+            {
+                await cloudBlockBlob.DownloadToStreamAsync(memory);
+                memory.Position = 0;
+
+                ArraySegment<byte> decompressedSegment = this.Decompress(memory);
+                return Encoding.UTF8.GetString(decompressedSegment.Array, 0, decompressedSegment.Count);
+            }
         }
 
         internal string GetBlobUrl(string blobName)

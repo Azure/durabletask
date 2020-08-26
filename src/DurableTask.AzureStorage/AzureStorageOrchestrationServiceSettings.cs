@@ -14,7 +14,10 @@
 namespace DurableTask.AzureStorage
 {
     using System;
+    using DurableTask.AzureStorage.Partitioning;
+    using DurableTask.AzureStorage.Logging;
     using DurableTask.Core;
+    using Microsoft.Extensions.Logging;
     using Microsoft.WindowsAzure.Storage.Queue;
     using Microsoft.WindowsAzure.Storage.Table;
 
@@ -26,6 +29,13 @@ namespace DurableTask.AzureStorage
         internal const int DefaultPartitionCount = 4;
 
         internal static readonly TimeSpan DefaultMaxQueuePollingInterval = TimeSpan.FromSeconds(30);
+
+        LogHelper logHelper;
+
+        /// <summary>
+        /// Gets or sets the name of the app.
+        /// </summary>
+        public string AppName { get; set; } = Utils.AppName;
 
         /// <summary>
         /// Gets or sets the number of messages to pull from the control queue at a time. The default is 32.
@@ -156,6 +166,16 @@ namespace DurableTask.AzureStorage
         public TimeSpan MaxQueuePollingInterval { get; set; } = DefaultMaxQueuePollingInterval;
 
         /// <summary>
+        /// If true, takes a lease on the task hub container, allowing for only one app to process messages in a task hub at a time.
+        /// </summary>
+        public bool UseAppLease { get; set; } = true;
+
+        /// <summary>
+        /// If UseAppLease is true, gets or sets the AppLeaaseOptions used for acquiring the lease to start the application.
+        /// </summary>
+        public AppLeaseOptions AppLeaseOptions { get; set; } = AppLeaseOptions.DefaultOptions;
+
+        /// <summary>
         /// Gets or sets the Azure Storage Account details
         /// If provided, this is used to connect to Azure Storage
         /// </summary>
@@ -178,12 +198,39 @@ namespace DurableTask.AzureStorage
         public bool ThrowExceptionOnInvalidDedupeStatus { get; set; } = false;
 
         /// <summary>
+        /// Use the legacy partition management strategy, which improves performance at the cost of being less resiliant
+        /// to split brain.
+        /// </summary>
+        public bool UseLegacyPartitionManagement { get; set; } = true;
+
+        /// <summary>
+        /// Gets or sets the optional <see cref="ILoggerFactory"/> to use for diagnostic logging.
+        /// </summary>
+        public ILoggerFactory LoggerFactory { get; set; } = NoOpLoggerFactory.Instance;
+
+        /// <summary>
         /// Returns bool indicating is the TrackingStoreStorageAccount has been set.
         /// </summary>
-        public  bool HasTrackingStoreStorageAccount => TrackingStoreStorageAccountDetails != null;
+        public  bool HasTrackingStoreStorageAccount => this.TrackingStoreStorageAccountDetails != null;
 
         internal string HistoryTableName => this.HasTrackingStoreStorageAccount ? $"{this.TrackingStoreNamePrefix}History" : $"{this.TaskHubName}History";
 
         internal string InstanceTableName => this.HasTrackingStoreStorageAccount ? $"{this.TrackingStoreNamePrefix}Instances" : $"{this.TaskHubName}Instances";
+
+        /// <summary>
+        /// Gets an instance of <see cref="LogHelper"/> that can be used for writing structured logs.
+        /// </summary>
+        internal LogHelper Logger
+        {
+            get
+            {
+                if (this.logHelper == null)
+                {
+                    this.logHelper = new LogHelper(this.LoggerFactory.CreateLogger("DurableTask.AzureStorage"));
+                }
+
+                return this.logHelper;
+            }
+        }
     }
 }
