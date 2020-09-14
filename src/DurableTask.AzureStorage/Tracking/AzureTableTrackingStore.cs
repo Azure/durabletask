@@ -836,8 +836,8 @@ namespace DurableTask.AzureStorage.Tracking
                 }
             };
 
-            // It is possible that the queue message was not large enough to be written to a blob,
-            // but is too large to be written to a table property.
+            // It is possible that the queue message was small enough to be written directly to a queue message,
+            // not a blob, but is too large to be written to a table property.
             await this.CompressLargeMessageAsync(entity);
 
             Stopwatch stopwatch = Stopwatch.StartNew();
