@@ -836,6 +836,8 @@ namespace DurableTask.AzureStorage.Tracking
                 }
             };
 
+            // It is possible that the queue message was not large enough to be written to a blob,
+            // but is too large to be written to a table property.
             await this.CompressLargeMessageAsync(entity);
 
             Stopwatch stopwatch = Stopwatch.StartNew();
@@ -1203,7 +1205,8 @@ namespace DurableTask.AzureStorage.Tracking
             }
             else if (property == "Input")
             {
-                // This queue is not actually tracked as input, so just use any name.
+                // This message is just to start the orchestration, so it does not have a corresponding
+                // EventType. Use a hardcoded value to record the orchestration input.
                 eventType = "Input";
             }
             else
