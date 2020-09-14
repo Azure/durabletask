@@ -316,24 +316,12 @@ namespace DurableTask.AzureStorage.Partitioning
                 }
                 else
                 {
-                    // If we are not the lease owner, attempt a best effort to delete
-                    // the container, but it is very likely we will not succeed as someone
-                    // else may own the lease.
-                    try
-                    {
-                        await this.appLeaseContainer.DeleteIfExistsAsync();
-                    }
-                    catch (StorageException)
-                    {
-                    }
+                    await this.appLeaseContainer.DeleteIfExistsAsync();
                 }
             }
-            catch (StorageException ex)
+            catch (StorageException)
             { 
-                if (ex.RequestInformation.HttpStatusCode != 404)
-                {
-                    throw;
-                }
+                // If we cannot delete the existing app lease due to another app having a lease, just ignore it.
             }
             finally
             {
