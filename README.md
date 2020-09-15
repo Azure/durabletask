@@ -1,76 +1,38 @@
-Breaking changes: VNext branch now merged to master!!
-======================
+# Durable Task Framework
 
-
-The vnext branch has now been merged into master with the follwing PR:
-https://github.com/Azure/durabletask/pull/104
-
-This merge contains some major refactoring primarily around building a provider model that decouples the core framework from Service Bus. As a result there are breaking changes both in terms of APIs as well as wire format. 
-
-To ugprade you will have to drop and recreate durable task artifacts. More details in an upcoming wiki entry soon. 
-
-Old master code will always be available in the rel/v1 branch. 
-
-Note that the framework is now published as multiple nuget packages bumping up the major version number to 2.x.x.x. 
-Available at:
-
-https://www.nuget.org/packages/Microsoft.Azure.DurableTask.Core
-
-https://www.nuget.org/packages/Microsoft.Azure.DurableTask.ServiceBus
-
-https://www.nuget.org/packages/Microsoft.Azure.DurableTask.Emulator
-
-https://www.nuget.org/packages/Microsoft.Azure.DurableTask.AzureStorage
-
-
-Durable Task Framework
-======================
-
-[![Join the chat at https://gitter.im/azure/durabletask](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/azure/durabletask?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) 
-
-This framework allows users to write long running persistent workflows in C# using the async/await capabilities.
-
-It is used heavily within various teams at Microsoft to reliably orchestrate long running provisioning, monitoring and management operations. The orchestrations scale out linearly by simply adding more worker machines. 
+The Durable Task Framework (DTFx) is a lightweight framework that allows users to write long running persistent workflows (referred to as _orchestrations_) in C# using simple async/await coding constructs. It is used heavily within various teams at Microsoft to reliably orchestrate long running provisioning, monitoring, and management operations. The orchestrations scale out linearly by simply adding more worker machines. This framework is also used to power the serverless [Durable Functions](https://docs.microsoft.com/azure/azure-functions/durable/durable-functions-overview) extension of [Azure Functions](https://azure.microsoft.com/services/functions/).
 
 By open sourcing this project we hope to give the community a very cost-effective alternative to heavy duty workflow systems. We also hope to build an ecosystem of providers and activities around this simple yet incredibly powerful framework.
 
-This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). 
+This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
+
 For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
 
-The framework binaries are available as a NuGet package at:
-https://www.nuget.org/packages/DurableTask
+## Supported persistance stores
 
-<b>Development Notes</b>
+Starting in v2.x, the Durable Task Framework supports an extensible set of backend persistence stores. Each store can be enabled using a different NuGet package. The latest version of all packages are signed and available for download at nuget.org.
 
-To run unit tests, you must specify your Service Bus connection string for the tests to use. You can do this via the **ServiceBusConnectionString** app.config value in the test project, or by defining a **DurableTaskTestServiceBusConnectionString** environment variable. The benefit of the environment variable is that no temporary source changes are required. 
+| Package | Latest Version | Details | Development Status |
+| ------- | -------------- | ------- | ------------------ |
+| DurableTask.ServiceBus | [![NuGet](https://img.shields.io/nuget/v/Microsoft.Azure.DurableTask.ServiceBus.svg?style=flat)](https://www.nuget.org/packages/Microsoft.Azure.DurableTask.ServiceBus/) | Orchestration message and runtime state is stored in Service Bus queues while tracking state is stored in Azure Storage. The strength of this provider is its maturity and transactional consistency. However, it is no longer in active development at Microsoft. | Production ready but not actively maintained |
+| DurableTask.AzureStorage | [![NuGet](https://img.shields.io/nuget/v/Microsoft.Azure.DurableTask.AzureStorage.svg?style=flat)](https://www.nuget.org/packages/Microsoft.Azure.DurableTask.AzureStorage/) | All orchestration state is stored in Azure Storage queues, tables, and blobs. The strength of this provider is the minimal service dependencies, high efficiency, and rich feature-set. This is the only backend available for [Durable Functions](https://docs.microsoft.com/azure/azure-functions/durable/). | Production ready and actively maintained |
+| DurableTask.AzureServiceFabric | [![NuGet](https://img.shields.io/nuget/v/Microsoft.Azure.DurableTask.AzureServiceFabric.svg?style=flat)](https://www.nuget.org/packages/Microsoft.Azure.DurableTask.AzureServiceFabric/) | All orchestration state is stored in [Azure Service Fabric Reliable Collections](https://docs.microsoft.com/azure/service-fabric/service-fabric-reliable-services-reliable-collections). This is an ideal choice if you are hosting your application in [Azure Service Fabric](https://azure.microsoft.com/services/service-fabric/) and don't want to take on external dependencies for storing state. | Production ready and actively maintained |
+| DurableTask.Emulator | [![NuGet](https://img.shields.io/nuget/v/Microsoft.Azure.DurableTask.Emulator.svg?style=flat)](https://www.nuget.org/packages/Microsoft.Azure.DurableTask.Emulator/) | This is an in-memory store intended for testing purposes only. It is not designed or recommended for any production workloads. | Not actively maintained |
 
-Unit tests also require [Azure Storage Emulator](https://docs.microsoft.com/en-us/azure/storage/common/storage-use-emulator), so make sure it's installed and running. 
+The core programming model for the Durable Task Framework is contained in the [DurableTask.Core](https://www.nuget.org/packages/Microsoft.Azure.DurableTask.Core/) package, which is also under active development.
 
-> Note: While it's possible to use in tests a real Azure Storage account it is highly not recomended to do so because many tests will fail with a 409 Conflict error. This is because tests delete and quickly recreate the same storage tables, and Azure Storage doesn't do well in these conditions. If you really want to change Azure Storage connection string you can do so via the **StorageConnectionString** app.config value in the test project, or by defining a **DurableTaskTestStorageConnectionString** environment variable. 
+## Learning more
 
-The associated wiki contains more details about the framework:
-https://github.com/Azure/durabletask/wiki
+The associated wiki contains more details about the framework and how it can be used: https://github.com/Azure/durabletask/wiki. You can also find great information in [this blog series](https://abhikmitra.github.io/blog/durable-task/). In some cases, the [Durable Functions documentation](https://docs.microsoft.com/en-us/azure/azure-functions/durable/) can actually be useful in learning things about the underlying framework, although not everything will apply. Lastly, you can watch a video with some of the original maintainers in [this Channel 9 video](https://channel9.msdn.com/Shows/On-NET/Building-workflows-with-the-Durable-Task-Framework).
 
-<b>TODO</b>
+## Development Notes
 
-We could have spent a lot of time cleaning up the code and teasing apart various layers but we opted for shipping this earlier and cleaning up post-commit. Consequently there are a lot of TODOs :)
+To run unit tests, you must specify your Service Bus connection string for the tests to use. You can do this via the **ServiceBusConnectionString** app.config value in the test project, or by defining a **DurableTaskTestServiceBusConnectionString** environment variable. The benefit of the environment variable is that no temporary source changes are required.
 
-The community is welcome to take a stab and send pull requests on these items (and more):
+Unit tests also require [Azure Storage Emulator](https://docs.microsoft.com/azure/storage/common/storage-use-emulator), so make sure it's installed and running.
 
-* Provider model for the TaskOrchestrationDispatcher. ServiceBus should just be one of the providers. We want providers on top of Azure Storage, Amazon's Simple Workflow Service, MS-SQL.
-* Provider model for the instance store. Currently it is tied to Azure tables. Need providers for MS-SQL and probably some NoSQL stores.
-* Out-of-box integration with standard IoC libraries (AutoFac, Unity etc) for registering TaskOrchestration and TaskActivity objects.
-* Better indexing support for the Azure table based instance store
-* Change tracing to use EventSource rather than TraceSource
-* Library of standard task activities and sub orchestrations that perform domain specific operations e.g. a SaaS connector library for integrating with Twilio, FB, Twitter, Skype etc OR a library for managing cloud resources like AWS EC2 instances or S3 buckets etc.
-* Consistent serialization across the board, standardize on json.net. We have a mixture of DCS & Json.Net right now.
-* Separate out test fx related code (e.g. mock test host) into a separate project and consequently a different nuget package.
-* Add replay capability which enables users to replay an orchestration giving an execution history
-* Better organization of tests, right now a bunch of tests are placed under the wrong test classes
-* ...many more :)
-  
-<b>Forum</b>
+> Note: While it's possible to use in tests a real Azure Storage account it is not recommended to do so because many tests will fail with a 409 Conflict error. This is because tests delete and quickly recreate the same storage tables, and Azure Storage doesn't do well in these conditions. If you really want to change Azure Storage connection string you can do so via the **StorageConnectionString** app.config value in the test project, or by defining a **DurableTaskTestStorageConnectionString** environment variable. 
 
-Please post feedback/comments at gitter.
+There is a gitter for this repo, but it's not currently being monitored. We're leaving the link for it up for now and will update this message if anything changes.
 
 [![Join the chat at https://gitter.im/azure/durabletask](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/azure/durabletask?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) 
