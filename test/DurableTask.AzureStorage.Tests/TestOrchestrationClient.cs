@@ -121,6 +121,13 @@ namespace DurableTask.AzureStorage.Tests
             return this.client.RaiseEventAsync(instance, eventName, eventData);
         }
 
+        public Task RaiseEventAsync(string instanceId, string eventName, object eventData)
+        {
+            Trace.TraceInformation($"Raising event to instance {instanceId} with name = {eventName}.");
+            var instance = new OrchestrationInstance { InstanceId = instanceId };
+            return this.client.RaiseEventAsync(instance, eventName, eventData);
+        }
+
         public Task TerminateAsync(string reason)
         {
             Trace.TraceInformation($"Terminating instance {this.instanceId} with reason = {reason}.");

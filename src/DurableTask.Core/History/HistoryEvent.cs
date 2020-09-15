@@ -88,5 +88,11 @@ namespace DurableTask.Core.History
         /// Implementation for <see cref="IExtensibleDataObject.ExtensionData"/>.
         /// </summary>
         public ExtensionDataObject ExtensionData { get; set; }
+
+        /// <summary>
+        /// Gets the Correlation
+        /// </summary>
+        [DataMember]
+        public string Correlation { get; set; }
     }
 }

@@ -16,6 +16,7 @@ namespace DurableTask.Core
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
+    using System.Threading.Tasks;
     using DurableTask.Core.Settings;
 
     /// <summary>
@@ -111,6 +112,23 @@ namespace DurableTask.Core
         public static void Propagate(Action action)
         {
             Execute(action);
+        }
+
+        /// <summary>
+        /// Execute Aysnc Function for propagete correlation information
+        /// It suppresses the execution when <see cref="CorrelationSettings"/>.DisablePropagation is true.
+        /// </summary>
+        /// <param name="func"></param>
+        /// <returns></returns>
+        public static Task PropagateAsync(Func<Task> func)
+        {
+            if (CorrelationSettings.Current.EnableDistributedTracing)
+            {
+                return func();
+            } else
+            {
+                return Task.CompletedTask;
+            }
         }
 
         static void Tracking(Action tracking)
