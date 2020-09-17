@@ -491,11 +491,9 @@ namespace DurableTask.Emulator
 
             string key1 = runtimeState.OrchestrationInstance.InstanceId + "_";
 
-            var tasks = new List<Task>();
-
             if (this.orchestrationWaiters.TryGetValue(key, out TaskCompletionSource<OrchestrationState> tcs))
             {
-                tasks.Add(Task.Run(() => tcs.TrySetResult(state)));
+                tcs.TrySetResult(state);
             }
 
             // for instance id level waiters, we will not consider ContinueAsNew as a terminal state because
@@ -503,12 +501,7 @@ namespace DurableTask.Emulator
             if (state.OrchestrationStatus != OrchestrationStatus.ContinuedAsNew
                 && this.orchestrationWaiters.TryGetValue(key1, out TaskCompletionSource<OrchestrationState> tcs1))
             {
-                tasks.Add(Task.Run(() => tcs1.TrySetResult(state)));
-            }
-
-            if (tasks.Count > 0)
-            {
-                Task.WaitAll(tasks.ToArray());
+                tcs1.TrySetResult(state);
             }
 
             return Task.FromResult(0);
