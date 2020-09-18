@@ -320,7 +320,8 @@ namespace DurableTask.AzureStorage.Partitioning
                 }
             }
             catch (StorageException)
-            { 
+            {
+                // If we cannot delete the existing app lease due to another app having a lease, just ignore it.
             }
             finally
             {
