@@ -1543,8 +1543,8 @@ namespace DurableTask.AzureStorage.Tests
             }
             else if (utf8ByteSize == 1 && utf16ByteSize == 2)
             {
-                // Use a character set that is small for UTF16 and large for UTF8
-                // This allows us to produce a smaller string for UTF16 than UTF8.
+                // Use a character set that is small for UTF8 and large for UTF16
+                // This allows us to produce a smaller string for UTF8 than UTF16.
                 Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 {}/<>.";
             }
             else if (utf16ByteSize == 2 && utf8ByteSize == 3)
