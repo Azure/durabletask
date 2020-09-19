@@ -1342,13 +1342,42 @@ namespace DurableTask.AzureStorage.Tests
         [DataTestMethod]
         [DataRow(true)]
         [DataRow(false)]
-        public async Task LargeTextMessagePayloads_BlobUrl(bool enableExtendedSessions)
+        public async Task LargeQueueTextMessagePayloads_BlobUrl(bool enableExtendedSessions)
         {
+            // Small enough to be a small table message, but a large queue message
+            const int largeMessageSize = 25 * 1024;
+
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions, fetchLargeMessages: false))
             {
                 await host.StartAsync();
 
-                string message = this.GenerateMediumRandomStringPayload().ToString();
+                string message = this.GenerateMediumRandomStringPayload(largeMessageSize, utf8ByteSize: 3, utf16ByteSize: 2).ToString();
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), message);
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                Assert.AreEqual(message, JToken.Parse(status?.Output));
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// End-to-end test which validates that orchestrations with > 60KB text message sizes can run successfully.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task LargeTableTextMessagePayloads_SizeViolation_BlobUrl(bool enableExtendedSessions)
+        {
+            // Small enough to be a small queue message, but a large table message due to UTF encoding differences of ASCII characters
+            const int largeMessageSize = 32 * 1024;
+
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions, fetchLargeMessages: false))
+            {
+                await host.StartAsync();
+
+                string message = this.GenerateMediumRandomStringPayload(largeMessageSize, utf8ByteSize: 1, utf16ByteSize: 2).ToString();
                 var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), message);
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
 
@@ -1363,7 +1392,39 @@ namespace DurableTask.AzureStorage.Tests
                     client.InstanceId,
                     status?.Output,
                     Encoding.UTF8.GetByteCount(message));
+                await host.StopAsync();
+            }
+        }
 
+        /// <summary>
+        /// End-to-end test which validates that orchestrations with > 60KB text message sizes can run successfully.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task LargeOverallTextMessagePayloads_BlobUrl(bool enableExtendedSessions)
+        {
+            const int largeMessageSize = 80 * 1024;
+
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions, fetchLargeMessages: false))
+            {
+                await host.StartAsync();
+
+                string message = this.GenerateMediumRandomStringPayload(numChars: largeMessageSize).ToString();
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), message);
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                await ValidateBlobUrlAsync(
+                    host.TaskHub,
+                    client.InstanceId,
+                    status?.Input,
+                    Encoding.UTF8.GetByteCount(message));
+                await ValidateBlobUrlAsync(
+                    host.TaskHub,
+                    client.InstanceId,
+                    status?.Output,
+                    Encoding.UTF8.GetByteCount(message));
                 await host.StopAsync();
             }
         }
@@ -1381,6 +1442,32 @@ namespace DurableTask.AzureStorage.Tests
                 await host.StartAsync();
 
                 string message = this.GenerateMediumRandomStringPayload().ToString();
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), message);
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                Assert.AreEqual(message, JToken.Parse(status?.Input));
+                Assert.AreEqual(message, JToken.Parse(status?.Output));
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// End-to-end test which validates that orchestrations with > 60KB text message sizes can run successfully.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task LargeTableTextMessagePayloads_FetchLargeMessages(bool enableExtendedSessions)
+        {
+            // Small enough to be a small queue message, but a large table message due to UTF encoding differences of ASCII characters
+            const int largeMessageSize = 32 * 1024;
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions, fetchLargeMessages: true))
+            {
+                await host.StartAsync();
+
+                string message = this.GenerateMediumRandomStringPayload(largeMessageSize, utf8ByteSize: 1, utf16ByteSize: 2).ToString();
                 var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), message);
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
 
@@ -1443,19 +1530,39 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-        private StringBuilder GenerateMediumRandomStringPayload()
+        private StringBuilder GenerateMediumRandomStringPayload(int numChars = 128*1024, short utf8ByteSize = 1, short utf16ByteSize = 2)
         {
-            // Generate a medium random string payload
-            const int TargetPayloadSize = 128 * 1024; // 128 KB
-            const string Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 {}/<>.-";
-            var sb = new StringBuilder();
-            var random = new Random();
-            while (Encoding.Unicode.GetByteCount(sb.ToString()) < TargetPayloadSize)
+            string Chars;
+            if (utf16ByteSize != 2 && utf16ByteSize != 4)
             {
-                for (int i = 0; i < 1000; i++)
-                {
-                    sb.Append(Chars[random.Next(Chars.Length)]);
-                }
+                throw new InvalidOperationException($"No characters have byte size {utf16ByteSize} for UTF16");
+            }
+            else if (utf8ByteSize < 1 || utf8ByteSize > 4)
+            {
+                throw new InvalidOperationException($"No characters have byte size {utf8ByteSize} for UTF8.");
+            }
+            else if (utf8ByteSize == 1 && utf16ByteSize == 2)
+            {
+                // Use a character set that is small for UTF8 and large for UTF16
+                // This allows us to produce a smaller string for UTF8 than UTF16.
+                Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 {}/<>.";
+            }
+            else if (utf16ByteSize == 2 && utf8ByteSize == 3)
+            {
+                // Use a character set that is small for UTF16 and large for UTF8
+                // This allows us to produce a smaller string for UTF16 than UTF8.
+                Chars = "มันสนุกพี่บุ๋มมันโจ๊ะ";
+            }
+            else
+            {
+                throw new InvalidOperationException($"This method has not yet added support for characters of utf8 size {utf8ByteSize} and utf16 size {utf16ByteSize}");
+            }
+
+            var random = new Random();
+            var sb = new StringBuilder();
+            for (int i = 0; i < numChars; i++)
+            {
+                sb.Append(Chars[random.Next(Chars.Length)]);
             }
 
             return sb;
