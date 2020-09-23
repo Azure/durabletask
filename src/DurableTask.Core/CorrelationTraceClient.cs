@@ -125,7 +125,8 @@ namespace DurableTask.Core
             if (CorrelationSettings.Current.EnableDistributedTracing)
             {
                 return func();
-            } else
+            } 
+            else
             {
                 return Task.CompletedTask;
             }
