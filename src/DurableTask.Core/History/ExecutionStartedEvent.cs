@@ -79,5 +79,11 @@ namespace DurableTask.Core.History
         /// </summary>
         [DataMember]
         public IDictionary<string, string> Tags { get; set; }
+
+        /// <summary>
+        /// Gets or sets the serialized end-to-end correlation state.
+        /// </summary>
+        [DataMember]
+        public string Correlation { get; set; }
     }
 }

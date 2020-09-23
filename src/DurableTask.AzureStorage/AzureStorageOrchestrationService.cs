@@ -657,11 +657,11 @@ namespace DurableTask.AzureStorage
                     // Create or restore Correlation TraceContext
 
                     TraceContextBase currentRequestTraceContext = null;
-                    await CorrelationTraceClient.PropagateAsync(
-                        async () =>
+                    CorrelationTraceClient.Propagate(
+                        () =>
                         {
                             var isReplaying = session.RuntimeState.ExecutionStartedEvent?.IsPlayed ?? false;
-                            TraceContextBase parentTraceContext = await GetParentTraceContextAsync(session);
+                            TraceContextBase parentTraceContext = GetParentTraceContext(session);
                             currentRequestTraceContext = GetRequestTraceContext(isReplaying, parentTraceContext);
                         });
 
@@ -763,7 +763,7 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        async Task<TraceContextBase> GetParentTraceContextAsync(OrchestrationSession session)
+        TraceContextBase GetParentTraceContext(OrchestrationSession session)
         {
             var messages = session.CurrentMessageBatch;
             TraceContextBase parentTraceContext = null;
@@ -808,8 +808,9 @@ namespace DurableTask.AzureStorage
                 {
                     if (message.TaskMessage.Event is EventRaisedEvent)
                     {
-                        var history = await this.trackingStore.GetHistoryEventsAsync(session.Instance.InstanceId, session.Instance.ExecutionId);
-                        var traceContextString = history.Events.OrderByDescending(p => p.Timestamp).Where(p => p.Correlation != null).FirstOrDefault().Correlation;
+                        var history = session.RuntimeState.Events;
+
+                        var traceContextString = history.Where(p => p.EventType == EventType.ExecutionStarted).Select(p => (ExecutionStartedEvent)p).FirstOrDefault().Correlation;
                         parentTraceContext = TraceContextBase.Restore(traceContextString);
                     }
                 }            
@@ -834,12 +835,6 @@ namespace DurableTask.AzureStorage
 
             return false;
         }
-
-        //async Task<TraceContextBase> GetTraceContextFromTrackingStoreAsync(OrchestrationSession session)
-        //{
-        //    var history = await this.trackingStore.GetHistoryEventsAsync(session.Instance.InstanceId, session.Instance.ExecutionId);
-          
-        //}
 
         static TraceContextBase GetRequestTraceContext(bool isReplaying, TraceContextBase parentTraceContext)
         {

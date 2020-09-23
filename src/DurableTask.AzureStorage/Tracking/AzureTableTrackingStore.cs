@@ -56,6 +56,7 @@ namespace DurableTask.AzureStorage.Tracking
             OutputProperty,
             "Reason",
             "Details",
+            "Correlation"
         };
 
         readonly string storageAccountName;
@@ -984,6 +985,7 @@ namespace DurableTask.AzureStorage.Tracking
                         {
                             var traceContext = CorrelationTraceContext.Current;
                             historyEntity.Properties["Correlation"] = new EntityProperty(traceContext.SerializableTraceContext);
+                            estimatedBytes += System.Text.ASCIIEncoding.ASCII.GetByteCount(traceContext.SerializableTraceContext);
                         });
 
                         this.SetInstancesTablePropertyFromHistoryProperty(
