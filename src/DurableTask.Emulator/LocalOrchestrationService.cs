@@ -49,8 +49,8 @@ namespace DurableTask.Emulator
 
         //Dictionary<string, Tuple<List<TaskMessage>, byte[]>> sessionLock;
 
-        readonly object thisLock = new object();
-        readonly object timerLock = new object();
+        readonly SemaphoreSlim thisLock = new SemaphoreSlim(1, 1);
+        readonly SemaphoreSlim timerLock = new SemaphoreSlim(1, 1);
 
         readonly ConcurrentDictionary<string, TaskCompletionSource<OrchestrationState>> orchestrationWaiters;
 
@@ -74,7 +74,8 @@ namespace DurableTask.Emulator
         {
             while (!this.cancellationTokenSource.Token.IsCancellationRequested)
             {
-                lock (this.timerLock)
+                await this.timerLock.WaitAsync();
+                try
                 {
                     foreach (TaskMessage tm in this.timerMessages.ToList())
                     {
@@ -92,6 +93,10 @@ namespace DurableTask.Emulator
                             this.timerMessages.Remove(tm);
                         }
                     }
+                }
+                finally
+                {
+                    this.timerLock.Release();
                 }
 
                 await Task.Delay(TimeSpan.FromSeconds(1));
@@ -173,7 +178,7 @@ namespace DurableTask.Emulator
         }
 
         /// <inheritdoc />
-        public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses)
+        public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses)
         {
             var ee = creationMessage.Event as ExecutionStartedEvent;
 
@@ -182,7 +187,8 @@ namespace DurableTask.Emulator
                 throw new InvalidOperationException("Invalid creation task message");
             }
 
-            lock (this.thisLock)
+            await this.thisLock.WaitAsync();
+            try
             {
                 if (!this.instanceStore.TryGetValue(creationMessage.OrchestrationInstance.InstanceId, out Dictionary<string, OrchestrationState> ed))
                 {
@@ -217,8 +223,10 @@ namespace DurableTask.Emulator
 
                 this.orchestratorQueue.SendMessage(creationMessage);
             }
-
-            return Task.FromResult<object>(null);
+            finally
+            {
+                this.thisLock.Release();
+            }
         }
 
         /// <inheritdoc />
@@ -268,7 +276,8 @@ namespace DurableTask.Emulator
             }
 
             // might have finished already
-            lock (this.thisLock)
+            await this.thisLock.WaitAsync();
+            try
             {
                 if (this.instanceStore.ContainsKey(instanceId))
                 {
@@ -303,6 +312,10 @@ namespace DurableTask.Emulator
                     }
                 }
             }
+            finally
+            {
+                this.thisLock.Release();
+            }
 
             CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(
                 cancellationToken,
@@ -325,13 +338,18 @@ namespace DurableTask.Emulator
         {
             OrchestrationState response;
 
-            lock (this.thisLock)
+            await this.thisLock.WaitAsync();
+            try
             {
                 if (!(this.instanceStore.TryGetValue(instanceId, out Dictionary<string, OrchestrationState> state) &&
                     state.TryGetValue(executionId, out response)))
                 {
                     response = null;
                 }
+            }
+            finally
+            {
+                this.thisLock.Release();
             }
 
             return await Task.FromResult(response);
@@ -342,7 +360,8 @@ namespace DurableTask.Emulator
         {
             IList<OrchestrationState> response;
 
-            lock (this.thisLock)
+            await this.thisLock.WaitAsync();
+            try
             {
                 if (this.instanceStore.TryGetValue(instanceId, out Dictionary<string, OrchestrationState> state))
                 {
@@ -352,6 +371,10 @@ namespace DurableTask.Emulator
                 {
                     response = new List<OrchestrationState>();
                 }
+            }
+            finally
+            {
+                this.thisLock.Release();
             }
 
             return await Task.FromResult(response);
@@ -402,7 +425,7 @@ namespace DurableTask.Emulator
         }
 
         /// <inheritdoc />
-        public Task CompleteTaskOrchestrationWorkItemAsync(
+        public async Task CompleteTaskOrchestrationWorkItemAsync(
             TaskOrchestrationWorkItem workItem,
             OrchestrationRuntimeState newOrchestrationRuntimeState,
             IList<TaskMessage> outboundMessages,
@@ -411,7 +434,8 @@ namespace DurableTask.Emulator
             TaskMessage continuedAsNewMessage,
             OrchestrationState state)
         {
-            lock (this.thisLock)
+            await this.thisLock.WaitAsync();
+            try
             {
                 byte[] newSessionState;
 
@@ -444,31 +468,38 @@ namespace DurableTask.Emulator
 
                 if (workItemTimerMessages != null)
                 {
-                    lock (this.timerLock)
+                    await this.timerLock.WaitAsync();
+                    try
                     {
                         foreach (TaskMessage m in workItemTimerMessages)
                         {
                             this.timerMessages.Add(m);
                         }
                     }
+                    finally
+                    {
+                        this.timerLock.Release();
+                    }
                 }
 
                 if (workItem.OrchestrationRuntimeState != newOrchestrationRuntimeState)
                 {
                     var oldState = Utils.BuildOrchestrationState(workItem.OrchestrationRuntimeState);
-                    CommitState(workItem.OrchestrationRuntimeState, oldState).GetAwaiter().GetResult();
+                    await CommitState(workItem.OrchestrationRuntimeState, oldState);
                 }
 
                 if (state != null)
                 {
-                    CommitState(newOrchestrationRuntimeState, state).GetAwaiter().GetResult();
+                    await CommitState(newOrchestrationRuntimeState, state);
                 }
             }
-
-            return Task.FromResult(0);
+            finally
+            {
+                this.thisLock.Release();
+            }
         }
 
-        Task CommitState(OrchestrationRuntimeState runtimeState, OrchestrationState state)
+        async Task CommitState(OrchestrationRuntimeState runtimeState, OrchestrationState state)
         {
             if (!this.instanceStore.TryGetValue(runtimeState.OrchestrationInstance.InstanceId, out Dictionary<string, OrchestrationState> mapState))
             {
@@ -483,7 +514,7 @@ namespace DurableTask.Emulator
             if (state.OrchestrationStatus == OrchestrationStatus.Running
                 || state.OrchestrationStatus == OrchestrationStatus.Pending)
             {
-                return Task.FromResult(0);
+                return;
             }
 
             string key = runtimeState.OrchestrationInstance.InstanceId + "_" +
@@ -491,9 +522,11 @@ namespace DurableTask.Emulator
 
             string key1 = runtimeState.OrchestrationInstance.InstanceId + "_";
 
+            var tasks = new List<Task>();
+
             if (this.orchestrationWaiters.TryGetValue(key, out TaskCompletionSource<OrchestrationState> tcs))
             {
-                tcs.TrySetResult(state);
+                tasks.Add(Task.Run(() => tcs.TrySetResult(state)));
             }
 
             // for instance id level waiters, we will not consider ContinueAsNew as a terminal state because
@@ -501,10 +534,13 @@ namespace DurableTask.Emulator
             if (state.OrchestrationStatus != OrchestrationStatus.ContinuedAsNew
                 && this.orchestrationWaiters.TryGetValue(key1, out TaskCompletionSource<OrchestrationState> tcs1))
             {
-                tcs1.TrySetResult(state);
+                tasks.Add(Task.Run(() => tcs1.TrySetResult(state)));
             }
 
-            return Task.FromResult(0);
+            if (tasks.Count > 0)
+            {
+                await Task.WhenAll(tasks.ToArray());
+            }
         }
 
         /// <inheritdoc />
@@ -602,15 +638,19 @@ namespace DurableTask.Emulator
         }
 
         /// <inheritdoc />
-        public Task CompleteTaskActivityWorkItemAsync(TaskActivityWorkItem workItem, TaskMessage responseMessage)
+        public async Task CompleteTaskActivityWorkItemAsync(TaskActivityWorkItem workItem, TaskMessage responseMessage)
         {
-            lock (this.thisLock)
+            await this.thisLock.WaitAsync();
+            try
             {
+
                 this.workerQueue.CompleteMessageAsync(workItem.TaskMessage);
                 this.orchestratorQueue.SendMessage(responseMessage);
             }
-
-            return Task.FromResult<object>(null);
+            finally
+            {
+                this.thisLock.Release();
+            }
         }
 
         /// <inheritdoc />
