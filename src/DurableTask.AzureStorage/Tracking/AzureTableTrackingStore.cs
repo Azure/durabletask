@@ -983,7 +983,6 @@ namespace DurableTask.AzureStorage.Tracking
                         instanceEntity.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Running.ToString());
                         CorrelationTraceClient.Propagate(() =>
                         {
-                            historyEntity.Properties["Correlation"] = new EntityProperty(executionStartedEvent.Correlation);
                             estimatedBytes += Encoding.Unicode.GetByteCount(executionStartedEvent.Correlation);
                         });
 

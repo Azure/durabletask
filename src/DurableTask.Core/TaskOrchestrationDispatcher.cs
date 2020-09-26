@@ -393,10 +393,13 @@ namespace DurableTask.Core
                     }
 
                     // correlation
-                    CorrelationTraceClient.Propagate(() => {
+                    CorrelationTraceClient.Propagate(() => 
+                    {
                         if (runtimeState.ExecutionStartedEvent != null)
+                        {
                             runtimeState.ExecutionStartedEvent.Correlation = CorrelationTraceContext.Current.SerializableTraceContext;
-                     });
+                        }
+                    });
 
 
                     // finish up processing of the work item
@@ -424,7 +427,8 @@ namespace DurableTask.Core
                                 "Updating state for continuation");
 
                             // correlation
-                            CorrelationTraceClient.Propagate(() => {
+                            CorrelationTraceClient.Propagate(() => 
+                            {
                                continueAsNewExecutionStarted.Correlation = CorrelationTraceContext.Current.SerializableTraceContext;
                             });
 

@@ -804,7 +804,8 @@ namespace DurableTask.AzureStorage
 
                             break;
                     }                   
-                } else
+                } 
+                else
                 {
                     if (message.TaskMessage.Event is EventRaisedEvent)
                     {
