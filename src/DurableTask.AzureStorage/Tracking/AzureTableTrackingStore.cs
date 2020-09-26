@@ -984,7 +984,7 @@ namespace DurableTask.AzureStorage.Tracking
                         CorrelationTraceClient.Propagate(() =>
                         {
                             historyEntity.Properties["Correlation"] = new EntityProperty(executionStartedEvent.Correlation);
-                            estimatedBytes += System.Text.ASCIIEncoding.ASCII.GetByteCount(executionStartedEvent.Correlation);
+                            estimatedBytes += Encoding.Unicode.GetByteCount(executionStartedEvent.Correlation);
                         });
 
                         this.SetInstancesTablePropertyFromHistoryProperty(
