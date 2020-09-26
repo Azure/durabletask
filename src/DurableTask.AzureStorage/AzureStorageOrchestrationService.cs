@@ -810,7 +810,7 @@ namespace DurableTask.AzureStorage
                     {
                         var history = session.RuntimeState.Events;
 
-                        var traceContextString = history.Where(p => p.EventType == EventType.ExecutionStarted).Select(p => (ExecutionStartedEvent)p).FirstOrDefault().Correlation;
+                        string traceContextString = session.RuntimeState.ExecutionStartedEvent?.Correlation;
                         parentTraceContext = TraceContextBase.Restore(traceContextString);
                     }
                 }            
