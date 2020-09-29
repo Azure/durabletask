@@ -180,7 +180,6 @@ namespace DurableTask.AzureStorage.Partitioning
                 string.Empty /* partitionId */,
                 $"Starting background renewal of {this.leaseType} leases with interval: {this.options.RenewInterval}.");
 
-            Trace.TraceInformation($"{this.workerName}: Starting lease renewal {this.leaseType} thread");
             while (this.isStarted == 1 || !shutdownComplete)
             {
                 try
@@ -279,7 +278,6 @@ namespace DurableTask.AzureStorage.Partitioning
                 string.Empty /* partitionId */,
                 $"Starting to check for available {this.leaseType} leases with interval: {this.options.AcquireInterval}.");
 
-            Trace.TraceInformation($"{this.workerName}: Starting lease taking {this.leaseType} thread");
             while (this.isStarted == 1)
             {
                 try
@@ -335,7 +333,6 @@ namespace DurableTask.AzureStorage.Partitioning
             var expiredLeases = new List<T>();
 
             var allLeases = await this.leaseManager.ListLeasesAsync();
-            Trace.TraceInformation($"{this.workerName}: Taking leases {this.leaseType}");
             foreach (T lease in allLeases)
             {
                 if (!this.shouldAquireLeaseDelegate(lease.PartitionId))
@@ -493,7 +490,6 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.workerName,
                     lease.PartitionId,
                     lease.Token);
-                Trace.TraceInformation($"{this.workerName}: Renewing lease {this.leaseType} {lease.PartitionId}");
                 renewed = await this.leaseManager.RenewAsync(lease);
             }
             catch (Exception ex)
@@ -541,7 +537,6 @@ namespace DurableTask.AzureStorage.Partitioning
             bool acquired = false;
             try
             {
-                Trace.TraceInformation($"{this.workerName}: Acquiring lease {this.leaseType} {lease.PartitionId}");
                 acquired = await this.leaseManager.AcquireAsync(lease, this.workerName);
             }
             catch (LeaseLostException)
@@ -571,7 +566,6 @@ namespace DurableTask.AzureStorage.Partitioning
             bool stolen = false;
             try
             {
-                Trace.TraceInformation($"{this.workerName}: Stealing lease {this.leaseType} {lease.PartitionId}");
                 stolen = await this.leaseManager.AcquireAsync(lease, this.workerName);
             }
             catch (LeaseLostException)
@@ -600,7 +594,6 @@ namespace DurableTask.AzureStorage.Partitioning
                 bool failedToInitialize = false;
                 try
                 {
-                    Trace.TraceInformation($"Adding lease {this.leaseType} {lease.PartitionId}");
                     await this.leaseObserverManager.NotifyShardAcquiredAsync(lease);
                 }
                 catch (Exception ex)
@@ -678,8 +671,6 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.workerName,
                     lease.PartitionId,
                     lease.Token);
-
-                Trace.TraceInformation($"{this.workerName} releasing {this.leaseType} {lease.PartitionId}");
 
                 try
                 {
