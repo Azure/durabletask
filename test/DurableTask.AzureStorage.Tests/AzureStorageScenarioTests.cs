@@ -257,7 +257,7 @@ namespace DurableTask.AzureStorage.Tests
         [DataTestMethod]
         [DataRow(false)]
         [DataRow(true)]
-        public async Task ContinueAsNewThenTimer(bool enableExtendedSessions)
+         public async Task ContinueAsNewThenTimer(bool enableExtendedSessions)
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
             {

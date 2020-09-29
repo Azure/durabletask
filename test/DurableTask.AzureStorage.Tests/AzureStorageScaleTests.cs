@@ -60,7 +60,8 @@ namespace DurableTask.AzureStorage.Tests
             string testName, 
             bool testDeletion,
             bool deleteBeforeCreate = true,
-            string workerId = "test")
+            string workerId = "test",
+            bool useLegacyPartitionManagement = false)
         {
             string storageConnectionString = TestHelpers.GetTestStorageAccountConnectionString();
             var storageAccount = CloudStorageAccount.Parse(storageConnectionString);
@@ -71,8 +72,8 @@ namespace DurableTask.AzureStorage.Tests
                 TaskHubName = taskHubName,
                 StorageConnectionString = storageConnectionString,
                 WorkerId = workerId,
-                UseLegacyPartitionManagement = true,
                 AppName = testName,
+                UseLegacyPartitionManagement = useLegacyPartitionManagement,
             };
 
             Trace.TraceInformation($"Task Hub name: {taskHubName}");
@@ -194,7 +195,9 @@ namespace DurableTask.AzureStorage.Tests
         /// REQUIREMENT: No two workers will ever process the same control queue.
         /// </summary>
         [TestMethod]
-        public async Task MultiWorkerLeaseMovement()
+        [DataRow(true, 30)]
+        [DataRow(false, 180)]
+        public async Task MultiWorkerLeaseMovement(bool useLegacyPartitionManagement, int timeoutInSeconds)
         {
             const int MaxWorkerCount = 4;
 
@@ -214,7 +217,8 @@ namespace DurableTask.AzureStorage.Tests
                         nameof(MultiWorkerLeaseMovement),
                         testDeletion: false,
                         deleteBeforeCreate: i == 0,
-                        workerId: workerIds[i]);
+                        workerId: workerIds[i],
+                        useLegacyPartitionManagement: useLegacyPartitionManagement);
                     await services[i].StartAsync();
                     currentWorkerCount++;
                 }
@@ -226,7 +230,7 @@ namespace DurableTask.AzureStorage.Tests
                     currentWorkerCount--;
                 }
 
-                TimeSpan timeout = Debugger.IsAttached ? TimeSpan.FromMinutes(5) : TimeSpan.FromSeconds(30);
+                TimeSpan timeout = Debugger.IsAttached ? TimeSpan.FromMinutes(5) : TimeSpan.FromSeconds(timeoutInSeconds);
                 Trace.TraceInformation($"Waiting for all leases to become balanced. Timeout = {timeout}.");
 
                 bool isBalanced = false;
@@ -286,7 +290,7 @@ namespace DurableTask.AzureStorage.Tests
                                 var ownedLeases = leases.Where(l => l.Owner == service.WorkerId);
                                 Assert.AreEqual(
                                     ownedLeases.Count(),
-                                    service.OwnedControlQueues.Count(),
+                                    service.OwnedControlQueues.Where(queue=> !queue.IsReleased).Count(),
                                     $"Mismatch between control queue count and lease count for {service.WorkerId}");
                                 Assert.IsTrue(
                                     service.OwnedControlQueues.All(q => ownedLeases.Any(l => l.Name.Contains(q.Name))),
