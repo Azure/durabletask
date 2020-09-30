@@ -184,7 +184,7 @@ namespace DurableTask.AzureStorage.Partitioning
             {
                 try
                 {
-                    var failedToRenewLeases = new ConcurrentBag<T>();
+                    var nonRenewedLeases = new ConcurrentBag<T>();
                     var renewTasks = new List<Task>();
 
                     // Renew leases for all currently owned partitions in parallel
@@ -197,13 +197,13 @@ namespace DurableTask.AzureStorage.Partitioning
                                 if (!renewResult.Result)
                                 {
                                     // Keep track of all failed attempts to renew so we can trigger shutdown for these partitions
-                                    failedToRenewLeases.Add(lease);
+                                    nonRenewedLeases.Add(lease);
                                 }
                             }));
                         } 
                         else 
                         {
-                            await this.leaseObserverManager.NotifyShardReleasedAsync(lease, CloseReason.LeaseLost);
+                            nonRenewedLeases.Add(lease);
                         }
                     }
 
@@ -227,8 +227,8 @@ namespace DurableTask.AzureStorage.Partitioning
                     // Wait for all renews to complete
                     await Task.WhenAll(renewTasks.ToArray());
 
-                    // Trigger shutdown of all partitions we failed to renew leases
-                    await failedToRenewLeases.ParallelForEachAsync(lease => this.RemoveLeaseAsync(lease, false));
+                    // Trigger shutdown of all partitions we did not successfully renew leases for
+                    await nonRenewedLeases.ParallelForEachAsync(lease => this.RemoveLeaseAsync(lease, false));
 
                     // Now remove all failed renewals of shutdown leases from further renewals
                     foreach (T failedToRenewShutdownLease in failedToRenewShutdownLeases)
