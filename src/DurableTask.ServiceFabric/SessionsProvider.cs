@@ -301,7 +301,6 @@ namespace DurableTask.ServiceFabric
 
         void TryEnqueueSession(string instanceId)
         {
-
             LockState newState = this.lockedSessions.AddOrUpdate(instanceId, LockState.InFetchQueue, (key, oldValue) =>
             {
                 if (oldValue == LockState.Locked)
