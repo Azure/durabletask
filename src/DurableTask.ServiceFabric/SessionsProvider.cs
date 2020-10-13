@@ -301,15 +301,22 @@ namespace DurableTask.ServiceFabric
 
         void TryEnqueueSession(string instanceId)
         {
-            if (this.lockedSessions.TryAdd(instanceId, LockState.InFetchQueue))
+
+            LockState newState = this.lockedSessions.AddOrUpdate(instanceId, LockState.InFetchQueue, (key, oldValue) =>
+            {
+                if (oldValue == LockState.Locked)
+                {
+                    return LockState.NewMessagesWhileLocked;
+                }
+
+                return oldValue;
+            });
+
+            if (newState == LockState.InFetchQueue)
             {
                 ProviderEventSource.Log.TraceMessage(instanceId, "Session Getting Enqueued");
                 this.fetchQueue.Enqueue(instanceId);
                 SetWaiterForNewItems();
-            }
-            else
-            {
-                this.lockedSessions.TryUpdate(instanceId, LockState.NewMessagesWhileLocked, LockState.Locked);
             }
         }
 
