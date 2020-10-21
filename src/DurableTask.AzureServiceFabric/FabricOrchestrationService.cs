@@ -117,7 +117,7 @@ namespace DurableTask.AzureServiceFabric
 
         public bool IsMaxMessageCountExceeded(int currentMessageCount, OrchestrationRuntimeState runtimeState)
         {
-            return true;
+            return false;
         }
 
         public int GetDelayInSecondsAfterOnProcessException(Exception exception)

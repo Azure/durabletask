@@ -17,7 +17,7 @@ namespace TestApplication.Common.Orchestrations
     {
         public string TargetOrchestrationType { get; set; }
 
-        public string TargetOrchestrationInput { get; set; }
+        public int TargetOrchestrationInput { get; set; }
 
         public string TargetOrchestrationInstanceId { get; set; }
     }

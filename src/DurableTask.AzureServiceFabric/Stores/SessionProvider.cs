@@ -135,11 +135,6 @@ namespace DurableTask.AzureServiceFabric.Stores
             return null;
         }
 
-        protected override void AddItemInMemory(string key, PersistentSession value)
-        {
-            this.TryEnqueueSession(key);
-        }
-
         public async Task<List<Message<Guid, TaskMessageItem>>> ReceiveSessionMessagesAsync(PersistentSession session)
         {
             var sessionMessageProvider = await GetOrAddSessionMessagesInstance(session.SessionId);
@@ -244,24 +239,6 @@ namespace DurableTask.AzureServiceFabric.Stores
             return result;
         }
 
-        public void TryUnlockSession(OrchestrationInstance instance, bool abandon = false, bool isComplete = false)
-        {
-            ServiceFabricProviderEventSource.Tracing.TraceMessage(instance.InstanceId, $"Session Unlock Begin, Abandon = {abandon}");
-            if (!this.lockedSessions.TryRemove(instance.InstanceId, out LockState lockState) || lockState == LockState.InFetchQueue)
-            {
-                var errorMessage = $"{nameof(SessionProvider)}.{nameof(TryUnlockSession)} : Trying to unlock the session {instance.InstanceId} which was not locked.";
-                ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition(errorMessage);
-                throw new Exception(errorMessage);
-            }
-
-            if (!isComplete && (abandon || lockState == LockState.NewMessagesWhileLocked))
-            {
-                this.TryEnqueueSession(instance);
-            }
-
-            ServiceFabricProviderEventSource.Tracing.TraceMessage(instance.InstanceId, $"Session Unlock End, Abandon = {abandon}, removed lock state = {lockState}");
-        }
-
         public async Task<bool> TryAddSession(ITransaction transaction, TaskMessageItem newMessage)
         {
             await EnsureStoreInitialized();
@@ -295,12 +272,30 @@ namespace DurableTask.AzureServiceFabric.Stores
             }, uniqueActionIdentifier: $"Orchestration InstanceId = {instanceId}, Action = {nameof(SessionProvider)}.{nameof(GetSession)}");
         }
 
+        // TryEnqueueSessionInternal:
+        // Issue: Race condition, in-between TryAdd and TryUpdate if the item is removed by TryUnlockSession then TryUpdate will miss an important state.
+        // We tried to avoid locks by using ConcurrentDictionary's atomic operations but couldn't acheive the following:
+        // 1. Conditional Removal: TryUnlockSession is trying to remove the item and add it back if the value is LockState.NewMessagesWhileLocked
+        // 2. Conditional AddOrUpdate with follow up action: TryEnqueueSessionInternal is trying to Add with LockState.InFetchQueue and if add fails 
+        //      then Update it. TryAddOrUpdate didn't help because we need to insert a record into another queue if it was an Add operation on the dictionary.
+        // Solution: To maintain atomicity between the Add/Remove operations, 'lock' is used to protect the Add/Remove operations on the dictionary.
         public void TryEnqueueSession(OrchestrationInstance instance)
         {
-            this.TryEnqueueSession(instance.InstanceId);
+            lock (this.lockedSessions)
+            {
+                this.TryEnqueueSessionInternal(instance.InstanceId);
+            }
         }
 
-        void TryEnqueueSession(string instanceId)
+        protected override void AddItemInMemory(string key, PersistentSession value)
+        {
+            lock (this.lockedSessions)
+            {
+                this.TryEnqueueSessionInternal(key);
+            }
+        }
+
+        void TryEnqueueSessionInternal(string instanceId)
         {
             if (this.lockedSessions.TryAdd(instanceId, LockState.InFetchQueue))
             {
@@ -311,6 +306,26 @@ namespace DurableTask.AzureServiceFabric.Stores
             else
             {
                 this.lockedSessions.TryUpdate(instanceId, LockState.NewMessagesWhileLocked, LockState.Locked);
+            }
+        }
+
+        public void TryUnlockSession(OrchestrationInstance instance, bool abandon = false, bool isComplete = false)
+        {
+            ServiceFabricProviderEventSource.Tracing.TraceMessage(instance.InstanceId, $"Session Unlock Begin, Abandon = {abandon}");
+            lock (this.lockedSessions)
+            {
+                if (!this.lockedSessions.TryRemove(instance.InstanceId, out LockState lockState) || lockState == LockState.InFetchQueue)
+                {
+                    var errorMessage = $"{nameof(SessionProvider)}.{nameof(TryUnlockSession)} : Trying to unlock the session {instance.InstanceId} which was not locked.";
+                    ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition(errorMessage);
+                    throw new Exception(errorMessage);
+                }
+
+                if (!isComplete && (abandon || lockState == LockState.NewMessagesWhileLocked))
+                {
+                    this.TryEnqueueSessionInternal(instance.InstanceId);
+                }
+                ServiceFabricProviderEventSource.Tracing.TraceMessage(instance.InstanceId, $"Session Unlock End, Abandon = {abandon}, removed lock state = {lockState}");
             }
         }
 

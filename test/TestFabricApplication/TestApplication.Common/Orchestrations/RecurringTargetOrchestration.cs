@@ -19,9 +19,9 @@ namespace TestApplication.Common.Orchestrations
 
     using TestApplication.Common.OrchestrationTasks;
 
-    public class RecurringTargetOrchestration : TaskOrchestration<int, string>
+    public class RecurringTargetOrchestration : TaskOrchestration<int, int>
     {
-        public override async Task<int> RunTask(OrchestrationContext context, string input)
+        public override async Task<int> RunTask(OrchestrationContext context, int input)
         {
             var testTasks = context.CreateClient<ITestTasks>();
             int count = await testTasks.IncrementGenerationCount();
