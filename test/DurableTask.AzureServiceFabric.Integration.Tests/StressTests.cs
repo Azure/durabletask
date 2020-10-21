@@ -119,21 +119,13 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
                 DelayUnit = TimeSpan.FromSeconds(1)
             };
 
-            try
-            {
-                await RunTestOrchestrationsHelper(100, testOrchestratorInput);
-                Console.WriteLine();
+            await RunTestOrchestrationsHelper(100, testOrchestratorInput);
+            Console.WriteLine();
 
-                testOrchestratorInput.UseTimeoutTask = true;
-                testOrchestratorInput.ExecutionTimeout = TimeSpan.FromMinutes(2);
+            testOrchestratorInput.UseTimeoutTask = true;
+            testOrchestratorInput.ExecutionTimeout = TimeSpan.FromMinutes(2);
 
-                await RunTestOrchestrationsHelper(100, testOrchestratorInput);
-            }
-            catch(Exception ex)
-            {
-                Console.WriteLine($"Exception {ex.ToString()}");
-                throw;
-            }
+            await RunTestOrchestrationsHelper(100, testOrchestratorInput);
         }
 
         [TestMethod]

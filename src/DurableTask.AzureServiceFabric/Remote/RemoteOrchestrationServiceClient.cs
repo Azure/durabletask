@@ -36,7 +36,7 @@ namespace DurableTask.AzureServiceFabric.Remote
     public class RemoteOrchestrationServiceClient : IOrchestrationServiceClient, IDisposable
     {
         private readonly IPartitionEndpointResolver partitionProvider;
-        private readonly int maxPollDealyInSecs = 10;
+        private readonly int maxPollDelayInSecs = 10;
         private HttpClient httpClient;
 
         /// <summary>
@@ -227,7 +227,7 @@ namespace DurableTask.AzureServiceFabric.Remote
             instanceId.EnsureValidInstanceId();
             var maxTime = DateTime.Now.Add(timeout);
             OrchestrationState state = null;
-            double pollDelayInSecs = maxPollDealyInSecs;
+            double pollDelayInSecs = maxPollDelayInSecs;
             if (timeout.TotalSeconds < pollDelayInSecs)
             {
                 pollDelayInSecs = timeout.TotalSeconds;

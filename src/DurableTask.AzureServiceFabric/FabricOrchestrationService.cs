@@ -117,9 +117,7 @@ namespace DurableTask.AzureServiceFabric
 
         public bool IsMaxMessageCountExceeded(int currentMessageCount, OrchestrationRuntimeState runtimeState)
         {
-            // TODO: To avoid accumualating too many messages, make a decision based on the activities in progress 
-            // This is needed in case of parall tasks mostly (like WhenAll)
-            return currentMessageCount > 1000;
+            return false;
         }
 
         public int GetDelayInSecondsAfterOnProcessException(Exception exception)
