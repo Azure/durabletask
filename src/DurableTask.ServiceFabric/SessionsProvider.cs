@@ -132,7 +132,10 @@ namespace DurableTask.ServiceFabric
 
         protected override void AddItemInMemory(string key, PersistentSession value)
         {
-            this.TryEnqueueSession(key);
+            lock (this.lockedSessions)
+            {
+                this.TryEnqueueSessionInternal(key);
+            }
         }
 
         public async Task<List<Message<Guid, TaskMessageItem>>> ReceiveSessionMessagesAsync(PersistentSession session)
@@ -246,19 +249,22 @@ namespace DurableTask.ServiceFabric
         public void TryUnlockSession(OrchestrationInstance instance, bool abandon = false, bool isComplete = false)
         {
             ProviderEventSource.Log.TraceMessage(instance.InstanceId, $"Session Unlock Begin, Abandon = {abandon}");
-            LockState lockState;
-            if (!this.lockedSessions.TryRemove(instance.InstanceId, out lockState) || lockState == LockState.InFetchQueue)
+            lock (this.lockedSessions)
             {
-                var errorMessage = $"{nameof(SessionsProvider)}.{nameof(TryUnlockSession)} : Trying to unlock the session {instance.InstanceId} which was not locked.";
-                ProviderEventSource.Log.UnexpectedCodeCondition(errorMessage);
-                throw new Exception(errorMessage);
-            }
+                LockState lockState;
+                if (!this.lockedSessions.TryRemove(instance.InstanceId, out lockState) || lockState == LockState.InFetchQueue)
+                {
+                    var errorMessage = $"{nameof(SessionsProvider)}.{nameof(TryUnlockSession)} : Trying to unlock the session {instance.InstanceId} which was not locked.";
+                    ProviderEventSource.Log.UnexpectedCodeCondition(errorMessage);
+                    throw new Exception(errorMessage);
+                }
 
-            if (!isComplete && (abandon || lockState == LockState.NewMessagesWhileLocked))
-            {
-                this.TryEnqueueSession(instance);
+                if (!isComplete && (abandon || lockState == LockState.NewMessagesWhileLocked))
+                {
+                    this.TryEnqueueSessionInternal(instance.InstanceId);
+                }
+                ProviderEventSource.Log.TraceMessage(instance.InstanceId, $"Session Unlock End, Abandon = {abandon}, removed lock state = {lockState}");
             }
-            ProviderEventSource.Log.TraceMessage(instance.InstanceId, $"Session Unlock End, Abandon = {abandon}, removed lock state = {lockState}");
         }
 
         public async Task<bool> TryAddSession(ITransaction transaction, TaskMessageItem newMessage)
@@ -294,28 +300,32 @@ namespace DurableTask.ServiceFabric
             }, uniqueActionIdentifier: $"Orchestration InstanceId = {instanceId}, Action = {nameof(SessionsProvider)}.{nameof(GetSession)}");
         }
 
+        // TryEnqueueSessionInternal:
+        // Issue: Race condition, in-between TryAdd and TryUpdate if the item is removed by TryUnlockSession then TryUpdate will miss an important state.
+        // We tried to avoid locks by using ConcurrentDictionary's atomic operations but couldn't acheive the following:
+        // 1. Conditional Removal: TryUnlockSession is trying to remove the item and add it back if the value is LockState.NewMessagesWhileLocked
+        // 2. Conditional AddOrUpdate with follow up action: TryEnqueueSessionInternal is trying to Add with LockState.InFetchQueue and if add fails 
+        //      then Update it. TryAddOrUpdate didn't help because we need to insert a record into another queue if it was an Add operation on the dictionary.
+        // Solution: To maintain atomicity between the Add/Remove operations, 'lock' is used to protect the Add/Remove operations on the dictionary.
         public void TryEnqueueSession(OrchestrationInstance instance)
         {
-            this.TryEnqueueSession(instance.InstanceId);
+            lock (this.lockedSessions)
+            {
+                this.TryEnqueueSessionInternal(instance.InstanceId);
+            }
         }
 
-        void TryEnqueueSession(string instanceId)
+        void TryEnqueueSessionInternal(string instanceId)
         {
-            LockState newState = this.lockedSessions.AddOrUpdate(instanceId, LockState.InFetchQueue, (key, oldValue) =>
-            {
-                if (oldValue == LockState.Locked)
-                {
-                    return LockState.NewMessagesWhileLocked;
-                }
-
-                return oldValue;
-            });
-
-            if (newState == LockState.InFetchQueue)
+            if (this.lockedSessions.TryAdd(instanceId, LockState.InFetchQueue))
             {
                 ProviderEventSource.Log.TraceMessage(instanceId, "Session Getting Enqueued");
                 this.fetchQueue.Enqueue(instanceId);
                 SetWaiterForNewItems();
+            }
+            else
+            {
+                this.lockedSessions.TryUpdate(instanceId, LockState.NewMessagesWhileLocked, LockState.Locked);
             }
         }
 
