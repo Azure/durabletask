@@ -2,10 +2,10 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2012/06/nuspec.xsd">
   <metadata>
     <id>ServiceBus.DurableTask</id>
-    <version>1.0.0-charlie9</version>
+    <version>1.0.1-charlie9</version>
     <title>Durable Task Framework</title>
-    <authors>affandar;siport</authors>
-    <owners>affandar;siport</owners>
+    <authors>affandar;siport;shsama</authors>
+    <owners>affandar;siport;shsama</owners>
     <licenseUrl>https://github.com/azure/durabletask/blob/vnext/LICENSE</licenseUrl>
     <projectUrl>https://github.com/azure/durabletask</projectUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
