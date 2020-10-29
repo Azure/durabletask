@@ -80,6 +80,12 @@ namespace DurableTask.AzureStorage
             : this(settings, null)
         { }
 
+        /// <inheritdoc/>
+        public override string ToString()
+        {
+            return $"AzureStorageOrchestrationService on {storageAccountName}";
+        }
+
         /// <summary>
         /// Initializes a new instance of the <see cref="AzureStorageOrchestrationService"/> class with a custom instance store.
         /// </summary>
@@ -867,28 +873,10 @@ namespace DurableTask.AzureStorage
             {
                 var instanceId = newMessages[0].OrchestrationInstance.InstanceId;
 
-                if (instanceId.StartsWith("@")
-                    && newMessages[0].Event.EventType == EventType.EventRaised
-                    && newMessages[0].OrchestrationInstance.ExecutionId == null)
+                if (DurableTask.Core.Common.Entities.AutoStart(instanceId, newMessages))
                 {
-                    // automatically start this instance
-                    var orchestrationInstance = new OrchestrationInstance
-                    {
-                        InstanceId = instanceId,
-                        ExecutionId = Guid.NewGuid().ToString("N"),
-                    };
-                    var startedEvent = new ExecutionStartedEvent(-1, null)
-                    {
-                        Name = instanceId,
-                        Version = "",
-                        OrchestrationInstance = orchestrationInstance
-                    };
-                    var taskMessage = new TaskMessage()
-                    {
-                        OrchestrationInstance = orchestrationInstance,
-                        Event = startedEvent
-                    };
-                    newMessages.Insert(0, taskMessage);
+                    message = null;
+                    return true;
                 }
                 else
                 {
