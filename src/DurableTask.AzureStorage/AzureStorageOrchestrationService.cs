@@ -444,7 +444,7 @@ namespace DurableTask.AzureStorage
             this.isStarted = true;
         }
 
-        private async void LeaseManagerStarter()
+        private async Task LeaseManagerStarter()
         {
             while (!this.shutdownSource.Token.IsCancellationRequested)
             {
