@@ -18,7 +18,7 @@ namespace DurableTask.Core
     using System.Text;
 
     /// <summary>
-    /// NullObjectTraceContext is for the behaviro which is not supported the Distributed Tracing
+    /// NullObjectTraceContext is for the behavior which is not supported the Distributed Tracing
     /// </summary>
     public class NullObjectTraceContext : TraceContextBase
     {
