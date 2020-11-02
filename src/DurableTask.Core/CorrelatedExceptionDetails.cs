@@ -28,7 +28,7 @@ namespace DurableTask.Core
         public Exception Exception { get; set; }
 
         /// <summary>
-        /// OperationId is uniq id of end to end tracing
+        /// OperationId is unique id of end to end tracing
         /// </summary>
         public string OperationId { get; set; }
 

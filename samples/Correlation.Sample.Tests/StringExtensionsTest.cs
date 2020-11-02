@@ -23,8 +23,8 @@ namespace Correlation.Sample.Tests
         [TestMethod]
         public void TestParseTraceParent()
         {
-            var traceparentString = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
-            var traceparent = traceparentString.ToTraceParent();
+            string traceparentString = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
+            TraceParent traceparent = traceparentString.ToTraceParent();
             Assert.AreEqual("00", traceparent.Version);
             Assert.AreEqual("4bf92f3577b34da6a3ce929d0e0e4736", traceparent.TraceId);
             Assert.AreEqual("00f067aa0ba902b7", traceparent.SpanId);
@@ -34,7 +34,7 @@ namespace Correlation.Sample.Tests
         [TestMethod]
         public void TestParseTraceParentThrowsException()
         {
-            var wrongTraceparentString = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7";
+            string wrongTraceparentString = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7";
             Assert.ThrowsException<ArgumentException>(
                 () => { wrongTraceparentString.ToTraceParent(); });
         }
@@ -43,7 +43,7 @@ namespace Correlation.Sample.Tests
         public void TestParseTraceParenWithNull()
         {
             string someString = null;
-            var result = someString?.ToTraceParent();
+            TraceParent result = someString?.ToTraceParent();
             Assert.IsNull(result);
         }
     }
