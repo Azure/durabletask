@@ -17,7 +17,6 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
     using System.Diagnostics;
     using System.Net.Http;
     using System.Threading.Tasks;
-
     using DurableTask.Core;
     using DurableTask.AzureServiceFabric.Remote;
     using DurableTask.AzureServiceFabric.Service;

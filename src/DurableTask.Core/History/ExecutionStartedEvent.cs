@@ -13,6 +13,7 @@
 
 namespace DurableTask.Core.History
 {
+    using System;
     using System.Collections.Generic;
     using System.Runtime.Serialization;
 
@@ -85,5 +86,11 @@ namespace DurableTask.Core.History
         /// </summary>
         [DataMember]
         public string Correlation { get; set; }
+
+        /// <summary>
+        /// Gets or sets date to start the orchestration
+        /// </summary>
+        [DataMember]
+        public DateTime? ScheduledStartTime { get; set; }
     }
 }

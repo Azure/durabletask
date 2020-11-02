@@ -33,7 +33,9 @@ namespace DurableTask.AzureStorage
     /// </summary>
     class MessageManager
     {
-        const int MaxStorageQueuePayloadSizeInBytes = 60 * 1024; // 60KB
+        // Use 45 KB, as the Storage SDK will base64 encode the message,
+        // increasing the size by a factor of 4/3.
+        const int MaxStorageQueuePayloadSizeInBytes = 45 * 1024; // 45KB
         const int DefaultBufferSize = 64 * 2014; // 64KB
 
         readonly string blobContainerName;
@@ -88,7 +90,7 @@ namespace DurableTask.AzureStorage
         public async Task<string> SerializeMessageDataAsync(MessageData messageData)
         {
             string rawContent = JsonConvert.SerializeObject(messageData, this.taskMessageSerializerSettings);
-            messageData.TotalMessageSizeBytes = Encoding.Unicode.GetByteCount(rawContent);
+            messageData.TotalMessageSizeBytes = Encoding.UTF8.GetByteCount(rawContent);
             MessageFormatFlags messageFormat = this.GetMessageFormatFlags(messageData);
 
             if (messageFormat != MessageFormatFlags.InlineJson)
@@ -141,14 +143,10 @@ namespace DurableTask.AzureStorage
                     decompressedMessage,
                     this.taskMessageSerializerSettings);
                 envelope.MessageFormat = MessageFormatFlags.StorageBlob;
-                envelope.TotalMessageSizeBytes = Encoding.Unicode.GetByteCount(decompressedMessage);
-            }
-            else
-            {
-                envelope.TotalMessageSizeBytes = Encoding.Unicode.GetByteCount(queueMessage.AsString);
             }
 
             envelope.OriginalQueueMessage = queueMessage;
+            envelope.TotalMessageSizeBytes = Encoding.UTF8.GetByteCount(queueMessage.AsString);
             envelope.QueueName = queueName;
             return envelope;
         }

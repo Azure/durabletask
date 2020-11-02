@@ -70,6 +70,56 @@ namespace DurableTask.Core
         }
 
         /// <summary>
+        ///     Create a new orchestration of the specified type with the specified instance id, scheduled to start at an specific time
+        /// </summary>
+        /// <param name="orchestrationType">Type that derives from TaskOrchestration</param>
+        /// <param name="input">Input parameter to the specified TaskOrchestration</param>
+        /// <param name="startAt">Orchestration start time</param>
+        /// <returns>OrchestrationInstance that represents the orchestration that was created</returns>
+        public Task<OrchestrationInstance> CreateScheduledOrchestrationInstanceAsync(
+            Type orchestrationType,
+            object input,
+            DateTime startAt)
+        {
+            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+                NameVersionHelper.GetDefaultName(orchestrationType),
+                NameVersionHelper.GetDefaultVersion(orchestrationType),
+                null,
+                input,
+                null,
+                null,
+                null,
+                null,
+                startAt: startAt);
+        }
+
+        /// <summary>
+        ///     Create a new orchestration of the specified type with the specified instance id, scheduled to start at an specific time
+        /// </summary>
+        /// <param name="orchestrationType">Type that derives from TaskOrchestration</param>
+        /// <param name="instanceId">Instance id for the orchestration to be created, must be unique across the Task Hub</param>
+        /// <param name="input">Input parameter to the specified TaskOrchestration</param>
+        /// <param name="startAt">Orchestration start time</param>
+        /// <returns>OrchestrationInstance that represents the orchestration that was created</returns>
+        public Task<OrchestrationInstance> CreateScheduledOrchestrationInstanceAsync(
+            Type orchestrationType,
+            string instanceId,
+            object input,
+            DateTime startAt)
+        {
+            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+                NameVersionHelper.GetDefaultName(orchestrationType),
+                NameVersionHelper.GetDefaultVersion(orchestrationType),
+                instanceId,
+                input,
+                null,
+                null,
+                null,
+                null,
+                startAt: startAt);
+        }
+
+        /// <summary>
         ///     Create a new orchestration of the specified type with an automatically generated instance id
         /// </summary>
         /// <param name="orchestrationType">Type that derives from TaskOrchestration</param>
@@ -86,6 +136,26 @@ namespace DurableTask.Core
                 dedupeStatuses: null,
                 eventName: null,
                 eventData: null);
+        }
+
+        /// <summary>
+        ///     Create a new orchestration of the specified type with an automatically generated instance id
+        /// </summary>
+        /// <param name="orchestrationType">Type that derives from TaskOrchestration</param>
+        /// <param name="input">Input parameter to the specified TaskOrchestration</param>
+        /// <param name="startAt">Orchestration start time</param>
+        /// <returns>OrchestrationInstance that represents the orchestration that was created</returns>
+        public Task<OrchestrationInstance> CreateOrchestrationInstanceAsync(Type orchestrationType, object input, DateTime startAt)
+        {
+            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+                NameVersionHelper.GetDefaultName(orchestrationType),
+                NameVersionHelper.GetDefaultVersion(orchestrationType),
+                null,
+                input,
+                null,
+                null,
+                null,
+                startAt);
         }
 
         /// <summary>
@@ -501,7 +571,8 @@ namespace DurableTask.Core
             IDictionary<string, string> orchestrationTags,
             OrchestrationStatus[] dedupeStatuses,
             string eventName,
-            object eventData)
+            object eventData,
+            DateTime? startAt = null)
         {
             TraceContextBase requestTraceContext = null;
 
@@ -525,7 +596,8 @@ namespace DurableTask.Core
                 Tags = orchestrationTags,
                 Name = orchestrationName,
                 Version = orchestrationVersion,
-                OrchestrationInstance = orchestrationInstance
+                OrchestrationInstance = orchestrationInstance,
+                ScheduledStartTime = startAt
             };
 
             var startMessage = new TaskMessage

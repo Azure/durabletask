@@ -27,7 +27,7 @@ namespace DurableTask.Test.Orchestrations.Performance
 
         protected override async Task<int> ExecuteAsync(TaskContext context, int taskId)
         {
-            await Task.Delay(new Random().Next(50, 100));
+            await Task.Delay(new Random().Next(5, 10));
             Interlocked.Increment(ref Counter);
             return Counter;
         }

@@ -1342,13 +1342,42 @@ namespace DurableTask.AzureStorage.Tests
         [DataTestMethod]
         [DataRow(true)]
         [DataRow(false)]
-        public async Task LargeTextMessagePayloads_BlobUrl(bool enableExtendedSessions)
+        public async Task LargeQueueTextMessagePayloads_BlobUrl(bool enableExtendedSessions)
         {
+            // Small enough to be a small table message, but a large queue message
+            const int largeMessageSize = 25 * 1024;
+
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions, fetchLargeMessages: false))
             {
                 await host.StartAsync();
 
-                string message = this.GenerateMediumRandomStringPayload().ToString();
+                string message = this.GenerateMediumRandomStringPayload(largeMessageSize, utf8ByteSize: 3, utf16ByteSize: 2).ToString();
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), message);
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                Assert.AreEqual(message, JToken.Parse(status?.Output));
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// End-to-end test which validates that orchestrations with > 60KB text message sizes can run successfully.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task LargeTableTextMessagePayloads_SizeViolation_BlobUrl(bool enableExtendedSessions)
+        {
+            // Small enough to be a small queue message, but a large table message due to UTF encoding differences of ASCII characters
+            const int largeMessageSize = 32 * 1024;
+
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions, fetchLargeMessages: false))
+            {
+                await host.StartAsync();
+
+                string message = this.GenerateMediumRandomStringPayload(largeMessageSize, utf8ByteSize: 1, utf16ByteSize: 2).ToString();
                 var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), message);
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
 
@@ -1363,7 +1392,39 @@ namespace DurableTask.AzureStorage.Tests
                     client.InstanceId,
                     status?.Output,
                     Encoding.UTF8.GetByteCount(message));
+                await host.StopAsync();
+            }
+        }
 
+        /// <summary>
+        /// End-to-end test which validates that orchestrations with > 60KB text message sizes can run successfully.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task LargeOverallTextMessagePayloads_BlobUrl(bool enableExtendedSessions)
+        {
+            const int largeMessageSize = 80 * 1024;
+
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions, fetchLargeMessages: false))
+            {
+                await host.StartAsync();
+
+                string message = this.GenerateMediumRandomStringPayload(numChars: largeMessageSize).ToString();
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), message);
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                await ValidateBlobUrlAsync(
+                    host.TaskHub,
+                    client.InstanceId,
+                    status?.Input,
+                    Encoding.UTF8.GetByteCount(message));
+                await ValidateBlobUrlAsync(
+                    host.TaskHub,
+                    client.InstanceId,
+                    status?.Output,
+                    Encoding.UTF8.GetByteCount(message));
                 await host.StopAsync();
             }
         }
@@ -1381,6 +1442,32 @@ namespace DurableTask.AzureStorage.Tests
                 await host.StartAsync();
 
                 string message = this.GenerateMediumRandomStringPayload().ToString();
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), message);
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                Assert.AreEqual(message, JToken.Parse(status?.Input));
+                Assert.AreEqual(message, JToken.Parse(status?.Output));
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// End-to-end test which validates that orchestrations with > 60KB text message sizes can run successfully.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task LargeTableTextMessagePayloads_FetchLargeMessages(bool enableExtendedSessions)
+        {
+            // Small enough to be a small queue message, but a large table message due to UTF encoding differences of ASCII characters
+            const int largeMessageSize = 32 * 1024;
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions, fetchLargeMessages: true))
+            {
+                await host.StartAsync();
+
+                string message = this.GenerateMediumRandomStringPayload(largeMessageSize, utf8ByteSize: 1, utf16ByteSize: 2).ToString();
                 var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), message);
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
 
@@ -1443,19 +1530,39 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-        private StringBuilder GenerateMediumRandomStringPayload()
+        private StringBuilder GenerateMediumRandomStringPayload(int numChars = 128*1024, short utf8ByteSize = 1, short utf16ByteSize = 2)
         {
-            // Generate a medium random string payload
-            const int TargetPayloadSize = 128 * 1024; // 128 KB
-            const string Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 {}/<>.-";
-            var sb = new StringBuilder();
-            var random = new Random();
-            while (Encoding.Unicode.GetByteCount(sb.ToString()) < TargetPayloadSize)
+            string Chars;
+            if (utf16ByteSize != 2 && utf16ByteSize != 4)
             {
-                for (int i = 0; i < 1000; i++)
-                {
-                    sb.Append(Chars[random.Next(Chars.Length)]);
-                }
+                throw new InvalidOperationException($"No characters have byte size {utf16ByteSize} for UTF16");
+            }
+            else if (utf8ByteSize < 1 || utf8ByteSize > 4)
+            {
+                throw new InvalidOperationException($"No characters have byte size {utf8ByteSize} for UTF8.");
+            }
+            else if (utf8ByteSize == 1 && utf16ByteSize == 2)
+            {
+                // Use a character set that is small for UTF8 and large for UTF16
+                // This allows us to produce a smaller string for UTF8 than UTF16.
+                Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 {}/<>.";
+            }
+            else if (utf16ByteSize == 2 && utf8ByteSize == 3)
+            {
+                // Use a character set that is small for UTF16 and large for UTF8
+                // This allows us to produce a smaller string for UTF16 than UTF8.
+                Chars = "มันสนุกพี่บุ๋มมันโจ๊ะ";
+            }
+            else
+            {
+                throw new InvalidOperationException($"This method has not yet added support for characters of utf8 size {utf8ByteSize} and utf16 size {utf16ByteSize}");
+            }
+
+            var random = new Random();
+            var sb = new StringBuilder();
+            for (int i = 0; i < numChars; i++)
+            {
+                sb.Append(Chars[random.Next(Chars.Length)]);
             }
 
             return sb;
@@ -1802,6 +1909,122 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
                 Assert.IsNotNull(status.Output);
                 Assert.AreEqual("True", JToken.Parse(status.Output));
+                await host.StopAsync();
+            }
+        }
+
+                /// <summary>
+        /// Validates scheduled starts, ensuring they are executed according to defined start date time
+        /// </summary>
+        /// <param name="enableExtendedSessions"></param>
+        /// <returns></returns>
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task ScheduledStart_Inline(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                await host.StartAsync();
+
+                var expectedStartTime = DateTime.UtcNow.AddSeconds(30);
+                var clientStartingIn30Seconds = await host.StartOrchestrationAsync(typeof(Orchestrations.CurrentTimeInline), "Current Time!", startAt: expectedStartTime);
+                var clientStartingNow = await host.StartOrchestrationAsync(typeof(Orchestrations.CurrentTimeInline), "Current Time!");
+
+                var statusStartingNow = clientStartingNow.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                var statusStartingIn30Seconds = clientStartingIn30Seconds.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+
+                await Task.WhenAll(statusStartingNow, statusStartingIn30Seconds);
+
+                Assert.AreEqual(OrchestrationStatus.Completed, statusStartingNow.Result?.OrchestrationStatus);
+                Assert.AreEqual("Current Time!", JToken.Parse(statusStartingNow.Result?.Input));
+                Assert.IsNull(statusStartingNow.Result.ScheduledStartTime);
+
+                Assert.AreEqual(OrchestrationStatus.Completed, statusStartingIn30Seconds.Result?.OrchestrationStatus);
+                Assert.AreEqual("Current Time!", JToken.Parse(statusStartingIn30Seconds.Result?.Input));
+                Assert.AreEqual(expectedStartTime, statusStartingIn30Seconds.Result.ScheduledStartTime);
+
+                var startNowResult = (DateTime)JToken.Parse(statusStartingNow.Result?.Output);
+                var startIn30SecondsResult = (DateTime)JToken.Parse(statusStartingIn30Seconds.Result?.Output);
+
+                Assert.IsTrue(startIn30SecondsResult > startNowResult);
+                Assert.IsTrue(startIn30SecondsResult >= expectedStartTime);
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// Validates scheduled starts, ensuring they are executed according to defined start date time
+        /// </summary>
+        /// <param name="enableExtendedSessions"></param>
+        /// <returns></returns>
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task ScheduledStart_Activity(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                await host.StartAsync();
+
+                var expectedStartTime = DateTime.UtcNow.AddSeconds(30);
+                var clientStartingIn30Seconds = await host.StartOrchestrationAsync(typeof(Orchestrations.CurrentTimeActivity), "Current Time!", startAt: expectedStartTime);
+                var clientStartingNow = await host.StartOrchestrationAsync(typeof(Orchestrations.CurrentTimeActivity), "Current Time!");
+
+                var statusStartingNow = clientStartingNow.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                var statusStartingIn30Seconds = clientStartingIn30Seconds.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+
+                await Task.WhenAll(statusStartingNow, statusStartingIn30Seconds);
+
+                Assert.AreEqual(OrchestrationStatus.Completed, statusStartingNow.Result?.OrchestrationStatus);
+                Assert.AreEqual("Current Time!", JToken.Parse(statusStartingNow.Result?.Input));
+                Assert.IsNull(statusStartingNow.Result.ScheduledStartTime);
+
+                Assert.AreEqual(OrchestrationStatus.Completed, statusStartingIn30Seconds.Result?.OrchestrationStatus);
+                Assert.AreEqual("Current Time!", JToken.Parse(statusStartingIn30Seconds.Result?.Input));
+                Assert.AreEqual(expectedStartTime, statusStartingIn30Seconds.Result.ScheduledStartTime);
+
+                var startNowResult = (DateTime)JToken.Parse(statusStartingNow.Result?.Output);
+                var startIn30SecondsResult = (DateTime)JToken.Parse(statusStartingIn30Seconds.Result?.Output);
+
+                Assert.IsTrue(startIn30SecondsResult > startNowResult);
+                Assert.IsTrue(startIn30SecondsResult >= expectedStartTime);
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// Validates scheduled starts, ensuring they are executed according to defined start date time
+        /// </summary>
+        /// <param name="enableExtendedSessions"></param>
+        /// <returns></returns>
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task ScheduledStart_Activity_GetStatus_Returns_ScheduledStart(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                await host.StartAsync();
+
+                var expectedStartTime = DateTime.UtcNow.AddSeconds(30);
+                var clientStartingIn30Seconds = await host.StartOrchestrationAsync(typeof(Orchestrations.DelayedCurrentTimeActivity), "Delayed Current Time!", startAt: expectedStartTime);
+                var clientStartingNow = await host.StartOrchestrationAsync(typeof(Orchestrations.DelayedCurrentTimeActivity), "Delayed Current Time!");
+
+                var statusStartingIn30Seconds = await clientStartingIn30Seconds.GetStatusAsync();
+                Assert.IsNotNull(statusStartingIn30Seconds.ScheduledStartTime);
+                Assert.AreEqual(expectedStartTime, statusStartingIn30Seconds.ScheduledStartTime);
+
+                var statusStartingNow = await clientStartingNow.GetStatusAsync();
+                Assert.IsNull(statusStartingNow.ScheduledStartTime);
+
+                await Task.WhenAll(
+                    clientStartingNow.WaitForCompletionAsync(TimeSpan.FromSeconds(35)),
+                    clientStartingIn30Seconds.WaitForCompletionAsync(TimeSpan.FromSeconds(65))
+                    );
+
                 await host.StopAsync();
             }
         }
@@ -2517,6 +2740,41 @@ namespace DurableTask.AzureStorage.Tests
                     }
                 }
             }
+
+            internal class CurrentTimeInline : TaskOrchestration<DateTime, string>
+            {
+                public override Task<DateTime> RunTask(OrchestrationContext context, string input)
+                {
+                    return Task.FromResult(context.CurrentUtcDateTime);
+                }
+            }
+
+            [KnownType(typeof(Activities.CurrentTime))]
+            internal class CurrentTimeActivity : TaskOrchestration<DateTime, string>
+            {
+                public override Task<DateTime> RunTask(OrchestrationContext context, string input)
+                {
+                    return context.ScheduleTask<DateTime>(typeof(Activities.CurrentTime), input);
+                }
+            }
+
+            internal class DelayedCurrentTimeInline : TaskOrchestration<DateTime, string>
+            {
+                public override async Task<DateTime> RunTask(OrchestrationContext context, string input)
+                {
+                    await context.CreateTimer<bool>(context.CurrentUtcDateTime.Add(TimeSpan.FromSeconds(3)), true);
+                    return context.CurrentUtcDateTime;
+                }
+            }
+
+            [KnownType(typeof(Activities.DelayedCurrentTime))]
+            internal class DelayedCurrentTimeActivity : TaskOrchestration<DateTime, string>
+            {
+                public override Task<DateTime> RunTask(OrchestrationContext context, string input)
+                {
+                    return context.ScheduleTask<DateTime>(typeof(Activities.DelayedCurrentTime), input);
+                }
+            }
         }
 
         static class Activities
@@ -2751,6 +3009,33 @@ namespace DurableTask.AzureStorage.Tests
                 protected override byte[] Execute(TaskContext context, byte[] input)
                 {
                     return input;
+                }
+            }
+
+            internal class CurrentTime : TaskActivity<string, DateTime>
+            {
+                protected override DateTime Execute(TaskContext context, string input)
+                {
+                    if (string.IsNullOrEmpty(input))
+                    {
+                        throw new ArgumentNullException(nameof(input));
+                    }
+                    return DateTime.UtcNow;
+                }
+            }
+
+            internal class DelayedCurrentTime : TaskActivity<string, DateTime>
+            {
+                protected override DateTime Execute(TaskContext context, string input)
+                {
+                    if (string.IsNullOrEmpty(input))
+                    {
+                        throw new ArgumentNullException(nameof(input));
+                    }
+
+                    Thread.Sleep(TimeSpan.FromSeconds(3));
+
+                    return DateTime.UtcNow;
                 }
             }
         }

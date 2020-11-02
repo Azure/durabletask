@@ -11,21 +11,32 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace TestApplication.Common.Orchestrations
+namespace DurableTask.AzureStorage.Partitioning
 {
+    using System;
     using System.Threading.Tasks;
 
-    using DurableTask.Core;
-
-    using TestApplication.Common.OrchestrationTasks;
-
-    public class RecurringTargetOrchestration : TaskOrchestration<int, int>
+    sealed class LeaseObserver<T> where T : Lease
     {
-        public override async Task<int> RunTask(OrchestrationContext context, int input)
+        private readonly Func<T, Task> leaseAquiredDelegate;
+        private readonly Func<T, CloseReason, Task> leaseReleasedDelegate;
+
+        public LeaseObserver(
+            Func<T, Task> leaseAquiredDelegate,
+            Func<T, CloseReason, Task> leaseReleasedDelegate)
         {
-            var testTasks = context.CreateClient<ITestTasks>();
-            int count = await testTasks.IncrementGenerationCount();
-            return count;
+            this.leaseAquiredDelegate = leaseAquiredDelegate;
+            this.leaseReleasedDelegate = leaseReleasedDelegate;
+        }
+
+        public Task OnLeaseAquiredAsync(T lease)
+        {
+            return leaseAquiredDelegate.Invoke(lease);
+        }
+
+        public Task OnLeaseReleasedAsync(T lease, CloseReason reason)
+        {
+            return leaseReleasedDelegate.Invoke(lease, reason);
         }
     }
 }

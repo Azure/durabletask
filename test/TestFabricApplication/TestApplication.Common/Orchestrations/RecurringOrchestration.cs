@@ -23,14 +23,11 @@ namespace TestApplication.Common.Orchestrations
 
     public class RecurringOrchestration : TaskOrchestration<int, RecurringOrchestrationInput>
     {
-        // HACK: This is just a hack to communicate result of orchestration back to test
-        private static int targetOchestrationInvocationsCount = 0;
-
         public override async Task<int> RunTask(OrchestrationContext context, RecurringOrchestrationInput input)
         {
             var testTasks = context.CreateClient<ITestTasks>();
 
-            if (targetOchestrationInvocationsCount == 0)
+            if (input.TargetOrchestrationInput == 0)
             {
                 // First time, Reset Generation Count variable.
                 await testTasks.ResetGenerationCounter();
@@ -41,9 +38,11 @@ namespace TestApplication.Common.Orchestrations
                 input.TargetOrchestrationInstanceId,
                 input.TargetOrchestrationInput);
 
-            await context.CreateTimer(GetNextExecutionTime(context), true, CancellationToken.None);
-            if (ShouldRepeatTargetOrchestration())
+            await context.CreateTimer(GetNextExecutionTime(context, result), true, CancellationToken.None);
+            if (ShouldRepeatTargetOrchestration(result))
             {
+                // Send a different input for the new instance
+                input.TargetOrchestrationInput = result;
                 context.ContinueAsNew(input);
             }
             else
@@ -55,9 +54,9 @@ namespace TestApplication.Common.Orchestrations
             return result;
         }
 
-        public virtual DateTime GetNextExecutionTime(OrchestrationContext context)
+        public virtual DateTime GetNextExecutionTime(OrchestrationContext context, int iterationCount)
         {
-            return context.CurrentUtcDateTime.AddSeconds(Math.Pow(2, targetOchestrationInvocationsCount));
+            return context.CurrentUtcDateTime.AddSeconds(iterationCount);
         }
 
         public virtual string GetTargetOrchestrationVersion()
@@ -65,11 +64,9 @@ namespace TestApplication.Common.Orchestrations
             return string.Empty;
         }
 
-        public virtual bool ShouldRepeatTargetOrchestration()
+        public virtual bool ShouldRepeatTargetOrchestration(int count)
         {
-            targetOchestrationInvocationsCount++;
-
-            return targetOchestrationInvocationsCount < 4;
+            return count < 4;
         }
     }
 }

@@ -18,7 +18,7 @@ namespace DurableTask.AzureStorage.Partitioning
     /// <summary>
     /// Options to control various aspects of partition distribution happening within the host instance.
     /// </summary> 
-    class PartitionManagerOptions
+    class LeaseCollectionBalancerOptions
     {
         /// <summary>
         /// Renew interval for all leases for partitions currently held by this instance.
@@ -38,30 +38,23 @@ namespace DurableTask.AzureStorage.Partitioning
         public TimeSpan LeaseInterval { get; set; } = TimeSpan.FromSeconds(30);
 
         /// <summary>
-        /// Maximum number of receiver clients created for each host instance. Once the max is reached host will start rebalancing partitions 
-        /// among receiver clients already created.
+        /// Determines whether or not this set of leases should utilize lease stealing logic for rebalancing
+        /// during scale-out operations.
         /// </summary>
-        public int MaxReceiveClients { get; set; } = 4;
+        public bool ShouldStealLeases { get; set;} = true;
 
         /// <summary>
-        /// Use this option if you want creation of Blob container for partition leases to happen outside of EventProcessorHost.  This is 
-        /// useful in scenarios where you want to pass in a CloudBlobClient to EventProcessorHost which does not have permissions to create
-        /// storage container.  Default value for this options is 'false'.
-        /// </summary>
-        public bool SkipBlobContainerCreation { get; set; }
-
-        /// <summary>
-        /// Creates an instance of <see cref="PartitionManagerOptions"/> with following default values:
+        /// Creates an instance of <see cref="LeaseCollectionBalancerOptions"/> with following default values:
         ///     a) RenewInterval = 10 seconds
         ///     b) AcquireInterval = 10 seconds
         ///     c) DefaultLeaseInterval = 30 seconds
         ///     d) MaxReceiveClients = 16,
         /// </summary>
-        public static PartitionManagerOptions DefaultOptions
+        public static LeaseCollectionBalancerOptions DefaultOptions
         {
             get
             {
-                return new PartitionManagerOptions();
+                return new LeaseCollectionBalancerOptions();
             }
         }
     }

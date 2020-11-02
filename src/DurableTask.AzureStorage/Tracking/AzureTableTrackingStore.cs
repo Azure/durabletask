@@ -46,7 +46,7 @@ namespace DurableTask.AzureStorage.Tracking
         const string CheckpointCompletedTimestampProperty = "CheckpointCompletedTimestamp";
 
         // See https://docs.microsoft.com/en-us/rest/api/storageservices/understanding-the-table-service-data-model#property-types
-        const int MaxTablePropertySizeInBytes = 60 * 1024; // 60KB
+        const int MaxTablePropertySizeInBytes = 60 * 1024; // 60KB to give buffer
 
         static readonly string[] VariableSizeEntityProperties = new[]
         {
@@ -554,6 +554,7 @@ namespace DurableTask.AzureStorage.Tracking
             orchestrationState.LastUpdatedTime = orchestrationInstanceStatus.LastUpdatedTime;
             orchestrationState.Input = orchestrationInstanceStatus.Input;
             orchestrationState.Output = orchestrationInstanceStatus.Output;
+            orchestrationState.ScheduledStartTime = orchestrationInstanceStatus.ScheduledStartTime;
 
             if (this.settings.FetchLargeMessageDataEnabled)
             {
@@ -831,9 +832,14 @@ namespace DurableTask.AzureStorage.Tracking
                     ["Version"] = new EntityProperty(executionStartedEvent.Version),
                     ["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Pending.ToString()),
                     ["LastUpdatedTime"] = new EntityProperty(DateTime.UtcNow),
-                    ["TaskHubName"] = new EntityProperty(this.settings.TaskHubName)
+                    ["TaskHubName"] = new EntityProperty(this.settings.TaskHubName),
+                    ["ScheduledStartTime"] = new EntityProperty(executionStartedEvent.ScheduledStartTime)
                 }
             };
+
+            // It is possible that the queue message was small enough to be written directly to a queue message,
+            // not a blob, but is too large to be written to a table property.
+            await this.CompressLargeMessageAsync(entity);
 
             Stopwatch stopwatch = Stopwatch.StartNew();
             try
@@ -981,6 +987,10 @@ namespace DurableTask.AzureStorage.Tracking
                         instanceEntity.Properties["Version"] = new EntityProperty(executionStartedEvent.Version);
                         instanceEntity.Properties["CreatedTime"] = new EntityProperty(executionStartedEvent.Timestamp);
                         instanceEntity.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Running.ToString());
+                        if (executionStartedEvent.ScheduledStartTime.HasValue) {
+                            instanceEntity.Properties["ScheduledStartTime"] = new EntityProperty(executionStartedEvent.ScheduledStartTime);
+                        }
+
                         CorrelationTraceClient.Propagate(() =>
                         {
                             historyEntity.Properties["Correlation"] = new EntityProperty(executionStartedEvent.Correlation);
@@ -1197,7 +1207,22 @@ namespace DurableTask.AzureStorage.Tracking
             string instanceId = entity.PartitionKey;
             string sequenceNumber = entity.RowKey;
 
-            string eventType = entity.Properties["EventType"].StringValue;
+            string eventType;
+            if (entity.Properties.ContainsKey("EventType"))
+            {
+                eventType = entity.Properties["EventType"].StringValue;
+            }
+            else if (property == "Input")
+            {
+                // This message is just to start the orchestration, so it does not have a corresponding
+                // EventType. Use a hardcoded value to record the orchestration input.
+                eventType = "Input";
+            }
+            else
+            {
+                throw new InvalidOperationException($"Could not compute the blob name for property {property}");
+            }
+
             string blobName = $"{instanceId}/history-{sequenceNumber}-{eventType}-{property}.json.gz";
 
             return blobName;

@@ -84,8 +84,61 @@ namespace DurableTask.AzureStorage
                     this.settings.TaskHubName,
                     this.settings.WorkerId,
                     partitionId,
-                    $"Attempted to remove control queue {controlQueue.Name}, which wasn't being watched!");
+                    $"Attempted to remove control queue {partitionId}, which wasn't being watched!");
             }
+        }
+
+
+        public void ReleaseQueue(string partitionId)
+        {
+            if (this.ownedControlQueues.TryGetValue(partitionId, out ControlQueue controlQueue))
+            {
+                controlQueue.Release();
+            }
+            else
+            {
+                this.settings.Logger.PartitionManagerWarning(
+                    this.storageAccountName,
+                    this.settings.TaskHubName,
+                    this.settings.WorkerId,
+                    partitionId,
+                    $"Attempted to release control queue {partitionId}, which wasn't being watched!");
+            }
+        }
+
+        public bool ResumeListeningIfOwnQueue(string partitionId, ControlQueue controlQueue, CancellationToken shutdownToken)
+        {
+            if (this.ownedControlQueues.TryGetValue(partitionId, out ControlQueue ownedControlQueue))
+            {
+                if (ownedControlQueue.IsReleased)
+                {
+                    // The easiest way to resume listening is to re-add a new queue that has not been released.
+                    this.RemoveQueue(partitionId);
+                    this.AddQueue(partitionId, controlQueue, shutdownToken);
+                }
+                else
+                {
+                    this.settings.Logger.PartitionManagerWarning(
+                        this.storageAccountName,
+                        this.settings.TaskHubName,
+                        this.settings.WorkerId,
+                        partitionId,
+                        $"Attempted to resume listening on control queue {controlQueue.Name}, which wasn't released!");
+                }
+            }
+
+            return false;
+        }
+
+        public bool IsControlQueueReceivingMessages(string partitionId)
+        {
+            return this.ownedControlQueues.TryGetValue(partitionId, out ControlQueue controlQueue)
+                && !controlQueue.IsReleased;
+        }
+
+        public bool IsControlQueueProcessingMessages(string partitionId)
+        {
+            return this.activeOrchestrationSessions.Values.Where(session => string.Equals(session.ControlQueue.Name, partitionId)).Any();
         }
 
         async void DequeueLoop(string partitionId, ControlQueue controlQueue, CancellationToken cancellationToken)

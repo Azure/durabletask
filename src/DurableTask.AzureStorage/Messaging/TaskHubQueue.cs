@@ -123,7 +123,7 @@ namespace DurableTask.AzureStorage.Messaging
                     Utils.GetTaskEventId(taskMessage.Event),
                     sourceInstance.InstanceId,
                     sourceInstance.ExecutionId,
-                    Encoding.Unicode.GetByteCount(rawContent),
+                    Encoding.UTF8.GetByteCount(rawContent),
                     data.QueueName /* PartitionId */,
                     taskMessage.OrchestrationInstance.InstanceId,
                     taskMessage.OrchestrationInstance.ExecutionId,
@@ -199,6 +199,17 @@ namespace DurableTask.AzureStorage.Messaging
                 if (initialVisibilityDelay < TimeSpan.Zero)
                 {
                     initialVisibilityDelay = TimeSpan.Zero;
+                }
+            }
+            else if (taskMessage.Event is ExecutionStartedEvent executionStartedEvent)
+            {
+                if (executionStartedEvent.ScheduledStartTime.HasValue)
+                {
+                    initialVisibilityDelay = executionStartedEvent.ScheduledStartTime.Value.Subtract(DateTime.UtcNow);
+                    if (initialVisibilityDelay < TimeSpan.Zero)
+                    {
+                        initialVisibilityDelay = TimeSpan.Zero;
+                    }
                 }
             }
 

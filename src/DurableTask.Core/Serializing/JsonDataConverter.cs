@@ -33,6 +33,7 @@ namespace DurableTask.Core.Serializing
             : this(new JsonSerializerSettings
             {
                 TypeNameHandling = TypeNameHandling.Objects,
+                DateParseHandling = DateParseHandling.None,
 #if NETSTANDARD2_0
                 SerializationBinder = new PackageUpgradeSerializationBinder()
 #else

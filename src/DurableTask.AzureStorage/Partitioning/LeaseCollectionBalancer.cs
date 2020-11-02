@@ -16,22 +16,26 @@ namespace DurableTask.AzureStorage.Partitioning
     using System;
     using System.Collections.Concurrent;
     using System.Collections.Generic;
+    using System.Diagnostics;
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
 
-    sealed class PartitionManager<T> where T : Lease
+    sealed class LeaseCollectionBalancer<T> where T : Lease
     {
+        readonly string leaseType;
         readonly string accountName;
         readonly string taskHub;
         readonly string workerName;
         readonly ILeaseManager<T> leaseManager;
-        readonly PartitionManagerOptions options;
+        readonly LeaseCollectionBalancerOptions options;
         readonly AzureStorageOrchestrationServiceSettings settings;
 
         readonly ConcurrentDictionary<string, T> currentlyOwnedShards;
         readonly ConcurrentDictionary<string, T> keepRenewingDuringClose;
-        readonly PartitionObserverManager partitionObserverManager;
+        readonly LeaseObserverManager leaseObserverManager;
+        readonly Func<string, bool> shouldAquireLeaseDelegate;
+        readonly Func<string, bool> shouldRenewLeaseDelegate;
 
         int isStarted;
         bool shutdownComplete;
@@ -40,18 +44,40 @@ namespace DurableTask.AzureStorage.Partitioning
         CancellationTokenSource leaseTakerCancellationTokenSource;
         CancellationTokenSource leaseRenewerCancellationTokenSource;
 
-        public PartitionManager(AzureStorageOrchestrationServiceSettings settings, string accountName, string workerName, ILeaseManager<T> leaseManager, PartitionManagerOptions options)
+        public LeaseCollectionBalancer(
+            string leaseType,
+            AzureStorageOrchestrationServiceSettings settings,
+            string accountName,
+            ILeaseManager<T> leaseManager, 
+            LeaseCollectionBalancerOptions options,
+            Func<string, bool> shouldAquireLeaseDelegate = null,
+            Func<string, bool> shouldRenewLeaseDelegate = null)
+
         {
+            this.leaseType = leaseType;
             this.accountName = accountName;
             this.taskHub = settings.TaskHubName;
-            this.workerName = workerName;
+            this.workerName = settings.WorkerId;
             this.leaseManager = leaseManager;
             this.options = options;
             this.settings = settings;
 
+            this.shouldAquireLeaseDelegate = shouldAquireLeaseDelegate ?? DefaultLeaseDecisionDelegate;
+            this.shouldRenewLeaseDelegate = shouldRenewLeaseDelegate ?? DefaultLeaseDecisionDelegate;
+
             this.currentlyOwnedShards = new ConcurrentDictionary<string, T>();
             this.keepRenewingDuringClose = new ConcurrentDictionary<string, T>();
-            this.partitionObserverManager = new PartitionObserverManager(this);
+            this.leaseObserverManager = new LeaseObserverManager(this);
+        }
+
+        private static bool DefaultLeaseDecisionDelegate(string leaseId)
+        {
+            return true;
+        }
+
+        public ConcurrentDictionary<string, T> GetCurrentlyOwnedLeases()
+        {
+            return this.currentlyOwnedShards;
         }
 
         public async Task InitializeAsync()
@@ -77,7 +103,8 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.taskHub,
                     this.workerName,
                     lease.PartitionId,
-                    $"Acquired lease for PartitionId '{lease.PartitionId}' on startup.");
+                    $"Acquired {this.leaseType} lease for PartitionId '{lease.PartitionId}' on startup.");
+
                 addLeaseTasks.Add(this.AddLeaseAsync(lease));
             }
 
@@ -88,7 +115,7 @@ namespace DurableTask.AzureStorage.Partitioning
         {
             if (Interlocked.CompareExchange(ref this.isStarted, 1, 0) != 0)
             {
-                throw new InvalidOperationException("PartitionManager has already started");
+                throw new InvalidOperationException($"{nameof(LeaseCollectionBalancer<T>)} has already started");
             }
 
             this.shutdownComplete = false;
@@ -126,9 +153,12 @@ namespace DurableTask.AzureStorage.Partitioning
             this.leaseRenewerCancellationTokenSource = null;
         }
 
-        public Task<IDisposable> SubscribeAsync(IPartitionObserver<T> observer)
+        public Task<IDisposable> SubscribeAsync(
+            Func<T, Task> leaseAquiredDelegate,
+            Func<T, CloseReason, Task> leaseReleasedDelegate)
         {
-            return this.partitionObserverManager.SubscribeAsync(observer);
+            var leaseObserver = new LeaseObserver<T>(leaseAquiredDelegate, leaseReleasedDelegate);
+            return this.leaseObserverManager.SubscribeAsync(leaseObserver);
         }
 
         public async Task TryReleasePartitionAsync(string partitionId, string leaseToken)
@@ -148,47 +178,57 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.taskHub,
                 this.workerName,
                 string.Empty /* partitionId */,
-                $"Starting background renewal of leases with interval: {this.options.RenewInterval}.");
+                $"Starting background renewal of {this.leaseType} leases with interval: {this.options.RenewInterval}.");
 
             while (this.isStarted == 1 || !shutdownComplete)
             {
                 try
                 {
-                    var failedToRenewLeases = new ConcurrentBag<T>();
+                    var nonRenewedLeases = new ConcurrentBag<T>();
                     var renewTasks = new List<Task>();
 
                     // Renew leases for all currently owned partitions in parallel
                     foreach (T lease in this.currentlyOwnedShards.Values)
                     {
-                        renewTasks.Add(this.RenewLeaseAsync(lease).ContinueWith(renewResult =>
+                        if (this.shouldRenewLeaseDelegate(lease.PartitionId))
                         {
-                            if (!renewResult.Result)
+                            renewTasks.Add(this.RenewLeaseAsync(lease).ContinueWith(renewResult =>
                             {
-                                // Keep track of all failed attempts to renew so we can trigger shutdown for these partitions
-                                failedToRenewLeases.Add(lease);
-                            }
-                        }));
+                                if (!renewResult.Result)
+                                {
+                                    // Keep track of all failed attempts to renew so we can trigger shutdown for these partitions
+                                    nonRenewedLeases.Add(lease);
+                                }
+                            }));
+                        } 
+                        else 
+                        {
+                            nonRenewedLeases.Add(lease);
+                        }
                     }
 
                     // Renew leases for all partitions currently in shutdown 
                     var failedToRenewShutdownLeases = new List<T>();
-                    foreach (T shutdownLeases in this.keepRenewingDuringClose.Values)
+                    foreach (T shutdownLease in this.keepRenewingDuringClose.Values)
                     {
-                        renewTasks.Add(this.RenewLeaseAsync(shutdownLeases).ContinueWith(renewResult =>
+                        if (this.shouldRenewLeaseDelegate(shutdownLease.PartitionId))
                         {
-                            if (!renewResult.Result)
+                            renewTasks.Add(this.RenewLeaseAsync(shutdownLease).ContinueWith(renewResult =>
                             {
-                                // Keep track of all failed attempts to renew shutdown leases so we can remove them from further renew attempts
-                                failedToRenewShutdownLeases.Add(shutdownLeases);
-                            }
-                        }));
+                                if (!renewResult.Result)
+                                {
+                                    // Keep track of all failed attempts to renew shutdown leases so we can remove them from further renew attempts
+                                    failedToRenewShutdownLeases.Add(shutdownLease);
+                                }
+                            }));
+                        }
                     }
 
                     // Wait for all renews to complete
                     await Task.WhenAll(renewTasks.ToArray());
 
-                    // Trigger shutdown of all partitions we failed to renew leases
-                    await failedToRenewLeases.ParallelForEachAsync(lease => this.RemoveLeaseAsync(lease, false));
+                    // Trigger shutdown of all partitions we did not successfully renew leases for
+                    await nonRenewedLeases.ParallelForEachAsync(lease => this.RemoveLeaseAsync(lease, false));
 
                     // Now remove all failed renewals of shutdown leases from further renewals
                     foreach (T failedToRenewShutdownLease in failedToRenewShutdownLeases)
@@ -206,11 +246,16 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.taskHub,
                         this.workerName,
                         string.Empty /* partitionId */,
-                        "Background renewal task was canceled.");
+                        $"Background renewal task for {this.leaseType} leases was canceled.");
                 }
                 catch (Exception ex)
                 {
-                    this.settings.Logger.PartitionManagerError(this.accountName, this.taskHub, this.workerName, string.Empty, ex.ToString());
+                    this.settings.Logger.PartitionManagerError(
+                        this.accountName,
+                        this.taskHub,
+                        this.workerName,
+                        string.Empty,
+                        $"Failed during {this.leaseType} lease renewal: {ex.ToString()}");
                 }
             }
 
@@ -221,7 +266,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.taskHub,
                 this.workerName,
                 string.Empty /* partitionId */,
-                "Background renewer task completed.");
+                $"Background renewer task for {this.leaseType} leases completed.");
         }
 
         async Task LeaseTakerAsync()
@@ -231,7 +276,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.taskHub,
                 this.workerName,
                 string.Empty /* partitionId */,
-                $"Starting to check for available leases with interval: {this.options.AcquireInterval}.");
+                $"Starting to check for available {this.leaseType} leases with interval: {this.options.AcquireInterval}.");
 
             while (this.isStarted == 1)
             {
@@ -249,7 +294,12 @@ namespace DurableTask.AzureStorage.Partitioning
                 }
                 catch (Exception ex)
                 {
-                    this.settings.Logger.PartitionManagerError(this.accountName, this.taskHub, this.workerName, string.Empty, ex.ToString());
+                    this.settings.Logger.PartitionManagerError(
+                        this.accountName, 
+                        this.taskHub,
+                        this.workerName,
+                        string.Empty,
+                        $"Failed during {this.leaseType} acquisition: {ex.ToString()}");
                 }
 
                 try
@@ -263,7 +313,7 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.taskHub,
                         this.workerName,
                         string.Empty /* partitionId */,
-                        "Background AcquireLease task was canceled.");
+                        $"Background AcquireLease task for {this.leaseType} leases was canceled.");
                 }
             }
 
@@ -272,7 +322,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.taskHub,
                 this.workerName,
                 string.Empty /* partitionId */,
-                "Background AcquireLease task completed.");
+                $"Background AcquireLease task for {this.leaseType} leases completed.");
         }
 
         async Task<IDictionary<string, T>> TakeLeasesAsync()
@@ -282,8 +332,20 @@ namespace DurableTask.AzureStorage.Partitioning
             var workerToShardCount = new Dictionary<string, int>();
             var expiredLeases = new List<T>();
 
-            foreach (T lease in await this.leaseManager.ListLeasesAsync())
+            var allLeases = await this.leaseManager.ListLeasesAsync();
+            foreach (T lease in allLeases)
             {
+                if (!this.shouldAquireLeaseDelegate(lease.PartitionId))
+                {
+                    this.settings.Logger.PartitionManagerInfo(
+                        this.accountName,
+                        this.taskHub,
+                        this.workerName,
+                        string.Empty /* partitionId */,
+                        $"Skiping {this.leaseType} lease aquiring for {lease.PartitionId}");
+                    continue;
+                }
+
                 allShards.Add(lease.PartitionId, lease);
                 if (lease.IsExpired() || string.IsNullOrWhiteSpace(lease.Owner))
                 {
@@ -353,7 +415,7 @@ namespace DurableTask.AzureStorage.Partitioning
                             }
                         }
                     }
-                    else
+                    else if (this.options.ShouldStealLeases)
                     {
                         KeyValuePair<string, int> workerToStealFrom = default(KeyValuePair<string, int>);
                         foreach (var kvp in workerToShardCount)
@@ -428,7 +490,6 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.workerName,
                     lease.PartitionId,
                     lease.Token);
-
                 renewed = await this.leaseManager.RenewAsync(lease);
             }
             catch (Exception ex)
@@ -515,7 +576,12 @@ namespace DurableTask.AzureStorage.Partitioning
             catch (Exception ex)
             {
                 // Eat any exceptions during stealing
-                this.settings.Logger.PartitionManagerError(this.accountName, this.taskHub, this.workerName, lease.PartitionId, ex.ToString());
+                this.settings.Logger.PartitionManagerError(
+                    this.accountName,
+                    this.taskHub,
+                    this.workerName,
+                    lease.PartitionId,
+                    $"Failure in {this.leaseType} lease stealing: {ex.ToString()}");
             }
 
             return stolen;
@@ -528,14 +594,19 @@ namespace DurableTask.AzureStorage.Partitioning
                 bool failedToInitialize = false;
                 try
                 {
-                    await this.partitionObserverManager.NotifyShardAcquiredAsync(lease);
+                    await this.leaseObserverManager.NotifyShardAcquiredAsync(lease);
                 }
                 catch (Exception ex)
                 {
                     failedToInitialize = true;
 
                     // Eat any exceptions during notification of observers
-                    this.settings.Logger.PartitionManagerError(this.accountName, this.taskHub, this.workerName, lease.PartitionId, ex.ToString());
+                    this.settings.Logger.PartitionManagerError(
+                        this.accountName,
+                        this.taskHub,
+                        this.workerName,
+                        lease.PartitionId,
+                        $"Failed to notify observers of {this.leaseType} lease acquisition: {ex}");
                 }
 
                 // We need to release the lease if we fail to initialize the processor, so some other node can pick up the parition
@@ -556,7 +627,7 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.taskHub,
                         this.workerName,
                         lease.PartitionId,
-                        $"Unable to add PartitionId '{lease.PartitionId}' with lease token '{lease.Token}' to currently owned partitions.");
+                        $"Unable to add {this.leaseType} lease with PartitionId '{lease.PartitionId}' with lease token '{lease.Token}' to currently owned leases.");
 
                     await this.leaseManager.ReleaseAsync(lease);
                     this.settings.Logger.LeaseRemoved(
@@ -583,7 +654,7 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.taskHub,
                         this.workerName,
                         lease.PartitionId,
-                        ex.ToString());
+                        $"Encountered a failure when removing a {this.leaseType} lease we previuosly owned: {ex}");
                 }
             }
         }
@@ -609,12 +680,17 @@ namespace DurableTask.AzureStorage.Partitioning
                     }
 
                     // Notify the host that we lost shard so shutdown can be triggered on the host
-                    await this.partitionObserverManager.NotifyShardReleasedAsync(lease, reason);
+                    await this.leaseObserverManager.NotifyShardReleasedAsync(lease, reason);
                 }
                 catch (Exception ex)
                 {
                     // Eat any exceptions during notification of observers
-                    this.settings.Logger.PartitionManagerError(this.accountName, this.taskHub, this.workerName, lease.PartitionId, ex.ToString());
+                    this.settings.Logger.PartitionManagerError(
+                        this.accountName,
+                        this.taskHub,
+                        this.workerName,
+                        lease.PartitionId,
+                        $"Encountered exception while notifying observers of {this.leaseType} lease release: {ex}");
                 }
                 finally
                 {
@@ -648,24 +724,30 @@ namespace DurableTask.AzureStorage.Partitioning
                     }
                     catch (Exception ex)
                     {
-                        this.settings.Logger.PartitionManagerError(this.accountName, this.taskHub, this.workerName, lease.PartitionId, ex.ToString());
+                        this.settings.Logger.PartitionManagerError(
+                            this.accountName,
+                            this.taskHub,
+                            this.workerName,
+                            lease.PartitionId,
+                            $"Encountered failure while releasing owned {this.leaseType}: {ex}");
                     }
                 }
             }
         }
 
-        sealed class PartitionObserverManager
-        {
-            readonly PartitionManager<T> partitionManager;
-            readonly List<IPartitionObserver<T>> observers;
 
-            public PartitionObserverManager(PartitionManager<T> partitionManager)
+        sealed class LeaseObserverManager
+        {
+            readonly LeaseCollectionBalancer<T> partitionManager;
+            readonly List<LeaseObserver<T>> observers;
+
+            public LeaseObserverManager(LeaseCollectionBalancer<T> partitionManager)
             {
                 this.partitionManager = partitionManager;
-                this.observers = new List<IPartitionObserver<T>>();
+                this.observers = new List<LeaseObserver<T>>();
             }
 
-            public async Task<IDisposable> SubscribeAsync(IPartitionObserver<T> observer)
+            public async Task<IDisposable> SubscribeAsync(LeaseObserver<T> observer)
             {
                 if (!this.observers.Contains(observer))
                 {
@@ -675,7 +757,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     {
                         try
                         {
-                            await observer.OnPartitionAcquiredAsync(lease);
+                            await observer.OnLeaseAquiredAsync(lease);
                         }
                         catch (Exception ex)
                         {
@@ -685,7 +767,7 @@ namespace DurableTask.AzureStorage.Partitioning
                                 partitionManager.taskHub,
                                 partitionManager.workerName,
                                 lease.PartitionId,
-                                ex.ToString());
+                                $"Failed during notification of observers of {this.partitionManager.leaseManager} lease: {ex.ToString()}");
                         }
                     }
                 }
@@ -697,7 +779,7 @@ namespace DurableTask.AzureStorage.Partitioning
             {
                 foreach (var observer in this.observers)
                 {
-                    await observer.OnPartitionAcquiredAsync(lease);
+                    await observer.OnLeaseAquiredAsync(lease);
                 }
             }
 
@@ -705,17 +787,17 @@ namespace DurableTask.AzureStorage.Partitioning
             {
                 foreach (var observer in this.observers)
                 {
-                    await observer.OnPartitionReleasedAsync(lease, reason);
+                    await observer.OnLeaseReleasedAsync(lease, reason);
                 }
             }
         }
 
         sealed class Unsubscriber : IDisposable
         {
-            readonly List<IPartitionObserver<T>> _observers;
-            readonly IPartitionObserver<T> _observer;
+            readonly List<LeaseObserver<T>> _observers;
+            readonly LeaseObserver<T> _observer;
 
-            internal Unsubscriber(List<IPartitionObserver<T>> observers, IPartitionObserver<T> observer)
+            internal Unsubscriber(List<LeaseObserver<T>> observers, LeaseObserver<T> observer)
             {
                 this._observers = observers;
                 this._observer = observer;

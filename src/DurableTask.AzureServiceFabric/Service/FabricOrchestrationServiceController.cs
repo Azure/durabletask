@@ -11,17 +11,16 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric
+namespace DurableTask.AzureServiceFabric.Service
 {
+    using System;
     using System.Collections.Generic;
     using System.Threading.Tasks;
     using System.Web.Http;
     using System.Web.Http.Results;
-
+    using DurableTask.AzureServiceFabric.Models;
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
-    using DurableTask.AzureServiceFabric.Models;
-    using DurableTask.AzureServiceFabric.Tracing;
 
     /// <summary>
     /// A Web Api controller that provides TaskHubClient operations.
@@ -56,6 +55,7 @@ namespace DurableTask.AzureServiceFabric
             {
                 return BadRequest($"OrchestrationId from Uri {orchestrationId} doesn't match with the one from body {parameters.TaskMessage.OrchestrationInstance.InstanceId}");
             }
+
             try
             {
                 if (parameters.DedupeStatuses == null)
@@ -69,9 +69,13 @@ namespace DurableTask.AzureServiceFabric
 
                 return new OkResult(this);
             }
-            catch (OrchestrationAlreadyExistsException)
+            catch (OrchestrationAlreadyExistsException ex)
             {
-                return Conflict();
+                return Content<OrchestrationAlreadyExistsException>(System.Net.HttpStatusCode.BadRequest, ex);
+            }
+            catch (NotSupportedException ex)
+            {
+                return Content<NotSupportedException>(System.Net.HttpStatusCode.BadRequest, ex);
             }
         }
 

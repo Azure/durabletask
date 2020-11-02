@@ -36,7 +36,7 @@ namespace DurableTask.AzureServiceFabric.Remote
     public class RemoteOrchestrationServiceClient : IOrchestrationServiceClient, IDisposable
     {
         private readonly IPartitionEndpointResolver partitionProvider;
-        private readonly TimeSpan pollDelay = TimeSpan.FromSeconds(10);
+        private readonly int maxPollDelayInSecs = 10;
         private HttpClient httpClient;
 
         /// <summary>
@@ -78,11 +78,9 @@ namespace DurableTask.AzureServiceFabric.Remote
         /// <param name="creationMessage">Orchestration creation message</param>
         /// <exception cref="OrchestrationAlreadyExistsException">Will throw an OrchestrationAlreadyExistsException exception If any orchestration with the same instance Id exists in the instance store.</exception>
         /// <returns></returns>
-        public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage)
+        public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage)
         {
-            creationMessage.OrchestrationInstance.InstanceId.EnsureValidInstanceId();
-            var uri = await ConstructEndpointUriAsync(creationMessage.OrchestrationInstance.InstanceId, GetOrchestrationFragment(), CancellationToken.None);
-            await this.PutJsonAsync(uri, new CreateTaskOrchestrationParameters() { TaskMessage = creationMessage });
+            return this.CreateTaskOrchestrationAsync(creationMessage, null);
         }
 
         /// <summary>
@@ -155,6 +153,11 @@ namespace DurableTask.AzureServiceFabric.Remote
         /// <returns>The OrchestrationState of the specified instanceId or null if not found</returns>
         public async Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)
         {
+            if (string.IsNullOrWhiteSpace(executionId))
+            {
+                return (await this.GetOrchestrationStateAsync(instanceId, false)).FirstOrDefault();
+            }
+
             instanceId.EnsureValidInstanceId();
             var uri = await ConstructEndpointUriAsync(instanceId, GetOrchestrationFragment(instanceId), CancellationToken.None);
             var builder = new UriBuilder($"{uri}?executionId={executionId}");
@@ -224,16 +227,28 @@ namespace DurableTask.AzureServiceFabric.Remote
             instanceId.EnsureValidInstanceId();
             var maxTime = DateTime.Now.Add(timeout);
             OrchestrationState state = null;
-            while (!cancellationToken.IsCancellationRequested && DateTime.Now < maxTime)
+            double pollDelayInSecs = maxPollDelayInSecs;
+            if (timeout.TotalSeconds < pollDelayInSecs)
             {
+                pollDelayInSecs = timeout.TotalSeconds;
+            }
+
+            state = await this.GetOrchestrationStateAsync(instanceId, executionId);
+            if (state != null && state.OrchestrationStatus.IsTerminalState())
+            {
+                return state;
+            }
+
+            do
+            {
+                await Task.Delay(TimeSpan.FromSeconds(pollDelayInSecs), cancellationToken);
                 state = await this.GetOrchestrationStateAsync(instanceId, executionId);
                 if (state != null && state.OrchestrationStatus.IsTerminalState())
                 {
                     return state;
                 }
 
-                await Task.Delay(this.pollDelay);
-            }
+            } while (!cancellationToken.IsCancellationRequested && DateTime.Now < maxTime);
 
             // Either cancellation was requested or timedout, return the last known state.
             return state;
@@ -263,9 +278,11 @@ namespace DurableTask.AzureServiceFabric.Remote
             };
 
             HttpResponseMessage result = await this.HttpClient.PutAsync(uri, @object, mediaFormatter);
+
+            // TODO: Improve exception handling
             if (result.StatusCode == System.Net.HttpStatusCode.Conflict)
             {
-                throw new OrchestrationAlreadyExistsException("Orchestration already exists");
+                throw await result.Content?.ReadAsAsync<OrchestrationAlreadyExistsException>();
             }
 
             if (!result.IsSuccessStatusCode)
