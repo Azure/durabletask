@@ -25,7 +25,6 @@ namespace DurableTask.AzureStorage.Tests.Correlation
     using Microsoft.ApplicationInsights.Channel;
     using Microsoft.ApplicationInsights.DataContracts;
     using Microsoft.ApplicationInsights.Extensibility.Implementation;
-    using Microsoft.ApplicationInsights.W3C;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Newtonsoft.Json;
 
@@ -519,9 +518,10 @@ namespace DurableTask.AzureStorage.Tests.Correlation
 
             while (IsNotReadyForRaiseEvent(host.Client))
             {
-                await Task.Delay(TimeSpan.FromMilliseconds(300));
+                await Task.Delay(TimeSpan.FromMilliseconds(100));
             }
 
+            await Task.Delay(TimeSpan.FromSeconds(1));
             tasks.Add(host.Client.RaiseEventAsync("someEvent", "hi"));
             await Task.WhenAll(tasks);
 
@@ -572,6 +572,146 @@ namespace DurableTask.AzureStorage.Tests.Correlation
             internal static void Reset()
             {
                 IsWaitForExternalEvent = false;
+            }
+        }
+
+        [DataTestMethod]
+        [DataRow(Protocol.W3CTraceContext, false)]
+        [DataRow(Protocol.HttpCorrelationProtocol, false)]
+        [DataRow(Protocol.W3CTraceContext, true)]
+        [DataRow(Protocol.HttpCorrelationProtocol, true)]
+        public async Task MultipleParentMultiLayerScenarioAsync(Protocol protocol, bool enableExtendedSessions)
+        {
+            MultiParentOrchestrator.Reset();
+            CorrelationSettings.Current.Protocol = protocol;
+            CorrelationSettings.Current.EnableDistributedTracing = true;
+            var host = new TestCorrelationOrchestrationHost();
+            var tasks = new List<Task>();
+            tasks.Add(host.ExecuteOrchestrationAsync(typeof(MultiParentMultiLayeredOrchestrator), "world", 30, enableExtendedSessions));
+
+            while (IsNotReadyForTwoRaiseEvents(host.Client))
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(100));
+            }
+
+            await Task.Delay(TimeSpan.FromSeconds(1));
+            foreach(string instanceId in MultiParentChildOrchestrator.InstanceIds)
+            {
+                tasks.Add(host.Client.RaiseEventAsync(instanceId, "someEvent", "hi"));
+            }
+            await Task.WhenAll(tasks);
+
+            List<OperationTelemetry> actual = Convert(tasks[0]);
+
+            Assert.AreEqual(11, actual.Count);
+            CollectionAssert.AreEqual(
+                new (Type, string)[]
+                {
+                    (typeof(RequestTelemetry), TraceConstants.Client),
+                    (typeof(DependencyTelemetry), TraceConstants.Client),
+                    (typeof(RequestTelemetry), $"{TraceConstants.Orchestrator} MultiParentMultiLayeredOrchestrator"),
+                    (typeof(DependencyTelemetry), $"{TraceConstants.Orchestrator} {typeof(MultiParentChildOrchestrator).FullName}"),
+                    (typeof(RequestTelemetry), $"{TraceConstants.Orchestrator} MultiParentChildOrchestrator"),
+                    (typeof(DependencyTelemetry), $"{TraceConstants.Orchestrator} {typeof(Hello).FullName}"),
+                    (typeof(RequestTelemetry), $"{TraceConstants.Activity} Hello"),
+                    (typeof(DependencyTelemetry), $"{TraceConstants.Orchestrator} {typeof(MultiParentChildOrchestrator).FullName}"),
+                    (typeof(RequestTelemetry), $"{TraceConstants.Orchestrator} MultiParentChildOrchestrator"),
+                    (typeof(DependencyTelemetry), $"{TraceConstants.Orchestrator} {typeof(Hello).FullName}"),
+                    (typeof(RequestTelemetry), $"{TraceConstants.Activity} Hello")
+                }, actual.Select(x => (x.GetType(), x.Name)).ToList());
+            MultiParentChildOrchestrator.Reset();
+
+        }
+
+        bool IsNotReadyForTwoRaiseEvents(TestOrchestrationClient client)
+        {
+            return client == null || !(MultiParentChildOrchestrator.ReadyForExternalEvent == 2);
+        }
+
+        [KnownType(typeof(MultiParentChildOrchestrator))]
+        [KnownType(typeof(Hello))]
+        internal class MultiParentMultiLayeredOrchestrator : TaskOrchestration<string, string>
+        {
+            public override async Task<string> RunTask(OrchestrationContext context, string input)
+            {
+                var tasks = new List<Task<string>>();
+                tasks.Add(context.CreateSubOrchestrationInstance<string>(typeof(MultiParentChildOrchestrator), "foo"));
+                tasks.Add(context.CreateSubOrchestrationInstance<string>(typeof(MultiParentChildOrchestrator), "bar"));
+                await Task.WhenAll(tasks);
+                return $"{tasks[0].Result}:{tasks[1].Result}";
+            }
+        }
+        [KnownType(typeof(Hello))]
+        internal class MultiParentChildOrchestrator : TaskOrchestration<string, string>
+        {
+            private static object lockExternalEvent = new object();
+            private static object lockId = new object();
+            private static int readyCountForExternalEvent = 0;
+            private static List<string> orchestrationIds = new List<string>();
+            public static int ReadyForExternalEvent
+            {
+                get
+                {
+                    return readyCountForExternalEvent;
+                }
+
+                set
+                {
+                    lock (lockExternalEvent)
+                    {
+                        readyCountForExternalEvent = value;
+                    }
+                }
+            }
+            public static IEnumerable<string> InstanceIds
+            {
+                get
+                {
+                    IEnumerable<string> result;
+                    lock(lockId)
+                    {
+                        result = orchestrationIds.ToList<string>();
+                    }
+                    return result;
+                }
+            }
+
+            public static void AddOrchestrationId(string orchestrationId)
+            {
+                lock(lockId)
+                {
+                    orchestrationIds.Add(orchestrationId);
+                }
+            }
+
+            public static void IncrementReadyForExternalEvent()
+            {
+                lock (lockExternalEvent)
+                {
+                    readyCountForExternalEvent++;
+                }
+            }
+
+            readonly TaskCompletionSource<object> receiveEvent = new TaskCompletionSource<object>();
+
+            public async override Task<string> RunTask(OrchestrationContext context, string input)
+            {
+                AddOrchestrationId(context.OrchestrationInstance.InstanceId);
+                IncrementReadyForExternalEvent();
+                await this.receiveEvent.Task;
+                await context.ScheduleTask<string>(typeof(Hello), input);
+                return "done";
+            }
+
+            public override void OnEvent(OrchestrationContext context, string name, string input)
+            {
+                this.receiveEvent.SetResult(null);
+            }
+
+            internal static void Reset()
+            {
+                ReadyForExternalEvent = 0;
+                orchestrationIds = new List<string>();
             }
         }
 

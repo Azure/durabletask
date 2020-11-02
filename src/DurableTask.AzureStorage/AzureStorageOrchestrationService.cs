@@ -661,7 +661,7 @@ namespace DurableTask.AzureStorage
                         () =>
                         {
                             var isReplaying = session.RuntimeState.ExecutionStartedEvent?.IsPlayed ?? false;
-                            TraceContextBase parentTraceContext = GetParentTraceContext(session.CurrentMessageBatch);
+                            TraceContextBase parentTraceContext = GetParentTraceContext(session);
                             currentRequestTraceContext = GetRequestTraceContext(isReplaying, parentTraceContext);
                         });
 
@@ -763,8 +763,9 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        static TraceContextBase GetParentTraceContext(IList<MessageData> messages)
+        TraceContextBase GetParentTraceContext(OrchestrationSession session)
         {
+            var messages = session.CurrentMessageBatch;
             TraceContextBase parentTraceContext = null;
             foreach(var message in messages)
             {
@@ -803,7 +804,16 @@ namespace DurableTask.AzureStorage
 
                             break;
                     }                   
-                }               
+                } else
+                {
+                    if (message.TaskMessage.Event is EventRaisedEvent)
+                    {
+                        var history = session.RuntimeState.Events;
+
+                        string traceContextString = session.RuntimeState.ExecutionStartedEvent?.Correlation;
+                        parentTraceContext = TraceContextBase.Restore(traceContextString);
+                    }
+                }            
             }
 
             return parentTraceContext ?? TraceContextFactory.Empty;

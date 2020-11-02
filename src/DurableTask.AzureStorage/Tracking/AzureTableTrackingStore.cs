@@ -56,6 +56,7 @@ namespace DurableTask.AzureStorage.Tracking
             OutputProperty,
             "Reason",
             "Details",
+            "Correlation"
         };
 
         readonly string storageAccountName;
@@ -946,7 +947,7 @@ namespace DurableTask.AzureStorage.Tracking
                     ["LastUpdatedTime"] = new EntityProperty(newEvents.Last().Timestamp),
                 }
             };
-            
+           
             for (int i = 0; i < newEvents.Count; i++)
             {
                 bool isFinalEvent = i == newEvents.Count - 1;
@@ -980,6 +981,12 @@ namespace DurableTask.AzureStorage.Tracking
                         instanceEntity.Properties["Version"] = new EntityProperty(executionStartedEvent.Version);
                         instanceEntity.Properties["CreatedTime"] = new EntityProperty(executionStartedEvent.Timestamp);
                         instanceEntity.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Running.ToString());
+                        CorrelationTraceClient.Propagate(() =>
+                        {
+                            historyEntity.Properties["Correlation"] = new EntityProperty(executionStartedEvent.Correlation);
+                            estimatedBytes += Encoding.Unicode.GetByteCount(executionStartedEvent.Correlation);
+                        });
+
                         this.SetInstancesTablePropertyFromHistoryProperty(
                             historyEntity,
                             instanceEntity,
