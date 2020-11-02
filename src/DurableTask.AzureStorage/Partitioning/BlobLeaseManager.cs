@@ -84,7 +84,7 @@ namespace DurableTask.AzureStorage.Partitioning
             }
         }
 
-        public async Task<bool> CreateLeaseStoreIfNotExistsAsync(TaskHubInfo eventHubInfo)
+        public async Task<bool> CreateLeaseStoreIfNotExistsAsync(TaskHubInfo eventHubInfo, bool checkIfStale)
         {
             bool result = false;
             if (!this.skipBlobContainerCreation)
@@ -93,7 +93,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.stats.StorageRequests.Increment();
             }
 
-            await this.CreateTaskHubInfoIfNotExistAsync(eventHubInfo);
+            await this.GetOrCreateTaskHubInfoAsync(eventHubInfo, checkIfStale: checkIfStale);
 
             return result;
         }
@@ -348,32 +348,27 @@ namespace DurableTask.AzureStorage.Partitioning
             }
         }
 
-        internal async Task<TaskHubInfo> GetOrCreateTaskHubInfoAsync(TaskHubInfo createdTaskHubInfo)
+        internal async Task<TaskHubInfo> GetOrCreateTaskHubInfoAsync(TaskHubInfo newTaskHubInfo, bool checkIfStale)
         {
             TaskHubInfo currentTaskHubInfo = await this.GetTaskHubInfoAsync();
             if (currentTaskHubInfo != null)
             {
+                if (checkIfStale && IsStale(currentTaskHubInfo, newTaskHubInfo))
+                {
+                    string serializedInfo = JsonConvert.SerializeObject(newTaskHubInfo);
+                    await this.taskHubInfoBlob.UploadTextAsync(serializedInfo, null, AccessCondition.GenerateEmptyCondition(), null, null);
+                }
                 return currentTaskHubInfo;
             }
 
-            await this.CreateTaskHubInfoIfNotExistAsync(createdTaskHubInfo);
-            return createdTaskHubInfo;
+            await this.CreateTaskHubInfoIfNotExistAsync(newTaskHubInfo);
+            return newTaskHubInfo;
         }
 
-        internal async Task<bool> IsStaleLeaseStore(TaskHubInfo taskHubInfo)
+        private bool IsStale(TaskHubInfo currentTaskHubInfo, TaskHubInfo newTaskHubInfo)
         {
-            TaskHubInfo currentTaskHubInfo = await this.GetTaskHubInfoAsync();
-            if (currentTaskHubInfo != null)
-            {
-                if (!currentTaskHubInfo.TaskHubName.Equals(taskHubInfo.TaskHubName, StringComparison.OrdinalIgnoreCase)
-                    || !currentTaskHubInfo.CreatedAt.Equals(taskHubInfo.CreatedAt)
-                    || !currentTaskHubInfo.PartitionCount.Equals(taskHubInfo.PartitionCount))
-                {
-                    return true;
-                }
-            }
-
-            return false;
+            return !currentTaskHubInfo.TaskHubName.Equals(newTaskHubInfo.TaskHubName, StringComparison.OrdinalIgnoreCase)
+                    || !currentTaskHubInfo.PartitionCount.Equals(newTaskHubInfo.PartitionCount);
         }
 
         void Initialize()
