@@ -130,7 +130,8 @@ namespace DurableTask.Core
                     throw new TypeMissingException($"TaskActivity {scheduledEvent.Name} version {scheduledEvent.Version} was not found");
                 }
 
-                renewTask = Task.Factory.StartNew(
+                // start a task to run RenewUntil
+                renewTask = await Task.Factory.StartNew(
                     () => this.RenewUntil(workItem, renewCancellationTokenSource.Token),
                     renewCancellationTokenSource.Token);
 
@@ -195,6 +196,7 @@ namespace DurableTask.Core
                     renewCancellationTokenSource.Cancel();
                     try
                     {
+                        // wait the renewTask finish
                         await renewTask;
                     }
                     catch (OperationCanceledException)
