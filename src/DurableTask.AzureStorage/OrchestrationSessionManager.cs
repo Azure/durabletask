@@ -58,7 +58,7 @@ namespace DurableTask.AzureStorage
         {
             if (this.ownedControlQueues.TryAdd(partitionId, controlQueue))
             {
-                Task.Run(() => this.DequeueLoop(partitionId, controlQueue, cancellationToken));
+                _ = Task.Run(() => this.DequeueLoop(partitionId, controlQueue, cancellationToken));
             }
             else
             {
