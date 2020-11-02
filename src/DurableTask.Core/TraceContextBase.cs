@@ -153,8 +153,7 @@ namespace DurableTask.Core
         /// </summary>
         public void SetActivityToCurrent()
         {
-            var property = typeof(Activity).GetProperty("Current", BindingFlags.Public | BindingFlags.Static);
-            property.SetValue(null, CurrentActivity);
+            CurrentActivity = Activity.Current;
         }
 
         /// <summary>
@@ -162,24 +161,36 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="json">Serialized json of TraceContext sub classes</param>
         /// <returns></returns>
-        public static TraceContextBase Restore(string json) 
+        public static TraceContextBase Restore(string json)
         {
-            if (!string.IsNullOrEmpty(json))
-            {
-                JToken typeName = JObject.Parse(json)["$type"];
-                Type traceContextType = Type.GetType(typeName.Value<string>());
-
-                var restored = JsonConvert.DeserializeObject(
-                    json,
-                    traceContextType,
-                    CustomJsonSerializerSettings) as TraceContextBase;
-                restored.OrchestrationTraceContexts = new Stack<TraceContextBase>(restored.OrchestrationTraceContexts);
-                return restored;
-            }
-            else
+            // If the JSON is empty, we assume to have an empty context
+            if (string.IsNullOrEmpty(json))
             {
                 return TraceContextFactory.Empty;
             }
+
+            // Obtain typename and validate that it is a subclass of `TraceContextBase`.
+            // If it's not, we throw an exception.
+            Type traceContextType = null;
+            Type traceContextBasetype = typeof(TraceContextBase);
+
+            JToken typeName = JObject.Parse(json)["$type"];
+            traceContextType = Type.GetType(typeName.Value<string>());
+            if (!traceContextType.IsSubclassOf(traceContextBasetype))
+            {
+                string typeNameStr = typeName.ToString();
+                string baseNameStr = traceContextBasetype.ToString();
+                throw new Exception($"Serialized TraceContext type ${typeNameStr} is not a subclass of ${baseNameStr}." +
+                    "This probably means something went wrong in serializing the TraceContext.");
+            }
+
+            // De-serialize the object now that we now it's safe
+            var restored = JsonConvert.DeserializeObject(
+                json,
+                traceContextType,
+                CustomJsonSerializerSettings) as TraceContextBase;
+            restored.OrchestrationTraceContexts = new Stack<TraceContextBase>(restored.OrchestrationTraceContexts);
+            return restored;
         }
     }
 

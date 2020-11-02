@@ -29,12 +29,12 @@ namespace DurableTask.AzureStorage.Tests.Correlation
             var operations = new List<OperationTelemetry>();
             var timeStamps = await GetDateTimeOffsetsAsync(6);
 
-            operations.Add(CreateDependencyTelemetry("02", "01", timeStamps[3]));
-            operations.Add(CreateRequestTelemetry("01", null, timeStamps[0]));
-            operations.Add(CreateRequestTelemetry("04", "03", timeStamps[2]));
-            operations.Add(CreateDependencyTelemetry("05", "04", timeStamps[4]));
-            operations.Add(CreateDependencyTelemetry("06", "05", timeStamps[5]));
-            operations.Add(CreateRequestTelemetry("03", "02", timeStamps[1]));
+            operations.Add(CreateDependencyTelemetry(id: "02", parentId: "01", timeStamps[3]));
+            operations.Add(CreateRequestTelemetry(id: "01", parentId: null, timeStamps[0]));
+            operations.Add(CreateRequestTelemetry(id:"04", parentId: "03", timeStamps[2]));
+            operations.Add(CreateDependencyTelemetry(id:"05", parentId: "04", timeStamps[4]));
+            operations.Add(CreateDependencyTelemetry(id: "06", parentId: "05", timeStamps[5]));
+            operations.Add(CreateRequestTelemetry(id: "03", parentId: "02", timeStamps[1]));
 
             var actual = operations.CorrelationSort();
             Assert.AreEqual(6, actual.Count);
@@ -51,14 +51,14 @@ namespace DurableTask.AzureStorage.Tests.Correlation
         {
             var operations = new List<OperationTelemetry>();
             var timeStamps = await GetDateTimeOffsetsAsync(8);
-            operations.Add(CreateRequestTelemetry("01", null, timeStamps[0]));
-            operations.Add(CreateDependencyTelemetry("02", "01", timeStamps[1]));
-            operations.Add(CreateRequestTelemetry("05", "03", timeStamps[3]));
-            operations.Add(CreateRequestTelemetry("04", "03", timeStamps[2]));
-            operations.Add(CreateDependencyTelemetry("06", "04", timeStamps[4]));
-            operations.Add(CreateDependencyTelemetry("08", "03", timeStamps[6]));
-            operations.Add(CreateDependencyTelemetry("07", "05", timeStamps[5]));
-            operations.Add(CreateRequestTelemetry("03", "02", timeStamps[7]));
+            operations.Add(CreateRequestTelemetry(id: "01", parentId: null, timeStamps[0]));
+            operations.Add(CreateDependencyTelemetry(id: "02", parentId: "01", timeStamps[1]));
+            operations.Add(CreateRequestTelemetry(id: "05", parentId: "03", timeStamps[3]));
+            operations.Add(CreateRequestTelemetry(id: "04", parentId: "03", timeStamps[2]));
+            operations.Add(CreateDependencyTelemetry(id: "06", parentId: "04", timeStamps[4]));
+            operations.Add(CreateDependencyTelemetry(id: "08", parentId: "03", timeStamps[6]));
+            operations.Add(CreateDependencyTelemetry(id: "07", parentId: "05", timeStamps[5]));
+            operations.Add(CreateRequestTelemetry(id: "03", parentId: "02", timeStamps[7]));
 
             var actual = operations.CorrelationSort();
             Assert.AreEqual(8, actual.Count);
