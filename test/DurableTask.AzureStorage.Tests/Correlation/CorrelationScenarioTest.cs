@@ -302,9 +302,6 @@ namespace DurableTask.AzureStorage.Tests.Correlation
                     (typeof(RequestTelemetry), $"{TraceConstants.Activity} NeedToExecuteTwice")
                 }, actual.Select(x => (x.GetType(), x.Name)).ToList());
 
-            var uno = actualExceptions.Select(x => x.Context.Operation.ParentId).ToList();
-            var dos = actual[4].Id;
-
             CollectionAssert.AreEqual(
                 actualExceptions.Select(x => x.Context.Operation.ParentId).ToList(),
                 new string[] { actual[4].Id });

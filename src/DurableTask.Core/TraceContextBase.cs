@@ -149,11 +149,11 @@ namespace DurableTask.Core
         public void Stop() => CurrentActivity?.Stop();
 
         /// <summary>
-        /// Set the CurrentActivity to Activity.Current
+        /// Set Activity.Current to CurrentActivity
         /// </summary>
         public void SetActivityToCurrent()
         {
-            CurrentActivity = Activity.Current;
+            Activity.Current = CurrentActivity;
         }
 
         /// <summary>
