@@ -12,7 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Correlation.Samples\Correlation.Samples.csproj" />
+    <ProjectReference Include="..\..\samples\Correlation.Samples\Correlation.Samples.csproj" />
   </ItemGroup>
 
 </Project>

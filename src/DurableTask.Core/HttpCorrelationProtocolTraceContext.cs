@@ -48,7 +48,7 @@ namespace DurableTask.Core
             if (parentTraceContext is HttpCorrelationProtocolTraceContext)
             {
                 var context = (HttpCorrelationProtocolTraceContext)parentTraceContext;
-                CurrentActivity.SetParentId(context.ParentId); // TODO check if it is context.ParentId or context.CurrentActivity.Id 
+                 CurrentActivity.SetParentId(context.ParentId); // TODO check if it is context.ParentId or context.CurrentActivity.Id 
                 OrchestrationTraceContexts = context.OrchestrationTraceContexts.Clone();
             }
 
