@@ -20,7 +20,7 @@ namespace Correlation.Samples
     using DurableTask.AzureStorage;
     using DurableTask.Core;
     using DurableTask.Core.History;
-    using Microsoft.VisualStudio.TestTools.UnitTesting;
+    //using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Newtonsoft.Json;
 
     internal class TestOrchestrationClient
@@ -100,12 +100,12 @@ namespace Correlation.Samples
             if (state != null)
             {
                 // Validate the status before returning
-                Assert.AreEqual(this.orchestrationType.FullName, state.Name);
-                Assert.AreEqual(this.instanceId, state.OrchestrationInstance.InstanceId);
-                Assert.IsTrue(state.CreatedTime >= this.instanceCreationTime);
-                Assert.IsTrue(state.CreatedTime <= DateTime.UtcNow);
-                Assert.IsTrue(state.LastUpdatedTime >= state.CreatedTime);
-                Assert.IsTrue(state.LastUpdatedTime <= DateTime.UtcNow);
+                //Assert.AreEqual(this.orchestrationType.FullName, state.Name);
+                //Assert.AreEqual(this.instanceId, state.OrchestrationInstance.InstanceId);
+                //Assert.IsTrue(state.CreatedTime >= this.instanceCreationTime);
+                //Assert.IsTrue(state.CreatedTime <= DateTime.UtcNow);
+                //Assert.IsTrue(state.LastUpdatedTime >= state.CreatedTime);
+                //Assert.IsTrue(state.LastUpdatedTime <= DateTime.UtcNow);
             }
 
             return state;
