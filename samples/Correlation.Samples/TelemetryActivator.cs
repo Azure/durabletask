@@ -61,9 +61,11 @@ namespace Correlation.Samples
 
             TelemetryConfiguration config = TelemetryConfiguration.CreateDefault();
 
+#pragma warning disable CS0618 // Type or member is obsolete
             var telemetryInitializer = new DurableTaskCorrelationTelemetryInitializer();
-            // TODO It should be suppressed by DependencyTrackingTelemetryModule, however, it doesn't work currently.
-            // Once the bug is fixed, remove this settings. 
+#pragma warning restore CS0618 // Type or member is obsolete
+                              // TODO It should be suppressed by DependencyTrackingTelemetryModule, however, it doesn't work currently.
+                              // Once the bug is fixed, remove this settings. 
             telemetryInitializer.ExcludeComponentCorrelationHttpHeadersOnDomains.Add("127.0.0.1");
             config.TelemetryInitializers.Add(telemetryInitializer);
 
