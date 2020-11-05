@@ -1336,23 +1336,18 @@ namespace DurableTask.AzureStorage
             // Client operations will auto-create the task hub if it doesn't already exist.
             await this.EnsureTaskHubAsync();
 
-            var existingInstanceStates = await GetExistingInstanceStates(creationMessage.OrchestrationInstance.InstanceId);
-            InstanceStatus existingInstance = null;
-            foreach (OrchestrationState existingState in existingInstanceStates)
-            {
-                existingInstance = await this.trackingStore.FetchInstanceStatusAsync(
+            InstanceStatus existingInstance = await this.trackingStore.FetchInstanceStatusAsync(
                 creationMessage.OrchestrationInstance.InstanceId);
 
-                if (dedupeStatuses != null && dedupeStatuses.Contains(existingState.OrchestrationStatus))
+            if (existingInstance?.State != null && dedupeStatuses != null && dedupeStatuses.Contains(existingInstance.State.OrchestrationStatus))
+            {
+                // An instance in this state already exists.
+                if (this.settings.ThrowExceptionOnInvalidDedupeStatus)
                 {
-                    // An instance in this state already exists.
-                    if (this.settings.ThrowExceptionOnInvalidDedupeStatus)
-                    {
-                        throw new InvalidOperationException($"An Orchestration instance with the status {existingInstance.State.OrchestrationStatus} already exists.");
-                    }
-
-                    return;
+                    throw new InvalidOperationException($"An Orchestration instance with the status {existingInstance.State.OrchestrationStatus} already exists.");
                 }
+                
+                return;
             }
 
             ControlQueue controlQueue = await this.GetControlQueueAsync(creationMessage.OrchestrationInstance.InstanceId);
@@ -1368,19 +1363,6 @@ namespace DurableTask.AzureStorage
                 executionStartedEvent,
                 existingInstance?.ETag,
                 inputStatusOverride);
-        }
-
-        private async Task<IEnumerable<OrchestrationState>> GetExistingInstanceStates(string instanceId)
-        {
-            var queryCondition = new OrchestrationInstanceStatusQueryCondition
-            {
-                InstanceIdPrefix = instanceId,
-                FetchInput = false,
-            };
-
-            var durableStatusQueryResult = await this.trackingStore.GetStateAsync(queryCondition, 5, "");
-
-            return durableStatusQueryResult != null ? durableStatusQueryResult.OrchestrationState : null;
         }
 
         /// <summary>

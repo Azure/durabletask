@@ -497,22 +497,16 @@ namespace DurableTask.AzureStorage.Tracking
                 throw new ArgumentNullException(nameof(instanceId));
             }
 
-            List<string> columnsToRetrieve = null; // Default of null => retrieve all columns
-            if (!fetchInput)
+            var queryCondition = new OrchestrationInstanceStatusQueryCondition
             {
-                columnsToRetrieve = typeof(OrchestrationInstanceStatus).GetProperties().Select(prop => prop.Name).ToList();
-                if (columnsToRetrieve.Contains(InputProperty))
-                {
-                    // Retrieve all columns except the input column
-                    columnsToRetrieve.Remove(InputProperty);
-                }
-            }
+                InstanceIdPrefix = instanceId,
+                FetchInput = fetchInput,
+            };
 
             var stopwatch = new Stopwatch();
-            TableResult orchestration = await this.InstancesTable.ExecuteAsync(TableOperation.Retrieve<OrchestrationInstanceStatus>(instanceId, "", columnsToRetrieve));
+            var segment = await this.InstancesTable.ExecuteQuerySegmentedAsync(queryCondition.ToTableQuery<DynamicTableEntity>(), null);
             stopwatch.Stop();
             this.stats.StorageRequests.Increment();
-            this.stats.TableEntitiesRead.Increment(1);
 
             this.settings.Logger.FetchedInstanceStatus(
                 this.storageAccountName,
@@ -521,14 +515,68 @@ namespace DurableTask.AzureStorage.Tracking
                 executionId ?? string.Empty,
                 stopwatch.ElapsedMilliseconds);
 
-            OrchestrationInstanceStatus orchestrationInstanceStatus = (OrchestrationInstanceStatus)orchestration.Result;
-            if (orchestrationInstanceStatus == null)
+            var tableEntity = segment.ToList().FirstOrDefault();
+            if (tableEntity == null)
             {
                 return null;
             }
 
-            OrchestrationState state = await this.ConvertFromAsync(orchestrationInstanceStatus, instanceId);
-            return state != null ? new InstanceStatus(state, orchestration.Etag) : null;
+            this.stats.TableEntitiesRead.Increment(1);
+
+            var orchestrationState = await this.ConvertFromAsync(tableEntity);
+
+            return new InstanceStatus(orchestrationState, tableEntity.ETag);
+        }
+
+        async Task<OrchestrationState> ConvertFromAsync(DynamicTableEntity tableEntity)
+        {
+            var orchestrationState = new OrchestrationState();
+            var properties = tableEntity.Properties;
+
+            properties.TryGetValue("ExecutionId", out EntityProperty executionId);
+            orchestrationState.OrchestrationInstance = new OrchestrationInstance
+            {
+                InstanceId = tableEntity.PartitionKey,
+                ExecutionId = executionId?.ToString(),
+            };
+
+            var type = typeof(OrchestrationState);
+            foreach (var pair in properties)
+            {
+                var property = type.GetProperty(pair.Key);
+                if (property != null)
+                {
+                    object value = pair.Value.StringValue;
+                    if (value != null)
+                    {
+                        value = value.ToString();
+
+                        if (property.PropertyType == typeof(OrchestrationStatus))
+                        {
+                            if (!Enum.TryParse((string)value, out OrchestrationStatus parsedValue))
+                            {
+                                // This is not expected, but could happen if there is invalid data in the Instances table.
+                                value = (OrchestrationStatus)(-1);
+                            }
+                        }
+
+                        if (property.PropertyType == typeof(DateTime))
+                        {
+                            value = DateTime.Parse(value.ToString());
+                        }
+
+                        property.SetValue(orchestrationState, value);
+                    }
+                }
+            }
+
+            if (this.settings.FetchLargeMessageDataEnabled)
+            {
+                orchestrationState.Input = await this.messageManager.FetchLargeMessageIfNecessary(orchestrationState.Input);
+                orchestrationState.Output = await this.messageManager.FetchLargeMessageIfNecessary(orchestrationState.Output);
+            }
+
+            return orchestrationState;
         }
 
         async Task<OrchestrationState> ConvertFromAsync(OrchestrationInstanceStatus orchestrationInstanceStatus, string instanceId)

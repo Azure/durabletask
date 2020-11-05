@@ -65,7 +65,7 @@ namespace DurableTask.AzureStorage.Tracking
         /// <typeparam name="T"></typeparam>
         /// <returns></returns>
         public TableQuery<T> ToTableQuery<T>()
-            where T : TableEntity, new()
+            where T : ITableEntity, new()
         {
             var query = new TableQuery<T>();
             if (!((this.RuntimeStatus == null || (!this.RuntimeStatus.Any())) && 
