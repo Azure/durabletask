@@ -827,6 +827,7 @@ namespace DurableTask.AzureStorage
         {
             var messages = session.CurrentMessageBatch;
             TraceContextBase parentTraceContext = null;
+            bool foundEventRaised = false;
             foreach(var message in messages)
             {
                 if (message.SerializableTraceContext != null)
@@ -866,16 +867,24 @@ namespace DurableTask.AzureStorage
                     }                   
                 } else
                 {
+
+                    // In this case, we set the parentTraceContext later in this method
                     if (message.TaskMessage.Event is EventRaisedEvent)
                     {
-                        var history = session.RuntimeState.Events;
-
-                        string traceContextString = session.RuntimeState.ExecutionStartedEvent?.Correlation;
-                        parentTraceContext = TraceContextBase.Restore(traceContextString);
+                        foundEventRaised = true;
                     }
                 }            
             }
 
+            // When EventRaisedEvent is present, it will not, out of the box, share the same operation
+            // identifiers as the rest of the trace events. Thus, we need to explicitely group it with the
+            // rest of events by using the context string of the ExecutionStartedEvent.
+            if (parentTraceContext is null && foundEventRaised)
+            {
+                // Restore the parent trace context from the correlation state of the execution start event
+                string traceContextString = session.RuntimeState.ExecutionStartedEvent?.Correlation;
+                parentTraceContext = TraceContextBase.Restore(traceContextString);
+            }
             return parentTraceContext ?? TraceContextFactory.Empty;
         }
 
