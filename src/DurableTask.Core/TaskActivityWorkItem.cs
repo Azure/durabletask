@@ -14,6 +14,7 @@
 namespace DurableTask.Core
 {
     using System;
+    using System.Diagnostics;
 
     /// <summary>
     /// An active instance / work item of a task activity
@@ -34,5 +35,10 @@ namespace DurableTask.Core
         /// The task message associated with this work item
         /// </summary>
         public TaskMessage TaskMessage;
+
+        /// <summary>
+        /// The TraceContext which is included on the queue.
+        /// </summary>
+        public TraceContextBase TraceContextBase;
     }
 }

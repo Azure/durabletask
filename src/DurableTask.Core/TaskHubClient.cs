@@ -15,6 +15,7 @@ namespace DurableTask.Core
 {
     using System;
     using System.Collections.Generic;
+    using System.Diagnostics;
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
@@ -573,6 +574,11 @@ namespace DurableTask.Core
             object eventData,
             DateTime? startAt = null)
         {
+            TraceContextBase requestTraceContext = null;
+
+            // correlation 
+            CorrelationTraceClient.Propagate(()=> { requestTraceContext = CreateOrExtractRequestTraceContext(eventName); });
+
             if (string.IsNullOrWhiteSpace(orchestrationInstanceId))
             {
                 orchestrationInstanceId = Guid.NewGuid().ToString("N");
@@ -601,6 +607,8 @@ namespace DurableTask.Core
             };
 
             this.logHelper.SchedulingOrchestration(startedEvent);
+            
+            CorrelationTraceClient.Propagate(() => CreateAndTrackDependencyTelemetry(requestTraceContext));
 
             // Raised events and create orchestration calls use different methods so get handled separately
             await this.ServiceClient.CreateTaskOrchestrationAsync(startMessage, dedupeStatuses);
@@ -625,10 +633,41 @@ namespace DurableTask.Core
                     },
                     Event = eventRaisedEvent,
                 };
+
                 await this.ServiceClient.SendTaskOrchestrationMessageAsync(eventMessage);
             }
 
+
             return orchestrationInstance;
+        }
+
+        TraceContextBase CreateOrExtractRequestTraceContext(string eventName)
+        {
+            TraceContextBase requestTraceContext = null;
+            if (Activity.Current == null) // It is possible that the caller already has an activity.
+            {
+                requestTraceContext = TraceContextFactory.Create($"{TraceConstants.Client}: {eventName}");
+                requestTraceContext.StartAsNew();
+            }
+            else
+            {
+                requestTraceContext = TraceContextFactory.Create(Activity.Current);
+            }
+
+            return requestTraceContext;
+        }
+
+        void CreateAndTrackDependencyTelemetry(TraceContextBase requestTraceContext)
+        {
+            TraceContextBase dependencyTraceContext = TraceContextFactory.Create(TraceConstants.Client);
+            dependencyTraceContext.TelemetryType = TelemetryType.Dependency;
+            dependencyTraceContext.SetParentAndStart(requestTraceContext);
+
+            CorrelationTraceContext.Current = dependencyTraceContext;
+
+            // Correlation
+            CorrelationTraceClient.TrackDepencencyTelemetry(dependencyTraceContext);
+            CorrelationTraceClient.TrackRequestTelemetry(requestTraceContext);
         }
 
         /// <summary>

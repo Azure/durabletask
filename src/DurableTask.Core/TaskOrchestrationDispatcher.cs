@@ -125,6 +125,16 @@ namespace DurableTask.Core
                 }
 
                 var isExtendedSession = false;
+
+                CorrelationTraceClient.Propagate(
+                    () =>
+                    {                
+                        // Check if it is extended session.
+                        isExtendedSession = this.concurrentSessionLock.Acquire();
+                        this.concurrentSessionLock.Release();
+                        workItem.IsExtendedSession = isExtendedSession;
+                    });
+
                 var processCount = 0;
                 try
                 {
@@ -205,6 +215,9 @@ namespace DurableTask.Core
             var isCompleted = false;
             var continuedAsNew = false;
             var isInterrupted = false;
+            
+            // correlation
+            CorrelationTraceClient.Propagate(() => CorrelationTraceContext.Current = workItem.TraceContext);
 
             ExecutionStartedEvent continueAsNewExecutionStarted = null;
             TaskMessage continuedAsNewMessage = null;
@@ -379,6 +392,13 @@ namespace DurableTask.Core
                         }
                     }
 
+                    // correlation
+                    CorrelationTraceClient.Propagate(() => {
+                        if (runtimeState.ExecutionStartedEvent != null)
+                            runtimeState.ExecutionStartedEvent.Correlation = CorrelationTraceContext.Current.SerializableTraceContext;
+                     });
+
+
                     // finish up processing of the work item
                     if (!continuedAsNew && runtimeState.Events.Last().EventType != EventType.OrchestratorCompleted)
                     {
@@ -402,6 +422,11 @@ namespace DurableTask.Core
                                 "TaskOrchestrationDispatcher-UpdatingStateForContinuation",
                                 workItem.InstanceId,
                                 "Updating state for continuation");
+
+                            // correlation
+                            CorrelationTraceClient.Propagate(() => {
+                               continueAsNewExecutionStarted.Correlation = CorrelationTraceContext.Current.SerializableTraceContext;
+                            });
 
                             runtimeState = new OrchestrationRuntimeState();
                             runtimeState.AddEvent(new OrchestratorStartedEvent(-1));

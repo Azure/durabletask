@@ -45,3 +45,7 @@ Icon?
 ehthumbs.db
 Thumbs.db
 .vs/
+
+# Publish Web output #
+######################
+PublishProfiles/
