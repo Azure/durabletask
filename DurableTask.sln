@@ -65,7 +65,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.SqlServer.Tests
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Correlation.Samples", "samples\Correlation.Samples\Correlation.Samples.csproj", "{5F88FF6A-E908-4341-89D6-FA530793077A}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Correlation.Sample.Tests", "test\Correlation.Sample.Tests\Correlation.Sample.Tests.csproj", "{54D2FA7E-E3A4-443F-9A62-DA4B0D044EDD}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Correlation.Samples.Tests", "test\Correlation.Samples.Tests\Correlation.Samples.Tests.csproj", "{4214DF59-243E-479C-9461-F40FD1D067CA}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -251,14 +251,14 @@ Global
 		{5F88FF6A-E908-4341-89D6-FA530793077A}.Release|Any CPU.Build.0 = Release|Any CPU
 		{5F88FF6A-E908-4341-89D6-FA530793077A}.Release|x64.ActiveCfg = Release|Any CPU
 		{5F88FF6A-E908-4341-89D6-FA530793077A}.Release|x64.Build.0 = Release|Any CPU
-		{54D2FA7E-E3A4-443F-9A62-DA4B0D044EDD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{54D2FA7E-E3A4-443F-9A62-DA4B0D044EDD}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{54D2FA7E-E3A4-443F-9A62-DA4B0D044EDD}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{54D2FA7E-E3A4-443F-9A62-DA4B0D044EDD}.Debug|x64.Build.0 = Debug|Any CPU
-		{54D2FA7E-E3A4-443F-9A62-DA4B0D044EDD}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{54D2FA7E-E3A4-443F-9A62-DA4B0D044EDD}.Release|Any CPU.Build.0 = Release|Any CPU
-		{54D2FA7E-E3A4-443F-9A62-DA4B0D044EDD}.Release|x64.ActiveCfg = Release|Any CPU
-		{54D2FA7E-E3A4-443F-9A62-DA4B0D044EDD}.Release|x64.Build.0 = Release|Any CPU
+		{4214DF59-243E-479C-9461-F40FD1D067CA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4214DF59-243E-479C-9461-F40FD1D067CA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4214DF59-243E-479C-9461-F40FD1D067CA}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{4214DF59-243E-479C-9461-F40FD1D067CA}.Debug|x64.Build.0 = Debug|Any CPU
+		{4214DF59-243E-479C-9461-F40FD1D067CA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4214DF59-243E-479C-9461-F40FD1D067CA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4214DF59-243E-479C-9461-F40FD1D067CA}.Release|x64.ActiveCfg = Release|Any CPU
+		{4214DF59-243E-479C-9461-F40FD1D067CA}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -287,10 +287,10 @@ Global
 		{C9F84589-3F2B-4D58-A995-BC169D16217F} = {DBCD161C-D409-48E5-924E-9B7FA1C36B84}
 		{B835BFA6-D9BB-47C4-8594-38EAE0157BBA} = {95C69A06-7F62-4652-A480-207B614C2869}
 		{5F88FF6A-E908-4341-89D6-FA530793077A} = {AF4E71A6-B16E-4488-B22D-2761101A601A}
-		{54D2FA7E-E3A4-443F-9A62-DA4B0D044EDD} = {95C69A06-7F62-4652-A480-207B614C2869}
+		{4214DF59-243E-479C-9461-F40FD1D067CA} = {95C69A06-7F62-4652-A480-207B614C2869}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
-		EnterpriseLibraryConfigurationToolBinariesPath = packages\TransientFaultHandling.Core.5.1.1209.1\lib\NET4
 		SolutionGuid = {2D63A120-9394-48D9-8CA9-1184364FB854}
+		EnterpriseLibraryConfigurationToolBinariesPath = packages\TransientFaultHandling.Core.5.1.1209.1\lib\NET4
 	EndGlobalSection
 EndGlobal
