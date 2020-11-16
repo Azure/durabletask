@@ -499,7 +499,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             var queryCondition = new OrchestrationInstanceStatusQueryCondition
             {
-                InstanceIdPrefix = instanceId,
+                InstanceId = instanceId,
                 FetchInput = fetchInput,
             };
 
@@ -536,7 +536,7 @@ namespace DurableTask.AzureStorage.Tracking
             return ConvertFromAsync(orchestrationInstanceStatus, tableEntity.PartitionKey);
         }
 
-        private OrchestrationInstanceStatus ConvertFromAsync(IDictionary<string, EntityProperty> properties)
+        static OrchestrationInstanceStatus ConvertFromAsync(IDictionary<string, EntityProperty> properties)
         {
             var orchestrationInstanceStatus = new OrchestrationInstanceStatus();
 
@@ -549,7 +549,7 @@ namespace DurableTask.AzureStorage.Tracking
                     var value = pair.Value;
                     if (value != null)
                     {
-                        if (property.PropertyType == typeof(DateTime))
+                        if (property.PropertyType == typeof(DateTime) || property.PropertyType == typeof(DateTime?))
                         {
                             property.SetValue(orchestrationInstanceStatus, value.DateTime);
                         }

@@ -55,6 +55,11 @@ namespace DurableTask.AzureStorage.Tracking
         public string InstanceIdPrefix { get; set; }
 
         /// <summary>
+        /// InstanceIdPrefix
+        /// </summary>
+        public string InstanceId { get; set; }
+
+        /// <summary>
         /// If true, the input will be returned with the results. The default value is true.
         /// </summary>
         public bool FetchInput { get; set; } = true;
@@ -72,7 +77,8 @@ namespace DurableTask.AzureStorage.Tracking
                 this.CreatedTimeFrom == default(DateTime) && 
                 this.CreatedTimeTo == default(DateTime) &&
                 this.TaskHubNames == null &&
-                this.InstanceIdPrefix == null))
+                this.InstanceIdPrefix == null &&
+                 this.InstanceId == null))
             {
                 if (!this.FetchInput)
                 {
@@ -132,6 +138,11 @@ namespace DurableTask.AzureStorage.Tracking
                     TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.GreaterThanOrEqual, InstanceIdPrefix), 
                     TableOperators.And, 
                     TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.LessThan, greaterThanPrefix)));
+            }
+
+            if (!string.IsNullOrEmpty(this.InstanceId))
+            {
+                conditions.Add(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, InstanceId));
             }
 
             return conditions.Count == 1 ? 
