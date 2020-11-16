@@ -55,7 +55,7 @@ namespace DurableTask.AzureStorage.Tracking
         public string InstanceIdPrefix { get; set; }
 
         /// <summary>
-        /// InstanceIdPrefix
+        /// InstanceId
         /// </summary>
         public string InstanceId { get; set; }
 
