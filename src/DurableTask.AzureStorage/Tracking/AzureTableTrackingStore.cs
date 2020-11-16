@@ -528,55 +528,40 @@ namespace DurableTask.AzureStorage.Tracking
             return new InstanceStatus(orchestrationState, tableEntity.ETag);
         }
 
-        async Task<OrchestrationState> ConvertFromAsync(DynamicTableEntity tableEntity)
+        Task<OrchestrationState> ConvertFromAsync(DynamicTableEntity tableEntity)
         {
-            var orchestrationState = new OrchestrationState();
             var properties = tableEntity.Properties;
+            var orchestrationInstanceStatus = ConvertFromAsync(properties);
 
-            properties.TryGetValue("ExecutionId", out EntityProperty executionId);
-            orchestrationState.OrchestrationInstance = new OrchestrationInstance
-            {
-                InstanceId = tableEntity.PartitionKey,
-                ExecutionId = executionId?.ToString(),
-            };
+            return ConvertFromAsync(orchestrationInstanceStatus, tableEntity.PartitionKey);
+        }
 
-            var type = typeof(OrchestrationState);
+        private OrchestrationInstanceStatus ConvertFromAsync(IDictionary<string, EntityProperty> properties)
+        {
+            var orchestrationInstanceStatus = new OrchestrationInstanceStatus();
+
+            var type = typeof(OrchestrationInstanceStatus);
             foreach (var pair in properties)
             {
                 var property = type.GetProperty(pair.Key);
                 if (property != null)
                 {
-                    object value = pair.Value.StringValue;
+                    var value = pair.Value;
                     if (value != null)
                     {
-                        value = value.ToString();
-
-                        if (property.PropertyType == typeof(OrchestrationStatus))
-                        {
-                            if (!Enum.TryParse((string)value, out OrchestrationStatus parsedValue))
-                            {
-                                // This is not expected, but could happen if there is invalid data in the Instances table.
-                                value = (OrchestrationStatus)(-1);
-                            }
-                        }
-
                         if (property.PropertyType == typeof(DateTime))
                         {
-                            value = DateTime.Parse(value.ToString());
+                            property.SetValue(orchestrationInstanceStatus, value.DateTime);
                         }
-
-                        property.SetValue(orchestrationState, value);
+                        else
+                        {
+                            property.SetValue(orchestrationInstanceStatus, value.StringValue);
+                        }
                     }
                 }
             }
 
-            if (this.settings.FetchLargeMessageDataEnabled)
-            {
-                orchestrationState.Input = await this.messageManager.FetchLargeMessageIfNecessary(orchestrationState.Input);
-                orchestrationState.Output = await this.messageManager.FetchLargeMessageIfNecessary(orchestrationState.Output);
-            }
-
-            return orchestrationState;
+            return orchestrationInstanceStatus;
         }
 
         async Task<OrchestrationState> ConvertFromAsync(OrchestrationInstanceStatus orchestrationInstanceStatus, string instanceId)
