@@ -1639,7 +1639,7 @@ namespace DurableTask.AzureStorage
                 {
                     throw new InvalidOperationException($"An Orchestration instance with the status {existingInstance.State.OrchestrationStatus} already exists.");
                 }
-
+                
                 return;
             }
 
