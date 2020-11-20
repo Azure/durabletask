@@ -118,23 +118,24 @@ namespace DurableTask.Core
         /// we do not want to modify the original copy.
         /// </summary>
         /// <returns></returns>
-        public OrchestrationState ClearFieldsImmutably(bool includeInput, bool includeOutput)
+        public OrchestrationState ClearFieldsImmutably(bool clearInput, bool clearOutput)
         {
-            if (includeInput && includeOutput)
+            if (! (clearInput || clearOutput))
             {
                 return this;
             }
             else
             {
                 // since we keep the OrchestrationState immutable in the backend, we must make a copy
+                // before we can clear those fields
                 var copy = (OrchestrationState)this.MemberwiseClone();
 
-                if (!includeInput)
+                if (clearInput)
                 {
                     copy.Input = null;
                 }
 
-                if (!includeOutput)
+                if (clearOutput)
                 {
                     copy.Output = null;
                 }
