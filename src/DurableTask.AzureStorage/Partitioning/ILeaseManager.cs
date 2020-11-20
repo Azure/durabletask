@@ -20,7 +20,7 @@ namespace DurableTask.AzureStorage.Partitioning
     {
         Task<bool> LeaseStoreExistsAsync();
 
-        Task<bool> CreateLeaseStoreIfNotExistsAsync(TaskHubInfo eventHubInfo);
+        Task<bool> CreateLeaseStoreIfNotExistsAsync(TaskHubInfo eventHubInfo, bool checkIfStale = true);
 
         Task<IEnumerable<T>> ListLeasesAsync();
 

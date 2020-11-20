@@ -621,7 +621,8 @@ namespace DurableTask.AzureStorage
             BlobLeaseManager inactiveLeaseManager = GetBlobLeaseManager(settings, "inactive", account, null);
 
             TaskHubInfo hubInfo = await inactiveLeaseManager.GetOrCreateTaskHubInfoAsync(
-                GetTaskHubInfo(taskHub, defaultPartitionCount));
+                GetTaskHubInfo(taskHub, defaultPartitionCount),
+                checkIfStale: false);
 
             CloudQueueClient queueClient = account.CreateCloudQueueClient();
 
