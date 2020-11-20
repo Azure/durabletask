@@ -43,7 +43,10 @@ namespace DurableTask.Core
         /// </summary>
         public long CompressedSize;
 
-        ExecutionCompletedEvent ExecutionCompletedEvent { get; set; }
+        /// <summary>
+        /// Gets the execution completed event
+        /// </summary>
+        public ExecutionCompletedEvent ExecutionCompletedEvent { get; set; }
 
         /// <summary>
         /// Size of the serialized state (uncompressed)

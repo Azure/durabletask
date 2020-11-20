@@ -16,6 +16,8 @@
     <DebugSymbols>true</DebugSymbols> 
     <DebugType>embedded</DebugType> 
     <IncludeSymbols>false</IncludeSymbols> 
+    <!--NuGet licenseUrl and PackageIconUrl/iconUrl deprecation. -->
+    <NoWarn>NU5125;NU5048</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

@@ -14,31 +14,41 @@
 namespace DurableTask.Core.History
 {
     using System;
+    using System.Collections;
+    using System.Collections.Generic;
     using System.Runtime.Serialization;
 
     /// <summary>
     /// Base class for history events
     /// </summary>
     [DataContract]
-    [KnownType(typeof(ExecutionStartedEvent))]
-    [KnownType(typeof(ExecutionCompletedEvent))]
-    [KnownType(typeof(ExecutionTerminatedEvent))]
-    [KnownType(typeof(TaskCompletedEvent))]
-    [KnownType(typeof(TaskFailedEvent))]
-    [KnownType(typeof(TaskScheduledEvent))]
-    [KnownType(typeof(SubOrchestrationInstanceCreatedEvent))]
-    [KnownType(typeof(SubOrchestrationInstanceCompletedEvent))]
-    [KnownType(typeof(SubOrchestrationInstanceFailedEvent))]
-    [KnownType(typeof(TimerCreatedEvent))]
-    [KnownType(typeof(TimerFiredEvent))]
-    [KnownType(typeof(OrchestratorStartedEvent))]
-    [KnownType(typeof(OrchestratorCompletedEvent))]
-    [KnownType(typeof(EventSentEvent))]
-    [KnownType(typeof(EventRaisedEvent))]
-    [KnownType(typeof(ContinueAsNewEvent))]
-    [KnownType(typeof(HistoryStateEvent))]
+    [KnownTypeAttribute("KnownTypes")]
     public abstract class HistoryEvent : IExtensibleDataObject
     {
+        /// <summary>
+        /// List of all event classes, for use by the DataContractSerializer
+        /// </summary>
+        /// <returns></returns>
+        public static IEnumerable<Type> KnownTypes()
+        {
+            yield return typeof(ExecutionStartedEvent);
+            yield return typeof(ExecutionCompletedEvent);
+            yield return typeof(ExecutionTerminatedEvent);
+            yield return typeof(TaskCompletedEvent);
+            yield return typeof(TaskFailedEvent);
+            yield return typeof(TaskScheduledEvent);
+            yield return typeof(SubOrchestrationInstanceCreatedEvent);
+            yield return typeof(SubOrchestrationInstanceCompletedEvent);
+            yield return typeof(SubOrchestrationInstanceFailedEvent);
+            yield return typeof(TimerCreatedEvent);
+            yield return typeof(TimerFiredEvent);
+            yield return typeof(OrchestratorStartedEvent);
+            yield return typeof(OrchestratorCompletedEvent);
+            yield return typeof(EventSentEvent);
+            yield return typeof(EventRaisedEvent);
+            yield return typeof(ContinueAsNewEvent);
+            yield return typeof(HistoryStateEvent);
+        }
 
         /// <summary>
         /// Creates a new history event

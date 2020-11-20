@@ -447,7 +447,8 @@ namespace DurableTask.Core.Common
                 Size = runtimeState.Size,
                 CompressedSize = runtimeState.CompressedSize,
                 Input = runtimeState.Input,
-                Output = runtimeState.Output
+                Output = runtimeState.Output,
+                ScheduledStartTime = runtimeState.ExecutionStartedEvent?.ScheduledStartTime,
             };
         }
 
