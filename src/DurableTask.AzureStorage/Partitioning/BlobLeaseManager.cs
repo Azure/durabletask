@@ -355,8 +355,28 @@ namespace DurableTask.AzureStorage.Partitioning
             {
                 if (checkIfStale && IsStale(currentTaskHubInfo, newTaskHubInfo))
                 {
-                    string serializedInfo = JsonConvert.SerializeObject(newTaskHubInfo);
-                    await this.taskHubInfoBlob.UploadTextAsync(serializedInfo, null, AccessCondition.GenerateEmptyCondition(), null, null);
+                    this.settings.Logger.PartitionManagerWarning(
+                       this.storageAccountName,
+                       this.taskHubName,
+                       this.workerName,
+                       string.Empty,
+                       $"Partition count for the task hub {currentTaskHubInfo.TaskHubName} from {currentTaskHubInfo.PartitionCount} to {newTaskHubInfo.PartitionCount}. This could result in errors for in-flight orchestrations.");
+
+                    try
+                    {
+                        string serializedInfo = JsonConvert.SerializeObject(newTaskHubInfo);
+                        await this.taskHubInfoBlob.UploadTextAsync(serializedInfo, null, AccessCondition.GenerateEmptyCondition(), null, null);
+                    } 
+                    catch (StorageException)
+                    {
+                        // eat any storage exception as this is a best effort to
+                        // to update the metadata used by Azure Functions scaling logic
+                    }
+                    finally
+                    {
+                        this.stats.StorageRequests.Increment();
+                    }
+
                 }
                 return currentTaskHubInfo;
             }
