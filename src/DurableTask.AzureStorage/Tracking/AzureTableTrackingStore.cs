@@ -504,7 +504,7 @@ namespace DurableTask.AzureStorage.Tracking
             };
 
             var stopwatch = new Stopwatch();
-            var segment = await this.InstancesTable.ExecuteQuerySegmentedAsync(queryCondition.ToTableQuery<DynamicTableEntity>(), null);
+            TableQuerySegment<DynamicTableEntity> segment = await this.InstancesTable.ExecuteQuerySegmentedAsync(queryCondition.ToTableQuery<DynamicTableEntity>(), null);
             stopwatch.Stop();
             this.stats.StorageRequests.Increment();
 

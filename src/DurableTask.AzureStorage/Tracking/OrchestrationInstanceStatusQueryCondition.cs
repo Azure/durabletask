@@ -95,12 +95,12 @@ namespace DurableTask.AzureStorage.Tracking
         {
             var conditions = new List<string>();
 
-            if (this.CreatedTimeFrom != null && this.CreatedTimeFrom > DateTime.MinValue)
+            if (this.CreatedTimeFrom > DateTime.MinValue)
             {
                 conditions.Add(TableQuery.GenerateFilterConditionForDate("CreatedTime", QueryComparisons.GreaterThanOrEqual, new DateTimeOffset(this.CreatedTimeFrom)));
             }
 
-            if (this.CreatedTimeTo != null && this.CreatedTimeTo != default(DateTime) && this.CreatedTimeTo < DateTime.MaxValue)
+            if (this.CreatedTimeTo != default(DateTime) && this.CreatedTimeTo < DateTime.MaxValue)
             {
                 conditions.Add(TableQuery.GenerateFilterConditionForDate("CreatedTime", QueryComparisons.LessThanOrEqual, new DateTimeOffset(this.CreatedTimeTo)));
             }
