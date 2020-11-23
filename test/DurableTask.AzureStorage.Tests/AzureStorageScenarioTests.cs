@@ -304,6 +304,46 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
+        public async Task ValidateCustomStatusPersists()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(false))
+            {
+                await host.StartAsync();
+
+                string customStatus = "custom_status";
+                var client = await host.StartOrchestrationAsync(
+                    typeof(Test.Orchestrations.ChangeStatusOrchestration),
+                    new string[] { customStatus });
+                var state = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, state?.OrchestrationStatus);
+                Assert.AreEqual(customStatus, JToken.Parse(state?.Status));
+
+                await host.StopAsync();
+            }
+        }
+
+        [TestMethod]
+        public async Task ValidateNullCustomStatusPersists()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(false))
+            {
+                await host.StartAsync();
+
+                var client = await host.StartOrchestrationAsync(
+                    typeof(Test.Orchestrations.ChangeStatusOrchestration),
+                    // First set "custom_status", then set null and make sure it persists
+                    new string[] { "custom_status", null });
+                var state = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, state?.OrchestrationStatus);
+                Assert.AreEqual(null, JToken.Parse(state?.Status).Value<string>());
+
+                await host.StopAsync();
+            }
+        }
+
+        [TestMethod]
         public async Task PurgeInstanceHistoryForSingleInstanceWithLargeMessageBlobs()
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))

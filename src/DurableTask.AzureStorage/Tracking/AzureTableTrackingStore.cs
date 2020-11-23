@@ -977,6 +977,10 @@ namespace DurableTask.AzureStorage.Tracking
 
             OrchestrationStatus runtimeStatus = OrchestrationStatus.Running;
 
+            // TODO: This is temporary workaround. We should prioritize https://github.com/Azure/durabletask/issues/477
+            // so that this is no longer necessary.
+            newRuntimeState.Status = newRuntimeState.Status ?? "null"; 
+
             var instanceEntity = new DynamicTableEntity(instanceId, string.Empty)
             {
                 Properties =
