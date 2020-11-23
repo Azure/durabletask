@@ -981,7 +981,9 @@ namespace DurableTask.AzureStorage.Tracking
             {
                 Properties =
                 {
-                    ["CustomStatus"] = new EntityProperty(newRuntimeState.Status),
+                    // TODO: Translating null to "null" is a temporary workaround. We should prioritize 
+                    // https://github.com/Azure/durabletask/issues/477 so that this is no longer necessary.
+                    ["CustomStatus"] = new EntityProperty(newRuntimeState.Status ?? "null"),
                     ["ExecutionId"] = new EntityProperty(executionId),
                     ["LastUpdatedTime"] = new EntityProperty(newEvents.Last().Timestamp),
                 }
