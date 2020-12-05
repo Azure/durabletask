@@ -82,10 +82,15 @@ namespace DurableTask.Core.History
         public IDictionary<string, string> Tags { get; set; }
 
         /// <summary>
+        /// Gets or sets the serialized end-to-end correlation state.
+        /// </summary>
+        [DataMember]
+        public string Correlation { get; set; }
+
+        /// <summary>
         /// Gets or sets date to start the orchestration
         /// </summary>
         [DataMember]
         public DateTime? ScheduledStartTime { get; set; }
-
     }
 }

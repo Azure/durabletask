@@ -14,6 +14,7 @@
 namespace DurableTask.AzureStorage.Messaging
 {
     using System;
+    using System.Reflection;
     using System.Runtime.ExceptionServices;
     using System.Text;
     using System.Threading;
@@ -106,7 +107,12 @@ namespace DurableTask.AzureStorage.Messaging
                     sourceInstance);
                 data.SequenceNumber = Interlocked.Increment(ref messageSequenceNumber);
 
+                // Inject Correlation TraceContext on a queue.
+                CorrelationTraceClient.Propagate(
+                    () => { data.SerializableTraceContext = GetSerializableTraceContext(taskMessage); });
+                
                 string rawContent = await this.messageManager.SerializeMessageDataAsync(data);
+
                 CloudQueueMessage queueMessage = new CloudQueueMessage(rawContent);
 
                 this.settings.Logger.SendingMessage(
@@ -158,6 +164,32 @@ namespace DurableTask.AzureStorage.Messaging
             return data;
         }
 
+        static string GetSerializableTraceContext(TaskMessage taskMessage)
+        {
+            TraceContextBase traceContext = CorrelationTraceContext.Current;
+            if (traceContext != null)
+            {
+                if (CorrelationTraceContext.GenerateDependencyTracking)
+                {
+                    PropertyInfo nameProperty = taskMessage.Event.GetType().GetProperty("Name");
+                    string name = (nameProperty == null) ? TraceConstants.DependencyDefault : (string)nameProperty.GetValue(taskMessage.Event);
+
+                    var dependencyTraceContext = TraceContextFactory.Create($"{TraceConstants.Orchestrator} {name}");
+                    dependencyTraceContext.TelemetryType = TelemetryType.Dependency;
+                    dependencyTraceContext.SetParentAndStart(traceContext);
+                    dependencyTraceContext.OrchestrationTraceContexts.Push(dependencyTraceContext);
+                    return dependencyTraceContext.SerializableTraceContext;
+                }
+                else
+                {
+                    return traceContext.SerializableTraceContext;
+                }
+            }
+
+            // TODO this might not happen, however, in case happen, introduce NullObjectTraceContext.
+            return null; 
+        }
+
         static TimeSpan? GetVisibilityDelay(TaskMessage taskMessage)
         {
             TimeSpan? initialVisibilityDelay = null;
@@ -182,21 +214,12 @@ namespace DurableTask.AzureStorage.Messaging
             }
 
             // Special functionality for entity messages with a delivery delay 
-            if (taskMessage.Event is EventRaisedEvent eventRaisedEvent
-                && taskMessage.OrchestrationInstance.InstanceId[0] == '@')
+            if (DurableTask.Core.Common.Entities.IsDelayedEntityMessage(taskMessage, out DateTime due))
             {
-                // We assume that auto-started orchestrations (i.e. instance ids starting with '@')
-                // are used exclusively by durable entities; so we can follow
-                // a custom naming convention to pass a time parameter.
-                string eventName = eventRaisedEvent.Name;
-                if (eventName != null && eventName.Length >= 3 && eventName[2] == '@'
-                    && DateTime.TryParse(eventName.Substring(3), out DateTime scheduledTime))
+                initialVisibilityDelay = due - DateTime.UtcNow;
+                if (initialVisibilityDelay < TimeSpan.Zero)
                 {
-                    initialVisibilityDelay = scheduledTime.ToUniversalTime() - DateTime.UtcNow;
-                    if (initialVisibilityDelay < TimeSpan.Zero)
-                    {
-                        initialVisibilityDelay = TimeSpan.Zero;
-                    }
+                    initialVisibilityDelay = TimeSpan.Zero;
                 }
             }
 

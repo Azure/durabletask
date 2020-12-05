@@ -71,7 +71,7 @@ namespace DurableTask.AzureStorage.Partitioning
         {    
             TaskHubInfo hubInfo = new TaskHubInfo(this.settings.TaskHubName, DateTime.UtcNow, this.settings.PartitionCount);
             this.stats.StorageRequests.Increment();
-            return this.leaseManager.CreateLeaseStoreIfNotExistsAsync(hubInfo);
+            return this.leaseManager.CreateLeaseStoreIfNotExistsAsync(hubInfo, checkIfStale: true);
         }
 
         Task IPartitionManager.DeleteLeases()

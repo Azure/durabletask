@@ -15,6 +15,7 @@ namespace DurableTask.Core
 {
     using System;
     using System.Diagnostics;
+    using System.Reflection;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Core.Common;
@@ -130,10 +131,13 @@ namespace DurableTask.Core
                     throw new TypeMissingException($"TaskActivity {scheduledEvent.Name} version {scheduledEvent.Version} was not found");
                 }
 
-                // start a task to run RenewUntil
-                renewTask = await Task.Factory.StartNew(
-                    () => this.RenewUntil(workItem, renewCancellationTokenSource.Token),
-                    renewCancellationTokenSource.Token);
+                if (workItem.LockedUntilUtc < DateTime.MaxValue)
+                {
+                    // start a task to run RenewUntil
+                    renewTask = Task.Factory.StartNew(
+                        () => this.RenewUntil(workItem, renewCancellationTokenSource.Token),
+                        renewCancellationTokenSource.Token);
+                }
 
                 // TODO : pass workflow instance data
                 var context = new TaskContext(taskMessage.OrchestrationInstance);
@@ -146,6 +150,9 @@ namespace DurableTask.Core
 
                 await this.dispatchPipeline.RunAsync(dispatchContext, async _ =>
                 {
+                    // correlation 
+                    CorrelationTraceClient.Propagate(() => workItem.TraceContextBase?.SetActivityToCurrent());
+
                     try
                     {
                         string output = await taskActivity.RunAsync(context, scheduledEvent.Input);
@@ -157,6 +164,7 @@ namespace DurableTask.Core
                         string details = this.IncludeDetails ? e.Details : null;
                         eventToRespond = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details);
                         this.logHelper.TaskActivityFailure(orchestrationInstance, scheduledEvent.Name, (TaskFailedEvent)eventToRespond, e);
+                        CorrelationTraceClient.Propagate(() => CorrelationTraceClient.TrackException(e));
                     }
                     catch (Exception e) when (!Utils.IsFatal(e) && !Utils.IsExecutionAborting(e))
                     {

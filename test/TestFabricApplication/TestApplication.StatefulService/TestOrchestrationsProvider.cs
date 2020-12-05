@@ -32,8 +32,8 @@ namespace TestApplication.StatefulService
         public FabricOrchestrationProviderSettings GetFabricOrchestrationProviderSettings()
         {
             var settings = new FabricOrchestrationProviderSettings();
-            settings.TaskOrchestrationDispatcherSettings.DispatcherCount = 5;
-            settings.TaskActivityDispatcherSettings.DispatcherCount = 5;
+            settings.TaskOrchestrationDispatcherSettings.DispatcherCount = 10;
+            settings.TaskActivityDispatcherSettings.DispatcherCount = 10;
             return settings;
         }
 

@@ -46,7 +46,7 @@ namespace DurableTask.AzureStorage.Tracking
         const string CheckpointCompletedTimestampProperty = "CheckpointCompletedTimestamp";
 
         // See https://docs.microsoft.com/en-us/rest/api/storageservices/understanding-the-table-service-data-model#property-types
-        const int MaxTablePropertySizeInBytes = 60 * 1024; // 60KB
+        const int MaxTablePropertySizeInBytes = 60 * 1024; // 60KB to give buffer
 
         static readonly string[] VariableSizeEntityProperties = new[]
         {
@@ -56,6 +56,7 @@ namespace DurableTask.AzureStorage.Tracking
             OutputProperty,
             "Reason",
             "Details",
+            "Correlation"
         };
 
         readonly string storageAccountName;
@@ -497,22 +498,16 @@ namespace DurableTask.AzureStorage.Tracking
                 throw new ArgumentNullException(nameof(instanceId));
             }
 
-            List<string> columnsToRetrieve = null; // Default of null => retrieve all columns
-            if (!fetchInput)
+            var queryCondition = new OrchestrationInstanceStatusQueryCondition
             {
-                columnsToRetrieve = typeof(OrchestrationInstanceStatus).GetProperties().Select(prop => prop.Name).ToList();
-                if (columnsToRetrieve.Contains(InputProperty))
-                {
-                    // Retrieve all columns except the input column
-                    columnsToRetrieve.Remove(InputProperty);
-                }
-            }
+                InstanceId = instanceId,
+                FetchInput = fetchInput,
+            };
 
             var stopwatch = new Stopwatch();
-            TableResult orchestration = await this.InstancesTable.ExecuteAsync(TableOperation.Retrieve<OrchestrationInstanceStatus>(instanceId, "", columnsToRetrieve));
+            TableQuerySegment<DynamicTableEntity> segment = await this.InstancesTable.ExecuteQuerySegmentedAsync(queryCondition.ToTableQuery<DynamicTableEntity>(), null);
             stopwatch.Stop();
             this.stats.StorageRequests.Increment();
-            this.stats.TableEntitiesRead.Increment(1);
 
             this.settings.Logger.FetchedInstanceStatus(
                 this.storageAccountName,
@@ -521,14 +516,53 @@ namespace DurableTask.AzureStorage.Tracking
                 executionId ?? string.Empty,
                 stopwatch.ElapsedMilliseconds);
 
-            OrchestrationInstanceStatus orchestrationInstanceStatus = (OrchestrationInstanceStatus)orchestration.Result;
-            if (orchestrationInstanceStatus == null)
+            var tableEntity = segment.ToList().FirstOrDefault();
+            if (tableEntity == null)
             {
                 return null;
             }
 
-            OrchestrationState state = await this.ConvertFromAsync(orchestrationInstanceStatus, instanceId);
-            return state != null ? new InstanceStatus(state, orchestration.Etag) : null;
+            this.stats.TableEntitiesRead.Increment(1);
+
+            var orchestrationState = await this.ConvertFromAsync(tableEntity);
+
+            return new InstanceStatus(orchestrationState, tableEntity.ETag);
+        }
+
+        Task<OrchestrationState> ConvertFromAsync(DynamicTableEntity tableEntity)
+        {
+            var properties = tableEntity.Properties;
+            var orchestrationInstanceStatus = ConvertFromAsync(properties);
+
+            return ConvertFromAsync(orchestrationInstanceStatus, tableEntity.PartitionKey);
+        }
+
+        static OrchestrationInstanceStatus ConvertFromAsync(IDictionary<string, EntityProperty> properties)
+        {
+            var orchestrationInstanceStatus = new OrchestrationInstanceStatus();
+
+            var type = typeof(OrchestrationInstanceStatus);
+            foreach (var pair in properties)
+            {
+                var property = type.GetProperty(pair.Key);
+                if (property != null)
+                {
+                    var value = pair.Value;
+                    if (value != null)
+                    {
+                        if (property.PropertyType == typeof(DateTime) || property.PropertyType == typeof(DateTime?))
+                        {
+                            property.SetValue(orchestrationInstanceStatus, value.DateTime);
+                        }
+                        else
+                        {
+                            property.SetValue(orchestrationInstanceStatus, value.StringValue);
+                        }
+                    }
+                }
+            }
+
+            return orchestrationInstanceStatus;
         }
 
         async Task<OrchestrationState> ConvertFromAsync(OrchestrationInstanceStatus orchestrationInstanceStatus, string instanceId)
@@ -836,6 +870,10 @@ namespace DurableTask.AzureStorage.Tracking
                 }
             };
 
+            // It is possible that the queue message was small enough to be written directly to a queue message,
+            // not a blob, but is too large to be written to a table property.
+            await this.CompressLargeMessageAsync(entity);
+
             Stopwatch stopwatch = Stopwatch.StartNew();
             try
             {
@@ -943,12 +981,14 @@ namespace DurableTask.AzureStorage.Tracking
             {
                 Properties =
                 {
-                    ["CustomStatus"] = new EntityProperty(newRuntimeState.Status),
+                    // TODO: Translating null to "null" is a temporary workaround. We should prioritize 
+                    // https://github.com/Azure/durabletask/issues/477 so that this is no longer necessary.
+                    ["CustomStatus"] = new EntityProperty(newRuntimeState.Status ?? "null"),
                     ["ExecutionId"] = new EntityProperty(executionId),
                     ["LastUpdatedTime"] = new EntityProperty(newEvents.Last().Timestamp),
                 }
             };
-            
+           
             for (int i = 0; i < newEvents.Count; i++)
             {
                 bool isFinalEvent = i == newEvents.Count - 1;
@@ -982,8 +1022,16 @@ namespace DurableTask.AzureStorage.Tracking
                         instanceEntity.Properties["Version"] = new EntityProperty(executionStartedEvent.Version);
                         instanceEntity.Properties["CreatedTime"] = new EntityProperty(executionStartedEvent.Timestamp);
                         instanceEntity.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Running.ToString());
-                        if (executionStartedEvent.ScheduledStartTime.HasValue)
+                        if (executionStartedEvent.ScheduledStartTime.HasValue) {
                             instanceEntity.Properties["ScheduledStartTime"] = new EntityProperty(executionStartedEvent.ScheduledStartTime);
+                        }
+
+                        CorrelationTraceClient.Propagate(() =>
+                        {
+                            historyEntity.Properties["Correlation"] = new EntityProperty(executionStartedEvent.Correlation);
+                            estimatedBytes += Encoding.Unicode.GetByteCount(executionStartedEvent.Correlation);
+                        });
+
                         this.SetInstancesTablePropertyFromHistoryProperty(
                             historyEntity,
                             instanceEntity,
@@ -1194,7 +1242,22 @@ namespace DurableTask.AzureStorage.Tracking
             string instanceId = entity.PartitionKey;
             string sequenceNumber = entity.RowKey;
 
-            string eventType = entity.Properties["EventType"].StringValue;
+            string eventType;
+            if (entity.Properties.ContainsKey("EventType"))
+            {
+                eventType = entity.Properties["EventType"].StringValue;
+            }
+            else if (property == "Input")
+            {
+                // This message is just to start the orchestration, so it does not have a corresponding
+                // EventType. Use a hardcoded value to record the orchestration input.
+                eventType = "Input";
+            }
+            else
+            {
+                throw new InvalidOperationException($"Could not compute the blob name for property {property}");
+            }
+
             string blobName = $"{instanceId}/history-{sequenceNumber}-{eventType}-{property}.json.gz";
 
             return blobName;

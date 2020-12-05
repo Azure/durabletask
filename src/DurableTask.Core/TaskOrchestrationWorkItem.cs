@@ -15,6 +15,7 @@ namespace DurableTask.Core
 {
     using System;
     using System.Collections.Generic;
+    using System.Diagnostics;
 
     /// <summary>
     /// An active instance / work item of an orchestration
@@ -46,6 +47,16 @@ namespace DurableTask.Core
         /// providers that intend to leverage extended sessions.
         /// </summary>
         public IOrchestrationSession Session;
+
+        /// <summary>
+        /// The trace context used for correlation.
+        /// </summary>
+        public TraceContextBase TraceContext;
+
+        /// <summary>
+        /// The flag of extendedSession.
+        /// </summary>
+        public bool IsExtendedSession = false;
 
         internal OrchestrationExecutionCursor Cursor;
     }

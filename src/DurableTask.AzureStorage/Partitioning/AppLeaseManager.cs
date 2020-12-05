@@ -319,12 +319,9 @@ namespace DurableTask.AzureStorage.Partitioning
                     await this.appLeaseContainer.DeleteIfExistsAsync();
                 }
             }
-            catch (StorageException ex)
-            { 
-                if (ex.RequestInformation.HttpStatusCode != 404)
-                {
-                    throw;
-                }
+            catch (StorageException)
+            {
+                // If we cannot delete the existing app lease due to another app having a lease, just ignore it.
             }
             finally
             {

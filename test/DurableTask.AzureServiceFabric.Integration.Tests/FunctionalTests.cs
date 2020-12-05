@@ -16,7 +16,7 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
     using System;
     using System.Collections.Generic;
     using System.Threading.Tasks;
-
+    using DurableTask.AzureServiceFabric.Exceptions;
     using DurableTask.Core;
     using DurableTask.Test.Orchestrations.Performance;
 
@@ -133,25 +133,36 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
             var instanceId = nameof(RecurringOrchestration);
             var input = new RecurringOrchestrationInput
             {
-                TargetOrchestrationInput = "1",
+                TargetOrchestrationInput = 0,
                 TargetOrchestrationType = typeof(RecurringTargetOrchestration).ToString(),
                 TargetOrchestrationInstanceId = nameof(RecurringTargetOrchestration)
             };
-            var instance = await this.taskHubClient.CreateOrchestrationInstanceAsync(typeof(RecurringOrchestration), instanceId, input);
-            await Task.Delay(TimeSpan.FromSeconds(1));
-            var result = await this.taskHubClient.GetOrchestrationStateAsync(input.TargetOrchestrationInstanceId, false);
+            var firstInstance = await this.taskHubClient.CreateOrchestrationInstanceAsync(typeof(RecurringOrchestration), instanceId, input);
 
-            Assert.AreNotEqual("4", result[0].Output, "Orchestration Result is wrong!!!");
+            // Parent orchestration runs for 4 times with ContinueAsNew and executes the
+            // RecurringTargetOrchestration each time by incrementing the counter
 
-            OrchestrationState state;
-            do
+            // 1. Check if the first iteration of parent orchestration ends with ContinuedAsNew
+            // firstInstance : Includes instanceId and first iteration executionId
+            OrchestrationState state = await this.taskHubClient.WaitForOrchestrationAsync(firstInstance, TimeSpan.FromSeconds(30));
+            Assert.AreEqual(OrchestrationStatus.ContinuedAsNew, state.OrchestrationStatus);
+
+            // 2. Check if the last instance of the parent orchestration completes with Completed
+            var lastInstance = new OrchestrationInstance()
             {
-                state = await this.taskHubClient.GetOrchestrationStateAsync(instanceId);
-                await Task.Delay(TimeSpan.FromSeconds(1));
-            } while (state.OrchestrationStatus != OrchestrationStatus.Completed);
+                InstanceId = instanceId,
+                ExecutionId = null
+            };
+
+            state = await this.taskHubClient.WaitForOrchestrationAsync(lastInstance, TimeSpan.FromMinutes(1));
+
+            if (state.OrchestrationStatus == OrchestrationStatus.Running)
+            {
+                await this.taskHubClient.TerminateInstanceAsync(lastInstance);
+            }
 
             Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
-            Assert.AreEqual("4", state.Output, "Orchestration Result is wrong!!!");
+            Assert.AreEqual("4", state.Output, "Parent Orchestration Result is wrong!!!");
         }
 
         [TestMethod]
@@ -412,7 +423,7 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
         public async Task ScheduledStartTest_NotSupported()
         {
             var expectedStartTime = DateTime.UtcNow.AddSeconds(30);
-            await Assert.ThrowsExceptionAsync<NotSupportedException>(() => this.taskHubClient.CreateScheduledOrchestrationInstanceAsync(typeof(SimpleOrchestrationWithTasks), null, expectedStartTime));
+            await Assert.ThrowsExceptionAsync<RemoteServiceException>(() => this.taskHubClient.CreateScheduledOrchestrationInstanceAsync(typeof(SimpleOrchestrationWithTasks), null, expectedStartTime));
         }
     }
 }

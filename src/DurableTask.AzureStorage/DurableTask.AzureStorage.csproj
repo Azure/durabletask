@@ -4,7 +4,7 @@
   <PropertyGroup>
     <TargetFrameworks>netstandard2.0;net461</TargetFrameworks>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
-    <FileVersion>1.8.0</FileVersion>
+    <FileVersion>1.8.3</FileVersion>
     <AssemblyVersion>$(FileVersion)</AssemblyVersion>
     <Version>$(FileVersion)</Version>
     <IncludeSymbols>true</IncludeSymbols>
@@ -16,6 +16,8 @@
     <DebugSymbols>true</DebugSymbols> 
     <DebugType>embedded</DebugType> 
     <IncludeSymbols>false</IncludeSymbols> 
+    <!--NuGet licenseUrl and PackageIconUrl/iconUrl deprecation. -->
+    <NoWarn>NU5125;NU5048</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

@@ -201,7 +201,7 @@ namespace DurableTask.AzureStorage
         /// Use the legacy partition management strategy, which improves performance at the cost of being less resiliant
         /// to split brain.
         /// </summary>
-        public bool UseLegacyPartitionManagement { get; set; } = true;
+        public bool UseLegacyPartitionManagement { get; set; } = false;
 
         /// <summary>
         /// Gets or sets the optional <see cref="ILoggerFactory"/> to use for diagnostic logging.

@@ -6,6 +6,8 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <PackageId>Microsoft.Azure.DurableTask.Core</PackageId>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <!--NuGet licenseUrl and PackageIconUrl/iconUrl deprecation. -->
+    <NoWarn>NU5125;NU5048</NoWarn>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net461'">
@@ -20,4 +22,9 @@
     <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="System.Reactive.Core" Version="3.1.1" />
+    <PackageReference Include="System.Diagnostics.DiagnosticSource" Version="4.6.0" />
+  </ItemGroup>
+  
 </Project>

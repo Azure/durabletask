@@ -44,17 +44,16 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
         {
             get
             {
-                var sourceRoot = Environment.GetEnvironmentVariable("SourceRoot") ?? string.Empty;
-                var applicationPath = Path.Combine(sourceRoot.Trim(), "Test", "TestFabricApplication", "TestApplication");
+                var applicationPath = Path.Combine(Directory.GetCurrentDirectory(), @"..\..\..\..\TestFabricApplication\TestApplication");
 
                 if (!Directory.Exists(applicationPath))
                 {
-                    throw new Exception("Could not find test application path, define SourceRoot environment variable to the source path");
+                    throw new Exception($"Could not find test application path '{applicationPath}', define SourceRoot environment variable to the source path");
                 }
 
                 if (!Directory.Exists(Path.Combine(applicationPath, "pkg", "Debug")))
                 {
-                    throw new Exception("Could not find test application package, make sure the test application is built and package generated before running the tests");
+                    throw new Exception($"Could not find test application package in '{applicationPath}', make sure the test application is built and package generated before running the tests");
                 }
 
                 return applicationPath;

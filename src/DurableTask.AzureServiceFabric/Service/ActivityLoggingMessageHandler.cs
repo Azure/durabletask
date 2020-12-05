@@ -37,7 +37,7 @@ namespace DurableTask.AzureServiceFabric.Service
             catch (Exception exception)
             {
                 ServiceFabricProviderEventSource.Tracing.LogProxyServiceError(requestUri, requestMethod, exception);
-                response = request.CreateErrorResponse(HttpStatusCode.InternalServerError, exception.Message);
+                response = request.CreateResponse(HttpStatusCode.InternalServerError, exception);
             }
 
             return response;

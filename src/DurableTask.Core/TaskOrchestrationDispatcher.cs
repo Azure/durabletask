@@ -125,6 +125,16 @@ namespace DurableTask.Core
                 }
 
                 var isExtendedSession = false;
+
+                CorrelationTraceClient.Propagate(
+                    () =>
+                    {                
+                        // Check if it is extended session.
+                        isExtendedSession = this.concurrentSessionLock.Acquire();
+                        this.concurrentSessionLock.Release();
+                        workItem.IsExtendedSession = isExtendedSession;
+                    });
+
                 var processCount = 0;
                 try
                 {
@@ -205,6 +215,9 @@ namespace DurableTask.Core
             var isCompleted = false;
             var continuedAsNew = false;
             var isInterrupted = false;
+            
+            // correlation
+            CorrelationTraceClient.Propagate(() => CorrelationTraceContext.Current = workItem.TraceContext);
 
             ExecutionStartedEvent continueAsNewExecutionStarted = null;
             TaskMessage continuedAsNewMessage = null;
@@ -247,11 +260,11 @@ namespace DurableTask.Core
 
                     if (workItem.Cursor == null)
                     {
-                        workItem.Cursor = await this.ExecuteOrchestrationAsync(runtimeState);
+                        workItem.Cursor = await this.ExecuteOrchestrationAsync(runtimeState, workItem);
                     }
                     else
                     {
-                        await this.ResumeOrchestrationAsync(workItem.Cursor);
+                        await this.ResumeOrchestrationAsync(workItem);
                     }
 
                     IReadOnlyList<OrchestratorAction> decisions = workItem.Cursor.LatestDecisions.ToList();
@@ -379,6 +392,13 @@ namespace DurableTask.Core
                         }
                     }
 
+                    // correlation
+                    CorrelationTraceClient.Propagate(() => {
+                        if (runtimeState.ExecutionStartedEvent != null)
+                            runtimeState.ExecutionStartedEvent.Correlation = CorrelationTraceContext.Current.SerializableTraceContext;
+                     });
+
+
                     // finish up processing of the work item
                     if (!continuedAsNew && runtimeState.Events.Last().EventType != EventType.OrchestratorCompleted)
                     {
@@ -402,6 +422,11 @@ namespace DurableTask.Core
                                 "TaskOrchestrationDispatcher-UpdatingStateForContinuation",
                                 workItem.InstanceId,
                                 "Updating state for continuation");
+
+                            // correlation
+                            CorrelationTraceClient.Propagate(() => {
+                               continueAsNewExecutionStarted.Correlation = CorrelationTraceContext.Current.SerializableTraceContext;
+                            });
 
                             runtimeState = new OrchestrationRuntimeState();
                             runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
@@ -447,6 +472,7 @@ namespace DurableTask.Core
             workItem.OrchestrationRuntimeState = originalOrchestrationRuntimeState;
 
             runtimeState.Status = runtimeState.Status ?? carryOverStatus;
+            instanceState.Status = runtimeState.Status;
 
             await this.orchestrationService.CompleteTaskOrchestrationWorkItemAsync(
                 workItem,
@@ -462,7 +488,7 @@ namespace DurableTask.Core
             return isCompleted || continuedAsNew || isInterrupted;
         }
 
-        async Task<OrchestrationExecutionCursor> ExecuteOrchestrationAsync(OrchestrationRuntimeState runtimeState)
+        async Task<OrchestrationExecutionCursor> ExecuteOrchestrationAsync(OrchestrationRuntimeState runtimeState, TaskOrchestrationWorkItem workItem)
         {
             TaskOrchestration taskOrchestration = this.objectManager.GetObject(runtimeState.Name, runtimeState.Version);
             if (taskOrchestration == null)
@@ -478,6 +504,7 @@ namespace DurableTask.Core
             dispatchContext.SetProperty(runtimeState.OrchestrationInstance);
             dispatchContext.SetProperty(taskOrchestration);
             dispatchContext.SetProperty(runtimeState);
+            dispatchContext.SetProperty(workItem);
 
             var executor = new TaskOrchestrationExecutor(runtimeState, taskOrchestration, this.orchestrationService.EventBehaviourForContinueAsNew);
 
@@ -491,12 +518,15 @@ namespace DurableTask.Core
             return new OrchestrationExecutionCursor(runtimeState, taskOrchestration, executor, decisions);
         }
 
-        Task ResumeOrchestrationAsync(OrchestrationExecutionCursor cursor)
+        Task ResumeOrchestrationAsync(TaskOrchestrationWorkItem workItem)
         {
+            OrchestrationExecutionCursor cursor = workItem.Cursor;
+
             var dispatchContext = new DispatchMiddlewareContext();
             dispatchContext.SetProperty(cursor.RuntimeState.OrchestrationInstance);
             dispatchContext.SetProperty(cursor.TaskOrchestration);
             dispatchContext.SetProperty(cursor.RuntimeState);
+            dispatchContext.SetProperty(workItem);
 
             cursor.LatestDecisions = Enumerable.Empty<OrchestratorAction>();
             return this.dispatchPipeline.RunAsync(dispatchContext, _ =>

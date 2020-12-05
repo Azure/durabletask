@@ -5,7 +5,7 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <RunCodeAnalysis>false</RunCodeAnalysis>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <FileVersion>0.1.5</FileVersion>
+    <FileVersion>0.1.6</FileVersion>
     <AssemblyVersion>$(FileVersion)</AssemblyVersion>
     <Version>$(FileVersion)-alpha</Version>
     <IncludeSymbols>true</IncludeSymbols>
@@ -18,6 +18,8 @@
     <DebugType>embedded</DebugType>
     <IncludeSymbols>false</IncludeSymbols>
     <LangVersion>7.3</LangVersion>
+    <!--NuGet licenseUrl and PackageIconUrl/iconUrl deprecation. -->
+    <NoWarn>NU5125;NU5048</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

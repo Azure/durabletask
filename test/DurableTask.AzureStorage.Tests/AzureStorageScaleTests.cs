@@ -60,7 +60,8 @@ namespace DurableTask.AzureStorage.Tests
             string testName, 
             bool testDeletion,
             bool deleteBeforeCreate = true,
-            string workerId = "test")
+            string workerId = "test",
+            bool useLegacyPartitionManagement = false)
         {
             string storageConnectionString = TestHelpers.GetTestStorageAccountConnectionString();
             var storageAccount = CloudStorageAccount.Parse(storageConnectionString);
@@ -71,8 +72,8 @@ namespace DurableTask.AzureStorage.Tests
                 TaskHubName = taskHubName,
                 StorageConnectionString = storageConnectionString,
                 WorkerId = workerId,
-                UseLegacyPartitionManagement = true,
                 AppName = testName,
+                UseLegacyPartitionManagement = useLegacyPartitionManagement,
             };
 
             Trace.TraceInformation($"Task Hub name: {taskHubName}");
@@ -194,7 +195,9 @@ namespace DurableTask.AzureStorage.Tests
         /// REQUIREMENT: No two workers will ever process the same control queue.
         /// </summary>
         [TestMethod]
-        public async Task MultiWorkerLeaseMovement()
+        [DataRow(true, 30)]
+        [DataRow(false, 180)]
+        public async Task MultiWorkerLeaseMovement(bool useLegacyPartitionManagement, int timeoutInSeconds)
         {
             const int MaxWorkerCount = 4;
 
@@ -214,7 +217,8 @@ namespace DurableTask.AzureStorage.Tests
                         nameof(MultiWorkerLeaseMovement),
                         testDeletion: false,
                         deleteBeforeCreate: i == 0,
-                        workerId: workerIds[i]);
+                        workerId: workerIds[i],
+                        useLegacyPartitionManagement: useLegacyPartitionManagement);
                     await services[i].StartAsync();
                     currentWorkerCount++;
                 }
@@ -226,7 +230,7 @@ namespace DurableTask.AzureStorage.Tests
                     currentWorkerCount--;
                 }
 
-                TimeSpan timeout = Debugger.IsAttached ? TimeSpan.FromMinutes(5) : TimeSpan.FromSeconds(30);
+                TimeSpan timeout = Debugger.IsAttached ? TimeSpan.FromMinutes(5) : TimeSpan.FromSeconds(timeoutInSeconds);
                 Trace.TraceInformation($"Waiting for all leases to become balanced. Timeout = {timeout}.");
 
                 bool isBalanced = false;
@@ -286,7 +290,7 @@ namespace DurableTask.AzureStorage.Tests
                                 var ownedLeases = leases.Where(l => l.Owner == service.WorkerId);
                                 Assert.AreEqual(
                                     ownedLeases.Count(),
-                                    service.OwnedControlQueues.Count(),
+                                    service.OwnedControlQueues.Where(queue=> !queue.IsReleased).Count(),
                                     $"Mismatch between control queue count and lease count for {service.WorkerId}");
                                 Assert.IsTrue(
                                     service.OwnedControlQueues.All(q => ownedLeases.Any(l => l.Name.Contains(q.Name))),
@@ -509,6 +513,82 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(ScaleAction.RemoveWorker, recommendation.Action);
             Assert.AreEqual(false, recommendation.KeepWorkersAlive);
             Assert.IsNotNull(recommendation.Reason);
+        }
+
+        [TestMethod]
+        public async Task UpdateTaskHubJsonWithNewPartitionCount()
+        {
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                StorageConnectionString = TestHelpers.GetTestStorageAccountConnectionString(),
+                TaskHubName = nameof(UpdateTaskHubJsonWithNewPartitionCount),
+                PartitionCount = 4,
+                UseAppLease = false,
+            };
+
+            var service = new AzureStorageOrchestrationService(settings);
+            var monitor = new DisconnectedPerformanceMonitor(settings.StorageConnectionString, settings.TaskHubName);
+
+            // Empty the existing task hub to make sure we are starting with a clean state.
+            await service.DeleteAsync();
+
+            // A null heartbeat is expected when the task hub does not exist.
+            PerformanceHeartbeat heartbeat = await monitor.PulseAsync(currentWorkerCount: 0);
+            Assert.IsNull(heartbeat);
+
+            await service.CreateAsync();
+
+            ScaleRecommendation recommendation;
+
+            // Ensure initial pulsing works as expected.
+            for (int i = 0; i < 5; i++)
+            {
+                heartbeat = await monitor.PulseAsync(currentWorkerCount: 0);
+                Assert.IsNotNull(heartbeat);
+                Assert.AreEqual(settings.PartitionCount, heartbeat.PartitionCount);
+                Assert.AreEqual(settings.PartitionCount, heartbeat.ControlQueueLengths.Count);
+                Assert.AreEqual(settings.PartitionCount, heartbeat.ControlQueueLatencies.Count);
+                Assert.AreEqual(0, heartbeat.ControlQueueLengths.Count(l => l != 0));
+                Assert.AreEqual(0, heartbeat.ControlQueueLatencies.Count(l => l != TimeSpan.Zero));
+                Assert.AreEqual(0, heartbeat.WorkItemQueueLength);
+                Assert.AreEqual(0.0, heartbeat.WorkItemQueueLatencyTrend);
+                Assert.AreEqual(TimeSpan.Zero, heartbeat.WorkItemQueueLatency);
+
+                recommendation = heartbeat.ScaleRecommendation;
+                Assert.IsNotNull(recommendation);
+                Assert.AreEqual(ScaleAction.None, recommendation.Action);
+                Assert.AreEqual(false, recommendation.KeepWorkersAlive);
+                Assert.IsNotNull(recommendation.Reason);
+            }
+
+            // Change the default partition count, and start and stop the worker to try and update taskhub.json.
+            settings.PartitionCount = 8;
+            service = new AzureStorageOrchestrationService(settings);
+            var worker = new TaskHubWorker(service);
+            worker.AddTaskOrchestrations(typeof(NoOpOrchestration));
+            await worker.StartAsync();
+            await worker.StopAsync();
+
+            // Ensure pulsing now is listening to all of the new partitions.
+            for (int i = 0; i < 5; i++)
+            {
+                heartbeat = await monitor.PulseAsync(currentWorkerCount: 0);
+                Assert.IsNotNull(heartbeat);
+                Assert.AreEqual(settings.PartitionCount, heartbeat.PartitionCount);
+                Assert.AreEqual(settings.PartitionCount, heartbeat.ControlQueueLengths.Count);
+                Assert.AreEqual(settings.PartitionCount, heartbeat.ControlQueueLatencies.Count);
+                Assert.AreEqual(0, heartbeat.ControlQueueLengths.Count(l => l != 0));
+                Assert.AreEqual(0, heartbeat.ControlQueueLatencies.Count(l => l != TimeSpan.Zero));
+                Assert.AreEqual(0, heartbeat.WorkItemQueueLength);
+                Assert.AreEqual(0.0, heartbeat.WorkItemQueueLatencyTrend);
+                Assert.AreEqual(TimeSpan.Zero, heartbeat.WorkItemQueueLatency);
+
+                recommendation = heartbeat.ScaleRecommendation;
+                Assert.IsNotNull(recommendation);
+                Assert.AreEqual(ScaleAction.None, recommendation.Action);
+                Assert.AreEqual(false, recommendation.KeepWorkersAlive);
+                Assert.IsNotNull(recommendation.Reason);
+            }
         }
 
         [TestMethod]

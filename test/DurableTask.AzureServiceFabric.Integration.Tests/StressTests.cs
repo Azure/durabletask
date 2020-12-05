@@ -99,7 +99,7 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
                 Console.WriteLine($"Begin testing orchestration with {numberOfActivities} parallel activities");
                 var taskHubClient = Utilities.CreateTaskHubClient();
                 var instance = await taskHubClient.CreateOrchestrationInstanceAsync(typeof(ExecutionCountingOrchestration), numberOfActivities);
-                var state = await taskHubClient.WaitForOrchestrationAsync(instance, TimeSpan.FromMinutes(3));
+                var state = await taskHubClient.WaitForOrchestrationAsync(instance, TimeSpan.FromMinutes(2));
                 await taskHubClient.PurgeOrchestrationInstanceHistoryAsync(DateTime.Now, OrchestrationStateTimeRangeFilterType.OrchestrationCompletedTimeFilter);
                 Assert.IsNotNull(state);
                 Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
@@ -208,7 +208,10 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
                 waitTasks.Add(Task.Run(async () =>
                 {
                     var state = await taskHubClient.WaitForOrchestrationAsync(instance, TimeSpan.FromMinutes(2));
-                    results.Add(Tuple.Create(instance, state));
+                    lock (results)
+                    {
+                        results.Add(Tuple.Create(instance, state));
+                    }
                 }));
                 if (delayGeneratorFunction != null)
                 {
@@ -233,7 +236,7 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
                 {
                     failedOrchestrations++;
                     var state = await taskHubClient.GetOrchestrationStateAsync(kvp.Item1);
-                    Console.WriteLine($"Unfinished orchestration {kvp.Item1}, state : {kvp.Item2?.OrchestrationStatus}");
+                    Console.WriteLine($"Unfinished orchestration {kvp.Item1}, state : {state?.OrchestrationStatus}");
                     continue;
                 }
 

@@ -69,6 +69,12 @@ namespace DurableTask.Core.Serializing
         /// <returns>Object serialized to a string</returns>
         public override string Serialize(object value, bool formatted)
         {
+            if (value == null)
+            {
+                // This avoids serializing null into "null"
+                return null;
+            }
+
             var sb = new StringBuilder(0x100);
             var textWriter = new StringWriter(sb, CultureInfo.InvariantCulture);
             using (var writer = new JsonTextWriter(textWriter))

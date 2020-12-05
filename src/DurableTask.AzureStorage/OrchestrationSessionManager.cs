@@ -216,9 +216,11 @@ namespace DurableTask.AzureStorage
 
                             pendingMessages.Add(data);
                         }
-                        else if (data.TaskMessage.Event.Timestamp < session.RuntimeState.CreatedTime)
+                        else if (session.RuntimeState.ExecutionStartedEvent == null || data.TaskMessage.Event.Timestamp < session.RuntimeState.CreatedTime)
                         {
-                            // This message was created for a previous generation of this instance.
+                            // If the current generation of this instance hasn't started or the current 
+                            // generation's `CreatedTime` is newer than the message timestamp indicates that
+                            // this message was created for a previous generation of this instance.
                             // This is common for canceled timer fired events in ContinueAsNew scenarios.
                             session.DiscardMessage(data);
                         }

@@ -287,6 +287,40 @@ namespace DurableTask.Test.Orchestrations
         }
     }
 
+    public sealed class ChangeStatusOrchestration : TaskOrchestration<string, string[]>
+    {
+        private bool hasSetCustomStatus = false;
+        private string customStatus = null;
+
+        private async Task SetCustomStatus(OrchestrationContext context, string status)
+        {
+            this.hasSetCustomStatus = true;
+            this.customStatus = status;
+            // Dummy timer to persist state.
+            await context.CreateTimer<int>(context.CurrentUtcDateTime, 0);
+        }
+
+        public override async Task<string> RunTask(OrchestrationContext context, string[] input)
+        {
+            foreach (var status in input)
+            {
+                await this.SetCustomStatus(context, status);
+            }
+
+            return string.Empty;
+        }
+
+        public override string OnGetStatus()
+        {
+            if (this.hasSetCustomStatus)
+            {
+                return this.customStatus;
+            }
+
+            return base.OnGetStatus();
+        }
+    }
+
     [KnownType(typeof(EventConversationOrchestration.Responder))]
     public sealed class EventConversationOrchestration : TaskOrchestration<string, bool>
     {

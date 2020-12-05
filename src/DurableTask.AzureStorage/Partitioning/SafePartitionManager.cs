@@ -105,8 +105,10 @@ namespace DurableTask.AzureStorage.Partitioning
         {
             TaskHubInfo hubInfo = new TaskHubInfo(this.settings.TaskHubName, DateTime.UtcNow, this.settings.PartitionCount);
             return Task.WhenAll(
-                this.intentLeaseManager.CreateLeaseStoreIfNotExistsAsync(hubInfo),
-                this.ownershipLeaseManager.CreateLeaseStoreIfNotExistsAsync(hubInfo));
+                // Only need to check if the lease store (i.e. the taskhub.json) is stale for one of the two
+                // lease managers.
+                this.intentLeaseManager.CreateLeaseStoreIfNotExistsAsync(hubInfo, checkIfStale: true),
+                this.ownershipLeaseManager.CreateLeaseStoreIfNotExistsAsync(hubInfo, checkIfStale: false));
         }
 
         Task IPartitionManager.DeleteLeases()

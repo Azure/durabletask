@@ -131,7 +131,7 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
             });
 
             Assert.IsNotNull(result);
-            Assert.AreEqual(result.OrchestrationStatus, OrchestrationStatus.Running);
+            Assert.AreEqual(OrchestrationStatus.Running, result.OrchestrationStatus);
             Assert.IsTrue(time > waitTime);
             Console.WriteLine($"Full WaitTime : {waitTime}, Actual time taken for Wait : {time}, Expected Orchestration Running Time : {orchestrationTimeInSeconds} seconds");
 
