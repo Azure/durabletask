@@ -133,6 +133,7 @@ namespace DurableTask.Core
 
                 if (workItem.LockedUntilUtc < DateTime.MaxValue)
                 {
+                    // start a task to run RenewUntil
                     renewTask = Task.Factory.StartNew(
                         () => this.RenewUntil(workItem, renewCancellationTokenSource.Token),
                         renewCancellationTokenSource.Token);
@@ -203,6 +204,7 @@ namespace DurableTask.Core
                     renewCancellationTokenSource.Cancel();
                     try
                     {
+                        // wait the renewTask finish
                         await renewTask;
                     }
                     catch (OperationCanceledException)
@@ -213,7 +215,7 @@ namespace DurableTask.Core
             }
         }
 
-        async void RenewUntil(TaskActivityWorkItem workItem, CancellationToken cancellationToken)
+        async Task RenewUntil(TaskActivityWorkItem workItem, CancellationToken cancellationToken)
         {
             try
             {

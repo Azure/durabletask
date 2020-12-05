@@ -58,7 +58,7 @@ namespace DurableTask.AzureStorage
         {
             if (this.ownedControlQueues.TryAdd(partitionId, controlQueue))
             {
-                Task.Run(() => this.DequeueLoop(partitionId, controlQueue, cancellationToken));
+                _ = Task.Run(() => this.DequeueLoop(partitionId, controlQueue, cancellationToken));
             }
             else
             {
@@ -141,7 +141,7 @@ namespace DurableTask.AzureStorage
             return this.activeOrchestrationSessions.Values.Where(session => string.Equals(session.ControlQueue.Name, partitionId)).Any();
         }
 
-        async void DequeueLoop(string partitionId, ControlQueue controlQueue, CancellationToken cancellationToken)
+        async Task DequeueLoop(string partitionId, ControlQueue controlQueue, CancellationToken cancellationToken)
         {
             this.settings.Logger.PartitionManagerInfo(
                 this.storageAccountName,

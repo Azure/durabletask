@@ -447,12 +447,12 @@ namespace DurableTask.AzureStorage
             this.shutdownSource = new CancellationTokenSource();
             this.statsLoop = Task.Run(() => this.ReportStatsLoop(this.shutdownSource.Token));
 
-            await Task.Factory.StartNew(() => this.LeaseManagerStarter());
+            _ = await Task.Factory.StartNew(() => this.LeaseManagerStarter());
 
             this.isStarted = true;
         }
 
-        private async void LeaseManagerStarter()
+        private async Task LeaseManagerStarter()
         {
             while (!this.shutdownSource.Token.IsCancellationRequested)
             {
