@@ -888,12 +888,13 @@ namespace DurableTask.AzureStorage
                 ExtensionVersion);
         }
 
-        [Event(EventIds.FetchedInstanceStatus, Level = EventLevel.Informational, Version = 2)]
+        [Event(EventIds.FetchedInstanceStatus, Level = EventLevel.Informational, Version = 3)]
         public void FetchedInstanceStatus(
             string Account,
             string TaskHub,
             string InstanceId,
             string ExecutionId,
+            string RuntimeStatus,
             long LatencyMs,
             string AppName,
             string ExtensionVersion)
@@ -904,6 +905,7 @@ namespace DurableTask.AzureStorage
                 TaskHub,
                 InstanceId,
                 ExecutionId ?? string.Empty,
+                RuntimeStatus ?? string.Empty,
                 LatencyMs,
                 AppName,
                 ExtensionVersion);

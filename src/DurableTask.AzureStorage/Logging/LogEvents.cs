@@ -2153,12 +2153,14 @@ namespace DurableTask.AzureStorage.Logging
                 string taskHub,
                 string instanceId,
                 string executionId,
+                string runtimeStatus,
                 long latencyMs)
             {
                 this.Account = account;
                 this.TaskHub = taskHub;
                 this.InstanceId = instanceId;
                 this.ExecutionId = executionId;
+                this.RuntimeStatus = runtimeStatus;
                 this.LatencyMs = latencyMs;
             }
 
@@ -2173,6 +2175,9 @@ namespace DurableTask.AzureStorage.Logging
 
             [StructuredLogField]
             public string ExecutionId { get; }
+
+            [StructuredLogField]
+            public string RuntimeStatus { get; }
 
             [StructuredLogField]
             public long LatencyMs { get; }
@@ -2190,6 +2195,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.TaskHub,
                 this.InstanceId,
                 this.ExecutionId,
+                this.RuntimeStatus,
                 this.LatencyMs,
                 Utils.AppName,
                 Utils.ExtensionVersion);

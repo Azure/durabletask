@@ -509,32 +509,38 @@ namespace DurableTask.AzureStorage.Tracking
             stopwatch.Stop();
             this.stats.StorageRequests.Increment();
 
+            DynamicTableEntity tableEntity = segment.ToList().FirstOrDefault();
+            OrchestrationState orchestrationState = await this.ConvertFromAsync(tableEntity);
+
             this.settings.Logger.FetchedInstanceStatus(
                 this.storageAccountName,
                 this.taskHubName,
                 instanceId,
                 executionId ?? string.Empty,
+                orchestrationState?.OrchestrationStatus.ToString() ?? "Unknown",
                 stopwatch.ElapsedMilliseconds);
 
-            var tableEntity = segment.ToList().FirstOrDefault();
-            if (tableEntity == null)
+            if (tableEntity == null || orchestrationState == null)
             {
                 return null;
             }
 
             this.stats.TableEntitiesRead.Increment(1);
 
-            var orchestrationState = await this.ConvertFromAsync(tableEntity);
-
             return new InstanceStatus(orchestrationState, tableEntity.ETag);
         }
 
         Task<OrchestrationState> ConvertFromAsync(DynamicTableEntity tableEntity)
         {
-            var properties = tableEntity.Properties;
-            var orchestrationInstanceStatus = ConvertFromAsync(properties);
+            if (tableEntity == null)
+            {
+                return null;
+            }
 
-            return ConvertFromAsync(orchestrationInstanceStatus, tableEntity.PartitionKey);
+            IDictionary<string, EntityProperty> properties = tableEntity.Properties;
+            OrchestrationInstanceStatus orchestrationInstanceStatus = ConvertFromAsync(properties);
+
+            return this.ConvertFromAsync(orchestrationInstanceStatus, tableEntity.PartitionKey);
         }
 
         static OrchestrationInstanceStatus ConvertFromAsync(IDictionary<string, EntityProperty> properties)

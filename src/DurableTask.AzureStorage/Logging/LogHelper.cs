@@ -706,6 +706,7 @@ namespace DurableTask.AzureStorage.Logging
             string taskHub,
             string instanceId,
             string executionId,
+            string runtimeStatus,
             long latencyMs)
         {
             var logEvent = new LogEvents.FetchedInstanceStatus(
@@ -713,6 +714,7 @@ namespace DurableTask.AzureStorage.Logging
                 taskHub,
                 instanceId,
                 executionId,
+                runtimeStatus,
                 latencyMs);
             this.WriteStructuredLog(logEvent);
         }
