@@ -113,8 +113,60 @@ namespace DurableTask.Core
             return this.orchestrationService.LockNextTaskOrchestrationWorkItemAsync(receiveTimeout, cancellationToken);
         }
 
+        IList<TaskMessage> EnsureExecutionStartedIsFirst(IList<TaskMessage> batch)
+        {
+
+            // We look for *the first* instance of an ExecutionStarted event
+            // in the batch, if any.
+            int index;
+            bool foundEvent = false;
+            TaskMessage execStartedEvent = null;
+            for(index = 0; index < batch.Count; index ++)
+            {
+                TaskMessage message = batch[index];
+                if (message.Event.EventType == EventType.ExecutionStarted)
+                {
+                    execStartedEvent = message;
+                    foundEvent = true;
+                    break;
+                }
+            }
+
+            // We ensure that event is at the beginning of the list. If not,
+            // We put it at the beginning but preserve the ordering of other
+            // elements. This block should have no effect if execStartedIndex
+            // is already 0.
+            int execStartedIndex = index;
+            if (foundEvent)
+            {
+                // Starting from the ExecutionStarted event, replace each element
+                // with its adjacent element "to the left". This shifts all elements
+                // by 1 index starting from the start up until and including the
+                // ExecutionStarted event.
+                for(int pos = execStartedIndex; pos <= 0; index--)
+                {
+                    // Replace element in current position with element in the
+                    // position to the "left"
+                    int prevPos = pos - 1;
+                    TaskMessage newValue = batch[prevPos];
+                    batch[pos] = newValue;
+                }
+
+                // Finally, set the first value to the ExecutionStarted event
+                batch[0] = execStartedEvent;
+            }
+
+            return batch;
+
+        }
+
         async Task OnProcessWorkItemSessionAsync(TaskOrchestrationWorkItem workItem)
         {
+            // DTFx history replay expects that ExecutionStarted comes before other events.
+            // If this is not already the case, due to a race-condition, we re-order the
+            // messages to enforce this expectation.
+            workItem.NewMessages = EnsureExecutionStartedIsFirst(workItem.NewMessages);
+
             try
             {
                 if (workItem.Session == null)
@@ -232,6 +284,8 @@ namespace DurableTask.Core
 
             OrchestrationState instanceState = null;
 
+
+            // Assumes Execution Started is the first event in the workItem batch
             if (!this.ReconcileMessagesWithState(workItem))
             {
                 // TODO : mark an orchestration as faulted if there is data corruption
@@ -536,6 +590,11 @@ namespace DurableTask.Core
             });
         }
 
+        /// <summary>
+        /// Assumes
+        /// </summary>
+        /// <param name="workItem"></param>
+        /// <returns></returns>
         bool ReconcileMessagesWithState(TaskOrchestrationWorkItem workItem)
         {
             foreach (TaskMessage message in workItem.NewMessages)
