@@ -276,7 +276,7 @@ namespace DurableTask.Core
             OrchestrationState instanceState = null;
 
 
-            // Assumes Execution Started is the first event in the workItem batch
+            // Assumes that: if the batch contains a new "ExecutionStarted" event, it is the first message in the batch.
             if (!this.ReconcileMessagesWithState(workItem))
             {
                 // TODO : mark an orchestration as faulted if there is data corruption
@@ -583,7 +583,7 @@ namespace DurableTask.Core
 
         /// <summary>
         /// Determines whether the workItem should be discarded as per the orchestration's state.
-        /// It assumes that the workItem batch has an ExecutionStartedEvent as its first element.
+        /// Assumes that: if the batch contains a new "ExecutionStarted" event, it is the first message in the batch.
         /// </summary>
         /// <param name="workItem">A batch of work item messages.</param>
         /// <returns>True if workItem should be processed further. False otherwise.</returns>
