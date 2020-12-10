@@ -115,46 +115,35 @@ namespace DurableTask.Core
 
 
         /// <summary>
-        /// Ensure that the workItem batch has an ExecutionStarted event as its first element.
-        /// If not, move the first instance of an ExecutionStarted event to the beginning of the
-        /// list. Note that this method modifies its input in-place.
+        /// Ensures the first ExecutionStarted event in the batch (if any) appears at the beginning
+        /// of its executionID history.
+        /// If this is not already the case, we move the first ExecutionStarted event "backwards"
+        /// until it either reaches the beginning of the list or reaches a different, non-null, executionID.
         ///
-        /// This method needs to be robust in the prescence of ContinueAsNew flows, because
-        /// ContinueAsNew might be represented as an ExecutionStarted event in some configurations.
-        /// To avoid picking up on an ExecutionStarted event from the wrong orchestrator "generation",
-        /// this algorithm makes sure to consider the ExecutionID of the work items it inspects.
+        /// Note that this method modifies its input in-place.
         /// </summary>
         /// <param name="batch">The batch of workitems to potentially re-order in-place</param>
         void EnsureExecutionStartedIsFirst(IList<TaskMessage> batch)
         {
-            // We extract the executionId of the first orchestrator generation in the batch.
-            // Additionally, return early if we detect that the first element is already
-            // an ExecutionStarted event.
-            int batchSize = batch.Count;
-            string firstExecId = "";
-            if (batchSize > 0)
-            {
-                TaskMessage firstMessage = batch[0];
-                if (firstMessage.Event.EventType == EventType.ExecutionStarted)
-                {
-                    return;
-                }
-                firstExecId = firstMessage.OrchestrationInstance.ExecutionId;
-            }
 
-            // We look for *the first* instance of an ExecutionStarted event
-            // in the batch, if any.
+            // We look for *the first* instance of an ExecutionStarted event in the batch, if any.
             int index;
             bool foundEvent = false;
             TaskMessage execStartedEvent = null;
-            // Safe to start at 1 because we already inspected the first element
-            for(index = 1; index < batchSize; index ++)
+            Dictionary<string, int> earliestExecIdIndex = new Dictionary<string, int>();
+            for(index = 0; index < batch.Count; index ++)
             {
                 TaskMessage message = batch[index];
-                // We also make sure the ExecutionId is the same as in the current
-                // beginning item in the batch.
-                if (message.Event.EventType == EventType.ExecutionStarted &&
-                    message.OrchestrationInstance.ExecutionId == firstExecId)
+
+                // Keep track of earliest index of executionIDs
+                string executionID = message.OrchestrationInstance.ExecutionId;
+                if ((executionID != null) && !earliestExecIdIndex.ContainsKey(executionID))
+                {
+                    earliestExecIdIndex.Add(executionID, index);
+                }
+
+                // Find the first ExecutionStarted event.
+                if (message.Event.EventType == EventType.ExecutionStarted)
                 {
                     execStartedEvent = message;
                     foundEvent = true;
@@ -162,12 +151,15 @@ namespace DurableTask.Core
                 }
             }
 
-            // If we found an ExecutionStartedEvent, we move it to the beginning of the list.
+            // If we found an ExecutionStartedEvent, we place it either
+            // (A) in the beginning or
+            // (B) at the earliest position found for an event with a matching executionID
             int execStartedIndex = index;
+            earliestExecIdIndex.TryGetValue(execStartedEvent.OrchestrationInstance.ExecutionId, out int newPosition);
             if (foundEvent)
             {
                 batch.RemoveAt(execStartedIndex);
-                batch.Insert(0, execStartedEvent);
+                batch.Insert(newPosition, execStartedEvent);
             }
 
         }
