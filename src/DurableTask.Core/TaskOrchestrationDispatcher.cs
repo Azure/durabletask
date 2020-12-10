@@ -127,19 +127,28 @@ namespace DurableTask.Core
         {
 
             // We look for *the first* instance of an ExecutionStarted event in the batch, if any.
-            int index;
+            int index = 0;
+            string prevExecId = "";
+            int targetPosition = 0; // new position of ExecutionStarted in case of a re-ordering
             TaskMessage execStartedEvent = null;
-            Dictionary<string, int> earliestExecIdIndex = new Dictionary<string, int>();
-            for(index = 0; index < batch.Count; index ++)
+            foreach (TaskMessage message in batch)
             {
-                TaskMessage message = batch[index];
-
-                // Keep track of earliest index of executionIDs
-                string executionID = message.OrchestrationInstance.ExecutionId;
-                if ((executionID != null) && !earliestExecIdIndex.ContainsKey(executionID))
+                // Keep track of orchestrator generation changes, maybe update target position
+                string execId = message.OrchestrationInstance.ExecutionId;
+                if(prevExecId != execId)
                 {
-                    earliestExecIdIndex.Add(executionID, index);
+                    // We want to re-position the ExecutionStarted event after the "right-most"
+                    // event with a non-null executionID that came before it.
+                    // So, only update target position if the executionID changed
+                    // and the previous executionId was not null.
+                    if (prevExecId != null)
+                    {
+                        targetPosition = index;
+                    }
+
+                    prevExecId = execId;
                 }
+
 
                 // Find the first ExecutionStarted event.
                 if (message.Event.EventType == EventType.ExecutionStarted)
@@ -147,17 +156,17 @@ namespace DurableTask.Core
                     execStartedEvent = message;
                     break;
                 }
+                index++;
             }
 
             // If we found an ExecutionStartedEvent, we place it either
             // (A) in the beginning or
-            // (B) at the earliest position found for an event with a matching executionID
+            // (B)  after the "right-most" event with non-null executionID that came before it.
             int execStartedIndex = index;
             if (execStartedEvent != null)
             {
-                earliestExecIdIndex.TryGetValue(execStartedEvent.OrchestrationInstance.ExecutionId, out int newPosition);
                 batch.RemoveAt(execStartedIndex);
-                batch.Insert(newPosition, execStartedEvent);
+                batch.Insert(targetPosition, execStartedEvent);
             }
 
         }
