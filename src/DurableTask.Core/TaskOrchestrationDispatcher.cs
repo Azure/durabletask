@@ -128,7 +128,6 @@ namespace DurableTask.Core
 
             // We look for *the first* instance of an ExecutionStarted event in the batch, if any.
             int index;
-            bool foundEvent = false;
             TaskMessage execStartedEvent = null;
             Dictionary<string, int> earliestExecIdIndex = new Dictionary<string, int>();
             for(index = 0; index < batch.Count; index ++)
@@ -146,7 +145,6 @@ namespace DurableTask.Core
                 if (message.Event.EventType == EventType.ExecutionStarted)
                 {
                     execStartedEvent = message;
-                    foundEvent = true;
                     break;
                 }
             }
@@ -155,9 +153,9 @@ namespace DurableTask.Core
             // (A) in the beginning or
             // (B) at the earliest position found for an event with a matching executionID
             int execStartedIndex = index;
-            earliestExecIdIndex.TryGetValue(execStartedEvent.OrchestrationInstance.ExecutionId, out int newPosition);
-            if (foundEvent)
+            if (execStartedEvent != null)
             {
+                earliestExecIdIndex.TryGetValue(execStartedEvent.OrchestrationInstance.ExecutionId, out int newPosition);
                 batch.RemoveAt(execStartedIndex);
                 batch.Insert(newPosition, execStartedEvent);
             }
