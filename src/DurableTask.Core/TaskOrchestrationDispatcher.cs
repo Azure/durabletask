@@ -118,20 +118,43 @@ namespace DurableTask.Core
         /// Ensure that the workItem batch has an ExecutionStarted event as its first element.
         /// If not, move the first instance of an ExecutionStarted event to the beginning of the
         /// list. Note that this method modifies its input in-place.
+        ///
+        /// This method needs to be robust in the prescence of ContinueAsNew flows, because
+        /// ContinueAsNew might be represented as an ExecutionStarted event in some configurations.
+        /// To avoid picking up on an ExecutionStarted event from the wrong orchestrator "generation",
+        /// this algorithm makes sure to consider the ExecutionID of the work items it inspects.
         /// </summary>
         /// <param name="batch">The batch of workitems to potentially re-order in-place</param>
         void EnsureExecutionStartedIsFirst(IList<TaskMessage> batch)
         {
+            // We extract the executionId of the first orchestrator generation in the batch.
+            // Additionally, return early if we detect that the first element is already
+            // an ExecutionStarted event.
+            int batchSize = batch.Count;
+            string firstExecId = "";
+            if (batchSize > 0)
+            {
+                TaskMessage firstMessage = batch[0];
+                if (firstMessage.Event.EventType == EventType.ExecutionStarted)
+                {
+                    return;
+                }
+                firstExecId = firstMessage.OrchestrationInstance.ExecutionId;
+            }
 
             // We look for *the first* instance of an ExecutionStarted event
             // in the batch, if any.
             int index;
             bool foundEvent = false;
             TaskMessage execStartedEvent = null;
-            for(index = 0; index < batch.Count; index ++)
+            // Safe to start at 1 because we already inspected the first element
+            for(index = 1; index < batchSize; index ++)
             {
                 TaskMessage message = batch[index];
-                if (message.Event.EventType == EventType.ExecutionStarted)
+                // We also make sure the ExecutionId is the same as in the current
+                // beginning item in the batch.
+                if (message.Event.EventType == EventType.ExecutionStarted &&
+                    message.OrchestrationInstance.ExecutionId == firstExecId)
                 {
                     execStartedEvent = message;
                     foundEvent = true;
@@ -139,11 +162,9 @@ namespace DurableTask.Core
                 }
             }
 
-            // We ensure that event is at the beginning of the list. If not,
-            // We put it at the beginning but preserve the ordering of other
-            // elements.
+            // If we found an ExecutionStartedEvent, we move it to the beginning of the list.
             int execStartedIndex = index;
-            if (foundEvent && (execStartedIndex != 0))
+            if (foundEvent)
             {
                 batch.RemoveAt(execStartedIndex);
                 batch.Insert(0, execStartedEvent);
