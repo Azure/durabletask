@@ -168,10 +168,10 @@ namespace DurableTask.Core
             // If we found an ExecutionStartedEvent, we place it either
             // (A) in the beginning or
             // (B)  after the "right-most" event with non-null executionID that came before it.
-            int execStartedIndex = index;
-            if ((executionStartedEvent != null) && (execStartedIndex != targetPosition))
+            int executionStartedIndex = index;
+            if ((executionStartedEvent != null) && (executionStartedIndex != targetPosition))
             {
-                batch.RemoveAt(execStartedIndex);
+                batch.RemoveAt(executionStartedIndex);
                 batch.Insert(targetPosition, executionStartedEvent);
             }
 
