@@ -41,6 +41,7 @@ namespace DurableTask.AzureStorage.Tests
         [DataRow("!@#$%^&*()_+=-0987654321d")]
         [DataRow("\'\"\\\r\n\t")]
         [DataRow("\u001F\u007F\u009F")]
+        [DataRow(null)]
 
         public void TestRoundTrip(string original)
         {
@@ -48,7 +49,11 @@ namespace DurableTask.AzureStorage.Tests
             string roundtrip = KeySanitation.UnescapePartitionKey(sanitized);
 
             Assert.AreEqual(original, roundtrip);
-            Assert.IsTrue(sanitized.All(c => IsValid(c)));
+
+            if (sanitized != null)
+            {
+                Assert.IsTrue(sanitized.All(c => IsValid(c)));
+            }
 
             bool IsValid(char c)
             {

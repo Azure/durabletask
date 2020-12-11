@@ -32,6 +32,11 @@ namespace DurableTask.AzureStorage.Tracking
         /// <returns>The modified string.</returns>
         public static string EscapePartitionKey(string key)
         {
+            if (key == null)
+            {
+                return null;
+            }
+
             StringBuilder b = new StringBuilder();
             foreach (char c in key)
             {
@@ -74,6 +79,11 @@ namespace DurableTask.AzureStorage.Tracking
         /// <returns>The original string.</returns>
         public static string UnescapePartitionKey(string key)
         {
+            if (key == null)
+            {
+                return null;
+            }
+
             StringBuilder b = new StringBuilder();
             for (int i = 0; i < key.Length; i++)
             {
