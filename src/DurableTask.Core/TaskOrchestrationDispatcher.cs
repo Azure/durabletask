@@ -174,7 +174,6 @@ namespace DurableTask.Core
                 batch.RemoveAt(executionStartedIndex);
                 batch.Insert(targetPosition, executionStartedEvent);
             }
-
         }
 
         async Task OnProcessWorkItemSessionAsync(TaskOrchestrationWorkItem workItem)
