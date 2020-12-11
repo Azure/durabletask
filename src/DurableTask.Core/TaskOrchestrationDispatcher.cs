@@ -151,13 +151,17 @@ namespace DurableTask.Core
 
 
                 // Find the first ExecutionStarted event.
-                // ParentInstance needs to be null to avoid re-ordering
-                // ContinueAsNew events
-                if ((message.Event.EventType == EventType.ExecutionStarted) &&
-                    (message.Event is ExecutionStartedEvent eventData) &&
-                    (eventData.ParentInstance == null))
+                if (message.Event.EventType == EventType.ExecutionStarted)
                 {
-                    execStartedEvent = message;
+                    // ParentInstance needs to be null to avoid re-ordering
+                    // ContinueAsNew events
+                    if ((message.Event is ExecutionStartedEvent eventData) &&
+                        (eventData.ParentInstance == null))
+                    {
+                        execStartedEvent = message;
+                    }
+                    // We only consider the first ExecutionStarted event in the
+                    // list, so we always break.
                     break;
                 }
                 index++;
