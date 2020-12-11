@@ -42,12 +42,30 @@ namespace DurableTask.AzureStorage.Tracking
             {
                 switch (c)
                 {
-                    case escapeChar: b.Append(escapeChar); b.Append(escapeChar); break;
+                    case escapeChar:
+                        b.Append(escapeChar); 
+                        b.Append(escapeChar);
+                        break;
 
-                    case '/': b.Append(escapeChar); b.Append('0'); break;
-                    case '\\': b.Append(escapeChar); b.Append('1'); break;
-                    case '#': b.Append(escapeChar); b.Append('2'); break;
-                    case '?': b.Append(escapeChar); b.Append('3'); break;
+                    case '/':
+                        b.Append(escapeChar);
+                        b.Append('0');
+                        break;
+
+                    case '\\': 
+                        b.Append(escapeChar);
+                        b.Append('1'); 
+                        break;
+
+                    case '#': 
+                        b.Append(escapeChar); 
+                        b.Append('2'); 
+                        break;
+
+                    case '?': 
+                        b.Append(escapeChar); 
+                        b.Append('3');
+                        break;
 
                     default:
                         {
@@ -99,10 +117,21 @@ namespace DurableTask.AzureStorage.Tracking
                     {
                         case escapeChar: b.Append(escapeChar); break;
 
-                        case '0': b.Append('/'); break;
-                        case '1': b.Append('\\'); break;
-                        case '2': b.Append('#'); break;
-                        case '3': b.Append('?'); break;
+                        case '0':
+                            b.Append('/');
+                            break;
+
+                        case '1': 
+                            b.Append('\\');
+                            break;
+
+                        case '2': 
+                            b.Append('#');
+                            break;
+
+                        case '3': 
+                            b.Append('?'); 
+                            break;
 
                         default:
                             {

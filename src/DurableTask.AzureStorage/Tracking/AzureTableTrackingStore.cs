@@ -368,7 +368,6 @@ namespace DurableTask.AzureStorage.Tracking
             // 5. Returns "failedLeaves", a list of the deepest failed instances on each failed branch to revive with RewindEvent messages
             ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-            string soInstanceId = instanceId;
             bool hasFailedSubOrchestrations = false;
             const char Quote = '\'';
 
@@ -444,7 +443,7 @@ namespace DurableTask.AzureStorage.Tracking
 
                     var subOrchesratrationEntities = await QueryHistoryAsync(soFilterCondition.ToString(), instanceId, cancellationToken);
 
-                    soInstanceId = subOrchesratrationEntities[0].Properties["InstanceId"].StringValue;
+                    var soInstanceId = subOrchesratrationEntities[0].Properties["InstanceId"].StringValue;
 
                     // the SubORchestrationCreatedEvent is still healthy and will not be overwritten, just marked as rewound
                     subOrchesratrationEntities[0].Properties["Reason"] = new EntityProperty("Rewound: " + subOrchesratrationEntities[0].Properties["EventType"].StringValue);
