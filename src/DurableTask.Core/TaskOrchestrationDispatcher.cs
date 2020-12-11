@@ -151,7 +151,11 @@ namespace DurableTask.Core
 
 
                 // Find the first ExecutionStarted event.
-                if (message.Event.EventType == EventType.ExecutionStarted)
+                // ParentInstance needs to be null to avoid re-ordering
+                // ContinueAsNew events
+                if ((message.Event.EventType == EventType.ExecutionStarted) &&
+                    (message.Event is ExecutionStartedEvent eventData) &&
+                    (eventData.ParentInstance == null))
                 {
                     execStartedEvent = message;
                     break;
@@ -163,7 +167,7 @@ namespace DurableTask.Core
             // (A) in the beginning or
             // (B)  after the "right-most" event with non-null executionID that came before it.
             int execStartedIndex = index;
-            if (execStartedEvent != null)
+            if ((execStartedEvent != null) && (execStartedIndex != targetPosition))
             {
                 batch.RemoveAt(execStartedIndex);
                 batch.Insert(targetPosition, execStartedEvent);
