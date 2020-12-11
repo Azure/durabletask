@@ -167,7 +167,7 @@ namespace DurableTask.Core
 
             // If we found an ExecutionStartedEvent, we place it either
             // (A) in the beginning or
-            // (B)  after the "right-most" event with non-null executionID that came before it.
+            // (B) after the "right-most" event with non-null executionID that came before it.
             int executionStartedIndex = index;
             if ((executionStartedEvent != null) && (executionStartedIndex != targetPosition))
             {
