@@ -113,8 +113,76 @@ namespace DurableTask.Core
             return this.orchestrationService.LockNextTaskOrchestrationWorkItemAsync(receiveTimeout, cancellationToken);
         }
 
+
+        /// <summary>
+        /// Ensures the first ExecutionStarted event in the batch (if any) appears at the beginning
+        /// of its executionID history.
+        /// If this is not already the case, we move the first ExecutionStarted event "backwards"
+        /// until it either reaches the beginning of the list or reaches a different, non-null, executionID.
+        ///
+        /// Note that this method modifies its input in-place.
+        /// </summary>
+        /// <param name="batch">The batch of workitems to potentially re-order in-place</param>
+        void EnsureExecutionStartedIsFirst(IList<TaskMessage> batch)
+        {
+            // We look for *the first* instance of an ExecutionStarted event in the batch, if any.
+            int index = 0;
+            string previousExecutionId = "";
+            int targetPosition = 0; // new position of ExecutionStarted in case of a re-ordering
+            TaskMessage executionStartedEvent = null;
+            foreach (TaskMessage message in batch)
+            {
+                // Keep track of orchestrator generation changes, maybe update target position
+                string executionId = message.OrchestrationInstance.ExecutionId;
+                if(previousExecutionId != executionId)
+                {
+                    // We want to re-position the ExecutionStarted event after the "right-most"
+                    // event with a non-null executionID that came before it.
+                    // So, only update target position if the executionID changed
+                    // and the previous executionId was not null.
+                    if (previousExecutionId != null)
+                    {
+                        targetPosition = index;
+                    }
+
+                    previousExecutionId = executionId;
+                }
+
+                // Find the first ExecutionStarted event.
+                if (message.Event.EventType == EventType.ExecutionStarted)
+                {
+                    // ParentInstance needs to be null to avoid re-ordering
+                    // ContinueAsNew events
+                    if ((message.Event is ExecutionStartedEvent eventData) &&
+                        (eventData.ParentInstance == null))
+                    {
+                        executionStartedEvent = message;
+                    }
+                    // We only consider the first ExecutionStarted event in the
+                    // list, so we always break.
+                    break;
+                }
+                index++;
+            }
+
+            // If we found an ExecutionStartedEvent, we place it either
+            // (A) in the beginning or
+            // (B) after the "right-most" event with non-null executionID that came before it.
+            int executionStartedIndex = index;
+            if ((executionStartedEvent != null) && (executionStartedIndex != targetPosition))
+            {
+                batch.RemoveAt(executionStartedIndex);
+                batch.Insert(targetPosition, executionStartedEvent);
+            }
+        }
+
         async Task OnProcessWorkItemSessionAsync(TaskOrchestrationWorkItem workItem)
         {
+            // DTFx history replay expects that ExecutionStarted comes before other events.
+            // If this is not already the case, due to a race-condition, we re-order the
+            // messages to enforce this expectation.
+            EnsureExecutionStartedIsFirst(workItem.NewMessages);
+
             try
             {
                 if (workItem.Session == null)
@@ -232,6 +300,8 @@ namespace DurableTask.Core
 
             OrchestrationState instanceState = null;
 
+
+            // Assumes that: if the batch contains a new "ExecutionStarted" event, it is the first message in the batch.
             if (!this.ReconcileMessagesWithState(workItem))
             {
                 // TODO : mark an orchestration as faulted if there is data corruption
@@ -536,6 +606,13 @@ namespace DurableTask.Core
             });
         }
 
+        /// <summary>
+        /// Converts new messages into history events that get appended to the existing orchestration state.
+        /// Returns False if the workItem should be discarded. True if it should be processed further.
+        /// Assumes that: if the batch contains a new "ExecutionStarted" event, it is the first message in the batch.
+        /// </summary>
+        /// <param name="workItem">A batch of work item messages.</param>
+        /// <returns>True if workItem should be processed further. False otherwise.</returns>
         bool ReconcileMessagesWithState(TaskOrchestrationWorkItem workItem)
         {
             foreach (TaskMessage message in workItem.NewMessages)
