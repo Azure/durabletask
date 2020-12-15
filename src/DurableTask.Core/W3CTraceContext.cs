@@ -21,7 +21,7 @@ namespace DurableTask.Core
     /// <summary>
     /// W3CTraceContext keep the correlation value with W3C TraceContext protocol
     /// </summary>
-    public class W3CTraceContext : TraceContextBase
+    public class W3CTraceContextDummyTest : TraceContextBase
     {
         /// <summary>
         /// Default constructor
