@@ -17,6 +17,7 @@ namespace DurableTask.AzureStorage
     using System.Runtime.Serialization;
     using DurableTask.Core;
     using Microsoft.WindowsAzure.Storage.Queue;
+    using Newtonsoft.Json;
 
     /// <summary>
     /// Protocol class for all Azure Queue messages.
@@ -86,6 +87,7 @@ namespace DurableTask.AzureStorage
         /// The sender of the message.
         /// </summary>
         [DataMember(EmitDefaultValue = false)]
+        [JsonProperty(TypeNameHandling = TypeNameHandling.None)]
         public OrchestrationInstance Sender { get; private set; }
 
         /// <summary>
