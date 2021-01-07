@@ -33,6 +33,12 @@ namespace DurableTask.Core
         public static bool IsOrchestratorThread;
 
         /// <summary>
+        /// INameVersionProvider for getting names and versions when not explicitly supplied.
+        /// When null, <see cref="NameVersionHelper.Provider"/> is used.
+        /// </summary>
+        public INameVersionProvider NameVersionProvider { get; set; }
+
+        /// <summary>
         /// JsonDataConverter for message serialization settings
         /// </summary>
         public JsonDataConverter MessageDataConverter { get; set; }
@@ -53,7 +59,7 @@ namespace DurableTask.Core
         public virtual DateTime CurrentUtcDateTime { get; internal set; }
 
         /// <summary>
-        ///     True if the code is currently replaying, False if code is truly executing for the first time.
+        /// True if the code is currently replaying, False if code is truly executing for the first time.
         /// </summary>
         public bool IsReplaying { get; internal protected set; }
 
@@ -143,8 +149,7 @@ namespace DurableTask.Core
         public virtual Task<T> ScheduleWithRetry<T>(Type taskActivityType, RetryOptions retryOptions,
             params object[] parameters)
         {
-            return ScheduleWithRetry<T>(NameVersionHelper.GetDefaultName(taskActivityType),
-                NameVersionHelper.GetDefaultVersion(taskActivityType),
+            return ScheduleWithRetry<T>(GetName(taskActivityType), GetVersion(taskActivityType),
                 retryOptions, parameters);
         }
 
@@ -176,8 +181,8 @@ namespace DurableTask.Core
         public virtual Task<T> CreateSubOrchestrationInstanceWithRetry<T>(Type orchestrationType,
             RetryOptions retryOptions, object input)
         {
-            return CreateSubOrchestrationInstanceWithRetry<T>(NameVersionHelper.GetDefaultName(orchestrationType),
-                NameVersionHelper.GetDefaultVersion(orchestrationType), retryOptions, input);
+            return CreateSubOrchestrationInstanceWithRetry<T>(GetName(orchestrationType),
+                GetVersion(orchestrationType), retryOptions, input);
         }
 
         /// <summary>
@@ -192,8 +197,8 @@ namespace DurableTask.Core
         public virtual Task<T> CreateSubOrchestrationInstanceWithRetry<T>(Type orchestrationType, string instanceId,
             RetryOptions retryOptions, object input)
         {
-            return CreateSubOrchestrationInstanceWithRetry<T>(NameVersionHelper.GetDefaultName(orchestrationType),
-                NameVersionHelper.GetDefaultVersion(orchestrationType), instanceId, retryOptions, input);
+            return CreateSubOrchestrationInstanceWithRetry<T>(GetName(orchestrationType),
+                GetVersion(orchestrationType), instanceId, retryOptions, input);
         }
 
         /// <summary>
@@ -240,8 +245,8 @@ namespace DurableTask.Core
         /// <returns>Task that represents the execution of the specified TaskActivity</returns>
         public virtual Task<TResult> ScheduleTask<TResult>(Type activityType, params object[] parameters)
         {
-            return ScheduleTask<TResult>(NameVersionHelper.GetDefaultName(activityType),
-                NameVersionHelper.GetDefaultVersion(activityType), parameters);
+            return ScheduleTask<TResult>(GetName(activityType),
+                GetVersion(activityType), parameters);
         }
 
         /// <summary>
@@ -282,8 +287,8 @@ namespace DurableTask.Core
         /// <returns>Task that represents the execution of the specified sub-orchestration</returns>
         public virtual Task<T> CreateSubOrchestrationInstance<T>(Type orchestrationType, object input)
         {
-            return CreateSubOrchestrationInstance<T>(NameVersionHelper.GetDefaultName(orchestrationType),
-                NameVersionHelper.GetDefaultVersion(orchestrationType), input);
+            return CreateSubOrchestrationInstance<T>(GetName(orchestrationType),
+                GetVersion(orchestrationType), input);
         }
 
         /// <summary>
@@ -296,8 +301,8 @@ namespace DurableTask.Core
         /// <returns>Task that represents the execution of the specified sub-orchestration</returns>
         public virtual Task<T> CreateSubOrchestrationInstance<T>(Type orchestrationType, string instanceId, object input)
         {
-            return CreateSubOrchestrationInstance<T>(NameVersionHelper.GetDefaultName(orchestrationType),
-                NameVersionHelper.GetDefaultVersion(orchestrationType), instanceId, input);
+            return CreateSubOrchestrationInstance<T>(GetName(orchestrationType),
+                GetVersion(orchestrationType), instanceId, input);
         }
 
         /// <summary>
@@ -371,5 +376,11 @@ namespace DurableTask.Core
         ///     the first execution of this orchestration instance.
         /// </param>
         public abstract void ContinueAsNew(string newVersion, object input);
+
+        private string GetName(object obj, bool useFullyQualifiedMethodNames = false)
+            => (NameVersionProvider ?? NameVersionHelper.Provider).GetName(obj, useFullyQualifiedMethodNames);
+
+        private string GetVersion(object obj)
+            => (NameVersionProvider ?? NameVersionHelper.Provider).GetVersion(obj);
     }
 }

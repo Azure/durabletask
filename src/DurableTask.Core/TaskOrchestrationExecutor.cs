@@ -34,11 +34,18 @@ namespace DurableTask.Core
         readonly bool skipCarryOverEvents;
         Task<string> result;
 
-        public TaskOrchestrationExecutor(OrchestrationRuntimeState orchestrationRuntimeState,
-            TaskOrchestration taskOrchestration, BehaviorOnContinueAsNew eventBehaviourForContinueAsNew)
+        public TaskOrchestrationExecutor(
+            OrchestrationRuntimeState orchestrationRuntimeState,
+            TaskOrchestration taskOrchestration,
+            BehaviorOnContinueAsNew eventBehaviourForContinueAsNew,
+            INameVersionProvider nameVersionProvider)
         {
             this.decisionScheduler = new SynchronousTaskScheduler();
-            this.context = new TaskOrchestrationContext(orchestrationRuntimeState.OrchestrationInstance, this.decisionScheduler);
+            this.context = new TaskOrchestrationContext(orchestrationRuntimeState.OrchestrationInstance, this.decisionScheduler)
+            {
+                NameVersionProvider = nameVersionProvider ?? NameVersionHelper.Provider,
+            };
+
             this.orchestrationRuntimeState = orchestrationRuntimeState;
             this.taskOrchestration = taskOrchestration;
             this.skipCarryOverEvents = eventBehaviourForContinueAsNew == BehaviorOnContinueAsNew.Ignore;

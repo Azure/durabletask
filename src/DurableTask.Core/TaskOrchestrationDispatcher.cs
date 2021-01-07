@@ -41,18 +41,21 @@ namespace DurableTask.Core
         readonly WorkItemDispatcher<TaskOrchestrationWorkItem> dispatcher;
         readonly DispatchMiddlewarePipeline dispatchPipeline;
         readonly LogHelper logHelper;
+        readonly INameVersionProvider nameVersionProvider;
         readonly NonBlockingCountdownLock concurrentSessionLock;
 
         internal TaskOrchestrationDispatcher(
             IOrchestrationService orchestrationService,
             INameVersionObjectManager<TaskOrchestration> objectManager,
             DispatchMiddlewarePipeline dispatchPipeline,
-            LogHelper logHelper)
+            LogHelper logHelper,
+            INameVersionProvider nameVersionProvider)
         {
             this.objectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
             this.orchestrationService = orchestrationService ?? throw new ArgumentNullException(nameof(orchestrationService));
             this.dispatchPipeline = dispatchPipeline ?? throw new ArgumentNullException(nameof(dispatchPipeline));
             this.logHelper = logHelper ?? throw new ArgumentNullException(nameof(logHelper));
+            this.nameVersionProvider = nameVersionProvider ?? NameVersionHelper.Provider;
 
             this.dispatcher = new WorkItemDispatcher<TaskOrchestrationWorkItem>(
                 "TaskOrchestrationDispatcher",
@@ -525,7 +528,8 @@ namespace DurableTask.Core
                                 new TaskOrchestrationExecutor(
                                     runtimeState,
                                     newOrchestration,
-                                    this.orchestrationService.EventBehaviourForContinueAsNew),
+                                    this.orchestrationService.EventBehaviourForContinueAsNew,
+                                    this.nameVersionProvider),
                                 latestDecisions: null);
 
                             if (workItem.LockedUntilUtc < DateTime.UtcNow.AddMinutes(1))
@@ -576,7 +580,11 @@ namespace DurableTask.Core
             dispatchContext.SetProperty(runtimeState);
             dispatchContext.SetProperty(workItem);
 
-            var executor = new TaskOrchestrationExecutor(runtimeState, taskOrchestration, this.orchestrationService.EventBehaviourForContinueAsNew);
+            var executor = new TaskOrchestrationExecutor(
+                runtimeState,
+                taskOrchestration,
+                this.orchestrationService.EventBehaviourForContinueAsNew,
+                this.nameVersionProvider);
 
             IEnumerable<OrchestratorAction> decisions = Enumerable.Empty<OrchestratorAction>();
             await this.dispatchPipeline.RunAsync(dispatchContext, _ =>
