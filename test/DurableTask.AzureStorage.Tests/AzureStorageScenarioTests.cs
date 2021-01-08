@@ -1912,9 +1912,11 @@ namespace DurableTask.AzureStorage.Tests
 
         private static async Task ValidateBlobUrlAsync(string taskHubName, string instanceId, string value, int originalPayloadSize = 0)
         {
+            string sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
+
             CloudStorageAccount account = CloudStorageAccount.Parse(TestHelpers.GetTestStorageAccountConnectionString());
             Assert.IsTrue(value.StartsWith(account.BlobStorageUri.PrimaryUri.OriginalString));
-            Assert.IsTrue(value.Contains("/" + instanceId + "/"));
+            Assert.IsTrue(value.Contains("/" + sanitizedInstanceId + "/"));
             Assert.IsTrue(value.EndsWith(".json.gz"));
 
             string containerName = $"{taskHubName.ToLowerInvariant()}-largemessages";
@@ -1923,7 +1925,7 @@ namespace DurableTask.AzureStorage.Tests
             Assert.IsTrue(await container.ExistsAsync(), $"Blob container {containerName} is expected to exist.");
 
             await client.GetBlobReferenceFromServerAsync(new Uri(value));
-            CloudBlobDirectory instanceDirectory = container.GetDirectoryReference(instanceId);
+            CloudBlobDirectory instanceDirectory = container.GetDirectoryReference(sanitizedInstanceId);
 
             string blobName = value.Split('/').Last();
             CloudBlob blob = instanceDirectory.GetBlobReference(blobName);

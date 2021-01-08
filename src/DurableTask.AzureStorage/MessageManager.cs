@@ -281,7 +281,7 @@ namespace DurableTask.AzureStorage
             return $"{instanceId}/message-{activityId}-{eventType}.json.gz";
         }
 
-        internal async Task DeleteLargeMessageBlobs(string instanceId, AzureStorageOrchestrationServiceStats stats)
+        internal async Task DeleteLargeMessageBlobs(string sanitizedInstanceId, AzureStorageOrchestrationServiceStats stats)
         {
             var blobForDeletionTaskList = new List<Task>();
             if (!await this.cloudBlobContainer.ExistsAsync())
@@ -289,7 +289,7 @@ namespace DurableTask.AzureStorage
                 return;
             }
 
-            CloudBlobDirectory instanceDirectory = this.cloudBlobContainer.GetDirectoryReference(instanceId);
+            CloudBlobDirectory instanceDirectory = this.cloudBlobContainer.GetDirectoryReference(sanitizedInstanceId);
             BlobContinuationToken blobContinuationToken = null;
             while (true)
             {
