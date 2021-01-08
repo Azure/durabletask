@@ -243,7 +243,8 @@ namespace DurableTask.AzureStorage.Tracking
             const char Quote = '\'';
 
             // e.g. "PartitionKey eq 'c138dd969a1e4a699b0644c7d8279f81'"
-            filterCondition.Append(PartitionKeyProperty).Append(" eq ").Append(Quote).Append(instanceId).Append(Quote);
+            var sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
+            filterCondition.Append(PartitionKeyProperty).Append(" eq ").Append(Quote).Append(sanitizedInstanceId).Append(Quote);
             if (!string.IsNullOrEmpty(expectedExecutionId))
             {
                 // Filter down to a specific generation.
@@ -367,13 +368,13 @@ namespace DurableTask.AzureStorage.Tracking
             // 5. Returns "failedLeaves", a list of the deepest failed instances on each failed branch to revive with RewindEvent messages
             ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-            string soInstanceId = instanceId;
             bool hasFailedSubOrchestrations = false;
             const char Quote = '\'';
 
             var orchestratorStartedFilterCondition = new StringBuilder(200);
 
-            orchestratorStartedFilterCondition.Append(PartitionKeyProperty).Append(" eq ").Append(Quote).Append(instanceId).Append(Quote); // = TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, instanceId);
+            string sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
+            orchestratorStartedFilterCondition.Append(PartitionKeyProperty).Append(" eq ").Append(Quote).Append(sanitizedInstanceId).Append(Quote); // = TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, instanceId);
             orchestratorStartedFilterCondition.Append(" and EventType eq ").Append(Quote).Append("OrchestratorStarted").Append(Quote);
 
             var orchestratorStartedEntities = await this.QueryHistoryAsync(orchestratorStartedFilterCondition.ToString(), instanceId, cancellationToken);
@@ -386,7 +387,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             var rowsToUpdateFilterCondition = new StringBuilder(200);
 
-            rowsToUpdateFilterCondition.Append(PartitionKeyProperty).Append(" eq ").Append(Quote).Append(instanceId).Append(Quote);
+            rowsToUpdateFilterCondition.Append(PartitionKeyProperty).Append(" eq ").Append(Quote).Append(sanitizedInstanceId).Append(Quote);
             rowsToUpdateFilterCondition.Append(" and ExecutionId eq ").Append(Quote).Append(executionId).Append(Quote);
             rowsToUpdateFilterCondition.Append(" and (OrchestrationStatus eq ").Append(Quote).Append("Failed").Append(Quote);
             rowsToUpdateFilterCondition.Append(" or EventType eq ").Append(Quote).Append("TaskFailed").Append(Quote);
@@ -414,7 +415,7 @@ namespace DurableTask.AzureStorage.Tracking
 
                     var tsFilterCondition = new StringBuilder(200);
 
-                    tsFilterCondition.Append(PartitionKeyProperty).Append(" eq ").Append(Quote).Append(instanceId).Append(Quote);
+                    tsFilterCondition.Append(PartitionKeyProperty).Append(" eq ").Append(Quote).Append(sanitizedInstanceId).Append(Quote);
                     tsFilterCondition.Append(" and ExecutionId eq ").Append(Quote).Append(executionId).Append(Quote);
                     tsFilterCondition.Append(" and EventId eq ").Append(taskScheduledId);
                     tsFilterCondition.Append(" and EventType eq ").Append(Quote).Append(nameof(EventType.TaskScheduled)).Append(Quote);
@@ -435,14 +436,14 @@ namespace DurableTask.AzureStorage.Tracking
 
                     var soFilterCondition = new StringBuilder(200);
 
-                    soFilterCondition.Append(PartitionKeyProperty).Append(" eq ").Append(Quote).Append(instanceId).Append(Quote);
+                    soFilterCondition.Append(PartitionKeyProperty).Append(" eq ").Append(Quote).Append(sanitizedInstanceId).Append(Quote);
                     soFilterCondition.Append(" and ExecutionId eq ").Append(Quote).Append(executionId).Append(Quote);
                     soFilterCondition.Append(" and EventId eq ").Append(subOrchestrationId);
                     soFilterCondition.Append(" and EventType eq ").Append(Quote).Append(nameof(EventType.SubOrchestrationInstanceCreated)).Append(Quote);
 
                     var subOrchesratrationEntities = await QueryHistoryAsync(soFilterCondition.ToString(), instanceId, cancellationToken);
 
-                    soInstanceId = subOrchesratrationEntities[0].Properties["InstanceId"].StringValue;
+                    var soInstanceId = subOrchesratrationEntities[0].Properties["InstanceId"].StringValue;
 
                     // the SubORchestrationCreatedEvent is still healthy and will not be overwritten, just marked as rewound
                     subOrchesratrationEntities[0].Properties["Reason"] = new EntityProperty("Rewound: " + subOrchesratrationEntities[0].Properties["EventType"].StringValue);
@@ -533,8 +534,8 @@ namespace DurableTask.AzureStorage.Tracking
         {
             var properties = tableEntity.Properties;
             var orchestrationInstanceStatus = ConvertFromAsync(properties);
-
-            return ConvertFromAsync(orchestrationInstanceStatus, tableEntity.PartitionKey);
+            var instanceId = KeySanitation.UnescapePartitionKey(tableEntity.PartitionKey);
+            return ConvertFromAsync(orchestrationInstanceStatus, instanceId);
         }
 
         static OrchestrationInstanceStatus ConvertFromAsync(IDictionary<string, EntityProperty> properties)
@@ -643,7 +644,8 @@ namespace DurableTask.AzureStorage.Tracking
 
             query.Take(top);
             var segment = await this.InstancesTable.ExecuteQuerySegmentedAsync(query, token);
-            IEnumerable<OrchestrationState> result = await Task.WhenAll(segment.Select( status => this.ConvertFromAsync(status, status.PartitionKey)));
+            IEnumerable<OrchestrationState> result = await Task.WhenAll(
+                segment.Select(status => this.ConvertFromAsync(status, KeySanitation.UnescapePartitionKey(status.PartitionKey))));
             orchestrationStates.AddRange(result);
 
             this.stats.StorageRequests.Increment();
@@ -673,7 +675,7 @@ namespace DurableTask.AzureStorage.Tracking
 
                 int previousCount = orchestrationStates.Count;
                 IEnumerable<OrchestrationState> result = await Task.WhenAll(segment.Select(
-                    status => this.ConvertFromAsync(status, status.PartitionKey)));
+                    status => this.ConvertFromAsync(status, KeySanitation.UnescapePartitionKey(status.PartitionKey))));
                 orchestrationStates.AddRange(result);
 
                 this.stats.StorageRequests.Increment();
@@ -732,7 +734,7 @@ namespace DurableTask.AzureStorage.Tracking
             int storageRequests = 0;
             int rowsDeleted = 0;
             HistoryEntitiesResponseInfo historyEntitiesResponseInfo = await this.GetHistoryEntitiesResponseInfoAsync(
-                orchestrationInstanceStatus.PartitionKey,
+                KeySanitation.UnescapePartitionKey(orchestrationInstanceStatus.PartitionKey),
                 null,
                 new []
                 {
@@ -781,9 +783,11 @@ namespace DurableTask.AzureStorage.Tracking
         /// <inheritdoc />
         public override async Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(string instanceId)
         {
+            string sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
+
             TableQuery<OrchestrationInstanceStatus> query = new TableQuery<OrchestrationInstanceStatus>().Where(
                 TableQuery.CombineFilters(
-                    TableQuery.GenerateFilterCondition(PartitionKeyProperty, QueryComparisons.Equal, instanceId),
+                    TableQuery.GenerateFilterCondition(PartitionKeyProperty, QueryComparisons.Equal, sanitizedInstanceId),
                     TableOperators.And,
                     TableQuery.GenerateFilterCondition(RowKeyProperty, QueryComparisons.Equal, string.Empty)));
 
@@ -854,7 +858,8 @@ namespace DurableTask.AzureStorage.Tracking
             string eTag,
             string inputStatusOverride)
         {
-            DynamicTableEntity entity = new DynamicTableEntity(executionStartedEvent.OrchestrationInstance.InstanceId, "")
+            string sanitizedInstanceId = KeySanitation.EscapePartitionKey(executionStartedEvent.OrchestrationInstance.InstanceId);
+            DynamicTableEntity entity = new DynamicTableEntity(sanitizedInstanceId, "")
             {
                 ETag = eTag,
                 Properties =
@@ -920,7 +925,8 @@ namespace DurableTask.AzureStorage.Tracking
         /// <inheritdoc />
         public override async Task UpdateStatusForRewindAsync(string instanceId)
         {
-            DynamicTableEntity entity = new DynamicTableEntity(instanceId, "")
+            string sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
+            DynamicTableEntity entity = new DynamicTableEntity(sanitizedInstanceId, "")
             {
                 ETag = "*",
                 Properties =
@@ -976,8 +982,9 @@ namespace DurableTask.AzureStorage.Tracking
             var historyEventBatch = new TableBatchOperation();
 
             OrchestrationStatus runtimeStatus = OrchestrationStatus.Running;
+            string sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
 
-            var instanceEntity = new DynamicTableEntity(instanceId, string.Empty)
+            var instanceEntity = new DynamicTableEntity(sanitizedInstanceId, string.Empty)
             {
                 Properties =
                 {
@@ -995,7 +1002,7 @@ namespace DurableTask.AzureStorage.Tracking
 
                 HistoryEvent historyEvent = newEvents[i];
                 DynamicTableEntity historyEntity = this.tableEntityConverter.ConvertToTableEntity(historyEvent);
-                historyEntity.PartitionKey = instanceId;
+                historyEntity.PartitionKey = sanitizedInstanceId;
 
                 newEventListBuffer.Append(historyEvent.EventType.ToString()).Append(',');
 
@@ -1079,6 +1086,7 @@ namespace DurableTask.AzureStorage.Tracking
                 {
                     eTagValue = await this.UploadHistoryBatch(
                         instanceId,
+                        sanitizedInstanceId,
                         executionId,
                         historyEventBatch,
                         newEventListBuffer,
@@ -1100,6 +1108,7 @@ namespace DurableTask.AzureStorage.Tracking
             {
                 eTagValue = await this.UploadHistoryBatch(
                     instanceId,
+                    sanitizedInstanceId,
                     executionId,
                     historyEventBatch,
                     newEventListBuffer,
@@ -1239,7 +1248,7 @@ namespace DurableTask.AzureStorage.Tracking
 
         static string GetBlobName(DynamicTableEntity entity, string property)
         {
-            string instanceId = entity.PartitionKey;
+            string sanitizedInstanceId = entity.PartitionKey;
             string sequenceNumber = entity.RowKey;
 
             string eventType;
@@ -1258,13 +1267,14 @@ namespace DurableTask.AzureStorage.Tracking
                 throw new InvalidOperationException($"Could not compute the blob name for property {property}");
             }
 
-            string blobName = $"{instanceId}/history-{sequenceNumber}-{eventType}-{property}.json.gz";
+            string blobName = $"{sanitizedInstanceId}/history-{sequenceNumber}-{eventType}-{property}.json.gz";
 
             return blobName;
         }
 
         async Task<string> UploadHistoryBatch(
             string instanceId,
+            string sanitizedInstanceId,
             string executionId,
             TableBatchOperation historyEventBatch,
             StringBuilder historyEventNamesBuffer,
@@ -1275,7 +1285,7 @@ namespace DurableTask.AzureStorage.Tracking
             bool isFinalBatch)
         {
             // Adding / updating sentinel entity
-            DynamicTableEntity sentinelEntity = new DynamicTableEntity(instanceId, SentinelRowKey)
+            DynamicTableEntity sentinelEntity = new DynamicTableEntity(sanitizedInstanceId, SentinelRowKey)
             {
                 Properties =
                 {

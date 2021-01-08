@@ -129,20 +129,22 @@ namespace DurableTask.AzureStorage.Tracking
 
             if (!string.IsNullOrEmpty(this.InstanceIdPrefix))
             {
-                int length = this.InstanceIdPrefix.Length - 1;
-                char incrementedLastChar = (char)(this.InstanceIdPrefix[length] + 1);
+                var sanitizedPrefix = KeySanitation.EscapePartitionKey(this.InstanceIdPrefix);
+                int length = sanitizedPrefix.Length - 1;
+                char incrementedLastChar = (char)(sanitizedPrefix[length] + 1);
 
-                string greaterThanPrefix = this.InstanceIdPrefix.Substring(0, length) + incrementedLastChar;
+                string greaterThanPrefix = sanitizedPrefix.Substring(0, length) + incrementedLastChar;
 
                 conditions.Add(TableQuery.CombineFilters(
-                    TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.GreaterThanOrEqual, InstanceIdPrefix), 
+                    TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.GreaterThanOrEqual, sanitizedPrefix), 
                     TableOperators.And, 
                     TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.LessThan, greaterThanPrefix)));
             }
 
             if (!string.IsNullOrEmpty(this.InstanceId))
             {
-                conditions.Add(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, InstanceId));
+                var sanitizedInstanceId = KeySanitation.EscapePartitionKey(this.InstanceId);
+                conditions.Add(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, sanitizedInstanceId));
             }
 
             return conditions.Count == 1 ? 
