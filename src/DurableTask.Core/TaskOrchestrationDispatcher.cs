@@ -298,7 +298,7 @@ namespace DurableTask.Core
 
             OrchestrationRuntimeState originalOrchestrationRuntimeState = runtimeState;
 
-            OrchestrationState instanceState = null; // A good nullable types candidate
+            OrchestrationState instanceState = null;
 
 
             // Assumes that: if the batch contains a new "ExecutionStarted" event, it is the first message in the batch.
