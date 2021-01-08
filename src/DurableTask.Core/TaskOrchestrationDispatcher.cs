@@ -298,6 +298,8 @@ namespace DurableTask.Core
 
             OrchestrationRuntimeState originalOrchestrationRuntimeState = runtimeState;
 
+            // This is dangerous because instanceState might not get assigned before use.
+            // We should explore providing a non-null default value here.
             OrchestrationState instanceState = null;
 
 
@@ -542,6 +544,14 @@ namespace DurableTask.Core
             workItem.OrchestrationRuntimeState = originalOrchestrationRuntimeState;
 
             runtimeState.Status = runtimeState.Status ?? carryOverStatus;
+
+            // If we entered the if-statement above, `instanceState` might be null
+            // In that case, we keep instanceState consistent with the runtimeState
+            if (instanceState == null)
+            {
+                instanceState = Utils.BuildOrchestrationState(runtimeState);
+            }
+
             instanceState.Status = runtimeState.Status;
 
             await this.orchestrationService.CompleteTaskOrchestrationWorkItemAsync(
