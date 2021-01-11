@@ -109,9 +109,9 @@ namespace DurableTask.ServiceBus.Tests
             Assert.AreEqual(OrchestrationStatus.Completed, runtimeState2.OrchestrationStatus);
         }
 
-        /*
+        
         [TestMethod]
-        public async Task TerminateInstanceStoreTest()
+        public async Task AAATerminateInstanceStoreTest()
         {
             await this.taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration))
                 .AddTaskActivities(new Activity1())
@@ -125,12 +125,12 @@ namespace DurableTask.ServiceBus.Tests
             OrchestrationState runtimeState = await this.client.GetOrchestrationStateAsync(id);
             Assert.AreEqual(OrchestrationStatus.Pending, runtimeState.OrchestrationStatus);
 
-            await this.client.TerminateInstanceAsync(id);
-            await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
-            runtimeState = await this.client.GetOrchestrationStateAsync(id);
-            Assert.AreEqual(OrchestrationStatus.Terminated, runtimeState.OrchestrationStatus);
+            //await this.client.TerminateInstanceAsync(id);
+            //await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+            //runtimeState = await this.client.GetOrchestrationStateAsync(id);
+            //Assert.AreEqual(OrchestrationStatus.Terminated, runtimeState.OrchestrationStatus);
         }
-        */
+        
 
         [TestMethod]
         public async Task IntermediateStateInstanceStoreTest()
