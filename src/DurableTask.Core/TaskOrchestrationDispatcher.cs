@@ -544,7 +544,7 @@ namespace DurableTask.Core
             runtimeState.Status = runtimeState.Status ?? carryOverStatus;
 
             // If we entered the if-statement above, `instanceState` might be null
-            if (instanceState == null)
+            if (instanceState == null && runtimeState?.ExecutionStartedEvent != null)
             {
                 // In that case, we keep instanceState consistent with the runtimeState
                 instanceState = Utils.BuildOrchestrationState(runtimeState);
