@@ -94,16 +94,9 @@ namespace DurableTask.Core
         }
 
         /// <summary>
-        /// Gets the created time of the ExecutionStartedEvent
+        /// Gets the created time of the ExecutionStartedEvent if present else a safe (from timezone shift) max datetime
         /// </summary>
-        public DateTime CreatedTime
-        {
-            get
-            {
-                Debug.Assert(ExecutionStartedEvent != null);
-                return ExecutionStartedEvent.Timestamp;
-            }
-        }
+        public DateTime CreatedTime => ExecutionStartedEvent?.Timestamp ?? Utils.DateTimeSafeMaxValue;
 
         /// <summary>
         /// Gets the created time of the ExecutionCompletedEvent if completed else a safe (from timezone shift) max datetime
@@ -118,7 +111,7 @@ namespace DurableTask.Core
             get
             {
                 Debug.Assert(ExecutionStartedEvent != null);
-                return ExecutionStartedEvent.Input;
+                return ExecutionStartedEvent?.Input;
             }
         }
 
@@ -135,7 +128,7 @@ namespace DurableTask.Core
             get
             {
                 Debug.Assert(ExecutionStartedEvent != null);
-                return ExecutionStartedEvent.Name;
+                return ExecutionStartedEvent?.Name;
             }
         }
 
@@ -147,7 +140,7 @@ namespace DurableTask.Core
             get
             {
                 Debug.Assert(ExecutionStartedEvent != null);
-                return ExecutionStartedEvent.Version;
+                return ExecutionStartedEvent?.Version;
             }
         }
 
