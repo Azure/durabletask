@@ -110,6 +110,7 @@ namespace DurableTask.ServiceBus.Tests
         }
 
         [TestMethod]
+        [Timeout(300000)]
         public async Task TerminateInstanceStoreTest()
         {
             await this.taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration))
