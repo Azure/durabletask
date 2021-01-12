@@ -546,8 +546,7 @@ namespace DurableTask.Core
             // If we entered the if-statement above, `instanceState` might be null
             if (instanceState == null)
             {
-                // In that case, we keep instanceState consistent with the runtimeState
-                instanceState = Utils.BuildOrchestrationState(runtimeState);
+                instanceState = new OrchestrationState();
             }
 
             instanceState.Status = runtimeState.Status;
