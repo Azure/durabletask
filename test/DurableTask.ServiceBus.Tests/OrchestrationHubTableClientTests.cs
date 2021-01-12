@@ -31,11 +31,13 @@ namespace DurableTask.ServiceBus.Tests
         AzureTableClient tableClient;
         TaskHubWorker taskHub;
 
+        public TestContext TestContext { get; set; }
+
         [TestInitialize]
         public void TestInitialize()
         {
             var r = new Random();
-            this.tableClient = new AzureTableClient("test00" + r.Next(0, 10000),
+            this.tableClient = new AzureTableClient("test00" + r.Next(0, 10000) + TestContext.TestName + r.Next(0, 10000),
                 "UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://127.0.0.1:10002/");
             this.tableClient.CreateTableIfNotExistsAsync().Wait();
 
