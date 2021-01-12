@@ -123,8 +123,8 @@ namespace DurableTask.ServiceBus.Tests
 
             await TestHelpers.WaitForInstanceAsync(this.client, id, 60, false);
             OrchestrationState runtimeState = await this.client.GetOrchestrationStateAsync(id);
+            Assert.AreEqual(OrchestrationStatus.Pending, runtimeState.OrchestrationStatus);
             Assert.IsTrue(true);
-            //Assert.AreEqual(OrchestrationStatus.Pending, runtimeState.OrchestrationStatus);
 
             //await this.client.TerminateInstanceAsync(id);
             //await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
