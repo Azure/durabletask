@@ -548,7 +548,6 @@ namespace DurableTask.Core
             {
                 // In that case, we keep instanceState consistent with the runtimeState
                 instanceState = Utils.BuildOrchestrationState(runtimeState);
-                //instanceState.Status = runtimeState.Status;
             }
 
             instanceState.Status = runtimeState.Status;
