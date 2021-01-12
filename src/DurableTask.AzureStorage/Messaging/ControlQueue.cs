@@ -82,7 +82,7 @@ namespace DurableTask.AzureStorage.Messaging
                             "GetMessages",
                             this.storageAccountName,
                             this.settings,
-                            (context, timeoutToken) =>
+                            operation: (context, timeoutToken) =>
                             {
                                 using (var finalLinkedCts = CancellationTokenSource.CreateLinkedTokenSource(linkedCts.Token, timeoutToken))
                                 {
