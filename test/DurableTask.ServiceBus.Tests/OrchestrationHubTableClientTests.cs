@@ -119,10 +119,10 @@ namespace DurableTask.ServiceBus.Tests
 
             OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
                 "WAIT");
-            Assert.IsTrue(true);
             //await Task.Delay(60 * 1000);
 
-            //await TestHelpers.WaitForInstanceAsync(this.client, id, 60, false);
+            await TestHelpers.WaitForInstanceAsync(this.client, id, 60, false);
+            Assert.IsTrue(true);
             //OrchestrationState runtimeState = await this.client.GetOrchestrationStateAsync(id);
             //Assert.AreEqual(OrchestrationStatus.Pending, runtimeState.OrchestrationStatus);
 
@@ -131,7 +131,7 @@ namespace DurableTask.ServiceBus.Tests
             //runtimeState = await this.client.GetOrchestrationStateAsync(id);
             //Assert.AreEqual(OrchestrationStatus.Terminated, runtimeState.OrchestrationStatus);
         }
-        
+
 
         [TestMethod]
         public async Task IntermediateStateInstanceStoreTest()
