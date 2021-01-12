@@ -23,7 +23,7 @@ namespace DurableTask.AzureStorage
     // The TimeoutHandler class is based off of the similar Azure Functions fix seen here: https://github.com/Azure/azure-webjobs-sdk/pull/2291
     internal static class TimeoutHandler
     {
-        // The number of times we allow the timeout to be hit before recylcing the app. We set this
+        // The number of times we allow the timeout to be hit before recycling the app. We set this
         // to a fixed value to prevent building up an infinite number of deadlocked tasks and leak resources.
         private const int MaxNumberOfTimeoutsBeforeRecycle = 5;
 
