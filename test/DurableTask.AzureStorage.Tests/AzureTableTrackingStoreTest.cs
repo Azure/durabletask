@@ -17,11 +17,13 @@ namespace DurableTask.AzureStorage.Tests
     using System.Collections.Generic;
     using System.Linq;
     using System.Text;
+    using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
+    using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Table;
     using Moq;
     using Newtonsoft.Json;
@@ -143,7 +145,10 @@ namespace DurableTask.AzureStorage.Tests
             {
                 this.cloudTableMock.Verify(t => t.ExecuteQuerySegmentedAsync<OrchestrationInstanceStatus>(
                     It.IsAny<TableQuery<OrchestrationInstanceStatus>>(),
-                    It.IsAny<TableContinuationToken>()));
+                    It.IsAny<TableContinuationToken>(),
+                    It.IsAny<TableRequestOptions>(),
+                    It.IsAny<OperationContext>(),
+                    It.IsAny<CancellationToken>()));
             }
 
             private void SetupQueryStateWithPagerMock()
@@ -154,10 +159,13 @@ namespace DurableTask.AzureStorage.Tests
 
                 this.cloudTableMock.Setup(t => t.ExecuteQuerySegmentedAsync<OrchestrationInstanceStatus>(
                         It.IsAny<TableQuery<OrchestrationInstanceStatus>>(),
-                        It.IsAny<TableContinuationToken>()))
-                    .ReturnsAsync(segment)
-                    .Callback<TableQuery<OrchestrationInstanceStatus>, TableContinuationToken>(
-                        (q, token) =>
+                        It.IsAny<TableContinuationToken>(),
+                        It.IsAny<TableRequestOptions>(),
+                        It.IsAny<OperationContext>(),
+                        It.IsAny<CancellationToken>()))
+                    .Returns(Task.FromResult(segment))
+                    .Callback<TableQuery<OrchestrationInstanceStatus>, TableContinuationToken, TableRequestOptions, OperationContext, CancellationToken>(
+                        (q, token, options, context, cancelToken) =>
                         {
                             this.ActualPassedTokenObject = token;
                             Assert.AreEqual(this.ExpectedTop, q.TakeCount);
@@ -172,10 +180,13 @@ namespace DurableTask.AzureStorage.Tests
 
                 this.cloudTableMock.Setup(t => t.ExecuteQuerySegmentedAsync<OrchestrationInstanceStatus>(
                         It.IsAny<TableQuery<OrchestrationInstanceStatus>>(),
-                        It.IsAny<TableContinuationToken>()))
-                    .ReturnsAsync(segment)
-                    .Callback<TableQuery<OrchestrationInstanceStatus>, TableContinuationToken>(
-                        (q, token) =>
+                        It.IsAny<TableContinuationToken>(),
+                        It.IsAny<TableRequestOptions>(),
+                        It.IsAny<OperationContext>(),
+                        It.IsAny<CancellationToken>()))
+                    .Returns(Task.FromResult(segment))
+                    .Callback<TableQuery<OrchestrationInstanceStatus>, TableContinuationToken, TableRequestOptions, OperationContext, CancellationToken>(
+                        (q, token, options, context, cancelToken) =>
                         {
                             this.ActualPassedTokenObject = token;
                             Assert.AreEqual(this.ExpectedTop, q.TakeCount);

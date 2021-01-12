@@ -44,7 +44,6 @@ namespace DurableTask.AzureStorage
                 return await operation(context, CancellationToken.None);
             }
 
-
             while (true)
             {
                 using (var cts = new CancellationTokenSource())
@@ -57,9 +56,9 @@ namespace DurableTask.AzureStorage
                     if (Equals(timeoutTask, completedTask))
                     {
                         NumTimeoutsHit++;
+                        string taskHubName = settings?.TaskHubName;
                         if (NumTimeoutsHit < MaxNumberOfTimeoutsBeforeRecycle)
                         {
-                            string taskHubName = settings?.TaskHubName;
                             string message = $"The operation '{operationName}' with id '{context.ClientRequestID}' did not complete in '{DefaultTimeout}'. Hit {NumTimeoutsHit} out of {MaxNumberOfTimeoutsBeforeRecycle} allowed timeouts. Retrying the operation.";
                             settings.Logger.GeneralWarning(account ?? "", taskHubName ?? "", message);
 
@@ -68,7 +67,6 @@ namespace DurableTask.AzureStorage
                         }
                         else
                         {
-                            string taskHubName = settings?.TaskHubName;
                             string message = $"The operation '{operationName}' with id '{context.ClientRequestID}' did not complete in '{DefaultTimeout}'. Hit maximum number ({MaxNumberOfTimeoutsBeforeRecycle}) of timeouts. Terminating the process to mitigate potential deadlock.";
                             settings.Logger.GeneralError(account ?? "", taskHubName ?? "", message);
 

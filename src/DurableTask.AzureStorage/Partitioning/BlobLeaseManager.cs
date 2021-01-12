@@ -108,13 +108,13 @@ namespace DurableTask.AzureStorage.Partitioning
                 BlobResultSegment segment = await TimeoutHandler.ExecuteWithTimeout("ListLeases", this.storageAccountName, this.settings, (context, timeoutToken) =>
                 {
                     return this.leaseDirectory.ListBlobsSegmentedAsync(
-                            useFlatBlobListing: true,
-                            blobListingDetails: BlobListingDetails.Metadata,
-                            maxResults: null,
-                            currentToken: continuationToken,
-                            options: null,
-                            operationContext: context,
-                            cancellationToken: timeoutToken);
+                        useFlatBlobListing: true,
+                        blobListingDetails: BlobListingDetails.Metadata,
+                        maxResults: null,
+                        currentToken: continuationToken,
+                        options: null,
+                        operationContext: context,
+                        cancellationToken: timeoutToken);
                 });
                 
                 continuationToken = segment.ContinuationToken;
