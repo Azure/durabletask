@@ -24,6 +24,8 @@
 
   <ItemGroup>
     <PackageReference Include="System.Diagnostics.DiagnosticSource" Version="4.6.0" />
+    <PackageReference Include="System.Reactive.Core" Version="4.4.1" />
+    <PackageReference Include="System.Reactive.Compatibility" Version="4.4.1" />
   </ItemGroup>
   
 </Project>
