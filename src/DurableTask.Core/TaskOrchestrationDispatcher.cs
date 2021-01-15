@@ -543,7 +543,6 @@ namespace DurableTask.Core
 
             runtimeState.Status = runtimeState.Status ?? carryOverStatus;
 
-            // If we entered the if-statement above, `instanceState` might be null
             if (instanceState != null)
             {
                 instanceState.Status = runtimeState.Status;
