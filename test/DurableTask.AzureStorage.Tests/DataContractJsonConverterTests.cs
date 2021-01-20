@@ -9,6 +9,14 @@ namespace DurableTask.AzureStorage.Tests
     [TestClass]
     public class DataContractJsonConverterTests
     {
+        private static readonly JsonSerializerSettings serializerSettings = new JsonSerializerSettings
+        {
+            Converters =
+            {
+                new DataContractJsonConverter(),
+            }
+        };
+
         [TestMethod]
         public void ReadWriteJson_Succeeds()
         {
@@ -19,38 +27,50 @@ namespace DurableTask.AzureStorage.Tests
                 Extra = Guid.NewGuid().ToString(),
             };
 
-            var settings = new JsonSerializerSettings
-            {
-                Converters =
-                {
-                    new DataContractJsonConverter(),
-                }
-            };
-
             // Writing a more derived type, and then reading it will populate ExtensionData.
-            string json = JsonConvert.SerializeObject(instance, settings);
-            OrchestrationInstance actual = JsonConvert.DeserializeObject<OrchestrationInstance>(json, settings);
+            string json = Serialize(instance);
+            OrchestrationInstance actual = Deserialize<OrchestrationInstance>(json);
 
             Assert.AreEqual(instance.ExecutionId, actual.ExecutionId);
             Assert.AreEqual(instance.InstanceId, actual.InstanceId);
             Assert.IsNotNull(actual.ExtensionData);
 
             // Writing an instance with ExtensionData, then reading it as a more derived type will repopulate extra fields.
-            json = JsonConvert.SerializeObject(actual, settings);
-            TestOrchestrationInstance actual2 = JsonConvert.DeserializeObject<TestOrchestrationInstance>(json, settings);
+            json = Serialize(actual);
+            TestOrchestrationInstance actual2 = Deserialize<TestOrchestrationInstance>(json);
 
             Assert.AreEqual(instance.ExecutionId, actual2.ExecutionId);
             Assert.AreEqual(instance.InstanceId, actual2.InstanceId);
             Assert.AreEqual(instance.Extra, actual2.Extra);
         }
 
+        [TestMethod]
+        public void ReadWriteNull_Succeeds()
+        {
+            var container = new Container();
+            string json = Serialize(container);
+            var actual = Deserialize<Container>(json);
+            Assert.IsNull(container.Instance);
+        }
+
+        private static string Serialize(object value)
+            => JsonConvert.SerializeObject(value, serializerSettings);
+
+        private static T Deserialize<T>(string json)
+            => JsonConvert.DeserializeObject<T>(json, serializerSettings);
+
         [DataContract(
             Name = "OrchestrationInstance",
             Namespace = "http://schemas.datacontract.org/2004/07/DurableTask.Core")]
-        public class TestOrchestrationInstance : OrchestrationInstance
+        private class TestOrchestrationInstance : OrchestrationInstance
         {
             [DataMember]
             public string Extra { get; set; }
+        }
+
+        private class Container
+        {
+            public OrchestrationInstance Instance { get; set; }
         }
     }
 }
