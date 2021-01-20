@@ -1,5 +1,4 @@
-﻿using DurableTask.Core;
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using System;
 using System.IO;
 using System.Reflection;
@@ -15,10 +14,6 @@ namespace DurableTask.AzureStorage
     /// meaning reading via the regular <see cref="DataContractSerializer"/> will not correctly hydrate extra fields
     /// from ExtensionData. However, it can still be done by using <see cref="DataContractJsonSerializer"/> instead.
     /// </summary>
-    /// <remarks>
-    /// If other types implementing <see cref="IExtensibleDataObject"/> need to use this converter, then
-    /// uncomment the variant #2 of CanConvert.
-    /// </remarks>
     internal class DataContractJsonConverter : JsonConverter
     {
         public override bool CanConvert(Type objectType)
