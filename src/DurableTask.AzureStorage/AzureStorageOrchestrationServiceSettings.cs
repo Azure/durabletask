@@ -20,6 +20,7 @@ namespace DurableTask.AzureStorage
     using Microsoft.Extensions.Logging;
     using Microsoft.WindowsAzure.Storage.Queue;
     using Microsoft.WindowsAzure.Storage.Table;
+    using System.Runtime.Serialization;
 
     /// <summary>
     /// Settings that impact the runtime behavior of the <see cref="AzureStorageOrchestrationService"/>.
@@ -204,6 +205,11 @@ namespace DurableTask.AzureStorage
         public bool UseLegacyPartitionManagement { get; set; } = false;
 
         /// <summary>
+        /// User serialization that will respect <see cref="IExtensibleDataObject"/>. Default is false.
+        /// </summary>
+        public bool UseDataContractSerialization { get; set; }
+
+        /// <summary>
         /// Gets or sets the optional <see cref="ILoggerFactory"/> to use for diagnostic logging.
         /// </summary>
         public ILoggerFactory LoggerFactory { get; set; } = NoOpLoggerFactory.Instance;
@@ -211,7 +217,7 @@ namespace DurableTask.AzureStorage
         /// <summary>
         /// Returns bool indicating is the TrackingStoreStorageAccount has been set.
         /// </summary>
-        public  bool HasTrackingStoreStorageAccount => this.TrackingStoreStorageAccountDetails != null;
+        public bool HasTrackingStoreStorageAccount => this.TrackingStoreStorageAccountDetails != null;
 
         internal string HistoryTableName => this.HasTrackingStoreStorageAccount ? $"{this.TrackingStoreNamePrefix}History" : $"{this.TaskHubName}History";
 
