@@ -68,7 +68,7 @@ namespace DurableTask.AzureStorage
 
             if (this.settings.UseDataContractSerialization)
             {
-                this.taskMessageSerializerSettings.Converters.Add(new OrchestrationInstanceConverter());
+                this.taskMessageSerializerSettings.Converters.Add(new DataContractJsonConverter());
             }
         }
 

@@ -2,6 +2,7 @@
 using Newtonsoft.Json;
 using System;
 using System.IO;
+using System.Reflection;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
 
@@ -18,7 +19,7 @@ namespace DurableTask.AzureStorage
     /// If other types implementing <see cref="IExtensibleDataObject"/> need to use this converter, then
     /// uncomment the variant #2 of CanConvert.
     /// </remarks>
-    internal class OrchestrationInstanceConverter : JsonConverter
+    internal class DataContractJsonConverter : JsonConverter
     {
         public override bool CanConvert(Type objectType)
         {
@@ -27,11 +28,8 @@ namespace DurableTask.AzureStorage
                 throw new ArgumentNullException(nameof(objectType));
             }
 
-            // Variant #2 incase this needs to support any extensible data contract.
-            //return objectType.GetCustomAttribute<DataContractAttribute>() != null
-            //    && typeof(IExtensibleDataObject).IsAssignableFrom(objectType);
-
-            return typeof(OrchestrationInstance).IsAssignableFrom(objectType);
+            return objectType.GetCustomAttribute<DataContractAttribute>() != null
+                && typeof(IExtensibleDataObject).IsAssignableFrom(objectType);
         }
 
         public override object ReadJson(

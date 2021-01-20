@@ -7,7 +7,7 @@ using System.Runtime.Serialization;
 namespace DurableTask.AzureStorage.Tests
 {
     [TestClass]
-    public class OrchestrationInstanceConverterTests
+    public class DataContractJsonConverterTests
     {
         [TestMethod]
         public void ReadWriteJson_Succeeds()
@@ -23,7 +23,7 @@ namespace DurableTask.AzureStorage.Tests
             {
                 Converters =
                 {
-                    new OrchestrationInstanceConverter(),
+                    new DataContractJsonConverter(),
                 }
             };
 
