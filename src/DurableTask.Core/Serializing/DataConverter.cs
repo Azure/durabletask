@@ -51,7 +51,13 @@ namespace DurableTask.Core.Serializing
         /// <returns>Deserialized Object</returns>
         public T Deserialize<T>(string data)
         {
-            return (T) Deserialize(data, typeof (T));
+            object result = this.Deserialize(data, typeof(T));
+            if (result == null)
+            {
+                return default(T);
+            }
+
+            return (T)result;
         }
     }
 }

@@ -532,7 +532,7 @@ namespace DurableTask.Core.Logging
                     InstanceId,
                     ExecutionId,
                     RuntimeStatus,
-                    Details,
+                    Details ?? string.Empty,
                     SizeInBytes,
                     AppName,
                     ExtensionVersion);

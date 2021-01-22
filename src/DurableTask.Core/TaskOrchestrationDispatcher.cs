@@ -542,7 +542,12 @@ namespace DurableTask.Core
             workItem.OrchestrationRuntimeState = originalOrchestrationRuntimeState;
 
             runtimeState.Status = runtimeState.Status ?? carryOverStatus;
-            instanceState.Status = runtimeState.Status;
+
+            if (instanceState != null)
+            {
+                instanceState.Status = runtimeState.Status;
+            }
+
 
             await this.orchestrationService.CompleteTaskOrchestrationWorkItemAsync(
                 workItem,

@@ -41,14 +41,16 @@ namespace DurableTask.AzureStorage.Messaging
             {
                 try
                 {
-                    OperationContext context = new OperationContext { ClientRequestID = Guid.NewGuid().ToString() };
-                    CloudQueueMessage queueMessage = await TimeoutHandler.ExecuteWithTimeout("GetMessage", context.ClientRequestID, storageAccountName, settings, () =>
+                    CloudQueueMessage queueMessage = await TimeoutHandler.ExecuteWithTimeout("GetMessage",  storageAccountName, settings, (context, timeoutToken) =>
                     {
-                        return this.storageQueue.GetMessageAsync(
-                            this.settings.WorkItemQueueVisibilityTimeout,
-                            this.settings.WorkItemQueueRequestOptions,
-                            context,
-                            cancellationToken);
+                        using (var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutToken))
+                        {
+                            return this.storageQueue.GetMessageAsync(
+                                this.settings.WorkItemQueueVisibilityTimeout,
+                                this.settings.WorkItemQueueRequestOptions,
+                                context,
+                                linkedCts.Token);
+                        }
                     });
 
                     this.stats.StorageRequests.Increment();

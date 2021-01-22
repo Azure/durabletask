@@ -38,6 +38,7 @@ namespace DurableTask.AzureStorage
         const int MaxStorageQueuePayloadSizeInBytes = 45 * 1024; // 45KB
         const int DefaultBufferSize = 64 * 2014; // 64KB
 
+        readonly AzureStorageOrchestrationServiceSettings settings;
         readonly string blobContainerName;
         readonly CloudBlobContainer cloudBlobContainer;
         readonly JsonSerializerSettings taskMessageSerializerSettings;
@@ -47,8 +48,12 @@ namespace DurableTask.AzureStorage
         /// <summary>
         /// The message manager.
         /// </summary>
-        public MessageManager(CloudBlobClient cloudBlobClient, string blobContainerName)
+        public MessageManager(
+            AzureStorageOrchestrationServiceSettings settings,
+            CloudBlobClient cloudBlobClient,
+            string blobContainerName)
         {
+            this.settings = settings;
             this.blobContainerName = blobContainerName;
             this.cloudBlobContainer = cloudBlobClient.GetContainerReference(blobContainerName);
             this.taskMessageSerializerSettings = new JsonSerializerSettings
@@ -288,11 +293,21 @@ namespace DurableTask.AzureStorage
             BlobContinuationToken blobContinuationToken = null;
             while (true)
             {
-                OperationContext context = new OperationContext { ClientRequestID = Guid.NewGuid().ToString() };
-                BlobResultSegment segment = await TimeoutHandler.ExecuteWithTimeout("DeleteLargeMessageBlobs", context.ClientRequestID, cloudBlobContainer?.ServiceClient?.Credentials?.AccountName, null, () =>
-                {
-                    return instanceDirectory.ListBlobsSegmentedAsync(blobContinuationToken);
-                });
+                BlobResultSegment segment = await TimeoutHandler.ExecuteWithTimeout(
+                    operationName: "DeleteLargeMessageBlobs",
+                    account: cloudBlobContainer?.ServiceClient?.Credentials?.AccountName,
+                    settings: this.settings,
+                    operation: (context, timeoutToken) =>
+                    {
+                        return instanceDirectory.ListBlobsSegmentedAsync(
+                            useFlatBlobListing: true,
+                            blobListingDetails: BlobListingDetails.Metadata,
+                            maxResults: null,
+                            currentToken: blobContinuationToken,
+                            options: null,
+                            operationContext: context,
+                            cancellationToken: timeoutToken);
+                    });
                 
                 stats.StorageRequests.Increment();
                 foreach (IListBlobItem blobListItem in segment.Results)

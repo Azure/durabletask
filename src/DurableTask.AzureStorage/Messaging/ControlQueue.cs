@@ -78,20 +78,21 @@ namespace DurableTask.AzureStorage.Messaging
 
                     try
                     {
-                        OperationContext context = new OperationContext { ClientRequestID = Guid.NewGuid().ToString() };
                         IEnumerable<CloudQueueMessage> batch = await TimeoutHandler.ExecuteWithTimeout(
                             "GetMessages",
-                            context.ClientRequestID,
                             this.storageAccountName,
                             this.settings,
-                            () =>
+                            operation: (context, timeoutToken) =>
                             {
-                                return this.storageQueue.GetMessagesAsync(
-                                    this.settings.ControlQueueBatchSize,
-                                    this.settings.ControlQueueVisibilityTimeout,
-                                    this.settings.ControlQueueRequestOptions,
-                                    context,
-                                    linkedCts.Token);
+                                using (var finalLinkedCts = CancellationTokenSource.CreateLinkedTokenSource(linkedCts.Token, timeoutToken))
+                                {
+                                    return this.storageQueue.GetMessagesAsync(
+                                        this.settings.ControlQueueBatchSize,
+                                        this.settings.ControlQueueVisibilityTimeout,
+                                        this.settings.ControlQueueRequestOptions,
+                                        context,
+                                        finalLinkedCts.Token);
+                                }
                             });
 
                         this.stats.StorageRequests.Increment();

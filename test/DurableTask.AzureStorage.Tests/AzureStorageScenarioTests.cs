@@ -515,11 +515,17 @@ namespace DurableTask.AzureStorage.Tests
             BlobContinuationToken blobContinuationToken = null;
             do
             {
-                OperationContext context = new OperationContext { ClientRequestID = Guid.NewGuid().ToString() };
-                BlobResultSegment results = await TimeoutHandler.ExecuteWithTimeout("GetBlobCount", context.ClientRequestID, null, null, () =>
+                BlobResultSegment results = await TimeoutHandler.ExecuteWithTimeout("GetBlobCount", "dummyAccount", new AzureStorageOrchestrationServiceSettings(), (context, timeoutToken) =>
                 {
-                    return instanceDirectory.ListBlobsSegmentedAsync(blobContinuationToken);
-                });
+                    return instanceDirectory.ListBlobsSegmentedAsync(
+                            useFlatBlobListing: true,
+                            blobListingDetails: BlobListingDetails.Metadata,
+                            maxResults: null,
+                            currentToken: blobContinuationToken,
+                            options: null,
+                            operationContext: context,
+                            cancellationToken: timeoutToken);
+                }); ;
                 
                 blobContinuationToken = results.ContinuationToken;
                 blobCount += results.Results.Count();

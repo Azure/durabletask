@@ -26,6 +26,8 @@ namespace DurableTask.Core
     /// </summary>
     public class ReflectionBasedTaskActivity : TaskActivity
     {
+        private DataConverter dataConverter;
+
         /// <summary>
         /// Creates a new ReflectionBasedTaskActivity based on an activity object and method info
         /// </summary>
@@ -41,7 +43,11 @@ namespace DurableTask.Core
         /// <summary>
         /// The DataConverter to use for input and output serialization/deserialization
         /// </summary>
-        public DataConverter DataConverter { get; private set; }
+        public DataConverter DataConverter
+        {
+            get => dataConverter;
+            set => dataConverter = value ?? throw new ArgumentNullException(nameof(value));
+        }
 
         /// <summary>
         /// The activity object to invoke methods on
