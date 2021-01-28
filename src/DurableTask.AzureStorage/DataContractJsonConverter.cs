@@ -1,9 +1,22 @@
-﻿using Newtonsoft.Json;
+﻿//  ----------------------------------------------------------------------------------
+//  Copyright Microsoft Corporation
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//  http://www.apache.org/licenses/LICENSE-2.0
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+//  ----------------------------------------------------------------------------------
+
 using System;
 using System.IO;
 using System.Reflection;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
+using Newtonsoft.Json;
 
 namespace DurableTask.AzureStorage
 {
@@ -27,6 +40,7 @@ namespace DurableTask.AzureStorage
                 && typeof(IExtensibleDataObject).IsAssignableFrom(objectType);
         }
 
+        /// <inheritdoc />
         public override object ReadJson(
             JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
         {
@@ -40,6 +54,11 @@ namespace DurableTask.AzureStorage
                 throw new ArgumentNullException(nameof(objectType));
             }
 
+            if (serializer == null)
+            {
+                throw new ArgumentNullException(nameof(serializer));
+            }
+
             using (var stream = new MemoryStream())
             using (var writer = new StreamWriter(stream))
             using (var jsonWriter = new JsonTextWriter(writer))
@@ -48,11 +67,12 @@ namespace DurableTask.AzureStorage
                 jsonWriter.Flush();
                 stream.Position = 0;
 
-                var contractSerializer = new DataContractJsonSerializer(objectType);
+                var contractSerializer = CreateSerializer(objectType, serializer);
                 return contractSerializer.ReadObject(stream);
             }
         }
 
+        /// <inheritdoc />
         public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
         {
             if (writer == null)
@@ -66,9 +86,14 @@ namespace DurableTask.AzureStorage
                 return;
             }
 
+            if (serializer == null)
+            {
+                throw new ArgumentNullException(nameof(serializer));
+            }
+
             using (var memoryStream = new MemoryStream())
             {
-                var contractSerializer = new DataContractJsonSerializer(value.GetType());
+                var contractSerializer = CreateSerializer(value.GetType(), serializer);
                 contractSerializer.WriteObject(memoryStream, value);
                 memoryStream.Position = 0;
 
@@ -78,6 +103,16 @@ namespace DurableTask.AzureStorage
                     writer.WriteToken(jsonReader, writeChildren: true);
                 }
             }
+        }
+
+        private static DataContractJsonSerializer CreateSerializer(Type type, JsonSerializer serializer)
+        {
+            return new DataContractJsonSerializer(
+                type,
+                new DataContractJsonSerializerSettings
+                {
+                    DateTimeFormat = new DateTimeFormat(serializer.DateFormatString),
+                });
         }
     }
 }

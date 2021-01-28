@@ -1,4 +1,5 @@
 ﻿using DurableTask.Core;
+using DurableTask.Core.History;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Newtonsoft.Json;
 using System;
@@ -18,7 +19,17 @@ namespace DurableTask.AzureStorage.Tests
         };
 
         [TestMethod]
-        public void ReadWriteJson_Succeeds()
+        public void ReadWrite_Null_Succeeds()
+        {
+            var container = new Container();
+            string json = Serialize(container);
+            var actual = Deserialize<Container>(json);
+            Assert.IsNotNull(actual);
+            Assert.IsNull(actual.Instance);
+        }
+
+        [TestMethod]
+        public void ReadWrite_OrchestrationInstance_Succeeds()
         {
             var instance = new TestOrchestrationInstance
             {
@@ -31,26 +42,61 @@ namespace DurableTask.AzureStorage.Tests
             string json = Serialize(instance);
             OrchestrationInstance actual = Deserialize<OrchestrationInstance>(json);
 
-            Assert.AreEqual(instance.ExecutionId, actual.ExecutionId);
-            Assert.AreEqual(instance.InstanceId, actual.InstanceId);
-            Assert.IsNotNull(actual.ExtensionData);
+            VerifyEqual(instance, actual);
 
             // Writing an instance with ExtensionData, then reading it as a more derived type will repopulate extra fields.
             json = Serialize(actual);
             TestOrchestrationInstance actual2 = Deserialize<TestOrchestrationInstance>(json);
-
-            Assert.AreEqual(instance.ExecutionId, actual2.ExecutionId);
-            Assert.AreEqual(instance.InstanceId, actual2.InstanceId);
+            VerifyEqual(instance, actual2);
             Assert.AreEqual(instance.Extra, actual2.Extra);
         }
 
         [TestMethod]
-        public void ReadWriteNull_Succeeds()
+        public void ReadWrite_TaskMessage_Succeeds()
         {
-            var container = new Container();
-            string json = Serialize(container);
-            var actual = Deserialize<Container>(json);
-            Assert.IsNull(container.Instance);
+            var instance = new TaskMessage
+            {
+                Event = new GenericEvent(1, "Some Data"),
+                SequenceNumber = 10,
+                OrchestrationInstance = new OrchestrationInstance
+                {
+                    ExecutionId = Guid.NewGuid().ToString(),
+                    InstanceId = Guid.NewGuid().ToString(),
+                },
+            };
+
+            // Writing a more derived type, and then reading it will populate ExtensionData.
+            string json = Serialize(instance);
+            TaskMessage actual = Deserialize<TaskMessage>(json);
+            VerifyEqual(instance, actual);
+        }
+
+        private static void VerifyEqual(TaskMessage expected, TaskMessage actual)
+        {
+            Assert.IsNotNull(actual);
+            Assert.AreEqual(expected.SequenceNumber, actual.SequenceNumber);
+            VerifyEqual(expected.OrchestrationInstance, actual.OrchestrationInstance);
+            VerifyEqual(expected.Event, actual.Event);
+            Assert.IsNotNull(actual.ExtensionData);
+        }
+
+        private static void VerifyEqual(OrchestrationInstance expected, OrchestrationInstance actual)
+        {
+            Assert.IsNotNull(actual);
+            Assert.AreEqual(expected.ExecutionId, actual.ExecutionId);
+            Assert.AreEqual(expected.InstanceId, actual.InstanceId);
+            Assert.IsNotNull(actual.ExtensionData);
+        }
+
+        private static void VerifyEqual(HistoryEvent expected, HistoryEvent actual)
+        {
+            Assert.IsNotNull(actual);
+            Assert.AreEqual(expected.GetType(), actual.GetType());
+            Assert.AreEqual(expected.EventId, actual.EventId);
+            Assert.AreEqual(expected.EventType, actual.EventType);
+            Assert.AreEqual(expected.IsPlayed, actual.IsPlayed);
+            Assert.AreEqual(expected.Timestamp, actual.Timestamp);
+            Assert.IsNotNull(actual.ExtensionData);
         }
 
         private static string Serialize(object value)
