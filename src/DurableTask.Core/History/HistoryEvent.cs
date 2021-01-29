@@ -14,40 +14,37 @@
 namespace DurableTask.Core.History
 {
     using System;
-    using System.Collections;
     using System.Collections.Generic;
+    using System.Linq;
     using System.Runtime.Serialization;
 
     /// <summary>
     /// Base class for history events
     /// </summary>
     [DataContract]
-    [KnownTypeAttribute("KnownTypes")]
+    [KnownType(nameof(KnownTypes))]
     public abstract class HistoryEvent : IExtensibleDataObject
     {
+        private static IReadOnlyCollection<Type> knownTypes;
+
         /// <summary>
         /// List of all event classes, for use by the DataContractSerializer
         /// </summary>
-        /// <returns></returns>
+        /// <returns>An enumerable of all known types that implement <see cref="HistoryEvent"/>.</returns>
         public static IEnumerable<Type> KnownTypes()
         {
-            yield return typeof(ExecutionStartedEvent);
-            yield return typeof(ExecutionCompletedEvent);
-            yield return typeof(ExecutionTerminatedEvent);
-            yield return typeof(TaskCompletedEvent);
-            yield return typeof(TaskFailedEvent);
-            yield return typeof(TaskScheduledEvent);
-            yield return typeof(SubOrchestrationInstanceCreatedEvent);
-            yield return typeof(SubOrchestrationInstanceCompletedEvent);
-            yield return typeof(SubOrchestrationInstanceFailedEvent);
-            yield return typeof(TimerCreatedEvent);
-            yield return typeof(TimerFiredEvent);
-            yield return typeof(OrchestratorStartedEvent);
-            yield return typeof(OrchestratorCompletedEvent);
-            yield return typeof(EventSentEvent);
-            yield return typeof(EventRaisedEvent);
-            yield return typeof(ContinueAsNewEvent);
-            yield return typeof(HistoryStateEvent);
+            if (knownTypes != null)
+            {
+                return knownTypes;
+            }
+
+            knownTypes = typeof(HistoryEvent).Assembly
+                .GetTypes()
+                .Where(x => !x.IsAbstract && typeof(HistoryEvent).IsAssignableFrom(x))
+                .ToList()
+                .AsReadOnly();
+
+            return knownTypes;
         }
 
         /// <summary>
