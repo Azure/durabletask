@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
   <metadata>
     <id>ServiceBus.DurableTask.ServiceFabric</id>
-    <version>1.0.1-charlie9</version>
+    <version>1.0.1-charlie10</version>
     <title>ServiceBus.DurableTask.ServiceFabric</title>
     <authors>pradeek;shsama</authors>
     <owners>pradeek;shsama</owners>
@@ -15,7 +15,7 @@ This package was generated from vnext_servicefabric branch and is for private us
     <tags>ServiceFabric Azure Task Durable Orchestration Workflow Activity Reliable</tags>
     <dependencies>
       <group targetFramework="net451">
-        <dependency id="ServiceBus.DurableTask" version="1.0.1-charlie9" />
+        <dependency id="ServiceBus.DurableTask" version="1.0.1-charlie10" />
         <dependency id="Microsoft.ServiceFabric" version="5.1.163" />
         <dependency id="Microsoft.ServiceFabric.Data" version="2.1.163" />
         <dependency id="Microsoft.ServiceFabric.Services" version="2.1.163" />

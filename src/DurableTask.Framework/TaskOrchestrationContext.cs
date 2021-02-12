@@ -68,9 +68,9 @@ namespace DurableTask
         public async Task<TResult> ScheduleTaskToWorker<TResult>(string name, string version, string tasklist,
             params object[] parameters)
         {
-            object result = await ScheduleTaskInternal(name, version, tasklist, typeof (TResult), parameters);
+            object result = await ScheduleTaskInternal(name, version, tasklist, typeof(TResult), parameters);
 
-            return (TResult) result;
+            return (TResult)result;
         }
 
         public async Task<object> ScheduleTaskInternal(string name, string version, string tasklist, Type resultType,
@@ -90,7 +90,7 @@ namespace DurableTask
             orchestratorActionsMap.Add(id, scheduleTaskTaskAction);
 
             var tcs = new TaskCompletionSource<string>();
-            openTasks.Add(id, new OpenTaskInfo {Name = name, Version = version, Result = tcs});
+            openTasks.Add(id, new OpenTaskInfo { Name = name, Version = version, Result = tcs });
 
             string serializedResult = await tcs.Task;
 
@@ -117,18 +117,18 @@ namespace DurableTask
         }
 
         public override Task<T> CreateSubOrchestrationInstance<T>(
-            string name, 
-            string version, 
+            string name,
+            string version,
             object input)
         {
             return CreateSubOrchestrationInstanceCore<T>(name, version, null, input, null);
         }
 
         async Task<T> CreateSubOrchestrationInstanceCore<T>(
-            string name, 
-            string version, 
-            string instanceId, 
-            object input, 
+            string name,
+            string version,
+            string instanceId,
+            object input,
             IDictionary<string, string> tags)
         {
             int id = idCounter++;
@@ -153,7 +153,7 @@ namespace DurableTask
             orchestratorActionsMap.Add(id, action);
 
             var tcs = new TaskCompletionSource<string>();
-            openTasks.Add(id, new OpenTaskInfo {Name = name, Version = version, Result = tcs});
+            openTasks.Add(id, new OpenTaskInfo { Name = name, Version = version, Result = tcs });
 
             string serializedResult = await tcs.Task;
 
@@ -199,7 +199,7 @@ namespace DurableTask
             orchestratorActionsMap.Add(id, createTimerOrchestratorAction);
 
             var tcs = new TaskCompletionSource<string>();
-            openTasks.Add(id, new OpenTaskInfo {Name = null, Version = null, Result = tcs});
+            openTasks.Add(id, new OpenTaskInfo { Name = null, Version = null, Result = tcs });
 
             if (cancelToken != CancellationToken.None)
             {
@@ -376,11 +376,7 @@ namespace DurableTask
 
         public void HandleExecutionTerminatedEvent(ExecutionTerminatedEvent terminatedEvent)
         {
-            if (!executionTerminated)
-            {
-                executionTerminated = true;
-                CompleteOrchestration(terminatedEvent.Input, null, OrchestrationStatus.Terminated);
-            }
+            CompleteOrchestration(terminatedEvent.Input, null, OrchestrationStatus.Terminated);
         }
 
         public void CompleteOrchestration(string result)
@@ -421,6 +417,13 @@ namespace DurableTask
             }
             else
             {
+                if (executionTerminated)
+                {
+                    return;
+                }
+
+                executionTerminated = true;
+
                 completedOrchestratorAction = new OrchestrationCompleteOrchestratorAction();
                 completedOrchestratorAction.Result = result;
                 completedOrchestratorAction.Details = details;
