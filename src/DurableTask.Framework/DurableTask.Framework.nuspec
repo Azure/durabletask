@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2012/06/nuspec.xsd">
   <metadata>
     <id>ServiceBus.DurableTask</id>
-    <version>1.0.1-charlie9</version>
+    <version>1.0.1-charlie10</version>
     <title>Durable Task Framework</title>
     <authors>affandar;siport;shsama</authors>
     <owners>affandar;siport;shsama</owners>
