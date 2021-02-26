@@ -249,7 +249,10 @@ namespace DurableTask.AzureStorage.Tests
                 while (sw.Elapsed < timeout)
                 {
                     Trace.TraceInformation($"Checking current lease distribution across {currentWorkerCount} workers...");
-                    var leases = (await services[0].ListBlobLeasesAsync())
+                    var blobLeases = services[0].ListBlobLeases();
+                    await Task.WhenAll(blobLeases.Select(lease => lease.DownloadLeaseAsync()));
+
+                    var leases = blobLeases
                         .Select(
                             lease => new
                             {
@@ -416,6 +419,7 @@ namespace DurableTask.AzureStorage.Tests
                 TaskHubName = TestHelpers.GetTestTaskHubName(),
                 StorageConnectionString = TestHelpers.GetTestStorageAccountConnectionString(),
                 ControlQueueBufferThreshold = 100,
+                UseAppLease = false,
             };
 
             // STEP 1: Start up the service and queue up a large number of messages
@@ -430,7 +434,7 @@ namespace DurableTask.AzureStorage.Tests
 
             await TestHelpers.WaitFor(
                 condition: () => service.OwnedControlQueues.Any(),
-                timeout: TimeSpan.FromSeconds(10));
+                timeout: TimeSpan.FromSeconds(30));
             ControlQueue controlQueue = service.OwnedControlQueues.Single();
 
             List<TaskMessage> messages = Enumerable.Range(0, 100).Select(i => new TaskMessage
@@ -446,7 +450,7 @@ namespace DurableTask.AzureStorage.Tests
 
             // STEP 2: Force the lease to be stolen and wait for the lease status to update.
             //         The orchestration service should detect this and update its state.
-            BlobLease lease = (await service.ListBlobLeasesAsync()).Single();
+            BlobLease lease = service.ListBlobLeases().Single();
             await lease.Blob.ChangeLeaseAsync(
                 proposedLeaseId: Guid.NewGuid().ToString(),
                 accessCondition: AccessCondition.GenerateLeaseCondition(lease.Token));

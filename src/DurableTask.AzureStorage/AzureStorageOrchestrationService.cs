@@ -254,7 +254,6 @@ namespace DurableTask.AzureStorage
             return new BlobLeaseManager(
                 settings,
                 leaseContainerName: settings.TaskHubName.ToLowerInvariant() + "-leases",
-                blobPrefix: string.Empty,
                 leaseType: leaseType,
                 storageClient: account.CreateCloudBlobClient(),
                 skipBlobContainerCreation: false,
@@ -596,7 +595,7 @@ namespace DurableTask.AzureStorage
         }
 
         // Used for testing
-        internal Task<IEnumerable<BlobLease>> ListBlobLeasesAsync()
+        internal IEnumerable<BlobLease> ListBlobLeases()
         {
             return this.partitionManager.GetOwnershipBlobLeases();
         }

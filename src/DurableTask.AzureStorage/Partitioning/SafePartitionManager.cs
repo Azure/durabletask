@@ -17,6 +17,7 @@ namespace DurableTask.AzureStorage.Partitioning
     using Microsoft.WindowsAzure.Storage;
     using System;
     using System.Collections.Generic;
+    using System.Linq;
     using System.Runtime.ExceptionServices;
     using System.Threading.Tasks;
 
@@ -28,10 +29,10 @@ namespace DurableTask.AzureStorage.Partitioning
         private readonly OrchestrationSessionManager sessionManager;
 
         private readonly BlobLeaseManager intentLeaseManager;
-        private readonly LeaseCollectionBalancer<BlobLease> intentLeaseCollectionManager;
+        private readonly LeaseCollectionBalancer intentLeaseCollectionManager;
 
         private readonly BlobLeaseManager ownershipLeaseManager;
-        private readonly LeaseCollectionBalancer<BlobLease> ownershipLeaseCollectionManager;
+        private readonly LeaseCollectionBalancer ownershipLeaseCollectionManager;
 
         public SafePartitionManager(
             AzureStorageOrchestrationService service,
@@ -49,13 +50,12 @@ namespace DurableTask.AzureStorage.Partitioning
             this.intentLeaseManager = new BlobLeaseManager(
                 settings,
                 settings.TaskHubName.ToLowerInvariant() + "-leases",
-                string.Empty,
                 "intent",
                 account.CreateCloudBlobClient(),
                 skipBlobContainerCreation: false,
                 stats);
 
-            this.intentLeaseCollectionManager = new LeaseCollectionBalancer<BlobLease>(
+            this.intentLeaseCollectionManager = new LeaseCollectionBalancer(
                 "intent",
                 settings,
                 storageAccountName,
@@ -72,33 +72,32 @@ namespace DurableTask.AzureStorage.Partitioning
             this.ownershipLeaseManager = new BlobLeaseManager(
                 settings,
                 settings.TaskHubName.ToLowerInvariant() + "-leases",
-                string.Empty,
                 "ownership",
                 account.CreateCloudBlobClient(),
                 skipBlobContainerCreation: false,
                 stats);
 
-            this.ownershipLeaseCollectionManager = new LeaseCollectionBalancer<BlobLease>(
+            this.ownershipLeaseCollectionManager = new LeaseCollectionBalancer(
                 "ownership",
                 this.settings,
                 storageAccountName,
                 this.ownershipLeaseManager,
                 new LeaseCollectionBalancerOptions
                 {
-                    AcquireInterval = TimeSpan.FromSeconds(5),
-                    RenewInterval = TimeSpan.FromSeconds(10),
-                    LeaseInterval = TimeSpan.FromSeconds(15),
+                    AcquireInterval = settings.LeaseAcquireInterval,
+                    RenewInterval = settings.LeaseRenewInterval,
+                    LeaseInterval = settings.LeaseInterval,
                     ShouldStealLeases = false
                 },
-                shouldAquireLeaseDelegate: leaseKey => currentlyOwnedIntentLeases.ContainsKey(leaseKey),
+                shouldAcquireLeaseDelegate: leaseKey => currentlyOwnedIntentLeases.ContainsKey(leaseKey),
                 shouldRenewLeaseDelegate: leaseKey => currentlyOwnedIntentLeases.ContainsKey(leaseKey)
                                                       || this.sessionManager.IsControlQueueReceivingMessages(leaseKey)
                                                       || this.sessionManager.IsControlQueueProcessingMessages(leaseKey));
         }
 
-        Task<IEnumerable<BlobLease>> IPartitionManager.GetOwnershipBlobLeases()
+        IEnumerable<BlobLease> IPartitionManager.GetOwnershipBlobLeases()
         {
-            return this.ownershipLeaseManager.ListLeasesAsync();
+            return this.ownershipLeaseManager.ListLeases();
         }
 
         Task IPartitionManager.CreateLeaseStore()

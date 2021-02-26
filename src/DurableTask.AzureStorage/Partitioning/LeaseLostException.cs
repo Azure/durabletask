@@ -28,7 +28,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
         /// <summary>Initializes a new instance of the <see cref="DurableTask.AzureStorage.Partitioning.LeaseLostException" /> class using specified lease.</summary>
         /// <param name="lease">The messaging lease.</param>
-        public LeaseLostException(Lease lease)
+        public LeaseLostException(BlobLease lease)
             : base()
         {
             this.Lease = lease;
@@ -38,7 +38,7 @@ namespace DurableTask.AzureStorage.Partitioning
         /// <see cref="DurableTask.AzureStorage.Partitioning.LeaseLostException" /> class using specified lease and the error that caused the exception.</summary> 
         /// <param name="lease">The messaging lease.</param>
         /// <param name="innerException">The error that caused the exception.</param>
-        public LeaseLostException(Lease lease, Exception innerException)
+        public LeaseLostException(BlobLease lease, Exception innerException)
             : base(null, innerException)
         {
             this.Lease = lease;
@@ -68,12 +68,12 @@ namespace DurableTask.AzureStorage.Partitioning
         protected LeaseLostException(SerializationInfo info, StreamingContext context) :
             base(info, context)
         {
-            this.Lease = (Lease)info.GetValue("Lease", typeof(Lease));
+            this.Lease = (BlobLease)info.GetValue("Lease", typeof(BlobLease));
         }
 
         /// <summary>Gets or sets the service lease.</summary>
         /// <value>The service lease.</value>
-        public Lease Lease { get; private set; }
+        public BlobLease Lease { get; private set; }
 
         /// <summary>Populates a <see cref="System.Runtime.Serialization.SerializationInfo" /> with the data needed to serialize the target object.</summary>
         /// <param name="info">The <see cref="System.Runtime.Serialization.SerializationInfo" /> object to populate with data.</param>

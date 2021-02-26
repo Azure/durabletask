@@ -16,25 +16,25 @@ namespace DurableTask.AzureStorage.Partitioning
     using System;
     using System.Threading.Tasks;
 
-    sealed class LeaseObserver<T> where T : Lease
+    sealed class LeaseObserver
     {
-        private readonly Func<T, Task> leaseAquiredDelegate;
-        private readonly Func<T, CloseReason, Task> leaseReleasedDelegate;
+        private readonly Func<BlobLease, Task> leaseAquiredDelegate;
+        private readonly Func<BlobLease, CloseReason, Task> leaseReleasedDelegate;
 
         public LeaseObserver(
-            Func<T, Task> leaseAquiredDelegate,
-            Func<T, CloseReason, Task> leaseReleasedDelegate)
+            Func<BlobLease, Task> leaseAquiredDelegate,
+            Func<BlobLease, CloseReason, Task> leaseReleasedDelegate)
         {
             this.leaseAquiredDelegate = leaseAquiredDelegate;
             this.leaseReleasedDelegate = leaseReleasedDelegate;
         }
 
-        public Task OnLeaseAquiredAsync(T lease)
+        public Task OnLeaseAquiredAsync(BlobLease lease)
         {
             return leaseAquiredDelegate.Invoke(lease);
         }
 
-        public Task OnLeaseReleasedAsync(T lease, CloseReason reason)
+        public Task OnLeaseReleasedAsync(BlobLease lease, CloseReason reason)
         {
             return leaseReleasedDelegate.Invoke(lease, reason);
         }

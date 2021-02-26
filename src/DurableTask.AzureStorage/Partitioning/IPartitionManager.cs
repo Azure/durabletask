@@ -28,6 +28,6 @@ namespace DurableTask.AzureStorage.Partitioning
 
         Task DeleteLeases();
 
-        Task<IEnumerable<BlobLease>> GetOwnershipBlobLeases();
+       IEnumerable<BlobLease> GetOwnershipBlobLeases();
     }
 }

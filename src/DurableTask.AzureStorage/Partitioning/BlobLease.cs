@@ -13,34 +13,85 @@
 
 namespace DurableTask.AzureStorage.Partitioning
 {
+    using DurableTask.AzureStorage.Monitoring;
     using Microsoft.WindowsAzure.Storage.Blob;
     using Newtonsoft.Json;
+    using System.Threading.Tasks;
 
-    class BlobLease : Lease
+    class BlobLease
     {
-        public BlobLease()
-            : base()
+        private readonly AzureStorageOrchestrationServiceStats stats;
+
+        public BlobLease() { }
+
+        public BlobLease(BlobLease blobLease)
         {
+            this.PartitionId = blobLease.PartitionId;
+            this.LeaseType = blobLease.LeaseType;
+            this.Blob = blobLease.Blob;
+            this.Owner = blobLease.Owner;
+            this.Epoch = blobLease.Epoch;
+            this.Token = blobLease.Token;
         }
 
-        public BlobLease(CloudBlockBlob leaseBlob)
-            : this()
+        public BlobLease(
+            string partitionId,
+            CloudBlobDirectory leaseDirectory,
+            string leaseType,
+            AzureStorageOrchestrationServiceStats stats)
         {
-            this.Blob = leaseBlob;
+            this.PartitionId = partitionId;
+            this.LeaseType = leaseType;
+            this.Blob = leaseDirectory.GetBlockBlobReference(partitionId);
+            this.stats = stats;
         }
 
-        public BlobLease(BlobLease source)
-            : base(source)
-        {
-            this.Blob = source.Blob;
-        }
+        /// <summary>
+        /// The type of lease this is.
+        /// </summary>
+        [JsonIgnore]
+        public string LeaseType { get; set; }
+
+        /// <summary>Gets the ID of the partition to which this lease belongs.</summary>
+        /// <value>The partition identifier.</value>
+        [JsonIgnore]
+        public string PartitionId { get; set; }
+
+        /// <summary>Gets or sets the host owner for the partition.</summary>
+        /// <value>The host owner of the partition.</value>
+        public string Owner { get; set; }
+
+        /// <summary>Gets or sets the lease token that manages concurrency between hosts. You can use this token to guarantee single access to any resource needed by the 
+        /// <see cref="DurableTask.AzureStorage.AzureStorageOrchestrationService" /> object.</summary> 
+        /// <value>The lease token.</value>
+        public string Token { get; set; }
+
+        /// <summary>Gets or sets the epoch year of the lease, which is a value 
+        /// you can use to determine the most recent owner of a partition between competing nodes.</summary> 
+        /// <value>The epoch year of the lease.</value>
+        public long Epoch { get; set; }
+
+        /// <summary>Determines whether the lease is expired.</summary>
+        /// <returns>true if the lease is expired; otherwise, false.</returns>
+        public bool IsExpired => this.Blob.Properties.LeaseState != LeaseState.Leased;
+
 
         [JsonIgnore]
-        internal CloudBlockBlob Blob { get; set; }
+        internal CloudBlockBlob Blob { get; private set; }
 
-        public override bool IsExpired()
+        public async Task DownloadLeaseAsync()
         {
-            return this.Blob.Properties.LeaseState != LeaseState.Leased;
+            string serializedLease = await this.Blob.DownloadTextAsync();
+            this.stats.StorageRequests.Increment();
+
+            // Workaround: for some reason storage client reports incorrect blob properties after downloading the blob
+            await this.Blob.FetchAttributesAsync();
+            this.stats.StorageRequests.Increment();
+
+            BlobLease lease = JsonConvert.DeserializeObject<BlobLease>(serializedLease);
+            this.Epoch = lease.Epoch;
+            this.Owner = lease.Owner;
+            this.Token = lease.Token;
         }
     }
 }
