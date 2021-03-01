@@ -16,6 +16,7 @@ namespace DurableTask.AzureStorage.Partitioning
     using DurableTask.AzureStorage.Monitoring;
     using Microsoft.WindowsAzure.Storage.Blob;
     using Newtonsoft.Json;
+    using System.Collections.Generic;
     using System.Threading.Tasks;
 
     class BlobLease
@@ -92,6 +93,21 @@ namespace DurableTask.AzureStorage.Partitioning
             this.Epoch = lease.Epoch;
             this.Owner = lease.Owner;
             this.Token = lease.Token;
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is BlobLease lease &&
+                   LeaseType == lease.LeaseType &&
+                   PartitionId == lease.PartitionId;
+        }
+
+        public override int GetHashCode()
+        {
+            int hashCode = 1696262853;
+            hashCode = hashCode * -1521134295 + EqualityComparer<string>.Default.GetHashCode(LeaseType);
+            hashCode = hashCode * -1521134295 + EqualityComparer<string>.Default.GetHashCode(PartitionId);
+            return hashCode;
         }
     }
 }
