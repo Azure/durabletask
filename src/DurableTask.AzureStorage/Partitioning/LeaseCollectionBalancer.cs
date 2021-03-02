@@ -333,7 +333,7 @@ namespace DurableTask.AzureStorage.Partitioning
             var workerToShardCount = new Dictionary<string, int>();
             var expiredLeases = new List<T>();
 
-            var acquirableLeases = (await this.leaseManager.ListLeasesAsync(@do: false)).Where(lease => this.shouldAcquireLeaseDelegate(lease.PartitionId));
+            var acquirableLeases = (await this.leaseManager.ListLeasesAsync(downloadLeases: false)).Where(lease => this.shouldAcquireLeaseDelegate(lease.PartitionId));
             await Task.WhenAll(acquirableLeases.Select(blobLease => blobLease.DownloadLeaseAsync()));
 
             foreach (T lease in acquirableLeases)
