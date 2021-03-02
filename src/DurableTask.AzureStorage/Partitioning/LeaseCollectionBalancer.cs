@@ -83,7 +83,7 @@ namespace DurableTask.AzureStorage.Partitioning
         public async Task InitializeAsync()
         {
             var leases = new List<T>();
-            var leasesToInitialize = await this.leaseManager.ListLeasesAsync(@do: true);
+            var leasesToInitialize = await this.leaseManager.ListLeasesAsync(downloadLeases: true);
             foreach (T lease in leasesToInitialize)
             {
                 if (string.Compare(lease.Owner, this.workerName, StringComparison.OrdinalIgnoreCase) == 0)
