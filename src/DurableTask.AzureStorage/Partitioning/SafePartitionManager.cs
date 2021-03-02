@@ -17,7 +17,6 @@ namespace DurableTask.AzureStorage.Partitioning
     using Microsoft.WindowsAzure.Storage;
     using System;
     using System.Collections.Generic;
-    using System.Linq;
     using System.Runtime.ExceptionServices;
     using System.Threading.Tasks;
 
@@ -97,7 +96,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
         Task<IEnumerable<BlobLease>> IPartitionManager.GetOwnershipBlobLeases()
         {
-            return this.ownershipLeaseManager.ListLeasesAsync(downloadLease: true);
+            return this.ownershipLeaseManager.ListLeasesAsync(downloadLeases: true);
         }
 
         Task IPartitionManager.CreateLeaseStore()

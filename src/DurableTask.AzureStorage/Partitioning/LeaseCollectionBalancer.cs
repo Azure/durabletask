@@ -501,6 +501,15 @@ namespace DurableTask.AzureStorage.Partitioning
                 }
             }
 
+            this.settings.Logger.LeaseRenewalResult(
+                this.accountName,
+                this.taskHub,
+                this.workerName,
+                lease.PartitionId,
+                renewed,
+                lease.Token,
+                errorMessage);
+
             if (!renewed)
             {
                 this.settings.Logger.LeaseRenewalFailed(
@@ -511,15 +520,6 @@ namespace DurableTask.AzureStorage.Partitioning
                     lease.Token,
                     errorMessage);
             }
-
-            this.settings.Logger.LeaseRenewalResult(
-                this.accountName,
-                this.taskHub,
-                this.workerName,
-                lease.PartitionId,
-                renewed,
-                lease.Token,
-                errorMessage);
 
             return renewed;
         }

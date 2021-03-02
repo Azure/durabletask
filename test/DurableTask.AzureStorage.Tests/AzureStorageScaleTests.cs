@@ -416,7 +416,6 @@ namespace DurableTask.AzureStorage.Tests
                 TaskHubName = TestHelpers.GetTestTaskHubName(),
                 StorageConnectionString = TestHelpers.GetTestStorageAccountConnectionString(),
                 ControlQueueBufferThreshold = 100,
-                UseAppLease = false,
             };
 
             // STEP 1: Start up the service and queue up a large number of messages

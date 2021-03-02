@@ -93,7 +93,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
         Task<IEnumerable<BlobLease>> IPartitionManager.GetOwnershipBlobLeases()
         {
-            return this.leaseManager.ListLeasesAsync(downloadLease: true);
+            return this.leaseManager.ListLeasesAsync(downloadLeases: true);
         }
 
         async Task IPartitionManager.StartAsync()

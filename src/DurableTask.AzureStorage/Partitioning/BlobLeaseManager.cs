@@ -96,14 +96,14 @@ namespace DurableTask.AzureStorage.Partitioning
             return result;
         }
 
-        public async Task<IEnumerable<BlobLease>> ListLeasesAsync(bool downloadLease)
+        public async Task<IEnumerable<BlobLease>> ListLeasesAsync(bool downloadLeases)
         {
             if (this.blobLeases == null)
             {
                 throw new InvalidOperationException($"{nameof(ListLeasesAsync)} cannot be called without first calling {nameof(Initialize)}");
             }
 
-            if (downloadLease)
+            if (downloadLeases)
             {
                 await Task.WhenAll(this.blobLeases.Select(lease => lease.DownloadLeaseAsync()));
             }
@@ -391,7 +391,7 @@ namespace DurableTask.AzureStorage.Partitioning
             return null;
         }
 
-        static Exception HandleStorageException(BlobLease lease, StorageException storageException, bool ignoreLeaseLost = false)
+        static Exception HandleStorageException(Lease lease, StorageException storageException, bool ignoreLeaseLost = false)
         {
             if (storageException.RequestInformation.HttpStatusCode == (int)HttpStatusCode.Conflict
                 || storageException.RequestInformation.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
