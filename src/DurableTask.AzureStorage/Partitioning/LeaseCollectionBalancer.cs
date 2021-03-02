@@ -27,12 +27,12 @@ namespace DurableTask.AzureStorage.Partitioning
         readonly string accountName;
         readonly string taskHub;
         readonly string workerName;
+        readonly ILeaseManager<T> leaseManager;
         readonly LeaseCollectionBalancerOptions options;
         readonly AzureStorageOrchestrationServiceSettings settings;
 
         readonly ConcurrentDictionary<string, T> currentlyOwnedShards;
         readonly ConcurrentDictionary<string, T> keepRenewingDuringClose;
-        readonly ILeaseManager<T> leaseManager;
         readonly LeaseObserverManager leaseObserverManager;
         readonly Func<string, bool> shouldAcquireLeaseDelegate;
         readonly Func<string, bool> shouldRenewLeaseDelegate;
@@ -83,7 +83,7 @@ namespace DurableTask.AzureStorage.Partitioning
         public async Task InitializeAsync()
         {
             var leases = new List<T>();
-            var leasesToInitialize = await this.leaseManager.ListLeasesAsync(downloadLease: true);
+            var leasesToInitialize = await this.leaseManager.ListLeasesAsync(@do: true);
             foreach (T lease in leasesToInitialize)
             {
                 if (string.Compare(lease.Owner, this.workerName, StringComparison.OrdinalIgnoreCase) == 0)
@@ -333,7 +333,7 @@ namespace DurableTask.AzureStorage.Partitioning
             var workerToShardCount = new Dictionary<string, int>();
             var expiredLeases = new List<T>();
 
-            var acquirableLeases = (await this.leaseManager.ListLeasesAsync(downloadLease: false)).Where(lease => this.shouldAcquireLeaseDelegate(lease.PartitionId));
+            var acquirableLeases = (await this.leaseManager.ListLeasesAsync(@do: false)).Where(lease => this.shouldAcquireLeaseDelegate(lease.PartitionId));
             await Task.WhenAll(acquirableLeases.Select(blobLease => blobLease.DownloadLeaseAsync()));
 
             foreach (T lease in acquirableLeases)
@@ -476,6 +476,12 @@ namespace DurableTask.AzureStorage.Partitioning
 
             try
             {
+                this.settings.Logger.StartingLeaseRenewal(
+                    this.accountName,
+                    this.taskHub,
+                    this.workerName,
+                    lease.PartitionId,
+                    lease.Token);
                 renewed = await this.leaseManager.RenewAsync(lease);
             }
             catch (Exception ex)
@@ -505,6 +511,15 @@ namespace DurableTask.AzureStorage.Partitioning
                     lease.Token,
                     errorMessage);
             }
+
+            this.settings.Logger.LeaseRenewalResult(
+                this.accountName,
+                this.taskHub,
+                this.workerName,
+                lease.PartitionId,
+                renewed,
+                lease.Token,
+                errorMessage);
 
             return renewed;
         }

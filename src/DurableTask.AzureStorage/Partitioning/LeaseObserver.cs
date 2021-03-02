@@ -16,7 +16,7 @@ namespace DurableTask.AzureStorage.Partitioning
     using System;
     using System.Threading.Tasks;
 
-    sealed class LeaseObserver<T>
+    sealed class LeaseObserver<T> where T : Lease
     {
         private readonly Func<T, Task> leaseAquiredDelegate;
         private readonly Func<T, CloseReason, Task> leaseReleasedDelegate;
