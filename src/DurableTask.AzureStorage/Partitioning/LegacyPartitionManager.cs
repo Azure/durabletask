@@ -27,7 +27,7 @@ namespace DurableTask.AzureStorage.Partitioning
         private readonly AzureStorageOrchestrationServiceStats stats;
 
         private readonly BlobLeaseManager leaseManager;
-        private readonly LeaseCollectionBalancer leaseCollectionManager;
+        private readonly LeaseCollectionBalancer<BlobLease> leaseCollectionManager;
 
         public LegacyPartitionManager(
             AzureStorageOrchestrationService service,
@@ -46,7 +46,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 skipBlobContainerCreation: false,
                 stats);
 
-            this.leaseCollectionManager = new LeaseCollectionBalancer(
+            this.leaseCollectionManager = new LeaseCollectionBalancer<BlobLease>(
                 "default",
                 settings,
                 account.Credentials.AccountName,
@@ -91,9 +91,9 @@ namespace DurableTask.AzureStorage.Partitioning
             });
         }
 
-        IEnumerable<BlobLease> IPartitionManager.GetOwnershipBlobLeases()
+        Task<IEnumerable<BlobLease>> IPartitionManager.GetOwnershipBlobLeases()
         {
-            return this.leaseManager.ListLeases();
+            return this.leaseManager.ListLeasesAsync(downloadLease: true);
         }
 
         async Task IPartitionManager.StartAsync()

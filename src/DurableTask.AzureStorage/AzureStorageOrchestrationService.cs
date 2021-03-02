@@ -595,7 +595,7 @@ namespace DurableTask.AzureStorage
         }
 
         // Used for testing
-        internal IEnumerable<BlobLease> ListBlobLeases()
+        internal Task<IEnumerable<BlobLease>> ListBlobLeases()
         {
             return this.partitionManager.GetOwnershipBlobLeases();
         }

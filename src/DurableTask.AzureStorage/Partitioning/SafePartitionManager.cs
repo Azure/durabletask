@@ -29,10 +29,10 @@ namespace DurableTask.AzureStorage.Partitioning
         private readonly OrchestrationSessionManager sessionManager;
 
         private readonly BlobLeaseManager intentLeaseManager;
-        private readonly LeaseCollectionBalancer intentLeaseCollectionManager;
+        private readonly LeaseCollectionBalancer<BlobLease> intentLeaseCollectionManager;
 
         private readonly BlobLeaseManager ownershipLeaseManager;
-        private readonly LeaseCollectionBalancer ownershipLeaseCollectionManager;
+        private readonly LeaseCollectionBalancer<BlobLease> ownershipLeaseCollectionManager;
 
         public SafePartitionManager(
             AzureStorageOrchestrationService service,
@@ -55,7 +55,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 skipBlobContainerCreation: false,
                 stats);
 
-            this.intentLeaseCollectionManager = new LeaseCollectionBalancer(
+            this.intentLeaseCollectionManager = new LeaseCollectionBalancer<BlobLease>(
                 "intent",
                 settings,
                 storageAccountName,
@@ -77,7 +77,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 skipBlobContainerCreation: false,
                 stats);
 
-            this.ownershipLeaseCollectionManager = new LeaseCollectionBalancer(
+            this.ownershipLeaseCollectionManager = new LeaseCollectionBalancer<BlobLease>(
                 "ownership",
                 this.settings,
                 storageAccountName,
@@ -95,9 +95,9 @@ namespace DurableTask.AzureStorage.Partitioning
                                                       || this.sessionManager.IsControlQueueProcessingMessages(leaseKey));
         }
 
-        IEnumerable<BlobLease> IPartitionManager.GetOwnershipBlobLeases()
+        Task<IEnumerable<BlobLease>> IPartitionManager.GetOwnershipBlobLeases()
         {
-            return this.ownershipLeaseManager.ListLeases();
+            return this.ownershipLeaseManager.ListLeasesAsync(downloadLease: true);
         }
 
         Task IPartitionManager.CreateLeaseStore()

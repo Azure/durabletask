@@ -25,7 +25,7 @@ namespace DurableTask.AzureStorage.Partitioning
     using Microsoft.WindowsAzure.Storage.Blob.Protocol;
     using Newtonsoft.Json;
 
-    sealed class BlobLeaseManager
+    sealed class BlobLeaseManager : ILeaseManager<BlobLease>
     {
         const string TaskHubInfoBlobName = "taskhub.json";
         static readonly TimeSpan StorageMaximumExecutionTime = TimeSpan.FromMinutes(2);
@@ -96,11 +96,16 @@ namespace DurableTask.AzureStorage.Partitioning
             return result;
         }
 
-        public IEnumerable<BlobLease> ListLeases()
+        public async Task<IEnumerable<BlobLease>> ListLeasesAsync(bool downloadLease)
         {
             if (this.blobLeases == null)
             {
-                throw new InvalidOperationException($"{nameof(ListLeases)} cannot be called without first calling {nameof(Initialize)}");
+                throw new InvalidOperationException($"{nameof(ListLeasesAsync)} cannot be called without first calling {nameof(Initialize)}");
+            }
+
+            if (downloadLease)
+            {
+                await Task.WhenAll(this.blobLeases.Select(lease => lease.DownloadLeaseAsync()));
             }
 
             return this.blobLeases;
@@ -364,7 +369,6 @@ namespace DurableTask.AzureStorage.Partitioning
                     new BlobLease(
                         partitionId: $"{this.taskHubName.ToLowerInvariant()}-control-{i:00}", 
                         leaseDirectory: this.leaseDirectory,
-                        leaseType: this.leaseType,
                         accountName: this.storageAccountName,
                         stats: this.stats,
                         settings: this.settings)
