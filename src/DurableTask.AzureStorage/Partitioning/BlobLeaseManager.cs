@@ -360,7 +360,15 @@ namespace DurableTask.AzureStorage.Partitioning
             this.blobLeases = new List<BlobLease>();
             for (int i = 0; i < this.settings.PartitionCount; i++)
             {
-                this.blobLeases.Add(new BlobLease($"{this.taskHubName.ToLowerInvariant()}-control-{i:00}", this.leaseDirectory, this.leaseType, this.stats));
+                this.blobLeases.Add(
+                    new BlobLease(
+                        partitionId: $"{this.taskHubName.ToLowerInvariant()}-control-{i:00}", 
+                        leaseDirectory: this.leaseDirectory,
+                        leaseType: this.leaseType,
+                        accountName: this.storageAccountName,
+                        stats: this.stats,
+                        settings: this.settings)
+                );
             }
         }
 
