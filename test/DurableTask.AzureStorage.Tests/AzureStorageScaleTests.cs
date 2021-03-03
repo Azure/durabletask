@@ -415,7 +415,7 @@ namespace DurableTask.AzureStorage.Tests
                 LeaseRenewInterval = TimeSpan.FromMilliseconds(500),
                 TaskHubName = TestHelpers.GetTestTaskHubName(),
                 StorageConnectionString = TestHelpers.GetTestStorageAccountConnectionString(),
-                ControlQueueBufferThreshold = 100,
+                ControlQueueBufferThreshold = 100
             };
 
             // STEP 1: Start up the service and queue up a large number of messages
@@ -430,7 +430,7 @@ namespace DurableTask.AzureStorage.Tests
 
             await TestHelpers.WaitFor(
                 condition: () => service.OwnedControlQueues.Any(),
-                timeout: TimeSpan.FromSeconds(10));
+                timeout: TimeSpan.FromSeconds(20));
             ControlQueue controlQueue = service.OwnedControlQueues.Single();
 
             List<TaskMessage> messages = Enumerable.Range(0, 100).Select(i => new TaskMessage
