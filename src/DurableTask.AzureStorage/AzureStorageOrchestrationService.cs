@@ -1063,10 +1063,16 @@ namespace DurableTask.AzureStorage
             OrchestrationRuntimeState runtimeState = newOrchestrationRuntimeState ?? workItem.OrchestrationRuntimeState;
 
             string instanceId = workItem.InstanceId;
-            string executionId = runtimeState.OrchestrationInstance.ExecutionId;
+            string executionId = runtimeState.OrchestrationInstance?.ExecutionId;
+            if (executionId == null)
+            {
+                this.settings.Logger.GeneralWarning(
+                    this.storageAccountName,
+                    this.settings.TaskHubName,
+                    $"{nameof(CompleteTaskOrchestrationWorkItemAsync)}: Could not find execution id for instance {instanceId}.");
+            }
 
             // Correlation
-
             CorrelationTraceClient.Propagate(() =>
                 {
                     // In case of Extended Session, Emit the Dependency Telemetry. 
