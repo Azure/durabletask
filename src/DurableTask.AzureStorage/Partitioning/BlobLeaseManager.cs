@@ -362,7 +362,7 @@ namespace DurableTask.AzureStorage.Partitioning
             this.taskHubContainer = this.storageClient.GetContainerReference(this.leaseContainerName);
             this.leaseDirectory = this.taskHubContainer.GetDirectoryReference(this.leaseType);
             this.taskHubInfoBlob = this.taskHubContainer.GetBlockBlobReference(TaskHubInfoBlobName);
-            this.blobLeases = new List<BlobLease>();
+            this.blobLeases = new List<BlobLease>(this.settings.PartitionCount);
             for (int i = 0; i < this.settings.PartitionCount; i++)
             {
                 this.blobLeases.Add(

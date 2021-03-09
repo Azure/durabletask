@@ -336,7 +336,7 @@ namespace DurableTask.AzureStorage.Partitioning
             // We wait to download leases until after we have filtered out leases we should
             // not acquire
             var allLeases = await this.leaseManager.ListLeasesAsync(downloadLeases: false);
-            var acquirableLeases = allLeases.Where(lease => this.shouldAcquireLeaseDelegate(lease.PartitionId));
+            var acquirableLeases = allLeases.Where(lease => this.shouldAcquireLeaseDelegate(lease.PartitionId)).ToList();
             await Task.WhenAll(acquirableLeases.Select(blobLease => blobLease.DownloadLeaseAsync()));
 
             foreach (T lease in acquirableLeases)
