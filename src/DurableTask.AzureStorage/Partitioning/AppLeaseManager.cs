@@ -21,7 +21,7 @@ namespace DurableTask.AzureStorage.Partitioning
     using DurableTask.AzureStorage.Monitoring;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Blob;
-    using System.Runtime.ExceptionServices;
+    using Newtonsoft.Json;
 
     sealed class AppLeaseManager
     {
@@ -33,10 +33,14 @@ namespace DurableTask.AzureStorage.Partitioning
         private readonly string appName;
         private readonly AppLeaseOptions options;
         private readonly AzureStorageOrchestrationServiceStats stats;
-        readonly AzureStorageOrchestrationServiceSettings settings;
+        private readonly AzureStorageOrchestrationServiceSettings settings;
+        private readonly IPartitionManager partitionManager;
 
         private readonly CloudBlobContainer appLeaseContainer;
         private readonly string appLeaseId;
+
+        private readonly string appLeaseInfoBlobName;
+        private readonly CloudBlockBlob appLeaseInfoBlob;
 
         private bool isLeaseOwner;
         private int isStarted;
@@ -45,19 +49,23 @@ namespace DurableTask.AzureStorage.Partitioning
         private CancellationTokenSource leaseRenewerCancellationTokenSource;
 
         public AppLeaseManager(
+            IPartitionManager partitionManager,
             AzureStorageOrchestrationServiceSettings settings,
             string accountName, 
             CloudBlobClient storageClient, 
-            string appLeaseContainerName, 
+            string appLeaseContainerName,
+            string appLeaseInfoBlobName,
             AppLeaseOptions options, 
             AzureStorageOrchestrationServiceStats stats)
         {
+            this.partitionManager = partitionManager;
             this.settings = settings;
             this.accountName = accountName;
             this.taskHub = settings.TaskHubName;
             this.workerName = settings.WorkerId;
             this.storageClient = storageClient;
             this.appLeaseContainerName = appLeaseContainerName;
+            this.appLeaseInfoBlobName = appLeaseInfoBlobName;
             this.appName = settings.AppName;
             this.options = options;
             this.stats = stats ?? new AzureStorageOrchestrationServiceStats();
@@ -65,6 +73,9 @@ namespace DurableTask.AzureStorage.Partitioning
             this.isLeaseOwner = false;
 
             this.appLeaseContainer = this.storageClient.GetContainerReference(this.appLeaseContainerName);
+            this.appLeaseInfoBlob = this.appLeaseContainer.GetBlockBlobReference(this.appLeaseInfoBlobName);
+
+            this.appLeaseId = CreateAppId(appName);
 
             using (MD5 md5 = MD5.Create())
             {
@@ -76,6 +87,8 @@ namespace DurableTask.AzureStorage.Partitioning
         public async Task<bool> CreateContainerIfNotExistsAsync()
         {
             bool result = await appLeaseContainer.CreateIfNotExistsAsync();
+            this.stats.StorageRequests.Increment();
+
             return result;
         }
 
@@ -88,6 +101,8 @@ namespace DurableTask.AzureStorage.Partitioning
 
             this.shutdownComplete = false;
             this.leaseRenewerCancellationTokenSource = new CancellationTokenSource();
+
+            //start partition manager
 
             this.renewTask = await Task.Factory.StartNew(() => this.LeaseRenewer());
         }
@@ -111,9 +126,167 @@ namespace DurableTask.AzureStorage.Partitioning
 
             this.leaseRenewerCancellationTokenSource?.Dispose();
             this.leaseRenewerCancellationTokenSource = null;
+
+            //stop partition manager
         }
 
         public async Task<bool> TryAquireAppLeaseAsync()
+        {
+            AppLeaseInfo appLeaseInfo = await this.GetAppLeaseInfoAsync();
+
+            if (appLeaseInfo.DesiredSwapId == appLeaseId)
+            {
+                return await this.ChangeLeaseAsync(appLeaseInfo.OwnerId);
+            }
+            else
+            {
+                return await this.TryAquireLeaseAsync();
+            }
+        }
+        public async Task UpdateOwnerAppIdToCurrentApp()
+        {
+            var appLeaseInfo = await GetAppLeaseInfoAsync();
+            if (appLeaseInfo.OwnerId != this.appLeaseId)
+            {
+                appLeaseInfo.OwnerId = this.appLeaseId;
+                await UpdateAppLeaseInfoBlob(appLeaseInfo);
+            }
+        }
+
+        public async Task UpdateDesiredSwapAppIdToCurrentApp()
+        {
+            var appLeaseInfo = await GetAppLeaseInfoAsync();
+            if (appLeaseInfo.DesiredSwapId != this.appLeaseId)
+            {
+                appLeaseInfo.DesiredSwapId = this.appLeaseId;
+                await UpdateAppLeaseInfoBlob(appLeaseInfo);
+            }
+        }
+
+        public async Task UpdateAppLeaseInfoBlob(AppLeaseInfo appLeaseInfo)
+        {
+            string serializedInfo = JsonConvert.SerializeObject(appLeaseInfo);
+            try
+            {
+                await this.appLeaseInfoBlob.UploadTextAsync(serializedInfo, null, AccessCondition.GenerateIfNoneMatchCondition("*"), null, null);
+            }
+            catch (StorageException)
+            {
+                // eat any storage exception related to conflict
+            }
+            finally
+            {
+                this.stats.StorageRequests.Increment();
+            }
+        }
+
+        public async Task CreateAppLeaseInfoIfNotExistAsync(AppLeaseInfo appLeaseInfo)
+        {
+            string serializedInfo = JsonConvert.SerializeObject(appLeaseInfo);
+            try
+            {
+                await this.appLeaseInfoBlob.UploadTextAsync(serializedInfo, null, AccessCondition.GenerateIfNoneMatchCondition("*"), null, null);
+            }
+            catch (StorageException)
+            {
+                // eat any storage exception related to conflict
+                // this means the blob already exist
+            }
+            finally
+            {
+                this.stats.StorageRequests.Increment();
+            }
+        }
+
+        public async Task CreateAppLeaseInfoIfNotExistsAsync()
+        {
+            if (!await this.appLeaseInfoBlob.ExistsAsync())
+            {
+                try
+                {
+                    string serializedInfo = JsonConvert.SerializeObject(new AppLeaseInfo());
+                    await this.appLeaseInfoBlob.UploadTextAsync(serializedInfo, null, AccessCondition.GenerateEmptyCondition(), null, null);
+                }
+                catch (StorageException)
+                {
+                    // eat any storage exception related to conflict
+                    // this means the blob already exist
+                }
+                finally
+                {
+                    this.stats.StorageRequests.Increment();
+                }
+            }
+
+            this.stats.StorageRequests.Increment();
+        }
+
+        public async Task<AppLeaseInfo> GetAppLeaseInfoAsync()
+        {
+            if (await this.appLeaseInfoBlob.ExistsAsync())
+            {
+                await appLeaseInfoBlob.FetchAttributesAsync();
+                this.stats.StorageRequests.Increment();
+                string serializedEventHubInfo = await this.appLeaseInfoBlob.DownloadTextAsync();
+                this.stats.StorageRequests.Increment();
+                return JsonConvert.DeserializeObject<AppLeaseInfo>(serializedEventHubInfo);
+            }
+
+            this.stats.StorageRequests.Increment();
+            return null;
+        }
+
+        private async Task<bool> ChangeLeaseAsync(string currentLeaseId)
+        {
+            bool leaseAcquired;
+
+            try
+            {
+                this.settings.Logger.LeaseAcquisitionStarted(
+                    this.accountName,
+                    this.taskHub,
+                    this.workerName,
+                    this.appLeaseContainerName);
+
+                AccessCondition accessCondition = new AccessCondition() { LeaseId = currentLeaseId };
+                await appLeaseContainer.ChangeLeaseAsync(this.appLeaseId, accessCondition);
+
+                leaseAcquired = true;
+                this.isLeaseOwner = true;
+
+                //Add new logs?
+                //this.settings.Logger.LeaseStealingSucceeded(
+                    //this.accountName,
+                    //this.taskHub,
+                    //this.workerName,
+                    //this.appLeaseContainerName);
+            }
+            catch (StorageException e)
+            {
+                leaseAcquired = false;
+
+                this.settings.Logger.LeaseStealingFailed(
+                    this.accountName,
+                    this.taskHub,
+                    this.workerName,
+                    this.appLeaseContainerName);
+
+                this.settings.Logger.PartitionManagerWarning(
+                    this.accountName,
+                    this.taskHub,
+                    this.workerName,
+                    this.appLeaseContainerName,
+                    $"Failed to change app lease with appLeaseId {this.appLeaseId}. Current leaseId: {currentLeaseId}. Exception: {e.Message}");
+            }
+            finally
+            {
+                this.stats.StorageRequests.Increment();
+            }
+
+            return leaseAcquired;
+        }
+
+        private async Task<bool> TryAquireLeaseAsync()
         {
             bool leaseAcquired;
 
@@ -177,6 +350,8 @@ namespace DurableTask.AzureStorage.Partitioning
 
                     if (!renewSucceeded)
                     {
+                        // stop partition manager/release leases
+                        //complete task
                         break;
                     }
 

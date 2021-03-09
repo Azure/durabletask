@@ -159,14 +159,6 @@ namespace DurableTask.AzureStorage
                 account,
                 this.stats);
 
-            this.appLeaseManager = new AppLeaseManager(
-                this.settings,
-                this.storageAccountName,
-                this.blobClient,
-                this.settings.TaskHubName.ToLowerInvariant() + "-applease",
-                this.settings.AppLeaseOptions,
-                this.stats);
-
             this.orchestrationSessionManager = new OrchestrationSessionManager(
                 this.storageAccountName,
                 this.settings,
@@ -190,6 +182,16 @@ namespace DurableTask.AzureStorage
                     account,
                     this.stats);
             }
+
+            this.appLeaseManager = new AppLeaseManager(
+                this.partitionManager,
+                this.settings,
+                this.storageAccountName,
+                this.blobClient,
+                this.settings.TaskHubName.ToLowerInvariant() + "-applease",
+                this.settings.TaskHubName.ToLowerInvariant() + "-appleaseinfo",
+                this.settings.AppLeaseOptions,
+                this.stats);
         }
 
         internal string WorkerId => this.settings.WorkerId;
