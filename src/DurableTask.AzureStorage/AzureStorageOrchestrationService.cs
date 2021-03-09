@@ -1069,7 +1069,8 @@ namespace DurableTask.AzureStorage
                 this.settings.Logger.GeneralWarning(
                     this.storageAccountName,
                     this.settings.TaskHubName,
-                    $"{nameof(CompleteTaskOrchestrationWorkItemAsync)}: Could not find execution id for instance {instanceId}.");
+                    $"{nameof(CompleteTaskOrchestrationWorkItemAsync)}: Could not find execution id.",
+                    instanceId: instanceId);
             }
 
             // Correlation

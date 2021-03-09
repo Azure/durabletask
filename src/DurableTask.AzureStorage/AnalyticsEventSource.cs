@@ -910,9 +910,9 @@ namespace DurableTask.AzureStorage
         }
 
         [Event(EventIds.GeneralWarning, Level = EventLevel.Warning, Version = 2)]
-        public void GeneralWarning(string Account, string TaskHub, string Details, string AppName, string ExtensionVersion)
+        public void GeneralWarning(string Account, string TaskHub, string Details, string AppName, string ExtensionVersion, string InstanceId)
         {
-            this.WriteEvent(EventIds.GeneralWarning, Account, TaskHub, Details, AppName, ExtensionVersion);
+            this.WriteEvent(EventIds.GeneralWarning, Account, TaskHub, Details, AppName, ExtensionVersion, InstanceId);
         }
 
         [Event(EventIds.SplitBrainDetected, Level = EventLevel.Warning, Version = 2)]
