@@ -254,7 +254,6 @@ namespace DurableTask.AzureStorage
             return new BlobLeaseManager(
                 settings,
                 leaseContainerName: settings.TaskHubName.ToLowerInvariant() + "-leases",
-                blobPrefix: string.Empty,
                 leaseType: leaseType,
                 storageClient: account.CreateCloudBlobClient(),
                 skipBlobContainerCreation: false,

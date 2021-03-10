@@ -41,7 +41,6 @@ namespace DurableTask.AzureStorage.Partitioning
             this.leaseManager = new BlobLeaseManager(
                 settings,
                 settings.TaskHubName.ToLowerInvariant() + "-leases",
-                string.Empty,
                 "default",
                 account.CreateCloudBlobClient(),
                 skipBlobContainerCreation: false,
@@ -94,7 +93,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
         Task<IEnumerable<BlobLease>> IPartitionManager.GetOwnershipBlobLeases()
         {
-            return this.leaseManager.ListLeasesAsync();
+            return this.leaseManager.ListLeasesAsync(downloadLeases: true);
         }
 
         async Task IPartitionManager.StartAsync()
