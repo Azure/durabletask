@@ -943,7 +943,13 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 
         public async Task<IMessageSession> AcceptMessageSessionAsync(TimeSpan operationTimeout)
         {
-            return new IMessageSession(await this.sessionClient.AcceptMessageSessionAsync(operationTimeout));
+            try
+            {
+                return new IMessageSession(await this.sessionClient.AcceptMessageSessionAsync(operationTimeout));
+            }
+            catch (Microsoft.Azure.ServiceBus.ServiceBusTimeoutException) { 
+                return null;
+            }
         }
 
 #else
