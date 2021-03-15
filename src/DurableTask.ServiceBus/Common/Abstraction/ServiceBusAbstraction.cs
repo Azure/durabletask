@@ -947,7 +947,8 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             {
                 return new IMessageSession(await this.sessionClient.AcceptMessageSessionAsync(operationTimeout));
             }
-            catch (Microsoft.Azure.ServiceBus.ServiceBusTimeoutException) { 
+            catch (Microsoft.Azure.ServiceBus.ServiceBusTimeoutException)
+            { 
                 return null;
             }
         }
