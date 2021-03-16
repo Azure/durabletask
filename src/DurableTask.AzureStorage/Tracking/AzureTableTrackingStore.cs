@@ -159,7 +159,7 @@ namespace DurableTask.AzureStorage.Tracking
         public override async Task<OrchestrationHistory> GetHistoryEventsAsync(string instanceId, string expectedExecutionId, CancellationToken cancellationToken = default(CancellationToken))
         {
             HistoryEntitiesResponseInfo historyEntitiesResponseInfo = await this.GetHistoryEntitiesResponseInfoAsync(
-                KeySanitation.UnescapePartitionKey(instanceId),
+                instanceId,
                 expectedExecutionId,
                 null,
                 cancellationToken);
