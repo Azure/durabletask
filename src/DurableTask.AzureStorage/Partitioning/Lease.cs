@@ -13,8 +13,6 @@
 
 namespace DurableTask.AzureStorage.Partitioning
 {
-    using System.Threading.Tasks;
-
     /// <summary>Contains partition ownership information.</summary>
     class Lease
     {
@@ -23,9 +21,9 @@ namespace DurableTask.AzureStorage.Partitioning
         {
         }
 
-        /// <summary>Initializes a new instance of the
-        /// <see cref="DurableTask.AzureStorage.Partitioning.Lease" /> class with the specified
-        /// <see cref="DurableTask.AzureStorage.Partitioning.Lease(DurableTask.AzureStorage.Partitioning.Lease)" /> value as reference.</summary>
+        /// <summary>Initializes a new instance of the 
+        /// <see cref="DurableTask.AzureStorage.Partitioning.Lease" /> class with the specified 
+        /// <see cref="DurableTask.AzureStorage.Partitioning.Lease(DurableTask.AzureStorage.Partitioning.Lease)" /> value as reference.</summary> 
         /// <param name="source">The specified <see cref="DurableTask.AzureStorage.Partitioning.Lease(DurableTask.AzureStorage.Partitioning.Lease)" /> instance where its property values will be copied from.</param>
         public Lease(Lease source)
         {
@@ -43,13 +41,13 @@ namespace DurableTask.AzureStorage.Partitioning
         /// <value>The host owner of the partition.</value>
         public string Owner { get; set; }
 
-        /// <summary>Gets or sets the lease token that manages concurrency between hosts. You can use this token to guarantee single access to any resource needed by the
-        /// <see cref="DurableTask.AzureStorage.AzureStorageOrchestrationService" /> object.</summary>
+        /// <summary>Gets or sets the lease token that manages concurrency between hosts. You can use this token to guarantee single access to any resource needed by the 
+        /// <see cref="DurableTask.AzureStorage.AzureStorageOrchestrationService" /> object.</summary> 
         /// <value>The lease token.</value>
         public string Token { get; set; }
 
-        /// <summary>Gets or sets the epoch year of the lease, which is a value
-        /// you can use to determine the most recent owner of a partition between competing nodes.</summary>
+        /// <summary>Gets or sets the epoch year of the lease, which is a value 
+        /// you can use to determine the most recent owner of a partition between competing nodes.</summary> 
         /// <value>The epoch year of the lease.</value>
         public long Epoch { get; set; }
 
@@ -59,15 +57,6 @@ namespace DurableTask.AzureStorage.Partitioning
         {
             return false;
         }
-
-        /// <summary>
-        /// Used to download fresh data from the lease.
-        /// </summary>
-        public virtual Task DownloadLeaseAsync()
-        {
-            return Task.CompletedTask;
-        }
-
 
         /// <summary>Determines whether this instance is equal to the specified object.</summary>
         /// <param name="obj">The object to compare.</param>

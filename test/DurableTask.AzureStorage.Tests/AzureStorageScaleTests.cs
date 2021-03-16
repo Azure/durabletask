@@ -430,7 +430,7 @@ namespace DurableTask.AzureStorage.Tests
 
             await TestHelpers.WaitFor(
                 condition: () => service.OwnedControlQueues.Any(),
-                timeout: TimeSpan.FromSeconds(20));
+                timeout: TimeSpan.FromSeconds(10));
             ControlQueue controlQueue = service.OwnedControlQueues.Single();
 
             List<TaskMessage> messages = Enumerable.Range(0, 100).Select(i => new TaskMessage

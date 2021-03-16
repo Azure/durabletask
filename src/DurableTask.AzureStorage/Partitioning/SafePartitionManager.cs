@@ -49,6 +49,7 @@ namespace DurableTask.AzureStorage.Partitioning
             this.intentLeaseManager = new BlobLeaseManager(
                 settings,
                 settings.TaskHubName.ToLowerInvariant() + "-leases",
+                string.Empty,
                 "intent",
                 account.CreateCloudBlobClient(),
                 skipBlobContainerCreation: false,
@@ -71,6 +72,7 @@ namespace DurableTask.AzureStorage.Partitioning
             this.ownershipLeaseManager = new BlobLeaseManager(
                 settings,
                 settings.TaskHubName.ToLowerInvariant() + "-leases",
+                string.Empty,
                 "ownership",
                 account.CreateCloudBlobClient(),
                 skipBlobContainerCreation: false,
@@ -83,12 +85,12 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.ownershipLeaseManager,
                 new LeaseCollectionBalancerOptions
                 {
-                    AcquireInterval = settings.LeaseAcquireInterval,
-                    RenewInterval = settings.LeaseRenewInterval,
-                    LeaseInterval = settings.LeaseInterval,
+                    AcquireInterval = TimeSpan.FromSeconds(5),
+                    RenewInterval = TimeSpan.FromSeconds(10),
+                    LeaseInterval = TimeSpan.FromSeconds(15),
                     ShouldStealLeases = false
                 },
-                shouldAcquireLeaseDelegate: leaseKey => currentlyOwnedIntentLeases.ContainsKey(leaseKey),
+                shouldAquireLeaseDelegate: leaseKey => currentlyOwnedIntentLeases.ContainsKey(leaseKey),
                 shouldRenewLeaseDelegate: leaseKey => currentlyOwnedIntentLeases.ContainsKey(leaseKey)
                                                       || this.sessionManager.IsControlQueueReceivingMessages(leaseKey)
                                                       || this.sessionManager.IsControlQueueProcessingMessages(leaseKey));
@@ -96,7 +98,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
         Task<IEnumerable<BlobLease>> IPartitionManager.GetOwnershipBlobLeases()
         {
-            return this.ownershipLeaseManager.ListLeasesAsync(downloadLeases: true);
+            return this.ownershipLeaseManager.ListLeasesAsync();
         }
 
         Task IPartitionManager.CreateLeaseStore()
