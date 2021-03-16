@@ -720,12 +720,14 @@ namespace DurableTask.AzureStorage.Logging
         internal void GeneralWarning(
             string account,
             string taskHub,
-            string details)
+            string details,
+            string instanceId = null)
         {
             var logEvent = new LogEvents.GeneralWarning(
                 account,
                 taskHub,
-                details);
+                details,
+                instanceId ?? string.Empty);
             this.WriteStructuredLog(logEvent);
         }
 

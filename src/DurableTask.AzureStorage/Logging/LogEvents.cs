@@ -2200,11 +2200,13 @@ namespace DurableTask.AzureStorage.Logging
             public GeneralWarning(
                 string account,
                 string taskHub,
-                string details)
+                string details,
+                string instanceId)
             {
                 this.Account = account;
                 this.TaskHub = taskHub;
                 this.Details = details;
+                this.InstanceId = instanceId;
             }
 
             [StructuredLogField]
@@ -2215,6 +2217,9 @@ namespace DurableTask.AzureStorage.Logging
 
             [StructuredLogField]
             public string Details { get; }
+
+            [StructuredLogField]
+            public string InstanceId { get; }
 
             public override EventId EventId => new EventId(
                 EventIds.GeneralWarning,
@@ -2229,7 +2234,8 @@ namespace DurableTask.AzureStorage.Logging
                 this.TaskHub,
                 this.Details,
                 Utils.AppName,
-                Utils.ExtensionVersion);
+                Utils.ExtensionVersion,
+                this.InstanceId);
         }
 
         internal class SplitBrainDetected : StructuredLogEvent, IEventSourceEvent
