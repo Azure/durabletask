@@ -34,7 +34,7 @@ namespace DurableTask.AzureStorage.Partitioning
         readonly ConcurrentDictionary<string, T> currentlyOwnedShards;
         readonly ConcurrentDictionary<string, T> keepRenewingDuringClose;
         readonly LeaseObserverManager leaseObserverManager;
-        readonly Func<string, bool> shouldAcquireLeaseDelegate;
+        readonly Func<string, bool> shouldAquireLeaseDelegate;
         readonly Func<string, bool> shouldRenewLeaseDelegate;
 
         int isStarted;
@@ -48,9 +48,9 @@ namespace DurableTask.AzureStorage.Partitioning
             string leaseType,
             AzureStorageOrchestrationServiceSettings settings,
             string accountName,
-            ILeaseManager<T> leaseManager,
+            ILeaseManager<T> leaseManager, 
             LeaseCollectionBalancerOptions options,
-            Func<string, bool> shouldAcquireLeaseDelegate = null,
+            Func<string, bool> shouldAquireLeaseDelegate = null,
             Func<string, bool> shouldRenewLeaseDelegate = null)
 
         {
@@ -62,7 +62,7 @@ namespace DurableTask.AzureStorage.Partitioning
             this.options = options;
             this.settings = settings;
 
-            this.shouldAcquireLeaseDelegate = shouldAcquireLeaseDelegate ?? DefaultLeaseDecisionDelegate;
+            this.shouldAquireLeaseDelegate = shouldAquireLeaseDelegate ?? DefaultLeaseDecisionDelegate;
             this.shouldRenewLeaseDelegate = shouldRenewLeaseDelegate ?? DefaultLeaseDecisionDelegate;
 
             this.currentlyOwnedShards = new ConcurrentDictionary<string, T>();
@@ -83,8 +83,7 @@ namespace DurableTask.AzureStorage.Partitioning
         public async Task InitializeAsync()
         {
             var leases = new List<T>();
-            var leasesToInitialize = await this.leaseManager.ListLeasesAsync(downloadLeases: true);
-            foreach (T lease in leasesToInitialize)
+            foreach (T lease in await this.leaseManager.ListLeasesAsync())
             {
                 if (string.Compare(lease.Owner, this.workerName, StringComparison.OrdinalIgnoreCase) == 0)
                 {
@@ -333,14 +332,20 @@ namespace DurableTask.AzureStorage.Partitioning
             var workerToShardCount = new Dictionary<string, int>();
             var expiredLeases = new List<T>();
 
-            // We wait to download leases until after we have filtered out leases we should
-            // not acquire
-            var allLeases = await this.leaseManager.ListLeasesAsync(downloadLeases: false);
-            var acquirableLeases = allLeases.Where(lease => this.shouldAcquireLeaseDelegate(lease.PartitionId)).ToList();
-            await Task.WhenAll(acquirableLeases.Select(blobLease => blobLease.DownloadLeaseAsync()));
-
-            foreach (T lease in acquirableLeases)
+            var allLeases = await this.leaseManager.ListLeasesAsync();
+            foreach (T lease in allLeases)
             {
+                if (!this.shouldAquireLeaseDelegate(lease.PartitionId))
+                {
+                    this.settings.Logger.PartitionManagerInfo(
+                        this.accountName,
+                        this.taskHub,
+                        this.workerName,
+                        string.Empty /* partitionId */,
+                        $"Skiping {this.leaseType} lease aquiring for {lease.PartitionId}");
+                    continue;
+                }
+
                 allShards.Add(lease.PartitionId, lease);
                 if (lease.IsExpired() || string.IsNullOrWhiteSpace(lease.Owner))
                 {
@@ -382,7 +387,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
                 if (moreShardsNeeded > 0)
                 {
-                    var shardsToAcquire = new HashSet<T>();
+                    HashSet<T> shardsToAcquire = new HashSet<T>();
                     if (expiredLeases.Count > 0)
                     {
                         foreach (T leaseToTake in expiredLeases)
