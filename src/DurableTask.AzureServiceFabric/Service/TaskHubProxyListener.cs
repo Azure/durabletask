@@ -47,7 +47,7 @@ namespace DurableTask.AzureServiceFabric.Service
     /// </remarks>
     /// <param name="taskHubWorker">Instance of <see cref="TaskHubWorker"/></param>
     /// <param name="taskHubLocalClient">Instance of <see cref="TaskHubClient"/> connected to local instance of <see cref="TaskHubWorker"/></param>
-    public delegate void RegisterOrchestrationArtifacts(TaskHubWorker taskHubWorker, TaskHubClient taskHubLocalClient);
+    public delegate void RegisterOrchestrations2(TaskHubWorker taskHubWorker, TaskHubClient taskHubLocalClient);
 
     /// <summary>
     /// An instance of this class is created for each service replica by the Service Fabric runtime.
@@ -56,7 +56,7 @@ namespace DurableTask.AzureServiceFabric.Service
     public sealed class TaskHubProxyListener : IServiceListener
     {
         readonly RegisterOrchestrations registerOrchestrations;
-        readonly RegisterOrchestrationArtifacts registerOrchestrationArtifacts;
+        readonly RegisterOrchestrations2 registerOrchestrations2;
         readonly FabricOrchestrationProviderSettings fabricOrchestrationProviderSettings;
         FabricOrchestrationProviderFactory fabricProviderFactory;
         FabricOrchestrationProvider fabricOrchestrationProvider;
@@ -104,14 +104,14 @@ namespace DurableTask.AzureServiceFabric.Service
         /// when registering orchestration artifacts with <see cref="TaskHubWorker"/>
         /// </remarks>
         /// <param name="fabricOrchestrationProviderSettings">instance of <see cref="FabricOrchestrationProviderSettings"/></param>
-        /// <param name="registerOrchestrationArtifacts">Delegate invoked before starting the worker.</param>
+        /// <param name="registerOrchestrations2">Delegate invoked before starting the worker.</param>
         /// <param name="enableHttps">Whether to enable https or http</param>
         public TaskHubProxyListener(FabricOrchestrationProviderSettings fabricOrchestrationProviderSettings,
-                RegisterOrchestrationArtifacts registerOrchestrationArtifacts,
+                RegisterOrchestrations2 registerOrchestrations2,
                 bool enableHttps = true)
         {
             this.fabricOrchestrationProviderSettings = fabricOrchestrationProviderSettings ?? throw new ArgumentNullException(nameof(fabricOrchestrationProviderSettings));
-            this.registerOrchestrationArtifacts = registerOrchestrationArtifacts ?? throw new ArgumentNullException(nameof(registerOrchestrationArtifacts));
+            this.registerOrchestrations2 = registerOrchestrations2 ?? throw new ArgumentNullException(nameof(registerOrchestrations2));
             this.enableHttps = enableHttps;
         }
 
@@ -194,10 +194,10 @@ namespace DurableTask.AzureServiceFabric.Service
 
                 this.worker = new TaskHubWorker(this.fabricOrchestrationProvider.OrchestrationService);
 
-                if (this.registerOrchestrationArtifacts != null)
+                if (this.registerOrchestrations2 != null)
                 {
                     this.localClient = new TaskHubClient(this.fabricOrchestrationProvider.OrchestrationServiceClient);
-                    this.registerOrchestrationArtifacts(this.worker, this.localClient);
+                    this.registerOrchestrations2(this.worker, this.localClient);
                 }
                 else
                 {
