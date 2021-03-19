@@ -68,6 +68,20 @@ namespace DurableTask.AzureServiceFabric.Remote
             return endpoints;
         }
 
+        /// <inheritdoc/>
+        public async Task RefreshPartitionEndpointAsync(string instanceId, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            long hash = await this.instanceIdHasher.GeneratePartitionHashCodeAsync(instanceId, cancellationToken);
+
+            // Retrieve the current ResolvedServicePartition object from the cache and then pass in the same object
+            // to the ResolveAsync() API call. This operation notifies the ServicePartitionResolver that the current
+            // object is most likely stale and that it needs to refresh its own cache.
+            // Further calls to ResolveAsync() would return the newer version if the cache was refreshed.
+            var previousRsp = await this.partitionResolver.ResolveAsync(this.serviceUri, new ServicePartitionKey(hash), cancellationToken);
+            await this.partitionResolver.ResolveAsync(previousRsp, cancellationToken);
+        }
+
         private async Task<Int64RangePartitionInformation[]> GetServicePartitionsListAsync()
         {
             if (this.servicePartitionsTaskCompletionSource == null)
