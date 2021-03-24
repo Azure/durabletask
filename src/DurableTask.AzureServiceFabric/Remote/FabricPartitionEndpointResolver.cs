@@ -74,10 +74,22 @@ namespace DurableTask.AzureServiceFabric.Remote
             cancellationToken.ThrowIfCancellationRequested();
             long hash = await this.instanceIdHasher.GeneratePartitionHashCodeAsync(instanceId, cancellationToken);
 
-            // Retrieve the current ResolvedServicePartition object from the cache and then pass in the same object
-            // to the ResolveAsync() API call. This operation notifies the ServicePartitionResolver that the current
-            // object is most likely stale and that it needs to refresh its own cache.
-            // Further calls to ResolveAsync() would return the newer version if the cache was refreshed.
+            /*
+             * Service Fabric's ServicePartitionResolver class maintains an internal cache of ResolvedServicePartition objects for each partition
+             * which is served by an internal reference of FabricClient. The cache is refreshed via 2 different processes:
+             * - A notification protocol through which the FabricClient notifies resolver that a given value is stale and needs to be updated.
+             * - A complaint based resolution, as part of which, the client passes in the previously retrieved ResolvedServicePartition object
+             *   to the ResolveAsync() API call. This API call notifies the resolver that the previously provided object is stale and a new one
+             *   should be fetched from the FabricClient
+             * Service Fabric also states in their documentation that the notification mechanism cannot be completely relied upon since it is an
+             * internal network call which is prone to failures. This is the one of the reasons for the existence of complaint based resolution.
+             * In our current implementation, we were only relying on notifications and thus occasionally ran into failures due to non-existent/bad endpoints.
+             * 
+             * Retrieve the current ResolvedServicePartition object from the cache and then pass in the same object
+             * to the ResolveAsync() API call. This operation notifies the ServicePartitionResolver that the current
+             * object is most likely stale and that it needs to refresh its own cache.
+             * Further calls to ResolveAsync() would return the newer version if the cache was refreshed.
+             */
             var previousRsp = await this.partitionResolver.ResolveAsync(this.serviceUri, new ServicePartitionKey(hash), cancellationToken);
             await this.partitionResolver.ResolveAsync(previousRsp, cancellationToken);
         }
