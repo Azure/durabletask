@@ -36,16 +36,32 @@ namespace DurableTask.AzureServiceFabric.Service
     public delegate void RegisterOrchestrations(TaskHubWorker taskHubWorker);
 
     /// <summary>
+    /// Delegate invoked before starting the worker to register artifiacts with TaskHubWorker.
+    /// Provides an instance to <see cref="TaskHubClient"/> which can be optionally used
+    /// when registering delegates
+    /// </summary>
+    /// <remarks>
+    /// The provided <see cref="TaskHubClient"/> is only connected to the local instance of
+    /// <see cref="TaskHubWorker"/>. It cannot be used to query orchestrations running in other
+    /// worker instances.
+    /// </remarks>
+    /// <param name="taskHubWorker">Instance of <see cref="TaskHubWorker"/></param>
+    /// <param name="taskHubLocalClient">Instance of <see cref="TaskHubClient"/> connected to local instance of <see cref="TaskHubWorker"/></param>
+    public delegate void RegisterOrchestrations2(TaskHubWorker taskHubWorker, TaskHubClient taskHubLocalClient);
+
+    /// <summary>
     /// An instance of this class is created for each service replica by the Service Fabric runtime.
     /// Listening on HTTP port will expose security risk, use this listener at your own discretation.
     /// </summary>
     public sealed class TaskHubProxyListener : IServiceListener
     {
         readonly RegisterOrchestrations registerOrchestrations;
+        readonly RegisterOrchestrations2 registerOrchestrations2;
         readonly FabricOrchestrationProviderSettings fabricOrchestrationProviderSettings;
         FabricOrchestrationProviderFactory fabricProviderFactory;
         FabricOrchestrationProvider fabricOrchestrationProvider;
         TaskHubWorker worker;
+        TaskHubClient localClient;
         ReplicaRole currentRole;
         StatefulService statefulService;
         bool enableHttps = true;
@@ -77,6 +93,25 @@ namespace DurableTask.AzureServiceFabric.Service
         {
             this.fabricOrchestrationProviderSettings = fabricOrchestrationProviderSettings ?? throw new ArgumentNullException(nameof(fabricOrchestrationProviderSettings));
             this.registerOrchestrations = registerOrchestrations ?? throw new ArgumentNullException(nameof(registerOrchestrations));
+            this.enableHttps = enableHttps;
+        }
+
+        /// <summary>
+        /// Creates instance of <see cref="TaskHubProxyListener"/>
+        /// </summary>
+        /// <remarks>
+        /// Use this constructor when there is a need to access <see cref="TaskHubClient"/>
+        /// when registering orchestration artifacts with <see cref="TaskHubWorker"/>
+        /// </remarks>
+        /// <param name="fabricOrchestrationProviderSettings">instance of <see cref="FabricOrchestrationProviderSettings"/></param>
+        /// <param name="registerOrchestrations2">Delegate invoked before starting the worker.</param>
+        /// <param name="enableHttps">Whether to enable https or http</param>
+        public TaskHubProxyListener(FabricOrchestrationProviderSettings fabricOrchestrationProviderSettings,
+                RegisterOrchestrations2 registerOrchestrations2,
+                bool enableHttps = true)
+        {
+            this.fabricOrchestrationProviderSettings = fabricOrchestrationProviderSettings ?? throw new ArgumentNullException(nameof(fabricOrchestrationProviderSettings));
+            this.registerOrchestrations2 = registerOrchestrations2 ?? throw new ArgumentNullException(nameof(registerOrchestrations2));
             this.enableHttps = enableHttps;
         }
 
@@ -159,7 +194,15 @@ namespace DurableTask.AzureServiceFabric.Service
 
                 this.worker = new TaskHubWorker(this.fabricOrchestrationProvider.OrchestrationService);
 
-                this.registerOrchestrations(this.worker);
+                if (this.registerOrchestrations2 != null)
+                {
+                    this.localClient = new TaskHubClient(this.fabricOrchestrationProvider.OrchestrationServiceClient);
+                    this.registerOrchestrations2(this.worker, this.localClient);
+                }
+                else
+                {
+                    this.registerOrchestrations(this.worker);
+                }
 
                 await this.worker.StartAsync();
 
@@ -182,6 +225,7 @@ namespace DurableTask.AzureServiceFabric.Service
                     await this.worker.StopAsync(isForced: true);
                     this.worker.Dispose();
                     this.worker = null;
+                    this.localClient = null;
                     this.fabricOrchestrationProvider.Dispose();
                     this.fabricOrchestrationProvider = null;
                     ServiceFabricProviderEventSource.Tracing.LogFabricServiceInformation(this.statefulService, "Stopped Taskhub Worker");

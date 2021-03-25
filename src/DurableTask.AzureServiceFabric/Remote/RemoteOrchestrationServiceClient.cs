@@ -16,8 +16,10 @@ namespace DurableTask.AzureServiceFabric.Remote
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using System.Net;
     using System.Net.Http;
     using System.Net.Http.Formatting;
+    using System.Net.Sockets;
     using System.Threading;
     using System.Threading.Tasks;
     using System.Web;
@@ -35,6 +37,9 @@ namespace DurableTask.AzureServiceFabric.Remote
     /// </summary>
     public class RemoteOrchestrationServiceClient : IOrchestrationServiceClient, IDisposable
     {
+        private const int PartitionResolutionRetryCount = 3;
+        private static readonly TimeSpan PartitionResolutionRetryDelay = TimeSpan.FromSeconds(3);
+
         private readonly IPartitionEndpointResolver partitionProvider;
         private readonly int maxPollDelayInSecs = 10;
         private HttpClient httpClient;
@@ -93,8 +98,11 @@ namespace DurableTask.AzureServiceFabric.Remote
         public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses)
         {
             creationMessage.OrchestrationInstance.InstanceId.EnsureValidInstanceId();
-            var uri = await ConstructEndpointUriAsync(creationMessage.OrchestrationInstance.InstanceId, GetOrchestrationFragment(creationMessage.OrchestrationInstance.InstanceId), CancellationToken.None);
-            await this.PutJsonAsync(uri, new CreateTaskOrchestrationParameters() { TaskMessage = creationMessage, DedupeStatuses = dedupeStatuses });
+            await this.PutJsonAsync(
+                creationMessage.OrchestrationInstance.InstanceId,
+                this.GetOrchestrationFragment(creationMessage.OrchestrationInstance.InstanceId),
+                new CreateTaskOrchestrationParameters() { TaskMessage = creationMessage, DedupeStatuses = dedupeStatuses },
+                CancellationToken.None);
         }
 
         /// <summary>
@@ -105,12 +113,17 @@ namespace DurableTask.AzureServiceFabric.Remote
         public async Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason)
         {
             instanceId.EnsureValidInstanceId();
-            var uri = await ConstructEndpointUriAsync(instanceId, GetOrchestrationFragment(instanceId), CancellationToken.None);
-            var builder = new UriBuilder($"{uri}?reason={HttpUtility.UrlEncode(reason)}");
-            var response = await this.HttpClient.DeleteAsync(builder.Uri);
-            if (!response.IsSuccessStatusCode)
+
+            var fragment = $"{this.GetOrchestrationFragment(instanceId)}?reason={HttpUtility.UrlEncode(reason)}";
+            using (var response = await this.ExecuteRequestWithRetriesAsync(
+                instanceId,
+                async (baseUri) => await this.HttpClient.DeleteAsync(new Uri(baseUri, fragment)),
+                CancellationToken.None))
             {
-                throw new RemoteServiceException("Unable to terminate task instance", response.StatusCode);
+                if (!response.IsSuccessStatusCode)
+                {
+                    throw new RemoteServiceException("Unable to terminate task instance", response.StatusCode);
+                }
             }
         }
 
@@ -123,9 +136,9 @@ namespace DurableTask.AzureServiceFabric.Remote
         public async Task<string> GetOrchestrationHistoryAsync(string instanceId, string executionId)
         {
             instanceId.EnsureValidInstanceId();
-            var uri = await ConstructEndpointUriAsync(instanceId, GetOrchestrationFragment(instanceId), CancellationToken.None);
-            var builder = new UriBuilder($"{uri}?executionId={executionId}");
-            var history = await this.HttpClient.GetStringResponseAsync(builder.Uri);
+
+            var fragment = $"{this.GetOrchestrationFragment(instanceId)}?executionId={executionId}";
+            var history = await this.GetStringResponseAsync(instanceId, fragment, CancellationToken.None);
             return history;
         }
 
@@ -138,9 +151,9 @@ namespace DurableTask.AzureServiceFabric.Remote
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
         {
             instanceId.EnsureValidInstanceId();
-            var uri = await ConstructEndpointUriAsync(instanceId, GetOrchestrationFragment(instanceId), CancellationToken.None);
-            var builder = new UriBuilder($"{uri}?allExecutions={allExecutions}");
-            var stateString = await this.HttpClient.GetStringResponseAsync(builder.Uri);
+
+            var fragment = $"{this.GetOrchestrationFragment(instanceId)}?allExecutions={allExecutions}";
+            var stateString = await this.GetStringResponseAsync(instanceId, fragment, CancellationToken.None);
             var states = JsonConvert.DeserializeObject<IList<OrchestrationState>>(stateString);
             return states;
         }
@@ -159,9 +172,9 @@ namespace DurableTask.AzureServiceFabric.Remote
             }
 
             instanceId.EnsureValidInstanceId();
-            var uri = await ConstructEndpointUriAsync(instanceId, GetOrchestrationFragment(instanceId), CancellationToken.None);
-            var builder = new UriBuilder($"{uri}?executionId={executionId}");
-            var stateString = await this.HttpClient.GetStringResponseAsync(builder.Uri);
+
+            var fragment = $"{this.GetOrchestrationFragment(instanceId)}?executionId={executionId}";
+            var stateString = await this.GetStringResponseAsync(instanceId, fragment, CancellationToken.None);
             var state = JsonConvert.DeserializeObject<OrchestrationState>(stateString);
             return state;
         }
@@ -197,8 +210,7 @@ namespace DurableTask.AzureServiceFabric.Remote
         public async Task SendTaskOrchestrationMessageAsync(TaskMessage message)
         {
             message.OrchestrationInstance.InstanceId.EnsureValidInstanceId();
-            var uri = await ConstructEndpointUriAsync(message.OrchestrationInstance.InstanceId, GetMessageFragment(message.SequenceNumber), CancellationToken.None);
-            await this.PutJsonAsync(uri, message);
+            await this.PutJsonAsync(message.OrchestrationInstance.InstanceId, this.GetMessageFragment(message.SequenceNumber), message, CancellationToken.None);
         }
 
         /// <summary>
@@ -270,35 +282,48 @@ namespace DurableTask.AzureServiceFabric.Remote
 
         #endregion Prepare url fragments for the requests
 
-        private async Task PutJsonAsync(Uri uri, object @object)
+        private async Task<string> GetStringResponseAsync(string instanceId, string fragment, CancellationToken cancellationToken)
+        {
+            using (var response = await this.ExecuteRequestWithRetriesAsync(
+                instanceId,
+                async (baseUri) => await this.HttpClient.GetAsync(new Uri(baseUri, fragment)),
+                cancellationToken))
+            {
+                string content = await response.Content.ReadAsStringAsync();
+                if (response.IsSuccessStatusCode)
+                {
+                    return content;
+                }
+
+                throw new HttpRequestException($"Request failed with status code '{response.StatusCode}' and content '{content}'");
+            }
+        }
+
+        private async Task PutJsonAsync(string instanceId, string fragment, object @object, CancellationToken cancellationToken)
         {
             var mediaFormatter = new JsonMediaTypeFormatter()
             {
                 SerializerSettings = new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.All }
             };
 
-            HttpResponseMessage result = await this.HttpClient.PutAsync(uri, @object, mediaFormatter);
-
-            // TODO: Improve exception handling
-            if (result.StatusCode == System.Net.HttpStatusCode.Conflict)
+            using (var result = await this.ExecuteRequestWithRetriesAsync(
+                instanceId,
+                async (baseUri) => await this.HttpClient.PutAsync(new Uri(baseUri, fragment), @object, mediaFormatter),
+                cancellationToken))
             {
-                throw await result.Content?.ReadAsAsync<OrchestrationAlreadyExistsException>();
-            }
 
-            if (!result.IsSuccessStatusCode)
-            {
-                var content = await result.Content?.ReadAsStringAsync();
-                throw new RemoteServiceException($"CreateTaskOrchestrationAsync failed with status code {result.StatusCode}: {content}", result.StatusCode);
-            }
-        }
+                // TODO: Improve exception handling
+                if (result.StatusCode == HttpStatusCode.Conflict)
+                {
+                    throw await result.Content?.ReadAsAsync<OrchestrationAlreadyExistsException>();
+                }
 
-        private async Task<Uri> ConstructEndpointUriAsync(string instanceId, string fragment, CancellationToken cancellationToken)
-        {
-            instanceId.EnsureValidInstanceId();
-            cancellationToken.ThrowIfCancellationRequested();
-            string endpoint = await this.partitionProvider.GetPartitionEndPointAsync(instanceId, cancellationToken);
-            string defaultEndPoint = GetDefaultEndPoint(endpoint);
-            return new Uri($"{defaultEndPoint.TrimEnd('/')}/{fragment}");
+                if (!result.IsSuccessStatusCode)
+                {
+                    var content = await result.Content?.ReadAsStringAsync();
+                    throw new RemoteServiceException($"CreateTaskOrchestrationAsync failed with status code {result.StatusCode}: {content}", result.StatusCode);
+                }
+            }
         }
 
         private async Task<IEnumerable<Uri>> GetAllEndpointsAsync(CancellationToken cancellationToken)
@@ -314,6 +339,64 @@ namespace DurableTask.AzureServiceFabric.Remote
             var jObject = JObject.Parse(endpoint);
             var defaultEndPoint = jObject["Endpoints"][Constants.TaskHubProxyServiceName].ToString();
             return defaultEndPoint;
+        }
+
+        private async Task<HttpResponseMessage> ExecuteRequestWithRetriesAsync(string instanceId, Func<Uri, Task<HttpResponseMessage>> requestAsync, CancellationToken cancellationToken)
+        {
+            instanceId.EnsureValidInstanceId();
+
+            int retryAttempt = 0;
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                HttpResponseMessage response = null;
+                Exception exception = null;
+                try
+                {
+                    var endpointJson = await this.partitionProvider.GetPartitionEndPointAsync(instanceId, cancellationToken);
+                    var endpoint = this.GetDefaultEndPoint(endpointJson);
+
+                    response = await requestAsync(new Uri(endpoint));
+                    if (response.IsSuccessStatusCode || response.Headers.Contains(Constants.ActivityIdHeaderName))
+                    {
+                        return response;
+                    }
+
+                    // We will end up with an incorrect endpoint and a valid response without the ActivityId header when all of these conditions are true:
+                    // a) Service Fabric internal cache fails to receive notification for a replica move (and the subsequent endpoint change).
+                    // b) The http.sys URLACL either failed to clean up or was reused by another replica on the same machine.
+                    // c) The server side is yet to be upgraded to return ActivityId header with each request.
+                    // The HTTP status code 404 or 503 will depend upon the state the new replica and the active URLACLs.
+                    // HTTP 404 - We'll end up with this error if the port was reused by another replica belonging to a different partition.
+                    //            This will make the partition id component of the URL different resulting in http.sys returning a 404.
+                    // HTTP 503 - We'll end up with this error if the URLACL fails to get cleaned up and we have no no process listening
+                    //            on this port. This error code is returned by http.sys itself.
+                    if (response.StatusCode != HttpStatusCode.NotFound && response.StatusCode != HttpStatusCode.ServiceUnavailable)
+                    {
+                        return response;
+                    }
+                }
+                catch (Exception ex) when (ex is SocketException || ex is WebException)
+                {
+                    exception = ex;
+                }
+
+                if (++retryAttempt < PartitionResolutionRetryCount)
+                {
+                    response?.Dispose();
+
+                    await Task.Delay(PartitionResolutionRetryDelay);
+                    await this.partitionProvider.RefreshPartitionEndpointAsync(instanceId, cancellationToken);
+                    continue;
+                }
+
+                if (exception != null)
+                {
+                    throw exception;
+                }
+
+                return response;
+            }
         }
 
         #region IDisposable Support

@@ -13,6 +13,7 @@
 
 namespace DurableTask.AzureServiceFabric.Service
 {
+    using System;
     using System.Net;
     using System.Net.Http;
     using System.Web.Http.ExceptionHandling;
@@ -24,9 +25,11 @@ namespace DurableTask.AzureServiceFabric.Service
     {
         public override void Handle(ExceptionHandlerContext context)
         {
-            ServiceFabricProviderEventSource.Tracing.LogProxyServiceError(context.Request.Method.ToString(),
-                                                                          context.Request.RequestUri.AbsolutePath,
-                                                                          context.Exception);
+            var activityId = Guid.NewGuid().ToString("D");
+            ServiceFabricProviderEventSource.Tracing.LogProxyServiceError(activityId,
+                context.Request.Method.ToString(),
+                context.Request.RequestUri.AbsolutePath,
+                context.Exception);
 
             HttpResponseMessage response = context.Request.CreateResponse(HttpStatusCode.InternalServerError, context.Exception);
             context.Result = new ResponseMessageResult(response);
