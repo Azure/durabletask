@@ -13,6 +13,7 @@
 
 namespace DurableTask.AzureServiceFabric.Service
 {
+    using System;
     using System.Threading;
     using System.Threading.Tasks;
     using System.Web.Http.ExceptionHandling;
@@ -27,7 +28,8 @@ namespace DurableTask.AzureServiceFabric.Service
         /// <inheritdoc />
         public async override Task LogAsync(ExceptionLoggerContext context, CancellationToken cancellationToken)
         {
-            ServiceFabricProviderEventSource.Tracing.LogProxyServiceError(context.Request.Method.ToString(), context.Request.RequestUri.AbsolutePath, context.Exception);
+            var activityId = Guid.NewGuid().ToString("D");
+            ServiceFabricProviderEventSource.Tracing.LogProxyServiceError(activityId, context.Request.Method.ToString(), context.Request.RequestUri.AbsolutePath, context.Exception);
             await base.LogAsync(context, cancellationToken);
         }
     }

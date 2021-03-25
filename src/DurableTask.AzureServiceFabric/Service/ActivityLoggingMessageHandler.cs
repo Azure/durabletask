@@ -27,18 +27,21 @@ namespace DurableTask.AzureServiceFabric.Service
         {
             string requestMethod = request.Method.ToString();
             string requestUri = request.RequestUri.ToString();
-            ServiceFabricProviderEventSource.Tracing.LogProxyServiceRequestInformation($"Proxy service incoming request {requestUri} with method {requestMethod}");
+            string activityId = Guid.NewGuid().ToString("D");
+            ServiceFabricProviderEventSource.Tracing.LogProxyServiceRequestInformation($"{activityId} : Proxy service incoming request {requestUri} with method {requestMethod}");
             HttpResponseMessage response = null;
             try
             {
                 response = await base.SendAsync(request, cancellationToken);
-                ServiceFabricProviderEventSource.Tracing.LogProxyServiceRequestInformation($"Proxy service responding request {requestUri} with method {requestMethod} with status code {response.StatusCode}");
+                ServiceFabricProviderEventSource.Tracing.LogProxyServiceRequestInformation($"{activityId} : Proxy service responding request {requestUri} with method {requestMethod} with status code {response.StatusCode}");
             }
             catch (Exception exception)
             {
-                ServiceFabricProviderEventSource.Tracing.LogProxyServiceError(requestUri, requestMethod, exception);
+                ServiceFabricProviderEventSource.Tracing.LogProxyServiceError(activityId, requestUri, requestMethod, exception);
                 response = request.CreateResponse(HttpStatusCode.InternalServerError, exception);
             }
+
+            response.Headers.TryAddWithoutValidation(Constants.ActivityIdHeaderName, activityId);
 
             return response;
         }

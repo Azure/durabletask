@@ -36,5 +36,14 @@ namespace DurableTask.AzureServiceFabric
         /// <param name="cancellationToken">Token to inform when a task is cancelled.</param>
         /// <returns> Partition end point </returns>
         Task<string> GetPartitionEndPointAsync(string instanceId, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Indicates to the resolver that the current endpoint may be stale and requests
+        /// for the endpoint to be refreshed.
+        /// </summary>
+        /// <param name="instanceId">InstanceId of orchestration</param>
+        /// <param name="cancellationToken">Token to inform when a task is cancelled.</param>
+        /// <returns>An asynchronous task to monitor the completion of this operation.</returns>
+        Task RefreshPartitionEndpointAsync(string instanceId, CancellationToken cancellationToken);
     }
 }

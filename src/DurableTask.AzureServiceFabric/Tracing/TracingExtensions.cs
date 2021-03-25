@@ -33,10 +33,10 @@ namespace DurableTask.AzureServiceFabric.Tracing
                 formattedMessage);
         }
 
-        internal static void LogProxyServiceError(this ServiceFabricProviderEventSource eventSource, string requestUri, string requestMethod, Exception exception)
+        internal static void LogProxyServiceError(this ServiceFabricProviderEventSource eventSource, string activityId, string requestUri, string requestMethod, Exception exception)
         {
             string exceptionDetails = $"Type: {exception.GetType()}, Message: {exception.Message}, StackTrace: {exception.StackTrace}, InnerException: {exception.InnerException}";
-            string logMessage = $"Proxy service request {requestUri} with method {requestMethod} resulted in error. Exception Details - {exceptionDetails}";
+            string logMessage = $"{activityId} : Proxy service request {requestUri} with method {requestMethod} resulted in error. Exception Details - {exceptionDetails}";
 
             eventSource.LogProxyServiceError(logMessage);
         }
