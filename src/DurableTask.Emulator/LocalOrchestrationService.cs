@@ -211,6 +211,7 @@ namespace DurableTask.Emulator
                     Version = ee.Version,
                     Name = ee.Name,
                     Input = ee.Input,
+                    ScheduledStartTime = ee.ScheduledStartTime,
                 };
 
                 ed.Add(creationMessage.OrchestrationInstance.ExecutionId, newState);

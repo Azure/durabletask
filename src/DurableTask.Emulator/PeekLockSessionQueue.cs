@@ -14,9 +14,11 @@
 namespace DurableTask.Emulator
 {
     using DurableTask.Core;
+    using DurableTask.Core.History;
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
+    using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
 
@@ -164,7 +166,7 @@ namespace DurableTask.Emulator
                 {
                     foreach (TaskSession ts in this.sessionQueue)
                     {
-                        if (ts.Messages.Count > 0)
+                        if (ts.Messages.Count > 0 && !ts.Messages.Any(m => m.Event is ExecutionStartedEvent ese && ese.ScheduledStartTime > DateTime.UtcNow))
                         {
                             this.lockedSessionQueue.Add(ts);
                             this.sessionQueue.Remove(ts);
