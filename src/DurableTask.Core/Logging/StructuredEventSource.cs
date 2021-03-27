@@ -24,7 +24,7 @@ namespace DurableTask.Core.Logging
     [EventSource(Name = "DurableTask-Core")]
     class StructuredEventSource : EventSource
     {
-        public static readonly StructuredEventSource Log = new StructuredEventSource();
+        internal static readonly StructuredEventSource Log = new StructuredEventSource();
 
         static readonly AsyncLocal<Guid> ActivityIdState = new AsyncLocal<Guid>();
 
@@ -49,7 +49,7 @@ namespace DurableTask.Core.Logging
         bool IsEnabled(EventLevel level) => this.IsEnabled(level, EventKeywords.None);
 
         [Event(EventIds.TaskHubWorkerStarting, Level = EventLevel.Informational, Version = 1)]
-        public void TaskHubWorkerStarting(string AppName, string ExtensionVersion)
+        internal void TaskHubWorkerStarting(string AppName, string ExtensionVersion)
         {
             if (this.IsEnabled(EventLevel.Informational))
             {
@@ -58,7 +58,7 @@ namespace DurableTask.Core.Logging
         }
 
         [Event(EventIds.TaskHubWorkerStarted, Level = EventLevel.Informational, Version = 1)]
-        public void TaskHubWorkerStarted(long LatencyMs, string AppName, string ExtensionVersion)
+        internal void TaskHubWorkerStarted(long LatencyMs, string AppName, string ExtensionVersion)
         {
             if (this.IsEnabled(EventLevel.Informational))
             {
@@ -67,7 +67,7 @@ namespace DurableTask.Core.Logging
         }
 
         [Event(EventIds.TaskHubWorkerStopping, Level = EventLevel.Informational, Version = 1)]
-        public void TaskHubWorkerStopping(bool IsForced, string AppName, string ExtensionVersion)
+        internal void TaskHubWorkerStopping(bool IsForced, string AppName, string ExtensionVersion)
         {
             if (this.IsEnabled(EventLevel.Informational))
             {
@@ -76,7 +76,7 @@ namespace DurableTask.Core.Logging
         }
 
         [Event(EventIds.TaskHubWorkerStopped, Level = EventLevel.Informational, Version = 1)]
-        public void TaskHubWorkerStopped(long LatencyMs, string AppName, string ExtensionVersion)
+        internal void TaskHubWorkerStopped(long LatencyMs, string AppName, string ExtensionVersion)
         {
             if (this.IsEnabled(EventLevel.Informational))
             {
@@ -85,7 +85,7 @@ namespace DurableTask.Core.Logging
         }
 
         [Event(EventIds.DispatcherStarting, Level = EventLevel.Verbose, Version = 1)]
-        public void DispatcherStarting(string Dispatcher, string AppName, string ExtensionVersion)
+        internal void DispatcherStarting(string Dispatcher, string AppName, string ExtensionVersion)
         {
             if (this.IsEnabled(EventLevel.Verbose))
             {
@@ -94,7 +94,7 @@ namespace DurableTask.Core.Logging
         }
 
         [Event(EventIds.DispatcherStopped, Level = EventLevel.Verbose, Version = 1)]
-        public void DispatcherStopped(string Dispatcher, string AppName, string ExtensionVersion)
+        internal void DispatcherStopped(string Dispatcher, string AppName, string ExtensionVersion)
         {
             if (this.IsEnabled(EventLevel.Verbose))
             {
@@ -103,7 +103,7 @@ namespace DurableTask.Core.Logging
         }
 
         [Event(EventIds.DispatchersStopping, Level = EventLevel.Verbose, Version = 1)]
-        public void DispatchersStopping(
+        internal void DispatchersStopping(
             string Dispatcher,
             int WorkItemCount,
             int ActiveFetcherCount,
@@ -247,7 +247,7 @@ namespace DurableTask.Core.Logging
         }
 
         [Event(EventIds.ProcessWorkItemFailed, Level = EventLevel.Error, Version = 1)]
-        public void ProcessWorkItemFailed(
+        internal void ProcessWorkItemFailed(
             string Dispatcher,
             string WorkItemId,
             string Details,

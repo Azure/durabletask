@@ -1178,7 +1178,7 @@ namespace DurableTask.AzureStorage.Tracking
                         executionId,
                         historyEventBatch,
                         newEventListBuffer,
-                        newEvents.Count,
+                        allEvents.Count,
                         episodeNumber,
                         estimatedBytes,
                         eTagValue,
@@ -1200,7 +1200,7 @@ namespace DurableTask.AzureStorage.Tracking
                     executionId,
                     historyEventBatch,
                     newEventListBuffer,
-                    newEvents.Count,
+                    allEvents.Count,
                     episodeNumber,
                     estimatedBytes,
                     eTagValue,
@@ -1457,7 +1457,7 @@ namespace DurableTask.AzureStorage.Tracking
                 episodeNumber,
                 stopwatch.ElapsedMilliseconds,
                 estimatedBatchSizeInBytes,
-                string.Concat(eTagValue ?? "(null)", " -->", Environment.NewLine, newETagValue ?? "(null)"),
+                string.Concat(eTagValue ?? "(null)", " --> ", newETagValue ?? "(null)"),
                 isFinalBatch);
 
             return newETagValue;
