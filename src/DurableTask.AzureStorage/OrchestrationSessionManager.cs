@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.AzureStorage
 {
     using System;
@@ -23,6 +23,8 @@ namespace DurableTask.AzureStorage
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
+    using DurableTask.Core.History;
+    using Microsoft.WindowsAzure.Storage.Queue;
 
     class OrchestrationSessionManager : IDisposable
     {
@@ -160,7 +162,10 @@ namespace DurableTask.AzureStorage
 
                     // This will block until either new messages arrive or the queue is released.
                     IReadOnlyList<MessageData> messages = await controlQueue.GetMessagesAsync(cancellationToken);
-                    
+
+                    // De-dupe any execution started messages
+                    messages = this.FilterOutExecutionStartedForDedupeValidation(controlQueue, messages, traceActivityId, cancellationToken);
+
                     if (messages.Count > 0)
                     {
                         this.AddMessageToPendingOrchestration(controlQueue, messages, traceActivityId, cancellationToken);
@@ -176,6 +181,143 @@ namespace DurableTask.AzureStorage
                     partitionId,
                     $"Stopped listening for messages on queue {controlQueue.Name}.");
             }
+        }
+
+        IReadOnlyList<MessageData> FilterOutExecutionStartedForDedupeValidation(
+            ControlQueue controlQueue,
+            IReadOnlyList<MessageData> messages,
+            Guid traceActivityId,
+            CancellationToken cancellationToken)
+        {
+            List<MessageData>? executionStartedMessages = null;
+            List<MessageData> otherMessages = new List<MessageData>(messages.Count);
+
+            foreach (MessageData message in messages)
+            {
+                if (message.TaskMessage.Event.EventType == EventType.ExecutionStarted)
+                {
+                    executionStartedMessages ??= new List<MessageData>(messages.Count);
+                    executionStartedMessages!.Add(message);
+                }
+                else
+                {
+                    otherMessages.Add(message);
+                }
+            }
+
+            if (executionStartedMessages?.Count > 0)
+            {
+                Task.Run(async () =>
+                {
+                    var messagesToKeep = new List<MessageData>(executionStartedMessages.Count);
+                    List<MessageData>? messagesToDefer = null;
+                    List<MessageData>? messagesToDiscard = null;
+
+                    IEnumerable<string> instanceIds = executionStartedMessages
+                        .Select(msg => msg.TaskMessage.OrchestrationInstance.InstanceId)
+                        .Distinct(StringComparer.OrdinalIgnoreCase);
+
+                    IList<OrchestrationState> instances = await this.trackingStore.GetStateAsync(instanceIds);
+                    IDictionary<string, OrchestrationState> remoteOrchestrationsById =
+                        instances.ToDictionary(o => o.OrchestrationInstance.InstanceId);
+
+                    foreach (MessageData message in executionStartedMessages)
+                    {
+                        OrchestrationInstance localInstance = message.TaskMessage.OrchestrationInstance;
+                        if (remoteOrchestrationsById.TryGetValue(localInstance.InstanceId, out OrchestrationState remoteInstance) &&
+                            string.Equals(localInstance.ExecutionId, remoteInstance.OrchestrationInstance.ExecutionId, StringComparison.OrdinalIgnoreCase))
+                        {
+                            // Happy path: The message matches the table status. Allow it to run.
+                            messagesToKeep.Add(message);
+                        }
+                        else if (this.IsScheduledAfterInstanceUpdate(message, remoteInstance))
+                        {
+                            // The message was inserted after the Instances table was updated.
+                            // The same machine will have generated both timestamps so time skew is not a factor.
+                            // We know almost certainly that this is a redundant message and can be safely discarded.
+                            messagesToDiscard ??= new List<MessageData>(executionStartedMessages.Count);
+                            messagesToDiscard!.Add(message);
+                        }
+                        else if (message.OriginalQueueMessage.DequeueCount >= 10)
+                        {
+                            // We've tried and failed repeatedly to process this start message. Most likely it will never succeed, possibly because
+                            // the client failed to update the Instances table after enqueuing this message. In such a case, the client would
+                            // have observed a failure and will know to retry with a new message. Discard this one.
+                            messagesToDiscard ??= new List<MessageData>(executionStartedMessages.Count);
+                            messagesToDiscard!.Add(message);
+                        }
+                        else
+                        {
+                            // This message does not match the record in the Instances table, but we don't yet know for sure if it's invalid.
+                            // Defer it in hopes that by the time we dequeue it next we'll be more confident about whether it's valid or not.
+                            messagesToDefer ??= new List<MessageData>(executionStartedMessages.Count);
+                            messagesToDefer!.Add(message);
+                        }
+                    }
+
+                    if (messagesToKeep.Count > 0)
+                    {
+                        this.AddMessageToPendingOrchestration(controlQueue, messagesToKeep, traceActivityId, cancellationToken);
+                    }
+
+                    if (messagesToDefer?.Count > 0)
+                    {
+                        await messagesToDefer.ParallelForEachAsync(msg => controlQueue.AbandonMessageAsync(msg, session: null));
+                    }
+
+                    if (messagesToDiscard?.Count > 0)
+                    {
+                        await messagesToDiscard.ParallelForEachAsync(msg =>
+                        {
+                            this.settings.Logger.DuplicateMessageDetected(
+                                this.storageAccountName,
+                                this.settings.TaskHubName,
+                                msg.TaskMessage.Event.EventType.ToString(),
+                                Utils.GetTaskEventId(msg.TaskMessage.Event),
+                                msg.OriginalQueueMessage.Id,
+                                msg.TaskMessage.OrchestrationInstance.InstanceId,
+                                msg.TaskMessage.OrchestrationInstance.ExecutionId,
+                                controlQueue.Name,
+                                msg.OriginalQueueMessage.DequeueCount);
+
+                            return controlQueue.DeleteMessageAsync(msg, session: null);
+                        });
+                    }
+                });
+            }
+
+            return otherMessages;
+        }
+
+        bool IsScheduledAfterInstanceUpdate(MessageData msg, OrchestrationState? remoteInstance)
+        {
+            if (remoteInstance == null)
+            {
+                // This is a new instance and we don't yet have a status record for it.
+                // We can't make a call for it yet.
+                return false;
+            }
+
+            if (remoteInstance.CreatedTime < msg.TaskMessage.Event.Timestamp)
+            {
+                // The message was inserted after the Instances table was updated.
+                // The same machine will have generated both timestamps so time skew is not a factor.
+                // We know almost certainly that this is a redundant message and can be safely discarded.
+                return true;
+            }
+
+            CloudQueueMessage cloudQueueMessage = msg.OriginalQueueMessage;
+            if (cloudQueueMessage.DequeueCount <= 1 || !cloudQueueMessage.NextVisibleTime.HasValue)
+            {
+                // We can't use the initial insert time and instead must rely on a re-insertion time,
+                // which is only available to use after the first dequeue count.
+                return false;
+            }
+
+            // This calculation assumes that the value of ControlQueueVisibilityTimeout did not change
+            // in any meaningful way between the time the message was inserted and now.
+            DateTime latestReinsertionTime = cloudQueueMessage.NextVisibleTime.Value.Subtract(this.settings.ControlQueueVisibilityTimeout).DateTime;
+            return latestReinsertionTime > remoteInstance.CreatedTime;
         }
 
         internal void AddMessageToPendingOrchestration(
@@ -237,7 +379,7 @@ namespace DurableTask.AzureStorage
 
                     // Walk backwards through the list of batches until we find one with a matching Instance ID.
                     // This is assumed to be more efficient than walking forward if most messages arrive in the queue in groups.
-                    PendingMessageBatch targetBatch = null;
+                    PendingMessageBatch? targetBatch = null;
                     node = this.pendingOrchestrationMessageBatches.Last;
                     while (node != null)
                     {
@@ -339,7 +481,7 @@ namespace DurableTask.AzureStorage
             });
         }
 
-        public async Task<OrchestrationSession> GetNextSessionAsync(CancellationToken cancellationToken)
+        public async Task<OrchestrationSession?> GetNextSessionAsync(CancellationToken cancellationToken)
         {
             while (!cancellationToken.IsCancellationRequested)
             {
@@ -355,7 +497,7 @@ namespace DurableTask.AzureStorage
 
                     if (!this.activeOrchestrationSessions.TryGetValue(nextBatch.OrchestrationInstanceId, out var existingSession))
                     {
-                        OrchestrationInstance instance = nextBatch.OrchestrationState.OrchestrationInstance ??
+                        OrchestrationInstance instance = nextBatch.OrchestrationState?.OrchestrationInstance ??
                             new OrchestrationInstance
                             {
                                 InstanceId = nextBatch.OrchestrationInstanceId,
@@ -475,19 +617,48 @@ namespace DurableTask.AzureStorage
 
         class PendingMessageBatch
         {
-            public PendingMessageBatch(ControlQueue controlQueue, string instanceId, string executionId)
+            string? executionId;
+            OrchestrationRuntimeState? runtimeState;
+
+            public PendingMessageBatch(ControlQueue controlQueue, string instanceId, string? executionId)
             {
                 this.ControlQueue = controlQueue ?? throw new ArgumentNullException(nameof(controlQueue));
                 this.OrchestrationInstanceId = instanceId ?? throw new ArgumentNullException(nameof(instanceId));
-                this.OrchestrationExecutionId = executionId; // null is expected in some cases
+                this.executionId = executionId; // null is expected in some cases
             }
 
             public ControlQueue ControlQueue { get; }
             public string OrchestrationInstanceId { get; }
-            public string OrchestrationExecutionId { get; set; }
+            public string? OrchestrationExecutionId
+            {
+                get => this.executionId;
+                set
+                {
+                    if (this.executionId != null)
+                    {
+                        throw new InvalidOperationException($"This batch already has an ExecutionId '{this.executionId}' assigned.");
+                    }
+
+                    this.executionId = value;
+                }
+            }
+
             public MessageCollection Messages { get; } = new MessageCollection();
-            public OrchestrationRuntimeState OrchestrationState { get; set; }
-            public string ETag { get; set; }
+            public OrchestrationRuntimeState? OrchestrationState
+            {
+                get => this.runtimeState;
+                set
+                {
+                    if (this.runtimeState != null)
+                    {
+                        throw new InvalidOperationException($"This batch already has a runtime state assigned.");
+                    }
+
+                    this.runtimeState = value;
+                }
+            }
+
+            public string? ETag { get; set; }
             public DateTime LastCheckpointTime { get; set; }
         }
     }

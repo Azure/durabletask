@@ -24,7 +24,8 @@ namespace DurableTask.AzureStorage.Tests
         public static TestOrchestrationHost GetTestOrchestrationHost(
             bool enableExtendedSessions,
             int extendedSessionTimeoutInSeconds = 30,
-            bool fetchLargeMessages = true)
+            bool fetchLargeMessages = true,
+            Action<AzureStorageOrchestrationServiceSettings> modifySettingsAction = null)
         {
             string storageConnectionString = GetTestStorageAccountConnectionString();
 
@@ -40,6 +41,9 @@ namespace DurableTask.AzureStorage.Tests
                 // TODO: Add a logger provider so we can collect these logs in memory.
                 LoggerFactory = new LoggerFactory(),
             };
+
+            // Give the caller a chance to make test-specific changes to the settings
+            modifySettingsAction?.Invoke(settings);
 
             return new TestOrchestrationHost(settings);
         }
@@ -89,5 +93,9 @@ namespace DurableTask.AzureStorage.Tests
 
             throw new TimeoutException("Timed out waiting for condition to be true.");
         }
+
+        public static void Await(this Task task) => task.GetAwaiter().GetResult();
+
+        public static T Await<T>(this Task<T> task) => task.GetAwaiter().GetResult();
     }
 }

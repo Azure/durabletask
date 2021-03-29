@@ -188,6 +188,11 @@ namespace DurableTask.AzureStorage.Messaging
             return base.AbandonMessageAsync(message, session);
         }
 
+        public Task DeleteMessageAsync(MessageData message)
+        {
+            return this.DeleteMessageAsync(message, session: null);
+        }
+
         public override Task DeleteMessageAsync(MessageData message, SessionBase session)
         {
             this.stats.PendingOrchestratorMessages.TryRemove(message.OriginalQueueMessage.Id, out _);

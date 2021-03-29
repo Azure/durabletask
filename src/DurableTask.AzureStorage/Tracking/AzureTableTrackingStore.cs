@@ -282,7 +282,7 @@ namespace DurableTask.AzureStorage.Tracking
                                 query,
                                 continuationToken,
                                 this.StorageTableRequestOptions,
-                                null,
+                                context,
                                 linkedCts.Token);
                        }
                    });
@@ -628,6 +628,7 @@ namespace DurableTask.AzureStorage.Tracking
             orchestrationState.Version = orchestrationInstanceStatus.Version;
             orchestrationState.Status = orchestrationInstanceStatus.CustomStatus;
             orchestrationState.CreatedTime = orchestrationInstanceStatus.CreatedTime;
+            orchestrationState.CompletedTime = orchestrationInstanceStatus.CompletedTime.GetValueOrDefault();
             orchestrationState.LastUpdatedTime = orchestrationInstanceStatus.LastUpdatedTime;
             orchestrationState.Input = orchestrationInstanceStatus.Input;
             orchestrationState.Output = orchestrationInstanceStatus.Output;
@@ -640,6 +641,97 @@ namespace DurableTask.AzureStorage.Tracking
             }
 
             return orchestrationState;
+        }
+
+        /// <inheritdoc />
+        public override async Task<IList<OrchestrationState>> GetStateAsync(IEnumerable<string> instanceIds)
+        {
+            if (instanceIds == null || !instanceIds.Any())
+            {
+                return Array.Empty<OrchestrationState>();
+            }
+
+            // Example:
+            // "PartitionKey eq '02717dd1-2eda-47a0-9372-62a1bfa47f46' or PartitionKey eq '0d1c021f-63a3-4678-9495-63025491a091' or PartitionKey eq '0fd59a43-1925-456b-99a2-7c13ac66ce2b'"
+            var queryBuilder = new StringBuilder(1024);
+            int count = 0;
+            foreach (string id in instanceIds)
+            {
+                if (count > 0)
+                {
+                    queryBuilder.Append(" or ");
+                }
+
+                queryBuilder.Append("PartitionKey eq '").Append(id).Append('\'');
+                count++;
+            }
+
+            // The caller of this method only cares about the instance ID, execution ID, and created time.
+            var query = new TableQuery
+            {
+                SelectColumns = new[] { "ExecutionId", "CreatedTime" },
+                FilterString = queryBuilder.ToString()
+            };
+
+            Stopwatch stopwatch = Stopwatch.StartNew();
+
+            var instances = new List<DynamicTableEntity>(count);
+            TableContinuationToken continuationToken = null;
+            while (true)
+            {
+                var segment = await TimeoutHandler.ExecuteWithTimeout(
+                    operationName: "FetchInstance",
+                    account: this.storageAccountName,
+                    settings: this.settings,
+                    operation: (context, timeoutToken) =>
+                    {
+                        return this.InstancesTable.ExecuteQuerySegmentedAsync(
+                            query,
+                            continuationToken,
+                            this.StorageTableRequestOptions,
+                            context,
+                            timeoutToken);
+                    });
+
+                this.stats.StorageRequests.Increment();
+                this.stats.TableEntitiesRead.Increment(segment.Results.Count);
+
+                instances.AddRange(segment);
+
+                continuationToken = segment.ContinuationToken;
+                if (continuationToken == null)
+                {
+                    break;
+                }
+            }
+
+            stopwatch.Stop();
+
+            var result = new List<OrchestrationState>(instances.Count);
+            foreach (DynamicTableEntity entity in instances)
+            {
+                var state = new OrchestrationState
+                {
+                    OrchestrationInstance = new OrchestrationInstance
+                    {
+                        InstanceId = entity.PartitionKey,
+                        ExecutionId = entity.Properties["ExecutionId"].StringValue,
+                    },
+                    CreatedTime = entity.Properties["CreatedTime"].DateTime.GetValueOrDefault(),
+                };
+
+                result.Add(state);
+            }
+
+            // Just write one trace to convey the fact that there was only one storage call
+            this.settings.Logger.FetchedInstanceStatus(
+                this.storageAccountName,
+                this.taskHubName,
+                string.Join(",", result.Select(state => state.OrchestrationInstance.InstanceId)),
+                string.Join(",", result.Select(state => state.OrchestrationInstance.ExecutionId)),
+                stopwatch.ElapsedMilliseconds);
+
+            return result;
         }
 
         /// <inheritdoc />
@@ -953,7 +1045,8 @@ namespace DurableTask.AzureStorage.Tracking
                     ["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Pending.ToString()),
                     ["LastUpdatedTime"] = new EntityProperty(DateTime.UtcNow),
                     ["TaskHubName"] = new EntityProperty(this.settings.TaskHubName),
-                    ["ScheduledStartTime"] = new EntityProperty(executionStartedEvent.ScheduledStartTime)
+                    ["ScheduledStartTime"] = new EntityProperty(executionStartedEvent.ScheduledStartTime),
+                    ["ExecutionId"] = new EntityProperty(executionStartedEvent.OrchestrationInstance.ExecutionId),
                 }
             };
 
@@ -1138,6 +1231,7 @@ namespace DurableTask.AzureStorage.Tracking
                         ExecutionCompletedEvent executionCompleted = (ExecutionCompletedEvent)historyEvent;
                         runtimeStatus = executionCompleted.OrchestrationStatus;
                         instanceEntity.Properties["RuntimeStatus"] = new EntityProperty(executionCompleted.OrchestrationStatus.ToString());
+                        instanceEntity.Properties["CompletedTime"] = new EntityProperty(DateTime.UtcNow);
                         this.SetInstancesTablePropertyFromHistoryProperty(
                             historyEntity,
                             instanceEntity,
@@ -1149,6 +1243,7 @@ namespace DurableTask.AzureStorage.Tracking
                         runtimeStatus = OrchestrationStatus.Terminated;
                         ExecutionTerminatedEvent executionTerminatedEvent = (ExecutionTerminatedEvent)historyEvent;
                         instanceEntity.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Terminated.ToString());
+                        instanceEntity.Properties["CompletedTime"] = new EntityProperty(DateTime.UtcNow);
                         this.SetInstancesTablePropertyFromHistoryProperty(
                             historyEntity,
                             instanceEntity,

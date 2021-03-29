@@ -101,6 +101,12 @@ namespace DurableTask.AzureStorage.Tracking
         Task<IList<OrchestrationState>> GetStateAsync(CancellationToken cancellationToken = default(CancellationToken));
 
         /// <summary>
+        /// Fetches instances status for multiple orchestration instances.
+        /// </summary>
+        /// <param name="instanceIds">The list of instances to query for.</param>
+        Task<IList<OrchestrationState>> GetStateAsync(IEnumerable<string> instanceIds);
+
+        /// <summary>
         /// Get The Orchestration State for querying orchestration instances by the condition
         /// </summary>
         /// <param name="createdTimeFrom">CreatedTimeFrom</param>

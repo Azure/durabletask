@@ -29,6 +29,7 @@ namespace DurableTask.AzureStorage
         public string CustomStatus { get; set; }
         public DateTime CreatedTime { get; set; }
         public DateTime LastUpdatedTime { get; set; }
+        public DateTime? CompletedTime { get; set; }
         public string RuntimeStatus { get; set; }
         public DateTime? ScheduledStartTime { get; set; }
     }
