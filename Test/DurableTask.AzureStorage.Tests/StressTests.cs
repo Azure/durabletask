@@ -27,7 +27,9 @@ namespace DurableTask.AzureStorage.Tests
     public class StressTests
     {
         /// <summary>
-        /// End-to-end test which validates a simple orchestrator function which doesn't call any activity functions.
+        /// Starts a large'ish number of orchestrations concurrently and verifies correct behavior
+        /// both in the case where they all share the same instance ID and when they have unique
+        /// instance IDs.
         /// </summary>
         [DataTestMethod]
         [DataRow(true)]

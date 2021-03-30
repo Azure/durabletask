@@ -183,6 +183,19 @@ namespace DurableTask.AzureStorage
             }
         }
 
+        /// <summary>
+        /// This method enumerates all the provided queue messages looking for ExecutionStarted messages. If any are found, it
+        /// spins up a background thread that does de-dupe validation. The background thread queries table storage to ensure that
+        /// each message has a matching record in the Instances table. If not, this method will either discard the message or 
+        /// abandon it for reprocessing in the event that the Instances table record hasn't been written yet (this happens
+        /// asynchronously and there is no guaranteed order). Meanwhile, this method will return all the non-ExecutionStarted
+        /// messages so that they can be processed immediately.
+        /// </summary>
+        /// <param name="controlQueue">A reference to the control queue from which these messages were dequeued.</param>
+        /// <param name="messages">The full set of messages recently dequeued.</param>
+        /// <param name="traceActivityId">The trace activity ID to use when writing traces.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>Returns the list of non-ExecutionStarted messages. This may be an empty list.</returns>
         IReadOnlyList<MessageData> FilterOutExecutionStartedForDedupeValidation(
             ControlQueue controlQueue,
             IReadOnlyList<MessageData> messages,
@@ -197,7 +210,7 @@ namespace DurableTask.AzureStorage
                 if (message.TaskMessage.Event.EventType == EventType.ExecutionStarted)
                 {
                     executionStartedMessages ??= new List<MessageData>(messages.Count);
-                    executionStartedMessages!.Add(message);
+                    executionStartedMessages.Add(message);
                 }
                 else
                 {
@@ -207,6 +220,8 @@ namespace DurableTask.AzureStorage
 
             if (executionStartedMessages?.Count > 0)
             {
+                // We do the de-dupe detection on a background thread to avoid delaying the processing of all the non-ExecutionStarted messages.
+                // This should ensure that we don't introduce any new latency for already-running orchestrations.
                 Task.Run(async () =>
                 {
                     var messagesToKeep = new List<MessageData>(executionStartedMessages.Count);
@@ -217,6 +232,9 @@ namespace DurableTask.AzureStorage
                         .Select(msg => msg.TaskMessage.OrchestrationInstance.InstanceId)
                         .Distinct(StringComparer.OrdinalIgnoreCase);
 
+                    // Terminology:
+                    // "Local"  -> the instance ID info comes from the local copy of the message we're examining
+                    // "Remote" -> the instance ID info comes from the Instances table that we're querying
                     IList<OrchestrationState> instances = await this.trackingStore.GetStateAsync(instanceIds);
                     IDictionary<string, OrchestrationState> remoteOrchestrationsById =
                         instances.ToDictionary(o => o.OrchestrationInstance.InstanceId);
@@ -232,11 +250,11 @@ namespace DurableTask.AzureStorage
                         }
                         else if (this.IsScheduledAfterInstanceUpdate(message, remoteInstance))
                         {
-                            // The message was inserted after the Instances table was updated.
-                            // The same machine will have generated both timestamps so time skew is not a factor.
-                            // We know almost certainly that this is a redundant message and can be safely discarded.
+                            // The message was scheduled after the Instances table was updated with the orchestration info.
+                            // We know almost certainly that this is a redundant message and can be safely discarded because
+                            // messages are *always* scheduled *before* the Instances table is inserted (or updated).
                             messagesToDiscard ??= new List<MessageData>(executionStartedMessages.Count);
-                            messagesToDiscard!.Add(message);
+                            messagesToDiscard.Add(message);
                         }
                         else if (message.OriginalQueueMessage.DequeueCount >= 10)
                         {
@@ -244,14 +262,14 @@ namespace DurableTask.AzureStorage
                             // the client failed to update the Instances table after enqueuing this message. In such a case, the client would
                             // have observed a failure and will know to retry with a new message. Discard this one.
                             messagesToDiscard ??= new List<MessageData>(executionStartedMessages.Count);
-                            messagesToDiscard!.Add(message);
+                            messagesToDiscard.Add(message);
                         }
                         else
                         {
                             // This message does not match the record in the Instances table, but we don't yet know for sure if it's invalid.
                             // Defer it in hopes that by the time we dequeue it next we'll be more confident about whether it's valid or not.
                             messagesToDefer ??= new List<MessageData>(executionStartedMessages.Count);
-                            messagesToDefer!.Add(message);
+                            messagesToDefer.Add(message);
                         }
                     }
 
@@ -289,6 +307,11 @@ namespace DurableTask.AzureStorage
             return otherMessages;
         }
 
+        /// <summary>
+        /// Returns <c>true</c> if <paramref name="msg"/> was scheduled (or rescheduled) after the corresponding
+        /// <paramref name="remoteInstance"/> record was written to the Instances table; <c>false</c> otherwise.
+        /// This logic is used to help determine whether an ExecutionStarted message is redundant and can be de-duped.
+        /// </summary>
         bool IsScheduledAfterInstanceUpdate(MessageData msg, OrchestrationState? remoteInstance)
         {
             if (remoteInstance == null)
@@ -300,7 +323,7 @@ namespace DurableTask.AzureStorage
 
             if (remoteInstance.CreatedTime < msg.TaskMessage.Event.Timestamp)
             {
-                // The message was inserted after the Instances table was updated.
+                // The message was inserted after the Instances table was updated, meaning that it's likely.
                 // The same machine will have generated both timestamps so time skew is not a factor.
                 // We know almost certainly that this is a redundant message and can be safely discarded.
                 return true;

@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.AzureStorage.Messaging
 {
     using System;
@@ -20,7 +20,6 @@ namespace DurableTask.AzureStorage.Messaging
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Monitoring;
-    using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Queue;
 
     class ControlQueue : TaskHubQueue, IDisposable
@@ -182,18 +181,13 @@ namespace DurableTask.AzureStorage.Messaging
             }
         }
 
-        public override Task AbandonMessageAsync(MessageData message, SessionBase session)
+        public override Task AbandonMessageAsync(MessageData message, SessionBase? session = null)
         {
             this.stats.PendingOrchestratorMessages.TryRemove(message.OriginalQueueMessage.Id, out _);
             return base.AbandonMessageAsync(message, session);
         }
 
-        public Task DeleteMessageAsync(MessageData message)
-        {
-            return this.DeleteMessageAsync(message, session: null);
-        }
-
-        public override Task DeleteMessageAsync(MessageData message, SessionBase session)
+        public override Task DeleteMessageAsync(MessageData message, SessionBase? session = null)
         {
             this.stats.PendingOrchestratorMessages.TryRemove(message.OriginalQueueMessage.Id, out _);
             return base.DeleteMessageAsync(message, session);
