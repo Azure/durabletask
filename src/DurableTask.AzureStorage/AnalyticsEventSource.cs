@@ -15,7 +15,7 @@ namespace DurableTask.AzureStorage
 {
     using System;
     using System.Diagnostics.Tracing;
-    using System.Threading;
+    using System.Runtime.CompilerServices;
     using DurableTask.AzureStorage.Logging;
 
     /// <summary>
@@ -27,8 +27,6 @@ namespace DurableTask.AzureStorage
     [EventSource(Name = "DurableTask-AzureStorage")]
     class AnalyticsEventSource : EventSource
     {
-        static readonly AsyncLocal<Guid> ActivityIdState = new AsyncLocal<Guid>();
-
         /// <summary>
         /// Singleton instance used for writing events.
         /// </summary>
@@ -37,9 +35,23 @@ namespace DurableTask.AzureStorage
         [NonEvent]
         public static void SetLogicalTraceActivityId(Guid activityId)
         {
-            // We use AsyncLocal to preserve activity IDs across async/await boundaries.
-            ActivityIdState.Value = activityId;
-            SetCurrentThreadActivityId(activityId);
+            try
+            {
+                SetCoreTraceActivityId(activityId);
+            }
+            catch (MissingMethodException)
+            {
+                // Best effort. This method is only available starting in DurableTask.Core v2.5.3.
+                // We catch to maintain backwards compatibility with previous versions.
+            }
+        }
+
+        // NoInlining ensures we can get a predictable MissingMethodException if the build of DurableTask.Core
+        // we're using doesn't define the LoggingExtensions.SetLogicalTraceActivityId() method.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        static void SetCoreTraceActivityId(Guid activityId)
+        {
+            DurableTask.Core.Logging.LoggingExtensions.SetLogicalTraceActivityId(activityId);
         }
 
         [Event(EventIds.SendingMessage, Level = EventLevel.Informational, Opcode = EventOpcode.Send, Task = Tasks.Enqueue, Version = 6)]

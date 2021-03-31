@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.AzureStorage.Messaging
 {
     using System;
@@ -92,7 +92,7 @@ namespace DurableTask.AzureStorage.Messaging
             return this.AddMessageAsync(message, sourceInstance, session: null);
         }
 
-        async Task<MessageData> AddMessageAsync(TaskMessage taskMessage, OrchestrationInstance sourceInstance, SessionBase session)
+        async Task<MessageData> AddMessageAsync(TaskMessage taskMessage, OrchestrationInstance sourceInstance, SessionBase? session)
         {
             MessageData data;
             try
@@ -164,7 +164,7 @@ namespace DurableTask.AzureStorage.Messaging
             return data;
         }
 
-        static string GetSerializableTraceContext(TaskMessage taskMessage)
+        static string? GetSerializableTraceContext(TaskMessage taskMessage)
         {
             TraceContextBase traceContext = CorrelationTraceContext.Current;
             if (traceContext != null)
@@ -226,7 +226,7 @@ namespace DurableTask.AzureStorage.Messaging
             return initialVisibilityDelay;
         }
 
-        public virtual async Task AbandonMessageAsync(MessageData message, SessionBase session)
+        public virtual async Task AbandonMessageAsync(MessageData message, SessionBase? session = null)
         {
             CloudQueueMessage queueMessage = message.OriginalQueueMessage;
             TaskMessage taskMessage = message.TaskMessage;
@@ -273,7 +273,7 @@ namespace DurableTask.AzureStorage.Messaging
                     TimeSpan.FromSeconds(numSecondsToWait),
                     MessageUpdateFields.Visibility,
                     this.QueueRequestOptions,
-                    session.StorageOperationContext);
+                    session?.StorageOperationContext ?? new OperationContext());
 
                 this.stats.MessagesUpdated.Increment();
             }
@@ -327,7 +327,7 @@ namespace DurableTask.AzureStorage.Messaging
             }
         }
 
-        public virtual async Task DeleteMessageAsync(MessageData message, SessionBase session)
+        public virtual async Task DeleteMessageAsync(MessageData message, SessionBase? session = null)
         {
             CloudQueueMessage queueMessage = message.OriginalQueueMessage;
             TaskMessage taskMessage = message.TaskMessage;
@@ -338,12 +338,12 @@ namespace DurableTask.AzureStorage.Messaging
                 taskMessage.Event.EventType.ToString(),
                 Utils.GetTaskEventId(taskMessage.Event),
                 queueMessage.Id,
-                session.Instance.InstanceId,
-                session.Instance.ExecutionId,
+                taskMessage.OrchestrationInstance.InstanceId,
+                taskMessage.OrchestrationInstance.ExecutionId,
                 this.storageQueue.Name,
                 message.SequenceNumber);
 
-            var haveRetried = false;
+            bool haveRetried = false;
             while (true)
             {
                 try
@@ -351,11 +351,11 @@ namespace DurableTask.AzureStorage.Messaging
                     await this.storageQueue.DeleteMessageAsync(
                         queueMessage,
                         this.QueueRequestOptions,
-                        session.StorageOperationContext);
+                        session?.StorageOperationContext ?? new OperationContext());
                 }
                 catch (Exception e)
                 {
-                    if (!haveRetried && IsMessageGoneException(e))
+                    if (!haveRetried && this.IsMessageGoneException(e))
                     {
                         haveRetried = true;
                         continue;
@@ -374,13 +374,13 @@ namespace DurableTask.AzureStorage.Messaging
 
         private bool IsMessageGoneException(Exception e)
         {
-            StorageException storageException = e as StorageException;
+            StorageException? storageException = e as StorageException;
             return storageException?.RequestInformation?.HttpStatusCode == 404;
         }
 
         void HandleMessagingExceptions(Exception e, MessageData message, string details)
         {
-            if (IsMessageGoneException(e))
+            if (this.IsMessageGoneException(e))
             {
                 // Message may have been processed and deleted already.
                 this.settings.Logger.MessageGone(

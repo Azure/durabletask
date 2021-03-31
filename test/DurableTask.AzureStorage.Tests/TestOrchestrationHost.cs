@@ -16,9 +16,11 @@ namespace DurableTask.AzureStorage.Tests
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
+    using System.Linq;
     using System.Runtime.Serialization;
     using System.Threading.Tasks;
     using DurableTask.Core;
+    using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     internal sealed class TestOrchestrationHost : IDisposable
     {
@@ -117,6 +119,133 @@ namespace DurableTask.AzureStorage.Tests
             return new TestOrchestrationClient(this.client, orchestrationType, instance.InstanceId, creationTime);
         }
 
+        public Task<TestInstance<TInput>> StartInlineOrchestration<TOutput, TInput>(
+            TInput input,
+            string orchestrationName,
+            Func<OrchestrationContext, TInput, Task<TOutput>> implementation,
+            Action<OrchestrationContext, string, string> onEvent = null,
+            params (string name, TaskActivity activity)[] activities) =>
+            this.StartInlineOrchestration(input, orchestrationName, string.Empty, implementation, onEvent, activities);
+
+        public async Task<TestInstance<TInput>> StartInlineOrchestration<TOutput, TInput>(
+            TInput input,
+            string orchestrationName,
+            string version,
+            Func<OrchestrationContext, TInput, Task<TOutput>> implementation,
+            Action<OrchestrationContext, string, string> onEvent = null,
+            params (string name, TaskActivity activity)[] activities)
+        {
+            var instances = await this.StartInlineOrchestrations(
+                count: 1,
+                instanceIdGenerator: _ => Guid.NewGuid().ToString("N"),
+                inputGenerator: _ => input,
+                orchestrationName: orchestrationName,
+                version: version,
+                implementation,
+                onEvent,
+                activities);
+
+            return instances.First();
+        }
+
+        public async Task<List<TestInstance<TInput>>> StartInlineOrchestrations<TOutput, TInput>(
+            int count,
+            Func<int, string> instanceIdGenerator,
+            Func<int, TInput> inputGenerator,
+            string orchestrationName,
+            string version,
+            Func<OrchestrationContext, TInput, Task<TOutput>> implementation,
+            Action<OrchestrationContext, string, string> onEvent = null,
+            params (string name, TaskActivity activity)[] activities)
+        {
+            // Register the inline orchestration - note that this will only work once per test
+            this.RegisterInlineOrchestration(orchestrationName, version, implementation, onEvent);
+
+            foreach ((string name, TaskActivity activity) in activities)
+            {
+                this.worker.AddTaskActivities(new TestObjectCreator<TaskActivity>(name, activity));
+            }
+
+            IEnumerable<Task<TestInstance<TInput>>> tasks = Enumerable.Range(0, count).Select(async i =>
+            {
+                string instanceId = instanceIdGenerator(i);
+                TInput input = inputGenerator(i);
+
+                DateTime utcNow = DateTime.UtcNow;
+                OrchestrationInstance instance = await this.client.CreateOrchestrationInstanceAsync(
+                    orchestrationName,
+                    version,
+                    instanceId,
+                    input);
+
+                return new TestInstance<TInput>(this.client, instance, utcNow, input);
+            });
+
+            var instances = new List<TestInstance<TInput>>(count);
+            foreach (TestInstance<TInput> instance in await Task.WhenAll(tasks))
+            {
+                // Verify that the CreateOrchestrationInstanceAsync implementation set the InstanceID and ExecutionID fields
+                Assert.IsNotNull(instance.InstanceId);
+                Assert.IsNotNull(instance.ExecutionId);
+
+                instances.Add(instance);
+            }
+
+            return instances;
+        }
+
+        public void RegisterInlineOrchestration<TOutput, TInput>(
+            string orchestrationName,
+            string version,
+            Func<OrchestrationContext, TInput, Task<TOutput>> implementation,
+            Action<OrchestrationContext, string, string> onEvent = null)
+        {
+            this.worker.AddTaskOrchestrations(new TestObjectCreator<TaskOrchestration>(
+                orchestrationName,
+                version,
+                MakeOrchestration(implementation, onEvent)));
+        }
+
+        public static TaskOrchestration MakeOrchestration<TOutput, TInput>(
+            Func<OrchestrationContext, TInput, Task<TOutput>> implementation,
+            Action<OrchestrationContext, string, string> onEvent = null)
+        {
+            return new OrchestrationShim<TOutput, TInput>(implementation, onEvent);
+        }
+
+        // This is just a wrapper around the constructor for convenience. It allows us to write 
+        // less code because generic arguments for methods can be implied, unlike constructors.
+        public static TaskActivity MakeActivity<TInput, TOutput>(
+            Func<TaskContext, TInput, TOutput> implementation)
+        {
+            return new ActivityShim<TInput, TOutput>(implementation);
+        }
+
+        static string GetFriendlyTypeName(Type type)
+        {
+            string friendlyName = type.Name;
+            if (type.IsGenericType)
+            {
+                int iBacktick = friendlyName.IndexOf('`');
+                if (iBacktick > 0)
+                {
+                    friendlyName = friendlyName.Remove(iBacktick);
+                }
+
+                friendlyName += "<";
+                Type[] typeParameters = type.GetGenericArguments();
+                for (int i = 0; i < typeParameters.Length; ++i)
+                {
+                    string typeParamName = GetFriendlyTypeName(typeParameters[i]);
+                    friendlyName += (i == 0 ? typeParamName : "," + typeParamName);
+                }
+
+                friendlyName += ">";
+            }
+
+            return friendlyName;
+        }
+
         public async Task<IList<OrchestrationState>> GetAllOrchestrationInstancesAsync()
         {
             // This API currently only exists in the service object and is not yet exposed on the TaskHubClient
@@ -124,6 +253,61 @@ namespace DurableTask.AzureStorage.Tests
             IList<OrchestrationState> instances = await service.GetOrchestrationStateAsync();
             Trace.TraceInformation($"Found {instances.Count} in the task hub instance store.");
             return instances;
+        }
+
+        class ActivityShim<TInput, TOutput> : TaskActivity<TInput, TOutput>
+        {
+            public ActivityShim(Func<TaskContext, TInput, TOutput> implementation)
+            {
+                this.Implementation = implementation;
+            }
+
+            public Func<TaskContext, TInput, TOutput> Implementation { get; }
+
+            protected override TOutput Execute(TaskContext context, TInput input)
+            {
+                return this.Implementation(context, input);
+            }
+        }
+
+        class OrchestrationShim<TOutput, TInput> : TaskOrchestration<TOutput, TInput>
+        {
+            public OrchestrationShim(
+                Func<OrchestrationContext, TInput, Task<TOutput>> implementation,
+                Action<OrchestrationContext, string, string> onEvent = null)
+            {
+                this.Implementation = implementation;
+                this.OnEventRaised = onEvent;
+            }
+
+            public Func<OrchestrationContext, TInput, Task<TOutput>> Implementation { get; set; }
+
+            public Action<OrchestrationContext, string, string> OnEventRaised { get; set; }
+
+            public override Task<TOutput> RunTask(OrchestrationContext context, TInput input)
+                => this.Implementation(context, input);
+
+            public override void RaiseEvent(OrchestrationContext context, string name, string input)
+                => this.OnEventRaised(context, name, input);
+        }
+
+        class TestObjectCreator<T> : ObjectCreator<T>
+        {
+            readonly T obj;
+
+            public TestObjectCreator(string name, T obj) 
+                : this(name, string.Empty, obj)
+            {
+            }
+
+            public TestObjectCreator(string name, string version, T obj)
+            {
+                this.Name = name;
+                this.Version = version;
+                this.obj = obj;
+            }
+
+            public override T Create() => this.obj;
         }
     }
 }

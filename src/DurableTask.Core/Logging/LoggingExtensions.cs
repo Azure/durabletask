@@ -47,5 +47,14 @@ namespace DurableTask.Core.Logging
                 eventSourceEvent.WriteEventSource();
             }
         }
+
+        /// <summary>
+        /// Sets the trace activity ID for the current logical thread.
+        /// </summary>
+        /// <param name="traceActivityId">The trace activity ID to set.</param>
+        public static void SetLogicalTraceActivityId(Guid traceActivityId)
+        {
+            StructuredEventSource.SetLogicalTraceActivityId(traceActivityId);
+        }
     }
 }

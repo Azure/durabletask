@@ -24,12 +24,14 @@ namespace DurableTask.AzureStorage
         readonly LinkedList<TaskCompletionSource<bool>> waiters = 
             new LinkedList<TaskCompletionSource<bool>>();
 
-        bool isSignaled;
-
         public AsyncAutoResetEvent(bool signaled)
         {
-            this.isSignaled = signaled;
+            this.IsSignaled = signaled;
         }
+
+        public bool IsSignaled { get; private set; }
+
+        public int QueueLength => this.waiters.Count;
 
         public Task<bool> WaitAsync(TimeSpan timeout)
         {
@@ -42,18 +44,17 @@ namespace DurableTask.AzureStorage
 
             lock (this.waiters)
             {
-                if (this.isSignaled)
+                if (this.IsSignaled)
                 {
-                    this.isSignaled = false;
+                    this.IsSignaled = false;
                     return true;
                 }
                 else if (timeout == TimeSpan.Zero)
                 {
-                    return this.isSignaled;
+                    return false;
                 }
                 else
                 {
-                    // If we ever upgrade to .NET 4.6, we should use TaskCreationOptions.RunContinuationsAsynchronously
                     tcs = new TaskCompletionSource<bool>();
                     this.waiters.AddLast(tcs);
                 }
@@ -83,30 +84,30 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        public void Set()
+        public bool Set()
         {
             lock (this.waiters)
             {
                 if (this.waiters.Count > 0)
                 {
-                    // Signal the first task in the waiters list. This must be done on a new
-                    // thread to avoid stack-dives and situations where we try to complete the
-                    // same result multiple times.
+                    // Signal the first task in the waiters list.
                     TaskCompletionSource<bool> tcs = this.waiters.First.Value;
                     Task.Run(() => tcs.SetResult(true));
                     this.waiters.RemoveFirst();
                 }
-                else if (!this.isSignaled)
+                else if (!this.IsSignaled)
                 {
                     // No tasks are pending
-                    this.isSignaled = true;
+                    this.IsSignaled = true;
                 }
+
+                return !this.IsSignaled;
             }
         }
 
         public override string ToString()
         {
-            return $"Signaled: {this.isSignaled.ToString()}, Waiters: {this.waiters.Count.ToString()}";
+            return $"Signaled: {this.IsSignaled}, Waiters: {this.waiters.Count}";
         }
     }
 }

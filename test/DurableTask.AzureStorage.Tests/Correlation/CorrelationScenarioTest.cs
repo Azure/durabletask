@@ -536,12 +536,13 @@ namespace DurableTask.AzureStorage.Tests.Correlation
                     (typeof(RequestTelemetry), $"{TraceConstants.Orchestrator} MultiParentOrchestrator"),
                     (typeof(DependencyTelemetry), $"{TraceConstants.Orchestrator} {typeof(Hello).FullName}"),
                     (typeof(RequestTelemetry), $"{TraceConstants.Activity} Hello")
-                }, actual.Select(x => (x.GetType(), x.Name)).ToList());
+                },
+                actual.Select(x => (x.GetType(), x.Name)).ToList());
         }
 
         bool IsNotReadyForRaiseEvent(TestOrchestrationClient client)
         {
-            return client == null && !MultiParentOrchestrator.IsWaitForExternalEvent;
+            return client == null || !MultiParentOrchestrator.IsWaitForExternalEvent;
         }
 
         List<OperationTelemetry> Convert(Task task)
@@ -618,9 +619,10 @@ namespace DurableTask.AzureStorage.Tests.Correlation
                     (typeof(RequestTelemetry), $"{TraceConstants.Orchestrator} MultiParentChildOrchestrator"),
                     (typeof(DependencyTelemetry), $"{TraceConstants.Orchestrator} {typeof(Hello).FullName}"),
                     (typeof(RequestTelemetry), $"{TraceConstants.Activity} Hello")
-                }, actual.Select(x => (x.GetType(), x.Name)).ToList());
-            MultiParentChildOrchestrator.Reset();
+                },
+                actual.Select(x => (x.GetType(), x.Name)).ToList());
 
+            MultiParentChildOrchestrator.Reset();
         }
 
         bool IsNotReadyForTwoRaiseEvents(TestOrchestrationClient client)
@@ -644,10 +646,11 @@ namespace DurableTask.AzureStorage.Tests.Correlation
         [KnownType(typeof(Hello))]
         internal class MultiParentChildOrchestrator : TaskOrchestration<string, string>
         {
-            private static object lockExternalEvent = new object();
-            private static object lockId = new object();
-            private static int readyCountForExternalEvent = 0;
-            private static List<string> orchestrationIds = new List<string>();
+            static readonly object lockExternalEvent = new object();
+            static readonly object lockId = new object();
+            static int readyCountForExternalEvent = 0;
+            static List<string> orchestrationIds = new List<string>();
+
             public static int ReadyForExternalEvent
             {
                 get

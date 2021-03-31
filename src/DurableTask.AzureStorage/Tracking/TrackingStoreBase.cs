@@ -61,6 +61,12 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
+        public virtual Task<IList<OrchestrationState>> GetStateAsync(IEnumerable<string> instanceIds)
+        {
+            throw new NotSupportedException();
+        }
+
+        /// <inheritdoc />
         public virtual Task<IList<OrchestrationState>> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken = default(CancellationToken))
         {
             throw new NotSupportedException();
