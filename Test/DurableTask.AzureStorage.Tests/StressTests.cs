@@ -31,9 +31,9 @@ namespace DurableTask.AzureStorage.Tests
         /// both in the case where they all share the same instance ID and when they have unique
         /// instance IDs.
         /// </summary>
-        ////[DataTestMethod]
-        ////[DataRow(true)]
-        ////[DataRow(false)]
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
         public async Task ConcurrentOrchestrationStarts(bool useSameInstanceId)
         {
             // Set the minimum thread count to 64+ to make this test extra concurrent.

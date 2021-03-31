@@ -207,7 +207,10 @@ namespace DurableTask.AzureStorage
 
             foreach (MessageData message in messages)
             {
-                if (message.TaskMessage.Event.EventType == EventType.ExecutionStarted)
+                // We do de-duplication when creating top-level orchestrations but not for sub-orchestrations.
+                // De-dupe protection for sub-orchestrations is not implemented and will require a bit more work.
+                if (message.TaskMessage.Event is ExecutionStartedEvent startEvent &&
+                    startEvent.ParentInstance == null)
                 {
                     executionStartedMessages ??= new List<MessageData>(messages.Count);
                     executionStartedMessages.Add(message);
