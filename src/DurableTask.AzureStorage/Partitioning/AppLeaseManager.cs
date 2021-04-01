@@ -213,6 +213,14 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.taskHub,
                     this.workerName,
                     this.appLeaseContainerName);
+
+                // When changing the lease over to another app, the paritions will still be listened to on the first app until the AppLeaseManager
+                // renew task fails to renew the lease. To avoid potential split brain concerns we must delay before the new lease holder can start
+                // listening to the partitions.
+                if (this.settings.UseLegacyPartitionManagement == true)
+                {
+                    await Task.Delay(this.settings.AppLeaseOptions.RenewInterval);
+                }
             }
             catch (StorageException e)
             {
