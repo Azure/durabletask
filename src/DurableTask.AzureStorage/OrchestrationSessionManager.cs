@@ -413,10 +413,29 @@ namespace DurableTask.AzureStorage
 
                         if (batch.OrchestrationInstanceId == instanceId)
                         {
-                            if (executionId == null || batch.OrchestrationExecutionId == executionId)
+                            if (batch.OrchestrationExecutionId == executionId)
                             {
                                 targetBatch = batch;
                                 break;
+                            }
+                            // A null executionId represents either a management operation (ex: terminate),
+                            // or a pending / new orchestration generation.
+                            if (executionId == null)
+                            {
+                                // We process execution started events separately
+                                if (data.TaskMessage.Event.EventType == EventType.ExecutionStarted)
+                                {
+                                    // Set targetBatch to null to avoid accidentally loading
+                                    // and older history in the case of a singleton
+                                    targetBatch = null;
+                                    break;
+                                }
+                                else
+                                {
+                                    // This is a management operation, it's safe to load old history
+                                    targetBatch = batch;
+                                    break;
+                                }
                             }
                             else if (batch.OrchestrationExecutionId == null)
                             {
