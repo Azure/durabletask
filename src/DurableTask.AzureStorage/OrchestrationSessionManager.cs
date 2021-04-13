@@ -347,7 +347,9 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
-        /// Adds history messages to a pending orchestration.
+        /// Adds history messages to an orchestration for its next replay.
+        ///
+        /// "Pending" here is unrelated to the Pending runtimeStatus.
         /// </summary>
         /// <param name="controlQueue">The orchestration's control-queue.</param>
         /// <param name="queueMessages">New messages to assign to orchestrators</param>
@@ -441,10 +443,10 @@ namespace DurableTask.AzureStorage
                         node = node.Previous;
                     }
 
-                    // If there is no batch for this instanceID-executionID pair
+                    // If there is no batch for this instanceID-executionID pair, create one
                     if (targetBatch == null)
                     {
-                        // Create a batch for this message's instanceID-executionID pair
+
                         targetBatch = new PendingMessageBatch(controlQueue, instanceId, executionId);
                         node = this.pendingOrchestrationMessageBatches.AddLast(targetBatch);
 
