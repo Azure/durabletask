@@ -350,7 +350,7 @@ namespace DurableTask.AzureStorage
         /// Adds history messages to a pending orchestration.
         /// </summary>
         /// <param name="controlQueue">The orchestration's control-queue.</param>
-        /// <param name="queueMessages">New messages to add to the control-queue.</param>
+        /// <param name="queueMessages">New messages to assign to orchestrators</param>
         /// <param name="traceActivityId">The "related" ActivityId of this operation.</param>
         /// <param name="cancellationToken">Cancellation token in case the orchestration is terminated.</param>
         internal void AddMessageToPendingOrchestration(
@@ -365,22 +365,21 @@ namespace DurableTask.AzureStorage
             //  3. Do we need to add messages to a currently executing orchestration?
             lock (this.messageAndSessionLock)
             {
-                LinkedListNode<PendingMessageBatch> node;
 
                 var existingSessionMessages = new Dictionary<OrchestrationSession, List<MessageData>>();
 
                 foreach (MessageData data in queueMessages)
                 {
                     // The instanceID identifies the orchestration across replays and, in the case of singletons, across generations.
-                    // The executionID identifies an invocation of the orchestration, such as a replay.
+                    // The executionID identifies a generation of an orchestration instance, doesn't change across replays.
                     string instanceId = data.TaskMessage.OrchestrationInstance.InstanceId;
                     string executionId = data.TaskMessage.OrchestrationInstance.ExecutionId;
 
-                    // TODO: What is this if-statement checking for? What does a non-null session represent?
+                    // Check if the target orchestraion is loaded in memory
                     if (this.activeOrchestrationSessions.TryGetValue(instanceId, out OrchestrationSession session))
                     {
-                        // If the target orchestration is already running we add the message to the session
-                        // directly rather than adding it to the linked list. <Why?>
+                        // If the target orchestration is already in memory, we add the message to the session directly,
+                        // rather than adding it to the linked list.
 
                         // A null executionId value means that this is a management operation, like RaiseEvent or Terminate, which
                         // should be delivered to the current session.
@@ -414,13 +413,12 @@ namespace DurableTask.AzureStorage
                         continue;
                     }
 
-                    // TODO - What is this block achieving? And can we define what a  `targetBatch` means?
-                    // We skip this block when the event is ExecutionStarted. This allows us to generate a new
-                    // history instead of loading an older one.
-                    PendingMessageBatch? targetBatch = null;
-                    // Walk backwards through the list of batches until we find one with a matching Instance ID.
+
+                    PendingMessageBatch? targetBatch = null; // batch for the current instanceID-executionID pair
+                    // Unless the message is an ExecutionStarted event, we attempt to assign the current message to an
+                    // existing batch by walking backwards through the list of batches until we find one with a matching InstanceID.
                     // This is assumed to be more efficient than walking forward if most messages arrive in the queue in groups.
-                    node = this.pendingOrchestrationMessageBatches.Last;
+                    LinkedListNode<PendingMessageBatch> node = this.pendingOrchestrationMessageBatches.Last;
                     while (node != null && data.TaskMessage.Event.EventType != EventType.ExecutionStarted)
                     {
                         PendingMessageBatch batch = node.Value;
@@ -443,10 +441,10 @@ namespace DurableTask.AzureStorage
                         node = node.Previous;
                     }
 
+                    // If there is no batch for this instanceID-executionID pair
                     if (targetBatch == null)
                     {
-                        // Since `targetBatch` is null, we know that the orchestration does not have a history associated with it,
-                        // so we add the messages to a pending message batch instead.
+                        // Create a batch for this message's instanceID-executionID pair
                         targetBatch = new PendingMessageBatch(controlQueue, instanceId, executionId);
                         node = this.pendingOrchestrationMessageBatches.AddLast(targetBatch);
 
