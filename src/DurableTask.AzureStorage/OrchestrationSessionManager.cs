@@ -446,7 +446,6 @@ namespace DurableTask.AzureStorage
                     // If there is no batch for this instanceID-executionID pair, create one
                     if (targetBatch == null)
                     {
-
                         targetBatch = new PendingMessageBatch(controlQueue, instanceId, executionId);
                         node = this.pendingOrchestrationMessageBatches.AddLast(targetBatch);
 
