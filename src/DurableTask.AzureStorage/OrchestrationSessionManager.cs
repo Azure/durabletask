@@ -370,7 +370,7 @@ namespace DurableTask.AzureStorage
 
                 foreach (MessageData data in queueMessages)
                 {
-                    // The instanceID identifies the orchestration across replays and, in the case of singletons, across generations.
+                    // The instanceID identifies the orchestration across replays and ContinueAsNew generations.
                     // The executionID identifies a generation of an orchestration instance, doesn't change across replays.
                     string instanceId = data.TaskMessage.OrchestrationInstance.InstanceId;
                     string executionId = data.TaskMessage.OrchestrationInstance.ExecutionId;
