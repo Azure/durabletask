@@ -117,5 +117,124 @@ namespace DurableTask.AzureStorage.Tests
                 ThreadPool.SetMinThreads(minWorkerThreads, minIoThreads);
             }
         }
+
+        internal class Approval : TaskOrchestration<string, TimeSpan, bool, string>
+        {
+            TaskCompletionSource<bool> waitForApprovalHandle;
+            public static bool shouldFail = false;
+
+            public override async Task<string> RunTask(OrchestrationContext context, TimeSpan timeout)
+            {
+                DateTime deadline = context.CurrentUtcDateTime.Add(timeout);
+
+                using (var cts = new CancellationTokenSource())
+                {
+                    Task<bool> approvalTask = this.GetWaitForApprovalTask();
+                    Task timeoutTask = context.CreateTimer(deadline, cts.Token);
+
+                    if (shouldFail)
+                    {
+                        throw new Exception("Simulating unhanded error exception");
+                    }
+
+                    if (approvalTask == await Task.WhenAny(approvalTask, timeoutTask))
+                    {
+                        // The timer must be cancelled or fired in order for the orchestration to complete.
+                        cts.Cancel();
+
+                        bool approved = approvalTask.Result;
+                        return approved ? "Approved" : "Rejected";
+                    }
+                    else
+                    {
+                        return "Expired";
+                    }
+                }
+            }
+
+            async Task<bool> GetWaitForApprovalTask()
+            {
+                this.waitForApprovalHandle = new TaskCompletionSource<bool>();
+                bool approvalResult = await this.waitForApprovalHandle.Task;
+                this.waitForApprovalHandle = null;
+                return approvalResult;
+            }
+
+            public override void OnEvent(OrchestrationContext context, string name, bool approvalResult)
+            {
+                Assert.AreEqual("approval", name, true, "Unknown signal recieved...");
+                if (this.waitForApprovalHandle != null)
+                {
+                    this.waitForApprovalHandle.SetResult(approvalResult);
+                }
+            }
+        }
+
+        [DataTestMethod]
+        public async Task SingletonsLoadCorrectHistoryWithRaiseEvent()
+        {
+
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: true))
+            {
+                await host.StartAsync();
+                int numExternalEvents = 50;
+                int maxIterations = 20;
+                int currentIteration = 0;
+                do
+                {
+                    // (1) Start a singleton orchestration that waits for a single event (wait for it to finish starting)
+                    TestOrchestrationClient client = await host.StartOrchestrationAsync(typeof(Approval), input: null, instanceId: "mySingleton");
+                    DateTime startTime = DateTime.UtcNow;
+                    OrchestrationState existingInstance = null;
+                    while (existingInstance == null || !existingInstance.OrchestrationStatus.Equals(OrchestrationStatus.Completed))
+                    {
+                        existingInstance = await client.GetStatusAsync();
+                        if (DateTime.UtcNow - startTime > TimeSpan.FromMinutes(2))
+                        {
+                            Assert.Fail($"Singleton did not complete within 2 minutes with status {existingInstance.OrchestrationStatus}  at iteration {currentIteration}");
+                        }
+                    }
+
+                    // (2) Send a large number of external events AND start a new instance of the same orchestration concurrently.
+                    List<Task> externalEvents = new List<Task>();
+                    for (var i = 0; i < numExternalEvents; i++)
+                    {
+                        externalEvents.Add(client.RaiseEventAsync(eventName: "approval", eventData: ""));
+                    }
+
+                    Func<Task> getStartNewSingletonTask = async () =>
+                    {
+                        existingInstance = null;
+                        while (existingInstance == null || !existingInstance.OrchestrationStatus.Equals(OrchestrationStatus.Completed))
+                        {
+                            existingInstance = await client.GetStatusAsync();
+                        }
+                        await host.StartOrchestrationAsync(typeof(Approval), input: null, instanceId: "mySingleton");
+                    };
+
+                    Task startNewSingletonTask = getStartNewSingletonTask.Invoke();
+                    externalEvents.Add(startNewSingletonTask);
+
+                    await Task.WhenAll(externalEvents);
+
+                    // (3) check orchestration is not pending
+                    startTime = DateTime.UtcNow;
+                    existingInstance = null;
+                    while (existingInstance == null || !existingInstance.OrchestrationStatus.Equals(OrchestrationStatus.Completed))
+                    {
+                        existingInstance = await client.GetStatusAsync();
+                        if (DateTime.UtcNow - startTime > TimeSpan.FromMinutes(2))
+                        {
+                            Assert.Fail($"Singleton did not complete within 2 minutes with status {existingInstance.OrchestrationStatus} at iteration {currentIteration}");
+                        }
+                    }
+
+
+                }
+                while (currentIteration++ < maxIterations);
+                Assert.IsTrue(true);
+                await host.StopAsync();
+            }
+        }
     }
 }
