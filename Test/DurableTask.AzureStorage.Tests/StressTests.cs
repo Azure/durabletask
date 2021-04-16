@@ -121,35 +121,17 @@ namespace DurableTask.AzureStorage.Tests
         internal class Approval : TaskOrchestration<string, TimeSpan, bool, string>
         {
             TaskCompletionSource<bool> waitForApprovalHandle;
-            public static bool shouldFail = false;
 
             public override async Task<string> RunTask(OrchestrationContext context, TimeSpan timeout)
             {
-                DateTime deadline = context.CurrentUtcDateTime.Add(timeout);
+                Task<bool> approvalTask = this.GetWaitForApprovalTask();
 
-                using (var cts = new CancellationTokenSource())
-                {
-                    Task<bool> approvalTask = this.GetWaitForApprovalTask();
-                    Task timeoutTask = context.CreateTimer(deadline, cts.Token);
 
-                    if (shouldFail)
-                    {
-                        throw new Exception("Simulating unhanded error exception");
-                    }
+                await Task.WhenAny(approvalTask);
+                // The timer must be cancelled or fired in order for the orchestration to complete.
 
-                    if (approvalTask == await Task.WhenAny(approvalTask, timeoutTask))
-                    {
-                        // The timer must be cancelled or fired in order for the orchestration to complete.
-                        cts.Cancel();
-
-                        bool approved = approvalTask.Result;
-                        return approved ? "Approved" : "Rejected";
-                    }
-                    else
-                    {
-                        return "Expired";
-                    }
-                }
+                bool approved = approvalTask.Result;
+                return approved ? "Approved" : "Rejected";
             }
 
             async Task<bool> GetWaitForApprovalTask()
@@ -186,7 +168,7 @@ namespace DurableTask.AzureStorage.Tests
                     TestOrchestrationClient client = await host.StartOrchestrationAsync(typeof(Approval), input: null, instanceId: "mySingleton");
                     DateTime startTime = DateTime.UtcNow;
                     OrchestrationState existingInstance = null;
-                    while (existingInstance == null || !existingInstance.OrchestrationStatus.Equals(OrchestrationStatus.Completed))
+                    while (existingInstance == null || !existingInstance.OrchestrationStatus.Equals(OrchestrationStatus.Running))
                     {
                         existingInstance = await client.GetStatusAsync();
                         if (DateTime.UtcNow - startTime > TimeSpan.FromMinutes(2))
@@ -199,20 +181,21 @@ namespace DurableTask.AzureStorage.Tests
                     List<Task> externalEvents = new List<Task>();
                     for (var i = 0; i < numExternalEvents; i++)
                     {
-                        externalEvents.Add(client.RaiseEventAsync(eventName: "approval", eventData: ""));
+                        externalEvents.Add(client.RaiseEventAsync(eventName: "approval", eventData: true));
                     }
 
-                    Func<Task> getStartNewSingletonTask = async () =>
+                    async Task getStartNewSingletonTask()
                     {
                         existingInstance = null;
                         while (existingInstance == null || !existingInstance.OrchestrationStatus.Equals(OrchestrationStatus.Completed))
                         {
+                            await client.RaiseEventAsync(eventName: "approval", eventData: true);
                             existingInstance = await client.GetStatusAsync();
                         }
                         await host.StartOrchestrationAsync(typeof(Approval), input: null, instanceId: "mySingleton");
                     };
 
-                    Task startNewSingletonTask = getStartNewSingletonTask.Invoke();
+                    Task startNewSingletonTask = getStartNewSingletonTask();
                     externalEvents.Add(startNewSingletonTask);
 
                     await Task.WhenAll(externalEvents);
@@ -222,6 +205,7 @@ namespace DurableTask.AzureStorage.Tests
                     existingInstance = null;
                     while (existingInstance == null || !existingInstance.OrchestrationStatus.Equals(OrchestrationStatus.Completed))
                     {
+                        await client.RaiseEventAsync(eventName: "approval", eventData: true);
                         existingInstance = await client.GetStatusAsync();
                         if (DateTime.UtcNow - startTime > TimeSpan.FromMinutes(2))
                         {
