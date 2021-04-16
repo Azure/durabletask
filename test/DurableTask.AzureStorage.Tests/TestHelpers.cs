@@ -16,11 +16,20 @@ namespace DurableTask.AzureStorage.Tests
     using System;
     using System.Configuration;
     using System.Diagnostics;
+    using System.Diagnostics.Tracing;
     using System.Threading.Tasks;
+    using DurableTask.Core.Logging;
     using Microsoft.Extensions.Logging;
 
     static class TestHelpers
     {
+        class CustomEventListener : EventListener
+        {
+            protected override void OnEventWritten(EventWrittenEventArgs eventData)
+            {
+            }
+        }
+
         public static TestOrchestrationHost GetTestOrchestrationHost(
             bool enableExtendedSessions,
             int extendedSessionTimeoutInSeconds = 30,
@@ -29,6 +38,9 @@ namespace DurableTask.AzureStorage.Tests
         {
             string storageConnectionString = GetTestStorageAccountConnectionString();
 
+
+            var listener = new CustomEventListener();
+            listener.EnableEvents(StructuredEventSource.Log, EventLevel.LogAlways);
             var settings = new AzureStorageOrchestrationServiceSettings
             {
                 StorageConnectionString = storageConnectionString,

@@ -30,6 +30,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Serilog.Extensions.Logging.File" Version="1.0.1" />
     <ProjectReference Include="..\..\src\DurableTask.Core\DurableTask.Core.csproj" />
     <ProjectReference Include="..\..\src\DurableTask.AzureStorage\DurableTask.AzureStorage.csproj" />
     <ProjectReference Include="..\DurableTask.Core.Tests\DurableTask.Core.Tests.csproj" />

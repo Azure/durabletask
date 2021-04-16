@@ -20,6 +20,7 @@ namespace DurableTask.AzureStorage.Tests
     using System.Runtime.Serialization;
     using System.Threading.Tasks;
     using DurableTask.Core;
+    using Microsoft.Extensions.Logging;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     internal sealed class TestOrchestrationHost : IDisposable
@@ -38,7 +39,7 @@ namespace DurableTask.AzureStorage.Tests
             this.service.CreateAsync().GetAwaiter().GetResult();
 
             this.settings = settings;
-
+            settings.LoggerFactory = settings.LoggerFactory.AddFile("C:\\Users\\dajusto\\lookhere.txt");
             this.worker = new TaskHubWorker(service, loggerFactory: settings.LoggerFactory);
             this.client = new TaskHubClient(service, loggerFactory: settings.LoggerFactory);
             this.addedOrchestrationTypes = new HashSet<Type>();

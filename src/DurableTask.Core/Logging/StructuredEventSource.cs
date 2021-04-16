@@ -22,14 +22,18 @@ namespace DurableTask.Core.Logging
     /// Event source logger for DurableTask.Core that uses structured events rather than log messages.
     /// </summary>
     [EventSource(Name = "DurableTask-Core")]
-    class StructuredEventSource : EventSource
+    public class StructuredEventSource : EventSource
     {
-        internal static readonly StructuredEventSource Log = new StructuredEventSource();
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
+        public static readonly StructuredEventSource Log = new StructuredEventSource();
+#pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
 
         static readonly AsyncLocal<Guid> ActivityIdState = new AsyncLocal<Guid>();
 
         [NonEvent]
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
         public static void SetLogicalTraceActivityId(Guid activityId)
+#pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
         {
             // We use AsyncLocal to preserve activity IDs across async/await boundaries.
             ActivityIdState.Value = activityId;
