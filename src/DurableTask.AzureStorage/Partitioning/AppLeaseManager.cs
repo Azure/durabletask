@@ -106,7 +106,6 @@ namespace DurableTask.AzureStorage.Partitioning
                 catch (StorageException)
                 {
                     // eat any storage exception related to conflict
-                    // this means the blob already exist
                 }
                 finally
                 {
@@ -488,7 +487,7 @@ namespace DurableTask.AzureStorage.Partitioning
             }
         }
 
-        public async Task UpdateAppLeaseInfoBlob(AppLeaseInfo appLeaseInfo)
+        private async Task UpdateAppLeaseInfoBlob(AppLeaseInfo appLeaseInfo)
         {
             string serializedInfo = JsonConvert.SerializeObject(appLeaseInfo);
             try
@@ -505,7 +504,7 @@ namespace DurableTask.AzureStorage.Partitioning
             }
         }
 
-        public async Task<AppLeaseInfo> GetAppLeaseInfoAsync()
+        private async Task<AppLeaseInfo> GetAppLeaseInfoAsync()
         {
             if (await this.appLeaseInfoBlob.ExistsAsync())
             {
@@ -535,6 +534,12 @@ namespace DurableTask.AzureStorage.Partitioning
         {
             this.appLeaseTCS = new TaskCompletionSource<bool>();
             return this.appLeaseTCS.Task;
+        }
+
+        private class AppLeaseInfo
+        {
+            public string OwnerId { get; set; }
+            public string DesiredSwapId { get; set; }
         }
     }
 }

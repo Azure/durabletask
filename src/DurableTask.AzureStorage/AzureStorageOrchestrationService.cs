@@ -464,7 +464,7 @@ namespace DurableTask.AzureStorage
             }
             this.leaseManagerStarterTokenSource = new CancellationTokenSource();
 
-            _ = await Task.Factory.StartNew(() => this.LeaseManagerStarter(this.leaseManagerStarterTokenSource.Token), this.leaseManagerStarterTokenSource.Token);
+            await Task.Run(() => this.LeaseManagerStarter(this.leaseManagerStarterTokenSource.Token), this.leaseManagerStarterTokenSource.Token);
         }
 
         private async Task LeaseManagerStarter(CancellationToken token)
