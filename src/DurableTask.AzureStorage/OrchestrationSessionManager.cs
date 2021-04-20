@@ -324,11 +324,13 @@ namespace DurableTask.AzureStorage
                 return false;
             }
 
-            if (remoteInstance.CreatedTime < msg.TaskMessage.Event.Timestamp)
+            if (remoteInstance.CreatedTime < msg.TaskMessage.Event.Timestamp &&
+                remoteInstance.OrchestrationStatus == OrchestrationStatus.Pending)
             {
-                // The message was inserted after the Instances table was updated, meaning that it's likely.
+                // If the Instances table has a Pending record and the message was inserted after the Instances
+                // table was updated (assuming that the execution IDs are different, which should be established),
+                // then we can know with confidence that this is a redundant message and can be safely discarded.
                 // The same machine will have generated both timestamps so time skew is not a factor.
-                // We know almost certainly that this is a redundant message and can be safely discarded.
                 return true;
             }
 

@@ -126,22 +126,22 @@ namespace DurableTask.AzureStorage.Tests
             Func<OrchestrationContext, TInput, Task<TOutput>> implementation,
             Action<OrchestrationContext, string, string> onEvent = null,
             params (string name, TaskActivity activity)[] activities) =>
-            this.StartInlineOrchestration(input, orchestrationName, string.Empty, implementation, onEvent, activities);
+            this.StartInlineOrchestration(input, orchestrationName, null, implementation, onEvent, activities);
 
         public async Task<TestInstance<TInput>> StartInlineOrchestration<TOutput, TInput>(
             TInput input,
             string orchestrationName,
-            string version,
+            string instanceId,
             Func<OrchestrationContext, TInput, Task<TOutput>> implementation,
             Action<OrchestrationContext, string, string> onEvent = null,
             params (string name, TaskActivity activity)[] activities)
         {
             var instances = await this.StartInlineOrchestrations(
                 count: 1,
-                instanceIdGenerator: _ => Guid.NewGuid().ToString("N"),
+                instanceIdGenerator: _ => instanceId ?? Guid.NewGuid().ToString("N"),
                 inputGenerator: _ => input,
                 orchestrationName: orchestrationName,
-                version: version,
+                version: string.Empty,
                 implementation,
                 onEvent,
                 activities);
