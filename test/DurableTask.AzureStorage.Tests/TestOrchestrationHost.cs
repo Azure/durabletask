@@ -39,7 +39,6 @@ namespace DurableTask.AzureStorage.Tests
             this.service.CreateAsync().GetAwaiter().GetResult();
 
             this.settings = settings;
-            settings.LoggerFactory = settings.LoggerFactory.AddFile("<mypath>");
             this.worker = new TaskHubWorker(service, loggerFactory: settings.LoggerFactory);
             this.client = new TaskHubClient(service, loggerFactory: settings.LoggerFactory);
             this.addedOrchestrationTypes = new HashSet<Type>();
