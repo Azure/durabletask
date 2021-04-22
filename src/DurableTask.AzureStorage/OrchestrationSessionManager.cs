@@ -324,11 +324,13 @@ namespace DurableTask.AzureStorage
                 return false;
             }
 
-            if (remoteInstance.CreatedTime < msg.TaskMessage.Event.Timestamp)
+            if (remoteInstance.CreatedTime < msg.TaskMessage.Event.Timestamp &&
+                remoteInstance.OrchestrationStatus == OrchestrationStatus.Pending)
             {
-                // The message was inserted after the Instances table was updated, meaning that it's likely.
+                // If the Instances table has a Pending record and the message was inserted after the Instances
+                // table was updated (assuming that the execution IDs are different, which should be established),
+                // then we can know with confidence that this is a redundant message and can be safely discarded.
                 // The same machine will have generated both timestamps so time skew is not a factor.
-                // We know almost certainly that this is a redundant message and can be safely discarded.
                 return true;
             }
 
@@ -346,6 +348,15 @@ namespace DurableTask.AzureStorage
             return latestReinsertionTime > remoteInstance.CreatedTime;
         }
 
+        /// <summary>
+        /// Adds history messages to an orchestration for its next replay.
+        ///
+        /// "Pending" here is unrelated to the Pending runtimeStatus.
+        /// </summary>
+        /// <param name="controlQueue">The orchestration's control-queue.</param>
+        /// <param name="queueMessages">New messages to assign to orchestrators</param>
+        /// <param name="traceActivityId">The "related" ActivityId of this operation.</param>
+        /// <param name="cancellationToken">Cancellation token in case the orchestration is terminated.</param>
         internal void AddMessageToPendingOrchestration(
             ControlQueue controlQueue,
             IEnumerable<MessageData> queueMessages,
@@ -358,20 +369,23 @@ namespace DurableTask.AzureStorage
             //  3. Do we need to add messages to a currently executing orchestration?
             lock (this.messageAndSessionLock)
             {
-                LinkedListNode<PendingMessageBatch> node;
 
                 var existingSessionMessages = new Dictionary<OrchestrationSession, List<MessageData>>();
 
                 foreach (MessageData data in queueMessages)
                 {
+                    // The instanceID identifies the orchestration across replays and ContinueAsNew generations.
+                    // The executionID identifies a generation of an orchestration instance, doesn't change across replays.
                     string instanceId = data.TaskMessage.OrchestrationInstance.InstanceId;
                     string executionId = data.TaskMessage.OrchestrationInstance.ExecutionId;
 
+                    // Check if the target orchestraion is loaded in memory
                     if (this.activeOrchestrationSessions.TryGetValue(instanceId, out OrchestrationSession session))
                     {
-                        // If the target orchestration is already running we add the message to the session
-                        // directly rather than adding it to the linked list. A null executionId value
-                        // means that this is a management operation, like RaiseEvent or Terminate, which
+                        // If the target orchestration is already in memory, we add the message to the session directly,
+                        // rather than adding it to the linked list.
+
+                        // A null executionId value means that this is a management operation, like RaiseEvent or Terminate, which
                         // should be delivered to the current session.
                         if (executionId == null || session.Instance.ExecutionId == executionId)
                         {
@@ -403,11 +417,13 @@ namespace DurableTask.AzureStorage
                         continue;
                     }
 
-                    // Walk backwards through the list of batches until we find one with a matching Instance ID.
+
+                    PendingMessageBatch? targetBatch = null; // batch for the current instanceID-executionID pair
+                    // Unless the message is an ExecutionStarted event, we attempt to assign the current message to an
+                    // existing batch by walking backwards through the list of batches until we find one with a matching InstanceID.
                     // This is assumed to be more efficient than walking forward if most messages arrive in the queue in groups.
-                    PendingMessageBatch? targetBatch = null;
-                    node = this.pendingOrchestrationMessageBatches.Last;
-                    while (node != null)
+                    LinkedListNode<PendingMessageBatch> node = this.pendingOrchestrationMessageBatches.Last;
+                    while (node != null && data.TaskMessage.Event.EventType != EventType.ExecutionStarted)
                     {
                         PendingMessageBatch batch = node.Value;
 
@@ -429,6 +445,7 @@ namespace DurableTask.AzureStorage
                         node = node.Previous;
                     }
 
+                    // If there is no batch for this instanceID-executionID pair, create one
                     if (targetBatch == null)
                     {
                         targetBatch = new PendingMessageBatch(controlQueue, instanceId, executionId);

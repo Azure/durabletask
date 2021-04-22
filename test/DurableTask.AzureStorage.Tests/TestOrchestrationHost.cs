@@ -20,6 +20,7 @@ namespace DurableTask.AzureStorage.Tests
     using System.Runtime.Serialization;
     using System.Threading.Tasks;
     using DurableTask.Core;
+    using Microsoft.Extensions.Logging;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     internal sealed class TestOrchestrationHost : IDisposable
@@ -38,7 +39,6 @@ namespace DurableTask.AzureStorage.Tests
             this.service.CreateAsync().GetAwaiter().GetResult();
 
             this.settings = settings;
-
             this.worker = new TaskHubWorker(service, loggerFactory: settings.LoggerFactory);
             this.client = new TaskHubClient(service, loggerFactory: settings.LoggerFactory);
             this.addedOrchestrationTypes = new HashSet<Type>();
@@ -125,22 +125,22 @@ namespace DurableTask.AzureStorage.Tests
             Func<OrchestrationContext, TInput, Task<TOutput>> implementation,
             Action<OrchestrationContext, string, string> onEvent = null,
             params (string name, TaskActivity activity)[] activities) =>
-            this.StartInlineOrchestration(input, orchestrationName, string.Empty, implementation, onEvent, activities);
+            this.StartInlineOrchestration(input, orchestrationName, null, implementation, onEvent, activities);
 
         public async Task<TestInstance<TInput>> StartInlineOrchestration<TOutput, TInput>(
             TInput input,
             string orchestrationName,
-            string version,
+            string instanceId,
             Func<OrchestrationContext, TInput, Task<TOutput>> implementation,
             Action<OrchestrationContext, string, string> onEvent = null,
             params (string name, TaskActivity activity)[] activities)
         {
             var instances = await this.StartInlineOrchestrations(
                 count: 1,
-                instanceIdGenerator: _ => Guid.NewGuid().ToString("N"),
+                instanceIdGenerator: _ => instanceId ?? Guid.NewGuid().ToString("N"),
                 inputGenerator: _ => input,
                 orchestrationName: orchestrationName,
-                version: version,
+                version: string.Empty,
                 implementation,
                 onEvent,
                 activities);

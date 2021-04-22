@@ -16,11 +16,14 @@ namespace DurableTask.AzureStorage.Tests
     using System;
     using System.Configuration;
     using System.Diagnostics;
+    using System.Diagnostics.Tracing;
     using System.Threading.Tasks;
+    using DurableTask.Core.Logging;
     using Microsoft.Extensions.Logging;
 
     static class TestHelpers
     {
+
         public static TestOrchestrationHost GetTestOrchestrationHost(
             bool enableExtendedSessions,
             int extendedSessionTimeoutInSeconds = 30,
