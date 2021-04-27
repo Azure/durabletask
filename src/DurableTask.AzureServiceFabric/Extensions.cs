@@ -45,10 +45,11 @@ namespace DurableTask.AzureServiceFabric
 
         internal static void EnsureValidInstanceId(this string instanceId)
         {
-            if (!instanceId.IsValidInstanceId())
-            {
-                throw new InvalidInstanceIdException(instanceId);
-            }
+            // Do not enforce InstanceId validation here. Let the application/user decide.
+            //if (!instanceId.IsValidInstanceId())
+            //{
+            //    throw new InvalidInstanceIdException(instanceId);
+            //}
         }
     }
 }

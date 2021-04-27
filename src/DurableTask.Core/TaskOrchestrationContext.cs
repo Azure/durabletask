@@ -427,19 +427,12 @@ namespace DurableTask.Core
 
         public void HandleExecutionTerminatedEvent(ExecutionTerminatedEvent terminatedEvent)
         {
-            if (!this.executionTerminated)
-            {
-                this.executionTerminated = true;
-                CompleteOrchestration(terminatedEvent.Input, null, OrchestrationStatus.Terminated);
-            }
+            CompleteOrchestration(terminatedEvent.Input, null, OrchestrationStatus.Terminated);
         }
 
         public void CompleteOrchestration(string result)
         {
-            if (!this.executionTerminated)
-            {
-                CompleteOrchestration(result, null, OrchestrationStatus.Completed);
-            }
+            CompleteOrchestration(result, null, OrchestrationStatus.Completed);
         }
 
         public void FailOrchestration(Exception failure)
@@ -480,6 +473,13 @@ namespace DurableTask.Core
             }
             else
             {
+                if (executionTerminated)
+                {
+                    return;
+                }
+
+                executionTerminated = true;
+
                 completedOrchestratorAction = new OrchestrationCompleteOrchestratorAction();
                 completedOrchestratorAction.Result = result;
                 completedOrchestratorAction.Details = details;
