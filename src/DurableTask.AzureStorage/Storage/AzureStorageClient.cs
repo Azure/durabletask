@@ -1,0 +1,107 @@
+﻿//  ----------------------------------------------------------------------------------
+//  Copyright Microsoft Corporation
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//  http://www.apache.org/licenses/LICENSE-2.0
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+//  ----------------------------------------------------------------------------------
+
+namespace DurableTask.AzureStorage.Storage
+{
+    using System;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using DurableTask.AzureStorage.Monitoring;
+    using Microsoft.WindowsAzure.Storage;
+    using Microsoft.WindowsAzure.Storage.Blob;
+    using Microsoft.WindowsAzure.Storage.Queue;
+
+    class AzureStorageClient
+    {
+        static readonly TimeSpan StorageMaximumExecutionTime = TimeSpan.FromMinutes(2);
+        readonly AzureStorageOrchestrationServiceStats stats;
+        readonly CloudStorageAccount account;
+        readonly CloudBlobClient blobClient;
+        readonly CloudQueueClient queueClient;
+
+        public AzureStorageOrchestrationServiceSettings Settings { get; }
+        public string StorageAccountName { get; }
+
+        public AzureStorageClient(AzureStorageOrchestrationServiceSettings settings, AzureStorageOrchestrationServiceStats stats, string storageAccountName)
+        {
+            this.Settings = settings;
+            this.stats = stats;
+            this.StorageAccountName = storageAccountName;
+
+            this.account = settings.StorageAccountDetails == null
+                ? CloudStorageAccount.Parse(settings.StorageConnectionString)
+                : settings.StorageAccountDetails.ToCloudStorageAccount();
+
+            this.StorageAccountName = account.Credentials.AccountName;
+            this.stats = new AzureStorageOrchestrationServiceStats();
+            this.queueClient = account.CreateCloudQueueClient();
+            this.queueClient.BufferManager = SimpleBufferManager.Shared;
+            this.blobClient = account.CreateCloudBlobClient();
+            this.blobClient.BufferManager = SimpleBufferManager.Shared;
+
+            this.blobClient.DefaultRequestOptions.MaximumExecutionTime = StorageMaximumExecutionTime;
+        }
+
+        public Blob GetBlobReference(string container, string blobName, string blobDirectory = null)
+        {
+#pragma warning disable CS0618 // Type or member is obsolete
+            return new Blob(this, this.blobClient, container, blobName, blobDirectory);
+#pragma warning restore CS0618 // Type or member is obsolete
+        }
+
+        internal Blob GetBlobReference(Uri blobUri)
+        {
+#pragma warning disable CS0618 // Type or member is obsolete
+            return new Blob(this, this.blobClient, blobUri);
+#pragma warning restore CS0618 // Type or member is obsolete
+        }
+
+        public BlobContainer GetBlobContainerReference(string container)
+        {
+#pragma warning disable CS0618 // Type or member is obsolete
+            return new BlobContainer(this, this.blobClient, container);
+#pragma warning restore CS0618 // Type or member is obsolete
+        }
+
+        public async Task<T> MakeStorageRequest<T>(Func<OperationContext, CancellationToken, Task<T>> storageRequest, string operationName)
+        {
+            try
+            {
+                return await TimeoutHandler.ExecuteWithTimeout<T>(operationName, this.StorageAccountName, this.Settings, storageRequest, this.stats);
+            }
+            catch (StorageException ex)
+            {
+                throw new DurableTaskStorageException(ex);
+            }
+        }
+
+        public async Task<T> MakeStorageRequest<T>(Func<Task<T>> storageRequest, string operationName)
+        {
+            return await this.MakeStorageRequest<T>((context, timeoutToken) =>
+            {
+                return storageRequest();
+            }, operationName);
+        }
+
+        public async Task MakeStorageRequest(Func<Task> storageRequest, string operationName)
+        {
+            await this.MakeStorageRequest(() => WrapFunctionWithReturnType(storageRequest), operationName);
+        }
+
+        private static async Task<bool> WrapFunctionWithReturnType(Func<Task> storageRequest)
+        {
+            await storageRequest();
+            return true;
+        }
+    }
+}

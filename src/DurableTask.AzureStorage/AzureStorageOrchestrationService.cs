@@ -16,7 +16,6 @@ namespace DurableTask.AzureStorage
     using System;
     using System.Collections.Concurrent;
     using System.Collections.Generic;
-    using System.Diagnostics;
     using System.Diagnostics.Tracing;
     using System.Linq;
     using System.Net;
@@ -26,6 +25,7 @@ namespace DurableTask.AzureStorage
     using DurableTask.AzureStorage.Messaging;
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Partitioning;
+    using DurableTask.AzureStorage.Storage;
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
@@ -51,6 +51,7 @@ namespace DurableTask.AzureStorage
             ExecutionId = string.Empty
         };
 
+        readonly AzureStorageClient azureStorageClient;
         readonly AzureStorageOrchestrationServiceSettings settings;
         readonly AzureStorageOrchestrationServiceStats stats;
         readonly string storageAccountName;
@@ -104,6 +105,8 @@ namespace DurableTask.AzureStorage
             ValidateSettings(settings);
 
             this.settings = settings;
+
+            this.azureStorageClient = new AzureStorageClient(settings, stats, storageAccountName);
  
             CloudStorageAccount account = settings.StorageAccountDetails == null
                 ? CloudStorageAccount.Parse(settings.StorageConnectionString)
@@ -118,7 +121,7 @@ namespace DurableTask.AzureStorage
 
             string compressedMessageBlobContainerName = $"{settings.TaskHubName.ToLowerInvariant()}-largemessages";
             NameValidator.ValidateContainerName(compressedMessageBlobContainerName);
-            this.messageManager = new MessageManager(this.settings, this.blobClient, compressedMessageBlobContainerName);
+            this.messageManager = new MessageManager(this.settings, this.azureStorageClient, compressedMessageBlobContainerName);
 
             this.allControlQueues = new ConcurrentDictionary<string, ControlQueue>();
             for (int i = 0; i < this.settings.PartitionCount; i++)
@@ -155,10 +158,8 @@ namespace DurableTask.AzureStorage
                 LazyThreadSafetyMode.ExecutionAndPublication);
 
             this.leaseManager = GetBlobLeaseManager(
-                this.settings,
-                "default",
-                account,
-                this.stats);
+                this.azureStorageClient,
+                "default");
 
             this.orchestrationSessionManager = new OrchestrationSessionManager(
                 this.storageAccountName,
@@ -170,18 +171,14 @@ namespace DurableTask.AzureStorage
             {
                 this.partitionManager = new LegacyPartitionManager(
                     this,
-                    this.settings,
-                    account,
-                    this.stats);
+                    this.azureStorageClient);
             }
             else
             {
                 this.partitionManager = new SafePartitionManager(
                     this,
-                    this.orchestrationSessionManager,
-                    this.settings,
-                    account,
-                    this.stats);
+                    this.azureStorageClient,
+                    this.orchestrationSessionManager);
             }
 
             this.appLeaseManager = new AppLeaseManager(
@@ -248,20 +245,14 @@ namespace DurableTask.AzureStorage
             return queueClient.GetQueueReference(queueName);
         }
 
-        static BlobLeaseManager GetBlobLeaseManager(
-            AzureStorageOrchestrationServiceSettings settings,
-            string leaseType,
-            CloudStorageAccount account,
-            AzureStorageOrchestrationServiceStats stats)
+        internal static BlobLeaseManager GetBlobLeaseManager(
+            AzureStorageClient azureStorageClient,
+            string leaseType)
         {
             return new BlobLeaseManager(
-                settings,
-                leaseContainerName: settings.TaskHubName.ToLowerInvariant() + "-leases",
-                blobPrefix: string.Empty,
-                leaseType: leaseType,
-                storageClient: account.CreateCloudBlobClient(),
-                skipBlobContainerCreation: false,
-                stats: stats);
+                azureStorageClient,
+                leaseContainerName: azureStorageClient.Settings.TaskHubName.ToLowerInvariant() + "-leases",
+                leaseType: leaseType);
         }
 
         static void ValidateSettings(AzureStorageOrchestrationServiceSettings settings)
@@ -666,7 +657,7 @@ namespace DurableTask.AzureStorage
 
             string taskHub = settings.TaskHubName;
 
-            BlobLeaseManager inactiveLeaseManager = GetBlobLeaseManager(settings, "inactive", account, null);
+            BlobLeaseManager inactiveLeaseManager = GetBlobLeaseManager(null, "inactive");
 
             TaskHubInfo hubInfo = await inactiveLeaseManager.GetOrCreateTaskHubInfoAsync(
                 GetTaskHubInfo(taskHub, defaultPartitionCount),
