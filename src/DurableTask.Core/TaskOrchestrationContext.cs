@@ -31,7 +31,7 @@ namespace DurableTask.Core
         private readonly IDictionary<int, OpenTaskInfo> openTasks;
         private readonly IDictionary<int, OrchestratorAction> orchestratorActionsMap;
         private OrchestrationCompleteOrchestratorAction continueAsNew;
-        private bool executionTerminated;
+        private bool executionCompletedOrTerminated;
         private int idCounter;
 
         public bool HasContinueAsNew => continueAsNew != null;
@@ -473,12 +473,12 @@ namespace DurableTask.Core
             }
             else
             {
-                if (executionTerminated)
+                if (this.executionCompletedOrTerminated)
                 {
                     return;
                 }
 
-                executionTerminated = true;
+                this.executionCompletedOrTerminated = true;
 
                 completedOrchestratorAction = new OrchestrationCompleteOrchestratorAction();
                 completedOrchestratorAction.Result = result;
