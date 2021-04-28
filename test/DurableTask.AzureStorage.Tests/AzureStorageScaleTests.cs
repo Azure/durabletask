@@ -254,14 +254,13 @@ namespace DurableTask.AzureStorage.Tests
                             lease => new
                             {
                                 Name = lease.Blob.Name,
-                                State = lease.Blob.Properties.LeaseState,
                                 Owner = lease.Owner,
                             })
                         .Where(lease => !string.IsNullOrEmpty(lease.Owner))
                         .ToArray();
 
                     Array.ForEach(leases, lease => Trace.TraceInformation(
-                        $"Blob: {lease.Name}, State: {lease.State}, Owner: {lease.Owner}"));
+                        $"Blob: {lease.Name}, Owner: {lease.Owner}"));
 
                     isBalanced = false;
                     var workersWithLeases = leases.GroupBy(l => l.Owner).ToArray();
@@ -449,7 +448,7 @@ namespace DurableTask.AzureStorage.Tests
             BlobLease lease = (await service.ListBlobLeasesAsync()).Single();
             await lease.Blob.ChangeLeaseAsync(
                 proposedLeaseId: Guid.NewGuid().ToString(),
-                accessCondition: AccessCondition.GenerateLeaseCondition(lease.Token));
+                currentLeaseId: lease.Token);
             await TestHelpers.WaitFor(
                 condition: () => !service.OwnedControlQueues.Any(),
                 timeout: TimeSpan.FromSeconds(10));
