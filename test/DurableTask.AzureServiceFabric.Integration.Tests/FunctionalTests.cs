@@ -46,6 +46,17 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
         }
 
         [TestMethod]
+        public async Task Orchestration_With_InstanceId_SpecialChars()
+        {
+            var instanceId = typeof(SimpleOrchestrationWithTasks) + "$abc";
+            var instance = await this.taskHubClient.CreateOrchestrationInstanceAsync(typeof(SimpleOrchestrationWithTasks), instanceId, null);
+            var result = await this.taskHubClient.WaitForOrchestrationAsync(instance, TimeSpan.FromMinutes(2));
+
+            Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
+            Assert.AreEqual("\"Hello Gabbar\"", result.Output);
+        }
+
+        [TestMethod]
         public async Task Orchestration_With_Timer_Finishes_After_The_Wait_Time()
         {
             var waitTime = 37;
