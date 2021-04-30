@@ -216,11 +216,15 @@ namespace DurableTask.AzureStorage
         public ILoggerFactory LoggerFactory { get; set; } = NoOpLoggerFactory.Instance;
 
         /// <summary>
-        /// Gets or sets an optional action to be executed before the app is recycled. Reason for shutdown is passed as a string parameter.
+        /// Gets or sets an optional function to be executed before the app is recycled. Reason for shutdown is passed as a string parameter.
         /// This can be used to perform any pending cleanup tasks or just do a graceful shutdown.
+        /// The function returns a <see cref="bool"/>. If 'true' is returned <see cref="Environment.FailFast(string)"/> is executed, if 'false' is returned,
+        /// process kill is skipped.
         /// A wait time of 35 seconds will be given for the task to finish, if the task does not finish in required time, <see cref="Environment.FailFast(string)"/> will be executed.
         /// </summary>
-        public Func<string, Task> ProcessGracefulShutdownAction { get; set; } = (message) => Task.CompletedTask;
+        /// <remarks>Skipping process kill by returning false might have negative consequences if since Storage SDK might be in deadlock. Ensure if you return
+        /// false a process shutdown is executed by you.</remarks>
+        public Func<string, Task<bool>> OnImminentFailFast { get; set; } = (message) => Task.FromResult(true);
 
         /// <summary>
         /// Returns bool indicating is the TrackingStoreStorageAccount has been set.

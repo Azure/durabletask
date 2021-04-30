@@ -78,10 +78,31 @@ namespace DurableTask.AzureStorage
                             // Delay to ensure the ETW event gets written
                             await Task.Delay(TimeSpan.FromSeconds(3));
 
-                            await Task.WhenAny(settings.ProcessGracefulShutdownAction(message), Task.Delay(TimeSpan.FromSeconds(35)));
-                            TimeoutHandler.ProcessKillAction(message);
+                            bool executeFailFast = true;
+                            Task<bool> gracefulShutdownTask = Task.Run(async () =>
+                            {
+                                try
+                                {
+                                    return await settings.OnImminentFailFast(message);
+                                }
+                                catch (Exception)
+                                {
+                                    return true;
+                                }
+                            });
 
-                            // Should never be hit, due to above FailFast() call.
+                            await Task.WhenAny(gracefulShutdownTask, Task.Delay(TimeSpan.FromSeconds(35)));
+
+                            if (gracefulShutdownTask.IsCompleted)
+                            {
+                                executeFailFast = gracefulShutdownTask.Result;
+                            }
+
+                            if (executeFailFast)
+                            {
+                                TimeoutHandler.ProcessKillAction(message);
+                            }
+
                             return default(T);
                         }
 
