@@ -31,6 +31,11 @@ namespace DurableTask.AzureStorage
 
         private static int NumTimeoutsHit = 0;
 
+        /// <summary>
+        /// Process kill action. This is exposed here to allow override from tests.
+        /// </summary>
+        private static Action<string> ProcessKillAction = (errorMessage) => Environment.FailFast(errorMessage);
+
         public static async Task<T> ExecuteWithTimeout<T>(
             string operationName,
             string account,
@@ -72,7 +77,9 @@ namespace DurableTask.AzureStorage
 
                             // Delay to ensure the ETW event gets written
                             await Task.Delay(TimeSpan.FromSeconds(3));
-                            Environment.FailFast(message);
+
+                            await Task.WhenAny(settings.ProcessGracefulShutdownAction(message), Task.Delay(TimeSpan.FromSeconds(35)));
+                            TimeoutHandler.ProcessKillAction(message);
 
                             // Should never be hit, due to above FailFast() call.
                             return default(T);

@@ -21,6 +21,7 @@ namespace DurableTask.AzureStorage
     using Microsoft.WindowsAzure.Storage.Queue;
     using Microsoft.WindowsAzure.Storage.Table;
     using System.Runtime.Serialization;
+    using System.Threading.Tasks;
 
     /// <summary>
     /// Settings that impact the runtime behavior of the <see cref="AzureStorageOrchestrationService"/>.
@@ -213,6 +214,13 @@ namespace DurableTask.AzureStorage
         /// Gets or sets the optional <see cref="ILoggerFactory"/> to use for diagnostic logging.
         /// </summary>
         public ILoggerFactory LoggerFactory { get; set; } = NoOpLoggerFactory.Instance;
+
+        /// <summary>
+        /// Gets or sets an optional action to be executed before the app is recycled. Reason for shutdown is passed as a string parameter.
+        /// This can be used to perform any pending cleanup tasks or just do a graceful shutdown.
+        /// A wait time of 35 seconds will be given for the task to finish, if the task does not finish in required time, <see cref="Environment.FailFast(string)"/> will be executed.
+        /// </summary>
+        public Func<string, Task> ProcessGracefulShutdownAction { get; set; } = (message) => Task.CompletedTask;
 
         /// <summary>
         /// Returns bool indicating is the TrackingStoreStorageAccount has been set.
