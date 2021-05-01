@@ -102,8 +102,12 @@ namespace DurableTask.AzureStorage
                             {
                                 TimeoutHandler.ProcessKillAction(message);
                             }
-
-                            throw new TimeoutException(message);
+                            else
+                            {
+                                // Technically we don't need else as the action above would have killed the process.
+                                // However tests don't kill the process so putting in else.
+                                throw new TimeoutException(message);
+                            }
                         }
 
                     }
