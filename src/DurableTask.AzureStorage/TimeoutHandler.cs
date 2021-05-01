@@ -103,7 +103,7 @@ namespace DurableTask.AzureStorage
                                 TimeoutHandler.ProcessKillAction(message);
                             }
 
-                            return default(T);
+                            throw new TimeoutException(message);
                         }
 
                     }

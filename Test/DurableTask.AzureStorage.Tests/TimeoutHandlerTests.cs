@@ -58,6 +58,7 @@ namespace DurableTask.AzureStorage.Tests
         /// </summary>
         /// <returns>Task tracking operation.</returns>
         [TestMethod]
+        [ExpectedException(typeof(TimeoutException))]
         public async Task EnsureTimeoutHandlerRunsProcessShutdownEventsAndSkipsProcessKill()
         {
             int executionCount = 0;
