@@ -54,23 +54,17 @@ namespace DurableTask.AzureStorage.Storage
 
         public Blob GetBlobReference(string container, string blobName, string blobDirectory = null)
         {
-#pragma warning disable CS0618 // Type or member is obsolete
             return new Blob(this, this.blobClient, container, blobName, blobDirectory);
-#pragma warning restore CS0618 // Type or member is obsolete
         }
 
         internal Blob GetBlobReference(Uri blobUri)
         {
-#pragma warning disable CS0618 // Type or member is obsolete
             return new Blob(this, this.blobClient, blobUri);
-#pragma warning restore CS0618 // Type or member is obsolete
         }
 
         public BlobContainer GetBlobContainerReference(string container)
         {
-#pragma warning disable CS0618 // Type or member is obsolete
             return new BlobContainer(this, this.blobClient, container);
-#pragma warning restore CS0618 // Type or member is obsolete
         }
 
         public async Task<T> MakeStorageRequest<T>(Func<OperationContext, CancellationToken, Task<T>> storageRequest, string operationName)
@@ -85,22 +79,14 @@ namespace DurableTask.AzureStorage.Storage
             }
         }
 
-        public async Task<T> MakeStorageRequest<T>(Func<Task<T>> storageRequest, string operationName)
+        public async Task MakeStorageRequest(Func<OperationContext, CancellationToken, Task> storageRequest, string operationName)
         {
-            return await this.MakeStorageRequest<T>((context, timeoutToken) =>
-            {
-                return storageRequest();
-            }, operationName);
+            await this.MakeStorageRequest((context, cancellationToken) => WrapFunctionWithReturnType(storageRequest, context, cancellationToken), operationName);
         }
 
-        public async Task MakeStorageRequest(Func<Task> storageRequest, string operationName)
+        private static async Task<bool> WrapFunctionWithReturnType(Func<OperationContext, CancellationToken, Task> storageRequest, OperationContext context, CancellationToken cancellationToken)
         {
-            await this.MakeStorageRequest(() => WrapFunctionWithReturnType(storageRequest), operationName);
-        }
-
-        private static async Task<bool> WrapFunctionWithReturnType(Func<Task> storageRequest)
-        {
-            await storageRequest();
+            await storageRequest(context, cancellationToken);
             return true;
         }
     }

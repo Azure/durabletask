@@ -28,7 +28,6 @@ namespace DurableTask.AzureStorage.Storage
         readonly string containerName;
         readonly CloudBlobContainer cloudBlobContainer;
 
-        [Obsolete("Use AzureStorageClient.GetBlobContainerReference()")]
         public BlobContainer(AzureStorageClient azureStorageClient, CloudBlobClient blobClient, string name)
         {
             this.azureStorageClient = azureStorageClient;
@@ -45,17 +44,23 @@ namespace DurableTask.AzureStorage.Storage
 
         public async Task<bool> CreateIfNotExistsAsync()
         {
-            return await this.azureStorageClient.MakeStorageRequest<bool>(() => this.cloudBlobContainer.CreateIfNotExistsAsync(), "Create Container");
+            return await this.azureStorageClient.MakeStorageRequest<bool>(
+                (context, cancellationToken) => this.cloudBlobContainer.CreateIfNotExistsAsync(BlobContainerPublicAccessType.Container, null, context, cancellationToken),
+                "Create Container");
         }
 
         public async Task<bool> ExistsAsync()
         {
-            return await this.azureStorageClient.MakeStorageRequest<bool>(() => this.cloudBlobContainer.ExistsAsync(), "Container Exists");
+            return await this.azureStorageClient.MakeStorageRequest<bool>(
+                (context, cancellationToken) => this.cloudBlobContainer.ExistsAsync(null, context, cancellationToken),
+                "Container Exists");
         }
 
         public async Task<bool> DeleteIfExistsAsync()
         {
-            return await this.azureStorageClient.MakeStorageRequest<bool>(() => this.cloudBlobContainer.DeleteIfExistsAsync(), "Delete Container");
+            return await this.azureStorageClient.MakeStorageRequest<bool>(
+                (context, cancellationToken) => this.cloudBlobContainer.DeleteIfExistsAsync(null, null, context, cancellationToken),
+                "Delete Container");
         }
 
         public async Task<IEnumerable<Blob>> ListBlobsAsync(string blobDirectory = null)
@@ -66,18 +71,18 @@ namespace DurableTask.AzureStorage.Storage
             {
                 var cloudBlobDirectory = this.cloudBlobContainer.GetDirectoryReference(blobDirectory);
 
-                listBlobsFunction = (context, timeoutToken) => cloudBlobDirectory.ListBlobsSegmentedAsync(
+                listBlobsFunction = (context, cancellationToken) => cloudBlobDirectory.ListBlobsSegmentedAsync(
                     useFlatBlobListing: true,
                     blobListingDetails: BlobListingDetails.Metadata,
                     maxResults: null,
                     currentToken: continuationToken,
                     options: null,
                     operationContext: context,
-                    cancellationToken: timeoutToken);
+                    cancellationToken: cancellationToken);
             }
             else
             {
-                listBlobsFunction = (context, timeoutToken) => this.cloudBlobContainer.ListBlobsSegmentedAsync(
+                listBlobsFunction = (context, cancellationToken) => this.cloudBlobContainer.ListBlobsSegmentedAsync(
                     null,
                     useFlatBlobListing: true,
                     blobListingDetails: BlobListingDetails.Metadata,
@@ -85,7 +90,7 @@ namespace DurableTask.AzureStorage.Storage
                     currentToken: continuationToken,
                     options: null,
                     operationContext: context,
-                    cancellationToken: timeoutToken);
+                    cancellationToken: cancellationToken);
             }
 
             var blobList = new List<Blob>();

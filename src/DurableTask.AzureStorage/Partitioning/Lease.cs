@@ -55,9 +55,9 @@ namespace DurableTask.AzureStorage.Partitioning
 
         /// <summary>Determines whether the lease is expired.</summary>
         /// <returns>true if the lease is expired; otherwise, false.</returns>
-        public virtual async Task<bool> IsExpired()
+        public virtual Task<bool> IsExpired()
         {
-            return await Task.FromResult(false);
+            return Task.FromResult(false);
         }
 
         /// <summary>Determines whether this instance is equal to the specified object.</summary>
