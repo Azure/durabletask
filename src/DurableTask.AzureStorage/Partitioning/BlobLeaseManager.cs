@@ -228,7 +228,7 @@ namespace DurableTask.AzureStorage.Partitioning
             try
             {
                 // First renew the lease to make sure checkpoint will go through
-                await leaseBlob.ReleaseLeaseAsync(lease.Token);
+                await leaseBlob.RenewLeaseAsync(lease.Token);
             }
             catch (DurableTaskStorageException storageException)
             {
