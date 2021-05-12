@@ -14,7 +14,7 @@
 namespace DurableTask.AzureStorage.Messaging
 {
     using System.Collections.Generic;
-    using Microsoft.WindowsAzure.Storage.Queue;
+    using DurableTask.AzureStorage.Storage;
 
     class MessageCollection : List<MessageData>
     {
@@ -28,7 +28,7 @@ namespace DurableTask.AzureStorage.Messaging
             // with the newer copy to ensure it can be deleted successfully after being processed.
             for (int i = 0; i < this.Count; i++)
             {
-                CloudQueueMessage existingMessage = this[i].OriginalQueueMessage;
+                QueueMessage existingMessage = this[i].OriginalQueueMessage;
                 if (existingMessage.Id == message.OriginalQueueMessage.Id)
                 {
                     this[i] = message;

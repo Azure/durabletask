@@ -127,10 +127,10 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        public async Task<MessageData> DeserializeQueueMessageAsync(CloudQueueMessage queueMessage, string queueName)
+        public async Task<MessageData> DeserializeQueueMessageAsync(QueueMessage queueMessage, string queueName)
         {
             MessageData envelope = JsonConvert.DeserializeObject<MessageData>(
-                queueMessage.AsString,
+                queueMessage.Message,
                 this.taskMessageSerializerSettings);
 
             if (!string.IsNullOrEmpty(envelope.CompressedBlobName))
@@ -143,7 +143,7 @@ namespace DurableTask.AzureStorage
             }
 
             envelope.OriginalQueueMessage = queueMessage;
-            envelope.TotalMessageSizeBytes = Encoding.UTF8.GetByteCount(queueMessage.AsString);
+            envelope.TotalMessageSizeBytes = Encoding.UTF8.GetByteCount(queueMessage.Message);
             envelope.QueueName = queueName;
             return envelope;
         }

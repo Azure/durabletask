@@ -21,10 +21,10 @@ namespace DurableTask.AzureStorage
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Messaging;
     using DurableTask.AzureStorage.Monitoring;
+    using DurableTask.AzureStorage.Storage;
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
     using DurableTask.Core.History;
-    using Microsoft.WindowsAzure.Storage.Queue;
 
     class OrchestrationSessionManager : IDisposable
     {
@@ -334,8 +334,8 @@ namespace DurableTask.AzureStorage
                 return true;
             }
 
-            CloudQueueMessage cloudQueueMessage = msg.OriginalQueueMessage;
-            if (cloudQueueMessage.DequeueCount <= 1 || !cloudQueueMessage.NextVisibleTime.HasValue)
+            QueueMessage queueMessage = msg.OriginalQueueMessage;
+            if (queueMessage.DequeueCount <= 1 || !queueMessage.NextVisibleTime.HasValue)
             {
                 // We can't use the initial insert time and instead must rely on a re-insertion time,
                 // which is only available to use after the first dequeue count.
@@ -344,7 +344,7 @@ namespace DurableTask.AzureStorage
 
             // This calculation assumes that the value of ControlQueueVisibilityTimeout did not change
             // in any meaningful way between the time the message was inserted and now.
-            DateTime latestReinsertionTime = cloudQueueMessage.NextVisibleTime.Value.Subtract(this.settings.ControlQueueVisibilityTimeout).DateTime;
+            DateTime latestReinsertionTime = queueMessage.NextVisibleTime.Value.Subtract(this.settings.ControlQueueVisibilityTimeout).DateTime;
             return latestReinsertionTime > remoteInstance.CreatedTime;
         }
 

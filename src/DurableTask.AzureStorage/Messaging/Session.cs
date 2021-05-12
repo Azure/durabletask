@@ -32,15 +32,9 @@ namespace DurableTask.AzureStorage.Messaging
             this.Instance = orchestrationInstance ?? throw new ArgumentNullException(nameof(orchestrationInstance));
 
             this.TraceActivityId = traceActivityId;
-            this.StorageOperationContext = new OperationContext
-            {
-                ClientRequestID = this.TraceActivityId.ToString(),
-            };
         }
 
         public OrchestrationInstance Instance { get; protected set; }
-
-        public OperationContext StorageOperationContext { get; }
 
         public Guid TraceActivityId { get; }
 
@@ -60,7 +54,7 @@ namespace DurableTask.AzureStorage.Messaging
             }
 
             TaskMessage taskMessage = data.TaskMessage;
-            CloudQueueMessage queueMessage = data.OriginalQueueMessage;
+            CloudQueueMessage queueMessage = data.OriginalQueueMessage.CloudQueueMessage;
 
             this.settings.Logger.ProcessingMessage(
                 data.ActivityId,
