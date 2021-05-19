@@ -102,9 +102,9 @@ namespace DurableTask.AzureStorage.Partitioning
             }
         }
 
-        async Task PartitionManagerStarter(CancellationToken token)
+        async Task PartitionManagerStarter(CancellationToken cancellationToken)
         {
-            while (!token.IsCancellationRequested)
+            while (!cancellationToken.IsCancellationRequested)
             {
                 try
                 {
@@ -116,14 +116,9 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.accountName,
                         this.settings.TaskHubName,
                         this.workerName,
-                        null,
+                        this.appLeaseContainerName,
                         $"Error in PartitionManagerStarter task. Exception: {e}");
-
-                    await Task.Delay(TimeSpan.FromSeconds(10), token);
-                    continue;
                 }
-
-                break;
             }
         }
 
@@ -139,20 +134,24 @@ namespace DurableTask.AzureStorage.Partitioning
             return await Task.Factory.StartNew(() => this.AppLeaseManagerStarter(this.starterTokenSource.Token));
         }
 
-        async Task AppLeaseManagerStarter(CancellationToken token)
+        async Task AppLeaseManagerStarter(CancellationToken cancellationToken)
         {
-            while (!token.IsCancellationRequested)
+            while (!cancellationToken.IsCancellationRequested)
             {
                 try
                 {
-                    while (!token.IsCancellationRequested && !await this.TryAquireAppLeaseAsync())
+                    while (!cancellationToken.IsCancellationRequested && !await this.TryAquireAppLeaseAsync())
                     {
-                        await Task.Delay(this.settings.AppLeaseOptions.AcquireInterval);
+                        await Task.Delay(this.settings.AppLeaseOptions.AcquireInterval, cancellationToken);
                     }
 
                     await this.StartAppLeaseAsync();
 
                     await this.AwaitUntilAppLeaseStopped();
+                }
+                catch (OperationCanceledException)
+                {
+                    // Catch OperationCanceledException to avoid logging an error if the Task.Delay was cancelled.
                 }
                 catch (Exception e)
                 {
@@ -160,11 +159,8 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.accountName,
                         this.settings.TaskHubName,
                         this.workerName,
-                        null,
+                        this.appLeaseContainerName,
                         $"Error in AppLeaseStarter task. Exception: {e}");
-
-                    await Task.Delay(TimeSpan.FromSeconds(10), token);
-                    continue;
                 }
             }
         }
@@ -443,12 +439,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 }
                 catch (OperationCanceledException)
                 {
-                    this.settings.Logger.PartitionManagerInfo(
-                        this.accountName,
-                        this.taskHub,
-                        this.workerName,
-                        this.appLeaseContainerName,
-                        "Background renewal task was canceled.");
+                    // Catch OperationCanceledException to avoid logging an error if the Task.Delay was cancelled.
                 }
                 catch (Exception ex)
                 {
