@@ -45,7 +45,6 @@ namespace DurableTask.AzureStorage.Partitioning
         readonly CloudBlockBlob appLeaseInfoBlob;
         readonly string appLeaseId;
 
-        Task starterTask;
         bool isLeaseOwner;
         int appLeaseIsStarted;
         Task renewTask;
@@ -94,11 +93,11 @@ namespace DurableTask.AzureStorage.Partitioning
             {
                 this.starterTokenSource = new CancellationTokenSource();
 
-                this.starterTask = await Task.Factory.StartNew(() => this.PartitionManagerStarter(this.starterTokenSource.Token));
+                await Task.Factory.StartNew(() => this.PartitionManagerStarter(this.starterTokenSource.Token));
             }
             else
             {
-                this. starterTask = await RestartAppLeaseStarterTask();
+                await RestartAppLeaseStarterTask();
             }
         }
 
@@ -177,7 +176,6 @@ namespace DurableTask.AzureStorage.Partitioning
             }
 
             this.starterTokenSource.Cancel();
-            await this.starterTask;
             this.starterTokenSource.Dispose();
         }
 
