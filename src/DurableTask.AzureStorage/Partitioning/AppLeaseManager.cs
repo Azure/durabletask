@@ -93,7 +93,7 @@ namespace DurableTask.AzureStorage.Partitioning
             {
                 this.starterTokenSource = new CancellationTokenSource();
 
-                await Task.Factory.StartNew(() => this.PartitionManagerStarter(this.starterTokenSource.Token));
+                await Task.Run(() => this.PartitionManagerStarter(this.starterTokenSource.Token));
             }
             else
             {
@@ -121,7 +121,7 @@ namespace DurableTask.AzureStorage.Partitioning
             }
         }
 
-        async Task<Task> RestartAppLeaseStarterTask()
+        async Task RestartAppLeaseStarterTask()
         {
             if (this.starterTokenSource != null)
             {
@@ -130,7 +130,7 @@ namespace DurableTask.AzureStorage.Partitioning
             }
             this.starterTokenSource = new CancellationTokenSource();
 
-            return await Task.Factory.StartNew(() => this.AppLeaseManagerStarter(this.starterTokenSource.Token));
+            await Task.Run(() => this.AppLeaseManagerStarter(this.starterTokenSource.Token));
         }
 
         async Task AppLeaseManagerStarter(CancellationToken cancellationToken)
