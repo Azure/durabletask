@@ -13,16 +13,16 @@
 
 namespace DurableTask.AzureStorage.Partitioning
 {
-    using DurableTask.AzureStorage.Monitoring;
-    using Microsoft.WindowsAzure.Storage;
-    using Microsoft.WindowsAzure.Storage.Blob;
-    using Newtonsoft.Json;
     using System;
     using System.Net;
     using System.Security.Cryptography;
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
+    using DurableTask.AzureStorage.Monitoring;
+    using Microsoft.WindowsAzure.Storage;
+    using Microsoft.WindowsAzure.Storage.Blob;
+    using Newtonsoft.Json;
 
     /// <summary>
     /// Class responsible for starting and stopping the partition manager. Also implements the app lease feature to ensure a single app's partition manager is started at a time.
@@ -50,7 +50,7 @@ namespace DurableTask.AzureStorage.Partitioning
         Task renewTask;
         CancellationTokenSource starterTokenSource;
         CancellationTokenSource leaseRenewerCancellationTokenSource;
-        TaskCompletionSource<bool> appLeaseTCS;
+        AsyncManualResetEvent shutdownCompletedEvent;
 
         public AppLeaseManager(
             IPartitionManager partitionManager,
@@ -85,6 +85,7 @@ namespace DurableTask.AzureStorage.Partitioning
             }
 
             this.isLeaseOwner = false;
+            this.shutdownCompletedEvent = new AsyncManualResetEvent();
         }
 
         public async Task StartAsync()
@@ -139,14 +140,14 @@ namespace DurableTask.AzureStorage.Partitioning
             {
                 try
                 {
-                    while (!cancellationToken.IsCancellationRequested && !await this.TryAquireAppLeaseAsync())
+                    while (!await this.TryAquireAppLeaseAsync())
                     {
                         await Task.Delay(this.settings.AppLeaseOptions.AcquireInterval, cancellationToken);
                     }
 
                     await this.StartAppLeaseAsync();
 
-                    await this.AwaitUntilAppLeaseStopped();
+                    await this.shutdownCompletedEvent.WaitAsync(Timeout.InfiniteTimeSpan, cancellationToken);
                 }
                 catch (OperationCanceledException)
                 {
@@ -240,7 +241,7 @@ namespace DurableTask.AzureStorage.Partitioning
             }
             finally
             {
-                    this.stats.StorageRequests.Increment();
+                this.stats.StorageRequests.Increment();
             }
         }
 
@@ -254,6 +255,8 @@ namespace DurableTask.AzureStorage.Partitioning
             this.leaseRenewerCancellationTokenSource = new CancellationTokenSource();
 
             await this.partitionManager.StartAsync();
+
+            this.shutdownCompletedEvent.Reset();
 
             this.renewTask = await Task.Factory.StartNew(() => this.LeaseRenewer(leaseRenewerCancellationTokenSource.Token));
         }
@@ -275,10 +278,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 await this.renewTask;
             }
 
-            if (appLeaseTCS != null && !appLeaseTCS.Task.IsCompleted)
-            {
-                appLeaseTCS.SetResult(true);
-            }
+            this.shutdownCompletedEvent.Set();
 
             this.leaseRenewerCancellationTokenSource?.Dispose();
         }
@@ -464,7 +464,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.appLeaseContainerName,
                 "Lease renewer task completing. Stopping AppLeaseManager.");
 
-            _ = Task.Run(() => this.StopAppLeaseAsync());
+           await this.StopAppLeaseAsync();
         }
 
         async Task<bool> RenewLeaseAsync()
@@ -613,12 +613,6 @@ namespace DurableTask.AzureStorage.Partitioning
 
             this.stats.StorageRequests.Increment();
             return null;
-        }
-
-        Task AwaitUntilAppLeaseStopped()
-        {
-            this.appLeaseTCS = new TaskCompletionSource<bool>();
-            return this.appLeaseTCS.Task;
         }
 
         private class AppLeaseInfo

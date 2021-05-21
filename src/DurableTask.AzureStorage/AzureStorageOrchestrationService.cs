@@ -1794,9 +1794,9 @@ namespace DurableTask.AzureStorage
         ///  Forces this app to take the AppLease if this app doesn't already have it. To use this, must be using the AppLease feature by setting UseAppLease to true in host.json.
         /// </summary>
         /// <returns>A task that completes when the steal app message is written to storage and the LeaseManagerStarter Task has been restarted.</returns>
-        public async Task ForceChangeAppLeaseAsync()
+        public Task ForceChangeAppLeaseAsync()
         {
-            await this.appLeaseManager.ForceChangeAppLeaseAsync();
+            return this.appLeaseManager.ForceChangeAppLeaseAsync();
         }
 
         /// <summary>
