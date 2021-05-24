@@ -94,7 +94,7 @@ namespace DurableTask.AzureStorage.Partitioning
             {
                 this.starterTokenSource = new CancellationTokenSource();
 
-                await Task.Factory.StartNew(() => this.PartitionManagerStarter(this.starterTokenSource.Token));
+                await Task.Run(() => this.PartitionManagerStarter(this.starterTokenSource.Token));
             }
             else
             {
@@ -109,6 +109,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 try
                 {
                     await this.partitionManager.StartAsync();
+                    break;
                 }
                 catch (Exception e)
                 {
