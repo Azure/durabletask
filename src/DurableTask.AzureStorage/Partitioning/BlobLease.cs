@@ -37,11 +37,9 @@ namespace DurableTask.AzureStorage.Partitioning
         }
 
         [JsonIgnore]
-        internal Blob Blob { get; set; }
+        public Blob Blob { get; set; }
 
-        public override async Task<bool> IsExpired()
-        {
-            return !await this.Blob.IsLeased();
-        }
+        [JsonIgnore]
+        public override bool IsExpired => !Blob.IsLeased;
     }
 }
