@@ -278,6 +278,8 @@ namespace DurableTask.AzureStorage.Partitioning
                 await this.renewTask;
             }
 
+            this.isLeaseOwner = false;
+
             this.shutdownCompletedEvent.Set();
 
             this.leaseRenewerCancellationTokenSource?.Dispose();
@@ -464,7 +466,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.appLeaseContainerName,
                 "Lease renewer task completing. Stopping AppLeaseManager.");
 
-           await this.StopAppLeaseAsync();
+            await this.StopAppLeaseAsync();
         }
 
         async Task<bool> RenewLeaseAsync()
