@@ -270,7 +270,6 @@ namespace DurableTask.AzureStorage.Partitioning
                 return;
             }
 
-            await this.ReleaseLeaseAsync();
             await this.partitionManager.StopAsync();
 
             if (this.renewTask != null)
@@ -535,33 +534,6 @@ namespace DurableTask.AzureStorage.Partitioning
                 errorMessage);
 
             return renewed;
-        }
-
-        async Task ReleaseLeaseAsync()
-        {
-            try
-            {
-                AccessCondition accessCondition = new AccessCondition() { LeaseId = this.appLeaseId };
-                await this.appLeaseContainer.ReleaseLeaseAsync(accessCondition);
-
-                this.isLeaseOwner = false;
-
-                this.settings.Logger.LeaseRemoved(
-                    this.accountName,
-                    this.taskHub,
-                    this.workerName,
-                    this.appLeaseContainerName,
-                    this.appLeaseId);
-            }
-            catch (Exception)
-            {
-                this.settings.Logger.LeaseRemovalFailed(
-                    this.accountName, 
-                    this.taskHub, 
-                    this.workerName,
-                    this.appLeaseContainerName, 
-                    this.appLeaseId);
-            }
         }
 
         async Task UpdateOwnerAppIdToCurrentApp()
