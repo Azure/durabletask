@@ -39,7 +39,8 @@ namespace DurableTask.AzureStorage.Storage
 
         public Blob GetBlobReference(string blobName, string blobPrefix = null)
         {
-            return this.azureStorageClient.GetBlobReference(this.containerName, Path.Combine(blobPrefix, blobName));
+            var fullBlobName = blobPrefix != null ? Path.Combine(blobPrefix, blobName) : blobName;
+            return this.azureStorageClient.GetBlobReference(this.containerName, fullBlobName);
         }
 
         public async Task<bool> CreateIfNotExistsAsync()
