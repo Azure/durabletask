@@ -216,6 +216,11 @@ namespace DurableTask.AzureStorage
         public ILoggerFactory LoggerFactory { get; set; } = NoOpLoggerFactory.Instance;
 
         /// <summary>
+        /// Gets or sets a value indicating whether to disable the ExecutionStarted de-duplication logic.
+        /// </summary>
+        public bool DisableExecutionStartedDeduplication { get; set; }
+
+        /// <summary>
         /// Gets or sets an optional function to be executed before the app is recycled. Reason for shutdown is passed as a string parameter.
         /// This can be used to perform any pending cleanup tasks or just do a graceful shutdown.
         /// The function returns a <see cref="bool"/>. If 'true' is returned <see cref="Environment.FailFast(string)"/> is executed, if 'false' is returned,
