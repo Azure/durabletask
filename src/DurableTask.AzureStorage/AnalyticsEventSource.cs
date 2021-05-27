@@ -362,7 +362,7 @@ namespace DurableTask.AzureStorage
                 ExtensionVersion);
         }
 
-        [Event(EventIds.OrchestrationServiceStats, Level = EventLevel.Verbose, Version = 3)]
+        [Event(EventIds.OrchestrationServiceStats, Level = EventLevel.Informational, Version = 3)]
         public void OrchestrationServiceStats(
             string Account,
             string TaskHub,
