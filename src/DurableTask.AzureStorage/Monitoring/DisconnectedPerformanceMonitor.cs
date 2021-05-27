@@ -84,6 +84,12 @@ namespace DurableTask.AzureStorage.Monitoring
             this.highLatencyThreshold = Math.Min(this.maxPollingLatency, 1000);
         }
 
+        /// <summary>
+        /// Gets or sets a value to enable random scale-in (e.g. 10% of recommendations) when queue latencies are low.
+        /// This property should be set to <c>false</c> for unit testing.
+        /// </summary>
+        public bool EnableRandomScaleDownOnLowLatency { get; set; } = true;
+
         internal virtual int PartitionCount => this.currentPartitionCount;
 
         internal List<QueueMetricHistory> ControlQueueLatencies => this.controlQueueLatencies;
@@ -412,7 +418,7 @@ namespace DurableTask.AzureStorage.Monitoring
                 // We also want to avoid scaling in unnecessarily when we've reached optimal scale-out. To balance these
                 // goals, we check for low latencies and vote to scale down 10% of the time when we see this. The thought is
                 // that it's a slow scale-in that will get automatically corrected once latencies start increasing again.
-                bool tryRandomScaleDown = Random.Next(10) == 0;
+                bool tryRandomScaleDown = this.EnableRandomScaleDownOnLowLatency && Random.Next(10) == 0;
                 if (tryRandomScaleDown &&
                     controlQueueLatencyHistory.TrueForAll(IsLowLatency) &&
                     workItemQueueLatencyHistory.TrueForAll(latency => latency < LowLatencyThreshold))

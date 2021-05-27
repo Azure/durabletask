@@ -715,6 +715,10 @@ namespace DurableTask.AzureStorage.Tests
         public async Task ScaleDecision_WorkItemLatency_Low()
         {
             var mock = GetFakePerformanceMonitor();
+
+            // This test explicitly validates the random behavior
+            mock.EnableRandomScaleDownOnLowLatency = true;
+
             mock.AddLatencies(10, new[] { 0, 0, 0, 0 });
             mock.AddLatencies(10, new[] { 0, 0, 0, 0 });
             mock.AddLatencies(10, new[] { 0, 0, 0, 0 });
@@ -911,6 +915,9 @@ namespace DurableTask.AzureStorage.Tests
         public void ScaleDecision_AdHoc_WorkItemLatency_Low()
         {
             var mock = GetFakePerformanceMonitor();
+
+            // This test explicitly validates the random behavior
+            mock.EnableRandomScaleDownOnLowLatency = true;
 
             var latencies = new List<int> { 10, 10, 10, 10, 10 };
             var heartbeats = new List<PerformanceHeartbeat>();
@@ -1839,6 +1846,9 @@ namespace DurableTask.AzureStorage.Tests
                 {
                     this.ControlQueueLatencies.Add(new QueueMetricHistory(5));
                 }
+
+                // Disable random behavior to ensure deterministic execution during tests
+                this.EnableRandomScaleDownOnLowLatency = false;
             }
 
             internal override int PartitionCount { get; }
