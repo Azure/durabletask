@@ -46,13 +46,24 @@ namespace DurableTask.Core
         volatile int delayOverrideSecs;
         volatile int activeFetchers;
         bool isStarted;
+        bool concurrencyUpdatePending = true;
+        int maxConcurrentWorkItems;
         SemaphoreSlim concurrencyLock;
         CancellationTokenSource shutdownCancellationTokenSource;
 
         /// <summary>
         /// Gets or sets the maximum concurrent work items
         /// </summary>
-        public int MaxConcurrentWorkItems { get; set; } = DefaultMaxConcurrentWorkItems;
+        public int MaxConcurrentWorkItems
+        {
+            get => this.maxConcurrentWorkItems;
+            set
+            {
+                // The next dispatch loop will pick up this new value
+                this.maxConcurrentWorkItems = value;
+                this.concurrencyUpdatePending = true;
+            }
+        }
 
         /// <summary>
         /// Gets or sets the number of dispatchers to create
@@ -106,6 +117,7 @@ namespace DurableTask.Core
             this.workItemIdentifier = workItemIdentifier ?? throw new ArgumentNullException(nameof(workItemIdentifier));
             this.FetchWorkItem = fetchWorkItem ?? throw new ArgumentNullException(nameof(fetchWorkItem));
             this.ProcessWorkItem = processWorkItem ?? throw new ArgumentNullException(nameof(processWorkItem));
+            this.MaxConcurrentWorkItems = DefaultMaxConcurrentWorkItems;
         }
 
         /// <summary>
@@ -123,9 +135,6 @@ namespace DurableTask.Core
                     {
                         throw TraceHelper.TraceException(TraceEventType.Error, "WorkItemDispatcherStart-AlreadyStarted", new InvalidOperationException($"WorkItemDispatcher '{this.name}' has already started"));
                     }
-
-                    this.concurrencyLock?.Dispose();
-                    this.concurrencyLock = new SemaphoreSlim(this.MaxConcurrentWorkItems);
 
                     this.shutdownCancellationTokenSource?.Dispose();
                     this.shutdownCancellationTokenSource = new CancellationTokenSource();
@@ -224,6 +233,18 @@ namespace DurableTask.Core
             bool logThrottle = true;
             while (this.isStarted)
             {
+                if (this.concurrencyUpdatePending)
+                {
+                    // This occurs the first time the loop runs or whenever a change is made to MaxConcurrentWorkItems.
+                    // Need to initialize the semaphore correctly to account for any in-progress work.
+                    this.concurrencyLock?.Dispose();
+                    this.concurrencyLock = new SemaphoreSlim(
+                        initialCount: Math.Max(0, this.MaxConcurrentWorkItems - this.concurrentWorkItemCount),
+                        maxCount: this.MaxConcurrentWorkItems);
+
+                    this.concurrencyUpdatePending = false;
+                }
+
                 if (!await this.concurrencyLock.WaitAsync(TimeSpan.FromSeconds(5)))
                 {
                     if (logThrottle)
@@ -247,7 +268,7 @@ namespace DurableTask.Core
 
                 logThrottle = true;
 
-                var delaySecs = 0;
+                int delaySecs = 0;
                 T workItem = default(T);
                 try
                 {
@@ -315,7 +336,7 @@ namespace DurableTask.Core
                     Interlocked.Decrement(ref this.activeFetchers);
                 }
 
-                var scheduledWorkItem = false;
+                bool scheduledWorkItem = false;
                 if (!IsNull(workItem))
                 {
                     if (!this.isStarted)
@@ -345,7 +366,11 @@ namespace DurableTask.Core
 
                 if (!scheduledWorkItem)
                 {
-                    this.concurrencyLock.Release();
+                    // CurrentCount might be zero here if the maximum changed at the top of the loop
+                    if (this.concurrencyLock.CurrentCount < this.MaxConcurrentWorkItems)
+                    {
+                        this.concurrencyLock.Release();
+                    }
                 }
             }
 
@@ -436,7 +461,14 @@ namespace DurableTask.Core
             finally
             {
                 Interlocked.Decrement(ref this.concurrentWorkItemCount);
-                this.concurrencyLock.Release();
+                try
+                {
+                    this.concurrencyLock.Release();
+                }
+                catch (SemaphoreFullException)
+                {
+                    // Expected if the semaphore maximum was changed by another thread.
+                }
             }
 
             if (abortWorkItem && this.AbortWorkItem != null)

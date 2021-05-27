@@ -11,18 +11,14 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Command
+namespace DurableTask.Core
 {
-    public class ScheduleTaskOrchestratorAction : OrchestratorAction
+    using DurableTask.Core.History;
+
+    public interface ITaskExecutorFactory
     {
-        public override OrchestratorActionType OrchestratorActionType => OrchestratorActionType.ScheduleOrchestrator;
+        OrchestrationExecutorBase CreateOrchestrationExecutor(OrchestrationRuntimeState runtimeState);
 
-        public string Name { get; set; }
-
-        public string Version { get; set; }
-
-        public string Input { get; set; }
-
-        public string Tasklist { get; set; } // TODO: This property is never read. Can it be removed?
+        TaskActivityExecutorBase CreateActivityExecutor(TaskScheduledEvent scheduledEvent, OrchestrationInstance instance);
     }
 }

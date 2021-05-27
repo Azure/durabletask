@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.Core
 {
     using System;
@@ -36,7 +36,8 @@ namespace DurableTask.Core
         static readonly DataConverter DataConverter = new JsonDataConverter();
         static readonly Task CompletedTask = Task.FromResult(0);
 
-        readonly INameVersionObjectManager<TaskOrchestration> objectManager;
+        readonly ITaskExecutorFactory executorFactory;
+        ////readonly INameVersionObjectManager<TaskOrchestration> objectManager;
         readonly IOrchestrationService orchestrationService;
         readonly WorkItemDispatcher<TaskOrchestrationWorkItem> dispatcher;
         readonly DispatchMiddlewarePipeline dispatchPipeline;
@@ -45,11 +46,13 @@ namespace DurableTask.Core
 
         internal TaskOrchestrationDispatcher(
             IOrchestrationService orchestrationService,
-            INameVersionObjectManager<TaskOrchestration> objectManager,
+            //INameVersionObjectManager<TaskOrchestration> objectManager,
+            ITaskExecutorFactory executorFactory,
             DispatchMiddlewarePipeline dispatchPipeline,
             LogHelper logHelper)
         {
-            this.objectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
+            ////this.objectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
+            this.executorFactory = executorFactory ?? throw new ArgumentNullException(nameof(executorFactory));
             this.orchestrationService = orchestrationService ?? throw new ArgumentNullException(nameof(orchestrationService));
             this.dispatchPipeline = dispatchPipeline ?? throw new ArgumentNullException(nameof(dispatchPipeline));
             this.logHelper = logHelper ?? throw new ArgumentNullException(nameof(logHelper));
@@ -113,7 +116,6 @@ namespace DurableTask.Core
             return this.orchestrationService.LockNextTaskOrchestrationWorkItemAsync(receiveTimeout, cancellationToken);
         }
 
-
         /// <summary>
         /// Ensures the first ExecutionStarted event in the batch (if any) appears at the beginning
         /// of its executionID history.
@@ -129,7 +131,7 @@ namespace DurableTask.Core
             int index = 0;
             string previousExecutionId = "";
             int targetPosition = 0; // new position of ExecutionStarted in case of a re-ordering
-            TaskMessage executionStartedEvent = null;
+            TaskMessage? executionStartedEvent = null;
             foreach (TaskMessage message in batch)
             {
                 // Keep track of orchestrator generation changes, maybe update target position
@@ -287,10 +289,10 @@ namespace DurableTask.Core
             // correlation
             CorrelationTraceClient.Propagate(() => CorrelationTraceContext.Current = workItem.TraceContext);
 
-            ExecutionStartedEvent continueAsNewExecutionStarted = null;
-            TaskMessage continuedAsNewMessage = null;
-            IList<HistoryEvent> carryOverEvents = null;
-            string carryOverStatus = null;
+            ExecutionStartedEvent? continueAsNewExecutionStarted = null;
+            TaskMessage? continuedAsNewMessage = null;
+            IList<HistoryEvent>? carryOverEvents = null;
+            string? carryOverStatus = null;
 
             OrchestrationRuntimeState runtimeState = workItem.OrchestrationRuntimeState;
 
@@ -298,8 +300,7 @@ namespace DurableTask.Core
 
             OrchestrationRuntimeState originalOrchestrationRuntimeState = runtimeState;
 
-            OrchestrationState instanceState = null;
-
+            OrchestrationState? instanceState = null;
 
             // Assumes that: if the batch contains a new "ExecutionStarted" event, it is the first message in the batch.
             if (!this.ReconcileMessagesWithState(workItem))
@@ -391,7 +392,7 @@ namespace DurableTask.Core
                                 break;
                             case OrchestratorActionType.OrchestrationComplete:
                                 OrchestrationCompleteOrchestratorAction completeDecision = (OrchestrationCompleteOrchestratorAction)decision;
-                                TaskMessage workflowInstanceCompletedMessage =
+                                TaskMessage? workflowInstanceCompletedMessage =
                                     this.ProcessWorkflowCompletedTaskDecision(completeDecision, runtimeState, this.IncludeDetails, out continuedAsNew);
                                 if (workflowInstanceCompletedMessage != null)
                                 {
@@ -463,11 +464,13 @@ namespace DurableTask.Core
                     }
 
                     // correlation
-                    CorrelationTraceClient.Propagate(() => {
+                    CorrelationTraceClient.Propagate(() =>
+                    {
                         if (runtimeState.ExecutionStartedEvent != null)
+                        {
                             runtimeState.ExecutionStartedEvent.Correlation = CorrelationTraceContext.Current.SerializableTraceContext;
+                        }
                      });
-
 
                     // finish up processing of the work item
                     if (!continuedAsNew && runtimeState.Events.Last().EventType != EventType.OrchestratorCompleted)
@@ -494,8 +497,9 @@ namespace DurableTask.Core
                                 "Updating state for continuation");
 
                             // correlation
-                            CorrelationTraceClient.Propagate(() => {
-                               continueAsNewExecutionStarted.Correlation = CorrelationTraceContext.Current.SerializableTraceContext;
+                            CorrelationTraceClient.Propagate(() =>
+                            {
+                                continueAsNewExecutionStarted!.Correlation = CorrelationTraceContext.Current.SerializableTraceContext;
                             });
 
                             runtimeState = new OrchestrationRuntimeState();
@@ -515,18 +519,31 @@ namespace DurableTask.Core
                             runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
                             workItem.OrchestrationRuntimeState = runtimeState;
 
-                            TaskOrchestration newOrchestration = this.objectManager.GetObject(
-                                runtimeState.Name,
-                                continueAsNewExecutionStarted.Version);
+                            // Executor factory internally uses objectmanager, if it cares about it.
+                            // NEW, but not needed? var executor = this.executorFactory.Create(runtimeState);
 
-                            workItem.Cursor = new OrchestrationExecutionCursor(
-                                runtimeState,
-                                newOrchestration,
-                                new TaskOrchestrationExecutor(
-                                    runtimeState,
-                                    newOrchestration,
-                                    this.orchestrationService.EventBehaviourForContinueAsNew),
-                                latestDecisions: null);
+                            // NOTE: runtimeState.Version should be the same as continueAsNewExecutionStarted.Version
+                            //       so the use of objectManager here could be delayed.
+                            ////TaskOrchestration newOrchestration = this.objectManager.GetObject(
+                            ////    runtimeState.Name,
+                            ////    continueAsNewExecutionStarted.Version);
+
+                            // NOTE: nothing special going on here - this can be deferred
+                            ////TaskOrchestrationExecutor executor = new TaskOrchestrationExecutor(
+                            ////    runtimeState,
+                            ////    newOrchestration,
+                            ////    this.orchestrationService.EventBehaviourForContinueAsNew);
+
+                            // NOTE: There doesn't seem to be any point in creating a new cursor here
+                            //       rather than later. All parameters are newly constructed objects
+                            //       that can be regenerated from workItem.OrchestrationRuntimeState.
+                            //       The only events that exist are new ones, so there is no difference
+                            //       between a fresh execution or a resume.
+                            ////workItem.Cursor = new OrchestrationExecutionCursor(
+                            ////    runtimeState,
+                            ////    ////newOrchestration,
+                            ////    executor,
+                            ////    latestDecisions: null);
 
                             if (workItem.LockedUntilUtc < DateTime.UtcNow.AddMinutes(1))
                             {
@@ -548,7 +565,6 @@ namespace DurableTask.Core
                 instanceState.Status = runtimeState.Status;
             }
 
-
             await this.orchestrationService.CompleteTaskOrchestrationWorkItemAsync(
                 workItem,
                 runtimeState,
@@ -565,49 +581,60 @@ namespace DurableTask.Core
 
         async Task<OrchestrationExecutionCursor> ExecuteOrchestrationAsync(OrchestrationRuntimeState runtimeState, TaskOrchestrationWorkItem workItem)
         {
-            TaskOrchestration taskOrchestration = this.objectManager.GetObject(runtimeState.Name, runtimeState.Version);
-            if (taskOrchestration == null)
-            {
-                throw TraceHelper.TraceExceptionInstance(
-                    TraceEventType.Error,
-                    "TaskOrchestrationDispatcher-TypeMissing",
-                    runtimeState.OrchestrationInstance,
-                    new TypeMissingException($"Orchestration not found: ({runtimeState.Name}, {runtimeState.Version})"));
-            }
+            ////TaskOrchestration taskOrchestration = this.objectManager.GetObject(runtimeState.Name, runtimeState.Version);
+            ////if (taskOrchestration == null)
+            ////{
+            ////    throw TraceHelper.TraceExceptionInstance(
+            ////        TraceEventType.Error,
+            ////        "TaskOrchestrationDispatcher-TypeMissing",
+            ////        runtimeState.OrchestrationInstance,
+            ////        new TypeMissingException($"Orchestration not found: ({runtimeState.Name}, {runtimeState.Version})"));
+            ////}
 
-            var dispatchContext = new DispatchMiddlewareContext();
+            ////var dispatchContext = new DispatchMiddlewareContext();
+            ////dispatchContext.SetProperty(runtimeState.OrchestrationInstance);
+            ////dispatchContext.SetProperty(taskOrchestration);
+            ////dispatchContext.SetProperty(runtimeState);
+            ////dispatchContext.SetProperty(workItem);
+
+            ////var executor = new TaskOrchestrationExecutor(runtimeState, taskOrchestration, this.orchestrationService.EventBehaviourForContinueAsNew);
+            OrchestrationExecutorBase executor = this.executorFactory.CreateOrchestrationExecutor(runtimeState);
+
+            // NOTE: CreateDispatchContext is virtual protected internal. The local executor will create a dispatch
+            //       context that includes TaskOrchestration. The default implementation creates nothing.
+            var dispatchContext = executor.CreateDispatchContext() ?? new DispatchMiddlewareContext();
             dispatchContext.SetProperty(runtimeState.OrchestrationInstance);
-            dispatchContext.SetProperty(taskOrchestration);
             dispatchContext.SetProperty(runtimeState);
             dispatchContext.SetProperty(workItem);
 
-            var executor = new TaskOrchestrationExecutor(runtimeState, taskOrchestration, this.orchestrationService.EventBehaviourForContinueAsNew);
-
-            IEnumerable<OrchestratorAction> decisions = Enumerable.Empty<OrchestratorAction>();
-            await this.dispatchPipeline.RunAsync(dispatchContext, _ =>
+            IEnumerable<OrchestratorAction>? decisions = null;
+            await this.dispatchPipeline.RunAsync(dispatchContext, async _ =>
             {
-                decisions = executor.Execute();
-                return CompletedTask;
+                decisions = await executor.ExecuteAsync();
             });
 
-            return new OrchestrationExecutionCursor(runtimeState, taskOrchestration, executor, decisions);
+            if (decisions == null)
+            {
+                decisions = Enumerable.Empty<OrchestratorAction>();
+            }
+
+            return new OrchestrationExecutionCursor(runtimeState, /*taskOrchestration,*/ executor, decisions);
         }
 
         Task ResumeOrchestrationAsync(TaskOrchestrationWorkItem workItem)
         {
             OrchestrationExecutionCursor cursor = workItem.Cursor;
 
-            var dispatchContext = new DispatchMiddlewareContext();
+            DispatchMiddlewareContext dispatchContext = cursor.OrchestrationExecutor.CreateDispatchContext();
             dispatchContext.SetProperty(cursor.RuntimeState.OrchestrationInstance);
-            dispatchContext.SetProperty(cursor.TaskOrchestration);
+            ////dispatchContext.SetProperty(cursor.TaskOrchestration);
             dispatchContext.SetProperty(cursor.RuntimeState);
             dispatchContext.SetProperty(workItem);
 
             cursor.LatestDecisions = Enumerable.Empty<OrchestratorAction>();
-            return this.dispatchPipeline.RunAsync(dispatchContext, _ =>
+            return this.dispatchPipeline.RunAsync(dispatchContext, async _ =>
             {
-                cursor.LatestDecisions = cursor.OrchestrationExecutor.ExecuteNewEvents();
-                return CompletedTask;
+                cursor.LatestDecisions = await cursor.OrchestrationExecutor.ExecuteNewEventsAsync();
             });
         }
 
@@ -622,7 +649,7 @@ namespace DurableTask.Core
         {
             foreach (TaskMessage message in workItem.NewMessages)
             {
-                OrchestrationInstance orchestrationInstance = message.OrchestrationInstance;
+                OrchestrationInstance? orchestrationInstance = message.OrchestrationInstance;
                 if (string.IsNullOrWhiteSpace(orchestrationInstance?.InstanceId))
                 {
                     throw TraceHelper.TraceException(
@@ -664,7 +691,7 @@ namespace DurableTask.Core
                         continue;
                     }
                 }
-                else if (!string.IsNullOrWhiteSpace(orchestrationInstance.ExecutionId)
+                else if (!string.IsNullOrWhiteSpace(orchestrationInstance!.ExecutionId)
                          &&
                          !string.Equals(orchestrationInstance.ExecutionId,
                              workItem.OrchestrationRuntimeState.OrchestrationInstance.ExecutionId))
@@ -690,7 +717,7 @@ namespace DurableTask.Core
             return true;
         }
 
-        TaskMessage ProcessWorkflowCompletedTaskDecision(
+        TaskMessage? ProcessWorkflowCompletedTaskDecision(
             OrchestrationCompleteOrchestratorAction completeOrchestratorAction,
             OrchestrationRuntimeState runtimeState,
             bool includeDetails,

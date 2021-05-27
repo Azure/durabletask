@@ -15,8 +15,9 @@ namespace DurableTask.Core.Command
 {
     using System;
 
-    internal class CreateTimerOrchestratorAction : OrchestratorAction
+    public class CreateTimerOrchestratorAction : OrchestratorAction
     {
+        /// <inheritdoc />
         public override OrchestratorActionType OrchestratorActionType => OrchestratorActionType.CreateTimer;
 
         public DateTime FireAt { get; set; }

@@ -16,16 +16,20 @@ namespace DurableTask.Core.Command
     using System.Collections.Generic;
     using DurableTask.Core.History;
 
-    internal class OrchestrationCompleteOrchestratorAction : OrchestratorAction
+    public class OrchestrationCompleteOrchestratorAction : OrchestratorAction
     {
+        /// <summary>
+        /// Initializes a new instance of the <see cref="OrchestrationCompleteOrchestratorAction"/> class.
+        /// </summary>
         public OrchestrationCompleteOrchestratorAction()
         {
             CarryoverEvents = new List<HistoryEvent>();
         }
 
-        public OrchestrationStatus OrchestrationStatus;
-
+        /// <inheritdoc />
         public override OrchestratorActionType OrchestratorActionType => OrchestratorActionType.OrchestrationComplete;
+
+        public OrchestrationStatus OrchestrationStatus { get; set; }
 
         public string Result { get; set; }
 

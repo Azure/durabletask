@@ -52,7 +52,6 @@ namespace DurableTask.Core.History
         /// </summary>
         internal HistoryEvent()
         {
-            IsPlayed = false;
             Timestamp = DateTime.UtcNow;
         }
 
@@ -63,7 +62,6 @@ namespace DurableTask.Core.History
         protected HistoryEvent(int eventId)
         {
             EventId = eventId;
-            IsPlayed = false;
             Timestamp = DateTime.UtcNow;
         }
 
@@ -77,6 +75,7 @@ namespace DurableTask.Core.History
         /// Gets the IsPlayed status
         /// </summary>
         [DataMember]
+        [Obsolete]
         public bool IsPlayed { get; set; }
 
         /// <summary>

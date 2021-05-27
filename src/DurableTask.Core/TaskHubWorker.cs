@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.Core
 {
     using System;
@@ -28,8 +28,10 @@ namespace DurableTask.Core
     /// </summary>
     public sealed class TaskHubWorker : IDisposable
     {
-        readonly INameVersionObjectManager<TaskActivity> activityManager;
-        readonly INameVersionObjectManager<TaskOrchestration> orchestrationManager;
+        readonly INameVersionObjectManager<TaskActivity>? activityManager;
+        readonly INameVersionObjectManager<TaskOrchestration>? orchestrationManager;
+
+        readonly ITaskExecutorFactory customTaskExecutorFactory;
 
         readonly DispatchMiddlewarePipeline orchestrationDispatchPipeline = new DispatchMiddlewarePipeline();
         readonly DispatchMiddlewarePipeline activityDispatchPipeline = new DispatchMiddlewarePipeline();
@@ -41,12 +43,14 @@ namespace DurableTask.Core
         /// Reference to the orchestration service used by the task hub worker
         /// </summary>
         // ReSharper disable once InconsistentNaming (avoid breaking change)
+#pragma warning disable IDE1006 // Naming Styles
         public IOrchestrationService orchestrationService { get; }
+#pragma warning restore IDE1006 // Naming Styles
 
         volatile bool isStarted;
 
-        TaskActivityDispatcher activityDispatcher;
-        TaskOrchestrationDispatcher orchestrationDispatcher;
+        TaskActivityDispatcher? activityDispatcher;
+        TaskOrchestrationDispatcher? orchestrationDispatcher;
 
         /// <summary>
         ///     Create a new TaskHubWorker with given OrchestrationService
@@ -66,7 +70,7 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="orchestrationService">Reference the orchestration service implementation</param>
         /// <param name="loggerFactory">The <see cref="ILoggerFactory"/> to use for logging</param>
-        public TaskHubWorker(IOrchestrationService orchestrationService, ILoggerFactory loggerFactory = null)
+        public TaskHubWorker(IOrchestrationService orchestrationService, ILoggerFactory? loggerFactory = null)
             : this(
                   orchestrationService,
                   new NameVersionObjectManager<TaskOrchestration>(),
@@ -93,7 +97,6 @@ namespace DurableTask.Core
         {
         }
 
-
         /// <summary>
         ///     Create a new <see cref="TaskHubWorker"/> with given <see cref="IOrchestrationService"/> and name version managers
         /// </summary>
@@ -105,23 +108,44 @@ namespace DurableTask.Core
             IOrchestrationService orchestrationService,
             INameVersionObjectManager<TaskOrchestration> orchestrationObjectManager,
             INameVersionObjectManager<TaskActivity> activityObjectManager,
-            ILoggerFactory loggerFactory = null)
+            ILoggerFactory? loggerFactory = null)
         {
-            this.orchestrationManager = orchestrationObjectManager ?? throw new ArgumentException("orchestrationObjectManager");
-            this.activityManager = activityObjectManager ?? throw new ArgumentException("activityObjectManager");
-            this.orchestrationService = orchestrationService ?? throw new ArgumentException("orchestrationService");
+            this.orchestrationManager = orchestrationObjectManager ?? throw new ArgumentException(nameof(orchestrationObjectManager));
+            this.activityManager = activityObjectManager ?? throw new ArgumentException(nameof(activityObjectManager));
+            this.orchestrationService = orchestrationService ?? throw new ArgumentException(nameof(orchestrationService));
+            this.logHelper = new LogHelper(loggerFactory?.CreateLogger("DurableTask.Core"));
+
+            this.customTaskExecutorFactory = new LocalTaskExecutorFactory(
+                orchestrationService,
+                orchestrationObjectManager,
+                activityObjectManager);
+        }
+
+        /// <summary>
+        ///     Create a new <see cref="TaskHubWorker"/> with given <see cref="IOrchestrationService"/> and name version managers
+        /// </summary>
+        /// <param name="orchestrationService">The orchestration service implementation</param>
+        /// <param name="customTaskExecutorFactory">The custom orchestration execution task factory.</param>
+        /// <param name="loggerFactory">The <see cref="ILoggerFactory"/> to use for logging</param>
+        public TaskHubWorker(
+            IOrchestrationService orchestrationService,
+            ITaskExecutorFactory customTaskExecutorFactory,
+            ILoggerFactory? loggerFactory = null)
+        {
+            this.customTaskExecutorFactory = customTaskExecutorFactory ?? throw new ArgumentException(nameof(customTaskExecutorFactory));
+            this.orchestrationService = orchestrationService ?? throw new ArgumentException(nameof(orchestrationService));
             this.logHelper = new LogHelper(loggerFactory?.CreateLogger("DurableTask.Core"));
         }
 
         /// <summary>
         /// Gets the orchestration dispatcher
         /// </summary>
-        public TaskOrchestrationDispatcher TaskOrchestrationDispatcher => this.orchestrationDispatcher;
+        public TaskOrchestrationDispatcher? TaskOrchestrationDispatcher => this.orchestrationDispatcher;
 
         /// <summary>
         /// Gets the task activity dispatcher
         /// </summary>
-        public TaskActivityDispatcher TaskActivityDispatcher => this.activityDispatcher;
+        public TaskActivityDispatcher? TaskActivityDispatcher => this.activityDispatcher;
 
         /// <summary>
         /// Adds a middleware delegate to the orchestration dispatch pipeline.
@@ -160,12 +184,13 @@ namespace DurableTask.Core
 
                 this.orchestrationDispatcher = new TaskOrchestrationDispatcher(
                     this.orchestrationService,
-                    this.orchestrationManager,
+                    this.customTaskExecutorFactory,
                     this.orchestrationDispatchPipeline,
                     this.logHelper);
                 this.activityDispatcher = new TaskActivityDispatcher(
                     this.orchestrationService,
-                    this.activityManager,
+                    ////this.activityManager,
+                    this.customTaskExecutorFactory,
                     this.activityDispatchPipeline,
                     this.logHelper);
 
@@ -208,8 +233,8 @@ namespace DurableTask.Core
 
                     var dispatcherShutdowns = new Task[]
                     {
-                        this.orchestrationDispatcher.StopAsync(isForced),
-                        this.activityDispatcher.StopAsync(isForced),
+                        this.orchestrationDispatcher!.StopAsync(isForced),
+                        this.activityDispatcher!.StopAsync(isForced),
                     };
 
                     await Task.WhenAll(dispatcherShutdowns);
@@ -233,6 +258,11 @@ namespace DurableTask.Core
         /// <returns></returns>
         public TaskHubWorker AddTaskOrchestrations(params Type[] taskOrchestrationTypes)
         {
+            if (this.orchestrationManager == null)
+            {
+                throw new InvalidOperationException($"This {nameof(TaskHubWorker)} does not support explicitly adding orchestration types.");
+            }
+
             foreach (Type type in taskOrchestrationTypes)
             {
                 ObjectCreator<TaskOrchestration> creator = new DefaultObjectCreator<TaskOrchestration>(type);
@@ -251,6 +281,11 @@ namespace DurableTask.Core
         /// </param>
         public TaskHubWorker AddTaskOrchestrations(params ObjectCreator<TaskOrchestration>[] taskOrchestrationCreators)
         {
+            if (this.orchestrationManager == null)
+            {
+                throw new InvalidOperationException($"This {nameof(TaskHubWorker)} does not support explicitly adding orchestration creators.");
+            }
+
             foreach (ObjectCreator<TaskOrchestration> creator in taskOrchestrationCreators)
             {
                 this.orchestrationManager.Add(creator);
@@ -265,6 +300,11 @@ namespace DurableTask.Core
         /// <param name="taskActivityObjects">Objects of with TaskActivity base type</param>
         public TaskHubWorker AddTaskActivities(params TaskActivity[] taskActivityObjects)
         {
+            if (this.activityManager == null)
+            {
+                throw new InvalidOperationException($"This {nameof(TaskHubWorker)} does not support explicitly adding task activity types.");
+            }
+
             foreach (TaskActivity instance in taskActivityObjects)
             {
                 ObjectCreator<TaskActivity> creator = new DefaultObjectCreator<TaskActivity>(instance);
@@ -280,6 +320,11 @@ namespace DurableTask.Core
         /// <param name="taskActivityTypes">Types deriving from TaskOrchestration class</param>
         public TaskHubWorker AddTaskActivities(params Type[] taskActivityTypes)
         {
+            if (this.activityManager == null)
+            {
+                throw new InvalidOperationException($"This {nameof(TaskHubWorker)} does not support explicitly adding task activity types.");
+            }
+
             foreach (Type type in taskActivityTypes)
             {
                 ObjectCreator<TaskActivity> creator = new DefaultObjectCreator<TaskActivity>(type);
@@ -298,6 +343,11 @@ namespace DurableTask.Core
         /// </param>
         public TaskHubWorker AddTaskActivities(params ObjectCreator<TaskActivity>[] taskActivityCreators)
         {
+            if (this.activityManager == null)
+            {
+                throw new InvalidOperationException($"This {nameof(TaskHubWorker)} does not support explicitly adding task activity object creators.");
+            }
+
             foreach (ObjectCreator<TaskActivity> creator in taskActivityCreators)
             {
                 this.activityManager.Add(creator);
@@ -333,6 +383,11 @@ namespace DurableTask.Core
         /// </param>
         public TaskHubWorker AddTaskActivitiesFromInterface<T>(T activities, bool useFullyQualifiedMethodNames)
         {
+            if (this.activityManager == null)
+            {
+                throw new InvalidOperationException($"This {nameof(TaskHubWorker)} does not support explicitly adding task activity types.");
+            }
+
             Type @interface = typeof(T);
             if (!@interface.IsInterface)
             {

@@ -15,7 +15,7 @@ namespace DurableTask.Core.Command
 {
     using System.Collections.Generic;
 
-    internal class CreateSubOrchestrationAction : OrchestratorAction
+    public class CreateSubOrchestrationAction : OrchestratorAction
     {
         public override OrchestratorActionType OrchestratorActionType => OrchestratorActionType.CreateSubOrchestration;
 

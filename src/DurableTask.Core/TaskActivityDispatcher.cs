@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.Core
 {
     using System;
@@ -30,7 +30,8 @@ namespace DurableTask.Core
     /// </summary>
     public sealed class TaskActivityDispatcher
     {
-        readonly INameVersionObjectManager<TaskActivity> objectManager;
+        ////readonly INameVersionObjectManager<TaskActivity> objectManager;
+        readonly ITaskExecutorFactory taskExecutorFactory;
         readonly WorkItemDispatcher<TaskActivityWorkItem> dispatcher;
         readonly IOrchestrationService orchestrationService;
         readonly DispatchMiddlewarePipeline dispatchPipeline;
@@ -38,12 +39,14 @@ namespace DurableTask.Core
 
         internal TaskActivityDispatcher(
             IOrchestrationService orchestrationService,
-            INameVersionObjectManager<TaskActivity> objectManager,
+            ////INameVersionObjectManager<TaskActivity> objectManager,
+            ITaskExecutorFactory taskExecutorFactory,
             DispatchMiddlewarePipeline dispatchPipeline,
             LogHelper logHelper)
         {
             this.orchestrationService = orchestrationService ?? throw new ArgumentNullException(nameof(orchestrationService));
-            this.objectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
+            ////this.objectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
+            this.taskExecutorFactory = taskExecutorFactory ?? throw new ArgumentNullException(nameof(taskExecutorFactory));
             this.dispatchPipeline = dispatchPipeline ?? throw new ArgumentNullException(nameof(dispatchPipeline));
             this.logHelper = logHelper;
 
@@ -91,12 +94,12 @@ namespace DurableTask.Core
 
         async Task OnProcessWorkItemAsync(TaskActivityWorkItem workItem)
         {
-            Task renewTask = null;
+            Task? renewTask = null;
             var renewCancellationTokenSource = new CancellationTokenSource();
 
             TaskMessage taskMessage = workItem.TaskMessage;
             OrchestrationInstance orchestrationInstance = taskMessage.OrchestrationInstance;
-            TaskScheduledEvent scheduledEvent = null;
+            TaskScheduledEvent? scheduledEvent = null;
             try
             {
                 if (string.IsNullOrWhiteSpace(orchestrationInstance?.InstanceId))
@@ -125,11 +128,11 @@ namespace DurableTask.Core
                 // call and get return message
                 scheduledEvent = (TaskScheduledEvent)taskMessage.Event;
                 this.logHelper.TaskActivityStarting(orchestrationInstance, scheduledEvent);
-                TaskActivity taskActivity = this.objectManager.GetObject(scheduledEvent.Name, scheduledEvent.Version);
-                if (taskActivity == null)
-                {
-                    throw new TypeMissingException($"TaskActivity {scheduledEvent.Name} version {scheduledEvent.Version} was not found");
-                }
+                ////TaskActivity taskActivity = this.objectManager.GetObject(scheduledEvent.Name, scheduledEvent.Version);
+                ////if (taskActivity == null)
+                ////{
+                ////    throw new TypeMissingException($"TaskActivity {scheduledEvent.Name} version {scheduledEvent.Version} was not found");
+                ////}
 
                 if (workItem.LockedUntilUtc < DateTime.MaxValue)
                 {
@@ -140,12 +143,16 @@ namespace DurableTask.Core
                 }
 
                 // TODO : pass workflow instance data
-                var context = new TaskContext(taskMessage.OrchestrationInstance);
-                HistoryEvent eventToRespond = null;
+                ////var context = new TaskContext(taskMessage.OrchestrationInstance);
+                HistoryEvent? eventToRespond = null;
 
-                var dispatchContext = new DispatchMiddlewareContext();
+                TaskActivityExecutorBase executor = this.taskExecutorFactory.CreateActivityExecutor(
+                    scheduledEvent,
+                    taskMessage.OrchestrationInstance);
+
+                var dispatchContext = executor.CreateDispatchContext() ?? new DispatchMiddlewareContext();
                 dispatchContext.SetProperty(taskMessage.OrchestrationInstance);
-                dispatchContext.SetProperty(taskActivity);
+                ////dispatchContext.SetProperty(taskActivity);
                 dispatchContext.SetProperty(scheduledEvent);
 
                 await this.dispatchPipeline.RunAsync(dispatchContext, async _ =>
@@ -155,13 +162,14 @@ namespace DurableTask.Core
 
                     try
                     {
-                        string output = await taskActivity.RunAsync(context, scheduledEvent.Input);
+                        ////string output = await taskActivity.RunAsync(context, scheduledEvent.Input);
+                        string? output = await executor.ExecuteAsync();
                         eventToRespond = new TaskCompletedEvent(-1, scheduledEvent.EventId, output);
                     }
                     catch (TaskFailureException e)
                     {
                         TraceHelper.TraceExceptionInstance(TraceEventType.Error, "TaskActivityDispatcher-ProcessTaskFailure", taskMessage.OrchestrationInstance, e);
-                        string details = this.IncludeDetails ? e.Details : null;
+                        string? details = this.IncludeDetails ? e.Details : null;
                         eventToRespond = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details);
                         this.logHelper.TaskActivityFailure(orchestrationInstance, scheduledEvent.Name, (TaskFailedEvent)eventToRespond, e);
                         CorrelationTraceClient.Propagate(() => CorrelationTraceClient.TrackException(e));
@@ -169,7 +177,7 @@ namespace DurableTask.Core
                     catch (Exception e) when (!Utils.IsFatal(e) && !Utils.IsExecutionAborting(e))
                     {
                         TraceHelper.TraceExceptionInstance(TraceEventType.Error, "TaskActivityDispatcher-ProcessException", taskMessage.OrchestrationInstance, e);
-                        string details = this.IncludeDetails
+                        string? details = this.IncludeDetails
                             ? $"Unhandled exception while executing task: {e}\n\t{e.StackTrace}"
                             : null;
                         eventToRespond = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details);
@@ -194,7 +202,7 @@ namespace DurableTask.Core
             {
                 // The activity aborted its execution
                 this.logHelper.TaskActivityAborted(orchestrationInstance, scheduledEvent, e.Message);
-                TraceHelper.TraceInstance(TraceEventType.Warning, "TaskActivityDispatcher-ExecutionAborted", orchestrationInstance, "{0}: {1}", scheduledEvent.Name, e.Message);
+                TraceHelper.TraceInstance(TraceEventType.Warning, "TaskActivityDispatcher-ExecutionAborted", orchestrationInstance, "{0}: {1}", scheduledEvent!.Name, e.Message);
                 await this.orchestrationService.AbandonTaskActivityWorkItemAsync(workItem);
             }
             finally

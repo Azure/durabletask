@@ -15,8 +15,11 @@ namespace DurableTask.Core.Command
 {
     using Newtonsoft.Json;
 
+    /// <summary>
+    /// Abstract base class representing the side-effects of an orchestration execution.
+    /// </summary>
     [JsonConverter(typeof(OrchestrationActionConverter))]
-    internal abstract class OrchestratorAction
+    public abstract class OrchestratorAction
     {
         public int Id { get; set; }
 

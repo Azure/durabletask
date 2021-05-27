@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.Core
 {
     using System;
@@ -24,40 +24,51 @@ namespace DurableTask.Core
     using DurableTask.Core.Common;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
+    using DurableTask.Core.Middleware;
 
-    internal class TaskOrchestrationExecutor
+    public class TaskOrchestrationExecutor : OrchestrationExecutorBase
     {
         readonly TaskOrchestrationContext context;
         readonly TaskScheduler decisionScheduler;
         readonly OrchestrationRuntimeState orchestrationRuntimeState;
         readonly TaskOrchestration taskOrchestration;
         readonly bool skipCarryOverEvents;
-        Task<string> result;
+        Task<string>? result;
 
-        public TaskOrchestrationExecutor(OrchestrationRuntimeState orchestrationRuntimeState,
-            TaskOrchestration taskOrchestration, BehaviorOnContinueAsNew eventBehaviourForContinueAsNew)
+        public TaskOrchestrationExecutor(
+            OrchestrationRuntimeState orchestrationRuntimeState,
+            TaskOrchestration taskOrchestration,
+            BehaviorOnContinueAsNew eventBehaviourForContinueAsNew)
+            : base(orchestrationRuntimeState)
         {
             this.decisionScheduler = new SynchronousTaskScheduler();
             this.context = new TaskOrchestrationContext(orchestrationRuntimeState.OrchestrationInstance, this.decisionScheduler);
-            this.orchestrationRuntimeState = orchestrationRuntimeState;
-            this.taskOrchestration = taskOrchestration;
+            this.orchestrationRuntimeState = orchestrationRuntimeState ?? throw new ArgumentNullException(nameof(orchestrationRuntimeState));
+            this.taskOrchestration = taskOrchestration ?? throw new ArgumentNullException(nameof(taskOrchestration));
             this.skipCarryOverEvents = eventBehaviourForContinueAsNew == BehaviorOnContinueAsNew.Ignore;
         }
 
         public bool IsCompleted => this.result != null && (this.result.IsCompleted || this.result.IsFaulted);
 
-        public IEnumerable<OrchestratorAction> Execute()
+        protected internal override DispatchMiddlewareContext CreateDispatchContext()
         {
-            return this.ExecuteCore(this.orchestrationRuntimeState.Events);
+            DispatchMiddlewareContext middlewareContext = base.CreateDispatchContext();
+            middlewareContext.SetProperty(this.taskOrchestration);
+            return middlewareContext;
         }
 
-        public IEnumerable<OrchestratorAction> ExecuteNewEvents()
+        public override Task<IEnumerable<OrchestratorAction>> ExecuteNewEventsAsync()
         {
             this.context.ClearPendingActions();
-            return this.ExecuteCore(this.orchestrationRuntimeState.NewEvents);
+            return base.ExecuteNewEventsAsync();
         }
 
-        IEnumerable<OrchestratorAction> ExecuteCore(IEnumerable<HistoryEvent> eventHistory)
+        protected override Task<IEnumerable<OrchestratorAction>> OnExecuteAsync(IEnumerable<HistoryEvent> pastEvents, IEnumerable<HistoryEvent> newEvents)
+        {
+            return Task.FromResult(this.ExecuteCore(pastEvents, newEvents));
+        }
+
+        IEnumerable<OrchestratorAction> ExecuteCore(IEnumerable<HistoryEvent> pastEvents, IEnumerable<HistoryEvent> newEvents)
         {
             SynchronizationContext prevCtx = SynchronizationContext.Current;
 
@@ -69,28 +80,39 @@ namespace DurableTask.Core
 
                 try
                 {
-                    foreach (HistoryEvent historyEvent in eventHistory)
+                    void ProcessEvents(IEnumerable<HistoryEvent> events)
                     {
-                        if (historyEvent.EventType == EventType.OrchestratorStarted)
+                        foreach (HistoryEvent historyEvent in events)
                         {
-                            var decisionStartedEvent = (OrchestratorStartedEvent)historyEvent;
-                            this.context.CurrentUtcDateTime = decisionStartedEvent.Timestamp;
-                            continue;
-                        }
+                            if (historyEvent.EventType == EventType.OrchestratorStarted)
+                            {
+                                var decisionStartedEvent = (OrchestratorStartedEvent)historyEvent;
+                                this.context.CurrentUtcDateTime = decisionStartedEvent.Timestamp;
+                                continue;
+                            }
 
-                        this.context.IsReplaying = historyEvent.IsPlayed;
-                        this.ProcessEvent(historyEvent);
-                        historyEvent.IsPlayed = true;
+                            ////this.context.IsReplaying = historyEvent.IsPlayed;
+                            this.ProcessEvent(historyEvent);
+                            ////historyEvent.IsPlayed = true;
+                        }
                     }
+
+                    // Replay the old history to rebuild the local state of the orchestration.
+                    this.context.IsReplaying = true;
+                    ProcessEvents(pastEvents);
+
+                    // Play the newly arrived events to determine the next action to take.
+                    this.context.IsReplaying = false;
+                    ProcessEvents(newEvents);
 
                     // check if workflow is completed after this replay
                     if (!this.context.HasOpenTasks)
                     {
-                        if (this.result.IsCompleted)
+                        if (this.result != null && this.result.IsCompleted)
                         {
                             if (this.result.IsFaulted)
                             {
-                                Exception exception = this.result.Exception?.InnerExceptions.FirstOrDefault();
+                                Exception? exception = this.result.Exception?.InnerExceptions.FirstOrDefault();
                                 Debug.Assert(exception != null);
 
                                 if (Utils.IsExecutionAborting(exception))

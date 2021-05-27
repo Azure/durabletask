@@ -94,7 +94,9 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(expected.GetType(), actual.GetType());
             Assert.AreEqual(expected.EventId, actual.EventId);
             Assert.AreEqual(expected.EventType, actual.EventType);
+#pragma warning disable CS0612 // Type or member is obsolete
             Assert.AreEqual(expected.IsPlayed, actual.IsPlayed);
+#pragma warning restore CS0612 // Type or member is obsolete
             Assert.AreEqual(expected.Timestamp, actual.Timestamp);
             Assert.IsNotNull(actual.ExtensionData);
         }

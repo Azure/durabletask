@@ -20,21 +20,21 @@ namespace DurableTask.Core
     {
         public OrchestrationExecutionCursor(
             OrchestrationRuntimeState state,
-            TaskOrchestration orchestration,
-            TaskOrchestrationExecutor executor,
+            ////TaskOrchestration orchestration,
+            OrchestrationExecutorBase executor,
             IEnumerable<OrchestratorAction> latestDecisions)
         {
             RuntimeState = state;
-            TaskOrchestration = orchestration;
+            ////TaskOrchestration = orchestration;
             OrchestrationExecutor = executor;
             LatestDecisions = latestDecisions;
         }
 
         public OrchestrationRuntimeState RuntimeState { get; }
 
-        public TaskOrchestration TaskOrchestration { get; }
+        ////public TaskOrchestration TaskOrchestration { get; }
 
-        public TaskOrchestrationExecutor OrchestrationExecutor { get; }
+        public OrchestrationExecutorBase OrchestrationExecutor { get; }
 
         public IEnumerable<OrchestratorAction> LatestDecisions { get; set; }
     }

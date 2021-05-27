@@ -67,11 +67,12 @@ namespace DurableTask.Core
         public override async Task<TResult> ScheduleTask<TResult>(string name, string version,
             params object[] parameters)
         {
-            TResult result = await ScheduleTaskToWorker<TResult>(name, version, null, parameters);
+            object result = await ScheduleTaskInternal(name, version, null, typeof(TResult), parameters);
 
-            return result;
+            return (TResult)result;
         }
 
+        [Obsolete]
         public async Task<TResult> ScheduleTaskToWorker<TResult>(string name, string version, string taskList,
             params object[] parameters)
         {

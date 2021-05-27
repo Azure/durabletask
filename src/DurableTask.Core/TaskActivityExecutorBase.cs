@@ -11,18 +11,19 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Command
+#nullable enable
+namespace DurableTask.Core
 {
-    public class ScheduleTaskOrchestratorAction : OrchestratorAction
+    using System.Threading.Tasks;
+    using DurableTask.Core.Middleware;
+
+    public abstract class TaskActivityExecutorBase
     {
-        public override OrchestratorActionType OrchestratorActionType => OrchestratorActionType.ScheduleOrchestrator;
+        public abstract Task<string?> ExecuteAsync();
 
-        public string Name { get; set; }
-
-        public string Version { get; set; }
-
-        public string Input { get; set; }
-
-        public string Tasklist { get; set; } // TODO: This property is never read. Can it be removed?
+        protected internal virtual DispatchMiddlewareContext CreateDispatchContext()
+        {
+            return new DispatchMiddlewareContext();
+        }
     }
 }

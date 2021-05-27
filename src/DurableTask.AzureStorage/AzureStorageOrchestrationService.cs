@@ -727,7 +727,9 @@ namespace DurableTask.AzureStorage
                     CorrelationTraceClient.Propagate(
                         () =>
                         {
+#pragma warning disable CS0612 // Type or member is obsolete
                             var isReplaying = session.RuntimeState.ExecutionStartedEvent?.IsPlayed ?? false;
+#pragma warning restore CS0612 // Type or member is obsolete
                             TraceContextBase parentTraceContext = GetParentTraceContext(session);
                             currentRequestTraceContext = GetRequestTraceContext(isReplaying, parentTraceContext);
                         });

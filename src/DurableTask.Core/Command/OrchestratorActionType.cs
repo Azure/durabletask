@@ -13,9 +13,9 @@
 
 namespace DurableTask.Core.Command
 {
-    internal enum OrchestratorActionType
+    public enum OrchestratorActionType
     {
-        ScheduleOrchestrator,
+        ScheduleOrchestrator, // TODO: Can this be safely renamed to ScheduleTask?
         CreateSubOrchestration,
         CreateTimer,
         SendEvent,
