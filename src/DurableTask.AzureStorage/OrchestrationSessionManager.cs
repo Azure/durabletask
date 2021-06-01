@@ -162,13 +162,16 @@ namespace DurableTask.AzureStorage
 
                     // This will block until either new messages arrive or the queue is released.
                     IReadOnlyList<MessageData> messages = await controlQueue.GetMessagesAsync(cancellationToken);
-
-                    // De-dupe any execution started messages
-                    messages = this.FilterOutExecutionStartedForDedupeValidation(controlQueue, messages, traceActivityId, cancellationToken);
-
                     if (messages.Count > 0)
                     {
-                        this.AddMessageToPendingOrchestration(controlQueue, messages, traceActivityId, cancellationToken);
+                        // De-dupe any execution started messages
+                        IEnumerable<MessageData> filteredMessages = await this.DedupeExecutionStartedMessagesAsync(
+                            controlQueue,
+                            messages,
+                            traceActivityId,
+                            cancellationToken);
+
+                        this.AddMessageToPendingOrchestration(controlQueue, filteredMessages, traceActivityId, cancellationToken);
                     }
                 }
             }
@@ -185,25 +188,29 @@ namespace DurableTask.AzureStorage
 
         /// <summary>
         /// This method enumerates all the provided queue messages looking for ExecutionStarted messages. If any are found, it
-        /// spins up a background thread that does de-dupe validation. The background thread queries table storage to ensure that
-        /// each message has a matching record in the Instances table. If not, this method will either discard the message or 
-        /// abandon it for reprocessing in the event that the Instances table record hasn't been written yet (this happens
-        /// asynchronously and there is no guaranteed order). Meanwhile, this method will return all the non-ExecutionStarted
-        /// messages so that they can be processed immediately.
+        /// queries table storage to ensure that each message has a matching record in the Instances table. If not, this method
+        /// will either asynchronously discard the message or abandon it for reprocessing in case the Instances table record
+        /// hasn't been written yet (this happens asynchronously and there is no guaranteed order). Meanwhile, this method will
+        /// return the list of filtered messages.
         /// </summary>
         /// <param name="controlQueue">A reference to the control queue from which these messages were dequeued.</param>
         /// <param name="messages">The full set of messages recently dequeued.</param>
         /// <param name="traceActivityId">The trace activity ID to use when writing traces.</param>
         /// <param name="cancellationToken">Cancellation token.</param>
         /// <returns>Returns the list of non-ExecutionStarted messages. This may be an empty list.</returns>
-        IReadOnlyList<MessageData> FilterOutExecutionStartedForDedupeValidation(
+        async Task<IEnumerable<MessageData>> DedupeExecutionStartedMessagesAsync(
             ControlQueue controlQueue,
             IReadOnlyList<MessageData> messages,
             Guid traceActivityId,
             CancellationToken cancellationToken)
         {
+            if (this.settings.DisableExecutionStartedDeduplication)
+            {
+                // Allow opting out in case there is an issue
+                return messages;
+            }
+
             List<MessageData>? executionStartedMessages = null;
-            List<MessageData> otherMessages = new List<MessageData>(messages.Count);
 
             foreach (MessageData message in messages)
             {
@@ -215,99 +222,95 @@ namespace DurableTask.AzureStorage
                     executionStartedMessages ??= new List<MessageData>(messages.Count);
                     executionStartedMessages.Add(message);
                 }
+            }
+
+            if (executionStartedMessages == null)
+            {
+                // Nothing to filter
+                return messages;
+            }
+
+            List<MessageData>? messagesToDefer = null;
+            List<MessageData>? messagesToDiscard = null;
+
+            IEnumerable<string> instanceIds = executionStartedMessages
+                .Select(msg => msg.TaskMessage.OrchestrationInstance.InstanceId)
+                .Distinct(StringComparer.OrdinalIgnoreCase);
+
+            // Terminology:
+            // "Local"  -> the instance ID info comes from the local copy of the message we're examining
+            // "Remote" -> the instance ID info comes from the Instances table that we're querying
+            IList<OrchestrationState> instances = await this.trackingStore.GetStateAsync(instanceIds);
+            IDictionary<string, OrchestrationState> remoteOrchestrationsById =
+                instances.ToDictionary(o => o.OrchestrationInstance.InstanceId);
+
+            foreach (MessageData message in executionStartedMessages)
+            {
+                OrchestrationInstance localInstance = message.TaskMessage.OrchestrationInstance;
+                if (remoteOrchestrationsById.TryGetValue(localInstance.InstanceId, out OrchestrationState remoteInstance) &&
+                    string.Equals(localInstance.ExecutionId, remoteInstance.OrchestrationInstance.ExecutionId, StringComparison.OrdinalIgnoreCase))
+                {
+                    // Happy path: The message matches the table status. Allow it to run.
+                }
+                else if (this.IsScheduledAfterInstanceUpdate(message, remoteInstance))
+                {
+                    // The message was scheduled after the Instances table was updated with the orchestration info.
+                    // We know almost certainly that this is a redundant message and can be safely discarded because
+                    // messages are *always* scheduled *before* the Instances table is inserted (or updated).
+                    messagesToDiscard ??= new List<MessageData>(executionStartedMessages.Count);
+                    messagesToDiscard.Add(message);
+                }
+                else if (message.OriginalQueueMessage.DequeueCount >= 10)
+                {
+                    // We've tried and failed repeatedly to process this start message. Most likely it will never succeed, possibly because
+                    // the client failed to update the Instances table after enqueuing this message. In such a case, the client would
+                    // have observed a failure and will know to retry with a new message. Discard this one.
+                    messagesToDiscard ??= new List<MessageData>(executionStartedMessages.Count);
+                    messagesToDiscard.Add(message);
+                }
                 else
                 {
-                    otherMessages.Add(message);
+                    // This message does not match the record in the Instances table, but we don't yet know for sure if it's invalid.
+                    // Defer it in hopes that by the time we dequeue it next we'll be more confident about whether it's valid or not.
+                    messagesToDefer ??= new List<MessageData>(executionStartedMessages.Count);
+                    messagesToDefer.Add(message);
                 }
             }
 
-            if (executionStartedMessages?.Count > 0)
+            // Filter out the deferred and discarded messages, making sure to preserve the original order.
+            IEnumerable<MessageData> filteredMessages = messages;
+
+            if (messagesToDefer?.Count > 0)
             {
-                // We do the de-dupe detection on a background thread to avoid delaying the processing of all the non-ExecutionStarted messages.
-                // This should ensure that we don't introduce any new latency for already-running orchestrations.
-                Task.Run(async () =>
-                {
-                    var messagesToKeep = new List<MessageData>(executionStartedMessages.Count);
-                    List<MessageData>? messagesToDefer = null;
-                    List<MessageData>? messagesToDiscard = null;
+                filteredMessages = filteredMessages.Except(messagesToDefer);
 
-                    IEnumerable<string> instanceIds = executionStartedMessages
-                        .Select(msg => msg.TaskMessage.OrchestrationInstance.InstanceId)
-                        .Distinct(StringComparer.OrdinalIgnoreCase);
-
-                    // Terminology:
-                    // "Local"  -> the instance ID info comes from the local copy of the message we're examining
-                    // "Remote" -> the instance ID info comes from the Instances table that we're querying
-                    IList<OrchestrationState> instances = await this.trackingStore.GetStateAsync(instanceIds);
-                    IDictionary<string, OrchestrationState> remoteOrchestrationsById =
-                        instances.ToDictionary(o => o.OrchestrationInstance.InstanceId);
-
-                    foreach (MessageData message in executionStartedMessages)
-                    {
-                        OrchestrationInstance localInstance = message.TaskMessage.OrchestrationInstance;
-                        if (remoteOrchestrationsById.TryGetValue(localInstance.InstanceId, out OrchestrationState remoteInstance) &&
-                            string.Equals(localInstance.ExecutionId, remoteInstance.OrchestrationInstance.ExecutionId, StringComparison.OrdinalIgnoreCase))
-                        {
-                            // Happy path: The message matches the table status. Allow it to run.
-                            messagesToKeep.Add(message);
-                        }
-                        else if (this.IsScheduledAfterInstanceUpdate(message, remoteInstance))
-                        {
-                            // The message was scheduled after the Instances table was updated with the orchestration info.
-                            // We know almost certainly that this is a redundant message and can be safely discarded because
-                            // messages are *always* scheduled *before* the Instances table is inserted (or updated).
-                            messagesToDiscard ??= new List<MessageData>(executionStartedMessages.Count);
-                            messagesToDiscard.Add(message);
-                        }
-                        else if (message.OriginalQueueMessage.DequeueCount >= 10)
-                        {
-                            // We've tried and failed repeatedly to process this start message. Most likely it will never succeed, possibly because
-                            // the client failed to update the Instances table after enqueuing this message. In such a case, the client would
-                            // have observed a failure and will know to retry with a new message. Discard this one.
-                            messagesToDiscard ??= new List<MessageData>(executionStartedMessages.Count);
-                            messagesToDiscard.Add(message);
-                        }
-                        else
-                        {
-                            // This message does not match the record in the Instances table, but we don't yet know for sure if it's invalid.
-                            // Defer it in hopes that by the time we dequeue it next we'll be more confident about whether it's valid or not.
-                            messagesToDefer ??= new List<MessageData>(executionStartedMessages.Count);
-                            messagesToDefer.Add(message);
-                        }
-                    }
-
-                    if (messagesToKeep.Count > 0)
-                    {
-                        this.AddMessageToPendingOrchestration(controlQueue, messagesToKeep, traceActivityId, cancellationToken);
-                    }
-
-                    if (messagesToDefer?.Count > 0)
-                    {
-                        await messagesToDefer.ParallelForEachAsync(msg => controlQueue.AbandonMessageAsync(msg, session: null));
-                    }
-
-                    if (messagesToDiscard?.Count > 0)
-                    {
-                        await messagesToDiscard.ParallelForEachAsync(msg =>
-                        {
-                            this.settings.Logger.DuplicateMessageDetected(
-                                this.storageAccountName,
-                                this.settings.TaskHubName,
-                                msg.TaskMessage.Event.EventType.ToString(),
-                                Utils.GetTaskEventId(msg.TaskMessage.Event),
-                                msg.OriginalQueueMessage.Id,
-                                msg.TaskMessage.OrchestrationInstance.InstanceId,
-                                msg.TaskMessage.OrchestrationInstance.ExecutionId,
-                                controlQueue.Name,
-                                msg.OriginalQueueMessage.DequeueCount);
-
-                            return controlQueue.DeleteMessageAsync(msg, session: null);
-                        });
-                    }
-                });
+                // Defer messages on a background thread to avoid blocking the dequeue loop
+                _ = Task.Run(() => messagesToDefer.ParallelForEachAsync(msg => controlQueue.AbandonMessageAsync(msg, session: null)));
             }
 
-            return otherMessages;
+            if (messagesToDiscard?.Count > 0)
+            {
+                filteredMessages = filteredMessages.Except(messagesToDiscard);
+
+                // Discard messages on a background thread to avoid blocking the dequeue loop
+                _ = Task.Run(() => messagesToDiscard.ParallelForEachAsync(msg =>
+                {
+                    this.settings.Logger.DuplicateMessageDetected(
+                        this.storageAccountName,
+                        this.settings.TaskHubName,
+                        msg.TaskMessage.Event.EventType.ToString(),
+                        Utils.GetTaskEventId(msg.TaskMessage.Event),
+                        msg.OriginalQueueMessage.Id,
+                        msg.TaskMessage.OrchestrationInstance.InstanceId,
+                        msg.TaskMessage.OrchestrationInstance.ExecutionId,
+                        controlQueue.Name,
+                        msg.OriginalQueueMessage.DequeueCount);
+
+                    return controlQueue.DeleteMessageAsync(msg, session: null);
+                }));
+            }
+
+            return filteredMessages;
         }
 
         /// <summary>

@@ -14,94 +14,263 @@
 namespace DurableTask.AzureStorage.Partitioning
 {
     using System;
+    using System.Net;
+    using System.Security.Cryptography;
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
-    using System.Security.Cryptography;
     using DurableTask.AzureStorage.Monitoring;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Blob;
-    using System.Runtime.ExceptionServices;
+    using Newtonsoft.Json;
 
+    /// <summary>
+    /// Class responsible for starting and stopping the partition manager. Also implements the app lease feature to ensure a single app's partition manager is started at a time.
+    /// </summary>
     sealed class AppLeaseManager
     {
-        private readonly string accountName;
-        private readonly string taskHub;
-        private readonly string workerName;
-        private readonly CloudBlobClient storageClient;
-        private readonly string appLeaseContainerName;
-        private readonly string appName;
-        private readonly AppLeaseOptions options;
-        private readonly AzureStorageOrchestrationServiceStats stats;
+        readonly IPartitionManager partitionManager;
         readonly AzureStorageOrchestrationServiceSettings settings;
+        readonly string accountName;
+        readonly CloudBlobClient storageClient;
+        readonly string appLeaseContainerName;
+        readonly string appLeaseInfoBlobName;
+        readonly AppLeaseOptions options;
+        readonly AzureStorageOrchestrationServiceStats stats;
+        readonly string taskHub;
+        readonly string workerName;
+        readonly string appName;
+        readonly bool appLeaseIsEnabled;
+        readonly CloudBlobContainer appLeaseContainer;
+        readonly CloudBlockBlob appLeaseInfoBlob;
+        readonly string appLeaseId;
+        readonly AsyncManualResetEvent shutdownCompletedEvent;
 
-        private readonly CloudBlobContainer appLeaseContainer;
-        private readonly string appLeaseId;
-
-        private bool isLeaseOwner;
-        private int isStarted;
-        private bool shutdownComplete;
-        private Task renewTask;
-        private CancellationTokenSource leaseRenewerCancellationTokenSource;
+        bool isLeaseOwner;
+        int appLeaseIsStarted;
+        Task renewTask;
+        CancellationTokenSource starterTokenSource;
+        CancellationTokenSource leaseRenewerCancellationTokenSource;
 
         public AppLeaseManager(
+            IPartitionManager partitionManager,
             AzureStorageOrchestrationServiceSettings settings,
             string accountName, 
             CloudBlobClient storageClient, 
-            string appLeaseContainerName, 
+            string appLeaseContainerName,
+            string appLeaseInfoBlobName,
             AppLeaseOptions options, 
             AzureStorageOrchestrationServiceStats stats)
         {
+            this.partitionManager = partitionManager;
             this.settings = settings;
             this.accountName = accountName;
-            this.taskHub = settings.TaskHubName;
-            this.workerName = settings.WorkerId;
             this.storageClient = storageClient;
             this.appLeaseContainerName = appLeaseContainerName;
-            this.appName = settings.AppName;
+            this.appLeaseInfoBlobName = appLeaseInfoBlobName;
             this.options = options;
             this.stats = stats ?? new AzureStorageOrchestrationServiceStats();
 
-            this.isLeaseOwner = false;
-
+            this.taskHub = settings.TaskHubName;
+            this.workerName = settings.WorkerId;
+            this.appName = settings.AppName;
+            this.appLeaseIsEnabled = this.settings.UseAppLease;
             this.appLeaseContainer = this.storageClient.GetContainerReference(this.appLeaseContainerName);
+            this.appLeaseInfoBlob = this.appLeaseContainer.GetBlockBlobReference(this.appLeaseInfoBlobName);
 
             using (MD5 md5 = MD5.Create())
             {
-                byte[] hash = md5.ComputeHash(Encoding.Default.GetBytes(this.appName));
+               byte[] hash = md5.ComputeHash(Encoding.Default.GetBytes(this.appName));
                this.appLeaseId = new Guid(hash).ToString();
+            }
+
+            this.isLeaseOwner = false;
+            this.shutdownCompletedEvent = new AsyncManualResetEvent();
+        }
+
+        public async Task StartAsync()
+        {
+            if (!this.appLeaseIsEnabled)
+            {
+                this.starterTokenSource = new CancellationTokenSource();
+
+                await Task.Factory.StartNew(() => this.PartitionManagerStarter(this.starterTokenSource.Token));
+            }
+            else
+            {
+                await RestartAppLeaseStarterTask();
+            }
+        }
+
+        async Task PartitionManagerStarter(CancellationToken cancellationToken)
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                try
+                {
+                    await this.partitionManager.StartAsync();
+                    break;
+                }
+                catch (Exception e)
+                {
+                    this.settings.Logger.PartitionManagerError(
+                        this.accountName,
+                        this.settings.TaskHubName,
+                        this.workerName,
+                        this.appLeaseContainerName,
+                        $"Error in PartitionManagerStarter task. Exception: {e}");
+                }
+            }
+        }
+
+        async Task RestartAppLeaseStarterTask()
+        {
+            if (this.starterTokenSource != null)
+            {
+                this.starterTokenSource.Cancel();
+                this.starterTokenSource.Dispose();
+            }
+            this.starterTokenSource = new CancellationTokenSource();
+
+            await Task.Factory.StartNew(() => this.AppLeaseManagerStarter(this.starterTokenSource.Token));
+        }
+
+        async Task AppLeaseManagerStarter(CancellationToken cancellationToken)
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                try
+                {
+                    while (!await this.TryAquireAppLeaseAsync())
+                    {
+                        await Task.Delay(this.settings.AppLeaseOptions.AcquireInterval, cancellationToken);
+                    }
+
+                    await this.StartAppLeaseAsync();
+
+                    await this.shutdownCompletedEvent.WaitAsync(Timeout.InfiniteTimeSpan, cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Catch OperationCanceledException to avoid logging an error if the Task.Delay was cancelled.
+                }
+                catch (Exception e)
+                {
+                    this.settings.Logger.PartitionManagerError(
+                        this.accountName,
+                        this.settings.TaskHubName,
+                        this.workerName,
+                        this.appLeaseContainerName,
+                        $"Error in AppLeaseStarter task. Exception: {e}");
+                }
+            }
+        }
+
+        public async Task StopAsync()
+        {
+            if (this.appLeaseIsEnabled)
+            {
+                await this.StopAppLeaseAsync();
+            }
+            else
+            {
+                await this.partitionManager.StopAsync();
+            }
+
+            this.starterTokenSource.Cancel();
+            this.starterTokenSource.Dispose();
+        }
+
+        public async Task ForceChangeAppLeaseAsync()
+        {
+            if (!this.appLeaseIsEnabled)
+            {
+                throw new InvalidOperationException("Cannot force change app lease. UseAppLease is not enabled.");
+            }
+            if (!this.isLeaseOwner)
+            {
+                await this.UpdateDesiredSwapAppIdToCurrentApp();
+
+                await this.RestartAppLeaseStarterTask();
             }
         }
 
         public async Task<bool> CreateContainerIfNotExistsAsync()
         {
             bool result = await appLeaseContainer.CreateIfNotExistsAsync();
+            this.stats.StorageRequests.Increment();
+
+            await this.CreateAppLeaseInfoIfNotExistsAsync();
+
             return result;
         }
 
-        public async Task StartAsync()
+        public async Task DeleteContainerAsync()
         {
-            if (Interlocked.CompareExchange(ref this.isStarted, 1, 0) != 0)
+            try
+            {
+                if (this.isLeaseOwner)
+                {
+                    AccessCondition accessCondition = new AccessCondition() { LeaseId = appLeaseId };
+                    await this.appLeaseContainer.DeleteIfExistsAsync(accessCondition, null, null);
+                }
+                else
+                {
+                    await this.appLeaseContainer.DeleteIfExistsAsync();
+                }
+            }
+            catch (StorageException)
+            {
+                // If we cannot delete the existing app lease due to another app having a lease, just ignore it.
+            }
+            finally
+            {
+                this.stats.StorageRequests.Increment();
+            }
+        }
+
+        async Task CreateAppLeaseInfoIfNotExistsAsync()
+        {
+            try
+            {
+                await this.appLeaseInfoBlob.UploadTextAsync("{}", null, AccessCondition.GenerateIfNoneMatchCondition("*"), null, null);
+            }
+            catch (StorageException)
+            {
+                // eat any storage exception related to conflict
+                // this means the blob already exist
+            }
+            finally
+            {
+                this.stats.StorageRequests.Increment();
+            }
+        }
+
+        async Task StartAppLeaseAsync()
+        {
+            if (Interlocked.CompareExchange(ref this.appLeaseIsStarted, 1, 0) != 0)
             {
                 throw new InvalidOperationException("AppLeaseManager has already started");
             }
 
-            this.shutdownComplete = false;
             this.leaseRenewerCancellationTokenSource = new CancellationTokenSource();
 
-            this.renewTask = await Task.Factory.StartNew(() => this.LeaseRenewer());
+            await this.partitionManager.StartAsync();
+
+            this.shutdownCompletedEvent.Reset();
+
+            this.renewTask = await Task.Factory.StartNew(() => this.LeaseRenewer(leaseRenewerCancellationTokenSource.Token));
         }
 
-        public async Task StopAsync()
+        async Task StopAppLeaseAsync()
         {
-            if (Interlocked.CompareExchange(ref this.isStarted, 0, 1) != 1)
+            if (Interlocked.CompareExchange(ref this.appLeaseIsStarted, 0, 1) != 1)
             {
                 //idempotent
                 return;
             }
 
-            await this.ReleaseLeaseAsync();
-            this.shutdownComplete = true;
+            await this.partitionManager.StopAsync();
 
             if (this.renewTask != null)
             {
@@ -109,11 +278,96 @@ namespace DurableTask.AzureStorage.Partitioning
                 await this.renewTask;
             }
 
+            this.isLeaseOwner = false;
+
+            this.shutdownCompletedEvent.Set();
+
             this.leaseRenewerCancellationTokenSource?.Dispose();
-            this.leaseRenewerCancellationTokenSource = null;
         }
 
-        public async Task<bool> TryAquireAppLeaseAsync()
+        async Task<bool> TryAquireAppLeaseAsync()
+        {
+            AppLeaseInfo appLeaseInfo = await this.GetAppLeaseInfoAsync();
+
+            bool leaseAcquired;
+            if (appLeaseInfo.DesiredSwapId == this.appLeaseId)
+            {
+                leaseAcquired = await this.ChangeLeaseAsync(appLeaseInfo.OwnerId);
+            }
+            else
+            {
+                leaseAcquired = await this.TryAquireLeaseAsync();
+            }
+
+            this.isLeaseOwner = leaseAcquired;
+
+            return leaseAcquired;
+        }
+
+        async Task<bool> ChangeLeaseAsync(string currentLeaseId)
+        {
+            this.settings.Logger.PartitionManagerInfo(
+                this.accountName,
+                this.taskHub,
+                this.workerName,
+                this.appLeaseContainerName,
+                $"Attempting to change lease from current owner {currentLeaseId} to {this.appLeaseId}.");
+
+            bool leaseAcquired;
+
+            try
+            {
+                this.settings.Logger.LeaseAcquisitionStarted(
+                    this.accountName,
+                    this.taskHub,
+                    this.workerName,
+                    this.appLeaseContainerName);
+
+                AccessCondition accessCondition = new AccessCondition() { LeaseId = currentLeaseId };
+                await appLeaseContainer.ChangeLeaseAsync(this.appLeaseId, accessCondition);
+
+                var appLeaseInfo = new AppLeaseInfo()
+                {
+                    OwnerId = this.appLeaseId,
+                };
+
+                await this.UpdateAppLeaseInfoBlob(appLeaseInfo);
+                leaseAcquired = true;
+
+                this.settings.Logger.LeaseAcquisitionSucceeded(
+                    this.accountName,
+                    this.taskHub,
+                    this.workerName,
+                    this.appLeaseContainerName);
+
+                // When changing the lease over to another app, the paritions will still be listened to on the first app until the AppLeaseManager
+                // renew task fails to renew the lease. To avoid potential split brain we must delay before the new lease holder can start
+                // listening to the partitions.
+                if (this.settings.UseLegacyPartitionManagement == true)
+                {
+                    await Task.Delay(this.settings.AppLeaseOptions.RenewInterval);
+                }
+            }
+            catch (StorageException e)
+            {
+                leaseAcquired = false;
+
+                this.settings.Logger.PartitionManagerWarning(
+                    this.accountName,
+                    this.taskHub,
+                    this.workerName,
+                    this.appLeaseContainerName,
+                    $"Failed to change app lease from currentLeaseId {currentLeaseId} to {this.appLeaseId}. Exception: {e.Message}");
+            }
+            finally
+            {
+                this.stats.StorageRequests.Increment();
+            }
+
+            return leaseAcquired;
+        }
+
+        async Task<bool> TryAquireLeaseAsync()
         {
             bool leaseAcquired;
 
@@ -126,8 +380,9 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.appLeaseContainerName);
 
                 await appLeaseContainer.AcquireLeaseAsync(this.options.LeaseInterval, this.appLeaseId);
+
+                await this.UpdateOwnerAppIdToCurrentApp();
                 leaseAcquired = true;
-                this.isLeaseOwner = true;
 
                 this.settings.Logger.LeaseAcquisitionSucceeded(
                     this.accountName,
@@ -160,7 +415,7 @@ namespace DurableTask.AzureStorage.Partitioning
             return leaseAcquired;
         }
 
-        async Task LeaseRenewer()
+        async Task LeaseRenewer(CancellationToken cancellationToken)
         {
             this.settings.Logger.PartitionManagerInfo(
                 this.accountName,
@@ -169,7 +424,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.appLeaseContainerName,
                 $"Starting background renewal of app lease with interval: {this.options.RenewInterval}.");
 
-            while (this.isStarted == 1 || !shutdownComplete)
+            while (!cancellationToken.IsCancellationRequested)
             {
                 try
                 {
@@ -184,12 +439,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 }
                 catch (OperationCanceledException)
                 {
-                    this.settings.Logger.PartitionManagerInfo(
-                        this.accountName,
-                        this.taskHub,
-                        this.workerName,
-                        this.appLeaseContainerName,
-                        "Background renewal task was canceled.");
+                    // Catch OperationCanceledException to avoid logging an error if the Task.Delay was cancelled.
                 }
                 catch (Exception ex)
                 {
@@ -208,6 +458,15 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.workerName,
                 this.appLeaseContainerName,
                 "Background app lease renewer task completed.");
+
+            this.settings.Logger.PartitionManagerInfo(
+                this.accountName,
+                this.taskHub,
+                this.workerName,
+                this.appLeaseContainerName,
+                "Lease renewer task completing. Stopping AppLeaseManager.");
+
+            await this.StopAppLeaseAsync();
         }
 
         async Task<bool> RenewLeaseAsync()
@@ -233,8 +492,9 @@ namespace DurableTask.AzureStorage.Partitioning
             {
                 errorMessage = ex.Message;
 
-                if (ex is LeaseLostException ||
-                    ex is ArgumentException)
+                if (ex is StorageException storageException
+                    && (storageException.RequestInformation.HttpStatusCode == (int)HttpStatusCode.Conflict
+                        || storageException.RequestInformation.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed))
                 {
                     renewed = false;
                     this.isLeaseOwner = false;
@@ -247,7 +507,7 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.appLeaseId,
                         ex.Message);
 
-                    this.settings.Logger.PartitionManagerError(
+                    this.settings.Logger.PartitionManagerWarning(
                         this.accountName,
                         this.taskHub,
                         this.workerName,
@@ -278,55 +538,62 @@ namespace DurableTask.AzureStorage.Partitioning
             return renewed;
         }
 
-        private async Task ReleaseLeaseAsync()
+        async Task UpdateOwnerAppIdToCurrentApp()
         {
-            try
+            var appLeaseInfo = await GetAppLeaseInfoAsync();
+            if (appLeaseInfo.OwnerId != this.appLeaseId)
             {
-                AccessCondition accessCondition = new AccessCondition() { LeaseId = this.appLeaseId };
-                await this.appLeaseContainer.ReleaseLeaseAsync(accessCondition);
-
-                this.isLeaseOwner = false;
-
-                this.settings.Logger.LeaseRemoved(
-                    this.accountName,
-                    this.taskHub,
-                    this.workerName,
-                    this.appLeaseContainerName,
-                    this.appLeaseId);
-            }
-            catch (Exception)
-            {
-                this.settings.Logger.LeaseRemovalFailed(
-                    this.accountName, 
-                    this.taskHub, 
-                    this.workerName,
-                    this.appLeaseContainerName, 
-                    this.appLeaseId);
+                appLeaseInfo.OwnerId = this.appLeaseId;
+                await UpdateAppLeaseInfoBlob(appLeaseInfo);
             }
         }
 
-        public async Task DeleteContainerAsync()
+        async Task UpdateDesiredSwapAppIdToCurrentApp()
         {
+            var appLeaseInfo = await GetAppLeaseInfoAsync();
+            if (appLeaseInfo.DesiredSwapId != this.appLeaseId)
+            {
+                appLeaseInfo.DesiredSwapId = this.appLeaseId;
+                await UpdateAppLeaseInfoBlob(appLeaseInfo);
+            }
+        }
+
+        async Task UpdateAppLeaseInfoBlob(AppLeaseInfo appLeaseInfo)
+        {
+            string serializedInfo = JsonConvert.SerializeObject(appLeaseInfo);
             try
             {
-                if (this.isLeaseOwner)
-                {
-                    AccessCondition accessCondition = new AccessCondition() { LeaseId = appLeaseId };
-                    await this.appLeaseContainer.DeleteIfExistsAsync(accessCondition, null, null);
-                }
-                else
-                {
-                    await this.appLeaseContainer.DeleteIfExistsAsync();
-                }
+                await this.appLeaseInfoBlob.UploadTextAsync(serializedInfo);
             }
             catch (StorageException)
             {
-                // If we cannot delete the existing app lease due to another app having a lease, just ignore it.
+                // eat any storage exception related to conflict
             }
             finally
             {
                 this.stats.StorageRequests.Increment();
             }
+        }
+
+        async Task<AppLeaseInfo> GetAppLeaseInfoAsync()
+        {
+            if (await this.appLeaseInfoBlob.ExistsAsync())
+            {
+                await appLeaseInfoBlob.FetchAttributesAsync();
+                this.stats.StorageRequests.Increment();
+                string serializedEventHubInfo = await this.appLeaseInfoBlob.DownloadTextAsync();
+                this.stats.StorageRequests.Increment();
+                return JsonConvert.DeserializeObject<AppLeaseInfo>(serializedEventHubInfo);
+            }
+
+            this.stats.StorageRequests.Increment();
+            return null;
+        }
+
+        private class AppLeaseInfo
+        {
+            public string OwnerId { get; set; }
+            public string DesiredSwapId { get; set; }
         }
     }
 }

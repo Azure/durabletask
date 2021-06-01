@@ -342,7 +342,7 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.taskHub,
                         this.workerName,
                         string.Empty /* partitionId */,
-                        $"Skiping {this.leaseType} lease aquiring for {lease.PartitionId}");
+                        $"Skipping {this.leaseType} lease aquiring for {lease.PartitionId}");
                     continue;
                 }
 
@@ -353,7 +353,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 }
                 else
                 {
-                    int count = 0;
+                    int count;
                     string assignedTo = lease.Owner;
                     if (workerToShardCount.TryGetValue(assignedTo, out count))
                     {
