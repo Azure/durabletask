@@ -69,9 +69,15 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests.DeploymentUtil
                    GetSingleNodeAttributeValue(serviceManifestRoot, serviceManifestNamespaceManager, StatelessServiceNodePath, ServiceTypeNameAttribute);
         }
 
-        public NameValueCollection GetApplicationParameters()
+        public NameValueCollection GetApplicationParameters(int nodeCount)
         {
-            var applicationParametersPath = Path.Combine(applicationRootPath, @"ApplicationParameters\Local.5Node.xml");
+            string paramFileName = "Local.1Node.xml";
+            if (nodeCount >= 5)
+            {
+                paramFileName = "Local.5Node.xml";
+            }
+
+            var applicationParametersPath = Path.Combine(applicationRootPath, @"ApplicationParameters\" + paramFileName);
 
             var applicationParameters = new XmlDocument();
             applicationParameters.Load(applicationParametersPath);

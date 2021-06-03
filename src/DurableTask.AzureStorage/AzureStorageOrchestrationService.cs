@@ -160,14 +160,6 @@ namespace DurableTask.AzureStorage
                 this.azureStorageClient,
                 "default");
 
-            this.appLeaseManager = new AppLeaseManager(
-                this.settings,
-                this.storageAccountName,
-                this.blobClient,
-                this.settings.TaskHubName.ToLowerInvariant() + "-applease",
-                this.settings.AppLeaseOptions,
-                this.stats);
-
             this.orchestrationSessionManager = new OrchestrationSessionManager(
                 this.storageAccountName,
                 this.settings,
@@ -187,6 +179,16 @@ namespace DurableTask.AzureStorage
                     this.azureStorageClient,
                     this.orchestrationSessionManager);
             }
+
+            this.appLeaseManager = new AppLeaseManager(
+                this.partitionManager,
+                this.settings,
+                this.storageAccountName,
+                this.blobClient,
+                this.settings.TaskHubName.ToLowerInvariant() + "-applease",
+                this.settings.TaskHubName.ToLowerInvariant() + "-appleaseinfo",
+                this.settings.AppLeaseOptions,
+                this.stats);
         }
 
         internal string WorkerId => this.settings.WorkerId;
@@ -438,44 +440,9 @@ namespace DurableTask.AzureStorage
             this.shutdownSource = new CancellationTokenSource();
             this.statsLoop = Task.Run(() => this.ReportStatsLoop(this.shutdownSource.Token));
 
-            _ = await Task.Factory.StartNew(() => this.LeaseManagerStarter());
+            await this.appLeaseManager.StartAsync();
 
             this.isStarted = true;
-        }
-
-        private async Task LeaseManagerStarter()
-        {
-            while (!this.shutdownSource.Token.IsCancellationRequested)
-            {
-                try
-                {
-                    if (this.settings.UseAppLease)
-                    {
-                        while (!await appLeaseManager.TryAquireAppLeaseAsync())
-                        {
-                            await Task.Delay(this.settings.AppLeaseOptions.AcquireInterval);
-                        }
-
-                        await appLeaseManager.StartAsync();
-                    }
-
-                    await this.partitionManager.StartAsync();
-                }
-                catch (Exception e)
-                {
-                    this.settings.Logger.PartitionManagerError(
-                        this.storageAccountName, 
-                        this.settings.TaskHubName, 
-                        this.WorkerId, 
-                        null, 
-                        $"Error in LeaseManagerStarter task. Exception: {e}");
-
-                    await Task.Delay(TimeSpan.FromSeconds(10), this.shutdownSource.Token);
-                    continue;
-                }
-
-                break;
-            }
         }
 
         /// <inheritdoc />
@@ -490,7 +457,6 @@ namespace DurableTask.AzureStorage
             this.shutdownSource.Cancel();
             await this.statsLoop;
             await this.appLeaseManager.StopAsync();
-            await this.partitionManager.StopAsync();
             this.isStarted = false;
         }
 
@@ -1813,6 +1779,15 @@ namespace DurableTask.AzureStorage
 
                 await SendTaskOrchestrationMessageAsync(taskMessage);
             }
+        }
+
+        /// <summary>
+        ///  Forces this app to take the AppLease if this app doesn't already have it. To use this, must be using the AppLease feature by setting UseAppLease to true in host.json.
+        /// </summary>
+        /// <returns>A task that completes when the steal app message is written to storage and the LeaseManagerStarter Task has been restarted.</returns>
+        public Task ForceChangeAppLeaseAsync()
+        {
+            return this.appLeaseManager.ForceChangeAppLeaseAsync();
         }
 
         /// <summary>
