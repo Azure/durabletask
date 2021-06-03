@@ -976,7 +976,7 @@ namespace DurableTask.AzureStorage
                 }
                 else
                 {
-                    message = runtimeState.Events.Count == 0 ? "No such instance" : "Instance is corrupted";
+                    message = runtimeState.Events.Count == 0 ? "No such instance" : "Invalid history (may have been overwritten by a newer instance)";
                     return false;
                 }
             }
