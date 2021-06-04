@@ -976,7 +976,14 @@ namespace DurableTask.AzureStorage
                 }
                 else
                 {
-                    message = runtimeState.Events.Count == 0 ? "No such instance" : "Instance is corrupted";
+                    // A non-zero event count usually happens when an instance's history is overwritten by a
+                    // new instance or by a ContinueAsNew. When history is overwritten by new instances, we
+                    // overwrite the old history with new history (with a new execution ID), but this is done
+                    // gradually as we build up the new history over time. If we haven't yet overwritten *all*
+                    // the old history and we receive a message from the old instance (this happens frequently
+                    // with canceled durable timer messages) we'll end up loading just the history that hasn't
+                    // been fully overwritten. We know it's invalid because it's missing the ExecutionStartedEvent.
+                    message = runtimeState.Events.Count == 0 ? "No such instance" : "Invalid history (may have been overwritten by a newer instance)";
                     return false;
                 }
             }
