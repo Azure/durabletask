@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.Core.History
 {
     using System;
@@ -22,13 +22,31 @@ namespace DurableTask.Core.History
     [DataContract]
     public class TimerCreatedEvent : HistoryEvent
     {
+        // Private ctor for deserialization
+        TimerCreatedEvent()
+            : base(-1)
+        {
+        }
+
         /// <summary>
         /// Creates a new TimerCreatedEvent with the supplied event id
         /// </summary>
         /// <param name="eventId"></param>
+        [Obsolete]
         public TimerCreatedEvent(int eventId)
             : base(eventId)
         {
+        }
+
+        /// <summary>
+        /// Creates a new <see cref="TimerCreatedEvent"/> with the supplied parameters.
+        /// </summary>
+        /// <param name="eventId">The ID of the timer.</param>
+        /// <param name="fireAt">The time at which the timer is expected to fire.</param>
+        public TimerCreatedEvent(int eventId, DateTime fireAt)
+            : base(eventId)
+        {
+            this.FireAt = fireAt;
         }
 
         /// <summary>

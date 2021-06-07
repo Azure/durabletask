@@ -22,13 +22,37 @@ namespace DurableTask.Core.History
     [DataContract]
     public class TimerFiredEvent : HistoryEvent
     {
+        // Private ctor for deserialization
+        TimerFiredEvent()
+            : base(-1)
+        {
+        }
+
         /// <summary>
         /// Creates a new TimerFiredEvent with the supplied event id
         /// </summary>
         /// <param name="eventId"></param>
+        [Obsolete]
         public TimerFiredEvent(int eventId)
             : base(eventId)
         {
+        }
+
+        /// <summary>
+        /// Creates a new <see cref="TimerFiredEvent"/> with the specified parameters.
+        /// </summary>
+        /// <param name="timerId">The ID of the corresponding <see cref="TimerCreatedEvent"/>.</param>
+        /// <param name="fireAt">The time at which the timer fired.</param>
+        public TimerFiredEvent(int timerId, DateTime fireAt)
+            : base(-1)
+        {
+            if (timerId < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(timerId));
+            }
+
+            this.TimerId = timerId;
+            this.FireAt = fireAt;
         }
 
         /// <summary>
@@ -42,7 +66,6 @@ namespace DurableTask.Core.History
         [DataMember]
         public int TimerId { get; set; }
 
-        // TODO : wire format change. (AFFANDAR)
         /// <summary>
         /// Gets or sets datetime to fire
         /// </summary>

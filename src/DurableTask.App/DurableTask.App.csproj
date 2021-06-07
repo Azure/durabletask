@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net5.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>9.0</LangVersion>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Company>Microsoft Corporation</Company>
+    <Product>Durable Task SDK</Product>
+    <FileVersion>0.1.0</FileVersion>
+    <Version>$(FileVersion)-preview</Version>
+    <PackageId>Microsoft.DurableTask.App</PackageId>
+    <Title>Durable Task .NET SDK</Title>
+    <Description>.NET SDK for the Durable Task Framework.</Description>
+    <PackageTags>Microsoft Durable Task Orchestration Workflow Activity Reliable</PackageTags>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.*" PrivateAssets="All" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.App" Version="2.2.8" />
+    <PackageReference Include="Microsoft.DurableTask.Protobuf" Version="1.0.0-alpha" />
+    <PackageReference Include="Grpc.AspNetCore.Server" Version="2.37.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DurableTask.Core\DurableTask.Core.csproj" />
+  </ItemGroup>
+
+</Project>

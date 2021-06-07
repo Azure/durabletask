@@ -329,12 +329,14 @@ namespace DurableTask.Core
                         "Executing user orchestration: {0}",
                         DataConverter.Serialize(runtimeState.GetOrchestrationRuntimeStateDump(), true));
 
-                    if (workItem.Cursor == null)
+                    bool supportsLocalExecution = this.executorFactory is LocalTaskExecutorFactory;
+                    if (workItem.Cursor == null || !supportsLocalExecution)
                     {
                         workItem.Cursor = await this.ExecuteOrchestrationAsync(runtimeState, workItem);
                     }
                     else
                     {
+                        // Optimization for local execution - resume from last await (or from ContinueAsNew)
                         await this.ResumeOrchestrationAsync(workItem);
                     }
 
@@ -853,18 +855,15 @@ namespace DurableTask.Core
         {
             var taskMessage = new TaskMessage();
 
-            var timerCreatedEvent = new TimerCreatedEvent(createTimerOrchestratorAction.Id)
-            {
-                FireAt = createTimerOrchestratorAction.FireAt
-            };
+            var timerCreatedEvent = new TimerCreatedEvent(
+                createTimerOrchestratorAction.Id,
+                createTimerOrchestratorAction.FireAt);
 
             runtimeState.AddEvent(timerCreatedEvent);
 
-            taskMessage.Event = new TimerFiredEvent(-1)
-            {
-                TimerId = createTimerOrchestratorAction.Id,
-                FireAt = createTimerOrchestratorAction.FireAt
-            };
+            taskMessage.Event = new TimerFiredEvent(
+                createTimerOrchestratorAction.Id,
+                createTimerOrchestratorAction.FireAt);
 
             this.logHelper.CreatingTimer(
                 runtimeState.OrchestrationInstance,

@@ -65,6 +65,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.SqlServer.Tests
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Correlation.Samples", "samples\Correlation.Samples\Correlation.Samples.csproj", "{5F88FF6A-E908-4341-89D6-FA530793077A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DurableTask.App", "src\DurableTask.App\DurableTask.App.csproj", "{FDBD3299-7BA4-4889-A257-EDAEF4A73762}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -249,6 +251,14 @@ Global
 		{5F88FF6A-E908-4341-89D6-FA530793077A}.Release|Any CPU.Build.0 = Release|Any CPU
 		{5F88FF6A-E908-4341-89D6-FA530793077A}.Release|x64.ActiveCfg = Release|Any CPU
 		{5F88FF6A-E908-4341-89D6-FA530793077A}.Release|x64.Build.0 = Release|Any CPU
+		{FDBD3299-7BA4-4889-A257-EDAEF4A73762}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FDBD3299-7BA4-4889-A257-EDAEF4A73762}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FDBD3299-7BA4-4889-A257-EDAEF4A73762}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{FDBD3299-7BA4-4889-A257-EDAEF4A73762}.Debug|x64.Build.0 = Debug|Any CPU
+		{FDBD3299-7BA4-4889-A257-EDAEF4A73762}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FDBD3299-7BA4-4889-A257-EDAEF4A73762}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FDBD3299-7BA4-4889-A257-EDAEF4A73762}.Release|x64.ActiveCfg = Release|Any CPU
+		{FDBD3299-7BA4-4889-A257-EDAEF4A73762}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -277,9 +287,10 @@ Global
 		{C9F84589-3F2B-4D58-A995-BC169D16217F} = {DBCD161C-D409-48E5-924E-9B7FA1C36B84}
 		{B835BFA6-D9BB-47C4-8594-38EAE0157BBA} = {95C69A06-7F62-4652-A480-207B614C2869}
 		{5F88FF6A-E908-4341-89D6-FA530793077A} = {AF4E71A6-B16E-4488-B22D-2761101A601A}
+		{FDBD3299-7BA4-4889-A257-EDAEF4A73762} = {DBCD161C-D409-48E5-924E-9B7FA1C36B84}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {2D63A120-9394-48D9-8CA9-1184364FB854}
 		EnterpriseLibraryConfigurationToolBinariesPath = packages\TransientFaultHandling.Core.5.1.1209.1\lib\NET4
+		SolutionGuid = {2D63A120-9394-48D9-8CA9-1184364FB854}
 	EndGlobalSection
 EndGlobal
