@@ -31,14 +31,9 @@ namespace DurableTask.Emulator
     /// </summary>
     public class LocalOrchestrationService : IOrchestrationService, IOrchestrationServiceClient, IDisposable
     {
-        // ReSharper disable once NotAccessedField.Local
-        Dictionary<string, byte[]> sessionState;
         readonly List<TaskMessage> timerMessages;
 
         readonly int MaxConcurrentWorkItems = 20;
-
-        // dictionary<instanceId, dictionary<executionId, orchestrationState>>
-        ////Dictionary<string, Dictionary<string, OrchestrationState>> instanceStore;
 
         readonly PeekLockSessionQueue orchestratorQueue;
         readonly PeekLockQueue workerQueue;
@@ -46,8 +41,6 @@ namespace DurableTask.Emulator
         readonly CancellationTokenSource cancellationTokenSource;
 
         readonly Dictionary<string, Dictionary<string, OrchestrationState>> instanceStore;
-
-        //Dictionary<string, Tuple<List<TaskMessage>, byte[]>> sessionLock;
 
         readonly object thisLock = new object();
         readonly object timerLock = new object();
@@ -61,8 +54,6 @@ namespace DurableTask.Emulator
         {
             this.orchestratorQueue = new PeekLockSessionQueue();
             this.workerQueue = new PeekLockQueue();
-
-            this.sessionState = new Dictionary<string, byte[]>();
 
             this.timerMessages = new List<TaskMessage>();
             this.instanceStore = new Dictionary<string, Dictionary<string, OrchestrationState>>();
@@ -94,7 +85,7 @@ namespace DurableTask.Emulator
                     }
                 }
 
-                await Task.Delay(TimeSpan.FromSeconds(1));
+                await Task.Delay(TimeSpan.FromMilliseconds(200));
             }
         }
 

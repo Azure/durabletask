@@ -4,6 +4,9 @@
   <PropertyGroup>
     <TargetFrameworks>netstandard2.0;net461</TargetFrameworks>
     <PackageId>Microsoft.Azure.DurableTask.Emulator</PackageId>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <FileVersion>2.5.5</FileVersion>
+    <Version>$(FileVersion)</Version>
     <!--NuGet licenseUrl and PackageIconUrl/iconUrl deprecation. -->
     <NoWarn>NU5125;NU5048</NoWarn>
   </PropertyGroup>
