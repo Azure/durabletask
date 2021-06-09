@@ -21,7 +21,7 @@ namespace DurableTask.Core.Middleware
     /// </summary>
     public class DispatchMiddlewareContext
     {
-        internal DispatchMiddlewareContext()
+        public DispatchMiddlewareContext()
         {
         }
 
