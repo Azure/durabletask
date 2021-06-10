@@ -32,6 +32,11 @@ namespace DurableTask.AzureStorage
 
         private static int NumTimeoutsHit = 0;
 
+        /// <summary>
+        /// Process kill action. This is exposed here to allow override from tests.
+        /// </summary>
+        private static Action<string> ProcessKillAction = (errorMessage) => Environment.FailFast(errorMessage);
+
         public static async Task<T> ExecuteWithTimeout<T>(
             string operationName,
             string account,
@@ -79,10 +84,37 @@ namespace DurableTask.AzureStorage
 
                             // Delay to ensure the ETW event gets written
                             await Task.Delay(TimeSpan.FromSeconds(3));
-                            Environment.FailFast(message);
 
-                            // Should never be hit, due to above FailFast() call.
-                            return default(T);
+                            bool executeFailFast = true;
+                            Task<bool> gracefulShutdownTask = Task.Run(async () =>
+                            {
+                                try
+                                {
+                                    return await settings.OnImminentFailFast(message);
+                                }
+                                catch (Exception)
+                                {
+                                    return true;
+                                }
+                            });
+
+                            await Task.WhenAny(gracefulShutdownTask, Task.Delay(TimeSpan.FromSeconds(35)));
+
+                            if (gracefulShutdownTask.IsCompleted)
+                            {
+                                executeFailFast = gracefulShutdownTask.Result;
+                            }
+
+                            if (executeFailFast)
+                            {
+                                TimeoutHandler.ProcessKillAction(message);
+                            }
+                            else
+                            {
+                                // Technically we don't need else as the action above would have killed the process.
+                                // However tests don't kill the process so putting in else.
+                                throw new TimeoutException(message);
+                            }
                         }
 
                     }

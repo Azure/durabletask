@@ -342,18 +342,18 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.taskHub,
                         this.workerName,
                         string.Empty /* partitionId */,
-                        $"Skiping {this.leaseType} lease aquiring for {lease.PartitionId}");
+                        $"Skipping {this.leaseType} lease aquiring for {lease.PartitionId}");
                     continue;
                 }
 
                 allShards.Add(lease.PartitionId, lease);
-                if (await lease.IsExpired() || string.IsNullOrWhiteSpace(lease.Owner))
+                if (lease.IsExpired || string.IsNullOrWhiteSpace(lease.Owner))
                 {
                     expiredLeases.Add(lease);
                 }
                 else
                 {
-                    int count = 0;
+                    int count;
                     string assignedTo = lease.Owner;
                     if (workerToShardCount.TryGetValue(assignedTo, out count))
                     {

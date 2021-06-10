@@ -29,6 +29,8 @@ namespace DurableTask.AzureStorage.Storage
 
         public string Name { get; }
 
+        public bool IsLeased { get => this.cloudBlockBlob.Properties.LeaseState == LeaseState.Leased; }
+
         public Blob(AzureStorageClient azureStorageClient, CloudBlobClient blobClient, string containerName, string blobName, string blobDirectory = null)
         {
             this.azureStorageClient = azureStorageClient;
@@ -132,12 +134,6 @@ namespace DurableTask.AzureStorage.Storage
             await this.azureStorageClient.MakeStorageRequest(
                 (context, cancellationToken) => this.cloudBlockBlob.ReleaseLeaseAsync(AccessCondition.GenerateLeaseCondition(leaseId), null, context, cancellationToken),
                 "Blob ReleaseLease");
-        }
-
-        public async Task<bool> IsLeased()
-        {
-            await this.FetchAttributesAsync();
-            return this.cloudBlockBlob.Properties.LeaseState == LeaseState.Leased;
         }
 
         public string GetAbsoluteUri()

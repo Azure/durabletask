@@ -196,23 +196,18 @@ namespace DurableTask.AzureStorage.Messaging
             public int Compare(MessageData x, MessageData y)
             {
                 // Azure Storage is the ultimate authority on the order in which messages were received.
-                if (x.OriginalQueueMessage.InsertionTime < y.OriginalQueueMessage.InsertionTime)
+                // Insertion time only has full second precision, however, so it's not always useful.
+                DateTimeOffset insertionTimeX = x.OriginalQueueMessage.InsertionTime.GetValueOrDefault();
+                DateTimeOffset insertionTimeY = y.OriginalQueueMessage.InsertionTime.GetValueOrDefault();
+                if (insertionTimeX != insertionTimeY)
                 {
-                    return -1;
-                }
-                else if (x.OriginalQueueMessage.InsertionTime > y.OriginalQueueMessage.InsertionTime)
-                {
-                    return 1;
+                    return insertionTimeX.CompareTo(insertionTimeY);
                 }
 
                 // As a tie-breaker, messages will be ordered based on client-side sequence numbers.
-                if (x.SequenceNumber < y.SequenceNumber)
+                if (x.SequenceNumber != y.SequenceNumber)
                 {
-                    return -1;
-                }
-                else if (x.SequenceNumber > y.SequenceNumber)
-                {
-                    return 1;
+                    return x.SequenceNumber.CompareTo(y.SequenceNumber);
                 }
 
                 return 0;

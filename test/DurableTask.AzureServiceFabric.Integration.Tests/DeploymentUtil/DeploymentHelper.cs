@@ -30,12 +30,13 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests.DeploymentUtil
         {
             var appInfoReader = new ApplicationInfoReader(applicationRootPath);
             var serviceName = new Uri(Constants.TestFabricApplicationAddress);
+            var nodeList = await client.QueryManager.GetNodeListAsync();
             var applicationDescription =
                 new ApplicationDescription(
                     new Uri($"fabric:/{appInfoReader.GetApplicationName()}"),
                     appInfoReader.GetApplicationName(),
                     appInfoReader.GetApplicationVersion(),
-                    appInfoReader.GetApplicationParameters());
+                    appInfoReader.GetApplicationParameters(nodeList.Count));
 
             await DeployAsync(appInfoReader.ApplicationPackagePath, applicationDescription);
             await WaitForHealthStatusAsync(applicationDescription, serviceName);
