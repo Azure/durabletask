@@ -57,10 +57,16 @@ namespace DurableTask.AzureStorage.Storage
                 "Container Exists");
         }
 
-        public async Task<bool> DeleteIfExistsAsync()
+        public async Task<bool> DeleteIfExistsAsync(string appLeaseId = null)
         {
+            AccessCondition accessCondition = null;
+            if (appLeaseId != null)
+            {
+                accessCondition = new AccessCondition() { LeaseId = appLeaseId };
+            }
+
             return await this.azureStorageClient.MakeStorageRequest<bool>(
-                (context, cancellationToken) => this.cloudBlobContainer.DeleteIfExistsAsync(null, null, context, cancellationToken),
+                (context, cancellationToken) => this.cloudBlobContainer.DeleteIfExistsAsync(accessCondition, null, context, cancellationToken),
                 "Delete Container");
         }
 
@@ -112,6 +118,30 @@ namespace DurableTask.AzureStorage.Storage
             while (continuationToken != null);
 
             return blobList;
+        }
+
+        public async Task<string> ChangeLeaseAsync(string proposedLeaseId, string currentLeaseId)
+        {
+            AccessCondition accessCondition = new AccessCondition() { LeaseId = currentLeaseId };
+
+            return await this.azureStorageClient.MakeStorageRequest<string>(
+                (context, cancellationToken) => this.cloudBlobContainer.ChangeLeaseAsync(proposedLeaseId, accessCondition, null, context, cancellationToken),
+                "Container ChangeLease");
+        }
+
+        public async Task<string> AcquireLeaseAsync(TimeSpan leaseInterval, string proposedLeaseId)
+        {
+            return await this.azureStorageClient.MakeStorageRequest<string>(
+                (context, cancellationToken) => this.cloudBlobContainer.AcquireLeaseAsync(leaseInterval, proposedLeaseId, null, null, context, cancellationToken),
+                "Container AcquireLease");
+        }
+
+        public async Task RenewLeaseAsync(string leaseId)
+        {
+            AccessCondition accessCondition = new AccessCondition() { LeaseId = leaseId };
+            await this.azureStorageClient.MakeStorageRequest(
+                (context, cancellationToken) => this.cloudBlobContainer.RenewLeaseAsync(accessCondition, null, context, cancellationToken),
+                "Container RenewLease");
         }
     }
 }
