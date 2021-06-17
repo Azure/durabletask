@@ -19,6 +19,7 @@ namespace DurableTask.AzureStorage.Messaging
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
+    using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Storage;
 
     class ControlQueue : TaskHubQueue, IDisposable
@@ -27,6 +28,7 @@ namespace DurableTask.AzureStorage.Messaging
 
         readonly CancellationTokenSource releaseTokenSource;
         readonly CancellationToken releaseCancellationToken;
+        private readonly AzureStorageOrchestrationServiceStats stats;
 
         public ControlQueue(
             AzureStorageClient azureStorageClient,
@@ -36,6 +38,7 @@ namespace DurableTask.AzureStorage.Messaging
         {
             this.releaseTokenSource = new CancellationTokenSource();
             this.releaseCancellationToken = this.releaseTokenSource.Token;
+            this.stats = this.azureStorageClient.Stats;
         }
 
         public bool IsReleased { get; private set; }
@@ -98,8 +101,6 @@ namespace DurableTask.AzureStorage.Messaging
                         var batchMessages = new ConcurrentBag<MessageData>();
                         await batch.ParallelForEachAsync(async delegate (QueueMessage queueMessage)
                         {
-                            this.stats.MessagesRead.Increment();
-
                             MessageData messageData = await this.messageManager.DeserializeQueueMessageAsync(
                                 queueMessage,
                                 this.storageQueue.Name);

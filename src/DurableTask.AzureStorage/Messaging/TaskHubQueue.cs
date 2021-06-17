@@ -19,11 +19,9 @@ namespace DurableTask.AzureStorage.Messaging
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
-    using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Storage;
     using DurableTask.Core;
     using DurableTask.Core.History;
-    using Microsoft.WindowsAzure.Storage;
 
     abstract class TaskHubQueue
     {
@@ -34,7 +32,6 @@ namespace DurableTask.AzureStorage.Messaging
         protected readonly MessageManager messageManager;
         protected readonly string storageAccountName;
         protected readonly AzureStorageOrchestrationServiceSettings settings;
-        protected readonly AzureStorageOrchestrationServiceStats stats;
         protected readonly BackoffPollingHelper backoffHelper;
 
         public TaskHubQueue(
@@ -47,7 +44,6 @@ namespace DurableTask.AzureStorage.Messaging
             this.messageManager = messageManager;
             this.storageAccountName = azureStorageClient.StorageAccountName;
             this.settings = azureStorageClient.Settings;
-            this.stats = azureStorageClient.Stats;
 
             TimeSpan minPollingDelay = TimeSpan.FromMilliseconds(50);
             TimeSpan maxPollingDelay = this.settings.MaxQueuePollingInterval;

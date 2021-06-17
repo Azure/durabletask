@@ -179,5 +179,11 @@ namespace DurableTask.AzureStorage.Storage
 
             return queueMessages;
         }
+
+        public async Task<QueueMessage> PeekMessageAsync()
+        {
+            var queueMessage = await this.cloudQueue.PeekMessageAsync();
+            return queueMessage == null ? null : new QueueMessage(queueMessage);
+        }
     }
 }

@@ -54,7 +54,6 @@ namespace DurableTask.AzureStorage
         readonly AzureStorageOrchestrationServiceSettings settings;
         readonly AzureStorageOrchestrationServiceStats stats;
         readonly string storageAccountName;
-        readonly CloudQueueClient queueClient;
         readonly ConcurrentDictionary<string, ControlQueue> allControlQueues;
         readonly WorkItemQueue workItemQueue;
         readonly ConcurrentDictionary<string, ActivitySession> activeActivitySessions;
@@ -103,16 +102,15 @@ namespace DurableTask.AzureStorage
 
             this.settings = settings;
 
-            this.azureStorageClient = new AzureStorageClient(settings, stats, storageAccountName);
+            this.azureStorageClient = new AzureStorageClient(settings, storageAccountName);
+
+            this.stats = this.azureStorageClient.Stats;
  
             CloudStorageAccount account = settings.StorageAccountDetails == null
                 ? CloudStorageAccount.Parse(settings.StorageConnectionString)
                 : settings.StorageAccountDetails.ToCloudStorageAccount();
 
             this.storageAccountName = account.Credentials.AccountName;
-            this.stats = new AzureStorageOrchestrationServiceStats();
-            this.queueClient = account.CreateCloudQueueClient();
-            this.queueClient.BufferManager = SimpleBufferManager.Shared;
 
             string compressedMessageBlobContainerName = $"{settings.TaskHubName.ToLowerInvariant()}-largemessages";
             NameValidator.ValidateContainerName(compressedMessageBlobContainerName);
@@ -122,12 +120,12 @@ namespace DurableTask.AzureStorage
             for (int i = 0; i < this.settings.PartitionCount; i++)
             {
                 Queue controlStorageQueue = GetControlQueue(this.azureStorageClient, this.settings.TaskHubName, i);
-                ControlQueue controlQueue = new ControlQueue(controlStorageQueue, this.settings, this.stats, this.messageManager);
+                ControlQueue controlQueue = new ControlQueue(this.azureStorageClient, controlStorageQueue, this.messageManager);
                 this.allControlQueues.TryAdd(controlQueue.Name, controlQueue);
             }
 
-            Queue workItemStorageQueue = GetWorkItemQueue(this.azureStorageClient, settings.TaskHubName);
-            this.workItemQueue = new WorkItemQueue(workItemStorageQueue, this.settings, this.stats, this.messageManager);
+            Queue workItemStorageQueue = GetWorkItemQueue(this.azureStorageClient);
+            this.workItemQueue = new WorkItemQueue(this.azureStorageClient, workItemStorageQueue, this.messageManager);
 
             if (customInstanceStore == null)
             {
@@ -196,15 +194,15 @@ namespace DurableTask.AzureStorage
 
         internal static Queue GetControlQueue(AzureStorageClient azureStorageClient, string taskHub, int partitionIndex)
         {
-            return GetQueueInternal(azureStorageClient, taskHub, $"control-{partitionIndex:00}");
+            return GetQueueInternal(azureStorageClient, taskHub, $"control-{partitionIndex:00}", azureStorageClient.Settings.ControlQueueRequestOptions);
         }
 
-        internal static Queue GetWorkItemQueue(AzureStorageClient azureStorageClient, string taskHub)
+        internal static Queue GetWorkItemQueue(AzureStorageClient azureStorageClient)
         {
-            return GetQueueInternal(azureStorageClient, taskHub, "workitems");
+            return GetQueueInternal(azureStorageClient, azureStorageClient.Settings.TaskHubName, "workitems", azureStorageClient.Settings.WorkItemQueueRequestOptions);
         }
 
-        static Queue GetQueueInternal(AzureStorageClient azureStorageClient, string taskHub, string suffix)
+        static Queue GetQueueInternal(AzureStorageClient azureStorageClient, string taskHub, string suffix, QueueRequestOptions queueRequestOptions)
         {
             if (azureStorageClient == null)
             {
@@ -219,7 +217,7 @@ namespace DurableTask.AzureStorage
             string queueName = $"{taskHub.ToLowerInvariant()}-{suffix}";
             NameValidator.ValidateQueueName(queueName);
 
-            return azureStorageClient.GetQueueReference(queueName);
+            return azureStorageClient.GetQueueReference(queueName, queueRequestOptions);
         }
 
         internal static BlobLeaseManager GetBlobLeaseManager(
@@ -321,10 +319,8 @@ namespace DurableTask.AzureStorage
         {
             TaskHubInfo hubInfo = GetTaskHubInfo(this.settings.TaskHubName, this.settings.PartitionCount);
             await this.appLeaseManager.CreateContainerIfNotExistsAsync();
-            this.stats.StorageRequests.Increment();
 
             await this.partitionManager.CreateLeaseStore();
-            this.stats.StorageRequests.Increment();
 
             var tasks = new List<Task>();
 
@@ -339,7 +335,6 @@ namespace DurableTask.AzureStorage
             }
 
             await Task.WhenAll(tasks.ToArray());
-            this.stats.StorageRequests.Increment(tasks.Count);
         }
 
         /// <summary>
@@ -390,7 +385,6 @@ namespace DurableTask.AzureStorage
             tasks.Add(this.messageManager.DeleteContainerAsync());
 
             await Task.WhenAll(tasks.ToArray());
-            this.stats.StorageRequests.Increment(tasks.Count);
             this.taskHubCreator.Reset();
         }
 
@@ -498,10 +492,9 @@ namespace DurableTask.AzureStorage
 
         internal async Task OnIntentLeaseAquiredAsync(BlobLease lease)
         {
-            Queue storageQueue = this.azureStorageClient.GetQueueReference(lease.PartitionId);
+            Queue storageQueue = this.azureStorageClient.GetQueueReference(lease.PartitionId, this.settings.ControlQueueRequestOptions);
             await storageQueue.CreateIfNotExistsAsync();
-            this.stats.StorageRequests.Increment();
-            var controlQueue = new ControlQueue(storageQueue, this.settings, this.stats, this.messageManager);
+            var controlQueue = new ControlQueue(this.azureStorageClient, storageQueue, this.messageManager);
             this.orchestrationSessionManager.ResumeListeningIfOwnQueue(lease.PartitionId, controlQueue, this.shutdownSource.Token);
         }
 
@@ -514,11 +507,10 @@ namespace DurableTask.AzureStorage
 
         internal async Task OnOwnershipLeaseAquiredAsync(BlobLease lease)
         {
-            Queue storageQueue = this.azureStorageClient.GetQueueReference(lease.PartitionId);
+            Queue storageQueue = this.azureStorageClient.GetQueueReference(lease.PartitionId, this.settings.ControlQueueRequestOptions);
             await storageQueue.CreateIfNotExistsAsync();
-            this.stats.StorageRequests.Increment();
 
-            var controlQueue = new ControlQueue(storageQueue, this.settings, this.stats, this.messageManager);
+            var controlQueue = new ControlQueue(this.azureStorageClient, storageQueue, this.messageManager);
             this.orchestrationSessionManager.AddQueue(lease.PartitionId, controlQueue, this.shutdownSource.Token);
 
             this.allControlQueues[lease.PartitionId] = controlQueue;
@@ -547,7 +539,7 @@ namespace DurableTask.AzureStorage
 
             string taskHub = azureStorageClient.Settings.TaskHubName;
 
-            BlobLeaseManager inactiveLeaseManager = GetBlobLeaseManager(null, "inactive");
+            BlobLeaseManager inactiveLeaseManager = GetBlobLeaseManager(azureStorageClient, "inactive");
 
             TaskHubInfo hubInfo = await inactiveLeaseManager.GetOrCreateTaskHubInfoAsync(
                 GetTaskHubInfo(taskHub, defaultPartitionCount),
@@ -904,7 +896,7 @@ namespace DurableTask.AzureStorage
             }
 
             TaskMessage taskMessage = data.TaskMessage;
-            CloudQueueMessage queueMessage = data.OriginalQueueMessage;
+            QueueMessage queueMessage = data.OriginalQueueMessage;
 
             settings.Logger.ReceivedMessage(
                 data.ActivityId,
@@ -1208,7 +1200,7 @@ namespace DurableTask.AzureStorage
 
             // Second persistence step is to commit outgoing messages to their respective queues. If there is
             // any failures here, then the messages may get written again later.
-            var enqueueOperations = new List<QueueMessage>(messageCount);
+            var enqueueOperations = new List<TaskQueueMessage>(messageCount);
             if (orchestratorMessages?.Count > 0)
             {
                 foreach (TaskMessage taskMessage in orchestratorMessages)
@@ -1216,7 +1208,7 @@ namespace DurableTask.AzureStorage
                     string targetInstanceId = taskMessage.OrchestrationInstance.InstanceId;
                     ControlQueue targetControlQueue = await this.GetControlQueueAsync(targetInstanceId);
 
-                    enqueueOperations.Add(new QueueMessage(targetControlQueue, taskMessage));
+                    enqueueOperations.Add(new TaskQueueMessage(targetControlQueue, taskMessage));
                 }
             }
 
@@ -1224,20 +1216,20 @@ namespace DurableTask.AzureStorage
             {
                 foreach (TaskMessage taskMessage in timerMessages)
                 {
-                    enqueueOperations.Add(new QueueMessage(session.ControlQueue, taskMessage));
+                    enqueueOperations.Add(new TaskQueueMessage(session.ControlQueue, taskMessage));
                 }
             }
 
             if (continuedAsNewMessage != null)
             {
-                enqueueOperations.Add(new QueueMessage(session.ControlQueue, continuedAsNewMessage));
+                enqueueOperations.Add(new TaskQueueMessage(session.ControlQueue, continuedAsNewMessage));
             }
 
             if (outboundMessages?.Count > 0)
             {
                 foreach (TaskMessage taskMessage in outboundMessages)
                 {
-                    enqueueOperations.Add(new QueueMessage(this.workItemQueue, taskMessage));
+                    enqueueOperations.Add(new TaskQueueMessage(this.workItemQueue, taskMessage));
                 }
             }
 
@@ -1871,7 +1863,7 @@ namespace DurableTask.AzureStorage
             uint partitionIndex = Fnv1aHashHelper.ComputeHash(instanceId) % (uint)this.settings.PartitionCount;
             Queue storageQueue = GetControlQueue(this.azureStorageClient, this.settings.TaskHubName, (int)partitionIndex);
 
-            Queue cachedQueue;
+            ControlQueue cachedQueue;
             if (!this.allControlQueues.TryGetValue(storageQueue.Name, out cachedQueue))
             {
                 // Lock ensures all callers asking for the same partition get the same queue reference back.
@@ -1879,21 +1871,14 @@ namespace DurableTask.AzureStorage
                 {
                     if (!this.allControlQueues.TryGetValue(storageQueue.Name, out cachedQueue))
                     {
-                        cachedQueue = new ControlQueue(storageQueue, this.settings, this.stats, this.messageManager);
+                        cachedQueue = new ControlQueue(this.azureStorageClient, storageQueue, this.messageManager);
                         this.allControlQueues.TryAdd(storageQueue.Name, cachedQueue);
                     }
                 }
 
                 // Important to ensure the queue exists, whether the current thread initialized it or not.
                 // A slightly better design would be to use a semaphore to block non-initializing threads.
-                try
-                {
-                    await storageQueue.CreateIfNotExistsAsync();
-                }
-                finally
-                {
-                    this.stats.StorageRequests.Increment();
-                }
+                await storageQueue.CreateIfNotExistsAsync();
             }
 
             System.Diagnostics.Debug.Assert(cachedQueue != null);
@@ -1941,9 +1926,9 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        struct QueueMessage
+        struct TaskQueueMessage
         {
-            public QueueMessage(TaskHubQueue queue, TaskMessage message)
+            public TaskQueueMessage(TaskHubQueue queue, TaskMessage message)
             {
                 this.Queue = queue;
                 this.Message = message;

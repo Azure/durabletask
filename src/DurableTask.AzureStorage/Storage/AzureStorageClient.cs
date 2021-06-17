@@ -32,15 +32,28 @@ namespace DurableTask.AzureStorage.Storage
         public AzureStorageOrchestrationServiceStats Stats { get; }
         public string StorageAccountName { get; }
 
-        public AzureStorageClient(AzureStorageOrchestrationServiceSettings settings, AzureStorageOrchestrationServiceStats stats, string storageAccountName)
+        public AzureStorageClient(AzureStorageOrchestrationServiceSettings settings, string storageAccountName)
         {
             this.Settings = settings;
-            this.Stats = stats;
             this.StorageAccountName = storageAccountName;
 
             this.account = settings.StorageAccountDetails == null
                 ? CloudStorageAccount.Parse(settings.StorageConnectionString)
                 : settings.StorageAccountDetails.ToCloudStorageAccount();
+
+            this.Stats = new AzureStorageOrchestrationServiceStats();
+            this.queueClient = account.CreateCloudQueueClient();
+            this.queueClient.BufferManager = SimpleBufferManager.Shared;
+            this.blobClient = account.CreateCloudBlobClient();
+            this.blobClient.BufferManager = SimpleBufferManager.Shared;
+
+            this.blobClient.DefaultRequestOptions.MaximumExecutionTime = StorageMaximumExecutionTime;
+        }
+
+        public AzureStorageClient(CloudStorageAccount account, AzureStorageOrchestrationServiceSettings settings)
+        {
+            this.account = account;
+            this.Settings = settings;
 
             this.StorageAccountName = account.Credentials.AccountName;
             this.Stats = new AzureStorageOrchestrationServiceStats();
@@ -67,9 +80,9 @@ namespace DurableTask.AzureStorage.Storage
             return new BlobContainer(this, this.blobClient, container);
         }
 
-        public Queue GetQueueReference(string queueName)
+        public Queue GetQueueReference(string queueName, QueueRequestOptions queueRequestOptions)
         {
-            throw new NotImplementedException();
+            return new Queue(this, this.queueClient, queueName, queueRequestOptions);
         }
 
         public async Task<T> MakeStorageRequest<T>(Func<OperationContext, CancellationToken, Task<T>> storageRequest, string operationName, string clientRequestId = null)
