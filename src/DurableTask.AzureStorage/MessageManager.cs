@@ -22,8 +22,7 @@ namespace DurableTask.AzureStorage
     using System.Text;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Monitoring;
-    using Microsoft.WindowsAzure.Storage;
-    using Microsoft.WindowsAzure.Storage.Blob;
+    using DurableTask.AzureStorage.Storage;
     using Microsoft.WindowsAzure.Storage.Queue;
     using Newtonsoft.Json;
     using Newtonsoft.Json.Serialization;
@@ -39,23 +38,20 @@ namespace DurableTask.AzureStorage
         const int DefaultBufferSize = 64 * 2014; // 64KB
 
         readonly AzureStorageOrchestrationServiceSettings settings;
-        readonly string blobContainerName;
-        readonly CloudBlobContainer cloudBlobContainer;
+        readonly AzureStorageClient azureStorageClient;
+        readonly BlobContainer blobContainer;
         readonly JsonSerializerSettings taskMessageSerializerSettings;
 
         bool containerInitialized;
 
-        /// <summary>
-        /// The message manager.
-        /// </summary>
         public MessageManager(
             AzureStorageOrchestrationServiceSettings settings,
-            CloudBlobClient cloudBlobClient,
+            AzureStorageClient azureStorageClient,
             string blobContainerName)
         {
             this.settings = settings;
-            this.blobContainerName = blobContainerName;
-            this.cloudBlobContainer = cloudBlobClient.GetContainerReference(blobContainerName);
+            this.azureStorageClient = azureStorageClient;
+            this.blobContainer = this.azureStorageClient.GetBlobContainerReference(blobContainerName);
             this.taskMessageSerializerSettings = new JsonSerializerSettings
             {
                 TypeNameHandling = TypeNameHandling.Objects,
@@ -78,7 +74,7 @@ namespace DurableTask.AzureStorage
 
             if (!this.containerInitialized)
             {
-                created = await this.cloudBlobContainer.CreateIfNotExistsAsync();
+                created = await this.blobContainer.CreateIfNotExistsAsync();
                 this.containerInitialized = true;
             }
 
@@ -87,16 +83,11 @@ namespace DurableTask.AzureStorage
 
         public async Task<bool> DeleteContainerAsync()
         {
-            bool deleted = await this.cloudBlobContainer.DeleteIfExistsAsync();
+            bool deleted = await this.blobContainer.DeleteIfExistsAsync();
             this.containerInitialized = false;
             return deleted;
         }
 
-        /// <summary>
-        /// Serializes the MessageData object
-        /// </summary>
-        /// <param name="messageData">Instance of <see cref="MessageData"/></param>
-        /// <returns>JSON for the <see cref="MessageData"/> object</returns>
         public async Task<string> SerializeMessageDataAsync(MessageData messageData)
         {
             string rawContent = JsonConvert.SerializeObject(messageData, this.taskMessageSerializerSettings);
@@ -137,9 +128,6 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        /// <summary>
-        /// Deserializes the MessageData object
-        /// </summary>
         public async Task<MessageData> DeserializeQueueMessageAsync(CloudQueueMessage queueMessage, string queueName)
         {
             MessageData envelope = JsonConvert.DeserializeObject<MessageData>(
@@ -161,14 +149,14 @@ namespace DurableTask.AzureStorage
             return envelope;
         }
 
-        internal Task CompressAndUploadAsBytesAsync(byte[] payloadBuffer, string blobName)
+        public Task CompressAndUploadAsBytesAsync(byte[] payloadBuffer, string blobName)
         {
             ArraySegment<byte> compressedSegment = this.Compress(payloadBuffer);
             return this.UploadToBlobAsync(compressedSegment.Array, compressedSegment.Count, blobName);
         }
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:DoNotDisposeObjectsMultipleTimes", Justification = "This GZipStream will not dispose the MemoryStream.")]
-        internal ArraySegment<byte> Compress(byte[] payloadBuffer)
+        public ArraySegment<byte> Compress(byte[] payloadBuffer)
         {
             using (var originStream = new MemoryStream(payloadBuffer, 0, payloadBuffer.Length))
             {
@@ -198,25 +186,25 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        internal async Task<string> DownloadAndDecompressAsBytesAsync(string blobName)
+        public async Task<string> DownloadAndDecompressAsBytesAsync(string blobName)
         {
             await this.EnsureContainerAsync();
 
-            CloudBlockBlob cloudBlockBlob = this.cloudBlobContainer.GetBlockBlobReference(blobName);
-            return await DownloadAndDecompressAsBytesAsync(cloudBlockBlob);
+            Blob blob = this.blobContainer.GetBlobReference(blobName);
+            return await DownloadAndDecompressAsBytesAsync(blob);
         }
 
-        internal Task<string> DownloadAndDecompressAsBytesAsync(Uri blobUri)
+        public Task<string> DownloadAndDecompressAsBytesAsync(Uri blobUri)
         {
-            CloudBlockBlob cloudBlockBlob = new CloudBlockBlob(blobUri, this.cloudBlobContainer.ServiceClient.Credentials);
-            return DownloadAndDecompressAsBytesAsync(cloudBlockBlob);
+            Blob blob = this.azureStorageClient.GetBlobReference(blobUri);
+            return DownloadAndDecompressAsBytesAsync(blob);
         }
 
-        private async Task<string> DownloadAndDecompressAsBytesAsync(CloudBlockBlob cloudBlockBlob)
+        private async Task<string> DownloadAndDecompressAsBytesAsync(Blob blob)
         {
             using (MemoryStream memory = new MemoryStream(MaxStorageQueuePayloadSizeInBytes * 2))
             {
-                await cloudBlockBlob.DownloadToStreamAsync(memory);
+                await blob.DownloadToStreamAsync(memory);
                 memory.Position = 0;
 
                 ArraySegment<byte> decompressedSegment = this.Decompress(memory);
@@ -224,12 +212,12 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        internal string GetBlobUrl(string blobName)
+        public string GetBlobUrl(string blobName)
         {
-            return this.cloudBlobContainer.GetBlockBlobReference(blobName).Uri.AbsoluteUri;
+            return this.blobContainer.GetBlobReference(blobName).GetAbsoluteUri();
         }
 
-        internal ArraySegment<byte> Decompress(Stream blobStream)
+        public ArraySegment<byte> Decompress(Stream blobStream)
         {
             using (GZipStream gZipStream = new GZipStream(blobStream, CompressionMode.Decompress))
             {
@@ -254,7 +242,7 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        internal MessageFormatFlags GetMessageFormatFlags(MessageData messageData)
+        public MessageFormatFlags GetMessageFormatFlags(MessageData messageData)
         {
             MessageFormatFlags messageFormatFlags = MessageFormatFlags.InlineJson;
 
@@ -266,18 +254,15 @@ namespace DurableTask.AzureStorage
             return messageFormatFlags;
         }
 
-        /// <summary>
-        /// Uploads MessageData as bytes[] to blob container
-        /// </summary>
-        internal async Task UploadToBlobAsync(byte[] data, int dataByteCount, string blobName)
+        public async Task UploadToBlobAsync(byte[] data, int dataByteCount, string blobName)
         {
             await this.EnsureContainerAsync();
 
-            CloudBlockBlob cloudBlockBlob = this.cloudBlobContainer.GetBlockBlobReference(blobName);
-            await cloudBlockBlob.UploadFromByteArrayAsync(data, 0, dataByteCount);
+            Blob blob = this.blobContainer.GetBlobReference(blobName);
+            await blob.UploadFromByteArrayAsync(data, 0, dataByteCount);
         }
 
-        internal string GetNewLargeMessageBlobName(MessageData message)
+        public string GetNewLargeMessageBlobName(MessageData message)
         {
             string instanceId = message.TaskMessage.OrchestrationInstance.InstanceId;
             string eventType = message.TaskMessage.Event.EventType.ToString();
@@ -286,50 +271,22 @@ namespace DurableTask.AzureStorage
             return $"{instanceId}/message-{activityId}-{eventType}.json.gz";
         }
 
-        internal async Task DeleteLargeMessageBlobs(string sanitizedInstanceId, AzureStorageOrchestrationServiceStats stats)
+        public async Task DeleteLargeMessageBlobs(string sanitizedInstanceId, AzureStorageOrchestrationServiceStats stats)
         {
-            var blobForDeletionTaskList = new List<Task>();
-            if (!await this.cloudBlobContainer.ExistsAsync())
+            if (!await this.blobContainer.ExistsAsync())
             {
                 return;
             }
 
-            CloudBlobDirectory instanceDirectory = this.cloudBlobContainer.GetDirectoryReference(sanitizedInstanceId);
-            BlobContinuationToken blobContinuationToken = null;
-            while (true)
+            IEnumerable<Blob> blobList = await this.blobContainer.ListBlobsAsync(sanitizedInstanceId);
+
+            var blobForDeletionTaskList = new List<Task>();
+            foreach (Blob blob in blobList)
             {
-                BlobResultSegment segment = await TimeoutHandler.ExecuteWithTimeout(
-                    operationName: "DeleteLargeMessageBlobs",
-                    account: cloudBlobContainer?.ServiceClient?.Credentials?.AccountName,
-                    settings: this.settings,
-                    operation: (context, timeoutToken) =>
-                    {
-                        return instanceDirectory.ListBlobsSegmentedAsync(
-                            useFlatBlobListing: true,
-                            blobListingDetails: BlobListingDetails.Metadata,
-                            maxResults: null,
-                            currentToken: blobContinuationToken,
-                            options: null,
-                            operationContext: context,
-                            cancellationToken: timeoutToken);
-                    });
-                
-                stats.StorageRequests.Increment();
-                foreach (IListBlobItem blobListItem in segment.Results)
-                {
-                    var cloudBlockBlob = blobListItem as CloudBlockBlob;
-                    CloudBlockBlob blob = this.cloudBlobContainer.GetBlockBlobReference(cloudBlockBlob?.Name);
-                    blobForDeletionTaskList.Add(blob.DeleteIfExistsAsync());
-                }
-
-                await Task.WhenAll(blobForDeletionTaskList);
-
-                stats.StorageRequests.Increment(blobForDeletionTaskList.Count);
-                if (blobContinuationToken == null)
-                {
-                    break;
-                }
+                blobForDeletionTaskList.Add(blob.DeleteIfExistsAsync());
             }
+
+            await Task.WhenAll(blobForDeletionTaskList);
         }
     }
 

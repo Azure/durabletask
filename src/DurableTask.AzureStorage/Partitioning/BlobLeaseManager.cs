@@ -19,79 +19,51 @@ namespace DurableTask.AzureStorage.Partitioning
     using System.Linq;
     using System.Net;
     using System.Threading.Tasks;
-    using DurableTask.AzureStorage.Monitoring;
-    using Microsoft.WindowsAzure.Storage;
-    using Microsoft.WindowsAzure.Storage.Blob;
-    using Microsoft.WindowsAzure.Storage.Blob.Protocol;
+    using DurableTask.AzureStorage.Storage;
     using Newtonsoft.Json;
 
     sealed class BlobLeaseManager : ILeaseManager<BlobLease>
     {
         const string TaskHubInfoBlobName = "taskhub.json";
-        static readonly TimeSpan StorageMaximumExecutionTime = TimeSpan.FromMinutes(2);
 
+        readonly AzureStorageClient azureStorageClient;
         readonly AzureStorageOrchestrationServiceSettings settings;
         readonly string storageAccountName;
         readonly string taskHubName;
         readonly string workerName;
-        readonly string blobPrefix;
         readonly string leaseContainerName;
-        readonly string leaseType;
-        readonly bool skipBlobContainerCreation;
         readonly TimeSpan leaseInterval;
-        readonly CloudBlobClient storageClient;
-        readonly BlobRequestOptions renewRequestOptions;
-        readonly AzureStorageOrchestrationServiceStats stats;
 
-        CloudBlobContainer taskHubContainer;
-        CloudBlobDirectory leaseDirectory;
-        CloudBlockBlob taskHubInfoBlob;
+        BlobContainer taskHubContainer;
+        private string blobDirectoryName;
+        Blob taskHubInfoBlob;
 
         public BlobLeaseManager(
-            AzureStorageOrchestrationServiceSettings settings,
+            AzureStorageClient azureStorageClient,
             string leaseContainerName,
-            string blobPrefix,
-            string leaseType,
-            CloudBlobClient storageClient,
-            bool skipBlobContainerCreation,
-            AzureStorageOrchestrationServiceStats stats)
+            string leaseType)
         {
-            this.settings = settings;
-            this.storageAccountName = storageClient.Credentials.AccountName;
-            this.taskHubName = settings.TaskHubName;
-            this.workerName = settings.WorkerId;
+            this.azureStorageClient = azureStorageClient;
+            this.settings = this.azureStorageClient.Settings;
+            this.storageAccountName = this.azureStorageClient.StorageAccountName;
+            this.taskHubName = this.settings.TaskHubName;
+            this.workerName = this.settings.WorkerId;
             this.leaseContainerName = leaseContainerName;
-            this.blobPrefix = blobPrefix;
-            this.leaseType = leaseType;
-            this.storageClient = storageClient;
-            this.leaseInterval = settings.LeaseInterval;
-            this.skipBlobContainerCreation = skipBlobContainerCreation;
-            this.renewRequestOptions = new BlobRequestOptions { ServerTimeout = settings.LeaseRenewInterval };
-            this.stats = stats ?? new AzureStorageOrchestrationServiceStats();
+            this.blobDirectoryName = leaseType;
+            this.leaseInterval = this.settings.LeaseInterval;
 
             this.Initialize();
         }
 
         public async Task<bool> LeaseStoreExistsAsync()
         {
-            try
-            {
-                return await this.taskHubContainer.ExistsAsync();
-            }
-            finally
-            {
-                this.stats.StorageRequests.Increment();
-            }
+            return await taskHubContainer.ExistsAsync();
         }
 
         public async Task<bool> CreateLeaseStoreIfNotExistsAsync(TaskHubInfo eventHubInfo, bool checkIfStale)
         {
             bool result = false;
-            if (!this.skipBlobContainerCreation)
-            {
-                result = await this.taskHubContainer.CreateIfNotExistsAsync();
-                this.stats.StorageRequests.Increment();
-            }
+            result = await taskHubContainer.CreateIfNotExistsAsync();
 
             await this.GetOrCreateTaskHubInfoAsync(eventHubInfo, checkIfStale: checkIfStale);
 
@@ -102,45 +74,24 @@ namespace DurableTask.AzureStorage.Partitioning
         {
             var blobLeases = new List<BlobLease>();
 
-            BlobContinuationToken continuationToken = null;
-            do
+            IEnumerable<Blob> blobs = await this.taskHubContainer.ListBlobsAsync(this.blobDirectoryName);
+
+            var downloadTasks = new List<Task<BlobLease>>();
+            foreach (Blob blob in blobs)
             {
-                BlobResultSegment segment = await TimeoutHandler.ExecuteWithTimeout("ListLeases", this.storageAccountName, this.settings, (context, timeoutToken) =>
-                {
-                    return this.leaseDirectory.ListBlobsSegmentedAsync(
-                        useFlatBlobListing: true,
-                        blobListingDetails: BlobListingDetails.Metadata,
-                        maxResults: null,
-                        currentToken: continuationToken,
-                        options: null,
-                        operationContext: context,
-                        cancellationToken: timeoutToken);
-                });
-                
-                continuationToken = segment.ContinuationToken;
-
-                var downloadTasks = new List<Task<BlobLease>>();
-                foreach (IListBlobItem blob in segment.Results)
-                {
-                    CloudBlockBlob lease = blob as CloudBlockBlob;
-                    if (lease != null)
-                    {
-                        downloadTasks.Add(this.DownloadLeaseBlob(lease));
-                    }
-                }
-
-                await Task.WhenAll(downloadTasks);
-
-                blobLeases.AddRange(downloadTasks.Select(t => t.Result));
+                downloadTasks.Add(this.DownloadLeaseBlob(blob));
             }
-            while (continuationToken != null);
+
+            await Task.WhenAll(downloadTasks);
+
+            blobLeases.AddRange(downloadTasks.Select(t => t.Result));
 
             return blobLeases;
         }
 
         public async Task CreateLeaseIfNotExistAsync(string partitionId)
         {
-            CloudBlockBlob leaseBlob = this.leaseDirectory.GetBlockBlobReference(partitionId);
+            Blob leaseBlob = this.taskHubContainer.GetBlobReference(partitionId, this.blobDirectoryName);
             BlobLease lease = new BlobLease(leaseBlob) { PartitionId = partitionId };
             string serializedLease = JsonConvert.SerializeObject(lease);
             try
@@ -152,19 +103,18 @@ namespace DurableTask.AzureStorage.Partitioning
                     partitionId,
                     string.Format(
                         CultureInfo.InvariantCulture,
-                        "CreateLeaseIfNotExistAsync - leaseContainerName: {0}, leaseType: {1}, partitionId: {2}. blobPrefix: {3}",
+                        "CreateLeaseIfNotExistAsync - leaseContainerName: {0}, leaseType: {1}, partitionId: {2}",
                         this.leaseContainerName,
-                        this.leaseType,
-                        partitionId,
-                        this.blobPrefix ?? string.Empty));
+                        this.blobDirectoryName,
+                        partitionId));
 
-                await leaseBlob.UploadTextAsync(serializedLease, null, AccessCondition.GenerateIfNoneMatchCondition("*"), null, null);
+                await leaseBlob.UploadTextAsync(serializedLease, ifDoesntExist: true);
             }
-            catch (StorageException se)
+            catch (DurableTaskStorageException se)
             {
                 // eat any storage exception related to conflict
                 // this means the blob already exist
-                if (se.RequestInformation.HttpStatusCode != 409)
+                if (se.HttpStatusCode != 409)
                 {
                     this.settings.Logger.PartitionManagerInfo(
                         this.storageAccountName,
@@ -173,23 +123,18 @@ namespace DurableTask.AzureStorage.Partitioning
                         partitionId,
                         string.Format(
                             CultureInfo.InvariantCulture,
-                            "CreateLeaseIfNotExistAsync - leaseContainerName: {0}, leaseType: {1}, partitionId: {2}, blobPrefix: {3}, exception: {4}",
+                            "CreateLeaseIfNotExistAsync - leaseContainerName: {0}, leaseType: {1}, partitionId: {2}, exception: {4}",
                             this.leaseContainerName,
-                            this.leaseType,
+                            this.blobDirectoryName,
                             partitionId,
-                            this.blobPrefix ?? string.Empty,
                             se.Message));
                 }
             }
-            finally
-            {
-                this.stats.StorageRequests.Increment();
-            }
         }
 
-        public async Task<BlobLease> GetLeaseAsync(string paritionId)
+        public async Task<BlobLease> GetLeaseAsync(string partitionId)
         {
-            CloudBlockBlob leaseBlob = this.leaseDirectory.GetBlockBlobReference(paritionId);
+            Blob leaseBlob = this.taskHubContainer.GetBlobReference(partitionId, this.blobDirectoryName);
             if (await leaseBlob.ExistsAsync())
             {
                 return await this.DownloadLeaseBlob(leaseBlob);
@@ -200,18 +145,14 @@ namespace DurableTask.AzureStorage.Partitioning
 
         public async Task<bool> RenewAsync(BlobLease lease)
         {
-            CloudBlockBlob leaseBlob = lease.Blob;
+            Blob leaseBlob = lease.Blob;
             try
             {
-                await leaseBlob.RenewLeaseAsync(accessCondition: AccessCondition.GenerateLeaseCondition(lease.Token), options: this.renewRequestOptions, operationContext: null);
+                await leaseBlob.RenewLeaseAsync(lease.Token);
             }
-            catch (StorageException storageException)
+            catch (DurableTaskStorageException storageException)
             {
                 throw HandleStorageException(lease, storageException);
-            }
-            finally
-            {
-                this.stats.StorageRequests.Increment();
             }
 
             return true;
@@ -219,30 +160,26 @@ namespace DurableTask.AzureStorage.Partitioning
 
         public async Task<bool> AcquireAsync(BlobLease lease, string owner)
         {
-            CloudBlockBlob leaseBlob = lease.Blob;
+            Blob leaseBlob = lease.Blob;
             try
             {
-                await leaseBlob.FetchAttributesAsync();
                 string newLeaseId = Guid.NewGuid().ToString();
-                if (leaseBlob.Properties.LeaseState == LeaseState.Leased)
+                if (leaseBlob.IsLeased)
                 {
-                    lease.Token = await leaseBlob.ChangeLeaseAsync(newLeaseId, accessCondition: AccessCondition.GenerateLeaseCondition(lease.Token));
+                    lease.Token = await leaseBlob.ChangeLeaseAsync(newLeaseId, currentLeaseId: lease.Token);
                 }
                 else
                 {
                     lease.Token = await leaseBlob.AcquireLeaseAsync(this.leaseInterval, newLeaseId);
                 }
 
-                this.stats.StorageRequests.Increment();
                 lease.Owner = owner;
                 // Increment Epoch each time lease is acquired or stolen by new host
                 lease.Epoch += 1;
-                await leaseBlob.UploadTextAsync(JsonConvert.SerializeObject(lease), null, AccessCondition.GenerateLeaseCondition(lease.Token), null, null);
-                this.stats.StorageRequests.Increment();
+                await leaseBlob.UploadTextAsync(JsonConvert.SerializeObject(lease), leaseId: lease.Token);
             }
-            catch (StorageException storageException)
+            catch (DurableTaskStorageException storageException)
             {
-                this.stats.StorageRequests.Increment();
                 throw HandleStorageException(lease, storageException);
             }
 
@@ -251,7 +188,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
         public async Task<bool> ReleaseAsync(BlobLease lease)
         {
-            CloudBlockBlob leaseBlob = lease.Blob;
+            Blob leaseBlob = lease.Blob;
             try
             {
                 string leaseId = lease.Token;
@@ -259,14 +196,11 @@ namespace DurableTask.AzureStorage.Partitioning
                 BlobLease copy = new BlobLease(lease);
                 copy.Token = null;
                 copy.Owner = null;
-                await leaseBlob.UploadTextAsync(JsonConvert.SerializeObject(copy), null, AccessCondition.GenerateLeaseCondition(leaseId), null, null);
-                this.stats.StorageRequests.Increment();
-                await leaseBlob.ReleaseLeaseAsync(accessCondition: AccessCondition.GenerateLeaseCondition(leaseId));
-                this.stats.StorageRequests.Increment();
+                await leaseBlob.UploadTextAsync(JsonConvert.SerializeObject(copy), leaseId);
+                await leaseBlob.ReleaseLeaseAsync(leaseId);
             }
-            catch (StorageException storageException)
+            catch (DurableTaskStorageException storageException)
             {
-                this.stats.StorageRequests.Increment();
                 throw HandleStorageException(lease, storageException);
             }
 
@@ -275,27 +209,12 @@ namespace DurableTask.AzureStorage.Partitioning
 
         public async Task DeleteAsync(BlobLease lease)
         {
-            CloudBlockBlob leaseBlob = lease.Blob;
-            try
-            {
-                await leaseBlob.DeleteIfExistsAsync();
-            }
-            finally
-            {
-                this.stats.StorageRequests.Increment();
-            }
+            await lease.Blob.DeleteIfExistsAsync();
         }
 
         public async Task DeleteAllAsync()
         {
-            try
-            {
-                await this.taskHubContainer.DeleteIfExistsAsync();
-            }
-            finally
-            {
-                this.stats.StorageRequests.Increment();
-            }
+            await this.taskHubContainer.DeleteIfExistsAsync();
         }
 
         public async Task<bool> UpdateAsync(BlobLease lease)
@@ -305,32 +224,24 @@ namespace DurableTask.AzureStorage.Partitioning
                 return false;
             }
 
-            CloudBlockBlob leaseBlob = lease.Blob;
+            Blob leaseBlob = lease.Blob;
             try
             {
                 // First renew the lease to make sure checkpoint will go through
-                await leaseBlob.RenewLeaseAsync(accessCondition: AccessCondition.GenerateLeaseCondition(lease.Token));
+                await leaseBlob.RenewLeaseAsync(lease.Token);
             }
-            catch (StorageException storageException)
+            catch (DurableTaskStorageException storageException)
             {
                 throw HandleStorageException(lease, storageException);
-            }
-            finally
-            {
-                this.stats.StorageRequests.Increment();
             }
 
             try
             {
-                await leaseBlob.UploadTextAsync(JsonConvert.SerializeObject(lease), null, AccessCondition.GenerateLeaseCondition(lease.Token), null, null);
+                await leaseBlob.UploadTextAsync(JsonConvert.SerializeObject(lease), lease.Token);
             }
-            catch (StorageException storageException)
+            catch (DurableTaskStorageException storageException)
             {
                 throw HandleStorageException(lease, storageException, true);
-            }
-            finally
-            {
-                this.stats.StorageRequests.Increment();
             }
 
             return true;
@@ -341,16 +252,12 @@ namespace DurableTask.AzureStorage.Partitioning
             string serializedInfo = JsonConvert.SerializeObject(taskHubInfo);
             try
             {
-                await this.taskHubInfoBlob.UploadTextAsync(serializedInfo, null, AccessCondition.GenerateIfNoneMatchCondition("*"), null, null);
+                await this.taskHubInfoBlob.UploadTextAsync(serializedInfo, ifDoesntExist: true);
             }
-            catch (StorageException)
+            catch (DurableTaskStorageException)
             {
                 // eat any storage exception related to conflict
                 // this means the blob already exist
-            }
-            finally
-            {
-                this.stats.StorageRequests.Increment();
             }
         }
 
@@ -371,16 +278,12 @@ namespace DurableTask.AzureStorage.Partitioning
                     try
                     {
                         string serializedInfo = JsonConvert.SerializeObject(newTaskHubInfo);
-                        await this.taskHubInfoBlob.UploadTextAsync(serializedInfo, null, AccessCondition.GenerateEmptyCondition(), null, null);
+                        await this.taskHubInfoBlob.UploadTextAsync(serializedInfo);
                     } 
-                    catch (StorageException)
+                    catch (DurableTaskStorageException)
                     {
                         // eat any storage exception as this is a best effort to
                         // to update the metadata used by Azure Functions scaling logic
-                    }
-                    finally
-                    {
-                        this.stats.StorageRequests.Increment();
                     }
 
                 }
@@ -399,20 +302,9 @@ namespace DurableTask.AzureStorage.Partitioning
 
         void Initialize()
         {
-            this.storageClient.DefaultRequestOptions.MaximumExecutionTime = StorageMaximumExecutionTime;
+            this.taskHubContainer = this.azureStorageClient.GetBlobContainerReference(this.leaseContainerName);
 
-            this.taskHubContainer = this.storageClient.GetContainerReference(this.leaseContainerName);
-
-            string leaseDirectoryName = string.IsNullOrWhiteSpace(this.blobPrefix)
-                ? this.leaseType
-                : this.blobPrefix + this.leaseType;
-            this.leaseDirectory = this.taskHubContainer.GetDirectoryReference(leaseDirectoryName);
-
-            string taskHubInfoBlobFileName = string.IsNullOrWhiteSpace(this.blobPrefix)
-                ? TaskHubInfoBlobName
-                : this.blobPrefix + TaskHubInfoBlobName;
-
-            this.taskHubInfoBlob = this.taskHubContainer.GetBlockBlobReference(taskHubInfoBlobFileName);
+            this.taskHubInfoBlob = this.taskHubContainer.GetBlobReference(TaskHubInfoBlobName);
         }
 
         async Task<TaskHubInfo> GetTaskHubInfoAsync()
@@ -420,37 +312,31 @@ namespace DurableTask.AzureStorage.Partitioning
             if (await this.taskHubInfoBlob.ExistsAsync())
             {
                 await taskHubInfoBlob.FetchAttributesAsync();
-                this.stats.StorageRequests.Increment();
                 string serializedEventHubInfo = await this.taskHubInfoBlob.DownloadTextAsync();
-                this.stats.StorageRequests.Increment();
                 return JsonConvert.DeserializeObject<TaskHubInfo>(serializedEventHubInfo);
             }
 
-            this.stats.StorageRequests.Increment();
             return null;
         }
 
-        async Task<BlobLease> DownloadLeaseBlob(CloudBlockBlob blob)
+        async Task<BlobLease> DownloadLeaseBlob(Blob blob)
         {
             string serializedLease = await blob.DownloadTextAsync();
-            this.stats.StorageRequests.Increment();
             BlobLease deserializedLease = JsonConvert.DeserializeObject<BlobLease>(serializedLease);
             deserializedLease.Blob = blob;
 
             // Workaround: for some reason storage client reports incorrect blob properties after downloading the blob
             await blob.FetchAttributesAsync();
-            this.stats.StorageRequests.Increment();
             return deserializedLease;
         }
 
-        static Exception HandleStorageException(Lease lease, StorageException storageException, bool ignoreLeaseLost = false)
+        static Exception HandleStorageException(Lease lease, DurableTaskStorageException storageException, bool ignoreLeaseLost = false)
         {
-            if (storageException.RequestInformation.HttpStatusCode == (int)HttpStatusCode.Conflict
-                || storageException.RequestInformation.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
+            if (storageException.HttpStatusCode == (int)HttpStatusCode.Conflict
+                || storageException.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
             {
                 // Don't throw LeaseLostException if caller chooses to ignore it.
-                StorageExtendedErrorInformation extendedErrorInfo = storageException.RequestInformation.ExtendedErrorInformation;
-                if (!ignoreLeaseLost || extendedErrorInfo == null || extendedErrorInfo.ErrorCode != BlobErrorCodeStrings.LeaseLost)
+                if (!ignoreLeaseLost && storageException.LeaseLost)
                 {
                     return new LeaseLostException(lease, storageException);
                 }

@@ -13,6 +13,7 @@
 
 namespace DurableTask.AzureStorage
 {
+    using DurableTask.AzureStorage.Monitoring;
     using Microsoft.WindowsAzure.Storage;
     using System;
     using System.Diagnostics;
@@ -40,7 +41,8 @@ namespace DurableTask.AzureStorage
             string operationName,
             string account,
             AzureStorageOrchestrationServiceSettings settings,
-            Func<OperationContext, CancellationToken, Task<T>> operation)
+            Func<OperationContext, CancellationToken, Task<T>> operation,
+            AzureStorageOrchestrationServiceStats stats = null)
         {
             OperationContext context = new OperationContext() { ClientRequestID = Guid.NewGuid().ToString() };
             if (Debugger.IsAttached)
@@ -56,6 +58,10 @@ namespace DurableTask.AzureStorage
                     Task timeoutTask = Task.Delay(DefaultTimeout, cts.Token);
                     Task<T> operationTask = operation(context, cts.Token);
 
+                    if (stats != null)
+                    {
+                        stats.StorageRequests.Increment();
+                    }
                     Task completedTask = await Task.WhenAny(timeoutTask, operationTask);
 
                     if (Equals(timeoutTask, completedTask))
