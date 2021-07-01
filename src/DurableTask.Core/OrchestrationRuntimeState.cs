@@ -288,6 +288,8 @@ namespace DurableTask.Core
             {
                 EventCount = Events.Count,
                 NewEventsCount = NewEvents.Count,
+                Events = new List<HistoryEvent>(),
+                NewEvents = new List<HistoryEvent>(),
             };
 #endif
         }
