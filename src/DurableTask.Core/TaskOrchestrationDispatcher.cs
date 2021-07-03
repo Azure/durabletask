@@ -76,6 +76,15 @@ namespace DurableTask.Core
         }
 
         /// <summary>
+        /// Sets a work-item throttler to use for this <see cref="TaskOrchestrationDispatcher"/>.
+        /// </summary>
+        /// <param name="workItemThrottler">The <see cref="WorkItemThrottler"/> implementation to assign.</param>
+        public void SetWorkItemThrottler(WorkItemThrottler workItemThrottler)
+        {
+            this.dispatcher.WorkItemThrottler = workItemThrottler;
+        }
+
+        /// <summary>
         /// Starts the dispatcher to start getting and processing orchestration events
         /// </summary>
         public async Task StartAsync()
