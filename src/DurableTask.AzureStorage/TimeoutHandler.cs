@@ -40,7 +40,8 @@ namespace DurableTask.AzureStorage
             string operationName,
             string account,
             AzureStorageOrchestrationServiceSettings settings,
-            Func<OperationContext, CancellationToken, Task<T>> operation)
+            Func<OperationContext, CancellationToken, Task<T>> operation,
+            CancellationToken cancellationToken = default(CancellationToken))
         {
             OperationContext context = new OperationContext() { ClientRequestID = Guid.NewGuid().ToString() };
             if (Debugger.IsAttached)
@@ -49,9 +50,13 @@ namespace DurableTask.AzureStorage
                 return await operation(context, CancellationToken.None);
             }
 
+            // Once we enter loop, cancellation token is being used to control the loop as well. Hence performing a final check
+            // of passed cancellation token first.
+            cancellationToken.ThrowIfCancellationRequested();
+
             while (true)
             {
-                using (var cts = new CancellationTokenSource())
+                using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
                 {
                     Task timeoutTask = Task.Delay(DefaultTimeout, cts.Token);
                     Task<T> operationTask = operation(context, cts.Token);

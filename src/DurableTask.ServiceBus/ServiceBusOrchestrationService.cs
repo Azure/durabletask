@@ -1068,11 +1068,12 @@ namespace DurableTask.ServiceBus
         /// Creates a new orchestration
         /// </summary>
         /// <param name="creationMessage">Orchestration creation message</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
         /// <exception cref="OrchestrationAlreadyExistsException">Will throw exception If any orchestration with the same instance Id exists in the instance store.</exception>
         /// <returns></returns>
-        public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage)
+        public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, CancellationToken cancellationToken = default(CancellationToken))
         {
-            return CreateTaskOrchestrationAsync(creationMessage, null);
+            return CreateTaskOrchestrationAsync(creationMessage, null, cancellationToken);
         }
 
         /// <summary>
@@ -1080,9 +1081,10 @@ namespace DurableTask.ServiceBus
         /// </summary>
         /// <param name="creationMessage">Orchestration creation message</param>
         /// <param name="dedupeStatuses">States of previous orchestration executions to be considered while de-duping new orchestrations on the client</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
         /// <exception cref="OrchestrationAlreadyExistsException">Will throw an OrchestrationAlreadyExistsException exception If any orchestration with the same instance Id exists in the instance store and it has a status specified in dedupeStatuses.</exception>
         /// <returns></returns>
-        public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses)
+        public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses, CancellationToken cancellationToken = default(CancellationToken))
         {
             // First, lets push the orchestration state (Pending) into JumpStart table
             var jumpStartEnabled = false;
@@ -1099,6 +1101,7 @@ namespace DurableTask.ServiceBus
                     throw new OrchestrationAlreadyExistsException($"An orchestration with id '{creationMessage.OrchestrationInstance.InstanceId}' already exists. It is in state {latestState.OrchestrationStatus}");
                 }
 
+                cancellationToken.ThrowIfCancellationRequested();
                 await UpdateJumpStartStoreAsync(creationMessage);
                 jumpStartEnabled = true;
             }
@@ -1106,6 +1109,7 @@ namespace DurableTask.ServiceBus
             try
             {
                 // Second, lets queue orchestration
+                cancellationToken.ThrowIfCancellationRequested();
                 await SendTaskOrchestrationMessageAsync(creationMessage);
             }
             catch (Exception ex) when (!Utils.IsFatal(ex) && jumpStartEnabled)

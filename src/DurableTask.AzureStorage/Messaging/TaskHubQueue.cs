@@ -75,10 +75,11 @@ namespace DurableTask.AzureStorage.Messaging
         /// </summary>
         /// <param name="message">Instance of <see cref="TaskMessage"/></param>
         /// <param name="sourceSession">Instance of <see cref="SessionBase"/></param>
+        /// <param name="cancellationToken">Cancellation token.</param>
         /// <returns></returns>
-        public Task AddMessageAsync(TaskMessage message, SessionBase sourceSession)
+        public Task AddMessageAsync(TaskMessage message, SessionBase sourceSession, CancellationToken cancellationToken = default(CancellationToken))
         {
-            return this.AddMessageAsync(message, sourceSession.Instance, sourceSession);
+            return this.AddMessageAsync(message, sourceSession.Instance, sourceSession, cancellationToken);
         }
 
         /// <summary>
@@ -86,13 +87,14 @@ namespace DurableTask.AzureStorage.Messaging
         /// </summary>
         /// <param name="message">Instance of <see cref="TaskMessage"/></param>
         /// <param name="sourceInstance">Instnace of <see cref="OrchestrationInstance"/></param>
+        /// <param name="cancellationToken">Cancellation token.</param>
         /// <returns></returns>
-        public Task<MessageData> AddMessageAsync(TaskMessage message, OrchestrationInstance sourceInstance)
+        public Task<MessageData> AddMessageAsync(TaskMessage message, OrchestrationInstance sourceInstance, CancellationToken cancellationToken = default(CancellationToken))
         {
-            return this.AddMessageAsync(message, sourceInstance, session: null);
+            return this.AddMessageAsync(message, sourceInstance, session: null, cancellationToken);
         }
 
-        async Task<MessageData> AddMessageAsync(TaskMessage taskMessage, OrchestrationInstance sourceInstance, SessionBase? session)
+        async Task<MessageData> AddMessageAsync(TaskMessage taskMessage, OrchestrationInstance sourceInstance, SessionBase? session, CancellationToken cancellationToken = default(CancellationToken))
         {
             MessageData data;
             try
@@ -111,7 +113,7 @@ namespace DurableTask.AzureStorage.Messaging
                 CorrelationTraceClient.Propagate(
                     () => { data.SerializableTraceContext = GetSerializableTraceContext(taskMessage); });
                 
-                string rawContent = await this.messageManager.SerializeMessageDataAsync(data);
+                string rawContent = await this.messageManager.SerializeMessageDataAsync(data, cancellationToken);
 
                 CloudQueueMessage queueMessage = new CloudQueueMessage(rawContent);
 
@@ -135,7 +137,8 @@ namespace DurableTask.AzureStorage.Messaging
                     null /* timeToLive */,
                     GetVisibilityDelay(taskMessage),
                     this.QueueRequestOptions,
-                    session?.StorageOperationContext);
+                    session?.StorageOperationContext,
+                    cancellationToken);
 
                 this.stats.MessagesSent.Increment();
 

@@ -355,7 +355,7 @@ namespace DurableTask.Redis
 
         #region Client Methods
         /// <inheritdoc />
-        public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage)
+        public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, CancellationToken cancellationToken = default(CancellationToken))
         {
             if (this.partitionOrchestrationManager == null)
             {
@@ -365,7 +365,7 @@ namespace DurableTask.Redis
         }
 
         /// <inheritdoc />
-        public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses)
+        public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses, CancellationToken cancellationToken = default(CancellationToken))
         {
             if (this.partitionOrchestrationManager == null)
             {

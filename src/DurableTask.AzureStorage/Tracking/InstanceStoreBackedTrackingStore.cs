@@ -102,7 +102,8 @@ namespace DurableTask.AzureStorage.Tracking
         public override async Task<bool> SetNewExecutionAsync(
             ExecutionStartedEvent executionStartedEvent,
             string eTag /* not used */,
-            string inputStatusOverride)
+            string inputStatusOverride,
+            CancellationToken cancellationToken = default(CancellationToken))
         {
             var orchestrationState = new OrchestrationState()
             {

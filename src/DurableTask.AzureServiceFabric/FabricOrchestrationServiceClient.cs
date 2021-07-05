@@ -45,7 +45,7 @@ namespace DurableTask.AzureServiceFabric
         }
 
         #region IOrchestrationServiceClient
-        public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage)
+        public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, CancellationToken cancellationToken = default(CancellationToken))
         {
             if (creationMessage.Event is ExecutionStartedEvent executionStarted && executionStarted.ScheduledStartTime.HasValue)
             {
@@ -54,6 +54,8 @@ namespace DurableTask.AzureServiceFabric
 
             creationMessage.OrchestrationInstance.InstanceId.EnsureValidInstanceId();
             ExecutionStartedEvent startEvent = creationMessage.Event as ExecutionStartedEvent;
+
+            cancellationToken.ThrowIfCancellationRequested();
             if (startEvent == null)
             {
                 await this.SendTaskOrchestrationMessageAsync(creationMessage);
@@ -89,7 +91,7 @@ namespace DurableTask.AzureServiceFabric
             }
         }
 
-        public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses)
+        public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses, CancellationToken cancellationToken = default(CancellationToken))
         {
             // Todo: Support for dedupeStatuses?
             if (dedupeStatuses != null)
@@ -97,7 +99,7 @@ namespace DurableTask.AzureServiceFabric
                 throw new NotSupportedException($"DedupeStatuses are not supported yet with service fabric provider");
             }
 
-            return CreateTaskOrchestrationAsync(creationMessage);
+            return CreateTaskOrchestrationAsync(creationMessage, cancellationToken);
         }
 
         public Task SendTaskOrchestrationMessageAsync(TaskMessage message)

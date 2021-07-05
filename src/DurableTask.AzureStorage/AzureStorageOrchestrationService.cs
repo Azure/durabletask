@@ -1577,9 +1577,10 @@ namespace DurableTask.AzureStorage
         /// Creates and starts a new orchestration.
         /// </summary>
         /// <param name="creationMessage">The message which creates and starts the orchestration.</param>
-        public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage)
+        /// <param name="cancellationToken">Cancellation token.</param>
+        public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, CancellationToken cancellationToken = default(CancellationToken))
         {
-            return this.CreateTaskOrchestrationAsync(creationMessage, null);
+            return this.CreateTaskOrchestrationAsync(creationMessage, dedupeStatuses: null, cancellationToken: cancellationToken);
         }
 
         /// <summary>
@@ -1587,7 +1588,8 @@ namespace DurableTask.AzureStorage
         /// </summary>
         /// <param name="creationMessage">Orchestration creation message</param>
         /// <param name="dedupeStatuses">States of previous orchestration executions to be considered while de-duping new orchestrations on the client</param>
-        public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses)
+        /// <param name="cancellationToken">Cancellation token.</param>
+        public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses, CancellationToken cancellationToken = default(CancellationToken))
         {
             ExecutionStartedEvent executionStartedEvent = creationMessage.Event as ExecutionStartedEvent;
             if (executionStartedEvent == null)
@@ -1616,7 +1618,8 @@ namespace DurableTask.AzureStorage
             MessageData internalMessage = await this.SendTaskOrchestrationMessageInternalAsync(
                 EmptySourceInstance,
                 controlQueue,
-                creationMessage);
+                creationMessage,
+                cancellationToken);
 
             // CompressedBlobName either has a blob path for large messages or is null.
             string inputStatusOverride = internalMessage.CompressedBlobName;
@@ -1624,7 +1627,8 @@ namespace DurableTask.AzureStorage
             await this.trackingStore.SetNewExecutionAsync(
                 executionStartedEvent,
                 existingInstance?.ETag,
-                inputStatusOverride);
+                inputStatusOverride,
+                cancellationToken);
         }
 
         /// <summary>
@@ -1654,9 +1658,10 @@ namespace DurableTask.AzureStorage
         Task<MessageData> SendTaskOrchestrationMessageInternalAsync(
             OrchestrationInstance sourceInstance,
             ControlQueue controlQueue,
-            TaskMessage message)
+            TaskMessage message,
+            CancellationToken cancellationToken = default(CancellationToken))
         {
-            return controlQueue.AddMessageAsync(message, sourceInstance);
+            return controlQueue.AddMessageAsync(message, sourceInstance, cancellationToken);
         }
 
         /// <summary>

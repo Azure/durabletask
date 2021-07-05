@@ -1030,7 +1030,8 @@ namespace DurableTask.AzureStorage.Tracking
         public override async Task<bool> SetNewExecutionAsync(
             ExecutionStartedEvent executionStartedEvent,
             string eTag,
-            string inputStatusOverride)
+            string inputStatusOverride,
+            CancellationToken cancellationToken = default(CancellationToken))
         {
             string sanitizedInstanceId = KeySanitation.EscapePartitionKey(executionStartedEvent.OrchestrationInstance.InstanceId);
             DynamicTableEntity entity = new DynamicTableEntity(sanitizedInstanceId, "")
@@ -1072,7 +1073,8 @@ namespace DurableTask.AzureStorage.Tracking
                     operationName: "NewOrchestrationHistory",
                     account: this.storageAccountName,
                     settings: this.settings,
-                    operation: (context, timeoutToken) => this.InstancesTable.ExecuteAsync(operation, new TableRequestOptions(), context, timeoutToken));
+                    operation: (context, timeoutToken) => this.InstancesTable.ExecuteAsync(operation, new TableRequestOptions(), context, timeoutToken),
+                    cancellationToken);
             }
             catch (StorageException e) when (
                 e.RequestInformation?.HttpStatusCode == 409 /* Conflict */ ||

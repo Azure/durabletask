@@ -167,13 +167,13 @@ namespace DurableTask.Emulator
         // client methods
         /******************************/
         /// <inheritdoc />
-        public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage)
+        public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, CancellationToken cancellationToken = default(CancellationToken))
         {
-            return CreateTaskOrchestrationAsync(creationMessage, null);
+            return CreateTaskOrchestrationAsync(creationMessage, null, cancellationToken);
         }
 
         /// <inheritdoc />
-        public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses)
+        public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses, CancellationToken cancellationToken = default(CancellationToken))
         {
             var ee = creationMessage.Event as ExecutionStartedEvent;
 
@@ -214,8 +214,10 @@ namespace DurableTask.Emulator
                     ScheduledStartTime = ee.ScheduledStartTime,
                 };
 
+                cancellationToken.ThrowIfCancellationRequested();
                 ed.Add(creationMessage.OrchestrationInstance.ExecutionId, newState);
 
+                cancellationToken.ThrowIfCancellationRequested();
                 this.orchestratorQueue.SendMessage(creationMessage);
             }
 

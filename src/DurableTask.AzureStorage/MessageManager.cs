@@ -20,6 +20,7 @@ namespace DurableTask.AzureStorage
     using System.Reflection;
     using System.Runtime.Serialization;
     using System.Text;
+    using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Monitoring;
     using Microsoft.WindowsAzure.Storage;
@@ -96,8 +97,9 @@ namespace DurableTask.AzureStorage
         /// Serializes the MessageData object
         /// </summary>
         /// <param name="messageData">Instance of <see cref="MessageData"/></param>
+        /// <param name="cancellationToken">Cancellation token.</param>
         /// <returns>JSON for the <see cref="MessageData"/> object</returns>
-        public async Task<string> SerializeMessageDataAsync(MessageData messageData)
+        public async Task<string> SerializeMessageDataAsync(MessageData messageData, CancellationToken cancellationToken = default(CancellationToken))
         {
             string rawContent = JsonConvert.SerializeObject(messageData, this.taskMessageSerializerSettings);
             messageData.TotalMessageSizeBytes = Encoding.UTF8.GetByteCount(rawContent);
@@ -109,7 +111,7 @@ namespace DurableTask.AzureStorage
                 byte[] messageBytes = Encoding.UTF8.GetBytes(rawContent);
                 string blobName = this.GetNewLargeMessageBlobName(messageData);
                 messageData.CompressedBlobName = blobName;
-                await this.CompressAndUploadAsBytesAsync(messageBytes, blobName);
+                await this.CompressAndUploadAsBytesAsync(messageBytes, blobName, cancellationToken);
 
                 // Create a "wrapper" message which has the blob name but not a task message.
                 var wrapperMessageData = new MessageData { CompressedBlobName = blobName };
@@ -161,10 +163,10 @@ namespace DurableTask.AzureStorage
             return envelope;
         }
 
-        internal Task CompressAndUploadAsBytesAsync(byte[] payloadBuffer, string blobName)
+        internal Task CompressAndUploadAsBytesAsync(byte[] payloadBuffer, string blobName, CancellationToken cancellationToken = default(CancellationToken))
         {
             ArraySegment<byte> compressedSegment = this.Compress(payloadBuffer);
-            return this.UploadToBlobAsync(compressedSegment.Array, compressedSegment.Count, blobName);
+            return this.UploadToBlobAsync(compressedSegment.Array, compressedSegment.Count, blobName,cancellationToken);
         }
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:DoNotDisposeObjectsMultipleTimes", Justification = "This GZipStream will not dispose the MemoryStream.")]
@@ -269,12 +271,22 @@ namespace DurableTask.AzureStorage
         /// <summary>
         /// Uploads MessageData as bytes[] to blob container
         /// </summary>
-        internal async Task UploadToBlobAsync(byte[] data, int dataByteCount, string blobName)
+        internal async Task UploadToBlobAsync(byte[] data, int dataByteCount, string blobName, CancellationToken cancellationToken = default(CancellationToken))
         {
             await this.EnsureContainerAsync();
 
             CloudBlockBlob cloudBlockBlob = this.cloudBlobContainer.GetBlockBlobReference(blobName);
-            await cloudBlockBlob.UploadFromByteArrayAsync(data, 0, dataByteCount);
+            await cloudBlockBlob.UploadFromByteArrayAsync(
+                data,
+                0,
+                dataByteCount,
+                AccessCondition.GenerateEmptyCondition(),
+                new BlobRequestOptions(),
+                new OperationContext
+                {
+                    ClientRequestID = Guid.NewGuid().ToString()
+                },
+                cancellationToken);
         }
 
         internal string GetNewLargeMessageBlobName(MessageData message)

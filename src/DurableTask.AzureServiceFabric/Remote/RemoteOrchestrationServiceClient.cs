@@ -81,11 +81,12 @@ namespace DurableTask.AzureServiceFabric.Remote
         /// Creates a new orchestration
         /// </summary>
         /// <param name="creationMessage">Orchestration creation message</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
         /// <exception cref="OrchestrationAlreadyExistsException">Will throw an OrchestrationAlreadyExistsException exception If any orchestration with the same instance Id exists in the instance store.</exception>
         /// <returns></returns>
-        public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage)
+        public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, CancellationToken cancellationToken = default(CancellationToken))
         {
-            return this.CreateTaskOrchestrationAsync(creationMessage, null);
+            return this.CreateTaskOrchestrationAsync(creationMessage, null, cancellationToken);
         }
 
         /// <summary>
@@ -93,16 +94,17 @@ namespace DurableTask.AzureServiceFabric.Remote
         /// </summary>
         /// <param name="creationMessage">Orchestration creation message</param>
         /// <param name="dedupeStatuses">States of previous orchestration executions to be considered while de-duping new orchestrations on the client</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
         /// <exception cref="OrchestrationAlreadyExistsException">Will throw an OrchestrationAlreadyExistsException exception If any orchestration with the same instance Id exists in the instance store and it has a status specified in dedupeStatuses.</exception>
         /// <returns></returns>
-        public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses)
+        public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses, CancellationToken cancellationToken = default(CancellationToken))
         {
             creationMessage.OrchestrationInstance.InstanceId.EnsureValidInstanceId();
             await this.PutJsonAsync(
                 creationMessage.OrchestrationInstance.InstanceId,
                 this.GetOrchestrationFragment(creationMessage.OrchestrationInstance.InstanceId),
                 new CreateTaskOrchestrationParameters() { TaskMessage = creationMessage, DedupeStatuses = dedupeStatuses },
-                CancellationToken.None);
+                cancellationToken);
         }
 
         /// <summary>
