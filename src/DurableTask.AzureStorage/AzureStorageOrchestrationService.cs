@@ -31,7 +31,6 @@ namespace DurableTask.AzureStorage
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
     using Microsoft.WindowsAzure.Storage;
-    using Microsoft.WindowsAzure.Storage.Blob;
     using Microsoft.WindowsAzure.Storage.Queue;
     using Newtonsoft.Json;
 
@@ -56,7 +55,6 @@ namespace DurableTask.AzureStorage
         readonly AzureStorageOrchestrationServiceStats stats;
         readonly string storageAccountName;
         readonly CloudQueueClient queueClient;
-        readonly CloudBlobClient blobClient;
         readonly ConcurrentDictionary<string, ControlQueue> allControlQueues;
         readonly WorkItemQueue workItemQueue;
         readonly ConcurrentDictionary<string, ActivitySession> activeActivitySessions;
@@ -115,8 +113,6 @@ namespace DurableTask.AzureStorage
             this.stats = new AzureStorageOrchestrationServiceStats();
             this.queueClient = account.CreateCloudQueueClient();
             this.queueClient.BufferManager = SimpleBufferManager.Shared;
-            this.blobClient = account.CreateCloudBlobClient();
-            this.blobClient.BufferManager = SimpleBufferManager.Shared;
 
             string compressedMessageBlobContainerName = $"{settings.TaskHubName.ToLowerInvariant()}-largemessages";
             NameValidator.ValidateContainerName(compressedMessageBlobContainerName);
@@ -181,14 +177,11 @@ namespace DurableTask.AzureStorage
             }
 
             this.appLeaseManager = new AppLeaseManager(
+                this.azureStorageClient,
                 this.partitionManager,
-                this.settings,
-                this.storageAccountName,
-                this.blobClient,
                 this.settings.TaskHubName.ToLowerInvariant() + "-applease",
                 this.settings.TaskHubName.ToLowerInvariant() + "-appleaseinfo",
-                this.settings.AppLeaseOptions,
-                this.stats);
+                this.settings.AppLeaseOptions);
         }
 
         internal string WorkerId => this.settings.WorkerId;
