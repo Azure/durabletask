@@ -24,10 +24,9 @@ namespace DurableTask.AzureStorage.Tracking
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Monitoring;
+    using DurableTask.AzureStorage.Storage;
     using DurableTask.Core;
     using DurableTask.Core.History;
-    using Microsoft.WindowsAzure.Storage;
-    using Microsoft.WindowsAzure.Storage.Table;
     using Newtonsoft.Json;
 
     /// <summary>
@@ -61,6 +60,7 @@ namespace DurableTask.AzureStorage.Tracking
 
         readonly string storageAccountName;
         readonly string taskHubName;
+        readonly AzureStorageClient azureStorageClient;
         readonly AzureStorageOrchestrationServiceSettings settings;
         readonly AzureStorageOrchestrationServiceStats stats;
         readonly TableEntityConverter tableEntityConverter;
@@ -68,30 +68,23 @@ namespace DurableTask.AzureStorage.Tracking
         readonly MessageManager messageManager;
 
         public AzureTableTrackingStore(
-            AzureStorageOrchestrationServiceSettings settings,
-            MessageManager messageManager,
-            AzureStorageOrchestrationServiceStats stats,
-            CloudStorageAccount account)
+            AzureStorageClient azureStorageClient,
+            MessageManager messageManager)
         {
-            this.settings = settings;
+            this.azureStorageClient = azureStorageClient;
             this.messageManager = messageManager;
-            this.stats = stats;
+            this.settings = this.azureStorageClient.Settings;
+            this.stats = this.azureStorageClient.Stats;
             this.tableEntityConverter = new TableEntityConverter();
             this.taskHubName = settings.TaskHubName;
 
-            this.storageAccountName = account.Credentials.AccountName;
-
-            CloudTableClient tableClient = account.CreateCloudTableClient();
-            tableClient.BufferManager = SimpleBufferManager.Shared;
+            this.storageAccountName = this.azureStorageClient.StorageAccountName;
 
             string historyTableName = settings.HistoryTableName;
-            NameValidator.ValidateTableName(historyTableName);
-
             string instancesTableName = settings.InstanceTableName;
-            NameValidator.ValidateTableName(instancesTableName);
 
-            this.HistoryTable = tableClient.GetTableReference(historyTableName);
-            this.InstancesTable = tableClient.GetTableReference(instancesTableName);
+            this.HistoryTable = this.azureStorageClient.GetTableReference(historyTableName);
+            this.InstancesTable = this.azureStorageClient.GetTableReference(instancesTableName);
 
             this.StorageTableRequestOptions = settings.HistoryTableRequestOptions;
 
@@ -108,13 +101,14 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         internal AzureTableTrackingStore(
-            AzureStorageOrchestrationServiceStats stats,
-            CloudTable instancesTable
+            AzureStorageClient azureStorageClient,
+            Table instancesTable
         )
         {
-            this.stats = stats;
+            this.azureStorageClient = azureStorageClient;
+            this.stats = this.azureStorageClient.Stats;
             this.InstancesTable = instancesTable;
-            this.settings = new AzureStorageOrchestrationServiceSettings();
+            this.settings = this.azureStorageClient.Settings;
             // Have to set FetchLargeMessageDataEnabled to false, as no MessageManager is 
             // instantiated for this test.
             this.settings.FetchLargeMessageDataEnabled = false;
@@ -125,9 +119,9 @@ namespace DurableTask.AzureStorage.Tracking
         /// </summary>
         public TableRequestOptions StorageTableRequestOptions { get; set; }
 
-        internal CloudTable HistoryTable { get; }
+        internal Table HistoryTable { get; }
 
-        internal CloudTable InstancesTable { get; }
+        internal Table InstancesTable { get; }
 
         /// <inheritdoc />
         public override Task CreateAsync()
@@ -1074,9 +1068,9 @@ namespace DurableTask.AzureStorage.Tracking
                     settings: this.settings,
                     operation: (context, timeoutToken) => this.InstancesTable.ExecuteAsync(operation, new TableRequestOptions(), context, timeoutToken));
             }
-            catch (StorageException e) when (
-                e.RequestInformation?.HttpStatusCode == 409 /* Conflict */ ||
-                e.RequestInformation?.HttpStatusCode == 412 /* Precondition failed */)
+            catch (DurableTaskStorageException e) when (
+                e.HttpStatusCode == 409 /* Conflict */ ||
+                e.HttpStatusCode == 412 /* Precondition failed */)
             {
                 // Ignore. The main scenario for this is handling race conditions in status update.
                 return false;
@@ -1472,7 +1466,7 @@ namespace DurableTask.AzureStorage.Tracking
             bool isFinalBatch)
         {
             // Adding / updating sentinel entity
-            DynamicTableEntity sentinelEntity = new DynamicTableEntity(sanitizedInstanceId, SentinelRowKey)
+            DynamicTableEntity sentinelEntity = new TableEntity(sanitizedInstanceId, SentinelRowKey)
             {
                 Properties =
                 {
@@ -1508,9 +1502,9 @@ namespace DurableTask.AzureStorage.Tracking
                         return this.HistoryTable.ExecuteBatchAsync(historyEventBatch, this.StorageTableRequestOptions, context, timeoutToken);
                     });
             }
-            catch (StorageException ex)
+            catch (DurableTaskStorageException ex)
             {
-                if (ex.RequestInformation.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
+                if (ex.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
                 {
                     this.settings.Logger.SplitBrainDetected(
                         this.storageAccountName,

@@ -16,8 +16,8 @@ namespace DurableTask.AzureStorage.Tracking
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using DurableTask.AzureStorage.Storage;
     using DurableTask.Core;
-    using Microsoft.WindowsAzure.Storage.Table;
 
     /// <summary>
     /// OrchestrationInstanceStatusQueryBuilder is a builder to create a StorageTable Query
