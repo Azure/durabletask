@@ -50,6 +50,7 @@ namespace DurableTask.AzureStorage.Storage
         }
 
         public AzureStorageOrchestrationServiceSettings Settings { get; }
+
         public string StorageAccountName { get; }
 
         public Blob GetBlobReference(string container, string blobName, string blobDirectory = null)

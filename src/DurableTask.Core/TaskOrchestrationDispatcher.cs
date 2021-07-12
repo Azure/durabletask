@@ -725,7 +725,7 @@ namespace DurableTask.Core
                 TraceEventType.Information,
                 "TaskOrchestrationDispatcher-InstanceCompletionEvents",
                 runtimeState.OrchestrationInstance,
-                () => Utils.EscapeJson(DataConverter.Serialize(runtimeState.Events, true)));
+                () => Utils.EscapeJson(DataConverter.Serialize(runtimeState.GetOrchestrationRuntimeStateDump().Events, true)));
 
             // Check to see if we need to start a new execution
             if (completeOrchestratorAction.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew)

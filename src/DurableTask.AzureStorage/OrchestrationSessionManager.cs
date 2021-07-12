@@ -372,7 +372,6 @@ namespace DurableTask.AzureStorage
             //  3. Do we need to add messages to a currently executing orchestration?
             lock (this.messageAndSessionLock)
             {
-
                 var existingSessionMessages = new Dictionary<OrchestrationSession, List<MessageData>>();
 
                 foreach (MessageData data in queueMessages)
@@ -382,12 +381,13 @@ namespace DurableTask.AzureStorage
                     string instanceId = data.TaskMessage.OrchestrationInstance.InstanceId;
                     string executionId = data.TaskMessage.OrchestrationInstance.ExecutionId;
 
-                    // Check if the target orchestraion is loaded in memory
-                    if (this.activeOrchestrationSessions.TryGetValue(instanceId, out OrchestrationSession session))
+                    // If the target orchestration is already in memory, we can potentially add the message to the session directly
+                    // rather than adding it to the pending list. This behavior applies primarily when extended sessions are enabled.
+                    // We can't do this for ExecutionStarted messages - those must *always* go to the pending list since they are for
+                    // creating entirely new orchestration instances.
+                    if (data.TaskMessage.Event.EventType != EventType.ExecutionStarted &&
+                        this.activeOrchestrationSessions.TryGetValue(instanceId, out OrchestrationSession session))
                     {
-                        // If the target orchestration is already in memory, we add the message to the session directly,
-                        // rather than adding it to the linked list.
-
                         // A null executionId value means that this is a management operation, like RaiseEvent or Terminate, which
                         // should be delivered to the current session.
                         if (executionId == null || session.Instance.ExecutionId == executionId)
@@ -400,28 +400,18 @@ namespace DurableTask.AzureStorage
                             }
 
                             pendingMessages.Add(data);
-                        }
-                        else if (session.RuntimeState.ExecutionStartedEvent == null || data.TaskMessage.Event.Timestamp < session.RuntimeState.CreatedTime)
-                        {
-                            // If the current generation of this instance hasn't started or the current 
-                            // generation's `CreatedTime` is newer than the message timestamp indicates that
-                            // this message was created for a previous generation of this instance.
-                            // This is common for canceled timer fired events in ContinueAsNew scenarios.
-                            session.DiscardMessage(data);
-                        }
-                        else
-                        {
-                            // Most likely this message was created for a new generation of the current
-                            // instance. This can happen if a ContinueAsNew message arrives before the current
-                            // session finished unloading. Defer the message so that it can be processed later.
-                            session.DeferMessage(data);
+                            continue;
                         }
 
-                        continue;
+                        // Looks like this message is for another generation of the active orchestration. Let it fall
+                        // into the pending list below. If it's a message for an older generation, it will be eventually
+                        // discarded after we discover that we have no state associated with its execution ID. This is
+                        // most common in scenarios involving durable timers and ContinueAsNew. Otherwise, this message
+                        // will be processed after the current session unloads.
                     }
 
-
                     PendingMessageBatch? targetBatch = null; // batch for the current instanceID-executionID pair
+
                     // Unless the message is an ExecutionStarted event, we attempt to assign the current message to an
                     // existing batch by walking backwards through the list of batches until we find one with a matching InstanceID.
                     // This is assumed to be more efficient than walking forward if most messages arrive in the queue in groups.
