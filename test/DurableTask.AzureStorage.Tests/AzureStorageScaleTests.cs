@@ -389,7 +389,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 if (tableTrackingStore != null)
                 {
-                    DynamicTableEntity[] entities = (await tableTrackingStore.HistoryTable.ExecuteQuerySegmentedAsync(new TableQuery(), new TableContinuationToken())).ToArray();
+                    Microsoft.WindowsAzure.Storage.Table.DynamicTableEntity[] entities = (await tableTrackingStore.HistoryTable.ExecuteQuerySegmentedAsync(new TableQuery(), new TableContinuationToken())).ToArray();
                     int uniquePartitions = entities.GroupBy(e => e.PartitionKey).Count();
                     Trace.TraceInformation($"Found {uniquePartitions} unique partition(s) in table storage.");
                     Assert.AreEqual(InstanceCount, uniquePartitions, "Unexpected number of table partitions.");

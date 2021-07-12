@@ -20,6 +20,7 @@ namespace DurableTask.AzureStorage.Storage
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Blob;
     using Microsoft.WindowsAzure.Storage.Queue;
+    using Microsoft.WindowsAzure.Storage.Table;
 
     class AzureStorageClient
     {
@@ -27,6 +28,7 @@ namespace DurableTask.AzureStorage.Storage
         readonly CloudStorageAccount account;
         readonly CloudBlobClient blobClient;
         readonly CloudQueueClient queueClient;
+        readonly CloudTableClient tableClient;
 
         public AzureStorageClient(AzureStorageOrchestrationServiceSettings settings)
         {
@@ -60,6 +62,20 @@ namespace DurableTask.AzureStorage.Storage
             this.blobClient.BufferManager = SimpleBufferManager.Shared;
 
             this.blobClient.DefaultRequestOptions.MaximumExecutionTime = StorageMaximumExecutionTime;
+
+            this.tableClient = account.CreateCloudTableClient();
+            this.tableClient.BufferManager = SimpleBufferManager.Shared;
+
+            string historyTableName = settings.HistoryTableName;
+            NameValidator.ValidateTableName(historyTableName);
+
+            string instancesTableName = settings.InstanceTableName;
+            NameValidator.ValidateTableName(instancesTableName);
+
+            this.HistoryTable = tableClient.GetTableReference(historyTableName);
+            this.InstancesTable = tableClient.GetTableReference(instancesTableName);
+
+            this.StorageTableRequestOptions = settings.HistoryTableRequestOptions;
         }
 
         public AzureStorageOrchestrationServiceSettings Settings { get; }
@@ -90,6 +106,12 @@ namespace DurableTask.AzureStorage.Storage
             NameValidator.ValidateQueueName(queueName);
             return new Queue(this, this.queueClient, queueName);
         }
+
+        public Table GetTableReference(string tableName, TableRequestOptions tableRequestOptions)
+        {
+            return new Table(this, this.tableClient, tableName, tableRequestOptions);
+        }
+
 
         public async Task<T> MakeStorageRequest<T>(Func<OperationContext, CancellationToken, Task<T>> storageRequest, string operationName, string clientRequestId = null)
         {
