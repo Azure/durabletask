@@ -28,10 +28,6 @@ namespace DurableTask.AzureStorage.Storage
         readonly CloudBlobClient blobClient;
         readonly CloudQueueClient queueClient;
 
-        public AzureStorageOrchestrationServiceSettings Settings { get; }
-        public AzureStorageOrchestrationServiceStats Stats { get; }
-        public string StorageAccountName { get; }
-
         public AzureStorageClient(AzureStorageOrchestrationServiceSettings settings, string storageAccountName)
         {
             this.Settings = settings;
@@ -64,6 +60,10 @@ namespace DurableTask.AzureStorage.Storage
 
             this.blobClient.DefaultRequestOptions.MaximumExecutionTime = StorageMaximumExecutionTime;
         }
+
+        public AzureStorageOrchestrationServiceSettings Settings { get; }
+        public AzureStorageOrchestrationServiceStats Stats { get; }
+        public string StorageAccountName { get; }
 
         public Blob GetBlobReference(string container, string blobName, string blobDirectory = null)
         {
@@ -102,10 +102,10 @@ namespace DurableTask.AzureStorage.Storage
             await this.MakeStorageRequest((context, cancellationToken) => WrapFunctionWithReturnType(storageRequest, context, cancellationToken), operationName, clientRequestId);
         }
 
-        private static async Task<bool> WrapFunctionWithReturnType(Func<OperationContext, CancellationToken, Task> storageRequest, OperationContext context, CancellationToken cancellationToken)
+        private static async Task<object> WrapFunctionWithReturnType(Func<OperationContext, CancellationToken, Task> storageRequest, OperationContext context, CancellationToken cancellationToken)
         {
             await storageRequest(context, cancellationToken);
-            return true;
+            return null;
         }
     }
 }

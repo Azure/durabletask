@@ -27,13 +27,13 @@ namespace DurableTask.AzureStorage.Partitioning
     /// </summary>
     sealed class AppLeaseManager
     {
-        private readonly AzureStorageClient azureStorageClient;
+        readonly AzureStorageClient azureStorageClient;
         readonly IPartitionManager partitionManager;
         readonly AzureStorageOrchestrationServiceSettings settings;
         readonly string appLeaseContainerName;
         readonly string appLeaseInfoBlobName;
         readonly AppLeaseOptions options;
-        private readonly string storageAccountName;
+        readonly string storageAccountName;
         readonly string taskHub;
         readonly string workerName;
         readonly string appName;

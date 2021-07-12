@@ -27,12 +27,6 @@ namespace DurableTask.AzureStorage.Storage
         readonly string fullBlobPath;
         readonly CloudBlockBlob cloudBlockBlob;
 
-        public string Name { get; }
-
-        public bool IsLeased { get => this.cloudBlockBlob.Properties.LeaseState == LeaseState.Leased; }
-
-        public string AbsoluteUri {  get => this.cloudBlockBlob.Uri.AbsoluteUri; }
-
         public Blob(AzureStorageClient azureStorageClient, CloudBlobClient blobClient, string containerName, string blobName, string blobDirectory = null)
         {
             this.azureStorageClient = azureStorageClient;
@@ -43,6 +37,12 @@ namespace DurableTask.AzureStorage.Storage
 
             this.cloudBlockBlob = this.blobClient.GetContainerReference(containerName).GetBlockBlobReference(fullBlobPath);
         }
+
+        public string Name { get; }
+
+        public bool IsLeased => this.cloudBlockBlob.Properties.LeaseState == LeaseState.Leased;
+
+        public string AbsoluteUri { get => this.cloudBlockBlob.Uri.AbsoluteUri; }
 
         public Blob(AzureStorageClient azureStorageClient, CloudBlobClient blobClient, Uri blobUri)
         {

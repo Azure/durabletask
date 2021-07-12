@@ -35,7 +35,7 @@ namespace DurableTask.AzureStorage.Partitioning
         readonly TimeSpan leaseInterval;
 
         BlobContainer taskHubContainer;
-        private string blobDirectoryName;
+        string blobDirectoryName;
         Blob taskHubInfoBlob;
 
         public BlobLeaseManager(
@@ -55,9 +55,9 @@ namespace DurableTask.AzureStorage.Partitioning
             this.Initialize();
         }
 
-        public async Task<bool> LeaseStoreExistsAsync()
+        public Task<bool> LeaseStoreExistsAsync()
         {
-            return await taskHubContainer.ExistsAsync();
+            return taskHubContainer.ExistsAsync();
         }
 
         public async Task<bool> CreateLeaseStoreIfNotExistsAsync(TaskHubInfo eventHubInfo, bool checkIfStale)
