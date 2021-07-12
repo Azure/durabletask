@@ -42,7 +42,7 @@ namespace DurableTask.AzureStorage.Storage
 
         public bool IsLeased => this.cloudBlockBlob.Properties.LeaseState == LeaseState.Leased;
 
-        public string AbsoluteUri { get => this.cloudBlockBlob.Uri.AbsoluteUri; }
+        public string AbsoluteUri => this.cloudBlockBlob.Uri.AbsoluteUri;
 
         public Blob(AzureStorageClient azureStorageClient, CloudBlobClient blobClient, Uri blobUri)
         {
