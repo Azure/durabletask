@@ -82,9 +82,9 @@ namespace DurableTask.AzureStorage.Storage
             return new BlobContainer(this, this.blobClient, container);
         }
 
-        public Queue GetQueueReference(string queueName, QueueRequestOptions queueRequestOptions)
+        public Queue GetQueueReference(string queueName)
         {
-            return new Queue(this, this.queueClient, queueName, queueRequestOptions);
+            return new Queue(this, this.queueClient, queueName);
         }
 
         public async Task<T> MakeStorageRequest<T>(Func<OperationContext, CancellationToken, Task<T>> storageRequest, string operationName, string clientRequestId = null)

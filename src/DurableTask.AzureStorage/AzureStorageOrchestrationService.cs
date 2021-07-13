@@ -31,7 +31,6 @@ namespace DurableTask.AzureStorage
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
     using Microsoft.WindowsAzure.Storage;
-    using Microsoft.WindowsAzure.Storage.Queue;
     using Newtonsoft.Json;
 
     /// <summary>
@@ -194,15 +193,15 @@ namespace DurableTask.AzureStorage
 
         internal static Queue GetControlQueue(AzureStorageClient azureStorageClient, string taskHub, int partitionIndex)
         {
-            return GetQueueInternal(azureStorageClient, taskHub, $"control-{partitionIndex:00}", azureStorageClient.Settings.ControlQueueRequestOptions);
+            return GetQueueInternal(azureStorageClient, taskHub, $"control-{partitionIndex:00}");
         }
 
         internal static Queue GetWorkItemQueue(AzureStorageClient azureStorageClient)
         {
-            return GetQueueInternal(azureStorageClient, azureStorageClient.Settings.TaskHubName, "workitems", azureStorageClient.Settings.WorkItemQueueRequestOptions);
+            return GetQueueInternal(azureStorageClient, azureStorageClient.Settings.TaskHubName, "workitems");
         }
 
-        static Queue GetQueueInternal(AzureStorageClient azureStorageClient, string taskHub, string suffix, QueueRequestOptions queueRequestOptions)
+        static Queue GetQueueInternal(AzureStorageClient azureStorageClient, string taskHub, string suffix)
         {
             if (azureStorageClient == null)
             {
@@ -217,7 +216,7 @@ namespace DurableTask.AzureStorage
             string queueName = $"{taskHub.ToLowerInvariant()}-{suffix}";
             NameValidator.ValidateQueueName(queueName);
 
-            return azureStorageClient.GetQueueReference(queueName, queueRequestOptions);
+            return azureStorageClient.GetQueueReference(queueName);
         }
 
         internal static BlobLeaseManager GetBlobLeaseManager(
@@ -492,7 +491,7 @@ namespace DurableTask.AzureStorage
 
         internal async Task OnIntentLeaseAquiredAsync(BlobLease lease)
         {
-            Queue storageQueue = this.azureStorageClient.GetQueueReference(lease.PartitionId, this.settings.ControlQueueRequestOptions);
+            Queue storageQueue = this.azureStorageClient.GetQueueReference(lease.PartitionId);
             await storageQueue.CreateIfNotExistsAsync();
             var controlQueue = new ControlQueue(this.azureStorageClient, storageQueue, this.messageManager);
             this.orchestrationSessionManager.ResumeListeningIfOwnQueue(lease.PartitionId, controlQueue, this.shutdownSource.Token);
@@ -507,7 +506,7 @@ namespace DurableTask.AzureStorage
 
         internal async Task OnOwnershipLeaseAquiredAsync(BlobLease lease)
         {
-            Queue storageQueue = this.azureStorageClient.GetQueueReference(lease.PartitionId, this.settings.ControlQueueRequestOptions);
+            Queue storageQueue = this.azureStorageClient.GetQueueReference(lease.PartitionId);
             await storageQueue.CreateIfNotExistsAsync();
 
             var controlQueue = new ControlQueue(this.azureStorageClient, storageQueue, this.messageManager);
