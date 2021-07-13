@@ -36,14 +36,16 @@ namespace DurableTask.AzureStorage.Messaging
 
         public TaskHubQueue(
             AzureStorageClient azureStorageClient,
-            Queue storageQueue,
+            string queueName,
             MessageManager messageManager)
         {
             this.azureStorageClient = azureStorageClient;
-            this.storageQueue = storageQueue;
             this.messageManager = messageManager;
             this.storageAccountName = azureStorageClient.StorageAccountName;
             this.settings = azureStorageClient.Settings;
+
+
+            this.storageQueue = this.azureStorageClient.GetQueueReference(queueName);
 
             TimeSpan minPollingDelay = TimeSpan.FromMilliseconds(50);
             TimeSpan maxPollingDelay = this.settings.MaxQueuePollingInterval;
@@ -61,7 +63,7 @@ namespace DurableTask.AzureStorage.Messaging
 
         protected abstract TimeSpan MessageVisibilityTimeout { get; }
 
-        // Intended only for use by unit tests
+        // Intended only for use by unit tests and the DisconnectedPerformanceMonitor
         internal Queue InnerQueue => this.storageQueue;
 
         /// <summary>

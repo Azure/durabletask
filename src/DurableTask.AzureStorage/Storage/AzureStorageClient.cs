@@ -69,6 +69,7 @@ namespace DurableTask.AzureStorage.Storage
 
         public Blob GetBlobReference(string container, string blobName, string blobDirectory = null)
         {
+            NameValidator.ValidateBlobName(blobName);
             return new Blob(this, this.blobClient, container, blobName, blobDirectory);
         }
 
@@ -79,11 +80,13 @@ namespace DurableTask.AzureStorage.Storage
 
         public BlobContainer GetBlobContainerReference(string container)
         {
+            NameValidator.ValidateContainerName(container);
             return new BlobContainer(this, this.blobClient, container);
         }
 
         public Queue GetQueueReference(string queueName)
         {
+            NameValidator.ValidateQueueName(queueName);
             return new Queue(this, this.queueClient, queueName);
         }
 

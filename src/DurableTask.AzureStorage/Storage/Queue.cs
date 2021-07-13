@@ -27,10 +27,6 @@ namespace DurableTask.AzureStorage.Storage
         readonly AzureStorageOrchestrationServiceStats stats;
         readonly CloudQueue cloudQueue;
 
-        public string Name { get; }
-        public Uri Uri { get; }
-        public int? ApproximateMessageCount => this.cloudQueue.ApproximateMessageCount;
-
         public Queue(AzureStorageClient azureStorageClient, CloudQueueClient queueClient, string queueName)
         {
             this.azureStorageClient = azureStorageClient;
@@ -40,6 +36,12 @@ namespace DurableTask.AzureStorage.Storage
 
             this.cloudQueue = this.queueClient.GetQueueReference(this.Name);
         }
+
+        public string Name { get; }
+
+        public Uri Uri { get; }
+
+        public int? ApproximateMessageCount => this.cloudQueue.ApproximateMessageCount;
 
         public async Task AddMessageAsync(QueueMessage queueMessage, TimeSpan? visibilityDelay, string clientRequestId = null)
         {
