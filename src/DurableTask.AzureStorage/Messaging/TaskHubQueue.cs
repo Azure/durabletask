@@ -63,7 +63,7 @@ namespace DurableTask.AzureStorage.Messaging
 
         protected abstract TimeSpan MessageVisibilityTimeout { get; }
 
-        // Intended only for use by unit tests and the DisconnectedPerformanceMonitor
+        // Intended only for use by unit tests
         internal Queue InnerQueue => this.storageQueue;
 
         /// <summary>
