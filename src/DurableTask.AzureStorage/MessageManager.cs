@@ -282,7 +282,7 @@ namespace DurableTask.AzureStorage
         /// </summary>
         internal async Task UploadToBlobAsync(byte[] data, int dataByteCount, string blobName)
         {
-            await TimeoutHandler.ExecuteWithTimeout<object>(
+            await TimeoutHandler.ExecuteWithTimeout<bool>(
                 operationName: "UploadLargeMessageBlob",
                 account: this.settings.StorageAccountDetails.AccountName,
                 settings: this.settings,
@@ -300,7 +300,7 @@ namespace DurableTask.AzureStorage
                         cancellationToken: timeoutToken);
 
                     // This is just to satisfy type restraints of TimeoutHandler.ExecuteWithTimeout
-                    return null;
+                    return true;
                 });
         }
 
