@@ -39,7 +39,7 @@ namespace DurableTask.AzureStorage.Storage
         {
             this.HttpStatusCode = storageException.RequestInformation.HttpStatusCode;
             StorageExtendedErrorInformation extendedErrorInfo = storageException.RequestInformation.ExtendedErrorInformation;
-            if (extendedErrorInfo.ErrorCode == BlobErrorCodeStrings.LeaseLost)
+            if (extendedErrorInfo?.ErrorCode == BlobErrorCodeStrings.LeaseLost)
             {
                 LeaseLost = true;
             }

@@ -22,13 +22,13 @@ namespace DurableTask.AzureStorage.Tests
     using DurableTask.AzureStorage.Messaging;
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Partitioning;
+    using DurableTask.AzureStorage.Storage;
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
     using DurableTask.Core.History;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Blob;
-    using Microsoft.WindowsAzure.Storage.Queue;
     using Microsoft.WindowsAzure.Storage.Table;
 
     /// <summary>
@@ -466,7 +466,7 @@ namespace DurableTask.AzureStorage.Tests
 
             // STEP 4: Verify that all the enqueued messages were abandoned, i.e. put back
             //         onto the queue with their dequeue counts incremented.
-            IEnumerable<CloudQueueMessage> queueMessages =
+            IEnumerable<QueueMessage> queueMessages =
                 await controlQueue.InnerQueue.PeekMessagesAsync(settings.ControlQueueBatchSize);
             Assert.IsTrue(queueMessages.All(msg => msg.DequeueCount == 1));
         }

@@ -20,7 +20,7 @@ namespace DurableTask.AzureStorage.Messaging
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Monitoring;
-    using Microsoft.WindowsAzure.Storage.Queue;
+    using DurableTask.AzureStorage.Storage;
 
     class ControlQueue : TaskHubQueue, IDisposable
     {
@@ -28,21 +28,20 @@ namespace DurableTask.AzureStorage.Messaging
 
         readonly CancellationTokenSource releaseTokenSource;
         readonly CancellationToken releaseCancellationToken;
+        private readonly AzureStorageOrchestrationServiceStats stats;
 
         public ControlQueue(
-            CloudQueue storageQueue,
-            AzureStorageOrchestrationServiceSettings settings,
-            AzureStorageOrchestrationServiceStats stats,
+            AzureStorageClient azureStorageClient,
+            string queueName,
             MessageManager messageManager)
-            : base(storageQueue, settings, stats, messageManager)
+            : base(azureStorageClient, queueName, messageManager)
         {
             this.releaseTokenSource = new CancellationTokenSource();
             this.releaseCancellationToken = this.releaseTokenSource.Token;
+            this.stats = this.azureStorageClient.Stats;
         }
 
         public bool IsReleased { get; private set; }
-
-        protected override QueueRequestOptions QueueRequestOptions => this.settings.ControlQueueRequestOptions;
 
         protected override TimeSpan MessageVisibilityTimeout => this.settings.ControlQueueVisibilityTimeout;
 
@@ -77,24 +76,10 @@ namespace DurableTask.AzureStorage.Messaging
 
                     try
                     {
-                        IEnumerable<CloudQueueMessage> batch = await TimeoutHandler.ExecuteWithTimeout(
-                            "GetMessages",
-                            this.storageAccountName,
-                            this.settings,
-                            operation: (context, timeoutToken) =>
-                            {
-                                using (var finalLinkedCts = CancellationTokenSource.CreateLinkedTokenSource(linkedCts.Token, timeoutToken))
-                                {
-                                    return this.storageQueue.GetMessagesAsync(
-                                        this.settings.ControlQueueBatchSize,
-                                        this.settings.ControlQueueVisibilityTimeout,
-                                        this.settings.ControlQueueRequestOptions,
-                                        context,
-                                        finalLinkedCts.Token);
-                                }
-                            });
-
-                        this.stats.StorageRequests.Increment();
+                        IEnumerable<QueueMessage> batch = await this.storageQueue.GetMessagesAsync(
+                            this.settings.ControlQueueBatchSize,
+                            this.settings.ControlQueueVisibilityTimeout,
+                            linkedCts.Token);
 
                         if (!batch.Any())
                         {
@@ -114,10 +99,8 @@ namespace DurableTask.AzureStorage.Messaging
                         isWaitingForMoreMessages = false;
 
                         var batchMessages = new ConcurrentBag<MessageData>();
-                        await batch.ParallelForEachAsync(async delegate (CloudQueueMessage queueMessage)
+                        await batch.ParallelForEachAsync(async delegate (QueueMessage queueMessage)
                         {
-                            this.stats.MessagesRead.Increment();
-
                             MessageData messageData = await this.messageManager.DeserializeQueueMessageAsync(
                                 queueMessage,
                                 this.storageQueue.Name);

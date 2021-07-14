@@ -336,7 +336,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 || storageException.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
             {
                 // Don't throw LeaseLostException if caller chooses to ignore it.
-                if (!ignoreLeaseLost && storageException.LeaseLost)
+                if (!ignoreLeaseLost || storageException.LeaseLost)
                 {
                     return new LeaseLostException(lease, storageException);
                 }

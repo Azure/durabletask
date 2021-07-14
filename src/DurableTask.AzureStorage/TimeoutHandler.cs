@@ -42,9 +42,10 @@ namespace DurableTask.AzureStorage
             string account,
             AzureStorageOrchestrationServiceSettings settings,
             Func<OperationContext, CancellationToken, Task<T>> operation,
-            AzureStorageOrchestrationServiceStats stats = null)
+            AzureStorageOrchestrationServiceStats stats = null,
+            string clientRequestId = null)
         {
-            OperationContext context = new OperationContext() { ClientRequestID = Guid.NewGuid().ToString() };
+            OperationContext context = new OperationContext() { ClientRequestID = clientRequestId ?? Guid.NewGuid().ToString() };
             if (Debugger.IsAttached)
             {
                 // ignore long delays while debugging

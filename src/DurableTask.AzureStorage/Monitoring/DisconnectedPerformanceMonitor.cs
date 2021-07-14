@@ -18,8 +18,8 @@ namespace DurableTask.AzureStorage.Monitoring
     using System.Linq;
     using System.Text;
     using System.Threading.Tasks;
+    using DurableTask.AzureStorage.Storage;
     using Microsoft.WindowsAzure.Storage;
-    using Microsoft.WindowsAzure.Storage.Queue;
 
     /// <summary>
     /// Utility class for collecting performance information for a Durable Task hub without actually running inside a Durable Task worker.
@@ -35,8 +35,8 @@ namespace DurableTask.AzureStorage.Monitoring
         readonly List<QueueMetricHistory> controlQueueLatencies = new List<QueueMetricHistory>();
         readonly QueueMetricHistory workItemQueueLatencies = new QueueMetricHistory(QueueLengthSampleSize);
 
-        readonly CloudStorageAccount storageAccount;
         readonly AzureStorageOrchestrationServiceSettings settings;
+        private readonly AzureStorageClient azureStorageClient;
         readonly int maxPollingLatency;
         readonly int highLatencyThreshold;
 
@@ -77,8 +77,9 @@ namespace DurableTask.AzureStorage.Monitoring
             CloudStorageAccount storageAccount,
             AzureStorageOrchestrationServiceSettings settings)
         {
-            this.storageAccount = storageAccount;
             this.settings = settings;
+
+            this.azureStorageClient = new AzureStorageClient(storageAccount, settings);
 
             this.maxPollingLatency = (int)settings.MaxQueuePollingInterval.TotalMilliseconds;
             this.highLatencyThreshold = Math.Min(this.maxPollingLatency, 1000);
@@ -154,10 +155,9 @@ namespace DurableTask.AzureStorage.Monitoring
 
         internal virtual async Task<bool> UpdateQueueMetrics()
         {
-            CloudQueue workItemQueue = AzureStorageOrchestrationService.GetWorkItemQueue(this.storageAccount, this.settings.TaskHubName);
-            CloudQueue[] controlQueues = await AzureStorageOrchestrationService.GetControlQueuesAsync(
-                this.storageAccount,
-                this.settings,
+            Queue workItemQueue = AzureStorageOrchestrationService.GetWorkItemQueue(this.azureStorageClient);
+            Queue[] controlQueues = await AzureStorageOrchestrationService.GetControlQueuesAsync(
+                this.azureStorageClient,
                 defaultPartitionCount: AzureStorageOrchestrationServiceSettings.DefaultPartitionCount);
 
             Task<QueueMetric> workItemMetricTask = GetQueueMetricsAsync(workItemQueue);
@@ -175,7 +175,7 @@ namespace DurableTask.AzureStorage.Monitoring
             {
                 // The queues are not yet provisioned.
                 this.settings.Logger.GeneralWarning(
-                    this.storageAccount.Credentials.AccountName,
+                    this.azureStorageClient.StorageAccountName,
                     this.settings.TaskHubName,
                     $"Task hub has not been provisioned: {e.RequestInformation.ExtendedErrorInformation?.ErrorMessage}");
                 return false;
@@ -209,7 +209,7 @@ namespace DurableTask.AzureStorage.Monitoring
             return true;
         }
 
-        async Task<QueueMetric> GetQueueMetricsAsync(CloudQueue queue)
+        async Task<QueueMetric> GetQueueMetricsAsync(Queue queue)
         {
             Task<TimeSpan> latencyTask = GetQueueLatencyAsync(queue);
             Task<int> lengthTask = GetQueueLengthAsync(queue);
@@ -228,10 +228,10 @@ namespace DurableTask.AzureStorage.Monitoring
             return new QueueMetric { Latency = latency, Length = length };
         }
 
-        static async Task<TimeSpan> GetQueueLatencyAsync(CloudQueue queue)
+        static async Task<TimeSpan> GetQueueLatencyAsync(Queue queue)
         {
             DateTimeOffset now = DateTimeOffset.UtcNow;
-            CloudQueueMessage firstMessage = await queue.PeekMessageAsync();
+            QueueMessage firstMessage = await queue.PeekMessageAsync();
             if (firstMessage == null)
             {
                 return TimeSpan.MinValue;
@@ -242,7 +242,7 @@ namespace DurableTask.AzureStorage.Monitoring
             return latency < TimeSpan.Zero ? TimeSpan.Zero : latency;
         }
 
-        static async Task<int> GetQueueLengthAsync(CloudQueue queue)
+        static async Task<int> GetQueueLengthAsync(Queue queue)
         {
             await queue.FetchAttributesAsync();
             return queue.ApproximateMessageCount.GetValueOrDefault(0);
@@ -260,12 +260,12 @@ namespace DurableTask.AzureStorage.Monitoring
         /// <returns>The approximate number of messages in the work-item queue.</returns>
         protected virtual async Task<WorkItemQueueData> GetWorkItemQueueStatusAsync()
         {
-            CloudQueue workItemQueue = AzureStorageOrchestrationService.GetWorkItemQueue(this.storageAccount, this.settings.TaskHubName);
+            Queue workItemQueue = AzureStorageOrchestrationService.GetWorkItemQueue(this.azureStorageClient);
 
             DateTimeOffset now = DateTimeOffset.Now;
 
             Task fetchTask = workItemQueue.FetchAttributesAsync();
-            Task<CloudQueueMessage> peekTask = workItemQueue.PeekMessageAsync();
+            Task<QueueMessage> peekTask = workItemQueue.PeekMessageAsync();
             await Task.WhenAll(fetchTask, peekTask);
 
             int queueLength = workItemQueue.ApproximateMessageCount.GetValueOrDefault(0);
@@ -288,9 +288,8 @@ namespace DurableTask.AzureStorage.Monitoring
         /// <returns>The approximate number of messages across all control queues.</returns>
         protected virtual async Task<ControlQueueData> GetAggregateControlQueueLengthAsync()
         {
-            CloudQueue[] controlQueues = await AzureStorageOrchestrationService.GetControlQueuesAsync(
-                this.storageAccount,
-                this.settings,
+            Queue[] controlQueues = await AzureStorageOrchestrationService.GetControlQueuesAsync(
+                this.azureStorageClient,
                 defaultPartitionCount: AzureStorageOrchestrationServiceSettings.DefaultPartitionCount);
 
             // There is one queue per partition.
@@ -298,7 +297,7 @@ namespace DurableTask.AzureStorage.Monitoring
             result.PartitionCount = controlQueues.Length;
 
             // We treat all control queues like one big queue and sum the lengths together.
-            foreach (CloudQueue queue in controlQueues)
+            foreach (Queue queue in controlQueues)
             {
                 await queue.FetchAttributesAsync();
                 int queueLength = queue.ApproximateMessageCount.GetValueOrDefault(0);
