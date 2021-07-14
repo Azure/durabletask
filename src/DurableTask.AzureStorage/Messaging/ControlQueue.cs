@@ -32,9 +32,9 @@ namespace DurableTask.AzureStorage.Messaging
 
         public ControlQueue(
             AzureStorageClient azureStorageClient,
-            Queue storageQueue,
+            string queueName,
             MessageManager messageManager)
-            : base(azureStorageClient, storageQueue, messageManager)
+            : base(azureStorageClient, queueName, messageManager)
         {
             this.releaseTokenSource = new CancellationTokenSource();
             this.releaseCancellationToken = this.releaseTokenSource.Token;

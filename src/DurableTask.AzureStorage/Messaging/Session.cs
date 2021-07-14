@@ -14,9 +14,8 @@
 namespace DurableTask.AzureStorage.Messaging
 {
     using System;
+    using DurableTask.AzureStorage.Storage;
     using DurableTask.Core;
-    using Microsoft.WindowsAzure.Storage;
-    using Microsoft.WindowsAzure.Storage.Queue;
 
     abstract class SessionBase
     {
@@ -54,7 +53,7 @@ namespace DurableTask.AzureStorage.Messaging
             }
 
             TaskMessage taskMessage = data.TaskMessage;
-            CloudQueueMessage queueMessage = data.OriginalQueueMessage.CloudQueueMessage;
+            QueueMessage queueMessage = data.OriginalQueueMessage;
 
             this.settings.Logger.ProcessingMessage(
                 data.ActivityId,

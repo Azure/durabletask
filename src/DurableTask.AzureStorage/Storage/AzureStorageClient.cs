@@ -30,10 +30,6 @@ namespace DurableTask.AzureStorage.Storage
         readonly CloudQueueClient queueClient;
         readonly CloudTableClient tableClient;
 
-        public AzureStorageOrchestrationServiceSettings Settings { get; }
-        public AzureStorageOrchestrationServiceStats Stats { get; }
-        public string StorageAccountName { get; }
-
         public AzureStorageClient(AzureStorageOrchestrationServiceSettings settings, string storageAccountName)
         {
             this.Settings = settings;
@@ -81,8 +77,15 @@ namespace DurableTask.AzureStorage.Storage
             this.StorageTableRequestOptions = settings.HistoryTableRequestOptions;
         }
 
+        public AzureStorageOrchestrationServiceSettings Settings { get; }
+
+        public AzureStorageOrchestrationServiceStats Stats { get; }
+
+        public string StorageAccountName { get; }
+
         public Blob GetBlobReference(string container, string blobName, string blobDirectory = null)
         {
+            NameValidator.ValidateBlobName(blobName);
             return new Blob(this, this.blobClient, container, blobName, blobDirectory);
         }
 
@@ -93,12 +96,14 @@ namespace DurableTask.AzureStorage.Storage
 
         public BlobContainer GetBlobContainerReference(string container)
         {
+            NameValidator.ValidateContainerName(container);
             return new BlobContainer(this, this.blobClient, container);
         }
 
-        public Queue GetQueueReference(string queueName, QueueRequestOptions queueRequestOptions)
+        public Queue GetQueueReference(string queueName)
         {
-            return new Queue(this, this.queueClient, queueName, queueRequestOptions);
+            NameValidator.ValidateQueueName(queueName);
+            return new Queue(this, this.queueClient, queueName);
         }
 
         public Table GetTableReference(string tableName, TableRequestOptions tableRequestOptions)
@@ -124,10 +129,10 @@ namespace DurableTask.AzureStorage.Storage
             await this.MakeStorageRequest((context, cancellationToken) => WrapFunctionWithReturnType(storageRequest, context, cancellationToken), operationName, clientRequestId);
         }
 
-        private static async Task<bool> WrapFunctionWithReturnType(Func<OperationContext, CancellationToken, Task> storageRequest, OperationContext context, CancellationToken cancellationToken)
+        private static async Task<object> WrapFunctionWithReturnType(Func<OperationContext, CancellationToken, Task> storageRequest, OperationContext context, CancellationToken cancellationToken)
         {
             await storageRequest(context, cancellationToken);
-            return true;
+            return null;
         }
     }
 }

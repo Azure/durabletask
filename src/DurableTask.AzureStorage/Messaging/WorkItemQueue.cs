@@ -22,9 +22,9 @@ namespace DurableTask.AzureStorage.Messaging
     {
         public WorkItemQueue(
             AzureStorageClient azureStorageClient,
-            Queue storageQueue,
+            string queueName,
             MessageManager messageManager)
-            : base(azureStorageClient, storageQueue, messageManager)
+            : base(azureStorageClient, queueName, messageManager)
         {
         }
 

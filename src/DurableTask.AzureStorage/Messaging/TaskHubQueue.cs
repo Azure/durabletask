@@ -36,14 +36,16 @@ namespace DurableTask.AzureStorage.Messaging
 
         public TaskHubQueue(
             AzureStorageClient azureStorageClient,
-            Queue storageQueue,
+            string queueName,
             MessageManager messageManager)
         {
             this.azureStorageClient = azureStorageClient;
-            this.storageQueue = storageQueue;
             this.messageManager = messageManager;
             this.storageAccountName = azureStorageClient.StorageAccountName;
             this.settings = azureStorageClient.Settings;
+
+
+            this.storageQueue = this.azureStorageClient.GetQueueReference(queueName);
 
             TimeSpan minPollingDelay = TimeSpan.FromMilliseconds(50);
             TimeSpan maxPollingDelay = this.settings.MaxQueuePollingInterval;
@@ -127,7 +129,7 @@ namespace DurableTask.AzureStorage.Messaging
                 await this.storageQueue.AddMessageAsync(
                     queueMessage,
                     GetVisibilityDelay(taskMessage),
-                    session?.TraceActivityId.ToString());
+                    session?.TraceActivityId);
 
                 // Wake up the queue polling thread
                 this.backoffHelper.Reset();
@@ -257,7 +259,7 @@ namespace DurableTask.AzureStorage.Messaging
                 await this.storageQueue.UpdateMessageAsync(
                     queueMessage,
                     TimeSpan.FromSeconds(numSecondsToWait),
-                    session?.TraceActivityId.ToString());
+                    session?.TraceActivityId);
             }
             catch (Exception e)
             {
@@ -288,7 +290,7 @@ namespace DurableTask.AzureStorage.Messaging
                 await this.storageQueue.UpdateMessageAsync(
                     queueMessage,
                     this.MessageVisibilityTimeout,
-                    session?.TraceActivityId.ToString());
+                    session?.TraceActivityId);
             }
             catch (Exception e)
             {
@@ -318,7 +320,7 @@ namespace DurableTask.AzureStorage.Messaging
             {
                 try
                 {
-                    await this.storageQueue.DeleteMessageAsync(queueMessage, session?.TraceActivityId.ToString());
+                    await this.storageQueue.DeleteMessageAsync(queueMessage, session?.TraceActivityId);
                 }
                 catch (Exception e)
                 {
