@@ -39,7 +39,6 @@ namespace DurableTask.AzureStorage
         const int DefaultBufferSize = 64 * 2014; // 64KB
 
         readonly AzureStorageOrchestrationServiceSettings settings;
-        readonly string blobContainerName;
         readonly CloudBlobContainer cloudBlobContainer;
         readonly JsonSerializerSettings taskMessageSerializerSettings;
 
@@ -54,7 +53,6 @@ namespace DurableTask.AzureStorage
             string blobContainerName)
         {
             this.settings = settings;
-            this.blobContainerName = blobContainerName;
             this.cloudBlobContainer = cloudBlobClient.GetContainerReference(blobContainerName);
             this.taskMessageSerializerSettings = new JsonSerializerSettings
             {
@@ -212,16 +210,27 @@ namespace DurableTask.AzureStorage
             return DownloadAndDecompressAsBytesAsync(cloudBlockBlob);
         }
 
-        private async Task<string> DownloadAndDecompressAsBytesAsync(CloudBlockBlob cloudBlockBlob)
+        private Task<string> DownloadAndDecompressAsBytesAsync(CloudBlockBlob cloudBlockBlob)
         {
-            using (MemoryStream memory = new MemoryStream(MaxStorageQueuePayloadSizeInBytes * 2))
-            {
-                await cloudBlockBlob.DownloadToStreamAsync(memory);
-                memory.Position = 0;
+            return TimeoutHandler.ExecuteWithTimeout<string>(
+                operationName: "DownloadLargeMessageBlob", 
+                account: cloudBlockBlob?.ServiceClient?.Credentials?.AccountName,
+                this.settings,
+                async (opContext, timeoutToken) => {
+                    using (MemoryStream memory = new MemoryStream(MaxStorageQueuePayloadSizeInBytes * 2))
+                    {
+                        await cloudBlockBlob.DownloadToStreamAsync(
+                            memory, 
+                            AccessCondition.GenerateEmptyCondition(), 
+                            new BlobRequestOptions(),
+                            opContext,
+                            timeoutToken);
+                        memory.Position = 0;
 
-                ArraySegment<byte> decompressedSegment = this.Decompress(memory);
-                return Encoding.UTF8.GetString(decompressedSegment.Array, 0, decompressedSegment.Count);
-            }
+                        ArraySegment<byte> decompressedSegment = this.Decompress(memory);
+                        return Encoding.UTF8.GetString(decompressedSegment.Array, 0, decompressedSegment.Count);
+                    }
+                });
         }
 
         internal string GetBlobUrl(string blobName)
@@ -271,10 +280,26 @@ namespace DurableTask.AzureStorage
         /// </summary>
         internal async Task UploadToBlobAsync(byte[] data, int dataByteCount, string blobName)
         {
-            await this.EnsureContainerAsync();
+            await TimeoutHandler.ExecuteWithTimeout<bool>(
+                operationName: "UploadLargeMessageBlob",
+                account: cloudBlobContainer?.ServiceClient?.Credentials?.AccountName,
+                settings: this.settings,
+                operation: async (opContext, timeoutToken) =>
+                {
+                    await this.EnsureContainerAsync();
+                    CloudBlockBlob cloudBlockBlob = this.cloudBlobContainer.GetBlockBlobReference(blobName);
+                    await cloudBlockBlob.UploadFromByteArrayAsync(
+                        buffer: data,
+                        index: 0,
+                        count: dataByteCount,
+                        accessCondition: AccessCondition.GenerateEmptyCondition(),
+                        options: new BlobRequestOptions(),
+                        operationContext: opContext,
+                        cancellationToken: timeoutToken);
 
-            CloudBlockBlob cloudBlockBlob = this.cloudBlobContainer.GetBlockBlobReference(blobName);
-            await cloudBlockBlob.UploadFromByteArrayAsync(data, 0, dataByteCount);
+                    // This is just to satisfy type restraints of TimeoutHandler.ExecuteWithTimeout
+                    return true;
+                });
         }
 
         internal string GetNewLargeMessageBlobName(MessageData message)
