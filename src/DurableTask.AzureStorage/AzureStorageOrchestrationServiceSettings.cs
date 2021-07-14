@@ -60,7 +60,7 @@ namespace DurableTask.AzureStorage
         /// Gets or sets the <see cref="QueueRequestOptions"/> that are provided to all internal 
         /// usage of <see cref="CloudQueue"/> APIs for the control queue.
         /// </summary>
-        [Obsolete("ControlQueueRequestOptions is deprecated. If you need to input your own QueueRequestOptions please open an issue here: https://github.com/Azure/durabletask")]
+        [Obsolete("ControlQueueRequestOptions is deprecated. If you still need to configure QueueRequestOptions please open an issue at https://github.com/Azure/durabletask with the specific configurations options you need.")]
         public QueueRequestOptions ControlQueueRequestOptions { get; set; }
 
         /// <summary>
@@ -72,7 +72,7 @@ namespace DurableTask.AzureStorage
         /// Gets or sets the <see cref="QueueRequestOptions"/> that are provided to all internal 
         /// usage of <see cref="CloudQueue"/> APIs for the work item queue.
         /// </summary>
-        [Obsolete("WorkItemQueueRequestOptions is deprecated. If you need to input your own QueueRequestOptions please open an issue here: https://github.com/Azure/durabletask")]
+        [Obsolete("WorkItemQueueRequestOptions is deprecated. If you still need to configure QueueRequestOptions please open an issue at https://github.com/Azure/durabletask with the specific configurations options you need.")]
         public QueueRequestOptions WorkItemQueueRequestOptions { get; set; }
 
         /// <summary>

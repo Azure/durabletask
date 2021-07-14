@@ -39,11 +39,11 @@ namespace DurableTask.AzureStorage.Storage
 
         public string Name { get; }
 
-        public Uri Uri { get; }
+        public Uri Uri => this.cloudQueue.Uri;
 
         public int? ApproximateMessageCount => this.cloudQueue.ApproximateMessageCount;
 
-        public async Task AddMessageAsync(QueueMessage queueMessage, TimeSpan? visibilityDelay, string clientRequestId = null)
+        public async Task AddMessageAsync(QueueMessage queueMessage, TimeSpan? visibilityDelay, Guid? clientRequestId = null)
         {
             await this.azureStorageClient.MakeStorageRequest(
                 (context, cancellationToken) => this.cloudQueue.AddMessageAsync(
@@ -53,12 +53,12 @@ namespace DurableTask.AzureStorage.Storage
                     null,
                     context),
                 "Queue AddMessage",
-                clientRequestId);
+                clientRequestId?.ToString());
 
             this.stats.MessagesSent.Increment();
         }
 
-        public async Task UpdateMessageAsync(QueueMessage queueMessage, TimeSpan visibilityTimeout, string clientRequestId = null)
+        public async Task UpdateMessageAsync(QueueMessage queueMessage, TimeSpan visibilityTimeout, Guid? clientRequestId = null)
         {
             await this.azureStorageClient.MakeStorageRequest(
                 (context, cancellationToken) => this.cloudQueue.UpdateMessageAsync(
@@ -68,12 +68,12 @@ namespace DurableTask.AzureStorage.Storage
                     null,
                     context),
                 "Queue UpdateMessage",
-                clientRequestId);
+                clientRequestId?.ToString());
 
             this.stats.MessagesUpdated.Increment();
         }
 
-        public async Task DeleteMessageAsync(QueueMessage queueMessage, string clientRequestId = null)
+        public async Task DeleteMessageAsync(QueueMessage queueMessage, Guid? clientRequestId = null)
         {
             await this.azureStorageClient.MakeStorageRequest(
                 (context, cancellationToken) => this.cloudQueue.DeleteMessageAsync(
@@ -81,15 +81,15 @@ namespace DurableTask.AzureStorage.Storage
                     null,
                     context),
                 "Queue DeleteMessage",
-                clientRequestId);
+                clientRequestId?.ToString());
         }
 
-        public async Task<QueueMessage> GetMessageAsync(TimeSpan visibilityTimeout, CancellationToken token)
+        public async Task<QueueMessage> GetMessageAsync(TimeSpan visibilityTimeout, CancellationToken callerToken)
         {
             var cloudQueueMessage = await this.azureStorageClient.MakeStorageRequest<CloudQueueMessage>(
                 (context, cancellationToken) =>
                 {
-                    using (var finalLinkedCts = CancellationTokenSource.CreateLinkedTokenSource(token, cancellationToken))
+                    using (var finalLinkedCts = CancellationTokenSource.CreateLinkedTokenSource(callerToken, cancellationToken))
                     {
                         return this.cloudQueue.GetMessageAsync(
                             visibilityTimeout,
