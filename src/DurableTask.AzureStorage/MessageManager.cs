@@ -39,7 +39,6 @@ namespace DurableTask.AzureStorage
         const int DefaultBufferSize = 64 * 2014; // 64KB
 
         readonly AzureStorageOrchestrationServiceSettings settings;
-        readonly string blobContainerName;
         readonly CloudBlobContainer cloudBlobContainer;
         readonly JsonSerializerSettings taskMessageSerializerSettings;
 
@@ -54,7 +53,6 @@ namespace DurableTask.AzureStorage
             string blobContainerName)
         {
             this.settings = settings;
-            this.blobContainerName = blobContainerName;
             this.cloudBlobContainer = cloudBlobClient.GetContainerReference(blobContainerName);
             this.taskMessageSerializerSettings = new JsonSerializerSettings
             {
@@ -216,7 +214,7 @@ namespace DurableTask.AzureStorage
         {
             return TimeoutHandler.ExecuteWithTimeout<string>(
                 operationName: "DownloadLargeMessageBlob", 
-                account: this.settings.StorageAccountDetails.AccountName,
+                account: cloudBlockBlob?.ServiceClient?.Credentials?.AccountName,
                 this.settings,
                 async (opContext, timeoutToken) => {
                     using (MemoryStream memory = new MemoryStream(MaxStorageQueuePayloadSizeInBytes * 2))
@@ -284,7 +282,7 @@ namespace DurableTask.AzureStorage
         {
             await TimeoutHandler.ExecuteWithTimeout<bool>(
                 operationName: "UploadLargeMessageBlob",
-                account: this.settings.StorageAccountDetails.AccountName,
+                account: cloudBlobContainer?.ServiceClient?.Credentials?.AccountName,
                 settings: this.settings,
                 operation: async (opContext, timeoutToken) =>
                 {
