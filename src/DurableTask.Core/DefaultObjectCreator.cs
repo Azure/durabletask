@@ -29,9 +29,14 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="type">Type to use for the creator</param>
         public DefaultObjectCreator(Type type)
+            : this(type, null)
+        {
+        }
+
+        internal DefaultObjectCreator(Type type, INameVersionProvider provider)
         {
             this.prototype = type;
-            Initialize(type);
+            Initialize(type, provider);
         }
 
         /// <summary>
@@ -39,9 +44,14 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="instance">Object instances to infer the type from</param>
         public DefaultObjectCreator(T instance)
+            : this(instance, null)
+        {
+        }
+
+        internal DefaultObjectCreator(T instance, INameVersionProvider provider)
         {
             this.instance = instance;
-            Initialize(instance);
+            Initialize(instance, provider);
         }
 
         /// <summary>
@@ -58,10 +68,11 @@ namespace DurableTask.Core
             return this.instance;
         }
 
-        void Initialize(object obj)
+        void Initialize(object obj, INameVersionProvider provider = null)
         {
-            Name = NameVersionHelper.GetDefaultName(obj);
-            Version = NameVersionHelper.GetDefaultVersion(obj);
+            provider = provider ?? NameVersionHelper.Provider;
+            Name = provider.GetName(obj);
+            Version = provider.GetVersion(obj);
         }
     }
 }

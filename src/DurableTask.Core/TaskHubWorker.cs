@@ -114,6 +114,12 @@ namespace DurableTask.Core
         }
 
         /// <summary>
+        /// INameVersionProvider for getting names and versions when not explicitly supplied.
+        /// When null, <see cref="NameVersionHelper.Provider"/> is used.
+        /// </summary>
+        public INameVersionProvider NameVersionProvider { get; set; }
+
+        /// <summary>
         /// Gets the orchestration dispatcher
         /// </summary>
         public TaskOrchestrationDispatcher TaskOrchestrationDispatcher => this.orchestrationDispatcher;
@@ -162,7 +168,8 @@ namespace DurableTask.Core
                     this.orchestrationService,
                     this.orchestrationManager,
                     this.orchestrationDispatchPipeline,
-                    this.logHelper);
+                    this.logHelper,
+                    this.NameVersionProvider);
                 this.activityDispatcher = new TaskActivityDispatcher(
                     this.orchestrationService,
                     this.activityManager,
@@ -235,7 +242,8 @@ namespace DurableTask.Core
         {
             foreach (Type type in taskOrchestrationTypes)
             {
-                ObjectCreator<TaskOrchestration> creator = new DefaultObjectCreator<TaskOrchestration>(type);
+                ObjectCreator<TaskOrchestration> creator = new DefaultObjectCreator<TaskOrchestration>(
+                    type, NameVersionProvider);
                 this.orchestrationManager.Add(creator);
             }
 
@@ -267,7 +275,8 @@ namespace DurableTask.Core
         {
             foreach (TaskActivity instance in taskActivityObjects)
             {
-                ObjectCreator<TaskActivity> creator = new DefaultObjectCreator<TaskActivity>(instance);
+                ObjectCreator<TaskActivity> creator = new DefaultObjectCreator<TaskActivity>(
+                    instance, NameVersionProvider);
                 this.activityManager.Add(creator);
             }
 
@@ -282,7 +291,8 @@ namespace DurableTask.Core
         {
             foreach (Type type in taskActivityTypes)
             {
-                ObjectCreator<TaskActivity> creator = new DefaultObjectCreator<TaskActivity>(type);
+                ObjectCreator<TaskActivity> creator = new DefaultObjectCreator<TaskActivity>(
+                    type, NameVersionProvider);
                 this.activityManager.Add(creator);
             }
 
@@ -344,8 +354,8 @@ namespace DurableTask.Core
                 TaskActivity taskActivity = new ReflectionBasedTaskActivity(activities, methodInfo);
                 ObjectCreator<TaskActivity> creator =
                     new NameValueObjectCreator<TaskActivity>(
-                        NameVersionHelper.GetDefaultName(methodInfo, useFullyQualifiedMethodNames),
-                        NameVersionHelper.GetDefaultVersion(methodInfo), taskActivity);
+                        GetName(methodInfo, useFullyQualifiedMethodNames),
+                        GetVersion(methodInfo), taskActivity);
                 this.activityManager.Add(creator);
             }
 
@@ -357,5 +367,11 @@ namespace DurableTask.Core
         {
             ((IDisposable)this.slimLock).Dispose();
         }
+
+        private string GetName(object obj, bool useFullyQualifiedMethodNames = false)
+            => (NameVersionProvider ?? NameVersionHelper.Provider).GetName(obj, useFullyQualifiedMethodNames);
+
+        private string GetVersion(object obj)
+            => (NameVersionProvider ?? NameVersionHelper.Provider).GetVersion(obj);
     }
 }

@@ -70,6 +70,12 @@ namespace DurableTask.Core
         }
 
         /// <summary>
+        /// INameVersionProvider for getting names and versions when not explicitly supplied.
+        /// When null, <see cref="NameVersionHelper.Provider"/> is used.
+        /// </summary>
+        public INameVersionProvider NameVersionProvider { get; set; }
+
+        /// <summary>
         ///     Create a new orchestration of the specified type with the specified instance id, scheduled to start at an specific time
         /// </summary>
         /// <param name="orchestrationType">Type that derives from TaskOrchestration</param>
@@ -82,8 +88,8 @@ namespace DurableTask.Core
             DateTime startAt)
         {
             return InternalCreateOrchestrationInstanceWithRaisedEventAsync(
-                NameVersionHelper.GetDefaultName(orchestrationType),
-                NameVersionHelper.GetDefaultVersion(orchestrationType),
+                GetName(orchestrationType),
+                GetVersion(orchestrationType),
                 null,
                 input,
                 null,
@@ -108,8 +114,8 @@ namespace DurableTask.Core
             DateTime startAt)
         {
             return InternalCreateOrchestrationInstanceWithRaisedEventAsync(
-                NameVersionHelper.GetDefaultName(orchestrationType),
-                NameVersionHelper.GetDefaultVersion(orchestrationType),
+                GetName(orchestrationType),
+                GetVersion(orchestrationType),
                 instanceId,
                 input,
                 null,
@@ -128,8 +134,8 @@ namespace DurableTask.Core
         public Task<OrchestrationInstance> CreateOrchestrationInstanceAsync(Type orchestrationType, object input)
         {
             return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
-                NameVersionHelper.GetDefaultName(orchestrationType),
-                NameVersionHelper.GetDefaultVersion(orchestrationType),
+                GetName(orchestrationType),
+                GetVersion(orchestrationType),
                 orchestrationInstanceId: null,
                 orchestrationInput: input,
                 orchestrationTags: null,
@@ -148,8 +154,8 @@ namespace DurableTask.Core
         public Task<OrchestrationInstance> CreateOrchestrationInstanceAsync(Type orchestrationType, object input, DateTime startAt)
         {
             return InternalCreateOrchestrationInstanceWithRaisedEventAsync(
-                NameVersionHelper.GetDefaultName(orchestrationType),
-                NameVersionHelper.GetDefaultVersion(orchestrationType),
+                GetName(orchestrationType),
+                GetVersion(orchestrationType),
                 null,
                 input,
                 null,
@@ -171,8 +177,8 @@ namespace DurableTask.Core
             object input)
         {
             return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
-                NameVersionHelper.GetDefaultName(orchestrationType),
-                NameVersionHelper.GetDefaultVersion(orchestrationType),
+                GetName(orchestrationType),
+                GetVersion(orchestrationType),
                 instanceId,
                 input,
                 orchestrationTags: null,
@@ -196,8 +202,8 @@ namespace DurableTask.Core
             OrchestrationStatus[] dedupeStatuses)
         {
             return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
-                NameVersionHelper.GetDefaultName(orchestrationType),
-                NameVersionHelper.GetDefaultVersion(orchestrationType),
+                GetName(orchestrationType),
+                GetVersion(orchestrationType),
                 instanceId,
                 input,
                 orchestrationTags: null,
@@ -319,8 +325,8 @@ namespace DurableTask.Core
             object eventData)
         {
             return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
-                NameVersionHelper.GetDefaultName(orchestrationType),
-                NameVersionHelper.GetDefaultVersion(orchestrationType),
+                GetName(orchestrationType),
+                GetVersion(orchestrationType),
                 orchestrationInstanceId: null,
                 orchestrationInput,
                 orchestrationTags: null,
@@ -347,8 +353,8 @@ namespace DurableTask.Core
             object eventData)
         {
             return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
-                NameVersionHelper.GetDefaultName(orchestrationType),
-                NameVersionHelper.GetDefaultVersion(orchestrationType),
+                GetName(orchestrationType),
+                GetVersion(orchestrationType),
                 instanceId,
                 orchestrationInput,
                 orchestrationTags: null,
@@ -377,8 +383,8 @@ namespace DurableTask.Core
             object eventData)
         {
             return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
-                NameVersionHelper.GetDefaultName(orchestrationType),
-                NameVersionHelper.GetDefaultVersion(orchestrationType),
+                GetName(orchestrationType),
+                GetVersion(orchestrationType),
                 instanceId,
                 orchestrationInput,
                 orchestrationTags: null,
@@ -861,5 +867,11 @@ namespace DurableTask.Core
         {
             return this.ServiceClient.PurgeOrchestrationHistoryAsync(thresholdDateTimeUtc, timeRangeFilterType);
         }
+
+        private string GetName(object obj, bool useFullyQualifiedMethodNames = false)
+            => (NameVersionProvider ?? NameVersionHelper.Provider).GetName(obj, useFullyQualifiedMethodNames);
+
+        private string GetVersion(object obj)
+            => (NameVersionProvider ?? NameVersionHelper.Provider).GetVersion(obj);
     }
 }

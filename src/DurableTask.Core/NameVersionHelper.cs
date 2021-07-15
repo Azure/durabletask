@@ -22,6 +22,11 @@ namespace DurableTask.Core
     /// </summary>
     public static class NameVersionHelper
     {
+        /// <summary>
+        /// Gets the <see cref="INameVersionProvider"/>.
+        /// </summary>
+        public static INameVersionProvider Provider { get; } = new ProviderImpl();
+
         internal static string GetDefaultMethodName(MethodInfo methodInfo, bool useFullyQualifiedMethodNames)
         {
             string methodName = methodInfo.Name;
@@ -98,6 +103,15 @@ namespace DurableTask.Core
             }
 
             return declaringType + "." + methodName;
+        }
+
+        private class ProviderImpl : INameVersionProvider
+        {
+            public string GetName(object obj, bool useFullyQualifiedMethodNames = false)
+                => GetDefaultName(obj, useFullyQualifiedMethodNames);
+
+            public string GetVersion(object obj)
+                => GetDefaultVersion(obj);
         }
     }
 }
