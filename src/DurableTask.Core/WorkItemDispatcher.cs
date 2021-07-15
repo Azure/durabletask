@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.Core
 {
     using System;
@@ -46,8 +46,8 @@ namespace DurableTask.Core
         volatile int delayOverrideSecs;
         volatile int activeFetchers;
         bool isStarted;
-        SemaphoreSlim concurrencyLock;
-        CancellationTokenSource shutdownCancellationTokenSource;
+        SemaphoreSlim? concurrencyLock;
+        CancellationTokenSource? shutdownCancellationTokenSource;
 
         /// <summary>
         /// Gets or sets the maximum concurrent work items
@@ -59,6 +59,11 @@ namespace DurableTask.Core
         /// </summary>
         public int DispatcherCount { get; set; } = DefaultDispatcherCount;
 
+        /// <summary>
+        /// Gets or sets a work-item throttler implementation to throttle work-item fetching
+        /// </summary>
+        public WorkItemThrottler? WorkItemThrottler { get; set; }
+
         readonly Func<T, string> workItemIdentifier;
 
         Func<TimeSpan, CancellationToken, Task<T>> FetchWorkItem { get; }
@@ -68,12 +73,12 @@ namespace DurableTask.Core
         /// <summary>
         /// Method to execute for safely releasing a work item
         /// </summary>
-        public Func<T, Task> SafeReleaseWorkItem;
+        public Func<T, Task>? SafeReleaseWorkItem;
 
         /// <summary>
         /// Method to execute for aborting a work item
         /// </summary>
-        public Func<T, Task> AbortWorkItem;
+        public Func<T, Task>? AbortWorkItem;
 
         /// <summary>
         /// Method to get a delay to wait after a fetch exception
@@ -173,7 +178,7 @@ namespace DurableTask.Core
                 }
 
                 this.isStarted = false;
-                this.shutdownCancellationTokenSource.Cancel();
+                this.shutdownCancellationTokenSource?.Cancel();
 
                 TraceHelper.Trace(TraceEventType.Information, "WorkItemDispatcherStop-Begin", $"WorkItemDispatcher('{this.name}') stopping. Id {this.id}.");
                 if (!forced)
@@ -224,7 +229,7 @@ namespace DurableTask.Core
             bool logThrottle = true;
             while (this.isStarted)
             {
-                if (!await this.concurrencyLock.WaitAsync(TimeSpan.FromSeconds(5)))
+                if (this.concurrencyLock != null && !await this.concurrencyLock.WaitAsync(TimeSpan.FromSeconds(5)))
                 {
                     if (logThrottle)
                     {
@@ -248,9 +253,14 @@ namespace DurableTask.Core
                 logThrottle = true;
 
                 var delaySecs = 0;
-                T workItem = default(T);
+                T? workItem = default(T);
                 try
                 {
+                    if (this.WorkItemThrottler != null)
+                    {
+                        await this.WorkItemThrottler.WaitIfThrottledAsync();
+                    }
+
                     Interlocked.Increment(ref this.activeFetchers);
                     this.LogHelper.FetchWorkItemStarting(context, DefaultReceiveTimeout, this.concurrentWorkItemCount, this.MaxConcurrentWorkItems);
                     TraceHelper.Trace(
@@ -259,7 +269,7 @@ namespace DurableTask.Core
                         this.GetFormattedLog(dispatcherId, $"Starting fetch with timeout of {DefaultReceiveTimeout} ({this.concurrentWorkItemCount}/{this.MaxConcurrentWorkItems} max)"));
 
                     Stopwatch timer = Stopwatch.StartNew();
-                    workItem = await this.FetchWorkItem(DefaultReceiveTimeout, this.shutdownCancellationTokenSource.Token);
+                    workItem = await this.FetchWorkItem(DefaultReceiveTimeout, this.shutdownCancellationTokenSource?.Token ?? default);
 
                     if (!IsNull(workItem))
                     {
@@ -322,7 +332,7 @@ namespace DurableTask.Core
                     {
                         if (this.SafeReleaseWorkItem != null)
                         {
-                            await this.SafeReleaseWorkItem(workItem);
+                            await this.SafeReleaseWorkItem(workItem!);
                         }
                     }
                     else
@@ -330,7 +340,7 @@ namespace DurableTask.Core
                         Interlocked.Increment(ref this.concurrentWorkItemCount);
                         // We just want this to Run we intentionally don't wait
                         #pragma warning disable 4014 
-                        Task.Run(() => this.ProcessWorkItemAsync(context, workItem));
+                        Task.Run(() => this.ProcessWorkItemAsync(context, workItem!));
                         #pragma warning restore 4014
 
                         scheduledWorkItem = true;
@@ -345,14 +355,14 @@ namespace DurableTask.Core
 
                 if (!scheduledWorkItem)
                 {
-                    this.concurrencyLock.Release();
+                    this.concurrencyLock?.Release();
                 }
             }
 
             this.LogHelper.DispatcherStopped(context);
         }
 
-        static bool IsNull(T value) => Equals(value, default(T));
+        static bool IsNull(T? value) => Equals(value, default(T));
 
         async Task ProcessWorkItemAsync(WorkItemDispatcherContext context, object workItemObj)
         {
@@ -436,7 +446,7 @@ namespace DurableTask.Core
             finally
             {
                 Interlocked.Decrement(ref this.concurrentWorkItemCount);
-                this.concurrencyLock.Release();
+                this.concurrencyLock?.Release();
             }
 
             if (abortWorkItem && this.AbortWorkItem != null)
