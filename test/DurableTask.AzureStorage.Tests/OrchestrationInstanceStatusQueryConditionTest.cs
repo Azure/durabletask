@@ -179,5 +179,17 @@ namespace DurableTask.AzureStorage.Tests
                 "(PartitionKey ge 'aaab') and (PartitionKey lt 'aaac')",
                 condition.ToTableQuery<OrchestrationInstanceStatus>().FilterString);
         }
+
+        [TestMethod]
+        public void OrchestrationInstanceQuery_EmptyInstanceId()
+        {
+            var condition = new OrchestrationInstanceStatusQueryCondition
+            {
+                InstanceId = "", // This is technically legal
+            };
+
+            string result = condition.ToTableQuery<OrchestrationInstanceStatus>().FilterString;
+            Assert.AreEqual("PartitionKey eq ''", result);
+        }
     }
 }
