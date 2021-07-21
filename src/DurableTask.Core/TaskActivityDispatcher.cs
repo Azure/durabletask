@@ -97,6 +97,7 @@ namespace DurableTask.Core
             TaskMessage taskMessage = workItem.TaskMessage;
             OrchestrationInstance orchestrationInstance = taskMessage.OrchestrationInstance;
             TaskScheduledEvent scheduledEvent = null;
+            Activity diagnosticActivity = null;
             try
             {
                 if (string.IsNullOrWhiteSpace(orchestrationInstance?.InstanceId))
@@ -148,11 +149,15 @@ namespace DurableTask.Core
                 dispatchContext.SetProperty(taskActivity);
                 dispatchContext.SetProperty(scheduledEvent);
 
+                // correlation
+                CorrelationTraceClient.Propagate(() =>
+                {
+                    workItem.TraceContextBase?.SetActivityToCurrent();
+                    diagnosticActivity = workItem.TraceContextBase?.CurrentActivity;
+                });
+
                 await this.dispatchPipeline.RunAsync(dispatchContext, async _ =>
                 {
-                    // correlation 
-                    CorrelationTraceClient.Propagate(() => workItem.TraceContextBase?.SetActivityToCurrent());
-
                     try
                     {
                         string output = await taskActivity.RunAsync(context, scheduledEvent.Input);
@@ -199,6 +204,7 @@ namespace DurableTask.Core
             }
             finally
             {
+                diagnosticActivity?.Stop(); // Ensure the activity is stopped here to prevent it from leaking out.
                 if (renewTask != null)
                 {
                     renewCancellationTokenSource.Cancel();
