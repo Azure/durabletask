@@ -23,7 +23,6 @@ namespace DurableTask.AzureStorage
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Storage;
-    using Microsoft.WindowsAzure.Storage.Queue;
     using Newtonsoft.Json;
     using Newtonsoft.Json.Serialization;
 
@@ -128,10 +127,10 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        public async Task<MessageData> DeserializeQueueMessageAsync(CloudQueueMessage queueMessage, string queueName)
+        public async Task<MessageData> DeserializeQueueMessageAsync(QueueMessage queueMessage, string queueName)
         {
             MessageData envelope = JsonConvert.DeserializeObject<MessageData>(
-                queueMessage.AsString,
+                queueMessage.Message,
                 this.taskMessageSerializerSettings);
 
             if (!string.IsNullOrEmpty(envelope.CompressedBlobName))
@@ -144,7 +143,7 @@ namespace DurableTask.AzureStorage
             }
 
             envelope.OriginalQueueMessage = queueMessage;
-            envelope.TotalMessageSizeBytes = Encoding.UTF8.GetByteCount(queueMessage.AsString);
+            envelope.TotalMessageSizeBytes = Encoding.UTF8.GetByteCount(queueMessage.Message);
             envelope.QueueName = queueName;
             return envelope;
         }
@@ -214,7 +213,7 @@ namespace DurableTask.AzureStorage
 
         public string GetBlobUrl(string blobName)
         {
-            return this.blobContainer.GetBlobReference(blobName).GetAbsoluteUri();
+            return this.blobContainer.GetBlobReference(blobName).AbsoluteUri;
         }
 
         public ArraySegment<byte> Decompress(Stream blobStream)
