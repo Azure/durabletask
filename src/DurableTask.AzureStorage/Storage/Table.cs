@@ -31,50 +31,115 @@ namespace DurableTask.AzureStorage.Storage
         public string Name { get; }
         public string Uri { get; internal set; }
 
-        public Table(AzureStorageClient azureStorageClient, CloudTableClient tableClient, string tableName, TableRequestOptions tableRequestOptions)
+        public Table(AzureStorageClient azureStorageClient, CloudTableClient tableClient, string tableName)
         {
             this.azureStorageClient = azureStorageClient;
             this.tableClient = tableClient;
             this.Name = tableName;
-            this.tableRequestOptions = tableRequestOptions;
 
             NameValidator.ValidateTableName(this.Name);
             this.cloudTable = this.tableClient.GetTableReference(this.Name);
         }
 
-        internal Task CreateIfNotExistsAsync()
+        public async Task<bool> CreateIfNotExistsAsync()
         {
-            throw new NotImplementedException();
+            return await this.azureStorageClient.MakeStorageRequest<bool>(
+                (context, cancellationToken) => this.cloudTable.CreateIfNotExistsAsync(null, context, cancellationToken),
+                "Table Create");
         }
 
-        internal Task DeleteIfExistsAsync()
+        public async Task<bool> DeleteIfExistsAsync()
         {
-            throw new NotImplementedException();
+            return await this.azureStorageClient.MakeStorageRequest<bool>(
+                (context, cancellationToken) => this.cloudTable.DeleteIfExistsAsync(null, context, cancellationToken),
+                "Table Delete");
         }
 
-        internal Task<bool> ExistsAsync()
+        public async Task<bool> ExistsAsync()
         {
-            throw new NotImplementedException();
+            return await this.azureStorageClient.MakeStorageRequest<bool>(
+                (context, cancellationToken) => this.cloudTable.ExistsAsync(null, context, cancellationToken),
+                "Table Exists");
         }
 
-        internal Task<object> ExecuteQuerySegmentedAsync(TableQuery query, TableContinuationToken continuationToken, TableRequestOptions storageTableRequestOptions, OperationContext context, CancellationToken token)
+        public async Task<TableResult> ReplaceAsync(DynamicTableEntity tableEntity)
         {
-            throw new NotImplementedException();
+            TableOperation tableOperation = TableOperation.Replace(tableEntity);
+
+            return await ExecuteAsync(tableOperation);
         }
 
-        internal Task<object> ExecuteAsync(object p, TableRequestOptions tableRequestOptions, OperationContext context, CancellationToken timeoutToken)
+        public async Task<TableResult> DeleteAsync(DynamicTableEntity tableEntity)
         {
-            throw new NotImplementedException();
+            TableOperation tableOperation = TableOperation.Delete(tableEntity);
+
+            return await ExecuteAsync(tableOperation);
         }
 
-        internal Task ExecuteAsync(object v)
+        public async Task<TableResult> InsertAsync(DynamicTableEntity tableEntity)
         {
-            throw new NotImplementedException();
+            TableOperation tableOperation = TableOperation.Insert(tableEntity);
+
+            return await ExecuteAsync(tableOperation);
         }
 
-        internal Task<IList<TableResult>> ExecuteBatchAsync(TableBatchOperation historyEventBatch, TableRequestOptions storageTableRequestOptions, OperationContext context, CancellationToken timeoutToken)
+        public async Task<TableResult> MergeAsync(DynamicTableEntity tableEntity)
         {
-            throw new NotImplementedException();
+            TableOperation tableOperation = TableOperation.Merge(tableEntity);
+
+            return await ExecuteAsync(tableOperation);
+        }
+
+        public async Task<TableResult> InsertOrMergeAsync(DynamicTableEntity tableEntity)
+        {
+            TableOperation tableOperation = TableOperation.InsertOrMerge(tableEntity);
+
+            return await ExecuteAsync(tableOperation);
+        }
+
+        private async Task<TableResult> ExecuteAsync(TableOperation operation)
+        {
+            var storageTableResult = await this.azureStorageClient.MakeStorageRequest<Microsoft.WindowsAzure.Storage.Table.TableResult>(
+                (context, cancellationToken) => this.cloudTable.ExecuteAsync(operation, null, context, cancellationToken),
+            "Table Execute " + operation.OperationType);
+
+            return new TableResult(storageTableResult);
+        }
+
+        public async Task<IList<Microsoft.WindowsAzure.Storage.Table.TableResult>> DeleteBatchAsync(IEnumerable<DynamicTableEntity> entityBatch)
+        {
+            var batch = new TableBatchOperation();
+            foreach (DynamicTableEntity item in entityBatch)
+            {
+                batch.Delete(item);
+            }
+
+            return await this.ExecuteBatchAsync(batch, "Delete");
+        }
+
+        public async Task<IList<Microsoft.WindowsAzure.Storage.Table.TableResult>> InsertOrMergeBatchAsync(IEnumerable<DynamicTableEntity> entityBatch)
+        {
+            var batch = new TableBatchOperation();
+            foreach (DynamicTableEntity item in entityBatch)
+            {
+                batch.InsertOrMerge(item);
+            }
+
+            return await this.ExecuteBatchAsync(batch, "InsertOrMerge");
+        }
+
+        private async Task<IList<Microsoft.WindowsAzure.Storage.Table.TableResult>> ExecuteBatchAsync(TableBatchOperation batch, string batchType)
+        {
+            return await this.azureStorageClient.MakeStorageRequest<IList<Microsoft.WindowsAzure.Storage.Table.TableResult>>(
+                (context, timeoutToken) => this.cloudTable.ExecuteBatchAsync(batch, null, context, timeoutToken),
+                "Table BatchExecute " + batchType);
+        }
+
+        public async Task<object> ExecuteQuerySegmentedAsync(TableQuery query, TableContinuationToken continuationToken, TableRequestOptions storageTableRequestOptions, OperationContext context, CancellationToken token)
+        {
+            return await this.azureStorageClient.MakeStorageRequest<bool>(
+                (context, cancellationToken) => this.cloudTable.ExecuteQuerySegmentedAsync(null, context, cancellationToken),
+                "Table ExecuteQuerySegmented");
         }
     }
 }

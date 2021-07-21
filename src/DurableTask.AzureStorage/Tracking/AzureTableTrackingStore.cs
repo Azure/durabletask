@@ -27,6 +27,7 @@ namespace DurableTask.AzureStorage.Tracking
     using DurableTask.AzureStorage.Storage;
     using DurableTask.Core;
     using DurableTask.Core.History;
+    using Microsoft.WindowsAzure.Storage.Table;
     using Newtonsoft.Json;
 
     /// <summary>
@@ -86,8 +87,6 @@ namespace DurableTask.AzureStorage.Tracking
             this.HistoryTable = this.azureStorageClient.GetTableReference(historyTableName);
             this.InstancesTable = this.azureStorageClient.GetTableReference(instancesTableName);
 
-            this.StorageTableRequestOptions = settings.HistoryTableRequestOptions;
-
             // Use reflection to learn all the different event types supported by DTFx.
             // This could have been hardcoded, but I generally try to avoid hardcoding of point-in-time DTFx knowledge.
             Type historyEventType = typeof(HistoryEvent);
@@ -113,11 +112,6 @@ namespace DurableTask.AzureStorage.Tracking
             // instantiated for this test.
             this.settings.FetchLargeMessageDataEnabled = false;
         }
-
-        /// <summary>
-        ///  Table Request Options for The History and Instance Tables
-        /// </summary>
-        public TableRequestOptions StorageTableRequestOptions { get; set; }
 
         internal Table HistoryTable { get; }
 
@@ -439,11 +433,7 @@ namespace DurableTask.AzureStorage.Tracking
                     taskScheduledEntities[0].Properties["Reason"] = new EntityProperty("Rewound: " + taskScheduledEntities[0].Properties["EventType"].StringValue);
                     taskScheduledEntities[0].Properties["EventType"] = new EntityProperty(nameof(EventType.GenericEvent));
                     
-                    await TimeoutHandler.ExecuteWithTimeout(
-                        "RewindHistoryActivity",
-                        this.storageAccountName,
-                        this.settings,
-                        (context, timeoutToken) => this.HistoryTable.ExecuteAsync(TableOperation.Replace(taskScheduledEntities[0]), new TableRequestOptions(), context, timeoutToken));
+                    await this.HistoryTable.ReplaceAsync(taskScheduledEntities[0]);
                 }
 
                 // delete SubOrchestratorCreated corresponding to SubOrchestraionInstanceFailed event
@@ -466,11 +456,7 @@ namespace DurableTask.AzureStorage.Tracking
                     // the SubORchestrationCreatedEvent is still healthy and will not be overwritten, just marked as rewound
                     subOrchesratrationEntities[0].Properties["Reason"] = new EntityProperty("Rewound: " + subOrchesratrationEntities[0].Properties["EventType"].StringValue);
 
-                    await TimeoutHandler.ExecuteWithTimeout(
-                        "RewindHistorySubOrchestration",
-                        this.storageAccountName,
-                        this.settings,
-                        (context, timeoutToken) => this.HistoryTable.ExecuteAsync(TableOperation.Replace(subOrchesratrationEntities[0]), new TableRequestOptions(), context, timeoutToken));
+                    await this.HistoryTable.ReplaceAsync(subOrchesratrationEntities[0]);
 
                     // recursive call to clear out failure events on child instances
                     await this.RewindHistoryAsync(soInstanceId, failedLeaves, cancellationToken);
@@ -480,11 +466,7 @@ namespace DurableTask.AzureStorage.Tracking
                 entity.Properties["Reason"] = new EntityProperty("Rewound: " + entity.Properties["EventType"].StringValue);
                 entity.Properties["EventType"] = new EntityProperty(nameof(EventType.GenericEvent));
 
-                await TimeoutHandler.ExecuteWithTimeout(
-                    "RewindHistorySetReason",
-                    this.storageAccountName,
-                    this.settings,
-                    (context, timeoutToken) => this.HistoryTable.ExecuteAsync(TableOperation.Replace(entity), new TableRequestOptions(), context, timeoutToken));
+                await this.HistoryTable.ReplaceAsync(entity);
             }
 
             // reset orchestration status in instance store table
@@ -900,41 +882,22 @@ namespace DurableTask.AzureStorage.Tracking
             int pageOffset = 0;
             while (pageOffset < historyEntitiesResponseInfo.HistoryEventEntities.Count)
             {
-                var batch = new TableBatchOperation();
                 List<DynamicTableEntity> batchForDeletion = historyEntitiesResponseInfo.HistoryEventEntities.Skip(pageOffset).Take(100).ToList();
                 rowsDeleted += batchForDeletion.Count;
 
-                foreach (DynamicTableEntity itemForDeletion in batchForDeletion)
-                {
-                    batch.Delete(itemForDeletion);
-                }
-
                 await this.messageManager.DeleteLargeMessageBlobs(orchestrationInstanceStatus.PartitionKey, this.stats);
-                await TimeoutHandler.ExecuteWithTimeout(
-                    "DeleteOrchestrationFromHistoryTable",
-                    this.storageAccountName,
-                    this.settings,
-                    (context, timeoutToken) => this.HistoryTable.ExecuteBatchAsync(batch, new TableRequestOptions(), context, timeoutToken));
-                this.stats.TableEntitiesWritten.Increment(batch.Count);
+                await this.HistoryTable.DeleteBatchAsync(batchForDeletion);
+                this.stats.TableEntitiesWritten.Increment(batchForDeletion.Count);
                 storageRequests++;
                 pageOffset += batchForDeletion.Count;
             }
 
-            await TimeoutHandler.ExecuteWithTimeout(
-                "DeleteOrchestrationFromInstanceTable",
-                this.storageAccountName,
-                this.settings,
-                (context, timeoutToken) => {
-                    return this.InstancesTable.ExecuteAsync(TableOperation.Delete(new DynamicTableEntity
+            await this.InstancesTable.DeleteAsync(new DynamicTableEntity
                     {
                         PartitionKey = orchestrationInstanceStatus.PartitionKey,
                         RowKey = string.Empty,
                         ETag = "*"
-                    }),
-                    new TableRequestOptions(),
-                    context,
-                    timeoutToken);
-                });
+                    });
             this.stats.TableEntitiesWritten.Increment();
             this.stats.StorageRequests.Increment();
             storageRequests++;
@@ -1051,22 +1014,16 @@ namespace DurableTask.AzureStorage.Tracking
             Stopwatch stopwatch = Stopwatch.StartNew();
             try
             {
-                TableOperation operation;
                 if (eTag == null)
                 {
                     // This is the case for creating a new instance.
-                    operation = TableOperation.Insert(entity);
+                    await this.InstancesTable.InsertAsync(entity);
                 }
                 else
                 {
                     // This is the case for overwriting an existing instance.
-                    operation = TableOperation.Replace(entity);
+                    await this.InstancesTable.InsertAsync(entity);
                 }
-                await TimeoutHandler.ExecuteWithTimeout(
-                    operationName: "NewOrchestrationHistory",
-                    account: this.storageAccountName,
-                    settings: this.settings,
-                    operation: (context, timeoutToken) => this.InstancesTable.ExecuteAsync(operation, new TableRequestOptions(), context, timeoutToken));
             }
             catch (DurableTaskStorageException e) when (
                 e.HttpStatusCode == 409 /* Conflict */ ||
@@ -1112,7 +1069,7 @@ namespace DurableTask.AzureStorage.Tracking
             };
 
             Stopwatch stopwatch = Stopwatch.StartNew();
-            await this.InstancesTable.ExecuteAsync(TableOperation.Merge(entity));
+            await this.InstancesTable.MergeAsync(entity);
             this.stats.StorageRequests.Increment();
             this.stats.TableEntitiesWritten.Increment(1);
 
@@ -1176,7 +1133,7 @@ namespace DurableTask.AzureStorage.Tracking
                 bool isFinalEvent = i == newEvents.Count - 1;
 
                 HistoryEvent historyEvent = newEvents[i];
-                DynamicTableEntity historyEntity = this.tableEntityConverter.ConvertToTableEntity(historyEvent);
+                DurableTask historyEntity = this.tableEntityConverter.ConvertToTableEntity(historyEvent);
                 historyEntity.PartitionKey = sanitizedInstanceId;
 
                 newEventListBuffer.Append(historyEvent.EventType.ToString()).Append(',');
@@ -1297,11 +1254,7 @@ namespace DurableTask.AzureStorage.Tracking
             }
 
             Stopwatch orchestrationInstanceUpdateStopwatch = Stopwatch.StartNew();
-            await TimeoutHandler.ExecuteWithTimeout(
-                "InstanceStateUpdate",
-                this.storageAccountName,
-                this.settings,
-                (context, timeoutToken) => this.InstancesTable.ExecuteAsync(TableOperation.InsertOrMerge(instanceEntity), new TableRequestOptions(), context, timeoutToken));
+            await this.InstancesTable.InsertOrMergeAsync(instanceEntity);
 
             this.stats.StorageRequests.Increment();
             this.stats.TableEntitiesWritten.Increment();
@@ -1466,7 +1419,7 @@ namespace DurableTask.AzureStorage.Tracking
             bool isFinalBatch)
         {
             // Adding / updating sentinel entity
-            DynamicTableEntity sentinelEntity = new TableEntity(sanitizedInstanceId, SentinelRowKey)
+            DynamicTableEntity sentinelEntity = new DynamicTableEntity(sanitizedInstanceId, SentinelRowKey)
             {
                 Properties =
                 {
@@ -1528,7 +1481,7 @@ namespace DurableTask.AzureStorage.Tracking
             for (int i = tableResultList.Count - 1; i >= 0; i--)
             {
                 DynamicTableEntity resultEntity = (DynamicTableEntity)tableResultList[i].Result;
-                if (resultEntity.RowKey == SentinelRowKey)
+                if (resultEntity.RowKey == SentinelRowKey)[
                 {
                     newETagValue = resultEntity.ETag;
                     break;

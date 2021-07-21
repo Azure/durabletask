@@ -70,11 +70,6 @@ namespace DurableTask.AzureStorage.Storage
 
             string instancesTableName = settings.InstanceTableName;
             NameValidator.ValidateTableName(instancesTableName);
-
-            this.HistoryTable = tableClient.GetTableReference(historyTableName);
-            this.InstancesTable = tableClient.GetTableReference(instancesTableName);
-
-            this.StorageTableRequestOptions = settings.HistoryTableRequestOptions;
         }
 
         public AzureStorageOrchestrationServiceSettings Settings { get; }
@@ -106,9 +101,9 @@ namespace DurableTask.AzureStorage.Storage
             return new Queue(this, this.queueClient, queueName);
         }
 
-        public Table GetTableReference(string tableName, TableRequestOptions tableRequestOptions)
+        public Table GetTableReference(string tableName)
         {
-            return new Table(this, this.tableClient, tableName, tableRequestOptions);
+            return new Table(this, this.tableClient, tableName);
         }
 
 

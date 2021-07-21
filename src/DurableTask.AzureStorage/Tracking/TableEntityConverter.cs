@@ -63,7 +63,7 @@ namespace DurableTask.AzureStorage.Tracking
             return tableEntity;
         }
 
-        public object ConvertFromTableEntity(TableEntity tableEntity, Func<TableEntity, Type> typeFactory)
+        public object ConvertFromTableEntity(DynamicTableEntity tableEntity, Func<DynamicTableEntity, Type> typeFactory)
         {
             if (tableEntity == null)
             {

@@ -1,15 +1,19 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using Microsoft.WindowsAzure.Storage.Table;
 
 namespace DurableTask.AzureStorage.Storage
 {
-    class DynamicTableEntity
+    class TableEntity
     {
+
+        public DynamicTableEntity DynamicTableEntity { get; }
+
         private string sanitizedInstanceId;
         private string v;
 
-        public DynamicTableEntity(string sanitizedInstanceId, string v)
+        public TableEntity(string sanitizedInstanceId, string v)
         {
             this.sanitizedInstanceId = sanitizedInstanceId;
             this.v = v;

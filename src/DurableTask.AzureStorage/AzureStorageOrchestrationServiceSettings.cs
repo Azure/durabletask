@@ -79,6 +79,7 @@ namespace DurableTask.AzureStorage
         /// Gets or sets the <see cref="TableRequestOptions"/> that are provided to all internal
         /// usage of the <see cref="CloudTable"/> APIs for the history table.
         /// </summary>
+        [Obsolete("HistoryTableRequestOptions is deprecated. If you still need to configure QueueRequestOptions please open an issue at https://github.com/Azure/durabletask with the specific configurations options you need.")]
         public TableRequestOptions HistoryTableRequestOptions { get; set; }
 
         /// <summary>
