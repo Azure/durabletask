@@ -6,17 +6,29 @@ namespace DurableTask.AzureStorage.Storage
 {
     class TableQuery
     {
+        public TableQuery()
+        {
+            this.StorageTableQuery = new Microsoft.WindowsAzure.Storage.Table.TableQuery();
+        }
+
+        private TableQuery(Microsoft.WindowsAzure.Storage.Table.TableQuery storageQuery)
+        {
+            this.StorageTableQuery = storageQuery;
+        }
+
+        public Microsoft.WindowsAzure.Storage.Table.TableQuery StorageTableQuery { get; }
+
         public string[] SelectColumns { get; internal set; }
         public string FilterString { get; internal set; }
 
-        internal TableQuery Where(string v)
+        public TableQuery Select(IList<string> projectionColumns)
         {
-            throw new NotImplementedException();
+            return new TableQuery(this.StorageTableQuery.Select(projectionColumns));
         }
 
-        internal void Select(IList<string> projectionColumns)
+        public TableQuery Where(string v)
         {
-            throw new NotImplementedException();
+            return new TableQuery(this.StorageTableQuery.Where(v));
         }
 
         internal static object GenerateFilterCondition(string rowKeyProperty, object equal, string empty)

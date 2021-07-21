@@ -6,6 +6,13 @@ namespace DurableTask.AzureStorage.Storage
 {
     class TableResult
     {
-        public DynamicTableEntity Result { get; internal set; }
+        private Microsoft.WindowsAzure.Storage.Table.TableResult storageTableResult;
+
+        public TableResult(Microsoft.WindowsAzure.Storage.Table.TableResult storageTableResult)
+        {
+            this.storageTableResult = storageTableResult;
+        }
+
+        public object Result => this.storageTableResult.Result;
     }
 }
