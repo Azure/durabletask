@@ -94,9 +94,11 @@ namespace DurableTask.AzureStorage.Storage
                 "Blob DownloadText");
         }
 
-        public async Task DownloadToStreamAsync(MemoryStream memory)
+        public async Task DownloadToStreamAsync(MemoryStream target)
         {
-            await this.cloudBlockBlob.DownloadToStreamAsync(memory);
+            await this.azureStorageClient.MakeStorageRequest(
+                (context, cancellationToken) => this.cloudBlockBlob.DownloadToStreamAsync(target, null, null, context, cancellationToken),
+                "Blob DownloadToStream");
         }
 
         public async Task FetchAttributesAsync()
