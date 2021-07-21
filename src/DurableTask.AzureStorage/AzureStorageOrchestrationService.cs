@@ -1203,7 +1203,7 @@ namespace DurableTask.AzureStorage
 
             // Second persistence step is to commit outgoing messages to their respective queues. If there is
             // any failures here, then the messages may get written again later.
-            var enqueueOperations = new List<TaskQueueMessage>(messageCount);
+            var enqueueOperations = new List<TaskHubQueueMessage>(messageCount);
             if (orchestratorMessages?.Count > 0)
             {
                 foreach (TaskMessage taskMessage in orchestratorMessages)
@@ -1211,7 +1211,7 @@ namespace DurableTask.AzureStorage
                     string targetInstanceId = taskMessage.OrchestrationInstance.InstanceId;
                     ControlQueue targetControlQueue = await this.GetControlQueueAsync(targetInstanceId);
 
-                    enqueueOperations.Add(new TaskQueueMessage(targetControlQueue, taskMessage));
+                    enqueueOperations.Add(new TaskHubQueueMessage(targetControlQueue, taskMessage));
                 }
             }
 
@@ -1219,20 +1219,20 @@ namespace DurableTask.AzureStorage
             {
                 foreach (TaskMessage taskMessage in timerMessages)
                 {
-                    enqueueOperations.Add(new TaskQueueMessage(session.ControlQueue, taskMessage));
+                    enqueueOperations.Add(new TaskHubQueueMessage(session.ControlQueue, taskMessage));
                 }
             }
 
             if (continuedAsNewMessage != null)
             {
-                enqueueOperations.Add(new TaskQueueMessage(session.ControlQueue, continuedAsNewMessage));
+                enqueueOperations.Add(new TaskHubQueueMessage(session.ControlQueue, continuedAsNewMessage));
             }
 
             if (outboundMessages?.Count > 0)
             {
                 foreach (TaskMessage taskMessage in outboundMessages)
                 {
-                    enqueueOperations.Add(new TaskQueueMessage(this.workItemQueue, taskMessage));
+                    enqueueOperations.Add(new TaskHubQueueMessage(this.workItemQueue, taskMessage));
                 }
             }
 
@@ -1929,9 +1929,9 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        struct TaskQueueMessage
+        struct TaskHubQueueMessage
         {
-            public TaskQueueMessage(TaskHubQueue queue, TaskMessage message)
+            public TaskHubQueueMessage(TaskHubQueue queue, TaskMessage message)
             {
                 this.Queue = queue;
                 this.Message = message;
