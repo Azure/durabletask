@@ -1,49 +1,42 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
 
 namespace DurableTask.AzureStorage.Storage
 {
     class TableQuery
     {
+        private Microsoft.WindowsAzure.Storage.Table.TableQuery storageTableQuery;
+
         public TableQuery()
         {
-            this.StorageTableQuery = new Microsoft.WindowsAzure.Storage.Table.TableQuery();
+            this.storageTableQuery = new Microsoft.WindowsAzure.Storage.Table.TableQuery();
         }
-
-        private TableQuery(Microsoft.WindowsAzure.Storage.Table.TableQuery storageQuery)
-        {
-            this.StorageTableQuery = storageQuery;
-        }
-
-        public Microsoft.WindowsAzure.Storage.Table.TableQuery StorageTableQuery { get; }
-
-        public string[] SelectColumns { get; internal set; }
-        public string FilterString { get; internal set; }
 
         public TableQuery Select(IList<string> projectionColumns)
         {
-            return new TableQuery(this.StorageTableQuery.Select(projectionColumns));
+            this.storageTableQuery = this.storageTableQuery.Select(projectionColumns);
+            return this;
         }
 
         public TableQuery Where(string v)
         {
-            return new TableQuery(this.StorageTableQuery.Where(v));
+            this.storageTableQuery = this.storageTableQuery.Where(v);
+            return this;
         }
 
-        internal static object GenerateFilterCondition(string rowKeyProperty, object equal, string empty)
+        public static string GenerateFilterCondition(string propertyName, QueryComparisons comparison, string value)
         {
-            throw new NotImplementedException();
+            return Microsoft.WindowsAzure.Storage.Table.TableQuery.GenerateFilterCondition(propertyName, comparison.ToString(), value);
         }
 
-        internal static string GenerateFilterConditionForDate(string v, object greaterThanOrEqual, DateTimeOffset dateTimeOffset)
+        public static string GenerateFilterCondition(string propertyName, QueryComparisons comparison, DateTimeOffset dateTimeOffset)
         {
-            throw new NotImplementedException();
+            return Microsoft.WindowsAzure.Storage.Table.TableQuery.GenerateFilterConditionForDate(propertyName, comparison.ToString(), dateTimeOffset);
         }
 
-        internal static object CombineFilters(object a, object tableOperator, object b)
+        public static string CombineFilters(string filterA, TableOperators tableOperator, string filterB)
         {
-            throw new NotImplementedException();
+            return Microsoft.WindowsAzure.Storage.Table.TableQuery.CombineFilters(filterA, tableOperator.ToString(), filterB);
         }
     }
 }

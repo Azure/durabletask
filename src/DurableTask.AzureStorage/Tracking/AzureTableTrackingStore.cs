@@ -27,7 +27,6 @@ namespace DurableTask.AzureStorage.Tracking
     using DurableTask.AzureStorage.Storage;
     using DurableTask.Core;
     using DurableTask.Core.History;
-    using Microsoft.WindowsAzure.Storage.Table;
     using Newtonsoft.Json;
 
     /// <summary>
@@ -241,7 +240,7 @@ namespace DurableTask.AzureStorage.Tracking
                     .Append(" or ExecutionId eq ").Append(Quote).Append(expectedExecutionId).Append(Quote).Append(')');
             }
 
-            TableQuery query = new TableQuery().Where(filterCondition.ToString());
+            Storage.TableQuery query = new Storage.TableQuery().Where(filterCondition.ToString());
 
             if (projectionColumns != null)
             {
@@ -1493,7 +1492,7 @@ namespace DurableTask.AzureStorage.Tracking
                 this.taskHubName,
                 instanceId,
                 executionId,
-                historyEventBatch.Count - 1, // exclude sentinel from count
+                historyEventBatch.Count , // exclude sentinel from count
                 numberOfTotalEvents,
                 historyEventNamesBuffer.ToString(0, historyEventNamesBuffer.Length - 1), // remove trailing comma
                 episodeNumber,
@@ -1521,5 +1520,6 @@ namespace DurableTask.AzureStorage.Tracking
             internal int RequestCount { get; set; }
             internal List<DynamicTableEntity> HistoryEventEntities { get; set; }
         }
+}
     }
 }

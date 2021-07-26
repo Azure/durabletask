@@ -6,34 +6,36 @@ namespace DurableTask.AzureStorage.Storage
 {
     class EntityProperty
     {
-        private string decompressedMessage;
-        private DateTime utcNow;
-        private DateTime? scheduledStartTime;
-        private bool isFinalBatch;
-
         public EntityProperty(string decompressedMessage)
         {
-            this.decompressedMessage = decompressedMessage;
+            this.CloudEntityProperty = new Microsoft.WindowsAzure.Storage.Table.EntityProperty(decompressedMessage);
         }
 
         public EntityProperty(DateTime utcNow)
         {
-            this.utcNow = utcNow;
+            this.CloudEntityProperty = new Microsoft.WindowsAzure.Storage.Table.EntityProperty(utcNow);
         }
 
         public EntityProperty(DateTime? scheduledStartTime)
         {
-            this.scheduledStartTime = scheduledStartTime;
+            this.CloudEntityProperty = new Microsoft.WindowsAzure.Storage.Table.EntityProperty(scheduledStartTime);
         }
 
         public EntityProperty(bool isFinalBatch)
         {
-            this.isFinalBatch = isFinalBatch;
+            this.CloudEntityProperty = new Microsoft.WindowsAzure.Storage.Table.EntityProperty(isFinalBatch);
         }
 
-        public string StringValue { get; internal set; }
-        public DateTime? DateTime { get; internal set; }
-        public object Int32Value { get; internal set; }
-        public object PropertyType { get; internal set; }
+        public EntityProperty(Microsoft.WindowsAzure.Storage.Table.EntityProperty entityProperty)
+        {
+            this.CloudEntityProperty = entityProperty;
+        }
+
+        public Microsoft.WindowsAzure.Storage.Table.EntityProperty CloudEntityProperty { get; }
+
+        public string StringValue => this.CloudEntityProperty.StringValue;
+        public DateTime? DateTime => this.CloudEntityProperty.DateTime;
+        public object Int32Value => this.CloudEntityProperty.Int32Value;
+        public object PropertyType => this.CloudEntityProperty.PropertyType;
     }
 }

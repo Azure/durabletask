@@ -4,9 +4,9 @@ using System.Text;
 
 namespace DurableTask.AzureStorage.Storage
 {
-    class TableOperators
+    enum TableOperators
     {
-        internal static string Or;
-        internal static string And;
+        And,
+        Or
     }
 }
