@@ -14,9 +14,8 @@
 namespace DurableTask.AzureStorage.Messaging
 {
     using System;
+    using DurableTask.AzureStorage.Storage;
     using DurableTask.Core;
-    using Microsoft.WindowsAzure.Storage;
-    using Microsoft.WindowsAzure.Storage.Queue;
 
     abstract class SessionBase
     {
@@ -32,15 +31,9 @@ namespace DurableTask.AzureStorage.Messaging
             this.Instance = orchestrationInstance ?? throw new ArgumentNullException(nameof(orchestrationInstance));
 
             this.TraceActivityId = traceActivityId;
-            this.StorageOperationContext = new OperationContext
-            {
-                ClientRequestID = this.TraceActivityId.ToString(),
-            };
         }
 
         public OrchestrationInstance Instance { get; protected set; }
-
-        public OperationContext StorageOperationContext { get; }
 
         public Guid TraceActivityId { get; }
 
@@ -60,7 +53,7 @@ namespace DurableTask.AzureStorage.Messaging
             }
 
             TaskMessage taskMessage = data.TaskMessage;
-            CloudQueueMessage queueMessage = data.OriginalQueueMessage;
+            QueueMessage queueMessage = data.OriginalQueueMessage;
 
             this.settings.Logger.ProcessingMessage(
                 data.ActivityId,

@@ -15,8 +15,8 @@ namespace DurableTask.AzureStorage
 {
     using System;
     using System.Runtime.Serialization;
+    using DurableTask.AzureStorage.Storage;
     using DurableTask.Core;
-    using Microsoft.WindowsAzure.Storage.Queue;
     using Newtonsoft.Json;
 
     /// <summary>
@@ -100,7 +100,7 @@ namespace DurableTask.AzureStorage
 
         internal string QueueName { get; set; }
 
-        internal CloudQueueMessage OriginalQueueMessage { get; set; }
+        internal QueueMessage OriginalQueueMessage { get; set; }
 
         internal long TotalMessageSizeBytes { get; set; }
 

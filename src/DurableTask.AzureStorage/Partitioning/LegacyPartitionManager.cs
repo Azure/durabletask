@@ -13,44 +13,37 @@
 
 namespace DurableTask.AzureStorage.Partitioning
 {
-    using DurableTask.AzureStorage.Monitoring;
-    using Microsoft.WindowsAzure.Storage;
     using System;
     using System.Collections.Generic;
     using System.Runtime.ExceptionServices;
     using System.Threading.Tasks;
+    using DurableTask.AzureStorage.Storage;
+    using Microsoft.WindowsAzure.Storage;
 
     class LegacyPartitionManager : IPartitionManager
     {
-        private readonly AzureStorageOrchestrationService service;
-        private readonly AzureStorageOrchestrationServiceSettings settings;
-        private readonly AzureStorageOrchestrationServiceStats stats;
+        readonly AzureStorageOrchestrationService service;
+        readonly AzureStorageClient azureStorageClient;
+        readonly AzureStorageOrchestrationServiceSettings settings;
 
-        private readonly BlobLeaseManager leaseManager;
-        private readonly LeaseCollectionBalancer<BlobLease> leaseCollectionManager;
+        readonly BlobLeaseManager leaseManager;
+        readonly LeaseCollectionBalancer<BlobLease> leaseCollectionManager;
 
         public LegacyPartitionManager(
             AzureStorageOrchestrationService service,
-            AzureStorageOrchestrationServiceSettings settings,
-            CloudStorageAccount account,
-            AzureStorageOrchestrationServiceStats stats)
+            AzureStorageClient azureStorageClient)
         {
             this.service = service;
-            this.settings = settings;
-            this.stats = stats;
-            this.leaseManager = new BlobLeaseManager(
-                settings,
-                settings.TaskHubName.ToLowerInvariant() + "-leases",
-                string.Empty,
-                "default",
-                account.CreateCloudBlobClient(),
-                skipBlobContainerCreation: false,
-                stats);
+            this.azureStorageClient = azureStorageClient;
+            this.settings = this.azureStorageClient.Settings;
+            this.leaseManager = AzureStorageOrchestrationService.GetBlobLeaseManager(
+                this.azureStorageClient,
+                "default");
 
             this.leaseCollectionManager = new LeaseCollectionBalancer<BlobLease>(
                 "default",
                 settings,
-                account.Credentials.AccountName,
+                this.azureStorageClient.StorageAccountName,
                 leaseManager,
                 new LeaseCollectionBalancerOptions
                 {
@@ -63,14 +56,12 @@ namespace DurableTask.AzureStorage.Partitioning
 
         Task IPartitionManager.CreateLease(string leaseName)
         {
-            this.stats.StorageRequests.Increment();
             return this.leaseManager.CreateLeaseIfNotExistAsync(leaseName);
         }
 
         Task IPartitionManager.CreateLeaseStore()
         {    
             TaskHubInfo hubInfo = new TaskHubInfo(this.settings.TaskHubName, DateTime.UtcNow, this.settings.PartitionCount);
-            this.stats.StorageRequests.Increment();
             return this.leaseManager.CreateLeaseStoreIfNotExistsAsync(hubInfo, checkIfStale: true);
         }
 
