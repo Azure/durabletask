@@ -123,7 +123,7 @@ namespace DurableTask.AzureStorage.Partitioning
                         partitionId,
                         string.Format(
                             CultureInfo.InvariantCulture,
-                            "CreateLeaseIfNotExistAsync - leaseContainerName: {0}, leaseType: {1}, partitionId: {2}, exception: {4}",
+                            "CreateLeaseIfNotExistAsync - leaseContainerName: {0}, leaseType: {1}, partitionId: {2}, exception: {3}",
                             this.leaseContainerName,
                             this.blobDirectoryName,
                             partitionId,
