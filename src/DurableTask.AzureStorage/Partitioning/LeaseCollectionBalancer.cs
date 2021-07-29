@@ -639,7 +639,6 @@ namespace DurableTask.AzureStorage.Partitioning
                 }
                 catch (LeaseLostException)
                 {
-                    // We have already shutdown the processor so we can ignore any LeaseLost at this point
                     this.settings.Logger.LeaseRemovalFailed(
                         this.accountName,
                         this.taskHub,
@@ -715,12 +714,6 @@ namespace DurableTask.AzureStorage.Partitioning
                     catch (LeaseLostException)
                     {
                         // We have already shutdown the processor so we can ignore any LeaseLost at this point
-                        this.settings.Logger.LeaseRemovalFailed(
-                            this.accountName,
-                            this.taskHub,
-                            this.workerName,
-                            lease.PartitionId,
-                            lease.Token);
                     }
                     catch (Exception ex)
                     {
