@@ -101,7 +101,7 @@ namespace DurableTask.AzureStorage
 
             this.settings = settings;
 
-            this.azureStorageClient = new AzureStorageClient(settings, storageAccountName);
+            this.azureStorageClient = new AzureStorageClient(settings);
 
             this.stats = this.azureStorageClient.Stats;
  

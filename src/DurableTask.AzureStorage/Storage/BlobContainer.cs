@@ -46,7 +46,7 @@ namespace DurableTask.AzureStorage.Storage
         public async Task<bool> CreateIfNotExistsAsync()
         {
             return await this.azureStorageClient.MakeStorageRequest<bool>(
-                (context, cancellationToken) => this.cloudBlobContainer.CreateIfNotExistsAsync(BlobContainerPublicAccessType.Container, null, context, cancellationToken),
+                (context, cancellationToken) => this.cloudBlobContainer.CreateIfNotExistsAsync(BlobContainerPublicAccessType.Off, null, context, cancellationToken),
                 "Create Container");
         }
 
