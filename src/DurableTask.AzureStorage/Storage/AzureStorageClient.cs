@@ -28,14 +28,15 @@ namespace DurableTask.AzureStorage.Storage
         readonly CloudBlobClient blobClient;
         readonly CloudQueueClient queueClient;
 
-        public AzureStorageClient(AzureStorageOrchestrationServiceSettings settings, string storageAccountName)
+        public AzureStorageClient(AzureStorageOrchestrationServiceSettings settings)
         {
             this.Settings = settings;
-            this.StorageAccountName = storageAccountName;
 
             this.account = settings.StorageAccountDetails == null
                 ? CloudStorageAccount.Parse(settings.StorageConnectionString)
                 : settings.StorageAccountDetails.ToCloudStorageAccount();
+
+            this.StorageAccountName = account.Credentials.AccountName;
 
             this.Stats = new AzureStorageOrchestrationServiceStats();
             this.queueClient = account.CreateCloudQueueClient();
