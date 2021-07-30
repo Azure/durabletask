@@ -79,15 +79,6 @@ namespace DurableTask.AzureStorage
             {
                 controlQueue.Release();
             }
-            else
-            {
-                this.settings.Logger.PartitionManagerWarning(
-                    this.storageAccountName,
-                    this.settings.TaskHubName,
-                    this.settings.WorkerId,
-                    partitionId,
-                    $"Attempted to remove control queue {partitionId}, which wasn't being watched!");
-            }
         }
 
 
@@ -96,15 +87,6 @@ namespace DurableTask.AzureStorage
             if (this.ownedControlQueues.TryGetValue(partitionId, out ControlQueue controlQueue))
             {
                 controlQueue.Release();
-            }
-            else
-            {
-                this.settings.Logger.PartitionManagerWarning(
-                    this.storageAccountName,
-                    this.settings.TaskHubName,
-                    this.settings.WorkerId,
-                    partitionId,
-                    $"Attempted to release control queue {partitionId}, which wasn't being watched!");
             }
         }
 
