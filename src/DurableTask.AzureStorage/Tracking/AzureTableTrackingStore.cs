@@ -656,7 +656,7 @@ namespace DurableTask.AzureStorage.Tracking
             // to only be a small handful of parallel requests, so keeping the code simple until the storage refactor adds global throttling.
             var instanceQueries = instanceIds.Select(instance => this.GetStateAsync(instance, allExecutions: true, fetchInput: false));
             IEnumerable<IList<OrchestrationState>> instanceQueriesResults = await Task.WhenAll(instanceQueries);
-            return instanceQueriesResults.SelectMany(result => result).ToList();
+            return instanceQueriesResults.SelectMany(result => result).Where(x => x.OrchestrationInstance.InstanceId != null).ToList();
         }
 
         /// <inheritdoc />
