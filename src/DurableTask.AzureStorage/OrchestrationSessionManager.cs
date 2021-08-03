@@ -100,15 +100,6 @@ namespace DurableTask.AzureStorage
                     this.RemoveQueue(partitionId);
                     this.AddQueue(partitionId, controlQueue, shutdownToken);
                 }
-                else
-                {
-                    this.settings.Logger.PartitionManagerWarning(
-                        this.storageAccountName,
-                        this.settings.TaskHubName,
-                        this.settings.WorkerId,
-                        partitionId,
-                        $"Attempted to resume listening on control queue {controlQueue.Name}, which wasn't released!");
-                }
             }
 
             return false;
