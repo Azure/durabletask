@@ -256,15 +256,33 @@ namespace DurableTask.Core
         public void HandleTaskScheduledEvent(TaskScheduledEvent scheduledEvent)
         {
             int taskId = scheduledEvent.EventId;
-            if (this.orchestratorActionsMap.ContainsKey(taskId))
-            {
-                this.orchestratorActionsMap.Remove(taskId);
-            }
-            else
+            if (!this.orchestratorActionsMap.ContainsKey(taskId))
             {
                 throw new NonDeterministicOrchestrationException(scheduledEvent.EventId,
-                    $"TaskScheduledEvent: {scheduledEvent.EventId} {scheduledEvent.EventType} {scheduledEvent.Name} {scheduledEvent.Version}");
+                    $"Scheduled event not run this replay: TaskScheduledEvent {scheduledEvent.EventId} {scheduledEvent.EventType} {scheduledEvent.Name} {scheduledEvent.Version}.");
             }
+
+            var orchestrationAction = this.orchestratorActionsMap[taskId];
+            if (!(orchestrationAction is ScheduleTaskOrchestratorAction currentReplayAction))
+            {
+                throw new NonDeterministicOrchestrationException(scheduledEvent.EventId,
+                    $"Event id {scheduledEvent.EventId} on previous replays was {nameof(TaskScheduledEvent)} but is now {orchestrationAction.GetType().Name}.");
+
+            }
+
+            if (scheduledEvent.Name != currentReplayAction.Name)
+            {
+                throw new NonDeterministicOrchestrationException(scheduledEvent.EventId,
+                    $"Event id {scheduledEvent.EventId} on previous replays scheduled task with name {scheduledEvent.Name}) but is now {currentReplayAction.Name}.");
+            }
+
+            if (scheduledEvent.Input != currentReplayAction.Input)
+            {
+                throw new NonDeterministicOrchestrationException(scheduledEvent.EventId,
+                    $"TaskScheduledEvent {scheduledEvent.EventId} has a different input this replay than it was scheduled with.");
+            }
+
+            this.orchestratorActionsMap.Remove(taskId);
         }
 
         public void HandleTimerCreatedEvent(TimerCreatedEvent timerCreatedEvent)
@@ -276,49 +294,97 @@ namespace DurableTask.Core
                 return;
             }
 
-            if (this.orchestratorActionsMap.ContainsKey(taskId))
-            {
-                this.orchestratorActionsMap.Remove(taskId);
-            }
-            else
+            if (!this.orchestratorActionsMap.ContainsKey(taskId))
             {
                 throw new NonDeterministicOrchestrationException(timerCreatedEvent.EventId,
-                    $"TimerCreatedEvent: {timerCreatedEvent.EventId} {timerCreatedEvent.EventType}");
+                    $"Scheduled event not run this replay: TimerCreatedEvent {timerCreatedEvent.EventId} {timerCreatedEvent.EventType}");
             }
+
+            var orchestrationAction = this.orchestratorActionsMap[taskId];
+            if (!(orchestrationAction is CreateTimerOrchestratorAction currentReplayAction))
+            {
+                throw new NonDeterministicOrchestrationException(timerCreatedEvent.EventId,
+                    $"Event id {timerCreatedEvent.EventId} on previous replays was {nameof(TimerCreatedEvent)} but is now {orchestrationAction.GetType().Name}.");
+
+            }
+
+            this.orchestratorActionsMap.Remove(taskId);
         }
 
         public void HandleSubOrchestrationCreatedEvent(SubOrchestrationInstanceCreatedEvent subOrchestrationCreateEvent)
         {
             int taskId = subOrchestrationCreateEvent.EventId;
-            if (this.orchestratorActionsMap.ContainsKey(taskId))
-            {
-                this.orchestratorActionsMap.Remove(taskId);
-            }
-            else
+            if (!this.orchestratorActionsMap.ContainsKey(taskId))
             {
                 throw new NonDeterministicOrchestrationException(subOrchestrationCreateEvent.EventId,
                     // ReSharper disable once UseStringInterpolation
-                    string.Format("SubOrchestrationInstanceCreatedEvent: {0} {1} {2} {3} {4}",
+                    string.Format("Scheduled event not run this replay: SubOrchestrationInstanceCreatedEvent {0} {1} {2} {3} {4}",
                         subOrchestrationCreateEvent.EventId,
                         subOrchestrationCreateEvent.EventType,
                         subOrchestrationCreateEvent.Name,
                         subOrchestrationCreateEvent.Version,
                         subOrchestrationCreateEvent.InstanceId));
             }
+
+            var orchestrationAction = this.orchestratorActionsMap[taskId];
+            if (!(orchestrationAction is CreateSubOrchestrationAction currentReplayAction))
+            {
+                throw new NonDeterministicOrchestrationException(subOrchestrationCreateEvent.EventId,
+                    $"Event id {subOrchestrationCreateEvent.EventId} on previous replays was {nameof(SubOrchestrationInstanceCreatedEvent)} but is now {orchestrationAction.GetType().Name}.");
+
+            }
+
+            if (subOrchestrationCreateEvent.Name != currentReplayAction.Name)
+            {
+                throw new NonDeterministicOrchestrationException(subOrchestrationCreateEvent.EventId,
+                    $"Event id {subOrchestrationCreateEvent.EventId} on previous replays scheduled orchestration with name {subOrchestrationCreateEvent.Name}) but is now {currentReplayAction.Name}.");
+            }
+
+            if (subOrchestrationCreateEvent.Input != currentReplayAction.Input)
+            {
+                throw new NonDeterministicOrchestrationException(subOrchestrationCreateEvent.EventId,
+                    $"SubOrchestrationInstanceCreatedEvent {subOrchestrationCreateEvent.EventId} has a different input this replay than it was scheduled with.");
+            }
+
+            this.orchestratorActionsMap.Remove(taskId);
         }
 
         public void HandleEventSentEvent(EventSentEvent eventSentEvent)
         {
             int taskId = eventSentEvent.EventId;
-            if (this.orchestratorActionsMap.ContainsKey(taskId))
-            {
-                this.orchestratorActionsMap.Remove(taskId);
-            }
-            else
+            if (!this.orchestratorActionsMap.ContainsKey(taskId))
             {
                 throw new NonDeterministicOrchestrationException(eventSentEvent.EventId,
-                    $"EventSentEvent: {eventSentEvent.EventId} {eventSentEvent.EventType} {eventSentEvent.Name} {eventSentEvent.InstanceId}");
+                    $"Scheduled event not run this replay: EventSentEvent: {eventSentEvent.EventId} {eventSentEvent.EventType} {eventSentEvent.Name} {eventSentEvent.InstanceId}.");
             }
+
+            var orchestrationAction = this.orchestratorActionsMap[taskId];
+            if (!(orchestrationAction is SendEventOrchestratorAction currentReplayAction))
+            {
+                throw new NonDeterministicOrchestrationException(eventSentEvent.EventId,
+                    $"Event id {eventSentEvent.EventId} on previous replays was {nameof(EventSentEvent)} but is now {orchestrationAction.GetType().Name}.");
+
+            }
+
+            if (eventSentEvent.Name != currentReplayAction.EventName)
+            {
+                throw new NonDeterministicOrchestrationException(eventSentEvent.EventId,
+                    $"Event id {eventSentEvent.EventId} on previous replays scheduled task with name {eventSentEvent.Name}) but is now {currentReplayAction.EventName}.");
+            }
+
+            if (eventSentEvent.Input != currentReplayAction.EventData)
+            {
+                throw new NonDeterministicOrchestrationException(eventSentEvent.EventId,
+                    $"EventSentEvent {eventSentEvent.EventId} has different data this replay than it was scheduled with.");
+            }
+
+            if (eventSentEvent.InstanceId != currentReplayAction.Instance.InstanceId)
+            {
+                throw new NonDeterministicOrchestrationException(eventSentEvent.EventId,
+                    $"EventSentEvent {eventSentEvent.EventId} has different data this replay than it was scheduled with.");
+            }
+
+            this.orchestratorActionsMap.Remove(taskId);
         }
 
 
