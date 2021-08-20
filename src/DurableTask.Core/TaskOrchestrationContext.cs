@@ -340,7 +340,7 @@ namespace DurableTask.Core
                    + "the orchestrator code after this instance had already started running?");
             }
 
-            if (subOrchestrationCreateEvent.Name != currentReplayAction.Name)
+            if (string.Equals(subOrchestrationCreateEvent.Name, currentReplayAction.Name, StringComparison.OrdinalIgnoreCase))
             {
                 throw new NonDeterministicOrchestrationException(subOrchestrationCreateEvent.EventId,
                    $"A previous execution of this orchestration scheduled a suborchestration task with sequence ID {taskId} "
@@ -377,7 +377,7 @@ namespace DurableTask.Core
 
             }
 
-            if (eventSentEvent.Name != currentReplayAction.EventName)
+            if (string.Equals(eventSentEvent.Name, currentReplayAction.EventName, StringComparison.OrdinalIgnoreCase))
             {
                 throw new NonDeterministicOrchestrationException(eventSentEvent.EventId,
                    $"A previous execution of this orchestration scheduled a send event task with sequence ID {taskId}, "
