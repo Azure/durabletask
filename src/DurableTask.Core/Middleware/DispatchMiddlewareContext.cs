@@ -21,10 +21,6 @@ namespace DurableTask.Core.Middleware
     /// </summary>
     public class DispatchMiddlewareContext
     {
-        internal DispatchMiddlewareContext()
-        {
-        }
-
         /// <summary>
         /// Sets a property value to the context using the full name of the type as the key.
         /// </summary>

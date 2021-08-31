@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.AzureStorage.Tracking
 {
     using System;
@@ -32,7 +32,7 @@ namespace DurableTask.AzureStorage.Tracking
         /// <summary>
         /// RuntimeStatus
         /// </summary>
-        public IEnumerable<OrchestrationStatus> RuntimeStatus { get; set; }
+        public IEnumerable<OrchestrationStatus>? RuntimeStatus { get; set; }
 
         /// <summary>
         /// CreatedTimeFrom
@@ -47,17 +47,17 @@ namespace DurableTask.AzureStorage.Tracking
         /// <summary>
         /// Collection of TaskHub name
         /// </summary>
-        public IEnumerable<string> TaskHubNames { get; set; }
+        public IEnumerable<string>? TaskHubNames { get; set; }
 
         /// <summary>
         /// InstanceIdPrefix
         /// </summary>
-        public string InstanceIdPrefix { get; set; }
+        public string? InstanceIdPrefix { get; set; }
 
         /// <summary>
         /// InstanceId
         /// </summary>
-        public string InstanceId { get; set; }
+        public string? InstanceId { get; set; }
 
         /// <summary>
         /// If true, the input will be returned with the results. The default value is true.
@@ -73,19 +73,23 @@ namespace DurableTask.AzureStorage.Tracking
             where T : ITableEntity, new()
         {
             var query = new TableQuery<T>();
-            if (!((this.RuntimeStatus == null || (!this.RuntimeStatus.Any())) && 
+            if (!((this.RuntimeStatus == null || !this.RuntimeStatus.Any()) && 
                 this.CreatedTimeFrom == default(DateTime) && 
                 this.CreatedTimeTo == default(DateTime) &&
                 this.TaskHubNames == null &&
                 this.InstanceIdPrefix == null &&
-                 this.InstanceId == null))
+                this.InstanceId == null))
             {
                 if (!this.FetchInput)
                 {
                     query.Select(ColumnsWithoutInput);
                 }
 
-                query.Where(this.GetConditions());
+                string conditions = this.GetConditions();
+                if (!string.IsNullOrEmpty(conditions))
+                {
+                    query.Where(conditions);
+                }
             }
 
             return query;
@@ -129,7 +133,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             if (!string.IsNullOrEmpty(this.InstanceIdPrefix))
             {
-                var sanitizedPrefix = KeySanitation.EscapePartitionKey(this.InstanceIdPrefix);
+                string sanitizedPrefix = KeySanitation.EscapePartitionKey(this.InstanceIdPrefix);
                 int length = sanitizedPrefix.Length - 1;
                 char incrementedLastChar = (char)(sanitizedPrefix[length] + 1);
 
@@ -141,10 +145,15 @@ namespace DurableTask.AzureStorage.Tracking
                     TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.LessThan, greaterThanPrefix)));
             }
 
-            if (!string.IsNullOrEmpty(this.InstanceId))
+            if (this.InstanceId != null)
             {
-                var sanitizedInstanceId = KeySanitation.EscapePartitionKey(this.InstanceId);
+                string sanitizedInstanceId = KeySanitation.EscapePartitionKey(this.InstanceId);
                 conditions.Add(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, sanitizedInstanceId));
+            }
+
+            if (conditions.Count == 0)
+            {
+                return string.Empty;
             }
 
             return conditions.Count == 1 ? 

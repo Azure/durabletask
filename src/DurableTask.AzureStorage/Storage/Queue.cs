@@ -84,12 +84,12 @@ namespace DurableTask.AzureStorage.Storage
                 clientRequestId?.ToString());
         }
 
-        public async Task<QueueMessage> GetMessageAsync(TimeSpan visibilityTimeout, CancellationToken callerToken)
+        public async Task<QueueMessage> GetMessageAsync(TimeSpan visibilityTimeout, CancellationToken callerCancellationToken)
         {
             var cloudQueueMessage = await this.azureStorageClient.MakeStorageRequest<CloudQueueMessage>(
-                (context, cancellationToken) =>
+                (context, timeoutCancellationToken) =>
                 {
-                    using (var finalLinkedCts = CancellationTokenSource.CreateLinkedTokenSource(callerToken, cancellationToken))
+                    using (var finalLinkedCts = CancellationTokenSource.CreateLinkedTokenSource(callerCancellationToken, timeoutCancellationToken))
                     {
                         return this.cloudQueue.GetMessageAsync(
                             visibilityTimeout,
@@ -130,12 +130,12 @@ namespace DurableTask.AzureStorage.Storage
                 "Queue Delete");
         }
 
-        public async Task<IEnumerable<QueueMessage>> GetMessagesAsync(int batchSize, TimeSpan visibilityTimeout, CancellationToken token)
+        public async Task<IEnumerable<QueueMessage>> GetMessagesAsync(int batchSize, TimeSpan visibilityTimeout, CancellationToken callerCancellationToken)
         {
             var cloudQueueMessages = await this.azureStorageClient.MakeStorageRequest<IEnumerable<CloudQueueMessage>>(
-                (context, cancellationToken) =>
+                (context, timeoutCancellationToken) =>
                 {
-                    using (var finalLinkedCts = CancellationTokenSource.CreateLinkedTokenSource(token, cancellationToken))
+                    using (var finalLinkedCts = CancellationTokenSource.CreateLinkedTokenSource(callerCancellationToken, timeoutCancellationToken))
                     {
                         return this.cloudQueue.GetMessagesAsync(
                             batchSize,
