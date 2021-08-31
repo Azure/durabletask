@@ -63,7 +63,16 @@ namespace DurableTask.AzureStorage.Storage
 
             this.blobClient.DefaultRequestOptions.MaximumExecutionTime = StorageMaximumExecutionTime;
 
-            this.tableClient = account.CreateCloudTableClient();
+            if (settings.HasTrackingStoreStorageAccount)
+            {
+                var trackingStoreAccount = settings.TrackingStoreStorageAccountDetails.ToCloudStorageAccount();
+                this.tableClient = trackingStoreAccount.CreateCloudTableClient();
+            }
+            else
+            {
+                this.tableClient = account.CreateCloudTableClient();
+            }
+
             this.tableClient.BufferManager = SimpleBufferManager.Shared;
 
             string historyTableName = settings.HistoryTableName;
