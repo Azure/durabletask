@@ -32,10 +32,6 @@ namespace DurableTask.AzureStorage.Storage
         readonly AzureStorageOrchestrationServiceStats stats;
         readonly CloudTable cloudTable;
 
-        public string Name { get; }
-
-        public Uri Uri => this.cloudTable.Uri;
-
         public Table(AzureStorageClient azureStorageClient, CloudTableClient tableClient, string tableName)
         {
             this.azureStorageClient = azureStorageClient;
@@ -53,6 +49,10 @@ namespace DurableTask.AzureStorage.Storage
             this.stats = stats;
             this.cloudTable = table;
         }
+
+        public string Name { get; }
+
+        public Uri Uri => this.cloudTable.Uri;
 
         public async Task<bool> CreateIfNotExistsAsync()
         {
