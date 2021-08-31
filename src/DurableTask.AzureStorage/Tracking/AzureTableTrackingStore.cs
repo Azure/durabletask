@@ -1207,7 +1207,7 @@ namespace DurableTask.AzureStorage.Tracking
                 this.taskHubName,
                 instanceId,
                 executionId,
-                historyEventBatch.Count , // exclude sentinel from count
+                historyEventBatch.Count -1, // exclude sentinel from count
                 numberOfTotalEvents,
                 historyEventNamesBuffer.ToString(0, historyEventNamesBuffer.Length - 1), // remove trailing comma
                 episodeNumber,
