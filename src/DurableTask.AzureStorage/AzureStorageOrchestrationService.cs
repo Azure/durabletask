@@ -101,15 +101,10 @@ namespace DurableTask.AzureStorage
 
             this.settings = settings;
 
-            this.azureStorageClient = new AzureStorageClient(settings, storageAccountName);
+            this.azureStorageClient = new AzureStorageClient(settings);
 
+            this.storageAccountName = this.azureStorageClient.StorageAccountName;
             this.stats = this.azureStorageClient.Stats;
- 
-            CloudStorageAccount account = settings.StorageAccountDetails == null
-                ? CloudStorageAccount.Parse(settings.StorageConnectionString)
-                : settings.StorageAccountDetails.ToCloudStorageAccount();
-
-            this.storageAccountName = account.Credentials.AccountName;
 
             string compressedMessageBlobContainerName = $"{settings.TaskHubName.ToLowerInvariant()}-largemessages";
             NameValidator.ValidateContainerName(compressedMessageBlobContainerName);
@@ -128,14 +123,7 @@ namespace DurableTask.AzureStorage
 
             if (customInstanceStore == null)
             {
-                if (settings.HasTrackingStoreStorageAccount)
-                {
-                    this.trackingStore = new AzureTableTrackingStore(settings, this.messageManager, this.stats, settings.TrackingStoreStorageAccountDetails.ToCloudStorageAccount());
-                }
-                else
-                {
-                    this.trackingStore = new AzureTableTrackingStore(settings, this.messageManager, this.stats, account);
-                }
+                this.trackingStore = new AzureTableTrackingStore(this.azureStorageClient, this.messageManager);
             }
             else
             {
