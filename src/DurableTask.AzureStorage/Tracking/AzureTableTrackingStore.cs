@@ -525,65 +525,12 @@ namespace DurableTask.AzureStorage.Tracking
                 return Array.Empty<OrchestrationState>();
             }
 
-<<<<<<< HEAD
-            // Example:
-            // "PartitionKey eq '02717dd1-2eda-47a0-9372-62a1bfa47f46' or PartitionKey eq '0d1c021f-63a3-4678-9495-63025491a091' or PartitionKey eq '0fd59a43-1925-456b-99a2-7c13ac66ce2b'"
-            var queryBuilder = new StringBuilder(1024);
-            int count = 0;
-            foreach (string id in instanceIds)
-            {
-                if (count > 0)
-                {
-                    queryBuilder.Append(" or ");
-                }
-
-                queryBuilder.Append("PartitionKey eq '").Append(id).Append('\'');
-                count++;
-            }
-
-            // The caller of this method only cares about the instance ID, execution ID, and created time.
-            var query = new TableQuery
-            {
-                SelectColumns = new[] { "ExecutionId", "CreatedTime" },
-                FilterString = queryBuilder.ToString()
-            };
-
-            var tableEntitiesResponseInfo = await this.InstancesTable.ExecuteQueryAsync(query);
-
-            var instances = tableEntitiesResponseInfo.ReturnedEntities;
-            var result = new List<OrchestrationState>(instances.Count);
-            foreach (DynamicTableEntity entity in instances)
-            {
-                var state = new OrchestrationState
-                {
-                    OrchestrationInstance = new OrchestrationInstance
-                    {
-                        InstanceId = entity.PartitionKey,
-                        ExecutionId = entity.Properties["ExecutionId"].StringValue,
-                    },
-                    CreatedTime = entity.Properties["CreatedTime"].DateTime.GetValueOrDefault(),
-                };
-
-                result.Add(state);
-            }
-
-            // Just write one trace to convey the fact that there was only one storage call
-            this.settings.Logger.FetchedInstanceStatus(
-                this.storageAccountName,
-                this.taskHubName,
-                string.Join(",", result.Select(state => state.OrchestrationInstance.InstanceId)),
-                string.Join(",", result.Select(state => state.OrchestrationInstance.ExecutionId)),
-                tableEntitiesResponseInfo.ElapsedMilliseconds);
-
-            return result;
-=======
             // In theory this could exceed MaxStorageOperationConcurrency, but the hard maximum of parallel requests is tied to control queue
             // batch size, which is generally roughly the same value as MaxStorageOperationConcurrency. In almost every case, we would expect this
             // to only be a small handful of parallel requests, so keeping the code simple until the storage refactor adds global throttling.
             var instanceQueries = instanceIds.Select(instance => this.GetStateAsync(instance, allExecutions: true, fetchInput: false));
             IEnumerable<IList<OrchestrationState>> instanceQueriesResults = await Task.WhenAll(instanceQueries);
-            return instanceQueriesResults.SelectMany(result => result).ToList();
->>>>>>> refactorBaseBranch
+            return instanceQueriesResults.SelectMany(result => result).Where(orchestrationState => orchestrationState != null).ToList();
         }
 
         /// <inheritdoc />
