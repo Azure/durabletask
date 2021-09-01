@@ -1169,7 +1169,6 @@ namespace DurableTask.AzureStorage.Tracking
             try
             {
                 resultInfo = await this.HistoryTable.ExecuteBatchAsync(historyEventBatch, "InsertOrReplace History");
-                this.stats.TableEntitiesWritten.Increment(historyEventBatch.Count);
             }
             catch (DurableTaskStorageException ex)
             {

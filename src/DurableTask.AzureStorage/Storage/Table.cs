@@ -80,8 +80,6 @@ namespace DurableTask.AzureStorage.Storage
             TableOperation tableOperation = TableOperation.Replace(tableEntity);
 
             await ExecuteAsync(tableOperation, "Replace");
-
-            this.stats.TableEntitiesWritten.Increment();
         }
 
         public async Task DeleteAsync(DynamicTableEntity tableEntity)
@@ -96,8 +94,6 @@ namespace DurableTask.AzureStorage.Storage
             TableOperation tableOperation = TableOperation.Insert(tableEntity);
 
             await ExecuteAsync(tableOperation, "Insert");
-
-            this.stats.TableEntitiesWritten.Increment();
         }
 
         public async Task MergeAsync(DynamicTableEntity tableEntity)
@@ -105,8 +101,6 @@ namespace DurableTask.AzureStorage.Storage
             TableOperation tableOperation = TableOperation.Merge(tableEntity);
 
             await ExecuteAsync(tableOperation, "Merge");
-
-            this.stats.TableEntitiesWritten.Increment();
         }
 
         public async Task InsertOrMergeAsync(DynamicTableEntity tableEntity)
@@ -114,8 +108,6 @@ namespace DurableTask.AzureStorage.Storage
             TableOperation tableOperation = TableOperation.InsertOrMerge(tableEntity);
 
             await ExecuteAsync(tableOperation, "InsertOrMerge");
-
-            this.stats.TableEntitiesWritten.Increment();
         }
 
         public async Task InsertOrReplaceAsync(DynamicTableEntity tableEntity)
@@ -123,8 +115,6 @@ namespace DurableTask.AzureStorage.Storage
             TableOperation tableOperation = TableOperation.InsertOrReplace(tableEntity);
 
             await ExecuteAsync(tableOperation, "InsertOrReplace");
-
-            this.stats.TableEntitiesWritten.Increment();
         }
 
         private async Task ExecuteAsync(TableOperation operation, string operationType)
@@ -132,6 +122,8 @@ namespace DurableTask.AzureStorage.Storage
             var storageTableResult = await this.azureStorageClient.MakeStorageRequest<TableResult>(
                 (context, cancellationToken) => this.cloudTable.ExecuteAsync(operation, null, context, cancellationToken),
             "Table Execute " + operationType);
+
+            this.stats.TableEntitiesWritten.Increment();
         }
 
         public async Task<TableResultResponseInfo> DeleteBatchAsync(IList<DynamicTableEntity> entityBatch)
@@ -191,6 +183,8 @@ namespace DurableTask.AzureStorage.Storage
             stopwatch.Stop();
             elapsedMilliseconds += stopwatch.ElapsedMilliseconds;
             requestCount++;
+
+            this.stats.TableEntitiesWritten.Increment(batchOperation.Count);
 
             return new TableResultResponseInfo
             {
