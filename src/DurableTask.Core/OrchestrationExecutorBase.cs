@@ -31,14 +31,39 @@ namespace DurableTask.Core
             this.runtimeState = runtimeState ?? throw new ArgumentNullException(nameof(runtimeState));
         }
 
-        public virtual Task<IEnumerable<OrchestratorAction>> ExecuteAsync()
+        public virtual async Task<IEnumerable<OrchestratorAction>> ExecuteAsync()
         {
-            return this.OnExecuteAsync(this.runtimeState.PastEvents, this.runtimeState.NewEvents);
+            try
+            {
+                return await this.OnExecuteAsync(this.runtimeState.PastEvents, this.runtimeState.NewEvents);
+            }
+            catch (Exception e)
+            {
+                return CreateInternalFailureActionResult(e);
+            }
         }
 
-        public virtual Task<IEnumerable<OrchestratorAction>> ExecuteNewEventsAsync()
+        public virtual async Task<IEnumerable<OrchestratorAction>> ExecuteNewEventsAsync()
         {
-            return this.OnExecuteAsync(Enumerable.Empty<HistoryEvent>(), this.runtimeState.NewEvents);
+            try
+            {
+                return await this.OnExecuteAsync(Enumerable.Empty<HistoryEvent>(), this.runtimeState.NewEvents);
+            }
+            catch (Exception e)
+            {
+                return CreateInternalFailureActionResult(e);
+            }
+        }
+
+        static IEnumerable<OrchestratorAction> CreateInternalFailureActionResult(Exception e)
+        {
+            yield return new OrchestrationCompleteOrchestratorAction
+            {
+                Id = -1,
+                OrchestrationStatus = OrchestrationStatus.Failed,
+                Result = e.Message,
+                Details = $"An internal failure occurred while trying to execute the orchestration: {e}",
+            };
         }
 
         protected abstract Task<IEnumerable<OrchestratorAction>> OnExecuteAsync(IEnumerable<HistoryEvent> pastEvents, IEnumerable<HistoryEvent> newEvents);
