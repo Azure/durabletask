@@ -415,7 +415,6 @@ namespace DurableTask.AzureStorage.Tracking
             failedQuerySegment = TableQuery.CombineFilters(failedQuerySegment, TableOperators.Or, failedEventFilter);
             failedQuerySegment = TableQuery.CombineFilters(failedQuerySegment, TableOperators.Or, failedSubOrchestrationEventFilter);
 
-
             rowsToUpdateFilterCondition = TableQuery.CombineFilters(rowsToUpdateFilterCondition, TableOperators.And, failedQuerySegment);
 
             var rowsToUpdateQuery = new TableQuery().Where(rowsToUpdateFilterCondition);
