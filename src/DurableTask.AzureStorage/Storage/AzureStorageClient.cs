@@ -30,24 +30,11 @@ namespace DurableTask.AzureStorage.Storage
         readonly CloudQueueClient queueClient;
         readonly CloudTableClient tableClient;
 
-        public AzureStorageClient(AzureStorageOrchestrationServiceSettings settings)
-        {
-            this.Settings = settings;
-
-            this.account = settings.StorageAccountDetails == null
-                ? CloudStorageAccount.Parse(settings.StorageConnectionString)
-                : settings.StorageAccountDetails.ToCloudStorageAccount();
-
-            this.StorageAccountName = account.Credentials.AccountName;
-
-            this.Stats = new AzureStorageOrchestrationServiceStats();
-            this.queueClient = account.CreateCloudQueueClient();
-            this.queueClient.BufferManager = SimpleBufferManager.Shared;
-            this.blobClient = account.CreateCloudBlobClient();
-            this.blobClient.BufferManager = SimpleBufferManager.Shared;
-
-            this.blobClient.DefaultRequestOptions.MaximumExecutionTime = StorageMaximumExecutionTime;
-        }
+        public AzureStorageClient(AzureStorageOrchestrationServiceSettings settings) : 
+            this(settings.StorageAccountDetails == null ?
+                CloudStorageAccount.Parse(settings.StorageConnectionString) : settings.StorageAccountDetails.ToCloudStorageAccount(),
+                settings)
+        { }
 
         public AzureStorageClient(CloudStorageAccount account, AzureStorageOrchestrationServiceSettings settings)
         {
