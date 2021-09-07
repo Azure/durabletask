@@ -1,0 +1,103 @@
+trigger: none
+pr: none
+
+pool:
+  vmImage: 'windows-latest'
+
+steps:
+# Start by restoring all the dependencies. This needs to be its own task
+# from what I can tell.
+- task: DotNetCoreCLI@2
+  displayName: 'Restore nuget dependencies'
+  inputs:
+    command: restore
+    verbosityRestore: Minimal
+    projects: '**/*.csproj'
+
+# Build the entire solution. This will also build all the tests, which
+# isn't strictly necessary...
+- task: VSBuild@1
+  displayName: 'Build'
+  inputs:
+    solution: '**/*.sln'
+    vsVersion: 16.0
+    logFileVerbosity: minimal
+    configuration: Release
+    msbuildArgs: /p:GITHUB_RUN_NUMBER=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+
+# Authenticode sign all the DLLs with the Microsoft certificate.
+# This appears to be an in-place signing job, which is convenient.
+- task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
+  displayName: 'ESRP CodeSigning: Authenticode'
+  inputs:
+    ConnectedServiceName: 'ESRP Service'
+    FolderPath: 'src'
+    Pattern: 'DurableTask.*.dll'
+    signConfigType: inlineSignParams
+    inlineOperation: |
+     [    
+        {
+            "KeyCode": "CP-230012",
+            "OperationCode": "SigntoolSign",
+            "Parameters": {
+                "OpusName": "Microsoft",
+                "OpusInfo": "http://www.microsoft.com",
+                "FileDigest": "/fd \"SHA256\"",
+                "PageHash": "/NPH",
+                "TimeStamp": "/tr \"http://rfc3161.gtm.corp.microsoft.com/TSS/HttpTspServer\" /td sha256"
+            },
+            "ToolName": "sign",
+            "ToolVersion": "1.0"
+          },
+          {
+              "KeyCode": "CP-230012",
+              "OperationCode": "SigntoolVerify",
+              "Parameters": {},
+              "ToolName": "sign",
+              "ToolVersion": "1.0"
+          }
+      ]
+
+# Packaging needs to be a separate step from build.
+# This will automatically pick up the signed DLLs.
+- task: DotNetCoreCLI@2
+  displayName: Generate nuget packages
+  inputs:
+    command: pack
+    verbosityPack: Minimal
+    configuration: Release
+    nobuild: true
+    packDirectory: $(build.artifactStagingDirectory)
+    packagesToPack: 'src/**/*.csproj'
+
+# Digitally sign all the nuget packages with the Microsoft certificate.
+# This appears to be an in-place signing job, which is convenient.
+- task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
+  displayName: 'ESRP CodeSigning: Nupkg'
+  inputs:
+    ConnectedServiceName: 'ESRP Service'
+    FolderPath: $(build.artifactStagingDirectory)
+    Pattern: '*.nupkg'
+    signConfigType: inlineSignParams
+    inlineOperation: |
+     [    
+        {
+            "KeyCode": "CP-401405",
+            "OperationCode": "NuGetSign",
+            "Parameters": {},
+            "ToolName": "sign",
+            "ToolVersion": "1.0"
+        },
+        {
+            "KeyCode": "CP-401405",
+            "OperationCode": "NuGetVerify",
+            "Parameters": {},
+            "ToolName": "sign",
+            "ToolVersion": "1.0"
+        }
+     ]
+
+# Make the nuget packages available for download in the ADO portal UI
+- publish: $(build.artifactStagingDirectory)
+  displayName: 'Publish nuget packages to Artifacts'
+  artifact: PackageOutput
