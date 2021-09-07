@@ -406,13 +406,17 @@ namespace DurableTask.AzureStorage.Tracking
             var rowsToUpdateFilterCondition = partitionFilter;
             var executionIdFilter = TableQuery.GenerateFilterCondition("ExecutionId", QueryComparisons.Equal, executionId);
             rowsToUpdateFilterCondition = TableQuery.CombineFilters(rowsToUpdateFilterCondition, TableOperators.And, executionIdFilter);
+
             var orchestrationStatusFilter = TableQuery.GenerateFilterCondition("OrchestrationStatus", QueryComparisons.Equal, "Failed");
-            rowsToUpdateFilterCondition = TableQuery.CombineFilters(rowsToUpdateFilterCondition, TableOperators.And, orchestrationStatusFilter);
-            var failedEventFilter = TableQuery.CombineFilters(
-                TableQuery.GenerateFilterCondition("EventType", QueryComparisons.Equal, "Failed"),
-                TableOperators.Or,
-                TableQuery.GenerateFilterCondition("EventType", QueryComparisons.Equal, "SubOrchestrationInstanceFailed"));
-            rowsToUpdateFilterCondition = TableQuery.CombineFilters(rowsToUpdateFilterCondition, TableOperators.Or, failedEventFilter);
+            var failedEventFilter = TableQuery.GenerateFilterCondition("EventType", QueryComparisons.Equal, "Failed");
+            var failedSubOrchestrationEventFilter = TableQuery.GenerateFilterCondition("EventType", QueryComparisons.Equal, "SubOrchestrationInstanceFailed");
+
+            var failedQuerySegment = orchestrationStatusFilter;
+            failedQuerySegment = TableQuery.CombineFilters(failedQuerySegment, TableOperators.Or, failedEventFilter);
+            failedQuerySegment = TableQuery.CombineFilters(failedQuerySegment, TableOperators.Or, failedSubOrchestrationEventFilter);
+
+
+            rowsToUpdateFilterCondition = TableQuery.CombineFilters(rowsToUpdateFilterCondition, TableOperators.And, failedQuerySegment);
 
             var rowsToUpdateQuery = new TableQuery().Where(rowsToUpdateFilterCondition);
 
