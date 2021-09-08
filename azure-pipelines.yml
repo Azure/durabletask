@@ -6,21 +6,21 @@ pool:
 
 steps:
 # Start by restoring all the dependencies. This needs to be its own task
-# from what I can tell.
+# from what I can tell. We specifically only target DurableTask.AzureStorage
+# and its direct dependencies.
 - task: DotNetCoreCLI@2
   displayName: 'Restore nuget dependencies'
   inputs:
     command: restore
     verbosityRestore: Minimal
-    projects: '**/*.csproj'
+    projects: 'src/DurableTask.AzureStorage/DurableTask.AzureStorage.sln'
 
-# Build the entire solution. This will also build all the tests, which
-# isn't strictly necessary...
+# Build the filtered solution in release mode, specifying the continuous integration flag.
 - task: VSBuild@1
   displayName: 'Build'
   inputs:
-    solution: '**/*.sln'
-    vsVersion: 16.0
+    solution: 'src/DurableTask.AzureStorage/DurableTask.AzureStorage.sln'
+    vsVersion: '16.0'
     logFileVerbosity: minimal
     configuration: Release
     msbuildArgs: /p:GITHUB_RUN_NUMBER=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
