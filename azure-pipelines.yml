@@ -68,7 +68,7 @@ steps:
     configuration: Release
     nobuild: true
     packDirectory: $(build.artifactStagingDirectory)
-    packagesToPack: 'src/**/*.csproj'
+    packagesToPack: 'src/DurableTask.AzureStorage/DurableTask.AzureStorage.sln'
 
 # Digitally sign all the nuget packages with the Microsoft certificate.
 # This appears to be an in-place signing job, which is convenient.
