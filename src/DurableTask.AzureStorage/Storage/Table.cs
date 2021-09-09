@@ -148,7 +148,7 @@ namespace DurableTask.AzureStorage.Storage
                 List<DynamicTableEntity> batchForDeletion = entityBatch.Skip(pageOffset).Take(100).ToList();
 
                 var batch = new TableBatchOperation();
-                foreach (DynamicTableEntity item in entityBatch)
+                foreach (DynamicTableEntity item in batchForDeletion)
                 {
                     batch = batchOperation(batch, item);
                 }
