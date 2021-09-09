@@ -390,7 +390,7 @@ namespace DurableTask.AzureStorage.Tracking
             var partitionFilter = TableQuery.GenerateFilterCondition(PartitionKeyProperty, QueryComparisons.Equal, sanitizedInstanceId);
 
             var orchestratorStartedFilterCondition = partitionFilter;
-            var orchestratorStartedEventFilter = TableQuery.GenerateFilterCondition("EventType", QueryComparisons.Equal, "OrchestratorStarted");
+            var orchestratorStartedEventFilter = TableQuery.GenerateFilterCondition("EventType", QueryComparisons.Equal, nameof(EventType.OrchestratorStarted));
             orchestratorStartedFilterCondition = TableQuery.CombineFilters(orchestratorStartedFilterCondition, TableOperators.And, orchestratorStartedEventFilter);
 
             var orchestratorStartedQuery = new TableQuery().Where(orchestratorStartedFilterCondition);
@@ -408,8 +408,8 @@ namespace DurableTask.AzureStorage.Tracking
             rowsToUpdateFilterCondition = TableQuery.CombineFilters(rowsToUpdateFilterCondition, TableOperators.And, executionIdFilter);
 
             var orchestrationStatusFilter = TableQuery.GenerateFilterCondition("OrchestrationStatus", QueryComparisons.Equal, "Failed");
-            var failedEventFilter = TableQuery.GenerateFilterCondition("EventType", QueryComparisons.Equal, "Failed");
-            var failedSubOrchestrationEventFilter = TableQuery.GenerateFilterCondition("EventType", QueryComparisons.Equal, "SubOrchestrationInstanceFailed");
+            var failedEventFilter = TableQuery.GenerateFilterCondition("EventType", QueryComparisons.Equal, nameof(EventType.TaskFailed));
+            var failedSubOrchestrationEventFilter = TableQuery.GenerateFilterCondition("EventType", QueryComparisons.Equal, nameof(EventType.SubOrchestrationInstanceFailed));
 
             var failedQuerySegment = orchestrationStatusFilter;
             failedQuerySegment = TableQuery.CombineFilters(failedQuerySegment, TableOperators.Or, failedEventFilter);
@@ -437,11 +437,12 @@ namespace DurableTask.AzureStorage.Tracking
                 // delete TaskScheduled corresponding to TaskFailed event 
                 if (entity.Properties["EventType"].StringValue == nameof(EventType.TaskFailed))
                 {
-                    var taskScheduledId = entity.Properties["TaskScheduledId"].Int32Value.ToString();
+                    var taskScheduledId = entity.Properties["TaskScheduledId"].Int32Value.Value;
 
                     var taskScheduledFilterCondition = partitionFilter;
                     taskScheduledFilterCondition = TableQuery.CombineFilters(taskScheduledFilterCondition, TableOperators.And, executionIdFilter);
-                    var eventIdFilter = TableQuery.GenerateFilterCondition("EventId", QueryComparisons.Equal, taskScheduledId);
+
+                    var eventIdFilter = TableQuery.GenerateFilterConditionForInt("EventId", QueryComparisons.Equal, taskScheduledId);
                     taskScheduledFilterCondition = TableQuery.CombineFilters(taskScheduledFilterCondition, TableOperators.And, eventIdFilter);
                     var taskScheduledEventFilter = TableQuery.GenerateFilterCondition("EventType", QueryComparisons.Equal, nameof(EventType.TaskScheduled));
                     taskScheduledFilterCondition = TableQuery.CombineFilters(taskScheduledFilterCondition, TableOperators.And, taskScheduledEventFilter);
@@ -464,11 +465,12 @@ namespace DurableTask.AzureStorage.Tracking
                 if (entity.Properties["EventType"].StringValue == nameof(EventType.SubOrchestrationInstanceFailed))
                 {
                     hasFailedSubOrchestrations = true;
-                    var subOrchestrationId = entity.Properties["TaskScheduledId"].Int32Value.ToString();
+                    var subOrchestrationId = entity.Properties["TaskScheduledId"].Int32Value.Value;
 
                     var subOrchestratorCreatedFilterCondition = partitionFilter;
                     subOrchestratorCreatedFilterCondition = TableQuery.CombineFilters(subOrchestratorCreatedFilterCondition, TableOperators.And, executionIdFilter);
-                    var eventIdFilter = TableQuery.GenerateFilterCondition("EventId", QueryComparisons.Equal, subOrchestrationId);
+
+                    var eventIdFilter = TableQuery.GenerateFilterConditionForInt("EventId", QueryComparisons.Equal, subOrchestrationId);
                     subOrchestratorCreatedFilterCondition = TableQuery.CombineFilters(subOrchestratorCreatedFilterCondition, TableOperators.And, eventIdFilter);
                     var subOrchestrationCreatedFilter = TableQuery.GenerateFilterCondition("EventType", QueryComparisons.Equal, nameof(EventType.SubOrchestrationInstanceCreated));
                     subOrchestratorCreatedFilterCondition = TableQuery.CombineFilters(subOrchestratorCreatedFilterCondition, TableOperators.And, subOrchestrationCreatedFilter);
