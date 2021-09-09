@@ -8,12 +8,6 @@
     <LangVersion>8.0</LangVersion>
     <!-- See https://github.com/Azure/durabletask/issues/428 -->
     <NoWarn>NU5125,NU5048</NoWarn>
-    <!-- Code Analysis Settings -->
-    <RunCodeAnalysis>True</RunCodeAnalysis>
-    <RunCodeAnalysis Condition=" '$(Configuration)' == 'Debug' ">False</RunCodeAnalysis>
-    <!-- Disable code analysis for netstandard2.0: https://github.com/dotnet/core/issues/758 -->
-    <RunCodeAnalysis Condition=" '$(TargetFramework)' == 'netstandard2.0'">False</RunCodeAnalysis>
-    <CodeAnalysisTreatWarningsAsErrors>True</CodeAnalysisTreatWarningsAsErrors>
     <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
     <!-- SourceLink Settings-->
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
