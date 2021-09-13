@@ -1568,7 +1568,11 @@ namespace DurableTask.AzureStorage
                 creationMessage);
 
             // CompressedBlobName either has a blob path for large messages or is null.
-            string inputStatusOverride = internalMessage.CompressedBlobName;
+            string inputStatusOverride = null;
+            if (internalMessage.CompressedBlobName != null)
+            {
+                inputStatusOverride = this.messageManager.GetBlobUrl(internalMessage.CompressedBlobName);
+            }
 
             await this.trackingStore.SetNewExecutionAsync(
                 executionStartedEvent,
