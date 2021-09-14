@@ -239,7 +239,7 @@ namespace DurableTask.ServiceBus.Tests
 
             state = await this.client.GetOrchestrationStateAsync(instance);
             Assert.AreEqual(OrchestrationStatus.Failed, state.OrchestrationStatus);
-            Assert.IsTrue(state.Output.Contains("suborchestration task"));
+            Assert.IsTrue(state.Output.Contains("sub-orchestration task"));
             Assert.IsTrue(state.Output.Contains("Was a change made to the orchestrator code after this instance had already started running?"));
 
 
@@ -279,7 +279,7 @@ namespace DurableTask.ServiceBus.Tests
 
             state = await this.client.GetOrchestrationStateAsync(instance);
             Assert.AreEqual(OrchestrationStatus.Failed, state.OrchestrationStatus);
-            Assert.IsTrue(state.Output.Contains("suborchestration task"));
+            Assert.IsTrue(state.Output.Contains("sub-orchestration task"));
             Assert.IsTrue(state.Output.Contains("Was a change made to the orchestrator code after this instance had already started running?"));
         }
 
