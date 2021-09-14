@@ -218,7 +218,8 @@ namespace DurableTask.ServiceBus.Tests
 
             OrchestrationState state = await this.client.GetOrchestrationStateAsync(instance);
             Assert.AreEqual(OrchestrationStatus.Failed, state.OrchestrationStatus);
-            Assert.IsTrue(state.Output.Contains("TimerCreatedEvent"));
+            Assert.IsTrue(state.Output.Contains("timer task"));
+            Assert.IsTrue(state.Output.Contains("Was a change made to the orchestrator code after this instance had already started running?"));
 
             instance = await this.client.CreateOrchestrationInstanceAsync(typeof (NonDeterministicOrchestration), "FAILTASK");
 
@@ -227,7 +228,9 @@ namespace DurableTask.ServiceBus.Tests
 
             state = await this.client.GetOrchestrationStateAsync(instance);
             Assert.AreEqual(OrchestrationStatus.Failed, state.OrchestrationStatus);
-            Assert.IsTrue(state.Output.Contains("TaskScheduledEvent"));
+            Assert.IsTrue(state.Output.Contains("activity task"));
+            Assert.IsTrue(state.Output.Contains("Was a change made to the orchestrator code after this instance had already started running?"));
+
 
             instance = await this.client.CreateOrchestrationInstanceAsync(typeof (NonDeterministicOrchestration), "FAILSUBORCH");
 
@@ -236,7 +239,9 @@ namespace DurableTask.ServiceBus.Tests
 
             state = await this.client.GetOrchestrationStateAsync(instance);
             Assert.AreEqual(OrchestrationStatus.Failed, state.OrchestrationStatus);
-            Assert.IsTrue(state.Output.Contains("SubOrchestrationInstanceCreatedEvent"));
+            Assert.IsTrue(state.Output.Contains("suborchestration task"));
+            Assert.IsTrue(state.Output.Contains("Was a change made to the orchestrator code after this instance had already started running?"));
+
 
             instance = await this.client.CreateOrchestrationInstanceAsync(typeof (NonDeterministicOrchestration), "PARENTORCH");
 
@@ -245,10 +250,48 @@ namespace DurableTask.ServiceBus.Tests
 
             state = await this.client.GetOrchestrationStateAsync(instance);
             Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
-            Assert.IsTrue(state.Output.Contains("Non-Deterministic workflow detected"));
+            Assert.IsTrue(state.Output.Contains("Was a change made to the orchestrator code after this instance had already started running?"));
+        }
+
+        [TestMethod]
+        public async Task NonDeterminisActivitySubOrchestrationTest()
+        {
+            await this.taskHub.AddTaskOrchestrations(typeof(NonDeterministicOrchestration), typeof(NonDeterministicActivityAndSubOrchestration))
+                .AddTaskActivities(typeof(FirstTask), typeof(SecondTask))
+                .StartAsync();
+            this.taskHub.TaskActivityDispatcher.IncludeDetails = true;
+
+            OrchestrationInstance instance = await this.client.CreateOrchestrationInstanceAsync(typeof(NonDeterministicActivityAndSubOrchestration), "FAILTASK");
+
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, instance, 60);
+            Utils.UnusedParameter(isCompleted);
+
+            OrchestrationState state = await this.client.GetOrchestrationStateAsync(instance);
+            Assert.AreEqual(OrchestrationStatus.Failed, state.OrchestrationStatus);
+            Assert.IsTrue(state.Output.Contains("activity task"));
+            Assert.IsTrue(state.Output.Contains("Was a change made to the orchestrator code after this instance had already started running?"));
+
+
+            instance = await this.client.CreateOrchestrationInstanceAsync(typeof(NonDeterministicOrchestration), "FAILSUBORCH");
+
+            isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, instance, 60);
+            Utils.UnusedParameter(isCompleted);
+
+            state = await this.client.GetOrchestrationStateAsync(instance);
+            Assert.AreEqual(OrchestrationStatus.Failed, state.OrchestrationStatus);
+            Assert.IsTrue(state.Output.Contains("suborchestration task"));
+            Assert.IsTrue(state.Output.Contains("Was a change made to the orchestrator code after this instance had already started running?"));
         }
 
         public sealed class FirstTask : TaskActivity<string, string>
+        {
+            protected override string Execute(TaskContext context, string input)
+            {
+                return input;
+            }
+        }
+
+        public sealed class SecondTask : TaskActivity<string, string>
         {
             protected override string Execute(TaskContext context, string input)
             {
@@ -297,6 +340,32 @@ namespace DurableTask.ServiceBus.Tests
                             context.CreateSubOrchestrationInstance<string>(typeof (NonDeterministicOrchestration),
                                 string.Empty);
                     }
+                }
+
+                return null;
+            }
+        }
+
+
+        public class NonDeterministicActivityAndSubOrchestration : TaskOrchestration<object, string>
+        {
+            public override async Task<object> RunTask(OrchestrationContext context, string input)
+            {
+                await context.ScheduleTask<string>(typeof(FirstTask), string.Empty);
+                if (input == string.Empty)
+                {
+                    return null;
+                }
+
+                if (input == "FAILTASK")
+                {
+                    await context.ScheduleTask<string>(context.IsReplaying ? typeof(FirstTask) : typeof(SecondTask), string.Empty);
+                }
+                else if (input == "FAILSUBORCH")
+                {
+                    await
+                        context.CreateSubOrchestrationInstance<string>(context.IsReplaying ? typeof(NonDeterministicOrchestration) : typeof(NonDeterministicActivityAndSubOrchestration),
+                            string.Empty);
                 }
 
                 return null;

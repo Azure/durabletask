@@ -300,7 +300,7 @@ namespace DurableTask.Core
             {
                 throw new NonDeterministicOrchestrationException(timerCreatedEvent.EventId,
                     $"A previous execution of this orchestration scheduled a timer task with sequence number {taskId} but "
-                    + "the current replay execution hasn't (yet?) scheduled this task. Was a change made to the orchestrator"
+                    + "the current replay execution hasn't (yet?) scheduled this task. Was a change made to the orchestrator "
                     + "code after this instance had already started running?");
             }
 
