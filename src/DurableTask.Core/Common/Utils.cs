@@ -81,7 +81,12 @@ namespace DurableTask.Core.Common
             return input;
         }
 
-        internal static JArray ConvertToJArray(string input)
+        /// <summary>
+        /// Convert input string to JArray
+        /// </summary>
+        /// <param name="input"></param>
+        /// <returns></returns>
+        public static JArray ConvertToJArray(string input)
         {
             JArray jArray;
             using (var stringReader = new StringReader(input))

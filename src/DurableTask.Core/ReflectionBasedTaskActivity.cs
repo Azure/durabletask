@@ -166,7 +166,11 @@ namespace DurableTask.Core
             return MethodInfo.Invoke(ActivityObject, inputParameters);
         }
 
-        string MethodInfoString()
+        /// <summary>
+        /// Get method info string
+        /// </summary>
+        /// <returns></returns>
+        public string MethodInfoString()
         {
             return $"{MethodInfo.ReflectedType?.FullName}.{MethodInfo.Name}";
         }
