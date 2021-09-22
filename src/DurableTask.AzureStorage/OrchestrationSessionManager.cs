@@ -21,6 +21,7 @@ namespace DurableTask.AzureStorage
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Messaging;
     using DurableTask.AzureStorage.Monitoring;
+    using DurableTask.AzureStorage.Partitioning;
     using DurableTask.AzureStorage.Storage;
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
@@ -73,20 +74,20 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        public void RemoveQueue(string partitionId)
+        public void RemoveQueue(string partitionId, CloseReason? reason, string caller)
         {
             if (this.ownedControlQueues.TryRemove(partitionId, out ControlQueue controlQueue))
             {
-                controlQueue.Release();
+                controlQueue.Release(reason, caller);
             }
         }
 
 
-        public void ReleaseQueue(string partitionId)
+        public void ReleaseQueue(string partitionId, CloseReason? reason, string caller)
         {
             if (this.ownedControlQueues.TryGetValue(partitionId, out ControlQueue controlQueue))
             {
-                controlQueue.Release();
+                controlQueue.Release(reason, caller);
             }
         }
 
@@ -97,7 +98,7 @@ namespace DurableTask.AzureStorage
                 if (ownedControlQueue.IsReleased)
                 {
                     // The easiest way to resume listening is to re-add a new queue that has not been released.
-                    this.RemoveQueue(partitionId);
+                    this.RemoveQueue(partitionId, null, "OrchestrationSessionManager ResumeListeningIfOwnQueue");
                     this.AddQueue(partitionId, controlQueue, shutdownToken);
                 }
             }
@@ -125,9 +126,9 @@ namespace DurableTask.AzureStorage
                 partitionId,
                 $"Started listening for messages on queue {controlQueue.Name}.");
 
-            try
+            while (!controlQueue.IsReleased)
             {
-                while (!controlQueue.IsReleased)
+                try
                 {
                     // Every dequeue operation has a common trace ID so that batches of dequeued messages can be correlated together.
                     // Both the dequeue traces and the processing traces will share the same "related" trace activity ID.
@@ -147,16 +148,23 @@ namespace DurableTask.AzureStorage
                         this.AddMessageToPendingOrchestration(controlQueue, filteredMessages, traceActivityId, cancellationToken);
                     }
                 }
+                catch (Exception e)
+                {
+                    this.settings.Logger.PartitionManagerWarning(
+                        this.storageAccountName,
+                        this.settings.TaskHubName,
+                        this.settings.WorkerId,
+                        partitionId,
+                        $"Exception in the dequeue loop for control queue {controlQueue.Name}. Exception: {e}");
+                }
             }
-            finally
-            {
-                this.settings.Logger.PartitionManagerInfo(
-                    this.storageAccountName,
-                    this.settings.TaskHubName,
-                    this.settings.WorkerId,
-                    partitionId,
-                    $"Stopped listening for messages on queue {controlQueue.Name}.");
-            }
+            
+            this.settings.Logger.PartitionManagerInfo(
+                this.storageAccountName,
+                this.settings.TaskHubName,
+                this.settings.WorkerId,
+                partitionId,
+                $"Stopped listening for messages on queue {controlQueue.Name}.");
         }
 
         /// <summary>
