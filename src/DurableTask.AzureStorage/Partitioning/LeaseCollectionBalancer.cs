@@ -516,7 +516,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 lease.PartitionId,
                 renewed,
                 lease.Token,
-                errorMessage);
+                $"Renewal result for {this.leaseType}: {renewed}");
 
             if (!renewed)
             {
@@ -526,7 +526,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.workerName,
                     lease.PartitionId,
                     lease.Token,
-                    errorMessage);
+                    $"Renewal failed for {this.leaseType}. Exception: {errorMessage}");
             }
 
             return renewed;
@@ -555,7 +555,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.taskHub,
                     this.workerName,
                     lease.PartitionId,
-                    ex.ToString());
+                    $"Error in {this.leaseType} lease acquisition: {ex}");
             }
 
             return acquired;
@@ -581,7 +581,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.taskHub,
                     this.workerName,
                     lease.PartitionId,
-                    $"Failure in {this.leaseType} lease stealing: {ex.ToString()}");
+                    $"Failure in {this.leaseType} lease stealing: {ex}");
             }
 
             return stolen;
@@ -760,7 +760,7 @@ namespace DurableTask.AzureStorage.Partitioning
                                 partitionManager.taskHub,
                                 partitionManager.workerName,
                                 lease.PartitionId,
-                                $"Failed during notification of observers of {this.partitionManager.leaseManager} lease: {ex.ToString()}");
+                                $"Failed during notification of observers of {this.partitionManager.leaseManager} lease: {ex}");
                         }
                     }
                 }
