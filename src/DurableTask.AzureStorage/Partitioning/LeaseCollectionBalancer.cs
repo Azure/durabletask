@@ -516,7 +516,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 lease.PartitionId,
                 renewed,
                 lease.Token,
-                $"Renewal result for {this.leaseType}: {renewed}");
+                $"Renewal result for {this.leaseType}: {renewed}. {errorMessage}");
 
             if (!renewed)
             {

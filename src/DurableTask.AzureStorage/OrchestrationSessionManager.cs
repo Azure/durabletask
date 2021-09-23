@@ -148,6 +148,11 @@ namespace DurableTask.AzureStorage
                         this.AddMessageToPendingOrchestration(controlQueue, filteredMessages, traceActivityId, cancellationToken);
                     }
                 }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    // shutting down
+                    break;
+                }
                 catch (Exception e)
                 {
                     this.settings.Logger.PartitionManagerWarning(
@@ -156,6 +161,8 @@ namespace DurableTask.AzureStorage
                         this.settings.WorkerId,
                         partitionId,
                         $"Exception in the dequeue loop for control queue {controlQueue.Name}. Exception: {e}");
+
+                    Thread.Sleep(TimeSpan.FromSeconds(1));
                 }
             }
             
