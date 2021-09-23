@@ -20,6 +20,7 @@ namespace DurableTask.AzureStorage.Messaging
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Monitoring;
+    using DurableTask.AzureStorage.Partitioning;
     using DurableTask.AzureStorage.Storage;
 
     class ControlQueue : TaskHubQueue, IDisposable
@@ -182,7 +183,7 @@ namespace DurableTask.AzureStorage.Messaging
                     }
                 }
 
-                this.IsReleased = true;
+                this.Release(CloseReason.Shutdown, "ControlQueue GetMessagesAsync");
                 return EmptyMessageList;
             }
         }
@@ -211,13 +212,18 @@ namespace DurableTask.AzureStorage.Messaging
             return base.DeleteMessageAsync(message, session);
         }
 
-        public void Release()
+        public void Release(CloseReason? reason, string caller)
         {
             this.releaseTokenSource.Cancel();
 
-            // Note that we also set IsReleased to true when the dequeue loop ends, so this is
-            // somewhat redundant. This one was added mostly to make tests run more predictably.
             this.IsReleased = true;
+
+            this.settings.Logger.PartitionManagerInfo(
+                this.storageAccountName,
+                this.settings.TaskHubName,
+                this.settings.WorkerId,
+                this.Name,
+                $"{caller} is releasing lease on {this.Name} for reason: {reason}");
         }
 
         public virtual void Dispose()
