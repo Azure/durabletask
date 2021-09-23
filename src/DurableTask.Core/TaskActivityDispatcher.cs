@@ -162,12 +162,16 @@ namespace DurableTask.Core
                     {
                         string output = await taskActivity.RunAsync(context, scheduledEvent.Input);
                         eventToRespond = new TaskCompletedEvent(-1, scheduledEvent.EventId, output);
+                        eventToRespond.ActionId = scheduledEvent.ActionId;
+                        eventToRespond.APIName = scheduledEvent.APIName;
                     }
                     catch (TaskFailureException e)
                     {
                         TraceHelper.TraceExceptionInstance(TraceEventType.Error, "TaskActivityDispatcher-ProcessTaskFailure", taskMessage.OrchestrationInstance, e);
                         string details = this.IncludeDetails ? e.Details : null;
                         eventToRespond = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details);
+                        eventToRespond.ActionId = scheduledEvent.ActionId;
+                        eventToRespond.APIName = scheduledEvent.APIName;
                         this.logHelper.TaskActivityFailure(orchestrationInstance, scheduledEvent.Name, (TaskFailedEvent)eventToRespond, e);
                         CorrelationTraceClient.Propagate(() => CorrelationTraceClient.TrackException(e));
                     }
@@ -178,6 +182,8 @@ namespace DurableTask.Core
                             ? $"Unhandled exception while executing task: {e}\n\t{e.StackTrace}"
                             : null;
                         eventToRespond = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details);
+                        eventToRespond.ActionId = scheduledEvent.ActionId;
+                        eventToRespond.APIName = scheduledEvent.APIName;
                         this.logHelper.TaskActivityFailure(orchestrationInstance, scheduledEvent.Name, (TaskFailedEvent)eventToRespond, e);
                     }
 

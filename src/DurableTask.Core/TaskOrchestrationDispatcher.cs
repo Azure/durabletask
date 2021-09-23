@@ -796,7 +796,9 @@ namespace DurableTask.Core
             {
                 Name = scheduleTaskOrchestratorAction.Name,
                 Version = scheduleTaskOrchestratorAction.Version,
-                Input = scheduleTaskOrchestratorAction.Input
+                Input = scheduleTaskOrchestratorAction.Input,
+                APIName = scheduleTaskOrchestratorAction.APIName,
+                ActionId = scheduleTaskOrchestratorAction.ActionId,
             };
 
             taskMessage.Event = scheduledEvent;
@@ -807,7 +809,9 @@ namespace DurableTask.Core
                 scheduledEvent = new TaskScheduledEvent(scheduleTaskOrchestratorAction.Id)
                 {
                     Name = scheduleTaskOrchestratorAction.Name,
-                    Version = scheduleTaskOrchestratorAction.Version
+                    Version = scheduleTaskOrchestratorAction.Version,
+                    APIName = scheduleTaskOrchestratorAction.APIName,
+                    ActionId = scheduleTaskOrchestratorAction.ActionId,
                 };
             }
 
@@ -828,7 +832,9 @@ namespace DurableTask.Core
 
             var timerCreatedEvent = new TimerCreatedEvent(createTimerOrchestratorAction.Id)
             {
-                FireAt = createTimerOrchestratorAction.FireAt
+                FireAt = createTimerOrchestratorAction.FireAt,
+                APIName = createTimerOrchestratorAction.APIName,
+                ActionId = createTimerOrchestratorAction.ActionId,
             };
 
             runtimeState.AddEvent(timerCreatedEvent);
@@ -836,7 +842,9 @@ namespace DurableTask.Core
             taskMessage.Event = new TimerFiredEvent(-1)
             {
                 TimerId = createTimerOrchestratorAction.Id,
-                FireAt = createTimerOrchestratorAction.FireAt
+                FireAt = createTimerOrchestratorAction.FireAt,
+                APIName = createTimerOrchestratorAction.APIName,
+                ActionId = createTimerOrchestratorAction.ActionId,
             };
 
             this.logHelper.CreatingTimer(

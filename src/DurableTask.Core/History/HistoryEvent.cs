@@ -92,6 +92,18 @@ namespace DurableTask.Core.History
         public virtual EventType EventType { get; private set; }
 
         /// <summary>
+        /// TBD.
+        /// </summary>
+        [DataMember]
+        public string APIName { get; set; } = "no_api_provided";
+
+        /// <summary>
+        /// TBD.
+        /// </summary>
+        [DataMember]
+        public int ActionId { get; set; } = -1;
+
+        /// <summary>
         /// Implementation for <see cref="IExtensibleDataObject.ExtensionData"/>.
         /// </summary>
         public ExtensionDataObject ExtensionData { get; set; }

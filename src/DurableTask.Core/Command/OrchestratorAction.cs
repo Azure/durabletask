@@ -21,5 +21,9 @@ namespace DurableTask.Core.Command
         public int Id { get; set; }
 
         public abstract OrchestratorActionType OrchestratorActionType { get; }
+
+        public string APIName { get; set; }
+
+        public int ActionId { get; set; }
     }
 }

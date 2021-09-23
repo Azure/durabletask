@@ -155,14 +155,24 @@ namespace DurableTask.Core
         /// <param name="name">Name of the orchestration as specified by the ObjectCreator</param>
         /// <param name="version">Name of the orchestration as specified by the ObjectCreator</param>
         /// <param name="retryOptions">Retry policy</param>
+        /// <param name="apiName"></param>
+        /// <param name="actionId"></param>
         /// <param name="parameters">Parameters for the TaskActivity.Execute method</param>
         /// <returns>Task that represents the execution of the specified TaskActivity</returns>
-        public virtual Task<T> ScheduleWithRetry<T>(string name, string version, RetryOptions retryOptions,
-            params object[] parameters)
+        public virtual Task<T> ScheduleWithRetry<T>(string name, string version,
+            string apiName, int actionId, RetryOptions retryOptions, params object[] parameters)
         {
-            Task<T> RetryCall() => ScheduleTask<T>(name, version, parameters);
+            Task<T> RetryCall() => ScheduleTask<T>(name, version, apiName, actionId, parameters);
             var retryInterceptor = new RetryInterceptor<T>(this, retryOptions, RetryCall);
-            return retryInterceptor.Invoke();
+            return retryInterceptor.Invoke(apiName, actionId);
+        }
+
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
+        public virtual Task<T> ScheduleWithRetry<T>(string name, string version, RetryOptions retryOptions,
+#pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
+    params object[] parameters)
+        {
+            return ScheduleWithRetry<T>(name, version, "TBD", -2, retryOptions, parameters);
         }
 
         /// <summary>
@@ -252,7 +262,23 @@ namespace DurableTask.Core
         /// <param name="version">Name of the orchestration as specified by the ObjectCreator</param>
         /// <param name="parameters">Parameters for the TaskActivity.Execute method</param>
         /// <returns>Task that represents the execution of the specified TaskActivity</returns>
-        public abstract Task<TResult> ScheduleTask<TResult>(string name, string version, params object[] parameters);
+        public virtual Task<TResult> ScheduleTask<TResult>(string name, string version, params object[] parameters)
+        {
+            return ScheduleTask<TResult>(name, version, "TBD", -2, parameters);
+        }
+
+
+        /// <summary>
+        ///     Schedule a TaskActivity by name and version.
+        /// </summary>
+        /// <typeparam name="TResult">Return Type of the TaskActivity.Execute method</typeparam>
+        /// <param name="name">Name of the orchestration as specified by the ObjectCreator</param>
+        /// <param name="version">Name of the orchestration as specified by the ObjectCreator</param>
+        /// <param name="apiName"></param>
+        /// <param name="actionId"></param>
+        /// <param name="parameters">Parameters for the TaskActivity.Execute method</param>
+        /// <returns>Task that represents the execution of the specified TaskActivity</returns>
+        public abstract Task<TResult> ScheduleTask<TResult>(string name, string version, string apiName, int actionId, params object[] parameters);
 
         /// <summary>
         ///     Create a timer that will fire at the specified time and hand back the specified state.
@@ -272,6 +298,10 @@ namespace DurableTask.Core
         /// <param name="cancelToken">Cancellation token</param>
         /// <returns>Task that represents the async wait on the timer</returns>
         public abstract Task<T> CreateTimer<T>(DateTime fireAt, T state, CancellationToken cancelToken);
+
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
+        public abstract Task<T> CreateTimer<T>(DateTime fireAt, T state, CancellationToken cancelToken, string apiName, int apiID);
+#pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
 
         /// <summary>
         ///     Create a sub-orchestration of the specified type.
@@ -371,5 +401,6 @@ namespace DurableTask.Core
         ///     the first execution of this orchestration instance.
         /// </param>
         public abstract void ContinueAsNew(string newVersion, object input);
+
     }
 }

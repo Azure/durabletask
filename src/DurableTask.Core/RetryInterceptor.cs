@@ -16,6 +16,7 @@ namespace DurableTask.Core
     using System;
     using System.Diagnostics;
     using System.Runtime.ExceptionServices;
+    using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Core.Common;
     using DurableTask.Core.Tracing;
@@ -48,7 +49,7 @@ namespace DurableTask.Core
         /// </summary>
         /// <returns>The return value of the supplied retry call</returns>
         /// <exception cref="Exception">The final exception encountered if the call did not succeed</exception>
-        public async Task<T> Invoke()
+        public async Task<T> Invoke(string apiName = "", int actID = -1)
         {
             Exception lastException = null;
             DateTime firstAttempt = this.context.CurrentUtcDateTime;
@@ -71,7 +72,7 @@ namespace DurableTask.Core
                 }
 
                 DateTime retryAt = this.context.CurrentUtcDateTime.Add(nextDelay);
-                await this.context.CreateTimer(retryAt, "Retry Attempt " + retryCount + 1);
+                await this.context.CreateTimer(retryAt, "Retry Attempt " + retryCount + 1, CancellationToken.None, apiName, actID);
             }
 
             ExceptionDispatchInfo.Capture(lastException).Throw();
