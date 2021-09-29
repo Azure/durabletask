@@ -493,7 +493,7 @@ namespace DurableTask.AzureStorage
         internal Task OnIntentLeaseReleasedAsync(BlobLease lease, CloseReason reason)
         {
             // Mark the queue as released so it will stop grabbing new messages.
-            this.orchestrationSessionManager.ReleaseQueue(lease.PartitionId);
+            this.orchestrationSessionManager.ReleaseQueue(lease.PartitionId, reason, "Intent LeaseCollectionBalancer");
             return Utils.CompletedTask;
         }
 
@@ -508,7 +508,7 @@ namespace DurableTask.AzureStorage
 
         internal Task OnOwnershipLeaseReleasedAsync(BlobLease lease, CloseReason reason)
         {
-            this.orchestrationSessionManager.RemoveQueue(lease.PartitionId);
+            this.orchestrationSessionManager.RemoveQueue(lease.PartitionId, reason, "Ownership LeaseCollectionBalancer");
             return Utils.CompletedTask;
         }
 
