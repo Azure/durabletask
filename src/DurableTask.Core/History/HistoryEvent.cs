@@ -92,19 +92,22 @@ namespace DurableTask.Core.History
         public virtual EventType EventType { get; private set; }
 
         /// <summary>
-        /// TBD.
+        /// The user-facing API name that this event is associated with.
+        /// For example: CallActivityWithRetry
         /// </summary>
         [DataMember]
         public string APIName { get; set; } = "no_api_provided";
 
         /// <summary>
-        /// TBD.
+        /// The Action/Task ID that this event is associated with.
+        /// Starts at 0 and increases by 1.
         /// </summary>
         [DataMember]
         public int ActionId { get; set; } = -1;
 
         /// <summary>
-        /// TBD.
+        /// Only application to OrchestrationCompleted events.
+        /// Stores the OOProc actions payload, to be retrieved later.
         /// </summary>
         [DataMember]
         public string ActionString { get; set; } = "no_actions_provided";
