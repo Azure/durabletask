@@ -472,7 +472,9 @@ namespace DurableTask.Core
                     // finish up processing of the work item
                     if (!continuedAsNew && runtimeState.Events.Last().EventType != EventType.OrchestratorCompleted)
                     {
-                        runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
+                        var orchCompletedEvent = new OrchestratorCompletedEvent(-1);
+                        orchCompletedEvent.ActionString = runtimeState.OrchestrationInstance.Actions;
+                        runtimeState.AddEvent(orchCompletedEvent);
                     }
 
                     if (isCompleted)
@@ -512,7 +514,9 @@ namespace DurableTask.Core
                                 }
                             }
 
-                            runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
+                            var orchCompletedEvent = new OrchestratorCompletedEvent(-1);
+                            orchCompletedEvent.ActionString = runtimeState.OrchestrationInstance.Actions;
+                            runtimeState.AddEvent(orchCompletedEvent);
                             workItem.OrchestrationRuntimeState = runtimeState;
 
                             TaskOrchestration newOrchestration = this.objectManager.GetObject(

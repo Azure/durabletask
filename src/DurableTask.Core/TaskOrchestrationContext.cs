@@ -30,6 +30,8 @@ namespace DurableTask.Core
     {
         private readonly IDictionary<int, OpenTaskInfo> openTasks;
         private readonly IDictionary<int, OrchestratorAction> orchestratorActionsMap;
+        public readonly HashSet<int> ooprocOpenTasks = new HashSet<int>();
+
         private OrchestrationCompleteOrchestratorAction continueAsNew;
         private bool executionCompletedOrTerminated;
         private int idCounter;
@@ -292,6 +294,14 @@ namespace DurableTask.Core
             }
 
             this.orchestratorActionsMap.Remove(taskId);
+
+            //  hackathon
+            var index = orchestrationAction.ActionId;
+            this.ooprocOpenTasks.Add(index);
+            if (this.ooprocTaskResults.ContainsKey(index))
+            {
+                this.ooprocTaskResults.Remove(index);
+            }
         }
 
         public void HandleTimerCreatedEvent(TimerCreatedEvent timerCreatedEvent)
@@ -322,6 +332,13 @@ namespace DurableTask.Core
             }
 
             this.orchestratorActionsMap.Remove(taskId);
+            //  hackathon
+            var index = orchestrationAction.ActionId;
+            this.ooprocOpenTasks.Add(index);
+            if (this.ooprocTaskResults.ContainsKey(index))
+            {
+                this.ooprocTaskResults.Remove(index);
+            }
         }
 
         public void HandleSubOrchestrationCreatedEvent(SubOrchestrationInstanceCreatedEvent subOrchestrationCreateEvent)
@@ -412,6 +429,11 @@ namespace DurableTask.Core
             {
                 LogDuplicateEvent("TaskCompleted", completedEvent, taskId);
             }
+
+            //  hackathon
+            var index = completedEvent.ActionId;
+            this.ooprocOpenTasks.Remove(index);
+            this.ooprocTaskResults.Add(index, completedEvent.Result);
         }
 
         public void HandleTaskFailedEvent(TaskFailedEvent failedEvent)
@@ -429,6 +451,11 @@ namespace DurableTask.Core
                 tcs.SetException(taskFailedException);
 
                 this.openTasks.Remove(taskId);
+
+
+                var index = failedEvent.ActionId;
+                this.ooprocOpenTasks.Remove(index);
+                this.ooprocTaskResults.Add(index, taskFailedException.ToString());
             }
             else
             {
@@ -486,6 +513,12 @@ namespace DurableTask.Core
             {
                 LogDuplicateEvent("TimerFired", timerFiredEvent, taskId);
             }
+
+
+            //  hackathon
+            var index = timerFiredEvent.ActionId;
+            this.ooprocOpenTasks.Remove(index);
+            this.ooprocTaskResults.Add(index, "TBD");
         }
 
         private void LogDuplicateEvent(string source, HistoryEvent historyEvent, int taskId)

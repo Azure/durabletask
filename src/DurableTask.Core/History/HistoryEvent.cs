@@ -104,6 +104,12 @@ namespace DurableTask.Core.History
         public int ActionId { get; set; } = -1;
 
         /// <summary>
+        /// TBD.
+        /// </summary>
+        [DataMember]
+        public string ActionString { get; set; } = "no_actions_provided";
+
+        /// <summary>
         /// Implementation for <see cref="IExtensibleDataObject.ExtensionData"/>.
         /// </summary>
         public ExtensionDataObject ExtensionData { get; set; }

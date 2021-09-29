@@ -34,12 +34,19 @@ namespace DurableTask.Core
         [DataMember]
         public string ExecutionId { get; set; }
 
+        /// <summary>
+        /// TBD.
+        /// </summary>
+        [DataMember]
+        public string Actions { get; set; }
+
         internal OrchestrationInstance Clone()
         {
             return new OrchestrationInstance
             {
                 ExecutionId = ExecutionId,
-                InstanceId = InstanceId
+                InstanceId = InstanceId,
+                Actions = Actions
             };
         }
 

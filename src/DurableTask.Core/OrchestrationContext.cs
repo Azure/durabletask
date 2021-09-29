@@ -26,6 +26,16 @@ namespace DurableTask.Core
     public abstract class OrchestrationContext
     {
         /// <summary>
+        /// TBD.
+        /// </summary>
+        public readonly Dictionary<int, string> ooprocTaskResults = new Dictionary<int, string>();
+
+        /// <summary>
+        /// TBD.
+        /// </summary>
+        public string Actions = "";
+
+        /// <summary>
         /// Thread-static variable used to signal whether the calling thread is the orchestrator thread.
         /// The primary use case is for detecting illegal async usage in orchestration code.
         /// </summary>
