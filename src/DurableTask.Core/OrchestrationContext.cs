@@ -25,10 +25,6 @@ namespace DurableTask.Core
     /// </summary>
     public abstract class OrchestrationContext
     {
-        /// <summary>
-        /// TBD.
-        /// </summary>
-        public readonly Dictionary<int, string> ooprocTaskResults = new Dictionary<int, string>();
 
         /// <summary>
         /// TBD.
