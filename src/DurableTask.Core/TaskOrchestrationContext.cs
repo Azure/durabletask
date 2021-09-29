@@ -432,9 +432,6 @@ namespace DurableTask.Core
                 tcs.SetException(taskFailedException);
 
                 this.openTasks.Remove(taskId);
-
-
-                var index = failedEvent.ActionId;
             }
             else
             {
