@@ -30,7 +30,6 @@ namespace DurableTask.Core
     {
         private readonly IDictionary<int, OpenTaskInfo> openTasks;
         private readonly IDictionary<int, OrchestratorAction> orchestratorActionsMap;
-        public readonly HashSet<int> ooprocOpenTasks = new HashSet<int>();
 
         private OrchestrationCompleteOrchestratorAction continueAsNew;
         private bool executionCompletedOrTerminated;
@@ -436,7 +435,6 @@ namespace DurableTask.Core
 
 
                 var index = failedEvent.ActionId;
-                this.ooprocOpenTasks.Remove(index);
             }
             else
             {
@@ -494,11 +492,6 @@ namespace DurableTask.Core
             {
                 LogDuplicateEvent("TimerFired", timerFiredEvent, taskId);
             }
-
-
-            //  hackathon
-            var index = timerFiredEvent.ActionId;
-            this.ooprocOpenTasks.Remove(index);
         }
 
         private void LogDuplicateEvent(string source, HistoryEvent historyEvent, int taskId)
