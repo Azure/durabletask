@@ -182,7 +182,7 @@ namespace DurableTask.Core
 #pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
     params object[] parameters)
         {
-            return ScheduleWithRetry<T>(name, version, "TBD", -2, retryOptions, parameters);
+            return ScheduleWithRetry<T>(name, version, "", -1, retryOptions, parameters);
         }
 
         /// <summary>
@@ -274,7 +274,7 @@ namespace DurableTask.Core
         /// <returns>Task that represents the execution of the specified TaskActivity</returns>
         public virtual Task<TResult> ScheduleTask<TResult>(string name, string version, params object[] parameters)
         {
-            return ScheduleTask<TResult>(name, version, "TBD", -2, parameters);
+            return ScheduleTask<TResult>(name, version, "", -1, parameters);
         }
 
 
