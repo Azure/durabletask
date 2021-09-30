@@ -26,6 +26,22 @@ namespace DurableTask.ServiceBus.Tracking
     /// </summary>
     public class AzureTableOrchestrationHistoryEventEntity : AzureTableCompositeTableEntity
     {
+        private static readonly JsonSerializerSettings WriteJsonSettings = new JsonSerializerSettings
+        {
+            Formatting = Formatting.Indented,
+            TypeNameHandling = TypeNameHandling.Objects
+        };
+
+        private static readonly JsonSerializerSettings ReadJsonSettings = new JsonSerializerSettings
+        {
+            TypeNameHandling = TypeNameHandling.Objects,
+#if NETSTANDARD2_0
+            SerializationBinder = new PackageUpgradeSerializationBinder()
+#else
+            Binder = new PackageUpgradeSerializationBinder()
+#endif
+        };
+
         /// <summary>
         /// Creates a new AzureTableOrchestrationHistoryEventEntity 
         /// </summary>
@@ -100,12 +116,7 @@ namespace DurableTask.ServiceBus.Tracking
         /// <param name="operationContext">The operation context</param>
         public override IDictionary<string, EntityProperty> WriteEntity(OperationContext operationContext)
         {
-            string serializedHistoryEvent = JsonConvert.SerializeObject(HistoryEvent,
-                new JsonSerializerSettings
-                {
-                    Formatting = Formatting.Indented,
-                    TypeNameHandling = TypeNameHandling.Objects
-                });
+            string serializedHistoryEvent = JsonConvert.SerializeObject(HistoryEvent, WriteJsonSettings);
 
             // replace with a generic event with the truncated history so at least we have some record
             // note that this makes the history stored in the instance store unreplayable. so any replay logic
@@ -115,11 +126,7 @@ namespace DurableTask.ServiceBus.Tracking
             {
                 serializedHistoryEvent = JsonConvert.SerializeObject(new GenericEvent(HistoryEvent.EventId,
                     serializedHistoryEvent.Substring(0, ServiceBusConstants.MaxStringLengthForAzureTableColumn) + " ....(truncated)..]"),
-                    new JsonSerializerSettings
-                    {
-                        Formatting = Formatting.Indented,
-                        TypeNameHandling = TypeNameHandling.Objects
-                    });
+                    WriteJsonSettings);
             }
 
             var returnValues = new Dictionary<string, EntityProperty>();
@@ -149,16 +156,7 @@ namespace DurableTask.ServiceBus.Tracking
                     .DateTime;
 
             string serializedHistoryEvent = GetValue("HistoryEvent", properties, property => property.StringValue);
-            HistoryEvent = JsonConvert.DeserializeObject<HistoryEvent>(serializedHistoryEvent,
-                new JsonSerializerSettings
-                {
-                    TypeNameHandling = TypeNameHandling.Objects,
-#if NETSTANDARD2_0
-                    SerializationBinder = new PackageUpgradeSerializationBinder()
-#else
-                    Binder = new PackageUpgradeSerializationBinder()
-#endif
-                });
+            HistoryEvent = JsonConvert.DeserializeObject<HistoryEvent>(serializedHistoryEvent, ReadJsonSettings);
         }
 
         /// <summary>
