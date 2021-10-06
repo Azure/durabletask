@@ -107,7 +107,6 @@ namespace DurableTask.AzureStorage
             this.stats = this.azureStorageClient.Stats;
 
             string compressedMessageBlobContainerName = $"{settings.TaskHubName.ToLowerInvariant()}-largemessages";
-            NameValidator.ValidateContainerName(compressedMessageBlobContainerName);
             this.messageManager = new MessageManager(this.settings, this.azureStorageClient, compressedMessageBlobContainerName);
 
             this.allControlQueues = new ConcurrentDictionary<string, ControlQueue>();

@@ -101,11 +101,11 @@ namespace DurableTask.AzureStorage.Tracking
         // For testing
         internal AzureTableTrackingStore(
             AzureStorageOrchestrationServiceStats stats,
-            CloudTable instancesTable
+            Table instancesTable
         )
         {
             this.stats = stats;
-            this.InstancesTable = new Table(stats, instancesTable);
+            this.InstancesTable = instancesTable;
             this.settings = new AzureStorageOrchestrationServiceSettings();
             // Have to set FetchLargeMessageDataEnabled to false, as no MessageManager is 
             // instantiated for this test.
@@ -151,7 +151,7 @@ namespace DurableTask.AzureStorage.Tracking
                 null,
                 cancellationToken);
 
-            List<DynamicTableEntity> tableEntities = historyEntitiesResponseInfo.ReturnedEntities;
+            IList<DynamicTableEntity> tableEntities = historyEntitiesResponseInfo.ReturnedEntities;
 
             IList<HistoryEvent> historyEvents;
             string executionId;
@@ -240,7 +240,7 @@ namespace DurableTask.AzureStorage.Tracking
                     .Append(" or ExecutionId eq ").Append(Quote).Append(expectedExecutionId).Append(Quote).Append(')');
             }
 
-            TableQuery query = new TableQuery().Where(filterCondition.ToString());
+            TableQuery<DynamicTableEntity> query = new TableQuery<DynamicTableEntity>().Where(filterCondition.ToString());
 
             if (projectionColumns != null)
             {
@@ -252,9 +252,9 @@ namespace DurableTask.AzureStorage.Tracking
             return tableEntitiesResponseInfo;
         }
 
-        async Task<List<DynamicTableEntity>> QueryHistoryAsync(string filterCondition, string instanceId, CancellationToken cancellationToken)
+        async Task<IList<DynamicTableEntity>> QueryHistoryAsync(string filterCondition, string instanceId, CancellationToken cancellationToken)
         {
-            TableQuery query = new TableQuery().Where(filterCondition.ToString());
+            TableQuery<DynamicTableEntity> query = new TableQuery<DynamicTableEntity>().Where(filterCondition.ToString());
 
             var tableEntitiesResponseInfo = await this.HistoryTable.ExecuteQueryAsync(query, cancellationToken);
 
@@ -571,7 +571,7 @@ namespace DurableTask.AzureStorage.Tracking
             var orchestrationStates = new List<OrchestrationState>(top);
             query.Take(top);
 
-            var tableEntitiesResponseInfo = await this.InstancesTable.ExecuteQueryAsync(query, cancellationToken, continuationToken);
+            var tableEntitiesResponseInfo = await this.InstancesTable.ExecuteQuerySegmentAsync(query, cancellationToken, continuationToken);
 
             IEnumerable<OrchestrationState> result = await Task.WhenAll(tableEntitiesResponseInfo.ReturnedEntities.Select( status => this.ConvertFromAsync(status, KeySanitation.UnescapePartitionKey(status.PartitionKey))));
             orchestrationStates.AddRange(result);
@@ -579,6 +579,7 @@ namespace DurableTask.AzureStorage.Tracking
             var queryResult = new DurableStatusQueryResult()
             {
                 OrchestrationState = orchestrationStates,
+                ContinuationToken = tableEntitiesResponseInfo.ContinuationToken,
             };
 
             return queryResult;

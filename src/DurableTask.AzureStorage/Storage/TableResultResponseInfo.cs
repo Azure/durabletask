@@ -11,11 +11,11 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System.Collections.Generic;
-using Microsoft.WindowsAzure.Storage.Table;
-
 namespace DurableTask.AzureStorage.Storage
 {
+    using System.Collections.Generic;
+    using Microsoft.WindowsAzure.Storage.Table;
+
     class TableResultResponseInfo
     {
         public long ElapsedMilliseconds { get; set; }

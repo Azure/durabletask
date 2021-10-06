@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.AzureStorage.Storage
 {
     using System;
@@ -23,11 +23,11 @@ namespace DurableTask.AzureStorage.Storage
     {
         readonly AzureStorageClient azureStorageClient;
         readonly CloudBlobClient blobClient;
-        readonly string blobDirectory;
-        readonly string fullBlobPath;
+        readonly string? blobDirectory;
+        readonly string? fullBlobPath;
         readonly CloudBlockBlob cloudBlockBlob;
 
-        public Blob(AzureStorageClient azureStorageClient, CloudBlobClient blobClient, string containerName, string blobName, string blobDirectory = null)
+        public Blob(AzureStorageClient azureStorageClient, CloudBlobClient blobClient, string containerName, string blobName, string? blobDirectory = null)
         {
             this.azureStorageClient = azureStorageClient;
             this.blobClient = blobClient;
@@ -38,7 +38,7 @@ namespace DurableTask.AzureStorage.Storage
             this.cloudBlockBlob = this.blobClient.GetContainerReference(containerName).GetBlockBlobReference(fullBlobPath);
         }
 
-        public string Name { get; }
+        public string? Name { get; }
 
         public bool IsLeased => this.cloudBlockBlob.Properties.LeaseState == LeaseState.Leased;
 
@@ -65,9 +65,9 @@ namespace DurableTask.AzureStorage.Storage
                 "Blob Delete");
         }
 
-        public async Task UploadTextAsync(string content, string leaseId = null, bool ifDoesntExist = false)
+        public async Task UploadTextAsync(string content, string? leaseId = null, bool ifDoesntExist = false)
         {
-            AccessCondition accessCondition = null;
+            AccessCondition? accessCondition = null;
             if (ifDoesntExist)
             {
                 accessCondition = AccessCondition.GenerateIfNoneMatchCondition("*");

@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.AzureStorage.Storage
 {
     using System;
@@ -84,7 +84,7 @@ namespace DurableTask.AzureStorage.Storage
                 clientRequestId?.ToString());
         }
 
-        public async Task<QueueMessage> GetMessageAsync(TimeSpan visibilityTimeout, CancellationToken callerCancellationToken)
+        public async Task<QueueMessage?> GetMessageAsync(TimeSpan visibilityTimeout, CancellationToken callerCancellationToken)
         {
             var cloudQueueMessage = await this.azureStorageClient.MakeStorageRequest<CloudQueueMessage>(
                 (context, timeoutCancellationToken) =>
@@ -180,7 +180,7 @@ namespace DurableTask.AzureStorage.Storage
             return queueMessages;
         }
 
-        public async Task<QueueMessage> PeekMessageAsync()
+        public async Task<QueueMessage?> PeekMessageAsync()
         {
             var queueMessage = await this.cloudQueue.PeekMessageAsync();
             return queueMessage == null ? null : new QueueMessage(queueMessage);

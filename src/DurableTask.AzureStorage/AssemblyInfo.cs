@@ -15,4 +15,5 @@ using System.Runtime.CompilerServices;
 
 #if !SIGN_ASSEMBLY
 [assembly: InternalsVisibleTo("DurableTask.AzureStorage.Tests")]
+[assembly: InternalsVisibleTo("DynamicProxyGenAssembly2")]
 #endif

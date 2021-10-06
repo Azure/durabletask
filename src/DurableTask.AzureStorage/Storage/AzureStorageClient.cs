@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.AzureStorage.Storage
 {
     using System;
@@ -61,12 +61,6 @@ namespace DurableTask.AzureStorage.Storage
             }
 
             this.tableClient.BufferManager = SimpleBufferManager.Shared;
-
-            string historyTableName = settings.HistoryTableName;
-            NameValidator.ValidateTableName(historyTableName);
-
-            string instancesTableName = settings.InstanceTableName;
-            NameValidator.ValidateTableName(instancesTableName);
         }
 
         public AzureStorageOrchestrationServiceSettings Settings { get; }
@@ -75,7 +69,7 @@ namespace DurableTask.AzureStorage.Storage
 
         public string StorageAccountName { get; }
 
-        public Blob GetBlobReference(string container, string blobName, string blobDirectory = null)
+        public Blob GetBlobReference(string container, string blobName, string? blobDirectory = null)
         {
             NameValidator.ValidateBlobName(blobName);
             return new Blob(this, this.blobClient, container, blobName, blobDirectory);
@@ -100,11 +94,12 @@ namespace DurableTask.AzureStorage.Storage
 
         public Table GetTableReference(string tableName)
         {
+            NameValidator.ValidateTableName(tableName);
             return new Table(this, this.tableClient, tableName);
         }
 
 
-        public async Task<T> MakeStorageRequest<T>(Func<OperationContext, CancellationToken, Task<T>> storageRequest, string operationName, string clientRequestId = null)
+        public async Task<T> MakeStorageRequest<T>(Func<OperationContext, CancellationToken, Task<T>> storageRequest, string operationName, string? clientRequestId = null)
         {
             try
             {
@@ -116,12 +111,12 @@ namespace DurableTask.AzureStorage.Storage
             }
         }
 
-        public async Task MakeStorageRequest(Func<OperationContext, CancellationToken, Task> storageRequest, string operationName, string clientRequestId = null)
+        public async Task MakeStorageRequest(Func<OperationContext, CancellationToken, Task> storageRequest, string operationName, string? clientRequestId = null)
         {
             await this.MakeStorageRequest((context, cancellationToken) => WrapFunctionWithReturnType(storageRequest, context, cancellationToken), operationName, clientRequestId);
         }
 
-        private static async Task<object> WrapFunctionWithReturnType(Func<OperationContext, CancellationToken, Task> storageRequest, OperationContext context, CancellationToken cancellationToken)
+        private static async Task<object?> WrapFunctionWithReturnType(Func<OperationContext, CancellationToken, Task> storageRequest, OperationContext context, CancellationToken cancellationToken)
         {
             await storageRequest(context, cancellationToken);
             return null;

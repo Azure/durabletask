@@ -20,6 +20,7 @@ namespace DurableTask.AzureStorage.Tests
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Monitoring;
+    using DurableTask.AzureStorage.Storage;
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -44,7 +45,7 @@ namespace DurableTask.AzureStorage.Tests
 
             var result = await fixture.TrackingStore.GetStateAsync(fixture.ExpectedCreatedDateFrom, fixture.ExpectedCreatedDateTo, inputState, 3, fixture.InputToken);
 
-            Assert.IsNull(fixture.ActualPassedTokenObject);
+            Assert.IsNull(fixture.ActualPassedTokenString);
 
             Assert.AreEqual(fixture.ExpectedResult.ContinuationToken, result.ContinuationToken);
             Assert.AreEqual(fixture.ExpectedResult.OrchestrationState.Count(), result.OrchestrationState.Count());
@@ -63,7 +64,9 @@ namespace DurableTask.AzureStorage.Tests
                 NextTableName = "corge",
             };
 
-            fixture.SetupQueryStateWithPagerWithInputToken(inputToken);
+            var inputTokenString = JsonConvert.SerializeObject(inputToken);
+
+            fixture.SetupQueryStateWithPagerWithInputToken(inputTokenString);
 
             var inputState = new List<OrchestrationStatus>();
             inputState.Add(OrchestrationStatus.Running);
@@ -72,7 +75,7 @@ namespace DurableTask.AzureStorage.Tests
 
             var result = await fixture.TrackingStore.GetStateAsync(fixture.ExpectedCreatedDateFrom, fixture.ExpectedCreatedDateTo, inputState, 3, fixture.InputToken);
 
-            Assert.AreEqual(inputToken.NextPartitionKey, fixture.ActualPassedTokenObject.NextPartitionKey);
+            Assert.AreEqual(inputTokenString, fixture.ActualPassedTokenString);
 
             Assert.AreEqual(fixture.ExpectedResult.ContinuationToken, result.ContinuationToken);
             Assert.AreEqual(fixture.ExpectedResult.OrchestrationState.Count(), result.OrchestrationState.Count());
@@ -82,11 +85,11 @@ namespace DurableTask.AzureStorage.Tests
 
         private class QueryFixture
         {
-            private readonly Mock<CloudTable> cloudTableMock;
+            private readonly Mock<Table> tableMock;
 
             public AzureTableTrackingStore TrackingStore { get; set; }
 
-            public CloudTable CloudTableMock => this.cloudTableMock.Object;
+            public Table TableMock => this.tableMock.Object;
 
             public DateTime ExpectedCreatedDateFrom { get; set; }
 
@@ -98,13 +101,13 @@ namespace DurableTask.AzureStorage.Tests
 
             public string ExpectedNextPartitionKey { get; set; }
 
-            public TableContinuationToken ExpectedTokenObject { get; set; }
+            public string ExpectedTokenObject { get; set; }
 
             public string InputToken { get; set; }
 
-            public TableContinuationToken ExpectedPassedTokenObject { get; set; }
+            public string ExpectedPassedTokenObject { get; set; }
 
-            public TableContinuationToken ActualPassedTokenObject { get; set; }
+            public string ActualPassedTokenString { get; set; }
 
             public List<OrchestrationInstanceStatus> InputStatus { get; set; }
 
@@ -112,7 +115,7 @@ namespace DurableTask.AzureStorage.Tests
 
             public QueryFixture()
             {
-                this.cloudTableMock = new Mock<CloudTable>(new Uri("https://microsoft.com"));
+                this.tableMock = new Mock<Table>();
             }
 
             private void SetUpQueryStateWithPager(string inputToken, Action setupMock)
@@ -133,62 +136,53 @@ namespace DurableTask.AzureStorage.Tests
                 SetUpQueryStateWithPager("", SetupQueryStateWithPagerMock);
             }
 
-            public void SetupQueryStateWithPagerWithInputToken(TableContinuationToken inputTokenObject)
+            public void SetupQueryStateWithPagerWithInputToken(string serializedInputToken)
             {
-                this.ExpectedPassedTokenObject = inputTokenObject;
-                var tokenJson = JsonConvert.SerializeObject(ExpectedPassedTokenObject);
-                this.InputToken = Convert.ToBase64String(Encoding.UTF8.GetBytes(tokenJson));
-                SetUpQueryStateWithPager(this.InputToken, SetupQueryStateWithPagerMock_WithInputToken);
+                this.ExpectedPassedTokenObject = serializedInputToken;
+                SetUpQueryStateWithPager(serializedInputToken, SetupQueryStateWithPagerMock_WithInputToken);
             }
 
             public void VerifyQueryStateWithPager()
             {
-                this.cloudTableMock.Verify(t => t.ExecuteQuerySegmentedAsync<OrchestrationInstanceStatus>(
+                this.tableMock.Verify(t => t.ExecuteQueryAsync<OrchestrationInstanceStatus>(
                     It.IsAny<TableQuery<OrchestrationInstanceStatus>>(),
-                    It.IsAny<TableContinuationToken>(),
-                    It.IsAny<TableRequestOptions>(),
-                    It.IsAny<OperationContext>(),
                     It.IsAny<CancellationToken>()));
             }
 
             private void SetupQueryStateWithPagerMock()
             {
-                var segment = (TableQuerySegment<OrchestrationInstanceStatus>)System.Runtime.Serialization.FormatterServices.GetSafeUninitializedObject(typeof(TableQuerySegment<OrchestrationInstanceStatus>));
-                segment.GetType().GetProperty("Results").SetValue(segment, this.InputStatus);
+                var segment = (TableEntitiesResponseInfo<OrchestrationInstanceStatus>)System.Runtime.Serialization.FormatterServices.GetSafeUninitializedObject(typeof(TableEntitiesResponseInfo<OrchestrationInstanceStatus>));
+                segment.GetType().GetProperty("ReturnedEntities").SetValue(segment, this.InputStatus);
                 segment.GetType().GetProperty("ContinuationToken").SetValue(segment, this.ExpectedTokenObject);
 
-                this.cloudTableMock.Setup(t => t.ExecuteQuerySegmentedAsync<OrchestrationInstanceStatus>(
+                this.tableMock.Setup(t => t.ExecuteQuerySegmentAsync<OrchestrationInstanceStatus>(
                         It.IsAny<TableQuery<OrchestrationInstanceStatus>>(),
-                        It.IsAny<TableContinuationToken>(),
-                        It.IsAny<TableRequestOptions>(),
-                        It.IsAny<OperationContext>(),
-                        It.IsAny<CancellationToken>()))
+                        It.IsAny<CancellationToken>(),
+                        It.IsAny<string>()))
                     .Returns(Task.FromResult(segment))
-                    .Callback<TableQuery<OrchestrationInstanceStatus>, TableContinuationToken, TableRequestOptions, OperationContext, CancellationToken>(
-                        (q, token, options, context, cancelToken) =>
+                    .Callback<TableQuery<OrchestrationInstanceStatus>, CancellationToken, string>(
+                        (q, cancelToken, token) =>
                         {
-                            this.ActualPassedTokenObject = token;
+                            this.ActualPassedTokenString = token;
                             Assert.AreEqual(this.ExpectedTop, q.TakeCount);
                         });
             }
 
             private void SetupQueryStateWithPagerMock_WithInputToken()
             {
-                var segment = (TableQuerySegment<OrchestrationInstanceStatus>)System.Runtime.Serialization.FormatterServices.GetSafeUninitializedObject(typeof(TableQuerySegment<OrchestrationInstanceStatus>));
-                segment.GetType().GetProperty("Results").SetValue(segment, this.InputStatus);
+                var segment = (TableEntitiesResponseInfo<OrchestrationInstanceStatus>)System.Runtime.Serialization.FormatterServices.GetSafeUninitializedObject(typeof(TableEntitiesResponseInfo<OrchestrationInstanceStatus>));
+                segment.GetType().GetProperty("ReturnedEntities").SetValue(segment, this.InputStatus);
                 segment.GetType().GetProperty("ContinuationToken").SetValue(segment, this.ExpectedTokenObject);
 
-                this.cloudTableMock.Setup(t => t.ExecuteQuerySegmentedAsync<OrchestrationInstanceStatus>(
+                this.tableMock.Setup(t => t.ExecuteQuerySegmentAsync<OrchestrationInstanceStatus>(
                         It.IsAny<TableQuery<OrchestrationInstanceStatus>>(),
-                        It.IsAny<TableContinuationToken>(),
-                        It.IsAny<TableRequestOptions>(),
-                        It.IsAny<OperationContext>(),
-                        It.IsAny<CancellationToken>()))
+                        It.IsAny<CancellationToken>(),
+                        It.IsAny<string>()))
                     .Returns(Task.FromResult(segment))
-                    .Callback<TableQuery<OrchestrationInstanceStatus>, TableContinuationToken, TableRequestOptions, OperationContext, CancellationToken>(
-                        (q, token, options, context, cancelToken) =>
+                    .Callback<TableQuery<OrchestrationInstanceStatus>, CancellationToken, string>(
+                        (q, cancelToken, token) =>
                         {
-                            this.ActualPassedTokenObject = token;
+                            this.ActualPassedTokenString = token;
                             Assert.AreEqual(this.ExpectedTop, q.TakeCount);
                         });
             }
@@ -220,14 +214,14 @@ namespace DurableTask.AzureStorage.Tests
                 this.ExpectedResult = new DurableStatusQueryResult();
 
                 this.ExpectedNextPartitionKey = "foo";
-                this.ExpectedTokenObject = new TableContinuationToken()
+                var token = new TableContinuationToken()
                 {
                     NextPartitionKey = ExpectedNextPartitionKey,
                     NextRowKey = "bar",
                     NextTableName = "baz",
                 };
-                var tokenJson = JsonConvert.SerializeObject(ExpectedTokenObject);
-                var tokenBase64String = Convert.ToBase64String(Encoding.UTF8.GetBytes(tokenJson));
+                this.ExpectedTokenObject = JsonConvert.SerializeObject(token);
+                var tokenBase64String = Convert.ToBase64String(Encoding.UTF8.GetBytes(ExpectedTokenObject));
                 this.ExpectedResult.ContinuationToken = tokenBase64String;
                 this.ExpectedResult.OrchestrationState = new List<OrchestrationState>()
                 {
@@ -252,7 +246,7 @@ namespace DurableTask.AzureStorage.Tests
             private void SetupTrackingStore()
             {
                 var stats = new AzureStorageOrchestrationServiceStats();
-                this.TrackingStore = new AzureTableTrackingStore(stats, this.CloudTableMock);
+                this.TrackingStore = new AzureTableTrackingStore(stats, this.TableMock);
             }
         }
     }
