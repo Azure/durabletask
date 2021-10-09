@@ -513,9 +513,12 @@ namespace DurableTask.AzureStorage.Tests
             CloudBlobDirectory instanceDirectory = cloudBlobContainer.GetDirectoryReference(directoryName);
             int blobCount = 0;
             BlobContinuationToken blobContinuationToken = null;
+
+            var timeoutHandler = new TimeoutHandler("dummyAccount", new AzureStorageOrchestrationServiceSettings());
+
             do
             {
-                BlobResultSegment results = await TimeoutHandler.ExecuteWithTimeout("GetBlobCount", "dummyAccount", new AzureStorageOrchestrationServiceSettings(), (context, timeoutToken) =>
+                BlobResultSegment results = await timeoutHandler.ExecuteWithTimeout("GetBlobCount", (context, timeoutToken) =>
                 {
                     return instanceDirectory.ListBlobsSegmentedAsync(
                             useFlatBlobListing: true,

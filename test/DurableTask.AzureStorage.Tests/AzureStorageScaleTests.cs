@@ -175,23 +175,19 @@ namespace DurableTask.AzureStorage.Tests
         {
             BlobContinuationToken continuationToken = null;
             var results = new List<IListBlobItem>();
+            var timeoutHandler = new TimeoutHandler("dummyName", new AzureStorageOrchestrationServiceSettings());
             do
             {
-                BlobResultSegment response = await TimeoutHandler.ExecuteWithTimeout(
+                BlobResultSegment response = await timeoutHandler.ExecuteWithTimeout(
                     "ListBobs",
-                    "dummyName",
-                    new AzureStorageOrchestrationServiceSettings(),
-                    (context, timeoutToken) =>
-                    {
-                        return client.ListBlobsSegmentedAsync(
-                                useFlatBlobListing: true,
-                                blobListingDetails: BlobListingDetails.Metadata,
-                                maxResults: null,
-                                currentToken: continuationToken,
-                                options: null,
-                                operationContext: context,
-                                cancellationToken: timeoutToken);
-                    });
+                    (context, timeoutToken) => client.ListBlobsSegmentedAsync(
+                        useFlatBlobListing: true,
+                        blobListingDetails: BlobListingDetails.Metadata,
+                        maxResults: null,
+                        currentToken: continuationToken,
+                        options: null,
+                        operationContext: context,
+                        cancellationToken: timeoutToken));
 
                 continuationToken = response.ContinuationToken;
                 results.AddRange(response.Results);

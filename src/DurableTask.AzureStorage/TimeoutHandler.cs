@@ -22,8 +22,11 @@ namespace DurableTask.AzureStorage
 
     // Class that acts as a timeout handler to wrap Azure Storage calls, mitigating a deadlock that occurs with Azure Storage SDK 9.3.3.
     // The TimeoutHandler class is based off of the similar Azure Functions fix seen here: https://github.com/Azure/azure-webjobs-sdk/pull/2291
-    internal static class TimeoutHandler
+    internal class TimeoutHandler
     {
+        readonly string account;
+        readonly AzureStorageOrchestrationServiceSettings settings;
+
         // The number of times we allow the timeout to be hit before recycling the app. We set this
         // to a fixed value to prevent building up an infinite number of deadlocked tasks and leak resources.
         private const int MaxNumberOfTimeoutsBeforeRecycle = 5;
@@ -37,10 +40,14 @@ namespace DurableTask.AzureStorage
         /// </summary>
         private static Action<string> ProcessKillAction = (errorMessage) => Environment.FailFast(errorMessage);
 
-        public static async Task<T> ExecuteWithTimeout<T>(
+        public TimeoutHandler(string account, AzureStorageOrchestrationServiceSettings settings)
+        {
+            this.account = account;
+            this.settings = settings;
+        }
+
+        public async Task<T> ExecuteWithTimeout<T>(
             string operationName,
-            string account,
-            AzureStorageOrchestrationServiceSettings settings,
             Func<OperationContext, CancellationToken, Task<T>> operation,
             AzureStorageOrchestrationServiceStats stats = null,
             string clientRequestId = null)

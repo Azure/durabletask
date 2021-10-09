@@ -27,6 +27,7 @@ namespace DurableTask.AzureStorage.Storage
         readonly CloudStorageAccount account;
         readonly CloudBlobClient blobClient;
         readonly CloudQueueClient queueClient;
+        readonly TimeoutHandler timeoutHandler;
 
         public AzureStorageClient(AzureStorageOrchestrationServiceSettings settings)
         {
@@ -37,6 +38,7 @@ namespace DurableTask.AzureStorage.Storage
                 : settings.StorageAccountDetails.ToCloudStorageAccount();
 
             this.StorageAccountName = account.Credentials.AccountName;
+            this.timeoutHandler = new TimeoutHandler(StorageAccountName, settings);
 
             this.Stats = new AzureStorageOrchestrationServiceStats();
             this.queueClient = account.CreateCloudQueueClient();
@@ -51,8 +53,8 @@ namespace DurableTask.AzureStorage.Storage
         {
             this.account = account;
             this.Settings = settings;
-
             this.StorageAccountName = account.Credentials.AccountName;
+            this.timeoutHandler = new TimeoutHandler(StorageAccountName, settings);
             this.Stats = new AzureStorageOrchestrationServiceStats();
             this.queueClient = account.CreateCloudQueueClient();
             this.queueClient.BufferManager = SimpleBufferManager.Shared;
@@ -95,7 +97,7 @@ namespace DurableTask.AzureStorage.Storage
         {
             try
             {
-                return await TimeoutHandler.ExecuteWithTimeout<T>(operationName, this.StorageAccountName, this.Settings, storageRequest, this.Stats, clientRequestId);
+                return await this.timeoutHandler.ExecuteWithTimeout<T>(operationName, storageRequest, this.Stats, clientRequestId);
             }
             catch (StorageException ex)
             {

@@ -29,10 +29,7 @@ namespace DurableTask.AzureStorage.Tests
                 .GetField("ProcessKillAction", BindingFlags.NonPublic | BindingFlags.Static)
                 .SetValue(null, killAction);
 
-            // TimeoutHandler at the moment invokes shutdown on 5th call failure.
-            await TimeoutHandler.ExecuteWithTimeout(
-                "test",
-                "account",
+            var timeoutHandler = new TimeoutHandler("account",
                 new AzureStorageOrchestrationServiceSettings
                 {
                     OnImminentFailFast = (errorString) =>
@@ -40,7 +37,11 @@ namespace DurableTask.AzureStorage.Tests
                         shutdownCount++;
                         return Task.FromResult(true);
                     }
-                },
+                });
+
+            // TimeoutHandler at the moment invokes shutdown on 5th call failure.
+            await timeoutHandler.ExecuteWithTimeout(
+                "test",
                 async (operationContext, cancellationToken) =>
                 {
                     executionCount++;
@@ -70,22 +71,22 @@ namespace DurableTask.AzureStorage.Tests
                 .GetField("ProcessKillAction", BindingFlags.NonPublic | BindingFlags.Static)
                 .SetValue(null, killAction);
 
-            // TimeoutHandler at the moment invokes shutdown on 5th call failure.
-            await TimeoutHandler.ExecuteWithTimeout(
-                "test",
-                "account",
-                new AzureStorageOrchestrationServiceSettings
+            var timeoutHandler = new TimeoutHandler("account", new    AzureStorageOrchestrationServiceSettings
+            {
+                OnImminentFailFast = (errorString) =>
                 {
-                    OnImminentFailFast = (errorString) =>
-                    {
-                        shutdownCount++;
-                        return Task.FromResult(false);
-                    }
-                },
+                    shutdownCount++;
+                    return Task.FromResult(false);
+                }
+            });
+
+            // TimeoutHandler at the moment invokes shutdown on 5th call failure.
+            await timeoutHandler.ExecuteWithTimeout(
+                "test",
                 async (operationContext, cancellationToken) =>
                 {
                     executionCount++;
-                    await Task.Delay(TimeSpan.FromMinutes(3));
+                    await Task.Delay(TimeSpan.FromMinutes(3), cancellationToken);
                     return 1;
                 });
 
@@ -110,19 +111,20 @@ namespace DurableTask.AzureStorage.Tests
                 .GetField("ProcessKillAction", BindingFlags.NonPublic | BindingFlags.Static)
                 .SetValue(null, killAction);
 
-            // TimeoutHandler at the moment invokes shutdown on 5th call failure.
-            await TimeoutHandler.ExecuteWithTimeout(
-                "test",
+            var timeoutHandler = new TimeoutHandler(
                 "account",
                 new AzureStorageOrchestrationServiceSettings
                 {
                     OnImminentFailFast = (errorString) =>
                     {
                         shutdownCount++;
-
                         throw new Exception("Breaking graceful shutdown");
                     }
-                },
+                });
+
+            // TimeoutHandler at the moment invokes shutdown on 5th call failure.
+            await timeoutHandler.ExecuteWithTimeout(
+                "test",
                 async (operationContext, cancellationToken) =>
                 {
                     executionCount++;
