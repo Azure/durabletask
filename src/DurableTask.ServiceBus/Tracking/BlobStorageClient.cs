@@ -65,6 +65,27 @@ namespace DurableTask.ServiceBus.Tracking
         }
 
         /// <summary>
+        /// Construct a blob storage client instance with hub name and cloud storage account
+        /// </summary>
+        /// <param name="hubName">The hub name</param>
+        /// <param name="cloudStorageAccount">The Cloud Storage Account</param>
+        public BlobStorageClient(string hubName, CloudStorageAccount cloudStorageAccount)
+        {
+            if (string.IsNullOrWhiteSpace(hubName))
+            {
+                throw new ArgumentException("Invalid hub name", nameof(hubName));
+            }
+
+            this.blobClient = cloudStorageAccount.CreateCloudBlobClient();
+            this.blobClient.DefaultRequestOptions.RetryPolicy = new ExponentialRetry(DeltaBackOff, MaxRetries);
+            this.blobClient.DefaultRequestOptions.MaximumExecutionTime = MaximumExecutionTime;
+
+            // make the hub name lower case since it will be used as part of the prefix of the container name,
+            // which only allows lower case letters
+            this.containerNamePrefix = BlobStorageClientHelper.BuildContainerNamePrefix(hubName.ToLower());
+        }
+        
+        /// <summary>
         /// Upload the stream into the blob storage using the specified key.
         /// </summary>
         /// <param name="key">The key to uniquely locate and access the blob</param>
