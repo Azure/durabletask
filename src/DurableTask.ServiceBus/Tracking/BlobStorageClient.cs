@@ -55,9 +55,7 @@ namespace DurableTask.ServiceBus.Tracking
                 throw new ArgumentException("Invalid hub name", nameof(hubName));
             }
 
-            this.blobClient = CloudStorageAccount.Parse(connectionString).CreateCloudBlobClient();
-            this.blobClient.DefaultRequestOptions.RetryPolicy = new ExponentialRetry(DeltaBackOff, MaxRetries);
-            this.blobClient.DefaultRequestOptions.MaximumExecutionTime = MaximumExecutionTime;
+            this.blobClient = CreateBlobClient(CloudStorageAccount.Parse(connectionString));
 
             // make the hub name lower case since it will be used as part of the prefix of the container name,
             // which only allows lower case letters
@@ -76,15 +74,31 @@ namespace DurableTask.ServiceBus.Tracking
                 throw new ArgumentException("Invalid hub name", nameof(hubName));
             }
 
-            this.blobClient = cloudStorageAccount.CreateCloudBlobClient();
-            this.blobClient.DefaultRequestOptions.RetryPolicy = new ExponentialRetry(DeltaBackOff, MaxRetries);
-            this.blobClient.DefaultRequestOptions.MaximumExecutionTime = MaximumExecutionTime;
+            if (cloudStorageAccount == null)
+            {
+                throw new ArgumentException("Invalid cloud storage acount", nameof(cloudStorageAccount));
+            }
+
+            this.blobClient = CreateBlobClient(cloudStorageAccount);
 
             // make the hub name lower case since it will be used as part of the prefix of the container name,
             // which only allows lower case letters
             this.containerNamePrefix = BlobStorageClientHelper.BuildContainerNamePrefix(hubName.ToLower());
         }
-        
+
+        /// <summary>
+        /// Creates a blob storage client with cloudStorageAccount
+        /// </summary>
+        /// <param name="cloudStorageAccount">The Cloud Storage Account</param>
+        public static CloudBlobClient CreateBlobClient(CloudStorageAccount cloudStorageAccount)
+        {
+            CloudBlobClient blobClient = cloudStorageAccount.CreateCloudBlobClient();
+            blobClient.DefaultRequestOptions.RetryPolicy = new ExponentialRetry(DeltaBackOff, MaxRetries);
+            blobClient.DefaultRequestOptions.MaximumExecutionTime = MaximumExecutionTime;
+
+            return blobClient;
+        }
+
         /// <summary>
         /// Upload the stream into the blob storage using the specified key.
         /// </summary>
