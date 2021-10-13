@@ -1237,14 +1237,12 @@ namespace DurableTask.AzureStorage
             }
 
             await enqueueOperations.ParallelForEachAsync(
-                this.settings.MaxStorageOperationConcurrency,
                 op => op.Queue.AddMessageAsync(op.Message, session));
         }
 
         async Task DeleteMessageBatchAsync(OrchestrationSession session, IList<MessageData> messagesToDelete)
         {
             await messagesToDelete.ParallelForEachAsync(
-                this.settings.MaxStorageOperationConcurrency,
                 message => session.ControlQueue.DeleteMessageAsync(message, session));
         }
 
@@ -1269,7 +1267,6 @@ namespace DurableTask.AzureStorage
 
             // Reset the visibility of the message to ensure it doesn't get picked up by anyone else.
             await session.CurrentMessageBatch.ParallelForEachAsync(
-                this.settings.MaxStorageOperationConcurrency,
                 message => controlQueue.RenewMessageAsync(message, session));
 
             workItem.LockedUntilUtc = DateTime.UtcNow.Add(this.settings.ControlQueueVisibilityTimeout);
@@ -1300,7 +1297,6 @@ namespace DurableTask.AzureStorage
         async Task AbandonMessagesAsync(OrchestrationSession session, IList<MessageData> messages)
         {
             await messages.ParallelForEachAsync(
-                this.settings.MaxStorageOperationConcurrency,
                 message => session.ControlQueue.AbandonMessageAsync(message, session));
 
             // Remove the messages from the current batch. The remaining messages
@@ -1328,7 +1324,6 @@ namespace DurableTask.AzureStorage
             {
                 // Some messages may need to be discarded
                 await session.DiscardedMessages.ParallelForEachAsync(
-                    this.settings.MaxStorageOperationConcurrency,
                     message => session.ControlQueue.DeleteMessageAsync(message, session));
             }
         }

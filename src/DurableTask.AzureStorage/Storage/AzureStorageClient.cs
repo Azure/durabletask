@@ -27,6 +27,7 @@ namespace DurableTask.AzureStorage.Storage
         readonly CloudStorageAccount account;
         readonly CloudBlobClient blobClient;
         readonly CloudQueueClient queueClient;
+        readonly SemaphoreSlim semaphore;
 
         public AzureStorageClient(AzureStorageOrchestrationServiceSettings settings)
         {
@@ -45,6 +46,7 @@ namespace DurableTask.AzureStorage.Storage
             this.blobClient.BufferManager = SimpleBufferManager.Shared;
 
             this.blobClient.DefaultRequestOptions.MaximumExecutionTime = StorageMaximumExecutionTime;
+            this.semaphore = new SemaphoreSlim(this.Settings.MaxStorageOperationConcurrency);
         }
 
         public AzureStorageClient(CloudStorageAccount account, AzureStorageOrchestrationServiceSettings settings)
@@ -60,6 +62,7 @@ namespace DurableTask.AzureStorage.Storage
             this.blobClient.BufferManager = SimpleBufferManager.Shared;
 
             this.blobClient.DefaultRequestOptions.MaximumExecutionTime = StorageMaximumExecutionTime;
+            this.semaphore = new SemaphoreSlim(this.Settings.MaxStorageOperationConcurrency);
         }
 
         public AzureStorageOrchestrationServiceSettings Settings { get; }
@@ -95,10 +98,14 @@ namespace DurableTask.AzureStorage.Storage
         {
             try
             {
-                return await TimeoutHandler.ExecuteWithTimeout<T>(operationName, this.StorageAccountName, this.Settings, storageRequest, this.Stats, clientRequestId);
+                await semaphore.WaitAsync();
+                var result = await TimeoutHandler.ExecuteWithTimeout<T>(operationName, this.StorageAccountName, this.Settings, storageRequest, this.Stats, clientRequestId);
+                semaphore.Release();
+                return result;
             }
             catch (StorageException ex)
             {
+                semaphore.Release();
                 throw new DurableTaskStorageException(ex);
             }
         }
