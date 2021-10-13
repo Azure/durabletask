@@ -480,7 +480,7 @@ namespace DurableTask.AzureStorage
         internal Task OnIntentLeaseReleasedAsync(BlobLease lease, CloseReason reason)
         {
             // Mark the queue as released so it will stop grabbing new messages.
-            this.orchestrationSessionManager.ReleaseQueue(lease.PartitionId);
+            this.orchestrationSessionManager.ReleaseQueue(lease.PartitionId, reason, "Intent LeaseCollectionBalancer");
             return Utils.CompletedTask;
         }
 
@@ -495,7 +495,7 @@ namespace DurableTask.AzureStorage
 
         internal Task OnOwnershipLeaseReleasedAsync(BlobLease lease, CloseReason reason)
         {
-            this.orchestrationSessionManager.RemoveQueue(lease.PartitionId);
+            this.orchestrationSessionManager.RemoveQueue(lease.PartitionId, reason, "Ownership LeaseCollectionBalancer");
             return Utils.CompletedTask;
         }
 
@@ -1555,7 +1555,11 @@ namespace DurableTask.AzureStorage
                 creationMessage);
 
             // CompressedBlobName either has a blob path for large messages or is null.
-            string inputStatusOverride = internalMessage.CompressedBlobName;
+            string inputStatusOverride = null;
+            if (internalMessage.CompressedBlobName != null)
+            {
+                inputStatusOverride = this.messageManager.GetBlobUrl(internalMessage.CompressedBlobName);
+            }
 
             await this.trackingStore.SetNewExecutionAsync(
                 executionStartedEvent,

@@ -214,11 +214,32 @@ namespace DurableTask.AzureStorage.Messaging
             return initialVisibilityDelay;
         }
 
-        public virtual async Task AbandonMessageAsync(MessageData message, SessionBase? session = null)
+        public virtual Task AbandonMessageAsync(MessageData message, SessionBase? session = null)
         {
             QueueMessage queueMessage = message.OriginalQueueMessage;
             TaskMessage taskMessage = message.TaskMessage;
             OrchestrationInstance instance = taskMessage.OrchestrationInstance;
+            long sequenceNumber = message.SequenceNumber;
+
+            return this.AbandonMessageAsync(
+                queueMessage,
+                taskMessage,
+                instance,
+                session?.TraceActivityId,
+                sequenceNumber);
+        }
+
+        protected async Task AbandonMessageAsync(
+            QueueMessage queueMessage,
+            TaskMessage? taskMessage,
+            OrchestrationInstance? instance,
+            Guid? traceActivityId,
+            long sequenceNumber)
+        {
+            string instanceId = instance?.InstanceId ?? string.Empty;
+            string executionId = instance?.ExecutionId ?? string.Empty;
+            string eventType = taskMessage?.Event.EventType.ToString() ?? string.Empty;
+            int taskEventId = taskMessage != null ? Utils.GetTaskEventId(taskMessage.Event) : -1;
 
             // Exponentially backoff a given queue message until a maximum visibility delay of 10 minutes.
             // Once it hits the maximum, log the message as a poison message.
@@ -231,11 +252,11 @@ namespace DurableTask.AzureStorage.Messaging
                 this.settings.Logger.PoisonMessageDetected(
                     this.storageAccountName,
                     this.settings.TaskHubName,
-                    taskMessage.Event.EventType.ToString(),
-                    Utils.GetTaskEventId(taskMessage.Event),
+                    eventType,
+                    taskEventId,
                     queueMessage.Id,
-                    instance.InstanceId,
-                    instance.ExecutionId,
+                    instanceId,
+                    executionId,
                     this.storageQueue.Name,
                     queueMessage.DequeueCount);
             }
@@ -243,13 +264,13 @@ namespace DurableTask.AzureStorage.Messaging
             this.settings.Logger.AbandoningMessage(
                 this.storageAccountName,
                 this.settings.TaskHubName,
-                taskMessage.Event.EventType.ToString(),
-                Utils.GetTaskEventId(taskMessage.Event),
+                eventType,
+                taskEventId,
                 queueMessage.Id,
-                instance.InstanceId,
-                instance.ExecutionId,
+                instanceId,
+                executionId,
                 this.storageQueue.Name,
-                message.SequenceNumber,
+                sequenceNumber,
                 numSecondsToWait);
 
             try
@@ -259,12 +280,19 @@ namespace DurableTask.AzureStorage.Messaging
                 await this.storageQueue.UpdateMessageAsync(
                     queueMessage,
                     TimeSpan.FromSeconds(numSecondsToWait),
-                    session?.TraceActivityId);
+                    traceActivityId);
             }
             catch (Exception e)
             {
                 // Message may have been processed and deleted already.
-                this.HandleMessagingExceptions(e, message, $"Caller: {nameof(AbandonMessageAsync)}");
+                this.HandleMessagingExceptions(
+                    e,
+                    queueMessage.Id,
+                    instanceId,
+                    executionId,
+                    eventType,
+                    taskEventId,
+                    details: $"Caller: {nameof(AbandonMessageAsync)}");
             }
         }
 
@@ -345,18 +373,36 @@ namespace DurableTask.AzureStorage.Messaging
 
         void HandleMessagingExceptions(Exception e, MessageData message, string details)
         {
+            string messageId = message.OriginalQueueMessage.Id;
+            string instanceId = message.TaskMessage.OrchestrationInstance.InstanceId;
+            string executionId = message.TaskMessage.OrchestrationInstance.ExecutionId;
+            string eventType = message.TaskMessage.Event.EventType.ToString() ?? string.Empty;
+            int taskEventId = Utils.GetTaskEventId(message.TaskMessage.Event);
+
+            this.HandleMessagingExceptions(e, messageId, instanceId, executionId, eventType, taskEventId, details);
+        }
+
+        void HandleMessagingExceptions(
+            Exception e,
+            string messageId,
+            string instanceId,
+            string executionId,
+            string eventType,
+            int taskEventId,
+            string details)
+        {
             if (this.IsMessageGoneException(e))
             {
                 // Message may have been processed and deleted already.
                 this.settings.Logger.MessageGone(
                     this.storageAccountName,
                     this.settings.TaskHubName,
-                    message.OriginalQueueMessage.Id,
-                    message.TaskMessage.OrchestrationInstance.InstanceId,
-                    message.TaskMessage.OrchestrationInstance.ExecutionId,
+                    messageId,
+                    instanceId,
+                    executionId,
                     this.storageQueue.Name,
-                    message.TaskMessage.Event.EventType.ToString(),
-                    Utils.GetTaskEventId(message.TaskMessage.Event),
+                    eventType,
+                    taskEventId,
                     details);
             }
             else
@@ -364,12 +410,12 @@ namespace DurableTask.AzureStorage.Messaging
                 this.settings.Logger.MessageFailure(
                     this.storageAccountName,
                     this.settings.TaskHubName,
-                    message.OriginalQueueMessage.Id,
-                    message.TaskMessage.OrchestrationInstance.InstanceId,
-                    message.TaskMessage.OrchestrationInstance.ExecutionId,
+                    messageId,
+                    instanceId,
+                    executionId,
                     this.storageQueue.Name,
-                    message.TaskMessage.Event.EventType.ToString(),
-                    Utils.GetTaskEventId(message.TaskMessage.Event),
+                    eventType,
+                    taskEventId,
                     e.ToString());
 
                 // Rethrow the original exception, preserving the callstack.
