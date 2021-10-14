@@ -23,6 +23,7 @@ namespace DurableTask.ServiceBus.Tracking
     using DurableTask.Core.Common;
     using DurableTask.Core.Serializing;
     using DurableTask.Core.Tracking;
+    using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Table;
 
     /// <summary>
@@ -45,7 +46,40 @@ namespace DurableTask.ServiceBus.Tracking
         /// <param name="tableConnectionString">Azure table connection string</param>
         public AzureTableInstanceStore(string hubName, string tableConnectionString)
         {
+            if (string.IsNullOrWhiteSpace(tableConnectionString))
+            {
+                throw new ArgumentException("Invalid connection string", nameof(tableConnectionString));
+            }
+
+            if (string.IsNullOrWhiteSpace(hubName))
+            {
+                throw new ArgumentException("Invalid hub name", nameof(hubName));
+            }
+
             this.tableClient = new AzureTableClient(hubName, tableConnectionString);
+
+            // Workaround an issue with Storage that throws exceptions for any date < 1600 so DateTime.Min cannot be used
+            DateTimeUtils.SetMinDateTimeForStorageEmulator();
+        }
+
+        /// <summary>
+        /// Creates a new AzureTableInstanceStore using the supplied hub name and cloud storage account
+        /// </summary>
+        /// <param name="hubName">The hub name for this instance store</param>
+        /// <param name="cloudStorageAccount">Cloud Storage Account</param>
+        public AzureTableInstanceStore(string hubName, CloudStorageAccount cloudStorageAccount)
+        {
+            if (cloudStorageAccount == null)
+            {
+                throw new ArgumentException("Invalid CLoud Storage Account", nameof(cloudStorageAccount));
+            }
+
+            if (string.IsNullOrWhiteSpace(hubName))
+            {
+                throw new ArgumentException("Invalid hub name", nameof(hubName));
+            }
+
+            this.tableClient = new AzureTableClient(hubName, cloudStorageAccount);
 
             // Workaround an issue with Storage that throws exceptions for any date < 1600 so DateTime.Min cannot be used
             DateTimeUtils.SetMinDateTimeForStorageEmulator();

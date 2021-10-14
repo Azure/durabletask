@@ -28,7 +28,6 @@ namespace DurableTask.ServiceBus.Tracking
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.RetryPolicies;
     using Microsoft.WindowsAzure.Storage.Table;
-    using Microsoft.WindowsAzure.Storage.Table.Protocol;
 
     internal class AzureTableClient
     {
@@ -49,25 +48,30 @@ namespace DurableTask.ServiceBus.Tracking
         volatile CloudTable jumpStartTable;
 
         public AzureTableClient(string hubName, string tableConnectionString)
+            :this(hubName, CloudStorageAccount.Parse(tableConnectionString))
         {
-            if (string.IsNullOrWhiteSpace(tableConnectionString))
+
+        }
+
+        public AzureTableClient(string hubName, CloudStorageAccount cloudStorageAccount)
+        {
+            if (cloudStorageAccount == null)
             {
-                throw new ArgumentException("Invalid connection string", nameof(tableConnectionString));
+                throw new ArgumentException("Invalid Cloud Storage Account", nameof(cloudStorageAccount));
             }
 
-            if (string.IsNullOrWhiteSpace(hubName))
-            {
-                throw new ArgumentException("Invalid hub name", nameof(hubName));
-            }
-
-            this.tableClient = CloudStorageAccount.Parse(tableConnectionString).CreateCloudTableClient();
-            this.tableClient.DefaultRequestOptions.RetryPolicy = new ExponentialRetry(DeltaBackOff,
-                MaxRetries);
-            this.tableClient.DefaultRequestOptions.MaximumExecutionTime = MaximumExecutionTime;
-
+            this.tableClient = CreateAzureTableClient(cloudStorageAccount);
             this.hubName = hubName;
             this.historyTable = this.tableClient.GetTableReference(TableName);
             this.jumpStartTable = this.tableClient.GetTableReference(JumpStartTableName);
+        }
+
+        public static CloudTableClient CreateAzureTableClient(CloudStorageAccount cloudStorageAccount)
+        {
+            CloudTableClient tableClient = cloudStorageAccount.CreateCloudTableClient();
+            tableClient.DefaultRequestOptions.RetryPolicy = new ExponentialRetry(DeltaBackOff, MaxRetries);
+            tableClient.DefaultRequestOptions.MaximumExecutionTime = MaximumExecutionTime;
+            return tableClient;
         }
 
         public string TableName => AzureTableConstants.InstanceHistoryTableNamePrefix + "00" + this.hubName;
