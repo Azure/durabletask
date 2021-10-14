@@ -66,7 +66,7 @@ namespace DurableTask.ServiceBus.Tracking
             this.jumpStartTable = this.tableClient.GetTableReference(JumpStartTableName);
         }
 
-        public static CloudTableClient CreateAzureTableClient(CloudStorageAccount cloudStorageAccount)
+        private static CloudTableClient CreateAzureTableClient(CloudStorageAccount cloudStorageAccount)
         {
             CloudTableClient tableClient = cloudStorageAccount.CreateCloudTableClient();
             tableClient.DefaultRequestOptions.RetryPolicy = new ExponentialRetry(DeltaBackOff, MaxRetries);
