@@ -71,7 +71,7 @@ namespace DurableTask.ServiceBus.Tracking
         {
             if (cloudStorageAccount == null)
             {
-                throw new ArgumentException("Invalid CLoud Storage Account", nameof(cloudStorageAccount));
+                throw new ArgumentException("Invalid Cloud Storage Account", nameof(cloudStorageAccount));
             }
 
             if (string.IsNullOrWhiteSpace(hubName))

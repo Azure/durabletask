@@ -48,13 +48,18 @@ namespace DurableTask.ServiceBus.Tracking
         volatile CloudTable jumpStartTable;
 
         public AzureTableClient(string hubName, string tableConnectionString)
-            :this(hubName, CloudStorageAccount.Parse(tableConnectionString))
+            : this(hubName, CloudStorageAccount.Parse(tableConnectionString))
         {
 
         }
 
         public AzureTableClient(string hubName, CloudStorageAccount cloudStorageAccount)
         {
+            if (string.IsNullOrWhiteSpace(hubName))
+            {
+                throw new ArgumentException("Invalid hub name", nameof(hubName));
+            }
+
             if (cloudStorageAccount == null)
             {
                 throw new ArgumentException("Invalid Cloud Storage Account", nameof(cloudStorageAccount));
