@@ -77,6 +77,11 @@ namespace DurableTask.Core
         {
             object result = await ScheduleTaskInternal(name, version, taskList, typeof(TResult), parameters);
 
+            if (result == null && typeof(TResult).IsPrimitive)
+            {
+                throw new InvalidOperationException("Task result is null and cannot be cast to TResult. Please use the non-generic overload method.");
+            }
+
             return (TResult)result;
         }
 
