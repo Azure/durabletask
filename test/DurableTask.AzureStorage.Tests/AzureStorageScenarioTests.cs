@@ -499,10 +499,11 @@ namespace DurableTask.AzureStorage.Tests
 
         private async Task<int> GetBlobCount(string containerName, string directoryName)
         {
-            string storageConnectionString = ConfigurationManager.AppSettings["StorageConnectionString"];
+            string storageConnectionString = TestHelpers.GetTestStorageAccountConnectionString();
             CloudStorageAccount storageAccount;
             if (!CloudStorageAccount.TryParse(storageConnectionString, out storageAccount))
             {
+                Assert.Fail("Couldn't find the connection string to use to look up blobs!");
                 return 0;
             }
 
