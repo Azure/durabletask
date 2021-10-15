@@ -90,7 +90,7 @@ namespace DurableTask.ServiceBus.Tracking
         /// Creates a blob storage client with cloudStorageAccount
         /// </summary>
         /// <param name="cloudStorageAccount">The Cloud Storage Account</param>
-        public static CloudBlobClient CreateBlobClient(CloudStorageAccount cloudStorageAccount)
+        private static CloudBlobClient CreateBlobClient(CloudStorageAccount cloudStorageAccount)
         {
             CloudBlobClient blobClient = cloudStorageAccount.CreateCloudBlobClient();
             blobClient.DefaultRequestOptions.RetryPolicy = new ExponentialRetry(DeltaBackOff, MaxRetries);
