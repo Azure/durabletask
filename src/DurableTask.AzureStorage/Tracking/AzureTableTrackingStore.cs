@@ -79,7 +79,7 @@ namespace DurableTask.AzureStorage.Tracking
             this.tableEntityConverter = new TableEntityConverter();
             this.taskHubName = settings.TaskHubName;
 
-            this.storageAccountName = account.Credentials.AccountName;
+            this.storageAccountName = account.Credentials.AccountName ?? settings.StorageAccountDetails.AccountName;
 
             CloudTableClient tableClient = account.CreateCloudTableClient();
             tableClient.BufferManager = SimpleBufferManager.Shared;

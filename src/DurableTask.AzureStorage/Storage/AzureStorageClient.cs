@@ -36,7 +36,7 @@ namespace DurableTask.AzureStorage.Storage
                 ? CloudStorageAccount.Parse(settings.StorageConnectionString)
                 : settings.StorageAccountDetails.ToCloudStorageAccount();
 
-            this.StorageAccountName = account.Credentials.AccountName;
+            this.StorageAccountName = account.Credentials.AccountName ?? settings.StorageAccountDetails.AccountName;
 
             this.Stats = new AzureStorageOrchestrationServiceStats();
             this.queueClient = account.CreateCloudQueueClient();
@@ -52,7 +52,7 @@ namespace DurableTask.AzureStorage.Storage
             this.account = account;
             this.Settings = settings;
 
-            this.StorageAccountName = account.Credentials.AccountName;
+            this.StorageAccountName = account.Credentials.AccountName ?? settings.StorageAccountDetails.AccountName;
             this.Stats = new AzureStorageOrchestrationServiceStats();
             this.queueClient = account.CreateCloudQueueClient();
             this.queueClient.BufferManager = SimpleBufferManager.Shared;
