@@ -109,7 +109,7 @@ namespace DurableTask.AzureStorage
                 ? CloudStorageAccount.Parse(settings.StorageConnectionString)
                 : settings.StorageAccountDetails.ToCloudStorageAccount();
 
-            this.storageAccountName = account.Credentials.AccountName;
+            this.storageAccountName = account.Credentials.AccountName ?? settings.StorageAccountDetails.AccountName;
 
             string compressedMessageBlobContainerName = $"{settings.TaskHubName.ToLowerInvariant()}-largemessages";
             NameValidator.ValidateContainerName(compressedMessageBlobContainerName);
