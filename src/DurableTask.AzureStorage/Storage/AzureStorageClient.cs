@@ -41,7 +41,7 @@ namespace DurableTask.AzureStorage.Storage
             this.account = account;
             this.Settings = settings;
 
-            this.StorageAccountName = account.Credentials.AccountName;
+            this.StorageAccountName = account.Credentials.AccountName ?? settings.StorageAccountDetails.AccountName;
             this.Stats = new AzureStorageOrchestrationServiceStats();
             this.queueClient = account.CreateCloudQueueClient();
             this.queueClient.BufferManager = SimpleBufferManager.Shared;
