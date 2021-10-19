@@ -45,8 +45,8 @@ namespace DurableTask.AzureStorage.Tests
 
                 // The expectedOutput value is the string that's passed into the InvalidOperationException
                 await Task.WhenAll(instance.WaitForCompletion(
-                    expectedStatus: OrchestrationStatus.Failed,
-                    expectedOutput: "Task result is null and cannot be cast to TResult. Please use the non-generic overload method."));
+                    expectedStatus: OrchestrationStatus.Completed,
+                    expectedOutput: 0));
 
                 await host.StopAsync();
             }
