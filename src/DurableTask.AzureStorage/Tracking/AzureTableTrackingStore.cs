@@ -448,7 +448,7 @@ namespace DurableTask.AzureStorage.Tracking
                 executionId ?? string.Empty,
                 tableEntitiesResponseInfo.ElapsedMilliseconds);
 
-            var tableEntity = tableEntitiesResponseInfo.ReturnedEntities.ToList().FirstOrDefault();
+            var tableEntity = tableEntitiesResponseInfo.ReturnedEntities.FirstOrDefault();
             if (tableEntity == null)
             {
                 return null;

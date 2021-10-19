@@ -200,11 +200,11 @@ namespace DurableTask.AzureStorage.Storage
                 stopwatch.Start();
 
                 var segment = await this.azureStorageClient.MakeStorageRequest(
-                    (context, timeoutCancellationToken) =>
+                    async (context, timeoutCancellationToken) =>
                     {
                         using (var finalLinkedCts = CancellationTokenSource.CreateLinkedTokenSource(callerCancellationToken, timeoutCancellationToken))
                         {
-                            return this.cloudTable.ExecuteQuerySegmentedAsync(query, tableContinuationToken, null, context, finalLinkedCts.Token);
+                            return await this.cloudTable.ExecuteQuerySegmentedAsync(query, tableContinuationToken, null, context, finalLinkedCts.Token);
                         }
                     },
                 "Table ExecuteQuerySegmented");
@@ -257,11 +257,11 @@ namespace DurableTask.AzureStorage.Storage
             stopwatch.Start();
 
             var segment = await this.azureStorageClient.MakeStorageRequest(
-                (context, timeoutCancellationToken) =>
+                async (context, timeoutCancellationToken) =>
                 {
                     using (var finalLinkedCts = CancellationTokenSource.CreateLinkedTokenSource(callerCancellationToken, timeoutCancellationToken))
                     {
-                        return this.cloudTable.ExecuteQuerySegmentedAsync(query, tableContinuationToken, null, context, finalLinkedCts.Token);
+                        return await this.cloudTable.ExecuteQuerySegmentedAsync(query, tableContinuationToken, null, context, finalLinkedCts.Token);
                     }
                 },
                 "Table ExecuteQuerySegmented");

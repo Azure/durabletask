@@ -87,11 +87,11 @@ namespace DurableTask.AzureStorage.Storage
         public async Task<QueueMessage?> GetMessageAsync(TimeSpan visibilityTimeout, CancellationToken callerCancellationToken)
         {
             var cloudQueueMessage = await this.azureStorageClient.MakeStorageRequest<CloudQueueMessage>(
-                (context, timeoutCancellationToken) =>
+                async (context, timeoutCancellationToken) =>
                 {
                     using (var finalLinkedCts = CancellationTokenSource.CreateLinkedTokenSource(callerCancellationToken, timeoutCancellationToken))
                     {
-                        return this.cloudQueue.GetMessageAsync(
+                        return await this.cloudQueue.GetMessageAsync(
                             visibilityTimeout,
                             null,
                             context,
@@ -133,11 +133,11 @@ namespace DurableTask.AzureStorage.Storage
         public async Task<IEnumerable<QueueMessage>> GetMessagesAsync(int batchSize, TimeSpan visibilityTimeout, CancellationToken callerCancellationToken)
         {
             var cloudQueueMessages = await this.azureStorageClient.MakeStorageRequest<IEnumerable<CloudQueueMessage>>(
-                (context, timeoutCancellationToken) =>
+                async (context, timeoutCancellationToken) =>
                 {
                     using (var finalLinkedCts = CancellationTokenSource.CreateLinkedTokenSource(callerCancellationToken, timeoutCancellationToken))
                     {
-                        return this.cloudQueue.GetMessagesAsync(
+                        return await this.cloudQueue.GetMessagesAsync(
                             batchSize,
                             visibilityTimeout,
                             null,

@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.AzureStorage.Storage
 {
     using System.Collections.Generic;
@@ -22,6 +22,6 @@ namespace DurableTask.AzureStorage.Storage
 
         public int RequestCount { get; set; }
 
-        public IList<TableResult> TableResults { get; set; }
+        public IList<TableResult>? TableResults { get; set; }
     }
 }
