@@ -77,7 +77,7 @@ namespace DurableTask.Core
         {
             object result = await ScheduleTaskInternal(name, version, taskList, typeof(TResult), parameters);
 
-            if (result == null && typeof(TResult).IsPrimitive)
+            if (result == null)
             {
                 return default(TResult);
             }
