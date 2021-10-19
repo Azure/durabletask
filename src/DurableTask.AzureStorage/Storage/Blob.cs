@@ -23,7 +23,6 @@ namespace DurableTask.AzureStorage.Storage
     {
         readonly AzureStorageClient azureStorageClient;
         readonly CloudBlobClient blobClient;
-        readonly string? blobDirectory;
         readonly CloudBlockBlob cloudBlockBlob;
 
         public Blob(AzureStorageClient azureStorageClient, CloudBlobClient blobClient, string containerName, string blobName, string? blobDirectory = null)
@@ -31,8 +30,7 @@ namespace DurableTask.AzureStorage.Storage
             this.azureStorageClient = azureStorageClient;
             this.blobClient = blobClient;
             this.Name = blobName;
-            this.blobDirectory = blobDirectory;
-            var fullBlobPath = this.blobDirectory != null ? Path.Combine(this.blobDirectory, this.Name) : blobName;
+            var fullBlobPath = blobDirectory != null ? Path.Combine(blobDirectory, this.Name) : blobName;
 
             this.cloudBlockBlob = this.blobClient.GetContainerReference(containerName).GetBlockBlobReference(fullBlobPath);
         }
