@@ -39,9 +39,9 @@
   <!-- Nuget Package Settings -->
   <PropertyGroup>
     <PackageOutputPath>..\..\build_output\packages</PackageOutputPath>
-    <AssemblyVersion>2.5.6</AssemblyVersion>
-    <FileVersion>2.5.6</FileVersion>
-    <Version>2.5.6</Version>
+    <AssemblyVersion>2.6.0</AssemblyVersion>
+    <FileVersion>2.6.0</FileVersion>
+    <Version>2.6.0</Version>
     <Company>Microsoft</Company>
     <Authors>Microsoft</Authors>
     <Product>Durable Task Framework</Product>
