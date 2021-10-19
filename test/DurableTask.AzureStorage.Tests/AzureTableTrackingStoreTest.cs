@@ -45,7 +45,7 @@ namespace DurableTask.AzureStorage.Tests
 
             var result = await fixture.TrackingStore.GetStateAsync(fixture.ExpectedCreatedDateFrom, fixture.ExpectedCreatedDateTo, inputState, 3, fixture.InputToken);
 
-            Assert.IsNull(fixture.ActualPassedTokenString);
+            Assert.AreEqual("", fixture.ActualPassedTokenString);
 
             Assert.AreEqual(fixture.ExpectedResult.ContinuationToken, result.ContinuationToken);
             Assert.AreEqual(fixture.ExpectedResult.OrchestrationState.Count(), result.OrchestrationState.Count());
@@ -115,10 +115,14 @@ namespace DurableTask.AzureStorage.Tests
 
             public QueryFixture()
             {
-                this.tableMock = new Mock<Table>();
+                var azureStorageClient = new AzureStorageClient(new AzureStorageOrchestrationServiceSettings() { StorageConnectionString = "UseDevelopmentStorage=true"});
+                var cloudStorageAccount = CloudStorageAccount.Parse(azureStorageClient.Settings.StorageConnectionString);
+                var cloudTableClient = cloudStorageAccount.CreateCloudTableClient();
+
+                this.tableMock = new Mock<Table>(azureStorageClient, cloudTableClient, "MockTable");
             }
 
-            private void SetUpQueryStateWithPager(string inputToken, Action setupMock)
+            private void SetUpQueryStateWithPager(string inputToken)
             {
                 this.ExpectedCreatedDateFrom = DateTime.UtcNow;
                 this.ExpectedCreatedDateTo = DateTime.UtcNow;
@@ -127,48 +131,30 @@ namespace DurableTask.AzureStorage.Tests
                 this.InputToken = inputToken;
                 SetupQueryStateWithPagerInputStatus();
                 SetUpQueryStateWithPagerResult();
-                setupMock();
+                SetupExecuteQuerySegmentMock();
                 SetupTrackingStore();
             }
 
             public void SetUpQueryStateWithPagerWithoutInputToken()
             {
-                SetUpQueryStateWithPager("", SetupQueryStateWithPagerMock);
+                SetUpQueryStateWithPager("");
             }
 
             public void SetupQueryStateWithPagerWithInputToken(string serializedInputToken)
             {
                 this.ExpectedPassedTokenObject = serializedInputToken;
-                SetUpQueryStateWithPager(serializedInputToken, SetupQueryStateWithPagerMock_WithInputToken);
+                SetUpQueryStateWithPager(serializedInputToken);
             }
 
             public void VerifyQueryStateWithPager()
             {
-                this.tableMock.Verify(t => t.ExecuteQueryAsync<OrchestrationInstanceStatus>(
+                this.tableMock.Verify(t => t.ExecuteQuerySegmentAsync<OrchestrationInstanceStatus>(
                     It.IsAny<TableQuery<OrchestrationInstanceStatus>>(),
-                    It.IsAny<CancellationToken>()));
-            }
-
-            private void SetupQueryStateWithPagerMock()
-            {
-                var segment = (TableEntitiesResponseInfo<OrchestrationInstanceStatus>)System.Runtime.Serialization.FormatterServices.GetSafeUninitializedObject(typeof(TableEntitiesResponseInfo<OrchestrationInstanceStatus>));
-                segment.GetType().GetProperty("ReturnedEntities").SetValue(segment, this.InputStatus);
-                segment.GetType().GetProperty("ContinuationToken").SetValue(segment, this.ExpectedTokenObject);
-
-                this.tableMock.Setup(t => t.ExecuteQuerySegmentAsync<OrchestrationInstanceStatus>(
-                        It.IsAny<TableQuery<OrchestrationInstanceStatus>>(),
                         It.IsAny<CancellationToken>(),
-                        It.IsAny<string>()))
-                    .Returns(Task.FromResult(segment))
-                    .Callback<TableQuery<OrchestrationInstanceStatus>, CancellationToken, string>(
-                        (q, cancelToken, token) =>
-                        {
-                            this.ActualPassedTokenString = token;
-                            Assert.AreEqual(this.ExpectedTop, q.TakeCount);
-                        });
+                        It.IsAny<string>()));
             }
 
-            private void SetupQueryStateWithPagerMock_WithInputToken()
+            private void SetupExecuteQuerySegmentMock()
             {
                 var segment = (TableEntitiesResponseInfo<OrchestrationInstanceStatus>)System.Runtime.Serialization.FormatterServices.GetSafeUninitializedObject(typeof(TableEntitiesResponseInfo<OrchestrationInstanceStatus>));
                 segment.GetType().GetProperty("ReturnedEntities").SetValue(segment, this.InputStatus);
@@ -221,8 +207,7 @@ namespace DurableTask.AzureStorage.Tests
                     NextTableName = "baz",
                 };
                 this.ExpectedTokenObject = JsonConvert.SerializeObject(token);
-                var tokenBase64String = Convert.ToBase64String(Encoding.UTF8.GetBytes(ExpectedTokenObject));
-                this.ExpectedResult.ContinuationToken = tokenBase64String;
+                this.ExpectedResult.ContinuationToken = this.ExpectedTokenObject;
                 this.ExpectedResult.OrchestrationState = new List<OrchestrationState>()
                 {
                     new OrchestrationState()

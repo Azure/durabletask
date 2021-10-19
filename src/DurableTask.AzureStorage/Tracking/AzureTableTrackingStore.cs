@@ -768,7 +768,16 @@ namespace DurableTask.AzureStorage.Tracking
             Stopwatch stopwatch = Stopwatch.StartNew();
             try
             {
-                await this.InstancesTable.InsertOrReplaceAsync(entity);
+                if (eTag == null)
+                {
+                    // This is the case for creating a new instance.
+                    await this.InstancesTable.InsertAsync(entity);
+                }
+                else
+                {
+                    // This is the case for overwriting an existing instance.
+                    await this.InstancesTable.ReplaceAsync(entity);
+                }
             }
             catch (DurableTaskStorageException e) when (
                 e.HttpStatusCode == 409 /* Conflict */ ||
@@ -1181,7 +1190,7 @@ namespace DurableTask.AzureStorage.Tracking
             Stopwatch stopwatch = Stopwatch.StartNew();
             try
             {
-                resultInfo = await this.HistoryTable.ExecuteBatchAsync(historyEventBatch, "InsertOrReplace History");
+                resultInfo = await this.HistoryTable.ExecuteBatchAsync(historyEventBatch, "InsertOrMerge History");
             }
             catch (DurableTaskStorageException ex)
             {
