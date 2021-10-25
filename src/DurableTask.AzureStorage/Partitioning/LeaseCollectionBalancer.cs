@@ -347,7 +347,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 }
 
                 allShards.Add(lease.PartitionId, lease);
-                if (lease.IsExpired() || string.IsNullOrWhiteSpace(lease.Owner))
+                if (lease.IsExpired || string.IsNullOrWhiteSpace(lease.Owner))
                 {
                     expiredLeases.Add(lease);
                 }
@@ -516,7 +516,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 lease.PartitionId,
                 renewed,
                 lease.Token,
-                errorMessage);
+                $"Renewal result for {this.leaseType}: {renewed}. {errorMessage}");
 
             if (!renewed)
             {
@@ -526,7 +526,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.workerName,
                     lease.PartitionId,
                     lease.Token,
-                    errorMessage);
+                    $"Renewal failed for {this.leaseType}. Exception: {errorMessage}");
             }
 
             return renewed;
@@ -555,7 +555,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.taskHub,
                     this.workerName,
                     lease.PartitionId,
-                    ex.ToString());
+                    $"Error in {this.leaseType} lease acquisition: {ex}");
             }
 
             return acquired;
@@ -581,7 +581,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.taskHub,
                     this.workerName,
                     lease.PartitionId,
-                    $"Failure in {this.leaseType} lease stealing: {ex.ToString()}");
+                    $"Failure in {this.leaseType} lease stealing: {ex}");
             }
 
             return stolen;
@@ -639,7 +639,6 @@ namespace DurableTask.AzureStorage.Partitioning
                 }
                 catch (LeaseLostException)
                 {
-                    // We have already shutdown the processor so we can ignore any LeaseLost at this point
                     this.settings.Logger.LeaseRemovalFailed(
                         this.accountName,
                         this.taskHub,
@@ -715,12 +714,6 @@ namespace DurableTask.AzureStorage.Partitioning
                     catch (LeaseLostException)
                     {
                         // We have already shutdown the processor so we can ignore any LeaseLost at this point
-                        this.settings.Logger.LeaseRemovalFailed(
-                            this.accountName,
-                            this.taskHub,
-                            this.workerName,
-                            lease.PartitionId,
-                            lease.Token);
                     }
                     catch (Exception ex)
                     {
@@ -767,7 +760,7 @@ namespace DurableTask.AzureStorage.Partitioning
                                 partitionManager.taskHub,
                                 partitionManager.workerName,
                                 lease.PartitionId,
-                                $"Failed during notification of observers of {this.partitionManager.leaseManager} lease: {ex.ToString()}");
+                                $"Failed during notification of observers of {this.partitionManager.leaseManager} lease: {ex}");
                         }
                     }
                 }

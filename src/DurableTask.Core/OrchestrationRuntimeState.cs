@@ -301,8 +301,10 @@ namespace DurableTask.Core
 #else
             return new OrchestrationRuntimeStateDump
             {
-                EventCount = this.Events.Count,
-                NewEventsCount = this.NewEvents.Count,
+                EventCount = Events.Count,
+                NewEventsCount = NewEvents.Count,
+                Events = new List<HistoryEvent>(),
+                NewEvents = new List<HistoryEvent>(),
             };
 #endif
         }

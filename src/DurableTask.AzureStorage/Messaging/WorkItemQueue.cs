@@ -16,22 +16,17 @@ namespace DurableTask.AzureStorage.Messaging
     using System;
     using System.Threading;
     using System.Threading.Tasks;
-    using DurableTask.AzureStorage.Monitoring;
-    using Microsoft.WindowsAzure.Storage;
-    using Microsoft.WindowsAzure.Storage.Queue;
+    using DurableTask.AzureStorage.Storage;
 
     class WorkItemQueue : TaskHubQueue
     {
         public WorkItemQueue(
-            CloudQueue storageQueue,
-            AzureStorageOrchestrationServiceSettings settings,
-            AzureStorageOrchestrationServiceStats stats,
+            AzureStorageClient azureStorageClient,
+            string queueName,
             MessageManager messageManager)
-            : base(storageQueue, settings, stats, messageManager)
+            : base(azureStorageClient, queueName, messageManager)
         {
         }
-
-        protected override QueueRequestOptions QueueRequestOptions => this.settings.WorkItemQueueRequestOptions;
 
         protected override TimeSpan MessageVisibilityTimeout => this.settings.WorkItemQueueVisibilityTimeout;
 
@@ -41,27 +36,13 @@ namespace DurableTask.AzureStorage.Messaging
             {
                 try
                 {
-                    CloudQueueMessage queueMessage = await TimeoutHandler.ExecuteWithTimeout("GetMessage",  storageAccountName, settings, (context, timeoutToken) =>
-                    {
-                        using (var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutToken))
-                        {
-                            return this.storageQueue.GetMessageAsync(
-                                this.settings.WorkItemQueueVisibilityTimeout,
-                                this.settings.WorkItemQueueRequestOptions,
-                                context,
-                                linkedCts.Token);
-                        }
-                    });
-
-                    this.stats.StorageRequests.Increment();
+                    QueueMessage queueMessage = await  this.storageQueue.GetMessageAsync(this.settings.WorkItemQueueVisibilityTimeout, cancellationToken);
 
                     if (queueMessage == null)
                     {
                         await this.backoffHelper.WaitAsync(cancellationToken);
                         continue;
                     }
-
-                    this.stats.MessagesRead.Increment();
 
                     MessageData data = await this.messageManager.DeserializeQueueMessageAsync(
                         queueMessage,

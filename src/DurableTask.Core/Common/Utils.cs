@@ -48,6 +48,17 @@ namespace DurableTask.Core.Common
         /// </summary>
         internal static readonly string PackageVersion = FileVersionInfo.GetVersionInfo(typeof(TaskOrchestration).Assembly.Location).FileVersion;
 
+        private static readonly JsonSerializerSettings ObjectJsonSettings = new JsonSerializerSettings
+        {
+            TypeNameHandling = TypeNameHandling.All,
+
+#if NETSTANDARD2_0
+            SerializationBinder = new PackageUpgradeSerializationBinder()
+#else
+            Binder = new PackageUpgradeSerializationBinder()
+#endif
+        };
+
         /// <summary>
         /// Gets or sets the name of the app, for use when writing structured event source traces.
         /// </summary>
@@ -103,8 +114,7 @@ namespace DurableTask.Core.Common
                 throw new ArgumentException("stream is not seekable or writable", nameof(objectStream));
             }
 
-            byte[] serializedBytes = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(obj,
-                new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.All }));
+            byte[] serializedBytes = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(obj, ObjectJsonSettings));
 
             objectStream.Write(serializedBytes, 0, serializedBytes.Length);
             objectStream.Position = 0;
@@ -165,20 +175,9 @@ namespace DurableTask.Core.Common
         /// </summary>
         public static T ReadObjectFromByteArray<T>(byte[] serializedBytes)
         {
-            var settings = new JsonSerializerSettings
-            {
-                TypeNameHandling = TypeNameHandling.All,
-
-#if NETSTANDARD2_0
-                SerializationBinder = new PackageUpgradeSerializationBinder()
-#else
-                Binder = new PackageUpgradeSerializationBinder()
-#endif
-            };
-
             return JsonConvert.DeserializeObject<T>(
                                 Encoding.UTF8.GetString(serializedBytes),
-                                settings);
+                                ObjectJsonSettings);
         }
 
         /// <summary>

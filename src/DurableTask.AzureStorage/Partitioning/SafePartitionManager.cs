@@ -13,52 +13,44 @@
 
 namespace DurableTask.AzureStorage.Partitioning
 {
-    using DurableTask.AzureStorage.Monitoring;
-    using Microsoft.WindowsAzure.Storage;
     using System;
     using System.Collections.Generic;
     using System.Runtime.ExceptionServices;
     using System.Threading.Tasks;
+    using DurableTask.AzureStorage.Storage;
+    using Microsoft.WindowsAzure.Storage;
 
     class SafePartitionManager : IPartitionManager
     {
-        private readonly AzureStorageOrchestrationService service;
-        private readonly AzureStorageOrchestrationServiceSettings settings;
-        private readonly AzureStorageOrchestrationServiceStats stats;
-        private readonly OrchestrationSessionManager sessionManager;
+        readonly AzureStorageOrchestrationService service;
+        readonly AzureStorageClient azureStorageClient;
+        readonly AzureStorageOrchestrationServiceSettings settings;
+        readonly OrchestrationSessionManager sessionManager;
 
-        private readonly BlobLeaseManager intentLeaseManager;
-        private readonly LeaseCollectionBalancer<BlobLease> intentLeaseCollectionManager;
+        readonly BlobLeaseManager intentLeaseManager;
+        readonly LeaseCollectionBalancer<BlobLease> intentLeaseCollectionManager;
 
-        private readonly BlobLeaseManager ownershipLeaseManager;
-        private readonly LeaseCollectionBalancer<BlobLease> ownershipLeaseCollectionManager;
+        readonly BlobLeaseManager ownershipLeaseManager;
+        readonly LeaseCollectionBalancer<BlobLease> ownershipLeaseCollectionManager;
 
         public SafePartitionManager(
             AzureStorageOrchestrationService service,
-            OrchestrationSessionManager sessionManager,
-            AzureStorageOrchestrationServiceSettings settings,
-            CloudStorageAccount account,
-            AzureStorageOrchestrationServiceStats stats)
+            AzureStorageClient azureStorageClient,
+            OrchestrationSessionManager sessionManager)
         {
             this.service = service;
-            this.settings = settings;
-            this.stats = stats;
+            this.azureStorageClient = azureStorageClient;
+            this.settings = this.azureStorageClient.Settings;
             this.sessionManager = sessionManager;
 
-            string storageAccountName = account.Credentials.AccountName;
-            this.intentLeaseManager = new BlobLeaseManager(
-                settings,
-                settings.TaskHubName.ToLowerInvariant() + "-leases",
-                string.Empty,
-                "intent",
-                account.CreateCloudBlobClient(),
-                skipBlobContainerCreation: false,
-                stats);
+            this.intentLeaseManager = AzureStorageOrchestrationService.GetBlobLeaseManager(
+                this.azureStorageClient,
+                "intent");
 
             this.intentLeaseCollectionManager = new LeaseCollectionBalancer<BlobLease>(
                 "intent",
                 settings,
-                storageAccountName,
+                this.azureStorageClient.StorageAccountName,
                 this.intentLeaseManager,
                 new LeaseCollectionBalancerOptions
                 {
@@ -69,19 +61,14 @@ namespace DurableTask.AzureStorage.Partitioning
 
             var currentlyOwnedIntentLeases = this.intentLeaseCollectionManager.GetCurrentlyOwnedLeases();
 
-            this.ownershipLeaseManager = new BlobLeaseManager(
-                settings,
-                settings.TaskHubName.ToLowerInvariant() + "-leases",
-                string.Empty,
-                "ownership",
-                account.CreateCloudBlobClient(),
-                skipBlobContainerCreation: false,
-                stats);
+            this.ownershipLeaseManager = AzureStorageOrchestrationService.GetBlobLeaseManager(
+                this.azureStorageClient,
+                "ownership");
 
             this.ownershipLeaseCollectionManager = new LeaseCollectionBalancer<BlobLease>(
                 "ownership",
                 this.settings,
-                storageAccountName,
+                this.azureStorageClient.StorageAccountName,
                 this.ownershipLeaseManager,
                 new LeaseCollectionBalancerOptions
                 {

@@ -5,7 +5,7 @@ DurableTask.Core supports two forms of logging:
 1. [Event Source](https://docs.microsoft.com/dotnet/api/system.diagnostics.tracing.eventsource)
 1. [ILogger](https://docs.microsoft.com/aspnet/core/fundamentals/logging)
 
-**Event Source** is the high-performance logger for .NET and is used by platforms like Azure Functions and Azure App Service to automatically collect telemetry that is available to Customer Support. **ILogger** is primarily intended to allow users to collect logs for their own use (although users can also use Event Source directly, if desired). Collecting Event Source logs is outside the scope of this document, however.
+**Event Source** is the high-performance logger for .NET and is used by platforms like Azure Functions and Azure App Service to automatically collect telemetry that is available to Customer Support. **ILogger** is primarily intended to allow users to collect logs for their own use (although users can also use Event Source directly, if desired). Collecting Event Source logs is outside the scope of this document, however. Both logging mechanisms expose roughly the same telemetry. Event Source captures a few additional details, such as activity IDs for high-fedelity correlation.
 
 ## ILogger configuration
 
@@ -16,11 +16,55 @@ Starting in DurableTask.Core v2.4.0, `TaskHubWorker` and `TaskHubClient` have co
 var loggerFactory = LoggerFactory.Create(
     builder =>
     {
-        builder.AddConsole();
+        // Console logging requires Microsoft.Extensions.Logging.Console 
+        builder.AddSimpleConsole(options =>
+        {
+            options.SingleLine = true;
+            options.UseUtcTimestamp = true;
+            options.TimestampFormat = "yyyy-mm-ddThh:mm:ss.ffffffZ ";
+        });
+        
+        // File logging requires Serilog.Extensions.Logging.File
         builder.AddFile("Logs/{Date}.txt", minimumLevel: LogLevel.Trace);
+        
+        // App Insights logging requires Microsoft.Extensions.Logging.ApplicationInsights
         builder.AddApplicationInsights(instrumentationKey);
     });
+
+IOrchestrationService orchestrationService = GetOrchestrationService(loggerFactory);
+IOrchestrationServiceClient orchestrationServiceClient = (IOrchestrationServiceClient)orchestrationService;
+
 var worker = new TaskHubWorker(orchestrationService, loggerFactory);
+var client = new TaskHubClient(orchestrationServiceClient, loggerFactory: loggerFactory);
+```
+
+Additionally, updated storage provider implementations also accept an `ILoggerFactory`. This allows you to collect provider-specific telemetry, such as message delivery time, etc., which is often necessary to debug performance and reliability issues.
+
+**DurableTask.AzureStorage**
+```csharp
+IOrchestrationService GetOrchestrationService(ILoggerFactory loggerFactory)
+{
+    var azureStorageSettings = new AzureStorageOrchestrationServiceSettings
+    {
+        TaskHubName = "MyTaskHub",
+        StorageConnectionString = "UseDevelopmentStorage=true",
+        LoggerFactory = loggerFactory,
+    };
+    return new AzureStorageOrchestrationService(azureStorageSettings);
+}
+```
+
+**DurableTask.SqlServer**
+```csharp
+IOrchestrationService GetOrchestrationService(ILoggerFactory loggerFactory)
+{
+    string connectionString = "Server=localhost;Database=DurableDB;Trusted_Connection=True;";
+    var mssqlSettings = new SqlOrchestrationServiceSettings(connectionString)
+    {
+        LoggerFactory = loggerFactory,
+    };
+    return new SqlOrchestrationService(mssqlSettings);
+}
 ```
 
 ## Event Source configuration

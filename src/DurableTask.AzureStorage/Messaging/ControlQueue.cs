@@ -20,7 +20,8 @@ namespace DurableTask.AzureStorage.Messaging
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Monitoring;
-    using Microsoft.WindowsAzure.Storage.Queue;
+    using DurableTask.AzureStorage.Partitioning;
+    using DurableTask.AzureStorage.Storage;
 
     class ControlQueue : TaskHubQueue, IDisposable
     {
@@ -28,21 +29,20 @@ namespace DurableTask.AzureStorage.Messaging
 
         readonly CancellationTokenSource releaseTokenSource;
         readonly CancellationToken releaseCancellationToken;
+        private readonly AzureStorageOrchestrationServiceStats stats;
 
         public ControlQueue(
-            CloudQueue storageQueue,
-            AzureStorageOrchestrationServiceSettings settings,
-            AzureStorageOrchestrationServiceStats stats,
+            AzureStorageClient azureStorageClient,
+            string queueName,
             MessageManager messageManager)
-            : base(storageQueue, settings, stats, messageManager)
+            : base(azureStorageClient, queueName, messageManager)
         {
             this.releaseTokenSource = new CancellationTokenSource();
             this.releaseCancellationToken = this.releaseTokenSource.Token;
+            this.stats = this.azureStorageClient.Stats;
         }
 
         public bool IsReleased { get; private set; }
-
-        protected override QueueRequestOptions QueueRequestOptions => this.settings.ControlQueueRequestOptions;
 
         protected override TimeSpan MessageVisibilityTimeout => this.settings.ControlQueueVisibilityTimeout;
 
@@ -77,24 +77,10 @@ namespace DurableTask.AzureStorage.Messaging
 
                     try
                     {
-                        IEnumerable<CloudQueueMessage> batch = await TimeoutHandler.ExecuteWithTimeout(
-                            "GetMessages",
-                            this.storageAccountName,
-                            this.settings,
-                            operation: (context, timeoutToken) =>
-                            {
-                                using (var finalLinkedCts = CancellationTokenSource.CreateLinkedTokenSource(linkedCts.Token, timeoutToken))
-                                {
-                                    return this.storageQueue.GetMessagesAsync(
-                                        this.settings.ControlQueueBatchSize,
-                                        this.settings.ControlQueueVisibilityTimeout,
-                                        this.settings.ControlQueueRequestOptions,
-                                        context,
-                                        finalLinkedCts.Token);
-                                }
-                            });
-
-                        this.stats.StorageRequests.Increment();
+                        IEnumerable<QueueMessage> batch = await this.storageQueue.GetMessagesAsync(
+                            this.settings.ControlQueueBatchSize,
+                            this.settings.ControlQueueVisibilityTimeout,
+                            linkedCts.Token);
 
                         if (!batch.Any())
                         {
@@ -114,13 +100,34 @@ namespace DurableTask.AzureStorage.Messaging
                         isWaitingForMoreMessages = false;
 
                         var batchMessages = new ConcurrentBag<MessageData>();
-                        await batch.ParallelForEachAsync(async delegate (CloudQueueMessage queueMessage)
+                        await batch.ParallelForEachAsync(async delegate (QueueMessage queueMessage)
                         {
-                            this.stats.MessagesRead.Increment();
+                            MessageData messageData;
+                            try
+                            {
+                                messageData = await this.messageManager.DeserializeQueueMessageAsync(
+                                    queueMessage,
+                                    this.storageQueue.Name);
+                            }
+                            catch (Exception e)
+                            {
+                                // We have limited information about the details of the message
+                                // since we failed to deserialize it.
+                                this.settings.Logger.MessageFailure(
+                                    this.storageAccountName,
+                                    this.settings.TaskHubName,
+                                    queueMessage.Id /* MessageId */,
+                                    string.Empty /* InstanceId */,
+                                    string.Empty /* ExecutionId */,
+                                    this.storageQueue.Name,
+                                    string.Empty /* EventType */,
+                                    0 /* TaskEventId */,
+                                    e.ToString());
 
-                            MessageData messageData = await this.messageManager.DeserializeQueueMessageAsync(
-                                queueMessage,
-                                this.storageQueue.Name);
+                                // Abandon the message so we can try it again later.
+                                await this.AbandonMessageAsync(queueMessage);
+                                return;
+                            }
 
                             // Check to see whether we've already dequeued this message.
                             if (!this.stats.PendingOrchestratorMessages.TryAdd(queueMessage.Id, 1))
@@ -176,9 +183,21 @@ namespace DurableTask.AzureStorage.Messaging
                     }
                 }
 
-                this.IsReleased = true;
+                this.Release(CloseReason.Shutdown, "ControlQueue GetMessagesAsync");
                 return EmptyMessageList;
             }
+        }
+
+        // This overload is intended for cases where we aren't able to deserialize an instance of MessageData.
+        public Task AbandonMessageAsync(QueueMessage queueMessage)
+        {
+            this.stats.PendingOrchestratorMessages.TryRemove(queueMessage.Id, out _);
+            return base.AbandonMessageAsync(
+                queueMessage,
+                taskMessage: null,
+                instance: null,
+                traceActivityId: null,
+                sequenceNumber: -1);
         }
 
         public override Task AbandonMessageAsync(MessageData message, SessionBase? session = null)
@@ -193,13 +212,18 @@ namespace DurableTask.AzureStorage.Messaging
             return base.DeleteMessageAsync(message, session);
         }
 
-        public void Release()
+        public void Release(CloseReason? reason, string caller)
         {
             this.releaseTokenSource.Cancel();
 
-            // Note that we also set IsReleased to true when the dequeue loop ends, so this is
-            // somewhat redundant. This one was added mostly to make tests run more predictably.
             this.IsReleased = true;
+
+            this.settings.Logger.PartitionManagerInfo(
+                this.storageAccountName,
+                this.settings.TaskHubName,
+                this.settings.WorkerId,
+                this.Name,
+                $"{caller} is releasing lease on {this.Name} for reason: {reason}");
         }
 
         public virtual void Dispose()

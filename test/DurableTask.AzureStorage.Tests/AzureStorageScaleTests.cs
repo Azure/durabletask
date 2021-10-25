@@ -22,13 +22,13 @@ namespace DurableTask.AzureStorage.Tests
     using DurableTask.AzureStorage.Messaging;
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Partitioning;
+    using DurableTask.AzureStorage.Storage;
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
     using DurableTask.Core.History;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Blob;
-    using Microsoft.WindowsAzure.Storage.Queue;
     using Microsoft.WindowsAzure.Storage.Table;
 
     /// <summary>
@@ -254,14 +254,13 @@ namespace DurableTask.AzureStorage.Tests
                             lease => new
                             {
                                 Name = lease.Blob.Name,
-                                State = lease.Blob.Properties.LeaseState,
                                 Owner = lease.Owner,
                             })
                         .Where(lease => !string.IsNullOrEmpty(lease.Owner))
                         .ToArray();
 
                     Array.ForEach(leases, lease => Trace.TraceInformation(
-                        $"Blob: {lease.Name}, State: {lease.State}, Owner: {lease.Owner}"));
+                        $"Blob: {lease.Name}, Owner: {lease.Owner}"));
 
                     isBalanced = false;
                     var workersWithLeases = leases.GroupBy(l => l.Owner).ToArray();
@@ -449,7 +448,7 @@ namespace DurableTask.AzureStorage.Tests
             BlobLease lease = (await service.ListBlobLeasesAsync()).Single();
             await lease.Blob.ChangeLeaseAsync(
                 proposedLeaseId: Guid.NewGuid().ToString(),
-                accessCondition: AccessCondition.GenerateLeaseCondition(lease.Token));
+                currentLeaseId: lease.Token);
             await TestHelpers.WaitFor(
                 condition: () => !service.OwnedControlQueues.Any(),
                 timeout: TimeSpan.FromSeconds(10));
@@ -467,7 +466,7 @@ namespace DurableTask.AzureStorage.Tests
 
             // STEP 4: Verify that all the enqueued messages were abandoned, i.e. put back
             //         onto the queue with their dequeue counts incremented.
-            IEnumerable<CloudQueueMessage> queueMessages =
+            IEnumerable<QueueMessage> queueMessages =
                 await controlQueue.InnerQueue.PeekMessagesAsync(settings.ControlQueueBatchSize);
             Assert.IsTrue(queueMessages.All(msg => msg.DequeueCount == 1));
         }

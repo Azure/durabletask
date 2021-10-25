@@ -46,6 +46,7 @@ namespace DurableTask.Emulator
         readonly object timerLock = new object();
 
         readonly ConcurrentDictionary<string, TaskCompletionSource<OrchestrationState>> orchestrationWaiters;
+        static readonly JsonSerializerSettings StateJsonSettings = new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.Auto };
 
         /// <summary>
         ///     Creates a new instance of the LocalOrchestrationService with default settings
@@ -627,8 +628,7 @@ namespace DurableTask.Emulator
                 return null;
             }
 
-            string serializeState = JsonConvert.SerializeObject(runtimeState.Events,
-                new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.Auto });
+            string serializeState = JsonConvert.SerializeObject(runtimeState.Events, StateJsonSettings);
             return Encoding.UTF8.GetBytes(serializeState);
         }
 
@@ -640,7 +640,7 @@ namespace DurableTask.Emulator
             }
 
             string serializedState = Encoding.UTF8.GetString(stateBytes);
-            var events = JsonConvert.DeserializeObject<IList<HistoryEvent>>(serializedState, new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.Auto });
+            var events = JsonConvert.DeserializeObject<IList<HistoryEvent>>(serializedState, StateJsonSettings);
             return new OrchestrationRuntimeState(events);
         }
 

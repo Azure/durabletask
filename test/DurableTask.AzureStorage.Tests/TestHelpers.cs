@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.AzureStorage.Tests
 {
     using System;
@@ -28,7 +28,7 @@ namespace DurableTask.AzureStorage.Tests
             bool enableExtendedSessions,
             int extendedSessionTimeoutInSeconds = 30,
             bool fetchLargeMessages = true,
-            Action<AzureStorageOrchestrationServiceSettings> modifySettingsAction = null)
+            Action<AzureStorageOrchestrationServiceSettings>? modifySettingsAction = null)
         {
             string storageConnectionString = GetTestStorageAccountConnectionString();
 
@@ -53,30 +53,24 @@ namespace DurableTask.AzureStorage.Tests
 
         public static string GetTestStorageAccountConnectionString()
         {
-            string storageConnectionString = GetTestSetting("StorageConnectionString");
+            string? storageConnectionString = GetTestSetting("StorageConnectionString");
             if (string.IsNullOrEmpty(storageConnectionString))
             {
-                throw new ArgumentNullException("A Storage connection string must be defined in either an environment variable or in configuration.");
+                storageConnectionString = "UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://127.0.0.1:10002/";
             }
 
-            return storageConnectionString;
+            return storageConnectionString!;
         }
 
         public static string GetTestTaskHubName()
         {
-            Configuration appConfig = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
-            return appConfig.AppSettings.Settings["TaskHubName"].Value;
+            string? taskHubName = GetTestSetting("TaskHubName");
+            return taskHubName ?? "test";
         }
 
-        static string GetTestSetting(string name)
+        static string? GetTestSetting(string name)
         {
-            string value = Environment.GetEnvironmentVariable("DurableTaskTest" + name);
-            if (string.IsNullOrEmpty(value))
-            {
-                value = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None).AppSettings.Settings[name].Value;
-            }
-
-            return value;
+            return Environment.GetEnvironmentVariable("DurableTaskTest" + name);
         }
 
         public static async Task WaitFor(Func<bool> condition, TimeSpan timeout)

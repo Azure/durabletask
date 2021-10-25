@@ -78,6 +78,11 @@ namespace DurableTask.Core
         {
             object result = await ScheduleTaskInternal(name, version, taskList, typeof(TResult), parameters);
 
+            if (result == null)
+            {
+                return default(TResult);
+            }
+
             return (TResult)result;
         }
 
@@ -257,15 +262,35 @@ namespace DurableTask.Core
         public void HandleTaskScheduledEvent(TaskScheduledEvent scheduledEvent)
         {
             int taskId = scheduledEvent.EventId;
-            if (this.orchestratorActionsMap.ContainsKey(taskId))
-            {
-                this.orchestratorActionsMap.Remove(taskId);
-            }
-            else
+            if (!this.orchestratorActionsMap.ContainsKey(taskId))
             {
                 throw new NonDeterministicOrchestrationException(scheduledEvent.EventId,
-                    $"TaskScheduledEvent: {scheduledEvent.EventId} {scheduledEvent.EventType} {scheduledEvent.Name} {scheduledEvent.Version}");
+                    $"A previous execution of this orchestration scheduled an activity task with sequence ID {taskId} and name "
+                    + $"'{scheduledEvent.Name}' (version '{scheduledEvent.Version}'), but the current replay execution hasn't "
+                    + "(yet?) scheduled this task. Was a change made to the orchestrator code after this instance had already "
+                    + "started running?");
             }
+
+            var orchestrationAction = this.orchestratorActionsMap[taskId];
+            if (!(orchestrationAction is ScheduleTaskOrchestratorAction currentReplayAction))
+            {
+                throw new NonDeterministicOrchestrationException(scheduledEvent.EventId,
+                    $"A previous execution of this orchestration scheduled an activity task with sequence number {taskId} named "
+                    + $"'{scheduledEvent.Name}', but the current orchestration replay instead scheduled a "
+                    + $"{orchestrationAction.GetType().Name} task with this sequence number. Was a change made to the "
+                    + "orchestrator code after this instance had already started running?");
+            }
+
+            if (!string.Equals(scheduledEvent.Name, currentReplayAction.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new NonDeterministicOrchestrationException(scheduledEvent.EventId,
+                    $"A previous execution of this orchestration scheduled an activity task with sequence number {taskId} "
+                    + $"named '{scheduledEvent.Name}', but the current orchestration replay instead scheduled an activity "
+                    + $"task named '{currentReplayAction.Name}' with this sequence number.  Was a change made to the "
+                    + "orchestrator code after this instance had already started running?");
+            }
+
+            this.orchestratorActionsMap.Remove(taskId);
         }
 
         public void HandleTimerCreatedEvent(TimerCreatedEvent timerCreatedEvent)
@@ -277,49 +302,98 @@ namespace DurableTask.Core
                 return;
             }
 
-            if (this.orchestratorActionsMap.ContainsKey(taskId))
-            {
-                this.orchestratorActionsMap.Remove(taskId);
-            }
-            else
+            if (!this.orchestratorActionsMap.ContainsKey(taskId))
             {
                 throw new NonDeterministicOrchestrationException(timerCreatedEvent.EventId,
-                    $"TimerCreatedEvent: {timerCreatedEvent.EventId} {timerCreatedEvent.EventType}");
+                    $"A previous execution of this orchestration scheduled a timer task with sequence number {taskId} but "
+                    + "the current replay execution hasn't (yet?) scheduled this task. Was a change made to the orchestrator "
+                    + "code after this instance had already started running?");
             }
+
+            var orchestrationAction = this.orchestratorActionsMap[taskId];
+            if (!(orchestrationAction is CreateTimerOrchestratorAction))
+            {
+                throw new NonDeterministicOrchestrationException(timerCreatedEvent.EventId,
+                    $"A previous execution of this orchestration scheduled a timer task with sequence number {taskId} named "
+                    + $"but the current orchestration replay instead scheduled a {orchestrationAction.GetType().Name} task with "
+                    + "this sequence number. Was a change made to the orchestrator code after this instance had already "
+                    + "started running?");
+            }
+
+            this.orchestratorActionsMap.Remove(taskId);
         }
 
         public void HandleSubOrchestrationCreatedEvent(SubOrchestrationInstanceCreatedEvent subOrchestrationCreateEvent)
         {
             int taskId = subOrchestrationCreateEvent.EventId;
-            if (this.orchestratorActionsMap.ContainsKey(taskId))
-            {
-                this.orchestratorActionsMap.Remove(taskId);
-            }
-            else
+            if (!this.orchestratorActionsMap.ContainsKey(taskId))
             {
                 throw new NonDeterministicOrchestrationException(subOrchestrationCreateEvent.EventId,
-                    // ReSharper disable once UseStringInterpolation
-                    string.Format("SubOrchestrationInstanceCreatedEvent: {0} {1} {2} {3} {4}",
-                        subOrchestrationCreateEvent.EventId,
-                        subOrchestrationCreateEvent.EventType,
-                        subOrchestrationCreateEvent.Name,
-                        subOrchestrationCreateEvent.Version,
-                        subOrchestrationCreateEvent.InstanceId));
+                   $"A previous execution of this orchestration scheduled a sub-orchestration task with sequence ID {taskId} "
+                   + $"and name '{subOrchestrationCreateEvent.Name}' (version '{subOrchestrationCreateEvent.Version}', "
+                   + $"instance ID '{subOrchestrationCreateEvent.InstanceId}'), but the current replay execution hasn't (yet?) "
+                   + "scheduled this task. Was a change made to the orchestrator code after this instance had already started running?");
             }
+
+            var orchestrationAction = this.orchestratorActionsMap[taskId];
+            if (!(orchestrationAction is CreateSubOrchestrationAction currentReplayAction))
+            {
+                throw new NonDeterministicOrchestrationException(subOrchestrationCreateEvent.EventId,
+                   $"A previous execution of this orchestration scheduled a sub-orchestration task with sequence ID {taskId} "
+                   + $"and name '{subOrchestrationCreateEvent.Name}' (version '{subOrchestrationCreateEvent.Version}', "
+                   + $"instance ID '{subOrchestrationCreateEvent.InstanceId}'), but the current orchestration replay instead "
+                   + $"scheduled a {orchestrationAction.GetType().Name} task at this sequence number. Was a change made to "
+                   + "the orchestrator code after this instance had already started running?");
+            }
+
+            if (!string.Equals(subOrchestrationCreateEvent.Name, currentReplayAction.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new NonDeterministicOrchestrationException(subOrchestrationCreateEvent.EventId,
+                   $"A previous execution of this orchestration scheduled a sub-orchestration task with sequence ID {taskId} "
+                   + $"and name '{subOrchestrationCreateEvent.Name}' (version '{subOrchestrationCreateEvent.Version}', "
+                   + $"instance ID '{subOrchestrationCreateEvent.InstanceId}'), but the current orchestration replay instead "
+                   + $"scheduled a sub-orchestration task with name {currentReplayAction.Name} at this sequence number. "
+                   + "Was a change made to the orchestrator code after this instance had already started running?");
+            }
+
+            this.orchestratorActionsMap.Remove(taskId);
         }
 
         public void HandleEventSentEvent(EventSentEvent eventSentEvent)
         {
             int taskId = eventSentEvent.EventId;
-            if (this.orchestratorActionsMap.ContainsKey(taskId))
-            {
-                this.orchestratorActionsMap.Remove(taskId);
-            }
-            else
+            if (!this.orchestratorActionsMap.ContainsKey(taskId))
             {
                 throw new NonDeterministicOrchestrationException(eventSentEvent.EventId,
-                    $"EventSentEvent: {eventSentEvent.EventId} {eventSentEvent.EventType} {eventSentEvent.Name} {eventSentEvent.InstanceId}");
+                   $"A previous execution of this orchestration scheduled a send event task with sequence ID {taskId}, "
+                   + $"type '{eventSentEvent.EventType}' name '{eventSentEvent.Name}', instance ID '{eventSentEvent.InstanceId}', "
+                   + $"but the current replay execution hasn't (yet?) scheduled this task. Was a change made to the orchestrator code "
+                   + $"after this instance had already started running?");
             }
+
+            var orchestrationAction = this.orchestratorActionsMap[taskId];
+            if (!(orchestrationAction is SendEventOrchestratorAction currentReplayAction))
+            {
+                throw new NonDeterministicOrchestrationException(eventSentEvent.EventId,
+                   $"A previous execution of this orchestration scheduled a send event task with sequence ID {taskId}, "
+                   + $"type '{eventSentEvent.EventType}', name '{eventSentEvent.Name}', instance ID '{eventSentEvent.InstanceId}', "
+                   + $"but the current orchestration replay instead scheduled a {orchestrationAction.GetType().Name} task "
+                   + "at this sequence number. Was a change made to the orchestrator code after this instance had already "
+                   + "started running?");
+
+            }
+
+            if (!string.Equals(eventSentEvent.Name, currentReplayAction.EventName, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new NonDeterministicOrchestrationException(eventSentEvent.EventId,
+                   $"A previous execution of this orchestration scheduled a send event task with sequence ID {taskId}, "
+                   + $"type '{eventSentEvent.EventType}', name '{eventSentEvent.Name}', instance ID '{eventSentEvent.InstanceId}'), "
+                   + $"but the current orchestration replay instead scheduled a send event task with name {currentReplayAction.EventName}"
+                   + "at this sequence number. Was a change made to the orchestrator code after this instance had already "
+                   + "started running?");
+            }
+
+            this.orchestratorActionsMap.Remove(taskId);
         }
 
 

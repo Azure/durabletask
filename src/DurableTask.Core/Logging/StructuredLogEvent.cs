@@ -30,10 +30,10 @@ namespace DurableTask.Core.Logging
     {
         // We reflect over all the properties just once and reuse the cached property set for subsequent log
         // statements to minimize the overhead of using reflection.
-        static readonly ConcurrentDictionary<Type, ConcurrentDictionary<string, PropertyInfo>> SharedPropertiesCache =
-            new ConcurrentDictionary<Type, ConcurrentDictionary<string, PropertyInfo>>();
+        static readonly ConcurrentDictionary<Type, IReadOnlyDictionary<string, PropertyInfo>> SharedPropertiesCache =
+            new ConcurrentDictionary<Type, IReadOnlyDictionary<string, PropertyInfo>>();
 
-        ConcurrentDictionary<string, PropertyInfo> Properties => GetProperties(this.GetType());
+        IReadOnlyDictionary<string, PropertyInfo> Properties => GetProperties(this.GetType());
 
         string logMessage;
 
@@ -96,11 +96,11 @@ namespace DurableTask.Core.Logging
             return ((IEnumerable<KeyValuePair<string, object>>)this).GetEnumerator();
         }
 
-        static ConcurrentDictionary<string, PropertyInfo> GetProperties(Type type)
+        static IReadOnlyDictionary<string, PropertyInfo> GetProperties(Type type)
         {
             return SharedPropertiesCache.GetOrAdd(type, t =>
             {
-                var properties = new ConcurrentDictionary<string, PropertyInfo>();
+                var properties = new Dictionary<string, PropertyInfo>();
 
                 foreach (PropertyInfo property in t.GetProperties())
                 {
@@ -113,7 +113,10 @@ namespace DurableTask.Core.Logging
                         }
 
                         string propertyName = fieldAttribute.Name ?? property.Name;
-                        properties.TryAdd(propertyName, property);
+                        if (!properties.ContainsKey(propertyName))
+                        {
+                            properties[propertyName] = property;
+                        }
                     }
                 }
 

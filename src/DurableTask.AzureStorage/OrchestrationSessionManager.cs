@@ -21,10 +21,11 @@ namespace DurableTask.AzureStorage
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Messaging;
     using DurableTask.AzureStorage.Monitoring;
+    using DurableTask.AzureStorage.Partitioning;
+    using DurableTask.AzureStorage.Storage;
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
     using DurableTask.Core.History;
-    using Microsoft.WindowsAzure.Storage.Queue;
 
     class OrchestrationSessionManager : IDisposable
     {
@@ -73,38 +74,20 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        public void RemoveQueue(string partitionId)
+        public void RemoveQueue(string partitionId, CloseReason? reason, string caller)
         {
             if (this.ownedControlQueues.TryRemove(partitionId, out ControlQueue controlQueue))
             {
-                controlQueue.Release();
-            }
-            else
-            {
-                this.settings.Logger.PartitionManagerWarning(
-                    this.storageAccountName,
-                    this.settings.TaskHubName,
-                    this.settings.WorkerId,
-                    partitionId,
-                    $"Attempted to remove control queue {partitionId}, which wasn't being watched!");
+                controlQueue.Release(reason, caller);
             }
         }
 
 
-        public void ReleaseQueue(string partitionId)
+        public void ReleaseQueue(string partitionId, CloseReason? reason, string caller)
         {
             if (this.ownedControlQueues.TryGetValue(partitionId, out ControlQueue controlQueue))
             {
-                controlQueue.Release();
-            }
-            else
-            {
-                this.settings.Logger.PartitionManagerWarning(
-                    this.storageAccountName,
-                    this.settings.TaskHubName,
-                    this.settings.WorkerId,
-                    partitionId,
-                    $"Attempted to release control queue {partitionId}, which wasn't being watched!");
+                controlQueue.Release(reason, caller);
             }
         }
 
@@ -115,17 +98,8 @@ namespace DurableTask.AzureStorage
                 if (ownedControlQueue.IsReleased)
                 {
                     // The easiest way to resume listening is to re-add a new queue that has not been released.
-                    this.RemoveQueue(partitionId);
+                    this.RemoveQueue(partitionId, null, "OrchestrationSessionManager ResumeListeningIfOwnQueue");
                     this.AddQueue(partitionId, controlQueue, shutdownToken);
-                }
-                else
-                {
-                    this.settings.Logger.PartitionManagerWarning(
-                        this.storageAccountName,
-                        this.settings.TaskHubName,
-                        this.settings.WorkerId,
-                        partitionId,
-                        $"Attempted to resume listening on control queue {controlQueue.Name}, which wasn't released!");
                 }
             }
 
@@ -152,9 +126,9 @@ namespace DurableTask.AzureStorage
                 partitionId,
                 $"Started listening for messages on queue {controlQueue.Name}.");
 
-            try
+            while (!controlQueue.IsReleased)
             {
-                while (!controlQueue.IsReleased)
+                try
                 {
                     // Every dequeue operation has a common trace ID so that batches of dequeued messages can be correlated together.
                     // Both the dequeue traces and the processing traces will share the same "related" trace activity ID.
@@ -174,16 +148,30 @@ namespace DurableTask.AzureStorage
                         this.AddMessageToPendingOrchestration(controlQueue, filteredMessages, traceActivityId, cancellationToken);
                     }
                 }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    // shutting down
+                    break;
+                }
+                catch (Exception e)
+                {
+                    this.settings.Logger.PartitionManagerWarning(
+                        this.storageAccountName,
+                        this.settings.TaskHubName,
+                        this.settings.WorkerId,
+                        partitionId,
+                        $"Exception in the dequeue loop for control queue {controlQueue.Name}. Exception: {e}");
+
+                    Thread.Sleep(TimeSpan.FromSeconds(1));
+                }
             }
-            finally
-            {
-                this.settings.Logger.PartitionManagerInfo(
-                    this.storageAccountName,
-                    this.settings.TaskHubName,
-                    this.settings.WorkerId,
-                    partitionId,
-                    $"Stopped listening for messages on queue {controlQueue.Name}.");
-            }
+            
+            this.settings.Logger.PartitionManagerInfo(
+                this.storageAccountName,
+                this.settings.TaskHubName,
+                this.settings.WorkerId,
+                partitionId,
+                $"Stopped listening for messages on queue {controlQueue.Name}.");
         }
 
         /// <summary>
@@ -337,8 +325,8 @@ namespace DurableTask.AzureStorage
                 return true;
             }
 
-            CloudQueueMessage cloudQueueMessage = msg.OriginalQueueMessage;
-            if (cloudQueueMessage.DequeueCount <= 1 || !cloudQueueMessage.NextVisibleTime.HasValue)
+            QueueMessage queueMessage = msg.OriginalQueueMessage;
+            if (queueMessage.DequeueCount <= 1 || !queueMessage.NextVisibleTime.HasValue)
             {
                 // We can't use the initial insert time and instead must rely on a re-insertion time,
                 // which is only available to use after the first dequeue count.
@@ -347,7 +335,7 @@ namespace DurableTask.AzureStorage
 
             // This calculation assumes that the value of ControlQueueVisibilityTimeout did not change
             // in any meaningful way between the time the message was inserted and now.
-            DateTime latestReinsertionTime = cloudQueueMessage.NextVisibleTime.Value.Subtract(this.settings.ControlQueueVisibilityTimeout).DateTime;
+            DateTime latestReinsertionTime = queueMessage.NextVisibleTime.Value.Subtract(this.settings.ControlQueueVisibilityTimeout).DateTime;
             return latestReinsertionTime > remoteInstance.CreatedTime;
         }
 
@@ -372,7 +360,6 @@ namespace DurableTask.AzureStorage
             //  3. Do we need to add messages to a currently executing orchestration?
             lock (this.messageAndSessionLock)
             {
-
                 var existingSessionMessages = new Dictionary<OrchestrationSession, List<MessageData>>();
 
                 foreach (MessageData data in queueMessages)
@@ -382,12 +369,13 @@ namespace DurableTask.AzureStorage
                     string instanceId = data.TaskMessage.OrchestrationInstance.InstanceId;
                     string executionId = data.TaskMessage.OrchestrationInstance.ExecutionId;
 
-                    // Check if the target orchestraion is loaded in memory
-                    if (this.activeOrchestrationSessions.TryGetValue(instanceId, out OrchestrationSession session))
+                    // If the target orchestration is already in memory, we can potentially add the message to the session directly
+                    // rather than adding it to the pending list. This behavior applies primarily when extended sessions are enabled.
+                    // We can't do this for ExecutionStarted messages - those must *always* go to the pending list since they are for
+                    // creating entirely new orchestration instances.
+                    if (data.TaskMessage.Event.EventType != EventType.ExecutionStarted &&
+                        this.activeOrchestrationSessions.TryGetValue(instanceId, out OrchestrationSession session))
                     {
-                        // If the target orchestration is already in memory, we add the message to the session directly,
-                        // rather than adding it to the linked list.
-
                         // A null executionId value means that this is a management operation, like RaiseEvent or Terminate, which
                         // should be delivered to the current session.
                         if (executionId == null || session.Instance.ExecutionId == executionId)
@@ -400,28 +388,18 @@ namespace DurableTask.AzureStorage
                             }
 
                             pendingMessages.Add(data);
-                        }
-                        else if (session.RuntimeState.ExecutionStartedEvent == null || data.TaskMessage.Event.Timestamp < session.RuntimeState.CreatedTime)
-                        {
-                            // If the current generation of this instance hasn't started or the current 
-                            // generation's `CreatedTime` is newer than the message timestamp indicates that
-                            // this message was created for a previous generation of this instance.
-                            // This is common for canceled timer fired events in ContinueAsNew scenarios.
-                            session.DiscardMessage(data);
-                        }
-                        else
-                        {
-                            // Most likely this message was created for a new generation of the current
-                            // instance. This can happen if a ContinueAsNew message arrives before the current
-                            // session finished unloading. Defer the message so that it can be processed later.
-                            session.DeferMessage(data);
+                            continue;
                         }
 
-                        continue;
+                        // Looks like this message is for another generation of the active orchestration. Let it fall
+                        // into the pending list below. If it's a message for an older generation, it will be eventually
+                        // discarded after we discover that we have no state associated with its execution ID. This is
+                        // most common in scenarios involving durable timers and ContinueAsNew. Otherwise, this message
+                        // will be processed after the current session unloads.
                     }
 
-
                     PendingMessageBatch? targetBatch = null; // batch for the current instanceID-executionID pair
+
                     // Unless the message is an ExecutionStarted event, we attempt to assign the current message to an
                     // existing batch by walking backwards through the list of batches until we find one with a matching InstanceID.
                     // This is assumed to be more efficient than walking forward if most messages arrive in the queue in groups.
