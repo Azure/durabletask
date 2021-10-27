@@ -13,11 +13,7 @@
 
 namespace DurableTask.AzureStorage.Tracking
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Diagnostics;
     using System.Text;
-    using DurableTask.Core.History;
 
     static class KeySanitation
     {

@@ -21,7 +21,6 @@ namespace DurableTask.AzureStorage
     using System.Runtime.Serialization;
     using System.Text;
     using System.Threading.Tasks;
-    using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Storage;
     using Newtonsoft.Json;
     using Newtonsoft.Json.Serialization;
@@ -270,7 +269,7 @@ namespace DurableTask.AzureStorage
             return $"{instanceId}/message-{activityId}-{eventType}.json.gz";
         }
 
-        public async Task DeleteLargeMessageBlobs(string sanitizedInstanceId, AzureStorageOrchestrationServiceStats stats)
+        public async Task DeleteLargeMessageBlobs(string sanitizedInstanceId)
         {
             if (!await this.blobContainer.ExistsAsync())
             {

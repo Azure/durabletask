@@ -10,10 +10,19 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
+#nullable enable
+namespace DurableTask.AzureStorage.Storage
+{
+    using System.Collections.Generic;
 
-using System.Runtime.CompilerServices;
+    class TableEntitiesResponseInfo<T>
+    {
+        public long ElapsedMilliseconds { get; set; }
 
-#if !SIGN_ASSEMBLY
-[assembly: InternalsVisibleTo("DurableTask.AzureStorage.Tests")]
-[assembly: InternalsVisibleTo("DynamicProxyGenAssembly2")]
-#endif
+        public int RequestCount { get; set; }
+
+        public IList<T>? ReturnedEntities { get; set; }
+
+        public string? ContinuationToken { get; set; }
+    }
+}
