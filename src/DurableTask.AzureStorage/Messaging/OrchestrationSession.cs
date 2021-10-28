@@ -120,18 +120,28 @@ namespace DurableTask.AzureStorage.Messaging
             this.Instance = runtimeState.OrchestrationInstance;
         }
 
-        internal void DeferMessage(MessageData message)
+        public void DeferMessage(MessageData message)
         {
             this.DeferredMessages.AddOrReplace(message);
         }
 
-        internal void DiscardMessage(MessageData data)
+        public void DiscardMessage(MessageData data)
         {
             this.DiscardedMessages.AddOrReplace(data);
         }
 
-        internal bool IsOutOfOrderMessage(MessageData message)
+        public bool IsOutOfOrderMessage(MessageData message)
         {
+            if (message.TaskMessage.Event.EventType != EventType.TaskCompleted &&
+                message.TaskMessage.Event.EventType != EventType.TaskFailed &&
+                message.TaskMessage.Event.EventType != EventType.SubOrchestrationInstanceCompleted &&
+                message.TaskMessage.Event.EventType != EventType.SubOrchestrationInstanceFailed &&
+                message.TaskMessage.Event.EventType != EventType.TimerFired)
+            {
+                // The above message types are the only ones that can potentially be considered out-of-order.
+                return false;
+            }
+
             if (this.IsNonexistantInstance() && message.OriginalQueueMessage.DequeueCount > 5)
             {
                 // The first five times a message for a nonexistant instance is dequeued, give the message the benefit
@@ -139,14 +149,6 @@ namespace DurableTask.AzureStorage.Messaging
                 // fifth execution, ~30 seconds have passed and the most likely scenario is that this is a zombie event. 
                 // This means the history table for the message's orchestration no longer exists, either due to an explicit 
                 // PurgeHistory request or due to a ContinueAsNew call cleaning the old execution's history.
-                return false;
-            }
-
-            if (message.Sender?.InstanceId != this.Instance.InstanceId)
-            {
-                // Only messages sent and received within an orchestration instance require ordering.
-                // Message sender metadata was added only after v1.6.4 and may be null for data created
-                // in earlier versions.
                 return false;
             }
 
