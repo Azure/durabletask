@@ -108,8 +108,7 @@ namespace DurableTask.AzureStorage.Storage
 
             try
             {
-                var result = await TimeoutHandler.ExecuteWithTimeout<T>(operationName, this.StorageAccountName, this.Settings, storageRequest, this.Stats, clientRequestId);
-                return result;
+                return await TimeoutHandler.ExecuteWithTimeout<T>(operationName, this.StorageAccountName, this.Settings, storageRequest, this.Stats, clientRequestId);
             }
             catch (StorageException ex)
             {
