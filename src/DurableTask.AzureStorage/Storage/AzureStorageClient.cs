@@ -29,7 +29,7 @@ namespace DurableTask.AzureStorage.Storage
         readonly CloudBlobClient blobClient;
         readonly CloudQueueClient queueClient;
         readonly CloudTableClient tableClient;
-        readonly SemaphoreSlim semaphore;
+        readonly SemaphoreSlim requestThrottleSemaphore;
 
         public AzureStorageClient(AzureStorageOrchestrationServiceSettings settings) : 
             this(settings.StorageAccountDetails == null ?
@@ -63,7 +63,7 @@ namespace DurableTask.AzureStorage.Storage
 
             this.tableClient.BufferManager = SimpleBufferManager.Shared;
 
-            this.semaphore = new SemaphoreSlim(this.Settings.MaxStorageOperationConcurrency);
+            this.requestThrottleSemaphore = new SemaphoreSlim(this.Settings.MaxStorageOperationConcurrency);
         }
 
         public AzureStorageOrchestrationServiceSettings Settings { get; }
@@ -104,7 +104,7 @@ namespace DurableTask.AzureStorage.Storage
 
         public async Task<T> MakeStorageRequest<T>(Func<OperationContext, CancellationToken, Task<T>> storageRequest, string operationName, string? clientRequestId = null)
         {
-            await semaphore.WaitAsync();
+            await requestThrottleSemaphore.WaitAsync();
 
             try
             {
@@ -116,7 +116,7 @@ namespace DurableTask.AzureStorage.Storage
             }
             finally
             {
-                semaphore.Release();
+                requestThrottleSemaphore.Release();
             }
         }
 
