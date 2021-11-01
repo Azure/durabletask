@@ -84,8 +84,8 @@ Note that some transaction store providers, like **DurableTask.AzureStorage** al
 
 | Event Source Type | Provider Name | Provider GUID |
 |-|-|-|
-| Structured | [DurableTask-AzureStorage](src/DurableTask.AzureStorage/AnalyticsEventSource.cs) | 4C4AD4A2-F396-5E18-01B6-618C12A10433 |
-| Structured | [DurableTask-SqlServer](https://github.com/cgillum/durabletask-sqlserver/blob/main/src/DurableTask.SqlServer/Logging/DefaultEventSource.cs) | 4BA38912-E64F-5FD2-170D-68AC65B1E58D |
+| Structured | [DurableTask-AzureStorage](/src/DurableTask.AzureStorage/AnalyticsEventSource.cs) | 4C4AD4A2-F396-5E18-01B6-618C12A10433 |
+| Structured | [DurableTask-SqlServer](https://github.com/microsoft/durabletask-mssql/blob/main/src/DurableTask.SqlServer/Logging/DefaultEventSource.cs) | 4BA38912-E64F-5FD2-170D-68AC65B1E58D |
 
 ## Structured logging
 
