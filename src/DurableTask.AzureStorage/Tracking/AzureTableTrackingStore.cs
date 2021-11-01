@@ -650,6 +650,7 @@ namespace DurableTask.AzureStorage.Tracking
             await this.messageManager.DeleteLargeMessageBlobs(orchestrationInstanceStatus.PartitionKey);
 
             var deletedEntitiesResponseInfo = await this.HistoryTable.DeleteBatchAsync(historyEntities);
+            rowsDeleted += deletedEntitiesResponseInfo.TableResults.Count;
             storageRequests += deletedEntitiesResponseInfo.RequestCount;
 
             await this.InstancesTable.DeleteAsync(new DynamicTableEntity
