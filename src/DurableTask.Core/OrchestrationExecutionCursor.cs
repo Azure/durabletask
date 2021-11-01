@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.Core
 {
     using System.Collections.Generic;
@@ -20,21 +20,21 @@ namespace DurableTask.Core
     {
         public OrchestrationExecutionCursor(
             OrchestrationRuntimeState state,
-            ////TaskOrchestration orchestration,
-            OrchestrationExecutorBase executor,
+            TaskOrchestration? orchestration,
+            TaskOrchestrationExecutor? executor,
             IEnumerable<OrchestratorAction> latestDecisions)
         {
             RuntimeState = state;
-            ////TaskOrchestration = orchestration;
+            TaskOrchestration = orchestration;
             OrchestrationExecutor = executor;
             LatestDecisions = latestDecisions;
         }
 
         public OrchestrationRuntimeState RuntimeState { get; }
 
-        ////public TaskOrchestration TaskOrchestration { get; }
+        public TaskOrchestration? TaskOrchestration { get; }
 
-        public OrchestrationExecutorBase OrchestrationExecutor { get; }
+        public TaskOrchestrationExecutor? OrchestrationExecutor { get; }
 
         public IEnumerable<OrchestratorAction> LatestDecisions { get; set; }
     }

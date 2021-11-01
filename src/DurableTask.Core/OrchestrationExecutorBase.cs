@@ -18,7 +18,6 @@ namespace DurableTask.Core
     using System.Collections.Generic;
     using System.Linq;
     using System.Threading.Tasks;
-    using DurableTask.Core.Command;
     using DurableTask.Core.History;
     using DurableTask.Core.Middleware;
 
@@ -31,42 +30,19 @@ namespace DurableTask.Core
             this.runtimeState = runtimeState ?? throw new ArgumentNullException(nameof(runtimeState));
         }
 
-        public virtual async Task<IEnumerable<OrchestratorAction>> ExecuteAsync()
+        public virtual Task<OrchestratorExecutionResult> ExecuteAsync()
         {
-            try
-            {
-                return await this.OnExecuteAsync(this.runtimeState.PastEvents, this.runtimeState.NewEvents);
-            }
-            catch (Exception e)
-            {
-                return CreateInternalFailureActionResult(e);
-            }
+            // TODO: Error handling that can distinguish between retriable and non-retriable failures
+            return this.OnExecuteAsync(this.runtimeState.PastEvents, this.runtimeState.NewEvents);
         }
 
-        public virtual async Task<IEnumerable<OrchestratorAction>> ExecuteNewEventsAsync()
+        public virtual Task<OrchestratorExecutionResult> ExecuteNewEventsAsync()
         {
-            try
-            {
-                return await this.OnExecuteAsync(Enumerable.Empty<HistoryEvent>(), this.runtimeState.NewEvents);
-            }
-            catch (Exception e)
-            {
-                return CreateInternalFailureActionResult(e);
-            }
+            // TODO: Error handling that can distinguish between retriable and non-retriable failures
+            return this.OnExecuteAsync(Enumerable.Empty<HistoryEvent>(), this.runtimeState.NewEvents);
         }
 
-        static IEnumerable<OrchestratorAction> CreateInternalFailureActionResult(Exception e)
-        {
-            yield return new OrchestrationCompleteOrchestratorAction
-            {
-                Id = -1,
-                OrchestrationStatus = OrchestrationStatus.Failed,
-                Result = e.Message,
-                Details = $"An internal failure occurred while trying to execute the orchestration: {e}",
-            };
-        }
-
-        protected abstract Task<IEnumerable<OrchestratorAction>> OnExecuteAsync(IEnumerable<HistoryEvent> pastEvents, IEnumerable<HistoryEvent> newEvents);
+        protected abstract Task<OrchestratorExecutionResult> OnExecuteAsync(IEnumerable<HistoryEvent> pastEvents, IEnumerable<HistoryEvent> newEvents);
 
         protected internal virtual DispatchMiddlewareContext CreateDispatchContext()
         {

@@ -33,6 +33,7 @@ namespace DurableTask.Core
         readonly OrchestrationRuntimeState orchestrationRuntimeState;
         readonly TaskOrchestration taskOrchestration;
         readonly bool skipCarryOverEvents;
+        readonly Lazy<string> orchestrationStatus;
         Task<string>? result;
 
         public TaskOrchestrationExecutor(
@@ -46,6 +47,7 @@ namespace DurableTask.Core
             this.orchestrationRuntimeState = orchestrationRuntimeState ?? throw new ArgumentNullException(nameof(orchestrationRuntimeState));
             this.taskOrchestration = taskOrchestration ?? throw new ArgumentNullException(nameof(taskOrchestration));
             this.skipCarryOverEvents = eventBehaviourForContinueAsNew == BehaviorOnContinueAsNew.Ignore;
+            this.orchestrationStatus = new Lazy<string>(() => this.taskOrchestration.GetStatus());
         }
 
         public bool IsCompleted => this.result != null && (this.result.IsCompleted || this.result.IsFaulted);
@@ -57,18 +59,18 @@ namespace DurableTask.Core
             return middlewareContext;
         }
 
-        public override Task<IEnumerable<OrchestratorAction>> ExecuteNewEventsAsync()
+        public override Task<OrchestratorExecutionResult> ExecuteNewEventsAsync()
         {
             this.context.ClearPendingActions();
             return base.ExecuteNewEventsAsync();
         }
 
-        protected override Task<IEnumerable<OrchestratorAction>> OnExecuteAsync(IEnumerable<HistoryEvent> pastEvents, IEnumerable<HistoryEvent> newEvents)
+        protected override Task<OrchestratorExecutionResult> OnExecuteAsync(IEnumerable<HistoryEvent> pastEvents, IEnumerable<HistoryEvent> newEvents)
         {
             return Task.FromResult(this.ExecuteCore(pastEvents, newEvents));
         }
 
-        IEnumerable<OrchestratorAction> ExecuteCore(IEnumerable<HistoryEvent> pastEvents, IEnumerable<HistoryEvent> newEvents)
+        OrchestratorExecutionResult ExecuteCore(IEnumerable<HistoryEvent> pastEvents, IEnumerable<HistoryEvent> newEvents)
         {
             SynchronizationContext prevCtx = SynchronizationContext.Current;
 
@@ -138,11 +140,16 @@ namespace DurableTask.Core
                     this.context.FailOrchestration(exception);
                 }
 
-                return this.context.OrchestratorActions;
+                return new OrchestratorExecutionResult
+                {
+                    Actions = this.context.OrchestratorActions,
+                    CustomStatus = this.orchestrationStatus.Value,
+                };
             }
             finally
             {
-                this.orchestrationRuntimeState.Status = this.taskOrchestration.GetStatus();
+                // NOTE: Legacy behavior for in-proc execution. Ideally we'd never modify orchestration runtime state here.
+                this.orchestrationRuntimeState.Status = this.orchestrationStatus.Value;
                 SynchronizationContext.SetSynchronizationContext(prevCtx);
                 OrchestrationContext.IsOrchestratorThread = false;
             }

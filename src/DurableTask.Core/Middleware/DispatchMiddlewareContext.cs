@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.Core.Middleware
 {
     using System;
@@ -22,13 +22,18 @@ namespace DurableTask.Core.Middleware
     public class DispatchMiddlewareContext
     {
         /// <summary>
+        /// Gets a key/value collection that can be used to share data between middleware.
+        /// </summary>
+        public IDictionary<string, object?> Properties { get; } = new Dictionary<string, object?>(StringComparer.Ordinal);
+
+        /// <summary>
         /// Sets a property value to the context using the full name of the type as the key.
         /// </summary>
         /// <typeparam name="T">The type of the property.</typeparam>
         /// <param name="value">The value of the property.</param>
         public void SetProperty<T>(T value)
         {
-            SetProperty(typeof(T).FullName, value);
+            this.SetProperty(typeof(T).FullName, value);
         }
 
         /// <summary>
@@ -39,7 +44,7 @@ namespace DurableTask.Core.Middleware
         /// <param name="value">The value of the property.</param>
         public void SetProperty<T>(string key, T value)
         {
-            Properties[key] = value;
+            this.Properties[key] = value;
         }
 
         /// <summary>
@@ -47,9 +52,9 @@ namespace DurableTask.Core.Middleware
         /// </summary>
         /// <typeparam name="T">The type of the property.</typeparam>
         /// <returns>The value of the property or <c>default(T)</c> if the property is not defined.</returns>
-        public T GetProperty<T>()
+        public T? GetProperty<T>()
         {
-            return GetProperty<T>(typeof(T).FullName);
+            return this.GetProperty<T>(typeof(T).FullName);
         }
 
         /// <summary>
@@ -58,14 +63,16 @@ namespace DurableTask.Core.Middleware
         /// <typeparam name="T"></typeparam>
         /// <param name="key">The name of the property value.</param>
         /// <returns>The value of the property or <c>default(T)</c> if the property is not defined.</returns>
-        public T GetProperty<T>(string key)
+        public T? GetProperty<T>(string key)
         {
-            return Properties.TryGetValue(key, out object value) ? (T)value : default(T);
+            if (this.Properties.TryGetValue(key, out object? value) && value is not null)
+            {
+                return (T)value;
+            }
+            else
+            {
+                return default;
+            }
         }
-
-        /// <summary>
-        /// Gets a key/value collection that can be used to share data between middleware.
-        /// </summary>
-        public IDictionary<string, object> Properties { get; } = new Dictionary<string, object>(StringComparer.Ordinal);
     }
 }

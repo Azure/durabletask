@@ -13,23 +13,17 @@
 #nullable enable
 namespace DurableTask.Core
 {
+    using DurableTask.Core.History;
+
     /// <summary>
-    /// Interface for name and version manager class to be used in type lookup mappings
+    /// The result of an activity execution.
     /// </summary>
-    public interface INameVersionObjectManager<T>
+    public class ActivityExecutionResult
     {
         /// <summary>
-        /// Adds a new ObjectCreator to the name version Object manager
+        /// This history event associated with the activity execution result.
+        /// This is expected to be <see cref="TaskCompletedEvent"/> or <see cref="TaskFailedEvent"/>.
         /// </summary>
-        /// <param name="creator">Class for creation of a new name and version instance</param>
-        void Add(ObjectCreator<T> creator);
-
-        /// <summary>
-        /// Gets a creator class instance based on a name and version
-        /// </summary>
-        /// <param name="name">Name of the class to return the creator for</param>
-        /// <param name="version">Version of the class to return the creator for</param>
-        /// <returns>Class instance based on the matching creator class for the supplied name and version</returns>
-        T? GetObject(string name, string version);
+        public HistoryEvent? ResponseEvent { get; set; }
     }
 }

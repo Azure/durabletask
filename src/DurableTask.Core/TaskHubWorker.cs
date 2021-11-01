@@ -184,12 +184,13 @@ namespace DurableTask.Core
 
                 this.orchestrationDispatcher = new TaskOrchestrationDispatcher(
                     this.orchestrationService,
+                    this.orchestrationManager,
                     this.customTaskExecutorFactory,
                     this.orchestrationDispatchPipeline,
                     this.logHelper);
                 this.activityDispatcher = new TaskActivityDispatcher(
                     this.orchestrationService,
-                    ////this.activityManager,
+                    this.activityManager,
                     this.customTaskExecutorFactory,
                     this.activityDispatchPipeline,
                     this.logHelper);

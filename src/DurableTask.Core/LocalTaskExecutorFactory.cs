@@ -39,7 +39,7 @@ namespace DurableTask.Core
 
         public OrchestrationExecutorBase CreateOrchestrationExecutor(OrchestrationRuntimeState runtimeState)
         {
-            TaskOrchestration taskOrchestration = this.orchestrationObjectManager.GetObject(runtimeState.Name, runtimeState.Version);
+            TaskOrchestration? taskOrchestration = this.orchestrationObjectManager.GetObject(runtimeState.Name, runtimeState.Version);
             if (taskOrchestration == null)
             {
                 throw TraceHelper.TraceExceptionInstance(
@@ -57,7 +57,7 @@ namespace DurableTask.Core
 
         public TaskActivityExecutorBase CreateActivityExecutor(TaskScheduledEvent scheduledEvent, OrchestrationInstance instance)
         {
-            TaskActivity taskActivity = this.activityObjectManager.GetObject(scheduledEvent.Name, scheduledEvent.Version);
+            TaskActivity? taskActivity = this.activityObjectManager.GetObject(scheduledEvent.Name!, scheduledEvent.Version!);
             if (taskActivity == null)
             {
                 throw new TypeMissingException($"TaskActivity {scheduledEvent.Name} version {scheduledEvent.Version} was not found");

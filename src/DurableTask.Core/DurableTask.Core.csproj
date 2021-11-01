@@ -6,9 +6,12 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <PackageId>Microsoft.Azure.DurableTask.Core</PackageId>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <AssemblyVersion>2.6.0</AssemblyVersion>
-    <FileVersion>2.6.0</FileVersion>
-    <Version>2.6.0</Version>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>$(SolutionDir)\tools\sign.snk</AssemblyOriginatorKeyFile>
+    <DefineConstants>$(DefineConstants);SIGN_ASSEMBLY</DefineConstants>
+    <AssemblyVersion>2.7.0</AssemblyVersion>
+    <FileVersion>2.7.0</FileVersion>
+    <Version>2.7.0-private</Version>
     <!--NuGet licenseUrl and PackageIconUrl/iconUrl deprecation. -->
     <NoWarn>NU5125;NU5048</NoWarn>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>

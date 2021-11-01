@@ -34,10 +34,9 @@ namespace DurableTask.Core
     public class TaskOrchestrationDispatcher
     {
         static readonly DataConverter DataConverter = new JsonDataConverter();
-        static readonly Task CompletedTask = Task.FromResult(0);
 
         readonly ITaskExecutorFactory executorFactory;
-        ////readonly INameVersionObjectManager<TaskOrchestration> objectManager;
+        readonly INameVersionObjectManager<TaskOrchestration>? objectManager;
         readonly IOrchestrationService orchestrationService;
         readonly WorkItemDispatcher<TaskOrchestrationWorkItem> dispatcher;
         readonly DispatchMiddlewarePipeline dispatchPipeline;
@@ -46,12 +45,12 @@ namespace DurableTask.Core
 
         internal TaskOrchestrationDispatcher(
             IOrchestrationService orchestrationService,
-            //INameVersionObjectManager<TaskOrchestration> objectManager,
+            INameVersionObjectManager<TaskOrchestration>? objectManager,
             ITaskExecutorFactory executorFactory,
             DispatchMiddlewarePipeline dispatchPipeline,
             LogHelper logHelper)
         {
-            ////this.objectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
+            this.objectManager = objectManager;
             this.executorFactory = executorFactory ?? throw new ArgumentNullException(nameof(executorFactory));
             this.orchestrationService = orchestrationService ?? throw new ArgumentNullException(nameof(orchestrationService));
             this.dispatchPipeline = dispatchPipeline ?? throw new ArgumentNullException(nameof(dispatchPipeline));
@@ -583,61 +582,82 @@ namespace DurableTask.Core
 
         async Task<OrchestrationExecutionCursor> ExecuteOrchestrationAsync(OrchestrationRuntimeState runtimeState, TaskOrchestrationWorkItem workItem)
         {
-            ////TaskOrchestration taskOrchestration = this.objectManager.GetObject(runtimeState.Name, runtimeState.Version);
-            ////if (taskOrchestration == null)
-            ////{
-            ////    throw TraceHelper.TraceExceptionInstance(
-            ////        TraceEventType.Error,
-            ////        "TaskOrchestrationDispatcher-TypeMissing",
-            ////        runtimeState.OrchestrationInstance,
-            ////        new TypeMissingException($"Orchestration not found: ({runtimeState.Name}, {runtimeState.Version})"));
-            ////}
+            TaskOrchestration? taskOrchestration = this.objectManager?.GetObject(runtimeState.Name, runtimeState.Version);
 
-            ////var dispatchContext = new DispatchMiddlewareContext();
+            var dispatchContext = new DispatchMiddlewareContext();
+            dispatchContext.SetProperty(runtimeState.OrchestrationInstance);
+            dispatchContext.SetProperty(taskOrchestration);
+            dispatchContext.SetProperty(runtimeState);
+            dispatchContext.SetProperty(workItem);
+
+            ////////var executor = new TaskOrchestrationExecutor(runtimeState, taskOrchestration, this.orchestrationService.EventBehaviourForContinueAsNew);
+            ////OrchestrationExecutorBase executor = this.executorFactory.CreateOrchestrationExecutor(runtimeState);
+
+            ////// NOTE: CreateDispatchContext is virtual protected internal. The local executor will create a dispatch
+            //////       context that includes TaskOrchestration. The default implementation creates nothing.
+            ////var dispatchContext = executor.CreateDispatchContext() ?? new DispatchMiddlewareContext();
             ////dispatchContext.SetProperty(runtimeState.OrchestrationInstance);
-            ////dispatchContext.SetProperty(taskOrchestration);
             ////dispatchContext.SetProperty(runtimeState);
             ////dispatchContext.SetProperty(workItem);
 
             ////var executor = new TaskOrchestrationExecutor(runtimeState, taskOrchestration, this.orchestrationService.EventBehaviourForContinueAsNew);
-            OrchestrationExecutorBase executor = this.executorFactory.CreateOrchestrationExecutor(runtimeState);
-
-            // NOTE: CreateDispatchContext is virtual protected internal. The local executor will create a dispatch
-            //       context that includes TaskOrchestration. The default implementation creates nothing.
-            var dispatchContext = executor.CreateDispatchContext() ?? new DispatchMiddlewareContext();
-            dispatchContext.SetProperty(runtimeState.OrchestrationInstance);
-            dispatchContext.SetProperty(runtimeState);
-            dispatchContext.SetProperty(workItem);
-
-            IEnumerable<OrchestratorAction>? decisions = null;
+            TaskOrchestrationExecutor? executor = null;
             await this.dispatchPipeline.RunAsync(dispatchContext, async _ =>
             {
-                decisions = await executor.ExecuteAsync();
+                var resultFromMiddleware = dispatchContext.GetProperty<OrchestratorExecutionResult>();
+                if (resultFromMiddleware != null)
+                {
+                    // The middleware intercepted and substituted the orchestration execution with
+                    // its own execution behavior, providing us with the end results
+                    return;
+                }
+
+                if (taskOrchestration == null)
+                {
+                    throw TraceHelper.TraceExceptionInstance(
+                        TraceEventType.Error,
+                        "TaskOrchestrationDispatcher-TypeMissing",
+                        runtimeState.OrchestrationInstance,
+                        new TypeMissingException($"Orchestration not found: ({runtimeState.Name}, {runtimeState.Version})"));
+                }
+
+                executor = new TaskOrchestrationExecutor(runtimeState, taskOrchestration, this.orchestrationService.EventBehaviourForContinueAsNew);
+                OrchestratorExecutionResult resultFromOrchestrator = await executor.ExecuteAsync();
+                dispatchContext.SetProperty(resultFromOrchestrator);
             });
 
-            if (decisions == null)
-            {
-                decisions = Enumerable.Empty<OrchestratorAction>();
-            }
+            var result = dispatchContext.GetProperty<OrchestratorExecutionResult>();
+            IEnumerable<OrchestratorAction> decisions = result?.Actions ?? Enumerable.Empty<OrchestratorAction>();
+            runtimeState.Status = result?.CustomStatus;
 
-            return new OrchestrationExecutionCursor(runtimeState, /*taskOrchestration,*/ executor, decisions);
+            return new OrchestrationExecutionCursor(runtimeState, taskOrchestration, executor, decisions);
         }
 
-        Task ResumeOrchestrationAsync(TaskOrchestrationWorkItem workItem)
+        async Task ResumeOrchestrationAsync(TaskOrchestrationWorkItem workItem)
         {
             OrchestrationExecutionCursor cursor = workItem.Cursor;
 
-            DispatchMiddlewareContext dispatchContext = cursor.OrchestrationExecutor.CreateDispatchContext();
+            var dispatchContext = new DispatchMiddlewareContext(); ////cursor.OrchestrationExecutor.CreateDispatchContext();
             dispatchContext.SetProperty(cursor.RuntimeState.OrchestrationInstance);
-            ////dispatchContext.SetProperty(cursor.TaskOrchestration);
+            dispatchContext.SetProperty(cursor.TaskOrchestration);
             dispatchContext.SetProperty(cursor.RuntimeState);
             dispatchContext.SetProperty(workItem);
 
-            cursor.LatestDecisions = Enumerable.Empty<OrchestratorAction>();
-            return this.dispatchPipeline.RunAsync(dispatchContext, async _ =>
+            await this.dispatchPipeline.RunAsync(dispatchContext, async _ =>
             {
-                cursor.LatestDecisions = await cursor.OrchestrationExecutor.ExecuteNewEventsAsync();
+                // OrchestrationExecutor may be null if some custom middleware prevented it from being assigned.
+                // Modern versions of the Durable Functions out-of-process execution logic will have a null executor
+                // because the execution is intercepted by middleware and delegated to another process.
+                if (cursor.OrchestrationExecutor != null)
+                {
+                    OrchestratorExecutionResult result = await cursor.OrchestrationExecutor.ExecuteNewEventsAsync();
+                    dispatchContext.SetProperty(result);
+                }
             });
+
+            var result = dispatchContext.GetProperty<OrchestratorExecutionResult>();
+            cursor.LatestDecisions = result?.Actions ?? Enumerable.Empty<OrchestratorAction>();
+            cursor.RuntimeState.Status = result?.CustomStatus;
         }
 
         /// <summary>
