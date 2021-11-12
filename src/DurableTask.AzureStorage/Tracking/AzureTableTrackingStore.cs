@@ -1235,7 +1235,7 @@ namespace DurableTask.AzureStorage.Tracking
                                 }
                             });
                             var message = string.Join(Environment.NewLine, logs);
-                            this.settings.Logger.GeneralWarning(this.storageAccountName, this.taskHubName, message, instanceId);
+                            this.settings.Logger.GeneralWarning(this.storageAccountName, this.taskHubName, "Unexpected history persistence exception: " + ex + Environment.NewLine + message, instanceId);
                         }
                     }
 #endif
