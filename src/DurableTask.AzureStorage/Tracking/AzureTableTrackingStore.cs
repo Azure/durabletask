@@ -1208,31 +1208,35 @@ namespace DurableTask.AzureStorage.Tracking
                         stopwatch.ElapsedMilliseconds,
                         eTagValue);
                 }
-
-#if NETSTANDARD2_0
-                foreach(var tableOperation in historyEventBatch)
+                else
                 {
-                    if (tableOperation.Entity is DynamicTableEntity entity)
+#if NETSTANDARD2_0
+                    foreach (var tableOperation in historyEventBatch)
                     {
-                        foreach (var propertyName in entity.Properties.Keys)
+                        if (tableOperation.Entity is DynamicTableEntity entity)
                         {
-                            entity.Properties.TryGetValue(propertyName, out EntityProperty property);
-                            try
+                            foreach (var propertyName in entity.Properties.Keys)
                             {
-                                if (this.ExceedsMaxTablePropertySize(property.StringValue) &&
-                                    !VariableSizeEntityProperties.Contains(propertyName))
+                                entity.Properties.TryGetValue(propertyName, out EntityProperty property);
+                                try
                                 {
-                                    var numBytes = Encoding.Unicode.GetByteCount(property.StringValue);
-                                    var message = $"Detected field that exceeds Azure Storage Table's max size - {propertyName} with {numBytes} bytes";
-                                    this.settings.Logger.GeneralError(this.storageAccountName, this.taskHubName, message);
+                                    if (this.ExceedsMaxTablePropertySize(property.StringValue) &&
+                                        !VariableSizeEntityProperties.Contains(propertyName))
+                                    {
+                                        var numBytes = Encoding.Unicode.GetByteCount(property.StringValue);
+                                        var message = $"Detected field that exceeds Azure Storage Table's max size - {propertyName} with {numBytes} bytes";
+                                        this.settings.Logger.GeneralWarning(this.storageAccountName, this.taskHubName, message, instanceId);
+                                    }
                                 }
-                            }
-                            catch { } // ignore exceptions in this logging-only path
+                                catch { } // ignore exceptions in this logging-only path
 
+                            }
                         }
                     }
-                }
 #endif
+                }
+
+
 
                 throw;
             }
