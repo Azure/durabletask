@@ -1209,6 +1209,31 @@ namespace DurableTask.AzureStorage.Tracking
                         eTagValue);
                 }
 
+#if NETSTANDARD2_0
+                foreach(var tableOperation in historyEventBatch)
+                {
+                    if (tableOperation.Entity is DynamicTableEntity entity)
+                    {
+                        foreach (var propertyName in entity.Properties.Keys)
+                        {
+                            entity.Properties.TryGetValue(propertyName, out EntityProperty property);
+                            try
+                            {
+                                if (this.ExceedsMaxTablePropertySize(property.StringValue) &&
+                                    !VariableSizeEntityProperties.Contains(propertyName))
+                                {
+                                    var numBytes = Encoding.Unicode.GetByteCount(property.StringValue);
+                                    var message = $"Detected field that exceeds Azure Storage Table's max size - {propertyName} with {numBytes} bytes";
+                                    this.settings.Logger.GeneralError(this.storageAccountName, this.taskHubName, "");
+                                }
+                            }
+                            catch { } // ignore exceptions in this logging-only path
+
+                        }
+                    }
+                }
+#endif
+
                 throw;
             }
 
