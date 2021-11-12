@@ -1224,7 +1224,7 @@ namespace DurableTask.AzureStorage.Tracking
                                 {
                                     var numBytes = Encoding.Unicode.GetByteCount(property.StringValue);
                                     var message = $"Detected field that exceeds Azure Storage Table's max size - {propertyName} with {numBytes} bytes";
-                                    this.settings.Logger.GeneralError(this.storageAccountName, this.taskHubName, "");
+                                    this.settings.Logger.GeneralError(this.storageAccountName, this.taskHubName, message);
                                 }
                             }
                             catch { } // ignore exceptions in this logging-only path
