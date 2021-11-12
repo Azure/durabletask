@@ -1215,11 +1215,14 @@ namespace DurableTask.AzureStorage.Tracking
                     {
                         if (tableOperation.Entity is DynamicTableEntity entity)
                         {
-                            var logs = entity.Properties.Keys.Select((propertyName) =>
+                            var logs = entity.Properties.Select((pair) =>
                             {
+
+                                var propertyName = pair.Key;
+                                var property = pair.Value;
+
                                 try
                                 {
-                                    entity.Properties.TryGetValue(propertyName, out EntityProperty property);
                                     var stringValue = property.StringValue;
                                     var exceedsPropertySize = this.ExceedsMaxTablePropertySize(stringValue);
                                     var numBytes = Encoding.Unicode.GetByteCount(property.StringValue);
@@ -1231,9 +1234,8 @@ namespace DurableTask.AzureStorage.Tracking
                                     return $"Property {propertyName} | Exception: {ex}.";
                                 }
                             });
-                            var message = string.Join("\n", logs);
+                            var message = string.Join(Environment.NewLine, logs);
                             this.settings.Logger.GeneralWarning(this.storageAccountName, this.taskHubName, message, instanceId);
-
                         }
                     }
 #endif
