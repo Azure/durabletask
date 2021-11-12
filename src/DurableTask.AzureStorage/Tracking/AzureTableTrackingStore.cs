@@ -1215,22 +1215,25 @@ namespace DurableTask.AzureStorage.Tracking
                     {
                         if (tableOperation.Entity is DynamicTableEntity entity)
                         {
-                            foreach (var propertyName in entity.Properties.Keys)
+                            var logs = entity.Properties.Keys.Select((propertyName) =>
                             {
-                                entity.Properties.TryGetValue(propertyName, out EntityProperty property);
                                 try
                                 {
-                                    if (this.ExceedsMaxTablePropertySize(property.StringValue) &&
-                                        !VariableSizeEntityProperties.Contains(propertyName))
-                                    {
-                                        var numBytes = Encoding.Unicode.GetByteCount(property.StringValue);
-                                        var message = $"Detected field that exceeds Azure Storage Table's max size - {propertyName} with {numBytes} bytes";
-                                        this.settings.Logger.GeneralWarning(this.storageAccountName, this.taskHubName, message, instanceId);
-                                    }
+                                    entity.Properties.TryGetValue(propertyName, out EntityProperty property);
+                                    var stringValue = property.StringValue;
+                                    var exceedsPropertySize = this.ExceedsMaxTablePropertySize(stringValue);
+                                    var numBytes = Encoding.Unicode.GetByteCount(property.StringValue);
+                                    var inVariableSizeProps = VariableSizeEntityProperties.Contains(propertyName);
+                                    return $"Property {propertyName} | numBytes: {numBytes}, exceedsSize: {exceedsPropertySize}, inVariableSizeProps: {inVariableSizeProps} .";
                                 }
-                                catch { } // ignore exceptions in this logging-only path
+                                catch (Exception ex)
+                                {
+                                    return $"Property {propertyName} | Exception: {ex}.";
+                                }
+                            });
+                            var message = string.Join("\n", logs);
+                            this.settings.Logger.GeneralWarning(this.storageAccountName, this.taskHubName, message, instanceId);
 
-                            }
                         }
                     }
 #endif
