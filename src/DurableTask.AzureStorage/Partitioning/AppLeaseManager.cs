@@ -71,11 +71,7 @@ namespace DurableTask.AzureStorage.Partitioning
             this.appLeaseContainer = this.azureStorageClient.GetBlobContainerReference(this.appLeaseContainerName);
             this.appLeaseInfoBlob = this.appLeaseContainer.GetBlobReference(this.appLeaseInfoBlobName);
 
-            using (MD5 md5 = MD5.Create())
-            {
-               byte[] hash = md5.ComputeHash(Encoding.Default.GetBytes(this.appName));
-               this.appLeaseId = new Guid(hash).ToString();
-            }
+            this.appLeaseId = Fnv1aHashHelper.ComputeHash(this.appName).ToString();
 
             this.isLeaseOwner = false;
             this.shutdownCompletedEvent = new AsyncManualResetEvent();
