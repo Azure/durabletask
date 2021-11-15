@@ -13,6 +13,7 @@
 
 namespace DurableTask.AzureStorage
 {
+    using System;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Auth;
 
@@ -45,6 +46,16 @@ namespace DurableTask.AzureStorage
         public string ConnectionString { get; set; }
 
         /// <summary>
+        /// The data plane URI of the queue service of the storage account.
+        /// </summary>
+        public Uri QueueServiceUri { get; set; }
+
+        /// <summary>
+        /// The data plane URI of the table service of the storage account.
+        /// </summary>
+        public Uri TableServiceUri { get; set; }
+
+        /// <summary>
         ///  Convert this to its equivalent CloudStorageAccount.
         /// </summary>
         public CloudStorageAccount ToCloudStorageAccount()
@@ -52,6 +63,15 @@ namespace DurableTask.AzureStorage
             if (!string.IsNullOrEmpty(this.ConnectionString))
             {
                 return CloudStorageAccount.Parse(this.ConnectionString);
+            }
+            else if (this.QueueServiceUri != null && this.TableServiceUri != null)
+            {
+                return new CloudStorageAccount(
+                    this.StorageCredentials,
+                    blobEndpoint: null,
+                    queueEndpoint: QueueServiceUri,
+                    tableEndpoint: TableServiceUri,
+                    fileEndpoint: null);
             }
             else
             {
