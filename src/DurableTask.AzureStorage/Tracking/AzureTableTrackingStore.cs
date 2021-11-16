@@ -890,6 +890,16 @@ namespace DurableTask.AzureStorage.Tracking
                 historyEntity.RowKey = sequenceNumber.ToString("X16");
                 historyEntity.Properties["ExecutionId"] = new EntityProperty(executionId);
 
+                CorrelationTraceClient.Propagate(() =>
+                {
+                    if (historyEvent.EventType == EventType.ExecutionStarted)
+                    {
+                        ExecutionStartedEvent executionStartedEvent = (ExecutionStartedEvent)historyEvent;
+                        historyEntity.Properties["Correlation"] = new EntityProperty(executionStartedEvent.Correlation);
+                        estimatedBytes += Encoding.Unicode.GetByteCount(executionStartedEvent.Correlation);
+                    }
+                });
+
                 await this.CompressLargeMessageAsync(historyEntity);
 
                 // Replacement can happen if the orchestration episode gets replayed due to a commit failure in one of the steps below.
@@ -911,12 +921,6 @@ namespace DurableTask.AzureStorage.Tracking
                         if (executionStartedEvent.ScheduledStartTime.HasValue) {
                             instanceEntity.Properties["ScheduledStartTime"] = new EntityProperty(executionStartedEvent.ScheduledStartTime);
                         }
-
-                        CorrelationTraceClient.Propagate(() =>
-                        {
-                            historyEntity.Properties["Correlation"] = new EntityProperty(executionStartedEvent.Correlation);
-                            estimatedBytes += Encoding.Unicode.GetByteCount(executionStartedEvent.Correlation);
-                        });
 
                         this.SetInstancesTablePropertyFromHistoryProperty(
                             historyEntity,
@@ -1223,6 +1227,15 @@ namespace DurableTask.AzureStorage.Tracking
 
                                 try
                                 {
+                                    if (property is null)
+                                    {
+                                        return $"Property {propertyName} | is NULL .";
+                                    }
+                                    else if (!property.PropertyType.Equals(EdmType.String))
+                                    {
+                                        return $"Property {propertyName} | is of type {property.PropertyType} , it's size is expected to be fixed.";
+
+                                    }
                                     var stringValue = property.StringValue;
                                     var exceedsPropertySize = this.ExceedsMaxTablePropertySize(stringValue);
                                     var numBytes = Encoding.Unicode.GetByteCount(property.StringValue);
@@ -1234,7 +1247,7 @@ namespace DurableTask.AzureStorage.Tracking
                                     return $"Property {propertyName} | Exception: {ex}.";
                                 }
                             });
-                            var message = string.Join(Environment.NewLine, logs);
+                            var message = $"Attempted to store the following fields:{Environment.NewLine}{string.Join(Environment.NewLine, logs)}";
                             this.settings.Logger.GeneralWarning(this.storageAccountName, this.taskHubName, "Unexpected history persistence exception: " + ex + Environment.NewLine + message, instanceId);
                         }
                     }
