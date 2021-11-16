@@ -15,8 +15,6 @@ namespace DurableTask.AzureStorage.Partitioning
 {
     using System;
     using System.Net;
-    using System.Security.Cryptography;
-    using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Storage;
@@ -71,7 +69,9 @@ namespace DurableTask.AzureStorage.Partitioning
             this.appLeaseContainer = this.azureStorageClient.GetBlobContainerReference(this.appLeaseContainerName);
             this.appLeaseInfoBlob = this.appLeaseContainer.GetBlobReference(this.appLeaseInfoBlobName);
 
-            this.appLeaseId = Fnv1aHashHelper.ComputeHash(this.appName).ToString();
+            var appNameHashInBytes = BitConverter.GetBytes(Fnv1aHashHelper.ComputeHash(this.appName));
+            Array.Resize(ref appNameHashInBytes, 16);
+            this.appLeaseId = new Guid(appNameHashInBytes).ToString();
 
             this.isLeaseOwner = false;
             this.shutdownCompletedEvent = new AsyncManualResetEvent();
