@@ -46,5 +46,18 @@ namespace DurableTask.Core
             Name = name;
             Version = version;
         }
+        
+        /// <summary>
+        /// Creates a new DefaultObjectCreator of supplied delegate function with supplied name and version for mapping
+        /// </summary>
+        /// <param name="name">Lookup name for the type</param>
+        /// <param name="version">Lookup version for the type</param>
+        /// <param name="func">Object instances to infer the type from</param>
+        public NameValueObjectCreator(string name, string version, Func<T> func)
+            : base(func)
+        {
+            Name = name;
+            Version = version;
+        }
     }
 }
