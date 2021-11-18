@@ -24,7 +24,7 @@ namespace Correlation.Samples
     internal sealed class TestOrchestrationHost : IDisposable
     {
         readonly AzureStorageOrchestrationServiceSettings settings;
-        readonly TaskHubWorker worker;
+        readonly ITaskHubWorker worker;
         readonly TaskHubClient client;
         readonly HashSet<Type> addedOrchestrationTypes;
         readonly HashSet<Type> addedActivityTypes;

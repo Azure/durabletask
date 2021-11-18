@@ -25,7 +25,7 @@ namespace DurableTask.Core.Tests
     [TestClass]
     public class DispatcherMiddlewareTests
     {
-        TaskHubWorker worker;
+        ITaskHubWorker worker;
         TaskHubClient client;
 
         [TestInitialize]

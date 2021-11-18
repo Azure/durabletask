@@ -28,7 +28,7 @@ namespace DurableTask.AzureStorage.Tests
         internal readonly AzureStorageOrchestrationService service;
 
         readonly AzureStorageOrchestrationServiceSettings settings;
-        readonly TaskHubWorker worker;
+        readonly ITaskHubWorker worker;
         readonly TaskHubClient client;
         readonly HashSet<Type> addedOrchestrationTypes;
         readonly HashSet<Type> addedActivityTypes;
