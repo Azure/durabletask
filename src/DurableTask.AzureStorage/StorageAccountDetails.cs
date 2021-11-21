@@ -46,31 +46,37 @@ namespace DurableTask.AzureStorage
         public string ConnectionString { get; set; }
 
         /// <summary>
-        /// The data plane URI of the queue service of the storage account.
+        /// The data plane URI for the blob service of the storage account.
+        /// </summary>
+        public Uri BlobServiceUri { get; set; }
+
+        /// <summary>
+        /// The data plane URI for the queue service of the storage account.
         /// </summary>
         public Uri QueueServiceUri { get; set; }
 
         /// <summary>
-        /// The data plane URI of the table service of the storage account.
+        /// The data plane URI for the table service of the storage account.
         /// </summary>
         public Uri TableServiceUri { get; set; }
 
         /// <summary>
-        ///  Convert this to its equivalent CloudStorageAccount.
+        /// Convert this to its equivalent <see cref="CloudStorageAccount"/>.
         /// </summary>
+        /// <returns>The corresponding <see cref="CloudStorageAccount"/> instance.</returns>
         public CloudStorageAccount ToCloudStorageAccount()
         {
             if (!string.IsNullOrEmpty(this.ConnectionString))
             {
                 return CloudStorageAccount.Parse(this.ConnectionString);
             }
-            else if (this.QueueServiceUri != null && this.TableServiceUri != null)
+            else if (this.BlobServiceUri != null || this.QueueServiceUri != null || this.TableServiceUri != null)
             {
                 return new CloudStorageAccount(
                     this.StorageCredentials,
-                    blobEndpoint: null,
-                    queueEndpoint: QueueServiceUri,
-                    tableEndpoint: TableServiceUri,
+                    this.BlobServiceUri ?? StorageAccount.GetDefaultServiceUri(this.AccountName, StorageService.Blob),
+                    this.QueueServiceUri ?? StorageAccount.GetDefaultServiceUri(this.AccountName, StorageService.Queue),
+                    this.TableServiceUri ?? StorageAccount.GetDefaultServiceUri(this.AccountName, StorageService.Table),
                     fileEndpoint: null);
             }
             else
