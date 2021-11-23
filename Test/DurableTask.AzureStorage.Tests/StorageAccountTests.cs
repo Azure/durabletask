@@ -23,20 +23,20 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public void GetDefaultServiceUriExceptions()
         {
-            Assert.ThrowsException<ArgumentException>(() => StorageAccount.GetDefaultServiceUri(null, StorageService.Blob, StorageLocation.Primary));
-            Assert.ThrowsException<ArgumentException>(() => StorageAccount.GetDefaultServiceUri("", StorageService.Blob, StorageLocation.Primary));
-            Assert.ThrowsException<ArgumentOutOfRangeException>(() => StorageAccount.GetDefaultServiceUri("foo", (StorageService)42, StorageLocation.Primary));
-            Assert.ThrowsException<ArgumentOutOfRangeException>(() => StorageAccount.GetDefaultServiceUri("foo", StorageService.Blob, (StorageLocation)42));
+            Assert.ThrowsException<ArgumentException>(() => StorageAccount.GetDefaultServiceUri(null, StorageServiceType.Blob, StorageLocation.Primary));
+            Assert.ThrowsException<ArgumentException>(() => StorageAccount.GetDefaultServiceUri("", StorageServiceType.Blob, StorageLocation.Primary));
+            Assert.ThrowsException<ArgumentOutOfRangeException>(() => StorageAccount.GetDefaultServiceUri("foo", (StorageServiceType)42, StorageLocation.Primary));
+            Assert.ThrowsException<ArgumentOutOfRangeException>(() => StorageAccount.GetDefaultServiceUri("foo", StorageServiceType.Blob, (StorageLocation)42));
         }
 
         [DataTestMethod]
-        [DataRow("foo", StorageService.Blob, StorageLocation.Primary, "https://foo.blob.core.windows.net/")]
-        [DataRow("foo", StorageService.Blob, StorageLocation.Secondary, "https://foo-secondary.blob.core.windows.net/")]
-        [DataRow("bar", StorageService.Queue, StorageLocation.Primary, "https://bar.queue.core.windows.net/")]
-        [DataRow("bar", StorageService.Queue, StorageLocation.Secondary, "https://bar-secondary.queue.core.windows.net/")]
-        [DataRow("baz", StorageService.Table, StorageLocation.Primary, "https://baz.table.core.windows.net/")]
-        [DataRow("baz", StorageService.Table, StorageLocation.Secondary, "https://baz-secondary.table.core.windows.net/")]
-        public void GetDefaultServiceUri(string accountName, StorageService service, StorageLocation location, string expected)
+        [DataRow("foo", StorageServiceType.Blob, StorageLocation.Primary, "https://foo.blob.core.windows.net/")]
+        [DataRow("foo", StorageServiceType.Blob, StorageLocation.Secondary, "https://foo-secondary.blob.core.windows.net/")]
+        [DataRow("bar", StorageServiceType.Queue, StorageLocation.Primary, "https://bar.queue.core.windows.net/")]
+        [DataRow("bar", StorageServiceType.Queue, StorageLocation.Secondary, "https://bar-secondary.queue.core.windows.net/")]
+        [DataRow("baz", StorageServiceType.Table, StorageLocation.Primary, "https://baz.table.core.windows.net/")]
+        [DataRow("baz", StorageServiceType.Table, StorageLocation.Secondary, "https://baz-secondary.table.core.windows.net/")]
+        public void GetDefaultServiceUri(string accountName, StorageServiceType service, StorageLocation location, string expected)
         {
             Assert.AreEqual(new Uri(expected, UriKind.Absolute), StorageAccount.GetDefaultServiceUri(accountName, service, location));
         }

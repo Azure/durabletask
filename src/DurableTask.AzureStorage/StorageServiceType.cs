@@ -16,7 +16,7 @@ namespace DurableTask.AzureStorage
     /// <summary>
     /// Specifies a data service within the Azure Storage platform.
     /// </summary>
-    public enum StorageService
+    public enum StorageServiceType
     {
         /// <summary>
         /// Specifies blob storage, an object store, for text and binary data.

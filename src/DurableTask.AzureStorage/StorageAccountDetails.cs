@@ -72,11 +72,12 @@ namespace DurableTask.AzureStorage
             }
             else if (this.BlobServiceUri != null || this.QueueServiceUri != null || this.TableServiceUri != null)
             {
+                string accountName = this.ReconcileAccountName();
                 return new CloudStorageAccount(
                     this.StorageCredentials,
-                    this.BlobServiceUri ?? StorageAccount.GetDefaultServiceUri(this.AccountName, StorageService.Blob),
-                    this.QueueServiceUri ?? StorageAccount.GetDefaultServiceUri(this.AccountName, StorageService.Queue),
-                    this.TableServiceUri ?? StorageAccount.GetDefaultServiceUri(this.AccountName, StorageService.Table),
+                    this.BlobServiceUri ?? StorageAccount.GetDefaultServiceUri(accountName, StorageServiceType.Blob),
+                    this.QueueServiceUri ?? StorageAccount.GetDefaultServiceUri(accountName, StorageServiceType.Queue),
+                    this.TableServiceUri ?? StorageAccount.GetDefaultServiceUri(accountName, StorageServiceType.Table),
                     fileEndpoint: null);
             }
             else
@@ -86,6 +87,25 @@ namespace DurableTask.AzureStorage
                     this.AccountName,
                     this.EndpointSuffix,
                     useHttps: true);
+            }
+        }
+
+        internal string ReconcileAccountName()
+        {
+            if (string.IsNullOrEmpty(this.AccountName))
+            {
+                return this.StorageCredentials.AccountName;
+            }
+            else if (
+                !string.IsNullOrEmpty(this.StorageCredentials.AccountName) &&
+                !this.StorageCredentials.AccountName.Equals(this.AccountName, StringComparison.Ordinal))
+            {
+                throw new ArgumentException(
+                    $"Account name '{this.AccountName}' does not match the name '{this.StorageCredentials.AccountName}' in the credentials.");
+            }
+            else
+            {
+                return this.AccountName;
             }
         }
     }

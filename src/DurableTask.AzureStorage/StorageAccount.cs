@@ -23,6 +23,9 @@ namespace DurableTask.AzureStorage
     {
         private const string DefaultEndpointSuffix = "core.windows.net";
         private const string DefaultScheme = "https";
+
+        // The usage of the secondary suffix is documented here:
+        // https://docs.microsoft.com/en-us/azure/storage/common/storage-redundancy#design-your-applications-for-read-access-to-the-secondary
         private const string DefaultSecondarySuffix = "-secondary";
 
         /// <summary>
@@ -37,14 +40,14 @@ namespace DurableTask.AzureStorage
         /// <returns>A <see cref="Uri"/> whose value corresponds with the desired default service endpoint.</returns>
         /// <exception cref="ArgumentNullException"><paramref name="accountName"/> is <see langword="null"/> or empty.</exception>
         /// <exception cref="ArgumentOutOfRangeException"><paramref name="service"/> is not defined.</exception>
-        public static Uri GetDefaultServiceUri(string accountName, StorageService service, StorageLocation location = StorageLocation.Primary)
+        public static Uri GetDefaultServiceUri(string accountName, StorageServiceType service, StorageLocation location = StorageLocation.Primary)
         {
             if (string.IsNullOrEmpty(accountName))
             {
                 throw new ArgumentException("A non-empty account name must be specified.", nameof(accountName));
             }
 
-            if (!Enum.IsDefined(typeof(StorageService), service))
+            if (!Enum.IsDefined(typeof(StorageServiceType), service))
             {
                 throw new ArgumentOutOfRangeException(nameof(service), $"Unknown storage service '{service}'.");
             }
