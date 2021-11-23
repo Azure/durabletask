@@ -32,27 +32,42 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(new Uri("http://127.0.0.1:10002/devstoreaccount1", UriKind.Absolute), actual.TableEndpoint);
         }
 
-        [DataTestMethod]
-        [DataRow("https://blobs", "https://queues", "https://tables")]
-        [DataRow(null, "https://queues", "https://tables")]
-        [DataRow("https://blobs", null, "https://tables")]
-        [DataRow("https://blobs", "https://queues", null)]
-        public void ToCloudStorageAccount_Endpoints(string blob, string queue, string table)
+        [TestMethod]
+        public void ToCloudStorageAccount_Endpoints()
         {
             var expected = new StorageAccountDetails
             {
-                AccountName = "foo",
                 StorageCredentials = new StorageCredentials(),
-                BlobServiceUri = blob == null ? null : new Uri(blob, UriKind.Absolute),
-                QueueServiceUri = queue == null ? null : new Uri(queue, UriKind.Absolute),
-                TableServiceUri = table == null ? null : new Uri(table, UriKind.Absolute),
+                BlobServiceUri = new Uri("https://blobs", UriKind.Absolute),
+                QueueServiceUri = new Uri("https://queues", UriKind.Absolute),
+                TableServiceUri = new Uri("https://tables", UriKind.Absolute),
             };
 
             CloudStorageAccount actual = expected.ToCloudStorageAccount();
             Assert.AreSame(expected.StorageCredentials, actual.Credentials);
-            Assert.AreEqual(expected.BlobServiceUri ?? StorageAccount.GetDefaultServiceUri("foo", StorageServiceType.Blob), actual.BlobEndpoint);
-            Assert.AreEqual(expected.QueueServiceUri ?? StorageAccount.GetDefaultServiceUri("foo", StorageServiceType.Queue), actual.QueueEndpoint);
-            Assert.AreEqual(expected.TableServiceUri ?? StorageAccount.GetDefaultServiceUri("foo", StorageServiceType.Table), actual.TableEndpoint);
+            Assert.AreEqual(expected.BlobServiceUri, actual.BlobEndpoint);
+            Assert.AreEqual(expected.QueueServiceUri, actual.QueueEndpoint);
+            Assert.AreEqual(expected.TableServiceUri, actual.TableEndpoint);
+        }
+
+        [DataTestMethod]
+        [DataRow(true, false, false)]
+        [DataRow(false, true, false)]
+        [DataRow(false, false, true)]
+        [DataRow(true, true, false)]
+        [DataRow(false, true, true)]
+        [DataRow(true, false, true)]
+        public void ToCloudStorageAccount_EndpointSubset(bool hasBlob, bool hasQueue, bool hasTable)
+        {
+            var expected = new StorageAccountDetails
+            {
+                StorageCredentials = new StorageCredentials(),
+                BlobServiceUri = hasBlob ? new Uri("https://blobs", UriKind.Absolute) : null,
+                QueueServiceUri = hasQueue ? new Uri("https://queues", UriKind.Absolute) : null,
+                TableServiceUri = hasTable ? new Uri("https://tables", UriKind.Absolute) : null,
+            };
+
+            Assert.ThrowsException<InvalidOperationException>(() => expected.ToCloudStorageAccount());
         }
 
         [TestMethod]
@@ -66,9 +81,9 @@ namespace DurableTask.AzureStorage.Tests
 
             CloudStorageAccount actual = expected.ToCloudStorageAccount();
             Assert.AreSame(expected.StorageCredentials, actual.Credentials);
-            Assert.AreEqual(StorageAccount.GetDefaultServiceUri("dev", StorageServiceType.Blob), actual.BlobEndpoint);
-            Assert.AreEqual(StorageAccount.GetDefaultServiceUri("dev", StorageServiceType.Queue), actual.QueueEndpoint);
-            Assert.AreEqual(StorageAccount.GetDefaultServiceUri("dev", StorageServiceType.Table), actual.TableEndpoint);
+            Assert.AreEqual(new Uri("https://dev.blob.core.windows.net", UriKind.Absolute), actual.BlobEndpoint);
+            Assert.AreEqual(new Uri("https://dev.queue.core.windows.net", UriKind.Absolute), actual.QueueEndpoint);
+            Assert.AreEqual(new Uri("https://dev.table.core.windows.net", UriKind.Absolute), actual.TableEndpoint);
         }
     }
 }

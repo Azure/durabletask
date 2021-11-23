@@ -72,12 +72,17 @@ namespace DurableTask.AzureStorage
             }
             else if (this.BlobServiceUri != null || this.QueueServiceUri != null || this.TableServiceUri != null)
             {
-                string accountName = this.ReconcileAccountName();
+                if (this.BlobServiceUri == null || this.QueueServiceUri == null || this.TableServiceUri == null)
+                {
+                    throw new InvalidOperationException(
+                        $"If at least one Azure Storage service URI is specified, {nameof(BlobServiceUri)}, {nameof(QueueServiceUri)}, and {nameof(TableServiceUri)} must all be provided.");
+                }
+
                 return new CloudStorageAccount(
                     this.StorageCredentials,
-                    this.BlobServiceUri ?? StorageAccount.GetDefaultServiceUri(accountName, StorageServiceType.Blob),
-                    this.QueueServiceUri ?? StorageAccount.GetDefaultServiceUri(accountName, StorageServiceType.Queue),
-                    this.TableServiceUri ?? StorageAccount.GetDefaultServiceUri(accountName, StorageServiceType.Table),
+                    this.BlobServiceUri,
+                    this.QueueServiceUri,
+                    this.TableServiceUri,
                     fileEndpoint: null);
             }
             else
@@ -87,25 +92,6 @@ namespace DurableTask.AzureStorage
                     this.AccountName,
                     this.EndpointSuffix,
                     useHttps: true);
-            }
-        }
-
-        internal string ReconcileAccountName()
-        {
-            if (string.IsNullOrEmpty(this.AccountName))
-            {
-                return this.StorageCredentials.AccountName;
-            }
-            else if (
-                !string.IsNullOrEmpty(this.StorageCredentials.AccountName) &&
-                !this.StorageCredentials.AccountName.Equals(this.AccountName, StringComparison.Ordinal))
-            {
-                throw new ArgumentException(
-                    $"Account name '{this.AccountName}' does not match the name '{this.StorageCredentials.AccountName}' in the credentials.");
-            }
-            else
-            {
-                return this.AccountName;
             }
         }
     }
