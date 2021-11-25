@@ -94,7 +94,7 @@ namespace DurableTask.Core
         async Task OnProcessWorkItemAsync(TaskActivityWorkItem workItem)
         {
             Task? renewTask = null;
-            var renewCancellationTokenSource = new CancellationTokenSource();
+            using var renewCancellationTokenSource = new CancellationTokenSource();
 
             TaskMessage taskMessage = workItem.TaskMessage;
             OrchestrationInstance orchestrationInstance = taskMessage.OrchestrationInstance;
@@ -130,7 +130,16 @@ namespace DurableTask.Core
                 {
                     string errorMessage = $"The activity worker received a {nameof(TaskScheduledEvent)} message that doesn't specify an activity name!";
                     this.logHelper.TaskActivityDispatcherError(workItem, errorMessage);
-                    throw new InvalidOperationException(errorMessage);
+
+                    // Complete the message to avoid receiving it again
+                    await this.orchestrationService.CompleteTaskActivityWorkItemAsync(
+                        workItem,
+                        new TaskMessage
+                        {
+                            OrchestrationInstance = orchestrationInstance,
+                            Event = new TaskFailedEvent(-1, scheduledEvent.EventId, errorMessage, "")
+                        });
+                    return;
                 }
 
                 this.logHelper.TaskActivityStarting(orchestrationInstance, scheduledEvent);

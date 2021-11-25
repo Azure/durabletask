@@ -27,13 +27,13 @@ namespace DurableTask.Core
         /// The list of actions resulting from the orchestrator execution.
         /// </summary>
         [JsonProperty("actions")]
-        public IEnumerable<OrchestratorAction> Actions { get; internal set; } = Array.Empty<OrchestratorAction>();
+        public IEnumerable<OrchestratorAction> Actions { get; set; } = Array.Empty<OrchestratorAction>();
 
         /// <summary>
         /// The custom status, if any, of the orchestrator.
         /// </summary>
         [JsonProperty("customStatus")]
-        public string? CustomStatus { get; internal set; }
+        public string? CustomStatus { get; set; }
 
         public static OrchestratorExecutionResult ForFailure(string message, Exception e)
         {
