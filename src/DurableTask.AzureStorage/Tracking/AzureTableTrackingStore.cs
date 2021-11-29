@@ -424,9 +424,9 @@ namespace DurableTask.AzureStorage.Tracking
         {
             return this.FetchInstanceStatusInternalAsync(instanceId, executionId: null, fetchInput: false);
         }
-
+#nullable enable
         /// <inheritdoc />
-        async Task<InstanceStatus> FetchInstanceStatusInternalAsync(string instanceId, string executionId, bool fetchInput)
+        async Task<InstanceStatus?> FetchInstanceStatusInternalAsync(string instanceId, string executionId, bool fetchInput)
         {
             if (instanceId == null)
             {
@@ -441,24 +441,30 @@ namespace DurableTask.AzureStorage.Tracking
 
             var tableEntitiesResponseInfo = await this.InstancesTable.ExecuteQueryAsync(queryCondition.ToTableQuery<DynamicTableEntity>());
 
+            var tableEntity = tableEntitiesResponseInfo.ReturnedEntities.FirstOrDefault();
+
+            OrchestrationState? orchestrationState = null;
+            if (tableEntity != null)
+            {
+                orchestrationState = await this.ConvertFromAsync(tableEntity);
+            }
+
             this.settings.Logger.FetchedInstanceStatus(
                 this.storageAccountName,
                 this.taskHubName,
                 instanceId,
-                executionId ?? string.Empty,
+                orchestrationState?.OrchestrationInstance.ExecutionId ?? executionId ?? string.Empty,
+                orchestrationState?.OrchestrationStatus.ToString() ?? "NotFound",
                 tableEntitiesResponseInfo.ElapsedMilliseconds);
 
-            var tableEntity = tableEntitiesResponseInfo.ReturnedEntities.FirstOrDefault();
-            if (tableEntity == null)
+            if (tableEntity == null || orchestrationState == null)
             {
                 return null;
             }
 
-            var orchestrationState = await this.ConvertFromAsync(tableEntity);
-
             return new InstanceStatus(orchestrationState, tableEntity.ETag);
         }
-
+#nullable disable
         Task<OrchestrationState> ConvertFromAsync(DynamicTableEntity tableEntity)
         {
             var properties = tableEntity.Properties;
