@@ -411,22 +411,22 @@ namespace DurableTask.AzureStorage.Tracking
         {
             return new[] { await this.GetStateAsync(instanceId, executionId: null, fetchInput: fetchInput) };
         }
-
+#nullable enable
         /// <inheritdoc />
-        public override async Task<OrchestrationState> GetStateAsync(string instanceId, string executionId, bool fetchInput)
+        public override async Task<OrchestrationState?> GetStateAsync(string instanceId, string executionId, bool fetchInput)
         {
-            InstanceStatus instanceStatus = await this.FetchInstanceStatusInternalAsync(instanceId, executionId, fetchInput);
+            InstanceStatus? instanceStatus = await this.FetchInstanceStatusInternalAsync(instanceId, fetchInput);
             return instanceStatus?.State;
         }
 
         /// <inheritdoc />
-        public override Task<InstanceStatus> FetchInstanceStatusAsync(string instanceId)
+        public override Task<InstanceStatus?> FetchInstanceStatusAsync(string instanceId)
         {
-            return this.FetchInstanceStatusInternalAsync(instanceId, executionId: null, fetchInput: false);
+            return this.FetchInstanceStatusInternalAsync(instanceId, fetchInput: false);
         }
-#nullable enable
+
         /// <inheritdoc />
-        async Task<InstanceStatus?> FetchInstanceStatusInternalAsync(string instanceId, string executionId, bool fetchInput)
+        async Task<InstanceStatus?> FetchInstanceStatusInternalAsync(string instanceId, bool fetchInput)
         {
             if (instanceId == null)
             {
@@ -453,7 +453,7 @@ namespace DurableTask.AzureStorage.Tracking
                 this.storageAccountName,
                 this.taskHubName,
                 instanceId,
-                orchestrationState?.OrchestrationInstance.ExecutionId ?? executionId ?? string.Empty,
+                orchestrationState?.OrchestrationInstance.ExecutionId ?? string.Empty,
                 orchestrationState?.OrchestrationStatus.ToString() ?? "NotFound",
                 tableEntitiesResponseInfo.ElapsedMilliseconds);
 
