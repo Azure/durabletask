@@ -27,11 +27,12 @@ namespace DurableTask.Core
     using DurableTask.Core.Middleware;
     using DurableTask.Core.Serializing;
     using DurableTask.Core.Tracing;
+    using Microsoft.Extensions.Hosting;
 
     /// <summary>
     /// Dispatcher for orchestrations to handle processing and renewing, completion of orchestration events
     /// </summary>
-    public class TaskOrchestrationDispatcher
+    public class TaskOrchestrationDispatcher : IHostedService
     {
         static readonly DataConverter DataConverter = new JsonDataConverter();
         static readonly Task CompletedTask = Task.FromResult(0);
@@ -84,6 +85,15 @@ namespace DurableTask.Core
         }
 
         /// <summary>
+        /// Starts the dispatcher to start getting and processing orchestration events
+        /// </summary>
+        /// <param name="cancellationToken">Indicates that the start process has been aborted.</param>
+        public async Task StartAsync(CancellationToken cancellationToken)
+        {
+            await this.dispatcher.StartAsync(cancellationToken);
+        }
+
+        /// <summary>
         /// Stops the dispatcher to stop getting and processing orchestration events
         /// </summary>
         /// <param name="forced">Flag indicating whether to stop gracefully or immediately</param>
@@ -92,6 +102,15 @@ namespace DurableTask.Core
             await this.dispatcher.StopAsync(forced);
         }
 
+        /// <summary>
+        /// Stops the dispatcher to stop getting and processing orchestration events
+        /// </summary>
+        /// <param name="cancellationToken">Indicates that the shutdown process should no longer be graceful.</param>
+        public async Task StopAsync(CancellationToken cancellationToken)
+        {
+            await this.dispatcher.StopAsync(cancellationToken);
+        }
+        
         /// <summary>
         /// Gets or sets flag whether to include additional details in error messages
         /// </summary>

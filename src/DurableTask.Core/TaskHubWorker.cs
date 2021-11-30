@@ -20,13 +20,14 @@ namespace DurableTask.Core
     using System.Threading.Tasks;
     using DurableTask.Core.Logging;
     using DurableTask.Core.Middleware;
+    using Microsoft.Extensions.Hosting;
     using Microsoft.Extensions.Logging;
 
     /// <summary>
     ///     Allows users to load the TaskOrchestration and TaskActivity classes and start
     ///     dispatching to these. Also allows CRUD operations on the Task Hub itself.
     /// </summary>
-    public sealed class TaskHubWorker : IDisposable
+    public sealed class TaskHubWorker : IHostedService, IDisposable
     {
         readonly INameVersionObjectManager<TaskActivity> activityManager;
         readonly INameVersionObjectManager<TaskOrchestration> orchestrationManager;
@@ -147,6 +148,17 @@ namespace DurableTask.Core
         /// <returns></returns>
         public async Task<TaskHubWorker> StartAsync()
         {
+            await StartAsync(CancellationToken.None);
+            return this;
+        }
+
+        /// <summary>
+        /// Starts the TaskHubWorker so it begins processing orchestrations and activities
+        /// </summary>
+        /// <param name="cancellationToken">Indicates that the start process has been aborted.</param>
+        /// <exception cref="InvalidOperationException"></exception>
+        public async Task StartAsync(CancellationToken cancellationToken)
+        {
             await this.slimLock.WaitAsync();
             try
             {
@@ -170,8 +182,8 @@ namespace DurableTask.Core
                     this.logHelper);
 
                 await this.orchestrationService.StartAsync();
-                await this.orchestrationDispatcher.StartAsync();
-                await this.activityDispatcher.StartAsync();
+                await this.orchestrationDispatcher.StartAsync(cancellationToken);
+                await this.activityDispatcher.StartAsync(cancellationToken);
 
                 this.logHelper.TaskHubWorkerStarted(sw.Elapsed);
                 this.isStarted = true;
@@ -180,8 +192,6 @@ namespace DurableTask.Core
             {
                 this.slimLock.Release();
             }
-
-            return this;
         }
 
         /// <summary>
@@ -226,6 +236,41 @@ namespace DurableTask.Core
             }
         }
 
+        /// <summary>
+        /// Stops the TaskHubWorker
+        /// </summary>
+        /// <param name="cancellationToken">Indicates that the shutdown process should no longer be graceful.</param>
+        public async Task StopAsync(CancellationToken cancellationToken)
+        {
+            await this.slimLock.WaitAsync();
+            try
+            {
+                if (this.isStarted)
+                {
+                    var isForced = false;
+                    this.logHelper.TaskHubWorkerStopping(isForced);
+                    var sw = Stopwatch.StartNew();
+
+                    var dispatcherShutdowns = new Task[]
+                    {
+                        this.orchestrationDispatcher.StopAsync(cancellationToken),
+                        this.activityDispatcher.StopAsync(cancellationToken),
+                    };
+
+                    await Task.WhenAll(dispatcherShutdowns);
+
+                    await this.orchestrationService.StopAsync(isForced);
+
+                    this.logHelper.TaskHubWorkerStopped(sw.Elapsed);
+                    this.isStarted = false;
+                }
+            }
+            finally
+            {
+                this.slimLock.Release();
+            }
+        }
+        
         /// <summary>
         ///     Loads user defined TaskOrchestration classes in the TaskHubWorker
         /// </summary>

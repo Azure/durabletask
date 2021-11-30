@@ -21,12 +21,13 @@ namespace DurableTask.Core
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.Logging;
     using DurableTask.Core.Tracing;
+    using Microsoft.Extensions.Hosting;
 
     /// <summary>
     /// Dispatcher class for fetching and processing work items of the supplied type
     /// </summary>
     /// <typeparam name="T">The typed Object to dispatch</typeparam>
-    public class WorkItemDispatcher<T> : IDisposable
+    public class WorkItemDispatcher<T> : IHostedService, IDisposable
     {
         const int DefaultMaxConcurrentWorkItems = 20;
         const int DefaultDispatcherCount = 1;
@@ -114,9 +115,19 @@ namespace DurableTask.Core
         /// <exception cref="InvalidOperationException">Exception if dispatcher has already been started</exception>
         public async Task StartAsync()
         {
+            await StartAsync(CancellationToken.None);
+        }
+
+        /// <summary>
+        /// Starts the work item dispatcher
+        /// </summary>
+        /// <param name="cancellationToken">Indicates that the start process has been aborted.</param>
+        /// <exception cref="Exception">Exception if dispatcher has already been started</exception>
+        public async Task StartAsync(CancellationToken cancellationToken)
+        {
             if (!this.isStarted)
             {
-                await this.initializationLock.WaitAsync();
+                await this.initializationLock.WaitAsync(cancellationToken);
                 try
                 {
                     if (this.isStarted)
@@ -141,9 +152,9 @@ namespace DurableTask.Core
                         this.LogHelper.DispatcherStarting(context);
 
                         // We just want this to Run we intentionally don't wait
-                        #pragma warning disable 4014
+#pragma warning disable 4014
                         Task.Run(() => this.DispatchAsync(context));
-                        #pragma warning restore 4014
+#pragma warning restore 4014
                     }
                 }
                 finally
@@ -158,6 +169,16 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="forced">Flag indicating whether to stop gracefully and wait for work item completion or just stop immediately</param>
         public async Task StopAsync(bool forced)
+        {
+            CancellationToken token = forced ? new CancellationToken(true) : CancellationToken.None;
+            await StopAsync(token);
+        }
+
+        /// <summary>
+        /// Stops the work item dispatcher with optional forced flag
+        /// </summary>
+        /// <param name="cancellationToken">Indicates that the shutdown process should no longer be graceful.</param>
+        public async Task StopAsync(CancellationToken cancellationToken)
         {
             if (!this.isStarted)
             {
@@ -176,14 +197,14 @@ namespace DurableTask.Core
                 this.shutdownCancellationTokenSource.Cancel();
 
                 TraceHelper.Trace(TraceEventType.Information, "WorkItemDispatcherStop-Begin", $"WorkItemDispatcher('{this.name}') stopping. Id {this.id}.");
-                if (!forced)
+                if (!cancellationToken.IsCancellationRequested)
                 {
                     var retryCount = 7;
                     while (!this.AllWorkItemsCompleted() && retryCount-- >= 0)
                     {
                         this.LogHelper.DispatchersStopping(this.name, this.id, this.concurrentWorkItemCount, this.activeFetchers);
                         TraceHelper.Trace(TraceEventType.Information, "WorkItemDispatcherStop-Waiting", $"WorkItemDispatcher('{this.name}') waiting to stop. Id {this.id}. WorkItemCount: {this.concurrentWorkItemCount}, ActiveFetchers: {this.activeFetchers}");
-                        await Task.Delay(1000);
+                        await Task.Delay(1000, cancellationToken);
                     }
                 }
 
@@ -194,7 +215,7 @@ namespace DurableTask.Core
                 this.initializationLock.Release();
             }
         }
-
+        
         private bool AllWorkItemsCompleted()
         {
             if (this.isStarted == true)
