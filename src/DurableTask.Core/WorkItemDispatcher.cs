@@ -127,7 +127,7 @@ namespace DurableTask.Core
         {
             if (!this.isStarted)
             {
-                await this.initializationLock.WaitAsync(cancellationToken);
+                await this.initializationLock.WaitAsync();
                 try
                 {
                     if (this.isStarted)
@@ -152,9 +152,9 @@ namespace DurableTask.Core
                         this.LogHelper.DispatcherStarting(context);
 
                         // We just want this to Run we intentionally don't wait
-#pragma warning disable 4014
+                        #pragma warning disable 4014
                         Task.Run(() => this.DispatchAsync(context));
-#pragma warning restore 4014
+                        #pragma warning restore 4014
                     }
                 }
                 finally
