@@ -170,8 +170,40 @@ namespace DurableTask.Core
         /// <param name="forced">Flag indicating whether to stop gracefully and wait for work item completion or just stop immediately</param>
         public async Task StopAsync(bool forced)
         {
-            CancellationToken token = forced ? new CancellationToken(true) : CancellationToken.None;
-            await StopAsync(token);
+            if (!this.isStarted)
+            {
+                return;
+            }
+
+            await this.initializationLock.WaitAsync();
+            try
+            {
+                if (!this.isStarted)
+                {
+                    return;
+                }
+
+                this.isStarted = false;
+                this.shutdownCancellationTokenSource.Cancel();
+
+                TraceHelper.Trace(TraceEventType.Information, "WorkItemDispatcherStop-Begin", $"WorkItemDispatcher('{this.name}') stopping. Id {this.id}.");
+                if (!forced)
+                {
+                    var retryCount = 7;
+                    while (!this.AllWorkItemsCompleted() && retryCount-- >= 0)
+                    {
+                        this.LogHelper.DispatchersStopping(this.name, this.id, this.concurrentWorkItemCount, this.activeFetchers);
+                        TraceHelper.Trace(TraceEventType.Information, "WorkItemDispatcherStop-Waiting", $"WorkItemDispatcher('{this.name}') waiting to stop. Id {this.id}. WorkItemCount: {this.concurrentWorkItemCount}, ActiveFetchers: {this.activeFetchers}");
+                        await Task.Delay(1000);
+                    }
+                }
+
+                TraceHelper.Trace(TraceEventType.Information, "WorkItemDispatcherStop-End", $"WorkItemDispatcher('{this.name}') stopped. Id {this.id}.");
+            }
+            finally
+            {
+                this.initializationLock.Release();
+            }
         }
 
         /// <summary>
