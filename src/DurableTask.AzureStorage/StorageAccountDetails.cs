@@ -13,6 +13,7 @@
 
 namespace DurableTask.AzureStorage
 {
+    using System;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Auth;
 
@@ -45,13 +46,44 @@ namespace DurableTask.AzureStorage
         public string ConnectionString { get; set; }
 
         /// <summary>
-        ///  Convert this to its equivalent CloudStorageAccount.
+        /// The data plane URI for the blob service of the storage account.
         /// </summary>
+        public Uri BlobServiceUri { get; set; }
+
+        /// <summary>
+        /// The data plane URI for the queue service of the storage account.
+        /// </summary>
+        public Uri QueueServiceUri { get; set; }
+
+        /// <summary>
+        /// The data plane URI for the table service of the storage account.
+        /// </summary>
+        public Uri TableServiceUri { get; set; }
+
+        /// <summary>
+        /// Convert this to its equivalent <see cref="CloudStorageAccount"/>.
+        /// </summary>
+        /// <returns>The corresponding <see cref="CloudStorageAccount"/> instance.</returns>
         public CloudStorageAccount ToCloudStorageAccount()
         {
             if (!string.IsNullOrEmpty(this.ConnectionString))
             {
                 return CloudStorageAccount.Parse(this.ConnectionString);
+            }
+            else if (this.BlobServiceUri != null || this.QueueServiceUri != null || this.TableServiceUri != null)
+            {
+                if (this.BlobServiceUri == null || this.QueueServiceUri == null || this.TableServiceUri == null)
+                {
+                    throw new InvalidOperationException(
+                        $"If at least one Azure Storage service URI is specified, {nameof(BlobServiceUri)}, {nameof(QueueServiceUri)}, and {nameof(TableServiceUri)} must all be provided.");
+                }
+
+                return new CloudStorageAccount(
+                    this.StorageCredentials,
+                    this.BlobServiceUri,
+                    this.QueueServiceUri,
+                    this.TableServiceUri,
+                    fileEndpoint: null);
             }
             else
             {
