@@ -229,15 +229,12 @@ namespace DurableTask.Core
                 this.shutdownCancellationTokenSource.Cancel();
 
                 TraceHelper.Trace(TraceEventType.Information, "WorkItemDispatcherStop-Begin", $"WorkItemDispatcher('{this.name}') stopping. Id {this.id}.");
-                if (!cancellationToken.IsCancellationRequested)
+                var retryCount = 7;
+                while (!cancellationToken.IsCancellationRequested && !this.AllWorkItemsCompleted() && retryCount-- >= 0)
                 {
-                    var retryCount = 7;
-                    while (!this.AllWorkItemsCompleted() && retryCount-- >= 0)
-                    {
-                        this.LogHelper.DispatchersStopping(this.name, this.id, this.concurrentWorkItemCount, this.activeFetchers);
-                        TraceHelper.Trace(TraceEventType.Information, "WorkItemDispatcherStop-Waiting", $"WorkItemDispatcher('{this.name}') waiting to stop. Id {this.id}. WorkItemCount: {this.concurrentWorkItemCount}, ActiveFetchers: {this.activeFetchers}");
-                        await Task.Delay(1000, cancellationToken);
-                    }
+                    this.LogHelper.DispatchersStopping(this.name, this.id, this.concurrentWorkItemCount, this.activeFetchers);
+                    TraceHelper.Trace(TraceEventType.Information, "WorkItemDispatcherStop-Waiting", $"WorkItemDispatcher('{this.name}') waiting to stop. Id {this.id}. WorkItemCount: {this.concurrentWorkItemCount}, ActiveFetchers: {this.activeFetchers}");
+                    await Task.Delay(1000, cancellationToken);
                 }
 
                 TraceHelper.Trace(TraceEventType.Information, "WorkItemDispatcherStop-End", $"WorkItemDispatcher('{this.name}') stopped. Id {this.id}.");
