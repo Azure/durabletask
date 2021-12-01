@@ -22,6 +22,7 @@ namespace DurableTask.Core
     using DurableTask.Core.History;
     using DurableTask.Core.Logging;
     using DurableTask.Core.Serializing;
+    using DurableTask.Core.Tracing;
     using Microsoft.Extensions.Logging;
 
     /// <summary>
@@ -607,7 +608,9 @@ namespace DurableTask.Core
             };
 
             this.logHelper.SchedulingOrchestration(startedEvent);
-            
+
+            using Activity newActivity = TraceHelper.CreateActivityForNewOrchestration(startedEvent);
+
             CorrelationTraceClient.Propagate(() => CreateAndTrackDependencyTelemetry(requestTraceContext));
 
             // Raised events and create orchestration calls use different methods so get handled separately
@@ -617,6 +620,11 @@ namespace DurableTask.Core
             {
                 string serializedEventData = this.defaultConverter.Serialize(eventData);
                 var eventRaisedEvent = new EventRaisedEvent(-1, serializedEventData) { Name = eventName };
+                if (newActivity != null)
+                {
+                    // TODO: Set the parent trace context?
+                }
+
                 this.logHelper.RaisingEvent(orchestrationInstance, eventRaisedEvent);
                 
                 var eventMessage = new TaskMessage
@@ -662,8 +670,6 @@ namespace DurableTask.Core
             TraceContextBase dependencyTraceContext = TraceContextFactory.Create(TraceConstants.Client);
             dependencyTraceContext.TelemetryType = TelemetryType.Dependency;
             dependencyTraceContext.SetParentAndStart(requestTraceContext);
-
-            CorrelationTraceContext.Current = dependencyTraceContext;
 
             // Correlation
             CorrelationTraceClient.TrackDepencencyTelemetry(dependencyTraceContext);

@@ -198,6 +198,7 @@ namespace DurableTask.Core
                     () =>
                     {                
                         // Check if it is extended session.
+                        // TODO: Remove this code - it looks incorrect and dangerous
                         isExtendedSession = this.concurrentSessionLock.Acquire();
                         this.concurrentSessionLock.Release();
                         workItem.IsExtendedSession = isExtendedSession;
@@ -298,8 +299,15 @@ namespace DurableTask.Core
 
             OrchestrationRuntimeState originalOrchestrationRuntimeState = runtimeState;
 
-            OrchestrationState instanceState = null;
+            // Distributed tracing support: each orchestration execution is a trace activity
+            // that derives from an established parent trace context. It is expected that some
+            // listener will receive these events and publish them to a distributed trace logger.
+            ExecutionStartedEvent startEvent =
+                runtimeState.ExecutionStartedEvent ??
+                workItem.NewMessages.Select(msg => msg.Event).OfType<ExecutionStartedEvent>().FirstOrDefault();
+            using Activity traceActivity = TraceHelper.StartTraceActivityForExecution(startEvent);
 
+            OrchestrationState instanceState = null;
 
             // Assumes that: if the batch contains a new "ExecutionStarted" event, it is the first message in the batch.
             if (!this.ReconcileMessagesWithState(workItem))
@@ -366,7 +374,8 @@ namespace DurableTask.Core
                                 var message = this.ProcessScheduleTaskDecision(
                                     scheduleTaskAction,
                                     runtimeState,
-                                    this.IncludeParameters);
+                                    this.IncludeParameters,
+                                    traceActivity);
                                 messagesToSend.Add(message);
                                 break;
                             case OrchestratorActionType.CreateTimer:
@@ -463,10 +472,11 @@ namespace DurableTask.Core
                     }
 
                     // correlation
-                    CorrelationTraceClient.Propagate(() => {
+                    CorrelationTraceClient.Propagate(() =>
+                    {
                         if (runtimeState.ExecutionStartedEvent != null)
                             runtimeState.ExecutionStartedEvent.Correlation = CorrelationTraceContext.Current.SerializableTraceContext;
-                     });
+                    });
 
 
                     // finish up processing of the work item
@@ -494,9 +504,13 @@ namespace DurableTask.Core
                                 "Updating state for continuation");
 
                             // correlation
-                            CorrelationTraceClient.Propagate(() => {
-                               continueAsNewExecutionStarted.Correlation = CorrelationTraceContext.Current.SerializableTraceContext;
+                            CorrelationTraceClient.Propagate(() =>
+                            {
+                                continueAsNewExecutionStarted.Correlation = CorrelationTraceContext.Current.SerializableTraceContext;
                             });
+
+                            // Copy the distributed trace context, if any
+                            continueAsNewExecutionStarted.SetParentTraceContext(runtimeState.ExecutionStartedEvent);
 
                             runtimeState = new OrchestrationRuntimeState();
                             runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
@@ -548,6 +562,11 @@ namespace DurableTask.Core
                 instanceState.Status = runtimeState.Status;
             }
 
+            // Add the runtime status to the trace context so that listeners can know
+            // whether the orchestration is still running. Also, stop the activity here so
+            // that we don't include the time required to persist the side effects.
+            traceActivity?.SetTag("dt.runtimestatus", runtimeState.OrchestrationStatus.ToString());
+            traceActivity?.Stop();
 
             await this.orchestrationService.CompleteTaskOrchestrationWorkItemAsync(
                 workItem,
@@ -788,7 +807,8 @@ namespace DurableTask.Core
         TaskMessage ProcessScheduleTaskDecision(
             ScheduleTaskOrchestratorAction scheduleTaskOrchestratorAction,
             OrchestrationRuntimeState runtimeState,
-            bool includeParameters)
+            bool includeParameters,
+            Activity parentTraceActivity)
         {
             var taskMessage = new TaskMessage();
 
@@ -798,6 +818,10 @@ namespace DurableTask.Core
                 Version = scheduleTaskOrchestratorAction.Version,
                 Input = scheduleTaskOrchestratorAction.Input
             };
+
+            // We add the parent trace context to the activity message
+            // but don't need to include it in the history.
+            scheduledEvent.SetParentTraceContext(parentTraceActivity);
 
             taskMessage.Event = scheduledEvent;
             taskMessage.OrchestrationInstance = runtimeState.OrchestrationInstance;

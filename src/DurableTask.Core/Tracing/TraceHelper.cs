@@ -10,14 +10,16 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.Core.Tracing
 {
     using System;
+    using System.Collections.Generic;
     using System.Diagnostics;
     using System.Globalization;
     using System.Runtime.ExceptionServices;
     using DurableTask.Core.Common;
+    using DurableTask.Core.History;
 
     /// <summary>
     ///     Helper class for logging/tracing
@@ -25,6 +27,91 @@ namespace DurableTask.Core.Tracing
     public class TraceHelper
     {
         const string Source = "DurableTask";
+
+        // TODO: Add tracing for external event send, which could be used to initialize an entity
+        static readonly ActivitySource ActivityTraceSource = new ActivitySource(Source);
+
+        internal static Activity? CreateActivityForNewOrchestration(ExecutionStartedEvent startEvent)
+        {
+            Activity? newActivity = ActivityTraceSource.StartActivity(
+                name: startEvent.Name,
+                kind: ActivityKind.Internal,
+                parentContext: Activity.Current?.Context ?? default,
+                tags: new KeyValuePair<string, object?>[]
+                {
+                    new("dt.type", "client"),
+                    new("dt.instanceid", startEvent.OrchestrationInstance.InstanceId),
+                    new("dt.executionid", startEvent.OrchestrationInstance.ExecutionId),
+                });
+
+            if (newActivity != null)
+            {
+                startEvent.SetParentTraceContext(newActivity);
+            }
+
+            return newActivity;
+        }
+
+        /// <summary>
+        /// Starts a new trace activity for orchestration execution.
+        /// </summary>
+        /// <param name="startEvent">The orchestration's execution started event.</param>
+        /// <returns>
+        /// Returns a newly started <see cref="Activity"/> with orchestration-specific metadata.
+        /// </returns>
+        internal static Activity? StartTraceActivityForExecution(ExecutionStartedEvent? startEvent)
+        {
+            if (startEvent == null)
+            {
+                return null;
+            }
+
+            if (!startEvent.TryGetParentTraceContext(out ActivityContext activityContext))
+            {
+                return null;
+            }
+
+            return ActivityTraceSource.StartActivity(
+                name: startEvent.Name,
+                kind: ActivityKind.Internal,
+                parentContext: activityContext,
+                tags: new KeyValuePair<string, object?>[]
+                {
+                    new("dt.type", "orchestrator"),
+                    new("dt.instanceid", startEvent.OrchestrationInstance.InstanceId),
+                    new("dt.executionid", startEvent.OrchestrationInstance.ExecutionId),
+                });
+        }
+
+        /// <summary>
+        /// Starts a new trace activity for (task) activity execution.
+        /// </summary>
+        /// <param name="scheduledEvent">The associated <see cref="TaskScheduledEvent"/>.</param>
+        /// <param name="instance">The associated orchestration instance metadata.</param>
+        /// <returns>
+        /// Returns a newly started <see cref="Activity"/> with (task) activity and orchestration-specific metadata.
+        /// </returns>
+        internal static Activity? StartTraceActivityForTask(
+            TaskScheduledEvent scheduledEvent,
+            OrchestrationInstance instance)
+        {
+            if (!scheduledEvent.TryGetParentTraceContext(out ActivityContext activityContext))
+            {
+                return null;
+            }
+
+            return ActivityTraceSource.StartActivity(
+                name: $"{scheduledEvent.Name} (#{scheduledEvent.EventId})",
+                kind: ActivityKind.Internal,
+                parentContext: activityContext,
+                tags: new KeyValuePair<string, object?>[]
+                {
+                    new("dt.type", "activity"),
+                    new("dt.instanceid", instance.InstanceId),
+                    new("dt.executionid", instance.ExecutionId),
+                    new("dt.taskid", scheduledEvent.EventId),
+                });
+        }
 
         /// <summary>
         ///     Simple trace with no iid or eid

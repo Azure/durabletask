@@ -15,7 +15,6 @@ namespace DurableTask.Core
 {
     using System;
     using System.Diagnostics;
-    using System.Reflection;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Core.Common;
@@ -92,7 +91,7 @@ namespace DurableTask.Core
         async Task OnProcessWorkItemAsync(TaskActivityWorkItem workItem)
         {
             Task renewTask = null;
-            var renewCancellationTokenSource = new CancellationTokenSource();
+            using var renewCancellationTokenSource = new CancellationTokenSource();
 
             TaskMessage taskMessage = workItem.TaskMessage;
             OrchestrationInstance orchestrationInstance = taskMessage.OrchestrationInstance;
@@ -125,6 +124,10 @@ namespace DurableTask.Core
 
                 // call and get return message
                 scheduledEvent = (TaskScheduledEvent)taskMessage.Event;
+
+                // Distributed tracing: start a new trace activity derived from the orchestration's trace context.
+                using Activity traceActivity = TraceHelper.StartTraceActivityForTask(scheduledEvent, orchestrationInstance);
+
                 this.logHelper.TaskActivityStarting(orchestrationInstance, scheduledEvent);
                 TaskActivity taskActivity = this.objectManager.GetObject(scheduledEvent.Name, scheduledEvent.Version);
                 if (taskActivity == null)
@@ -192,6 +195,9 @@ namespace DurableTask.Core
                     Event = eventToRespond,
                     OrchestrationInstance = orchestrationInstance
                 };
+
+                // Stop the trace activity here to avoid including the completion time in the latency calculation
+                traceActivity?.Stop();
 
                 await this.orchestrationService.CompleteTaskActivityWorkItemAsync(workItem, responseTaskMessage);
             }

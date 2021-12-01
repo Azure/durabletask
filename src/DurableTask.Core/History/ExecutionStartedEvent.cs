@@ -13,8 +13,10 @@
 
 namespace DurableTask.Core.History
 {
+    using DurableTask.Core.Tracing;
     using System;
     using System.Collections.Generic;
+    using System.Diagnostics;
     using System.Runtime.Serialization;
 
     /// <summary>
@@ -81,6 +83,7 @@ namespace DurableTask.Core.History
         [DataMember]
         public IDictionary<string, string> Tags { get; set; }
 
+        // TODO: Make this property obsolete
         /// <summary>
         /// Gets or sets the serialized end-to-end correlation state.
         /// </summary>
@@ -88,9 +91,44 @@ namespace DurableTask.Core.History
         public string Correlation { get; set; }
 
         /// <summary>
+        /// The W3C trace context associated with this event.
+        /// </summary>
+        [DataMember]
+        public DistributedTraceContext ParentTraceContext { get; set; }
+
+        /// <summary>
         /// Gets or sets date to start the orchestration
         /// </summary>
         [DataMember]
         public DateTime? ScheduledStartTime { get; set; }
+
+        /// <summary>
+        /// Gets the W3C distributed trace parent context from this event, if any.
+        /// </summary>
+        public bool TryGetParentTraceContext(out ActivityContext parentTraceContext)
+        {
+            // Null values are accepted
+            return ActivityContext.TryParse(
+                this.ParentTraceContext?.TraceParent,
+                this.ParentTraceContext?.TraceState,
+                out parentTraceContext);
+        }
+
+        // Used for new orchestration and sub-orchestration
+        internal void SetParentTraceContext(Activity traceActivity)
+        {
+            if (traceActivity != null)
+            {
+                this.ParentTraceContext = new DistributedTraceContext(
+                    traceActivity.Id,
+                    traceActivity.TraceStateString);
+            }
+        }
+
+        // Used for Continue-as-New scenarios
+        internal void SetParentTraceContext(ExecutionStartedEvent parent)
+        {
+            this.ParentTraceContext = parent.ParentTraceContext;
+        }
     }
 }
