@@ -1212,49 +1212,6 @@ namespace DurableTask.AzureStorage.Tracking
                         stopwatch.ElapsedMilliseconds,
                         eTagValue);
                 }
-                else
-                {
-#if NETSTANDARD2_0
-                    foreach (var tableOperation in historyEventBatch)
-                    {
-                        if (tableOperation.Entity is DynamicTableEntity entity)
-                        {
-                            var logs = entity.Properties.Select((pair) =>
-                            {
-
-                                var propertyName = pair.Key;
-                                var property = pair.Value;
-
-                                try
-                                {
-                                    if (property is null)
-                                    {
-                                        return $"Property {propertyName} | is NULL .";
-                                    }
-                                    else if (!property.PropertyType.Equals(EdmType.String))
-                                    {
-                                        return $"Property {propertyName} | is of type {property.PropertyType} , it's size is expected to be fixed.";
-
-                                    }
-                                    var stringValue = property.StringValue;
-                                    var exceedsPropertySize = this.ExceedsMaxTablePropertySize(stringValue);
-                                    var numBytes = Encoding.Unicode.GetByteCount(property.StringValue);
-                                    var inVariableSizeProps = VariableSizeEntityProperties.Contains(propertyName);
-                                    return $"Property {propertyName} | numBytes: {numBytes}, exceedsSize: {exceedsPropertySize}, inVariableSizeProps: {inVariableSizeProps} .";
-                                }
-                                catch (Exception ex)
-                                {
-                                    return $"Property {propertyName} | Exception: {ex}.";
-                                }
-                            });
-                            var message = $"Attempted to store the following fields:{Environment.NewLine}{string.Join(Environment.NewLine, logs)}";
-                            this.settings.Logger.GeneralWarning(this.storageAccountName, this.taskHubName, "Unexpected history persistence exception: " + ex + Environment.NewLine + message, instanceId);
-                        }
-                    }
-#endif
-                }
-
-
 
                 throw;
             }
