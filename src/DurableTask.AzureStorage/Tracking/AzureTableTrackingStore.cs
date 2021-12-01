@@ -890,16 +890,6 @@ namespace DurableTask.AzureStorage.Tracking
                 historyEntity.RowKey = sequenceNumber.ToString("X16");
                 historyEntity.Properties["ExecutionId"] = new EntityProperty(executionId);
 
-                CorrelationTraceClient.Propagate(() =>
-                {
-                    if (historyEvent.EventType == EventType.ExecutionStarted)
-                    {
-                        ExecutionStartedEvent executionStartedEvent = (ExecutionStartedEvent)historyEvent;
-                        historyEntity.Properties["Correlation"] = new EntityProperty(executionStartedEvent.Correlation);
-                        estimatedBytes += Encoding.Unicode.GetByteCount(executionStartedEvent.Correlation);
-                    }
-                });
-
                 await this.CompressLargeMessageAsync(historyEntity);
 
                 // Replacement can happen if the orchestration episode gets replayed due to a commit failure in one of the steps below.
