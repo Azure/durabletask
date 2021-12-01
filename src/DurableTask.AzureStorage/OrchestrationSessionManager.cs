@@ -236,9 +236,10 @@ namespace DurableTask.AzureStorage
             {
                 OrchestrationInstance localInstance = message.TaskMessage.OrchestrationInstance;
                 if (remoteOrchestrationsById.TryGetValue(localInstance.InstanceId, out OrchestrationState remoteInstance) &&
-                    string.Equals(localInstance.ExecutionId, remoteInstance.OrchestrationInstance.ExecutionId, StringComparison.OrdinalIgnoreCase))
+                    (remoteInstance.OrchestrationInstance.ExecutionId == null || string.Equals(localInstance.ExecutionId, remoteInstance.OrchestrationInstance.ExecutionId, StringComparison.OrdinalIgnoreCase)))
                 {
-                    // Happy path: The message matches the table status. Allow it to run.
+                    // Happy path: The message matches the table status. Alternatively, if the table doesn't have an ExecutionId field (older clients, pre-v1.8.5),
+                    // then we have no way of knowing if it's a duplicate. Either way, allow it to run.
                 }
                 else if (this.IsScheduledAfterInstanceUpdate(message, remoteInstance))
                 {
