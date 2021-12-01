@@ -918,12 +918,6 @@ namespace DurableTask.AzureStorage.Tracking
                             instanceEntity.Properties["ScheduledStartTime"] = new EntityProperty(executionStartedEvent.ScheduledStartTime);
                         }
 
-                        CorrelationTraceClient.Propagate(() =>
-                        {
-                            historyEntity.Properties["Correlation"] = new EntityProperty(executionStartedEvent.Correlation);
-                            estimatedBytes += Encoding.Unicode.GetByteCount(executionStartedEvent.Correlation);
-                        });
-
                         this.SetInstancesTablePropertyFromHistoryProperty(
                             historyEntity,
                             instanceEntity,
