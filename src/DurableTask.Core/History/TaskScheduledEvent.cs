@@ -66,10 +66,15 @@ namespace DurableTask.Core.History
         /// </summary>
         public bool TryGetParentTraceContext(out ActivityContext parentTraceContext)
         {
-            // Null values are accepted
+            if (this.ParentTraceContext?.TraceParent == null)
+            {
+                parentTraceContext = default;
+                return false;
+            }
+
             return ActivityContext.TryParse(
-                this.ParentTraceContext?.TraceParent,
-                this.ParentTraceContext?.TraceState,
+                this.ParentTraceContext.TraceParent,
+                this.ParentTraceContext.TraceState,
                 out parentTraceContext);
         }
 
