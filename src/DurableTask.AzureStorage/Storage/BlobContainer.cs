@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.AzureStorage.Storage
 {
     using System;
@@ -37,7 +37,7 @@ namespace DurableTask.AzureStorage.Storage
             this.cloudBlobContainer = this.blobClient.GetContainerReference(this.containerName);
         }
 
-        public Blob GetBlobReference(string blobName, string blobPrefix = null)
+        public Blob GetBlobReference(string blobName, string? blobPrefix = null)
         {
             var fullBlobName = blobPrefix != null ? Path.Combine(blobPrefix, blobName) : blobName;
             return this.azureStorageClient.GetBlobReference(this.containerName, fullBlobName);
@@ -57,9 +57,9 @@ namespace DurableTask.AzureStorage.Storage
                 "Container Exists");
         }
 
-        public async Task<bool> DeleteIfExistsAsync(string appLeaseId = null)
+        public async Task<bool> DeleteIfExistsAsync(string? appLeaseId = null)
         {
-            AccessCondition accessCondition = null;
+            AccessCondition? accessCondition = null;
             if (appLeaseId != null)
             {
                 accessCondition = new AccessCondition() { LeaseId = appLeaseId };
@@ -70,9 +70,9 @@ namespace DurableTask.AzureStorage.Storage
                 "Delete Container");
         }
 
-        public async Task<IEnumerable<Blob>> ListBlobsAsync(string blobDirectory = null)
+        public async Task<IEnumerable<Blob>> ListBlobsAsync(string? blobDirectory = null)
         {
-            BlobContinuationToken continuationToken = null;
+            BlobContinuationToken? continuationToken = null;
             Func<OperationContext, CancellationToken, Task<BlobResultSegment>> listBlobsFunction;
             if (blobDirectory != null)
             {
@@ -109,7 +109,7 @@ namespace DurableTask.AzureStorage.Storage
 
                 foreach (IListBlobItem listBlobItem in segment.Results)
                 {
-                    CloudBlockBlob cloudBlockBlob = listBlobItem as CloudBlockBlob;
+                    CloudBlockBlob cloudBlockBlob = (CloudBlockBlob)listBlobItem;
                     var blobName = cloudBlockBlob.Name;
                     Blob blob = this.GetBlobReference(blobName);
                     blobList.Add(blob);

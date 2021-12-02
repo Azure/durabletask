@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.AzureStorage.Storage
 {
     using System;
@@ -20,6 +20,7 @@ namespace DurableTask.AzureStorage.Storage
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Blob;
     using Microsoft.WindowsAzure.Storage.Queue;
+    using Microsoft.WindowsAzure.Storage.Table;
 
     class AzureStorageClient
     {
@@ -27,25 +28,14 @@ namespace DurableTask.AzureStorage.Storage
         readonly CloudStorageAccount account;
         readonly CloudBlobClient blobClient;
         readonly CloudQueueClient queueClient;
+        readonly CloudTableClient tableClient;
+        readonly SemaphoreSlim requestThrottleSemaphore;
 
-        public AzureStorageClient(AzureStorageOrchestrationServiceSettings settings)
-        {
-            this.Settings = settings;
-
-            this.account = settings.StorageAccountDetails == null
-                ? CloudStorageAccount.Parse(settings.StorageConnectionString)
-                : settings.StorageAccountDetails.ToCloudStorageAccount();
-
-            this.StorageAccountName = account.Credentials.AccountName ?? settings.StorageAccountDetails.AccountName;
-
-            this.Stats = new AzureStorageOrchestrationServiceStats();
-            this.queueClient = account.CreateCloudQueueClient();
-            this.queueClient.BufferManager = SimpleBufferManager.Shared;
-            this.blobClient = account.CreateCloudBlobClient();
-            this.blobClient.BufferManager = SimpleBufferManager.Shared;
-
-            this.blobClient.DefaultRequestOptions.MaximumExecutionTime = StorageMaximumExecutionTime;
-        }
+        public AzureStorageClient(AzureStorageOrchestrationServiceSettings settings) : 
+            this(settings.StorageAccountDetails == null ?
+                CloudStorageAccount.Parse(settings.StorageConnectionString) : settings.StorageAccountDetails.ToCloudStorageAccount(),
+                settings)
+        { }
 
         public AzureStorageClient(CloudStorageAccount account, AzureStorageOrchestrationServiceSettings settings)
         {
@@ -60,6 +50,20 @@ namespace DurableTask.AzureStorage.Storage
             this.blobClient.BufferManager = SimpleBufferManager.Shared;
 
             this.blobClient.DefaultRequestOptions.MaximumExecutionTime = StorageMaximumExecutionTime;
+
+            if (settings.HasTrackingStoreStorageAccount)
+            {
+                var trackingStoreAccount = settings.TrackingStoreStorageAccountDetails.ToCloudStorageAccount();
+                this.tableClient = trackingStoreAccount.CreateCloudTableClient();
+            }
+            else
+            {
+                this.tableClient = account.CreateCloudTableClient();
+            }
+
+            this.tableClient.BufferManager = SimpleBufferManager.Shared;
+
+            this.requestThrottleSemaphore = new SemaphoreSlim(this.Settings.MaxStorageOperationConcurrency);
         }
 
         public AzureStorageOrchestrationServiceSettings Settings { get; }
@@ -68,7 +72,7 @@ namespace DurableTask.AzureStorage.Storage
 
         public string StorageAccountName { get; }
 
-        public Blob GetBlobReference(string container, string blobName, string blobDirectory = null)
+        public Blob GetBlobReference(string container, string blobName, string? blobDirectory = null)
         {
             NameValidator.ValidateBlobName(blobName);
             return new Blob(this, this.blobClient, container, blobName, blobDirectory);
@@ -91,8 +95,17 @@ namespace DurableTask.AzureStorage.Storage
             return new Queue(this, this.queueClient, queueName);
         }
 
-        public async Task<T> MakeStorageRequest<T>(Func<OperationContext, CancellationToken, Task<T>> storageRequest, string operationName, string clientRequestId = null)
+        public Table GetTableReference(string tableName)
         {
+            NameValidator.ValidateTableName(tableName);
+            return new Table(this, this.tableClient, tableName);
+        }
+
+
+        public async Task<T> MakeStorageRequest<T>(Func<OperationContext, CancellationToken, Task<T>> storageRequest, string operationName, string? clientRequestId = null)
+        {
+            await requestThrottleSemaphore.WaitAsync();
+
             try
             {
                 return await TimeoutHandler.ExecuteWithTimeout<T>(operationName, this.StorageAccountName, this.Settings, storageRequest, this.Stats, clientRequestId);
@@ -101,14 +114,18 @@ namespace DurableTask.AzureStorage.Storage
             {
                 throw new DurableTaskStorageException(ex);
             }
+            finally
+            {
+                requestThrottleSemaphore.Release();
+            }
         }
 
-        public async Task MakeStorageRequest(Func<OperationContext, CancellationToken, Task> storageRequest, string operationName, string clientRequestId = null)
+        public async Task MakeStorageRequest(Func<OperationContext, CancellationToken, Task> storageRequest, string operationName, string? clientRequestId = null)
         {
             await this.MakeStorageRequest((context, cancellationToken) => WrapFunctionWithReturnType(storageRequest, context, cancellationToken), operationName, clientRequestId);
         }
 
-        private static async Task<object> WrapFunctionWithReturnType(Func<OperationContext, CancellationToken, Task> storageRequest, OperationContext context, CancellationToken cancellationToken)
+        private static async Task<object?> WrapFunctionWithReturnType(Func<OperationContext, CancellationToken, Task> storageRequest, OperationContext context, CancellationToken cancellationToken)
         {
             await storageRequest(context, cancellationToken);
             return null;

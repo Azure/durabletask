@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.AzureStorage.Storage
 {
     using System;
@@ -84,14 +84,14 @@ namespace DurableTask.AzureStorage.Storage
                 clientRequestId?.ToString());
         }
 
-        public async Task<QueueMessage> GetMessageAsync(TimeSpan visibilityTimeout, CancellationToken callerCancellationToken)
+        public async Task<QueueMessage?> GetMessageAsync(TimeSpan visibilityTimeout, CancellationToken callerCancellationToken)
         {
             var cloudQueueMessage = await this.azureStorageClient.MakeStorageRequest<CloudQueueMessage>(
-                (context, timeoutCancellationToken) =>
+                async (context, timeoutCancellationToken) =>
                 {
                     using (var finalLinkedCts = CancellationTokenSource.CreateLinkedTokenSource(callerCancellationToken, timeoutCancellationToken))
                     {
-                        return this.cloudQueue.GetMessageAsync(
+                        return await this.cloudQueue.GetMessageAsync(
                             visibilityTimeout,
                             null,
                             context,
@@ -133,11 +133,11 @@ namespace DurableTask.AzureStorage.Storage
         public async Task<IEnumerable<QueueMessage>> GetMessagesAsync(int batchSize, TimeSpan visibilityTimeout, CancellationToken callerCancellationToken)
         {
             var cloudQueueMessages = await this.azureStorageClient.MakeStorageRequest<IEnumerable<CloudQueueMessage>>(
-                (context, timeoutCancellationToken) =>
+                async (context, timeoutCancellationToken) =>
                 {
                     using (var finalLinkedCts = CancellationTokenSource.CreateLinkedTokenSource(callerCancellationToken, timeoutCancellationToken))
                     {
-                        return this.cloudQueue.GetMessagesAsync(
+                        return await this.cloudQueue.GetMessagesAsync(
                             batchSize,
                             visibilityTimeout,
                             null,
@@ -180,7 +180,7 @@ namespace DurableTask.AzureStorage.Storage
             return queueMessages;
         }
 
-        public async Task<QueueMessage> PeekMessageAsync()
+        public async Task<QueueMessage?> PeekMessageAsync()
         {
             var queueMessage = await this.cloudQueue.PeekMessageAsync();
             return queueMessage == null ? null : new QueueMessage(queueMessage);

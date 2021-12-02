@@ -236,9 +236,10 @@ namespace DurableTask.AzureStorage
             {
                 OrchestrationInstance localInstance = message.TaskMessage.OrchestrationInstance;
                 if (remoteOrchestrationsById.TryGetValue(localInstance.InstanceId, out OrchestrationState remoteInstance) &&
-                    string.Equals(localInstance.ExecutionId, remoteInstance.OrchestrationInstance.ExecutionId, StringComparison.OrdinalIgnoreCase))
+                    (remoteInstance.OrchestrationInstance.ExecutionId == null || string.Equals(localInstance.ExecutionId, remoteInstance.OrchestrationInstance.ExecutionId, StringComparison.OrdinalIgnoreCase)))
                 {
-                    // Happy path: The message matches the table status. Allow it to run.
+                    // Happy path: The message matches the table status. Alternatively, if the table doesn't have an ExecutionId field (older clients, pre-v1.8.5),
+                    // then we have no way of knowing if it's a duplicate. Either way, allow it to run.
                 }
                 else if (this.IsScheduledAfterInstanceUpdate(message, remoteInstance))
                 {
@@ -434,7 +435,7 @@ namespace DurableTask.AzureStorage
 
                         // Before the batch of messages can be processed, we need to download the latest execution state.
                         // This is done beforehand in the background as a performance optimization.
-                        this.ScheduleOrchestrationStatePrefetch(node, traceActivityId, cancellationToken);
+                        Task.Run(() => this.ScheduleOrchestrationStatePrefetch(node, traceActivityId, cancellationToken));
                     }
 
                     // New messages are added; duplicate messages are replaced
@@ -454,55 +455,51 @@ namespace DurableTask.AzureStorage
         }
 
         // This method runs on a background task thread
-        void ScheduleOrchestrationStatePrefetch(
+        async Task ScheduleOrchestrationStatePrefetch(
             LinkedListNode<PendingMessageBatch> node,
             Guid traceActivityId,
             CancellationToken cancellationToken)
         {
             PendingMessageBatch batch = node.Value;
 
-            // Do the fetch in a background thread
-            this.fetchRuntimeStateQueue.EnqueueAndDispatch(async delegate
+            AnalyticsEventSource.SetLogicalTraceActivityId(traceActivityId);
+            
+            try
             {
-                AnalyticsEventSource.SetLogicalTraceActivityId(traceActivityId);
-
-                try
+                if (batch.OrchestrationState == null)
                 {
-                    if (batch.OrchestrationState == null)
-                    {
-                        OrchestrationHistory history = await this.trackingStore.GetHistoryEventsAsync(
-                           batch.OrchestrationInstanceId,
-                           batch.OrchestrationExecutionId,
-                           cancellationToken);
+                    OrchestrationHistory history = await this.trackingStore.GetHistoryEventsAsync(
+                       batch.OrchestrationInstanceId,
+                       batch.OrchestrationExecutionId,
+                       cancellationToken);
 
-                        batch.OrchestrationState = new OrchestrationRuntimeState(history.Events);
-                        batch.ETag = history.ETag;
-                        batch.LastCheckpointTime = history.LastCheckpointTime;
-                    }
-
-                    this.readyForProcessingQueue.Enqueue(node);
+                    batch.OrchestrationState = new OrchestrationRuntimeState(history.Events);
+                    batch.ETag = history.ETag;
+                    batch.LastCheckpointTime = history.LastCheckpointTime;
                 }
-                catch (OperationCanceledException)
-                {
-                    // shutting down
-                }
-                catch (Exception e)
-                {
-                    this.settings.Logger.OrchestrationProcessingFailure(
-                        this.storageAccountName,
-                        this.settings.TaskHubName,
-                        batch.OrchestrationInstanceId,
-                        batch.OrchestrationExecutionId,
-                        e.ToString());
 
-                    // Sleep briefly to avoid a tight failure loop.
-                    await Task.Delay(TimeSpan.FromSeconds(5));
+                this.readyForProcessingQueue.Enqueue(node);
+            }
+            catch (OperationCanceledException)
+            {
+                // shutting down
+            }
+            catch (Exception e)
+            {
+                this.settings.Logger.OrchestrationProcessingFailure(
+                    this.storageAccountName,
+                    this.settings.TaskHubName,
+                    batch.OrchestrationInstanceId,
+                    batch.OrchestrationExecutionId,
+                    e.ToString());
 
-                    // This is a background operation so failure is not an option. All exceptions must be handled.
-                    // To avoid starvation, we need to re-enqueue this async operation instead of retrying in a loop.
-                    this.ScheduleOrchestrationStatePrefetch(node, traceActivityId, cancellationToken);
-                }
-            });
+                // Sleep briefly to avoid a tight failure loop.
+                await Task.Delay(TimeSpan.FromSeconds(5));
+
+                // This is a background operation so failure is not an option. All exceptions must be handled.
+                // To avoid starvation, we need to re-enqueue this async operation instead of retrying in a loop.
+                await Task.Run(() => this.ScheduleOrchestrationStatePrefetch(node, traceActivityId, cancellationToken));
+            }
         }
 
         public async Task<OrchestrationSession?> GetNextSessionAsync(CancellationToken cancellationToken)
