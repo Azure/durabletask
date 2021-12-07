@@ -45,7 +45,7 @@ namespace DurableTask.Core
         /// <summary>
         /// Instance of the currently executing orchestration
         /// </summary>
-        public OrchestrationInstance OrchestrationInstance { get; internal protected set; }
+        public virtual OrchestrationInstance OrchestrationInstance { get; internal protected set; }
 
         /// <summary>
         /// Replay-safe current UTC datetime
@@ -55,7 +55,7 @@ namespace DurableTask.Core
         /// <summary>
         ///     True if the code is currently replaying, False if code is truly executing for the first time.
         /// </summary>
-        public bool IsReplaying { get; internal protected set; }
+        public virtual bool IsReplaying { get; internal protected set; }
 
         /// <summary>
         ///     Create a proxy client class to schedule remote TaskActivities via a strongly typed interface.

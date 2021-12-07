@@ -38,7 +38,11 @@ namespace DurableTask.Core
             TaskOrchestration taskOrchestration, BehaviorOnContinueAsNew eventBehaviourForContinueAsNew)
         {
             this.decisionScheduler = new SynchronousTaskScheduler();
-            this.context = new TaskOrchestrationContext(orchestrationRuntimeState.OrchestrationInstance, this.decisionScheduler);
+            this.context = new TaskOrchestrationContext(this.decisionScheduler)
+            {
+                OrchestrationInstance = orchestrationRuntimeState.OrchestrationInstance, 
+                IsReplaying = false
+            };
             this.orchestrationRuntimeState = orchestrationRuntimeState;
             this.taskOrchestration = taskOrchestration;
             this.skipCarryOverEvents = eventBehaviourForContinueAsNew == BehaviorOnContinueAsNew.Ignore;

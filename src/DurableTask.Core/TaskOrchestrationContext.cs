@@ -41,7 +41,7 @@ namespace DurableTask.Core
             continueAsNew.CarryoverEvents.Add(he);
         }
 
-        public TaskOrchestrationContext(OrchestrationInstance orchestrationInstance, TaskScheduler taskScheduler)
+        public TaskOrchestrationContext(TaskScheduler taskScheduler)
         {
             Utils.UnusedParameter(taskScheduler);
 
@@ -50,8 +50,6 @@ namespace DurableTask.Core
             this.idCounter = 0;
             this.MessageDataConverter = new JsonDataConverter();
             this.ErrorDataConverter = new JsonDataConverter();
-            OrchestrationInstance = orchestrationInstance;
-            IsReplaying = false;
         }
 
         public IEnumerable<OrchestratorAction> OrchestratorActions => this.orchestratorActionsMap.Values;
