@@ -11,7 +11,7 @@
     <DefineConstants>$(DefineConstants);SIGN_ASSEMBLY</DefineConstants>
     <AssemblyVersion>2.7.0</AssemblyVersion>
     <FileVersion>2.7.0</FileVersion>
-    <Version>2.7.0-private</Version>
+    <Version>2.7.0-ooproc.1</Version>
     <!--NuGet licenseUrl and PackageIconUrl/iconUrl deprecation. -->
     <NoWarn>NU5125;NU5048</NoWarn>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
