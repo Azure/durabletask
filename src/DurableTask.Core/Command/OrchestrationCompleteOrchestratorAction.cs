@@ -10,29 +10,46 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.Core.Command
 {
     using System.Collections.Generic;
     using DurableTask.Core.History;
 
-    internal class OrchestrationCompleteOrchestratorAction : OrchestratorAction
+    /// <summary>
+    /// Action associated with an orchestrator reaching a terminal state.
+    /// </summary>
+    public class OrchestrationCompleteOrchestratorAction : OrchestratorAction
     {
-        public OrchestrationCompleteOrchestratorAction()
-        {
-            CarryoverEvents = new List<HistoryEvent>();
-        }
+        // NOTE: Actions must be serializeable by a variety of different serializer types to support out-of-process execution.
+        //       To ensure maximum compatibility, all properties should be public and settable by default.
 
-        public OrchestrationStatus OrchestrationStatus;
+        /// <summary>
+        /// Gets the completion status of the orchestration.
+        /// </summary>
+        public OrchestrationStatus OrchestrationStatus { get; set; }
 
+        /// <inheritdoc/>
         public override OrchestratorActionType OrchestratorActionType => OrchestratorActionType.OrchestrationComplete;
 
-        public string Result { get; set; }
+        /// <summary>
+        /// Gets or sets the result of the orchestration.
+        /// </summary>
+        public string? Result { get; set; }
 
-        public string Details { get; set; }
+        /// <summary>
+        /// More details about how an orchestration completed, such as unhandled exception details.
+        /// </summary>
+        public string? Details { get; set; }
 
-        public string NewVersion { get; set; }
+        /// <summary>
+        /// For continue-as-new scenarios, gets the new version of the orchestrator to start.
+        /// </summary>
+        public string? NewVersion { get; set; }
 
-        public IList<HistoryEvent> CarryoverEvents { get; }
+        /// <summary>
+        /// Gets a list of events that should be carried over when continuing an orchestration as new.
+        /// </summary>
+        public IList<HistoryEvent> CarryoverEvents { get; } = new List<HistoryEvent>();
     }
 }

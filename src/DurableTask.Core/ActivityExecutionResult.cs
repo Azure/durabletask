@@ -11,24 +11,19 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 #nullable enable
-namespace DurableTask.Core.Command
+namespace DurableTask.Core
 {
-    using Newtonsoft.Json;
+    using DurableTask.Core.History;
 
     /// <summary>
-    /// Defines a set of base properties for an orchestrator action.
+    /// The result of an activity execution.
     /// </summary>
-    [JsonConverter(typeof(OrchestrationActionConverter))]
-    public abstract class OrchestratorAction
+    public class ActivityExecutionResult
     {
         /// <summary>
-        /// The task ID associated with this orchestrator action.
+        /// This history event associated with the activity execution result.
+        /// This is expected to be <see cref="TaskCompletedEvent"/> or <see cref="TaskFailedEvent"/>.
         /// </summary>
-        public int Id { get; set; }
-
-        /// <summary>
-        /// The type of the orchestrator action.
-        /// </summary>
-        public abstract OrchestratorActionType OrchestratorActionType { get; }
+        public HistoryEvent? ResponseEvent { get; set; }
     }
 }

@@ -4,10 +4,17 @@
   <PropertyGroup>
     <TargetFrameworks>netstandard2.0;net461</TargetFrameworks>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <PackageId>Microsoft.Azure.DurableTask.Core</PackageId>
-    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <!--NuGet licenseUrl and PackageIconUrl/iconUrl deprecation. -->
     <NoWarn>NU5125;NU5048</NoWarn>
+  </PropertyGroup>
+  
+  <!-- Package Info -->
+  <PropertyGroup>
+    <PackageId>Microsoft.Azure.DurableTask.Core</PackageId>
+    <AssemblyVersion>2.7.0</AssemblyVersion>
+    <FileVersion>2.7.0</FileVersion>
+    <Version>2.7.0</Version>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net461'">

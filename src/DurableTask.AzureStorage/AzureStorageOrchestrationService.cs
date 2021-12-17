@@ -629,7 +629,7 @@ namespace DurableTask.AzureStorage
                     CorrelationTraceClient.Propagate(
                         () =>
                         {
-                            var isReplaying = session.RuntimeState.ExecutionStartedEvent?.IsPlayed ?? false;
+                            bool isReplaying = session.RuntimeState.ExecutionStartedEvent != null;
                             TraceContextBase parentTraceContext = GetParentTraceContext(session);
                             currentRequestTraceContext = GetRequestTraceContext(isReplaying, parentTraceContext);
                         });
