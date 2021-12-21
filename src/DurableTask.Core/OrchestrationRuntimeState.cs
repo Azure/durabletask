@@ -37,7 +37,7 @@ namespace DurableTask.Core
         public IList<HistoryEvent> NewEvents { get; }
 
         /// <summary>
-        /// A subset of <see cref="this.Events"/> that contains only events that have been previously played and should not be serialized
+        /// A subset of <see cref="Events"/> that contains only events that have been previously played and should not be serialized
         /// </summary>
         public IList<HistoryEvent> PastEvents { get; }
 
