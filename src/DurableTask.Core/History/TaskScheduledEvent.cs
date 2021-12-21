@@ -51,7 +51,6 @@ namespace DurableTask.Core.History
         /// Creates a new TaskScheduledEvent with the supplied event id
         /// </summary>
         /// <param name="eventId">The event id of the history event</param>
-        [Obsolete("Use the other constructor overload")]
         public TaskScheduledEvent(int eventId)
             : base(eventId)
         {
