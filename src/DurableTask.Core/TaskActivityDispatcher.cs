@@ -179,8 +179,11 @@ namespace DurableTask.Core
                             string? output = await taskActivity.RunAsync(context, scheduledEvent.Input);
                             responseEvent = new TaskCompletedEvent(-1, scheduledEvent.EventId, output);
                         }
-                        catch (Exception e) when (!Utils.IsFatal(e) && !Utils.IsExecutionAborting(e))
+                        catch (Exception e) when (e is not TaskFailureException && !Utils.IsFatal(e) && !Utils.IsExecutionAborting(e))
                         {
+                            // These are unexpected exceptions that occur in the task activity abstraction. Normal exceptions from 
+                            // activities are expected to be translated into TaskFailureException and handled outside the middleware
+                            // context (see further below).
                             TraceHelper.TraceExceptionInstance(TraceEventType.Error, "TaskActivityDispatcher-ProcessException", taskMessage.OrchestrationInstance, e);
                             string? details = this.IncludeDetails
                                 ? $"Unhandled exception while executing task: {e}"
