@@ -196,6 +196,51 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
+        public async Task GetInstanceIdsByPrefix()
+        {
+            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false);
+            string instanceIdPrefixGuid = "0abb6ebb-d712-453a-97c4-6c7c1f78f49f";
+
+            string[] instanceIds = new[]
+            {
+                instanceIdPrefixGuid,
+                instanceIdPrefixGuid + "_0_Foo",
+                instanceIdPrefixGuid + "_1_Bar",
+                instanceIdPrefixGuid + "_Foo",
+                instanceIdPrefixGuid + "_Bar",
+            };
+
+            // Create multiple instances that we'll try to query back
+            await host.StartAsync();
+
+            TestOrchestrationClient client;
+            foreach (string instanceId in instanceIds)
+            {
+                client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), input: "Greetings!", instanceId);
+                await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
+            }
+
+            // Add one more instance which shouldn't get picked up
+            client = await host.StartOrchestrationAsync(
+                typeof(Orchestrations.Echo),
+                input: "Greetings!",
+                instanceId: $"Foo_{instanceIdPrefixGuid}");
+            await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
+
+            DurableStatusQueryResult queryResult = await host.service.GetOrchestrationStateAsync(
+                new OrchestrationInstanceStatusQueryCondition()
+                {
+                    InstanceIdPrefix = instanceIdPrefixGuid,
+                },
+                top: instanceIds.Length,
+                continuationToken: null);
+            Assert.AreEqual(instanceIds.Length, queryResult.OrchestrationState.Count());
+            Assert.IsNull(queryResult.ContinuationToken);
+
+            await host.StopAsync();
+        }
+
+        [TestMethod]
         public async Task NoInstancesGetAllOrchestrationStatusesNullContinuationToken()
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
@@ -1248,7 +1293,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 // Empty string input should result in ArgumentNullException in the orchestration code.
                 var client = await host.StartOrchestrationAsync(typeof(Orchestrations.TryCatchLoop), 5);
-                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(15));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
                 Assert.AreEqual(5, JToken.Parse(status?.Output));
