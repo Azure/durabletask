@@ -136,7 +136,8 @@ namespace DurableTask.AzureStorage.Messaging
                 message.TaskMessage.Event.EventType != EventType.TaskFailed &&
                 message.TaskMessage.Event.EventType != EventType.SubOrchestrationInstanceCompleted &&
                 message.TaskMessage.Event.EventType != EventType.SubOrchestrationInstanceFailed &&
-                message.TaskMessage.Event.EventType != EventType.TimerFired)
+                message.TaskMessage.Event.EventType != EventType.TimerFired &&
+                !(message.TaskMessage.Event.EventType == EventType.EventRaised && message.Sender.InstanceId.StartsWith("@")))
             {
                 // The above message types are the only ones that can potentially be considered out-of-order.
                 return false;
