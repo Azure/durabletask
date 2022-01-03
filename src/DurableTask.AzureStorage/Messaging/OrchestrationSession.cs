@@ -176,6 +176,16 @@ namespace DurableTask.AzureStorage.Messaging
                 }
             }
 
+            if (message.TaskMessage.Event.EventType == EventType.EventRaised)
+            {
+                // This EventRaised message is a response to an EventSent message. 
+                HistoryEvent mostRecentTaskEvent = this.RuntimeState.Events.LastOrDefault(e => e.EventType == EventType.EventSent);
+                if (mostRecentTaskEvent != null)
+                {
+                    return false;
+                }
+            }
+
             // The message is out of order and cannot be handled by the current session.
             return true;
         }
