@@ -5,7 +5,9 @@
 namespace DurableTask.Core.Tests
 {
     using System;
+    using System.Collections.Generic;
     using System.IO;
+    using System.Linq;
     using System.Threading.Tasks;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -74,24 +76,33 @@ namespace DurableTask.Core.Tests
                 // ignored
             }
 
-            Assert.AreEqual(maxAttempts - 1, this.context.TimerCalls, 0, $"There should be {maxAttempts - 1} sleeps for {maxAttempts} function calls");
+            // Ideally there would be maxAttempts - 1 sleeps. However, a bug in an earlier version of the retryInterceptor
+            // resulted in an extra sleep. Unfortunately, "fixing" this bug by removing the extra sleep is a breaking change
+            // for existing orchestrations, so we need to ensure the extra sleep continues to be scheduled.
+            Assert.AreEqual(maxAttempts, this.context.TimerCalls, 0, $"There should be {maxAttempts} sleeps for {maxAttempts} function calls");
+            Assert.AreEqual(TimeSpan.Zero, this.context.Delays.Last());
+            Assert.AreEqual(maxAttempts - 1, this.context.Delays.Sum(time => time.Milliseconds), $"The total sleep time should be {maxAttempts} millisecond(s).");
         }
 
         sealed class MockOrchestrationContext : TaskOrchestrationContext
         {
+            readonly List<TimeSpan> delays = new List<TimeSpan>();
+
             public MockOrchestrationContext(OrchestrationInstance orchestrationInstance, TaskScheduler taskScheduler)
                 : base(orchestrationInstance, taskScheduler)
             {
                 CurrentUtcDateTime = DateTime.UtcNow;
             }
 
-            public int TimerCalls { get; private set; }
+            public int TimerCalls => this.delays.Count;
+
+            public IReadOnlyList<TimeSpan> Delays => this.delays;
 
             public override async Task<T> CreateTimer<T>(DateTime fireAt, T state)
             {
-                TimerCalls++;
-
-                await Task.Delay(fireAt - CurrentUtcDateTime);
+                TimeSpan delay = fireAt - CurrentUtcDateTime;
+                this.delays.Add(delay);
+                await Task.Delay(delay);
 
                 return state;
             }
