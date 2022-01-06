@@ -77,8 +77,8 @@ namespace DurableTask.Core
         /// <param name="events">List of events for this runtime state</param>
         public OrchestrationRuntimeState(IList<HistoryEvent>? events)
         {
-            Events = new List<HistoryEvent>(events?.Count ?? 32);
-            PastEvents = new List<HistoryEvent>(events?.Count ?? 32);
+            Events = events != null ? new List<HistoryEvent>(events.Count) : new List<HistoryEvent>();
+            PastEvents = events != null ? new List<HistoryEvent>(events.Count) : new List<HistoryEvent>();
             NewEvents = new List<HistoryEvent>();
             completedEventIds = new HashSet<int>();
 
@@ -310,17 +310,21 @@ namespace DurableTask.Core
 
             if (evt is TaskScheduledEvent taskScheduledEvent)
             {
-                returnedEvent = new TaskScheduledEvent(
-                    eventId: taskScheduledEvent.EventId,
-                    name: taskScheduledEvent?.Name ?? "(unnamed)",
-                    version: taskScheduledEvent?.Version,
-                    input: "[..snipped..]");
+                returnedEvent = new TaskScheduledEvent(taskScheduledEvent.EventId)
+                {
+                    Timestamp = taskScheduledEvent.Timestamp,
+                    IsPlayed = taskScheduledEvent.IsPlayed,
+                    Name = taskScheduledEvent.Name,
+                    Version = taskScheduledEvent.Version,
+                    Input = "[..snipped..]",
+                };
             }
             else if (evt is TaskCompletedEvent taskCompletedEvent)
             {
                 returnedEvent = new TaskCompletedEvent(taskCompletedEvent.EventId, taskCompletedEvent.TaskScheduledId, "[..snipped..]")
                 {
                     Timestamp = taskCompletedEvent.Timestamp,
+                    IsPlayed = taskCompletedEvent.IsPlayed,
                 };
             }
             else if (evt is SubOrchestrationInstanceCreatedEvent subOrchestrationInstanceCreatedEvent)
@@ -328,6 +332,7 @@ namespace DurableTask.Core
                 returnedEvent = new SubOrchestrationInstanceCreatedEvent(subOrchestrationInstanceCreatedEvent.EventId)
                 {
                     Timestamp = subOrchestrationInstanceCreatedEvent.Timestamp,
+                    IsPlayed = subOrchestrationInstanceCreatedEvent.IsPlayed,
                     Name = subOrchestrationInstanceCreatedEvent.Name,
                     Version = subOrchestrationInstanceCreatedEvent.Version,
                     Input = "[..snipped..]",
@@ -339,6 +344,7 @@ namespace DurableTask.Core
                     subOrchestrationInstanceCompletedEvent.TaskScheduledId, "[..snipped..]")
                 {
                     Timestamp = subOrchestrationInstanceCompletedEvent.Timestamp,
+                    IsPlayed = subOrchestrationInstanceCompletedEvent.IsPlayed,
                 };
             }
             else if (evt is TaskFailedEvent taskFailedEvent)
@@ -347,6 +353,7 @@ namespace DurableTask.Core
                     taskFailedEvent.TaskScheduledId, taskFailedEvent.Reason, "[..snipped..]")
                 {
                     Timestamp = taskFailedEvent.Timestamp,
+                    IsPlayed = taskFailedEvent.IsPlayed,
                 };
             }
             else if (evt is SubOrchestrationInstanceFailedEvent subOrchestrationInstanceFailedEvent)
@@ -355,6 +362,7 @@ namespace DurableTask.Core
                     subOrchestrationInstanceFailedEvent.TaskScheduledId, subOrchestrationInstanceFailedEvent.Reason, "[..snipped..]")
                 {
                     Timestamp = subOrchestrationInstanceFailedEvent.Timestamp,
+                    IsPlayed = subOrchestrationInstanceFailedEvent.IsPlayed,
                 };
             }
             else if (evt is ExecutionStartedEvent executionStartedEvent)
@@ -362,6 +370,7 @@ namespace DurableTask.Core
                 returnedEvent = new ExecutionStartedEvent(executionStartedEvent.EventId, "[..snipped..]")
                 {
                     Timestamp = executionStartedEvent.Timestamp,
+                    IsPlayed = executionStartedEvent.IsPlayed,
                 };
             }
             else if (evt is ExecutionCompletedEvent executionCompletedEvent)
@@ -370,6 +379,7 @@ namespace DurableTask.Core
                     executionCompletedEvent.OrchestrationStatus)
                 {
                     Timestamp = executionCompletedEvent.Timestamp,
+                    IsPlayed = executionCompletedEvent.IsPlayed,
                 };
             }
             else if (evt is ExecutionTerminatedEvent executionTerminatedEvent)
@@ -377,6 +387,7 @@ namespace DurableTask.Core
                 returnedEvent = new ExecutionTerminatedEvent(executionTerminatedEvent.EventId, "[..snipped..]")
                 {
                     Timestamp = executionTerminatedEvent.Timestamp,
+                    IsPlayed = executionTerminatedEvent.IsPlayed,
                 };
             }
             // ContinueAsNewEvent is covered by the ExecutionCompletedEvent block

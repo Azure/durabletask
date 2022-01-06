@@ -170,7 +170,6 @@ namespace DurableTask.Core
                             throw new TypeMissingException($"TaskActivity {scheduledEvent.Name} version {scheduledEvent.Version} was not found");
                         }
 
-                        // TODO : pass workflow instance data
                         var context = new TaskContext(taskMessage.OrchestrationInstance);
                         HistoryEvent? responseEvent;
 

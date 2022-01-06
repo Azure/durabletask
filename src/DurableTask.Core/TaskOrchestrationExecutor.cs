@@ -105,6 +105,7 @@ namespace DurableTask.Core
                             }
 
                             this.ProcessEvent(historyEvent);
+                            historyEvent.IsPlayed = true;
                         }
                     }
 

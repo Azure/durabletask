@@ -94,6 +94,7 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(expected.GetType(), actual.GetType());
             Assert.AreEqual(expected.EventId, actual.EventId);
             Assert.AreEqual(expected.EventType, actual.EventType);
+            Assert.AreEqual(expected.IsPlayed, actual.IsPlayed);
             Assert.AreEqual(expected.Timestamp, actual.Timestamp);
             Assert.IsNotNull(actual.ExtensionData);
         }

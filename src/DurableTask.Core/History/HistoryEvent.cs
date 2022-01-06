@@ -75,7 +75,6 @@ namespace DurableTask.Core.History
         /// Gets the IsPlayed status
         /// </summary>
         [DataMember]
-        [Obsolete("The IsPlayed property is no longer being set")]
         public bool IsPlayed { get; set; }
 
         /// <summary>
