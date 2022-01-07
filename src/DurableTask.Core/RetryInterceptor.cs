@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.Core
 {
     using System;
@@ -48,9 +48,9 @@ namespace DurableTask.Core
         /// </summary>
         /// <returns>The return value of the supplied retry call</returns>
         /// <exception cref="Exception">The final exception encountered if the call did not succeed</exception>
-        public async Task<T> Invoke()
+        public async Task<T?> Invoke()
         {
-            Exception lastException = null;
+            Exception? lastException = null;
             DateTime firstAttempt = this.context.CurrentUtcDateTime;
 
             for (var retryCount = 0; retryCount < this.retryOptions.MaxNumberOfAttempts; retryCount++)
@@ -65,8 +65,18 @@ namespace DurableTask.Core
                 }
 
                 bool isLastRetry = retryCount + 1 == this.retryOptions.MaxNumberOfAttempts;
+                if (isLastRetry)
+                {
+                    // Earlier versions of this retry interceptor had a bug that scheduled an extra delay timer.
+                    // It's unfortunately not possible to remove the extra timer since that would potentially
+                    // break the history replay for existing orchestrations. Instead, we do the next best thing
+                    // and schedule a timer that fires immediately instead of waiting for a full delay interval.
+                    await this.context.CreateTimer(this.context.CurrentUtcDateTime, "Dummy timer for back-compat");
+                    break;
+                }
+
                 TimeSpan nextDelay = ComputeNextDelay(retryCount, firstAttempt, lastException);
-                if (isLastRetry || nextDelay == TimeSpan.Zero)
+                if (nextDelay == TimeSpan.Zero)
                 {
                     break;
                 }
@@ -75,8 +85,13 @@ namespace DurableTask.Core
                 await this.context.CreateTimer(retryAt, "Retry Attempt " + retryCount + 1);
             }
 
-            ExceptionDispatchInfo.Capture(lastException).Throw();
-            throw lastException; // no op
+            if (lastException != null)
+            {
+                ExceptionDispatchInfo.Capture(lastException).Throw();
+                throw lastException; // no op
+            }
+
+            return default;
         }
 
         TimeSpan ComputeNextDelay(int attempt, DateTime firstAttempt, Exception failure)
