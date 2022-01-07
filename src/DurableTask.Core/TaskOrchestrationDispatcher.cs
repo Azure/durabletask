@@ -524,9 +524,6 @@ namespace DurableTask.Core
                                 await this.orchestrationService.RenewTaskOrchestrationWorkItemLockAsync(workItem);
                             }
 
-                            // REVIEW: This is a behavior change from v2.6.x, where ContinueAsNew went through the Cursor/Resume path.
-                            //         It's not clear if that was ever necessary, or if there are potentially breaking changes if we move
-                            //         away from Cursor/Resume for ContinueAsNew.
                             workItem.Cursor = null;
                         }
 

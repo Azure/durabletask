@@ -37,7 +37,7 @@ namespace DurableTask.Core
         Task<string>? result;
 
         /// <summary>
-        /// Initializes a new instances of the <see cref="TaskOrchestrationExecutor"/> class.
+        /// Initializes a new instance of the <see cref="TaskOrchestrationExecutor"/> class.
         /// </summary>
         /// <param name="orchestrationRuntimeState"></param>
         /// <param name="taskOrchestration"></param>

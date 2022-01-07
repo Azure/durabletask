@@ -26,18 +26,20 @@ namespace DurableTask.Core
     public class OrchestrationRuntimeState
     {
         /// <summary>
-        /// List of all history events for this runtime state
+        /// List of all history events for this runtime state.
+        /// Note that this list is frequently a combination of <see cref="PastEvents"/> and <see cref="NewEvents"/>, but not always.
         /// </summary>
         public IList<HistoryEvent> Events { get; }
 
         /// <summary>
-        /// List of new events added during an execution to keep track of the new events that were added during a particular execution 
-        /// should not be serialized
+        /// List of new events added during an execution to keep track of the new events that were added during a particular execution.
+        /// Should not be serialized.
+        /// This list is NOT guaranteed to be a subset of <see cref="Events"/>.
         /// </summary>
         public IList<HistoryEvent> NewEvents { get; }
 
         /// <summary>
-        /// A subset of <see cref="Events"/> that contains only events that have been previously played and should not be serialized
+        /// A subset of <see cref="Events"/> that contains only events that have been previously played and should not be serialized.
         /// </summary>
         public IList<HistoryEvent> PastEvents { get; }
 
@@ -102,14 +104,7 @@ namespace DurableTask.Core
         /// <summary>
         /// Gets the created time of the ExecutionStartedEvent
         /// </summary>
-        public DateTime CreatedTime
-        {
-            get
-            {
-                Debug.Assert(ExecutionStartedEvent != null);
-                return ExecutionStartedEvent?.Timestamp ?? default;
-            }
-        }
+        public DateTime CreatedTime => GetExecutionStartedEventOrThrow().Timestamp;
 
         /// <summary>
         /// Gets the created time of the ExecutionCompletedEvent if completed else a safe (from timezone shift) max datetime
@@ -119,14 +114,7 @@ namespace DurableTask.Core
         /// <summary>
         /// Gets the serialized input of the ExecutionStartedEvent
         /// </summary>
-        public string? Input
-        {
-            get
-            {
-                Debug.Assert(ExecutionStartedEvent != null);
-                return ExecutionStartedEvent?.Input;
-            }
-        }
+        public string? Input => GetExecutionStartedEventOrThrow().Input;
 
         /// <summary>
         /// Gets the serialized output of the ExecutionCompletedEvent if completed else null
@@ -136,31 +124,17 @@ namespace DurableTask.Core
         /// <summary>
         /// Gets the orchestration name from the ExecutionStartedEvent
         /// </summary>
-        public string Name
-        {
-            get
-            {
-                Debug.Assert(ExecutionStartedEvent != null);
-                return ExecutionStartedEvent?.Name ?? string.Empty;
-            }
-        }
+        public string Name => GetExecutionStartedEventOrThrow().Name;
 
         /// <summary>
         /// Gets the orchestration version of the ExecutionStartedEvent
         /// </summary>
-        public string? Version
-        {
-            get
-            {
-                Debug.Assert(ExecutionStartedEvent != null);
-                return ExecutionStartedEvent?.Version;
-            }
-        }
+        public string Version => GetExecutionStartedEventOrThrow().Version;
 
         /// <summary>
         /// Gets the tags from the ExecutionStartedEvent
         /// </summary>
-        // This gets called by json.net for deserialization, we can't assert if there is no ExecutionStartedEvent
+        // This gets called by json.net for deserialization, we can't throw if there is no ExecutionStartedEvent
         public IDictionary<string, string>? Tags => ExecutionStartedEvent?.Tags;
 
         /// <summary>
@@ -171,7 +145,7 @@ namespace DurableTask.Core
         {
             get
             {
-                Debug.Assert(ExecutionStartedEvent != null);
+                GetExecutionStartedEventOrThrow();
 
                 if (ExecutionCompletedEvent != null)
                 {
@@ -199,6 +173,17 @@ namespace DurableTask.Core
         public void AddEvent(HistoryEvent historyEvent)
         {
             AddEvent(historyEvent, true);
+        }
+
+        ExecutionStartedEvent GetExecutionStartedEventOrThrow()
+        {
+            ExecutionStartedEvent? executionStartedEvent = this.ExecutionStartedEvent;
+            if (executionStartedEvent == null)
+            {
+                throw new InvalidOperationException("An ExecutionStarted event is required.");
+            }
+
+            return executionStartedEvent;
         }
 
         /// <summary>
