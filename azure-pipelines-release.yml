@@ -63,7 +63,7 @@ steps:
 - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
   displayName: 'SBOM Generation Task'
   inputs:
-    BuildDropPath: '$(Build.ArtifactStagingDirectory)'
+    BuildDropPath: '$(build.artifactStagingDirectory)'
     Verbosity: 'Information'
 
 # Packaging needs to be a separate step from build.
