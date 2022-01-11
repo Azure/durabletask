@@ -10,9 +10,10 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.Core.History
 {
+    using System;
     using System.Runtime.Serialization;
 
     /// <summary>
@@ -21,6 +22,31 @@ namespace DurableTask.Core.History
     [DataContract]
     public class TaskScheduledEvent : HistoryEvent
     {
+        // Private ctor for JSON deserialization (required by some storage providers and out-of-proc executors)
+        TaskScheduledEvent()
+            : base(-1)
+        {
+        }
+
+        /// <summary>
+        /// Creates a new <see cref="TaskScheduledEvent"/> with the supplied event ID.
+        /// </summary>
+        /// <param name="eventId">The ID of the history event.</param>
+        /// <param name="name">The name of the scheduled task activity.</param>
+        /// <param name="version">The version of the scheduled task activity.</param>
+        /// <param name="input">The input of the activity task.</param>
+        public TaskScheduledEvent(
+            int eventId,
+            string name,
+            string? version = null,
+            string? input = null)
+            : base(eventId)
+        {
+            this.Name = name;
+            this.Version = version;
+            this.Input = input;
+        }
+
         /// <summary>
         /// Creates a new TaskScheduledEvent with the supplied event id
         /// </summary>
@@ -39,18 +65,18 @@ namespace DurableTask.Core.History
         /// Gets or sets the orchestration Name
         /// </summary>
         [DataMember]
-        public string Name { get; set; }
+        public string? Name { get; set; }
 
         /// <summary>
         /// Gets or sets the orchestration Version
         /// </summary>
         [DataMember]
-        public string Version { get; set; }
+        public string? Version { get; set; }
 
         /// <summary>
         /// Gets or sets the task's serialized input
         /// </summary>
         [DataMember]
-        public string Input { get; set; }
+        public string? Input { get; set; }
     }
 }

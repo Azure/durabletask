@@ -18,7 +18,7 @@ namespace DurableTask.Stress.Tests
 
     internal class Options
     {
-#if NETCOREAPP2_1
+#if NETCOREAPP
         [Option('c', "create-hub", Default = false,
             HelpText = "Create Orchestration Hub.")]
         public bool CreateHub { get; set; }
