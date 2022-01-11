@@ -1,8 +1,10 @@
 trigger: none
 pr: none
 
-pool:
-  vmImage: 'windows-latest'
+ pool:
+  name: '1ES-Hosted-DurableTaskFramework'
+  demands:
+    - ImageOverride -equals MMS2022TLS
 
 steps:
 # Start by restoring all the dependencies. This needs to be its own task
