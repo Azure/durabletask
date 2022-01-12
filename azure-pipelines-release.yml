@@ -60,12 +60,6 @@ steps:
           }
       ]
 
-- task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
-  displayName: 'SBOM Generation Task'
-  inputs:
-    BuildDropPath: '$(build.artifactStagingDirectory)'
-    Verbosity: 'Information'
-
 # Packaging needs to be a separate step from build.
 # This will automatically pick up the signed DLLs.
 - task: DotNetCoreCLI@2
@@ -104,6 +98,12 @@ steps:
             "ToolVersion": "1.0"
         }
      ]
+
+- task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
+  displayName: 'SBOM Generation Task'
+  inputs:
+    BuildDropPath: '$(build.artifactStagingDirectory)'
+    Verbosity: 'Information'
 
 # Make the nuget packages available for download in the ADO portal UI
 - publish: $(build.artifactStagingDirectory)
