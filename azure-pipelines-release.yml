@@ -2,7 +2,9 @@ trigger: none
 pr: none
 
 pool:
-  vmImage: 'windows-latest'
+  name: '1ES-Hosted-DurableTaskFramework'
+  demands:
+    - ImageOverride -equals MMS2022TLS
 
 steps:
 # Start by restoring all the dependencies. This needs to be its own task
@@ -96,6 +98,12 @@ steps:
             "ToolVersion": "1.0"
         }
      ]
+
+- task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
+  displayName: 'SBOM Generation Task'
+  inputs:
+    BuildDropPath: '$(build.artifactStagingDirectory)'
+    Verbosity: 'Information'
 
 # Make the nuget packages available for download in the ADO portal UI
 - publish: $(build.artifactStagingDirectory)
