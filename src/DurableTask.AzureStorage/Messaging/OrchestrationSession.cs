@@ -19,7 +19,6 @@ namespace DurableTask.AzureStorage.Messaging
     using System.Linq;
     using System.Threading.Tasks;
     using DurableTask.Core;
-    using DurableTask.Core.Common;
     using DurableTask.Core.History;
     using Newtonsoft.Json;
 
@@ -140,7 +139,7 @@ namespace DurableTask.AzureStorage.Messaging
                 message.TaskMessage.Event.EventType != EventType.SubOrchestrationInstanceCompleted &&
                 message.TaskMessage.Event.EventType != EventType.SubOrchestrationInstanceFailed &&
                 message.TaskMessage.Event.EventType != EventType.TimerFired &&
-                !(message.TaskMessage.Event.EventType == EventType.EventRaised && Entities.IsEntityInstance(message.Sender.InstanceId) && !Entities.IsEntityInstance(this.Instance.InstanceId)))
+                !(message.TaskMessage.Event.EventType == EventType.EventRaised && Core.Common.Entities.IsEntityInstance(message.Sender.InstanceId) && !Core.Common.Entities.IsEntityInstance(this.Instance.InstanceId)))
             {
                 // The above message types are the only ones that can potentially be considered out-of-order.
                 return false;
@@ -185,7 +184,7 @@ namespace DurableTask.AzureStorage.Messaging
                 var requestId = ((EventRaisedEvent)message.TaskMessage.Event).Name;
                 if (requestId != null)
                 {
-                    HistoryEvent mostRecentTaskEvent = this.RuntimeState.Events.LastOrDefault(e => e.EventType == EventType.EventSent && FindRequestId(((EventSentEvent)e).Input)?.ToString() == requestId);
+                    HistoryEvent mostRecentTaskEvent = this.RuntimeState.Events.FirstOrDefault(e => e.EventType == EventType.EventSent && FindRequestId(((EventSentEvent)e).Input)?.ToString() == requestId);
                     if (mostRecentTaskEvent != null)
                     {
                         return false;
