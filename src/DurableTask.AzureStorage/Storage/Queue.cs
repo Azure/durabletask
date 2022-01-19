@@ -48,7 +48,7 @@ namespace DurableTask.AzureStorage.Storage
             await this.azureStorageClient.MakeStorageRequest(
                 (context, cancellationToken) => this.cloudQueue.AddMessageAsync(
                     queueMessage.CloudQueueMessage,
-                    null /* timeToLive */,
+                    TimeSpan.FromSeconds(-1) /* timeToLive */,
                     visibilityDelay,
                     null,
                     context),
