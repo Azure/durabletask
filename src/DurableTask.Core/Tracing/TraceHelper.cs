@@ -113,6 +113,53 @@ namespace DurableTask.Core.Tracing
                 });
         }
 
+        internal static Activity? CreateActivityForNewEventRaised(EventRaisedEvent eventRaised, OrchestrationInstance instance)
+        {
+            Activity? newActivity = ActivityTraceSource.StartActivity(
+                name: eventRaised.Name,
+                kind: ActivityKind.Internal,
+                parentContext: Activity.Current?.Context ?? default,
+                tags: new KeyValuePair<string, object?>[]
+                {
+                    new("dt.type", "external event"),
+                    new("dt.instanceid", instance.InstanceId),
+                    new("dt.executionid", instance.ExecutionId),
+                });
+
+            return newActivity;
+        }
+
+        /// <summary>
+        /// Starts a new trace activity for (task) activity execution.
+        /// </summary>
+        /// <param name="eventRaisedEvent">The associated <see cref="EventRaisedEvent"/>.</param>
+        /// <param name="instance">The associated orchestration instance metadata.</param>
+        /// <returns>
+        /// Returns a newly started <see cref="Activity"/> with (task) activity and orchestration-specific metadata.
+        /// </returns>
+        internal static Activity? StartTraceActivityForEventRaised(
+            EventRaisedEvent eventRaisedEvent,
+            OrchestrationInstance instance)
+        {
+            if (!eventRaisedEvent.TryGetParentTraceContext(out ActivityContext activityContext))
+            {
+                return null;
+            }
+
+            return ActivityTraceSource.StartActivity(
+                name: $"{eventRaisedEvent.Name} (#{eventRaisedEvent.EventId})",
+                kind: ActivityKind.Consumer,
+                parentContext: activityContext,
+                tags: new KeyValuePair<string, object?>[]
+                {
+                    new("dt.type", "external event"),
+                    new("dt.instanceid", instance.InstanceId),
+                    new("dt.executionid", instance.ExecutionId),
+                    new("dt.taskid", eventRaisedEvent.EventId),
+                    new("dt.input", eventRaisedEvent.Input)
+                });
+        }
+
         /// <summary>
         ///     Simple trace with no iid or eid
         /// </summary>
