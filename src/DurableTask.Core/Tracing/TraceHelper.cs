@@ -121,7 +121,7 @@ namespace DurableTask.Core.Tracing
                 parentContext: Activity.Current?.Context ?? default,
                 tags: new KeyValuePair<string, object?>[]
                 {
-                    new("dt.type", "external event"),
+                    new("dt.type", "externalevent"),
                     new("dt.instanceid", instance.InstanceId),
                     new("dt.executionid", instance.ExecutionId),
                 });
