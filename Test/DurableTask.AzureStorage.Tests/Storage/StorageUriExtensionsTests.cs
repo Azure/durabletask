@@ -22,17 +22,16 @@ namespace DurableTask.AzureStorage.Tests.Storage
     public class StorageUriExtensionsTests
     {
         [TestMethod]
-        [DataRow("https://foo.blob.core.windows.net", "foo")]
-        [DataRow("https://bar.queue.unit.test", "bar")]
-        [DataRow("https://baz.table", "baz")]
-        [DataRow("https://dev.file.core.windows.net", "dev")]
-        [DataRow("https://dev.unknown.core.windows.net", "dev.unknown.core.windows.net")]
-        [DataRow("http://127.0.0.1:10000/devstoreaccount1", "devstoreaccount1")]
-        [DataRow("http://[::1]/devstoreaccount1", "devstoreaccount1")]
-        [DataRow("http://unit.test/custom/uri", "unit.test/custom/uri")]
-        public void GetAccountName(string uri, string accountName)
-        {
-            Assert.AreEqual(accountName, new StorageUri(new Uri(uri, UriKind.Absolute)).GetAccountName());
-        }
+        [DataRow("https://foo.blob.core.windows.net", "blob", "foo")]
+        [DataRow("https://bar.queue.unit.test", "queue", "bar")]
+        [DataRow("https://baz.table", "table", "baz")]
+        [DataRow("https://dev.account.file.core.windows.net", "file", "dev")]
+        [DataRow("https://dev.unknown.core.windows.net", "blob", null)]
+        [DataRow("https://host/path", "blob", null)]
+        [DataRow("http://127.0.0.1:10000/devstoreaccount1", "file", "devstoreaccount1")]
+        [DataRow("http://host:10102/devstoreaccount2/more", "blob", "devstoreaccount2")]
+        [DataRow("http://unit.test/custom/uri", "queue", null)]
+        public void GetAccountName(string uri, string service, string accountName) =>
+            Assert.AreEqual(accountName, new StorageUri(new Uri(uri, UriKind.Absolute)).GetAccountName(service));
     }
 }
