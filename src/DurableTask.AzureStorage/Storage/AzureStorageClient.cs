@@ -152,6 +152,6 @@ namespace DurableTask.AzureStorage.Storage
         }
 
         private static string GetAccountName(StorageCredentials credentials, AzureStorageOrchestrationServiceSettings settings, StorageUri serviceUri, string service) =>
-            credentials.AccountName ?? settings.StorageAccountDetails?.AccountName ?? serviceUri.GetAccountName(service) ?? string.Empty;
+            credentials.AccountName ?? settings.StorageAccountDetails?.AccountName ?? serviceUri.GetAccountName(service) ?? "(unknown)";
     }
 }
