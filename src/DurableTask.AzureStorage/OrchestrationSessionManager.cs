@@ -42,12 +42,12 @@ namespace DurableTask.AzureStorage
         readonly DispatchQueue fetchRuntimeStateQueue;
 
         public OrchestrationSessionManager(
-            string storageAccountName,
+            string queueAccountName,
             AzureStorageOrchestrationServiceSettings settings,
             AzureStorageOrchestrationServiceStats stats,
             ITrackingStore trackingStore)
         {
-            this.storageAccountName = storageAccountName;
+            this.storageAccountName = queueAccountName;
             this.settings = settings;
             this.stats = stats;
             this.trackingStore = trackingStore;
