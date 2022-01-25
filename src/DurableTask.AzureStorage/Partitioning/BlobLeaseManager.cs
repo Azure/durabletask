@@ -45,7 +45,7 @@ namespace DurableTask.AzureStorage.Partitioning
         {
             this.azureStorageClient = azureStorageClient;
             this.settings = this.azureStorageClient.Settings;
-            this.storageAccountName = this.azureStorageClient.StorageAccountName;
+            this.storageAccountName = this.azureStorageClient.BlobAccountName;
             this.taskHubName = this.settings.TaskHubName;
             this.workerName = this.settings.WorkerId;
             this.leaseContainerName = leaseContainerName;

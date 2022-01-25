@@ -47,7 +47,7 @@ namespace DurableTask.AzureStorage.Partitioning
         public LeaseCollectionBalancer(
             string leaseType,
             AzureStorageOrchestrationServiceSettings settings,
-            string accountName,
+            string blobAccountName,
             ILeaseManager<T> leaseManager, 
             LeaseCollectionBalancerOptions options,
             Func<string, bool> shouldAquireLeaseDelegate = null,
@@ -55,7 +55,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
         {
             this.leaseType = leaseType;
-            this.accountName = accountName;
+            this.accountName = blobAccountName;
             this.taskHub = settings.TaskHubName;
             this.workerName = settings.WorkerId;
             this.leaseManager = leaseManager;

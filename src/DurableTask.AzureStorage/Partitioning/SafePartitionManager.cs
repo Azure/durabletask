@@ -50,7 +50,7 @@ namespace DurableTask.AzureStorage.Partitioning
             this.intentLeaseCollectionManager = new LeaseCollectionBalancer<BlobLease>(
                 "intent",
                 settings,
-                this.azureStorageClient.StorageAccountName,
+                this.azureStorageClient.BlobAccountName,
                 this.intentLeaseManager,
                 new LeaseCollectionBalancerOptions
                 {
@@ -68,7 +68,7 @@ namespace DurableTask.AzureStorage.Partitioning
             this.ownershipLeaseCollectionManager = new LeaseCollectionBalancer<BlobLease>(
                 "ownership",
                 this.settings,
-                this.azureStorageClient.StorageAccountName,
+                this.azureStorageClient.BlobAccountName,
                 this.ownershipLeaseManager,
                 new LeaseCollectionBalancerOptions
                 {

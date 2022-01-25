@@ -78,7 +78,7 @@ namespace DurableTask.AzureStorage.Tracking
             this.tableEntityConverter = new TableEntityConverter();
             this.taskHubName = settings.TaskHubName;
 
-            this.storageAccountName = this.azureStorageClient.StorageAccountName;
+            this.storageAccountName = this.azureStorageClient.TableAccountName;
 
             string historyTableName = settings.HistoryTableName;
             string instancesTableName = settings.InstanceTableName;

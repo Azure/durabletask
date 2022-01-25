@@ -60,7 +60,7 @@ namespace DurableTask.AzureStorage.Partitioning
             this.appLeaseInfoBlobName = appLeaseInfoBlobName;
             this.options = options;
 
-            this.storageAccountName = this.azureStorageClient.StorageAccountName;
+            this.storageAccountName = this.azureStorageClient.BlobAccountName;
             this.settings = this.azureStorageClient.Settings;
             this.taskHub = settings.TaskHubName;
             this.workerName = settings.WorkerId;

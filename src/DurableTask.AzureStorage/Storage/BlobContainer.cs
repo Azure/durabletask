@@ -45,14 +45,14 @@ namespace DurableTask.AzureStorage.Storage
 
         public async Task<bool> CreateIfNotExistsAsync()
         {
-            return await this.azureStorageClient.MakeStorageRequest<bool>(
+            return await this.azureStorageClient.MakeBlobStorageRequest<bool>(
                 (context, cancellationToken) => this.cloudBlobContainer.CreateIfNotExistsAsync(BlobContainerPublicAccessType.Off, null, context, cancellationToken),
                 "Create Container");
         }
 
         public async Task<bool> ExistsAsync()
         {
-            return await this.azureStorageClient.MakeStorageRequest<bool>(
+            return await this.azureStorageClient.MakeBlobStorageRequest<bool>(
                 (context, cancellationToken) => this.cloudBlobContainer.ExistsAsync(null, context, cancellationToken),
                 "Container Exists");
         }
@@ -65,7 +65,7 @@ namespace DurableTask.AzureStorage.Storage
                 accessCondition = new AccessCondition() { LeaseId = appLeaseId };
             }
 
-            return await this.azureStorageClient.MakeStorageRequest<bool>(
+            return await this.azureStorageClient.MakeBlobStorageRequest<bool>(
                 (context, cancellationToken) => this.cloudBlobContainer.DeleteIfExistsAsync(accessCondition, null, context, cancellationToken),
                 "Delete Container");
         }
@@ -103,7 +103,7 @@ namespace DurableTask.AzureStorage.Storage
             var blobList = new List<Blob>();
             do
             {
-                BlobResultSegment segment = await this.azureStorageClient.MakeStorageRequest(listBlobsFunction, "ListBlobs");
+                BlobResultSegment segment = await this.azureStorageClient.MakeBlobStorageRequest(listBlobsFunction, "ListBlobs");
 
                 continuationToken = segment.ContinuationToken;
 
@@ -124,14 +124,14 @@ namespace DurableTask.AzureStorage.Storage
         {
             AccessCondition accessCondition = new AccessCondition() { LeaseId = currentLeaseId };
 
-            return await this.azureStorageClient.MakeStorageRequest<string>(
+            return await this.azureStorageClient.MakeBlobStorageRequest<string>(
                 (context, cancellationToken) => this.cloudBlobContainer.ChangeLeaseAsync(proposedLeaseId, accessCondition, null, context, cancellationToken),
                 "Container ChangeLease");
         }
 
         public async Task<string> AcquireLeaseAsync(TimeSpan leaseInterval, string proposedLeaseId)
         {
-            return await this.azureStorageClient.MakeStorageRequest<string>(
+            return await this.azureStorageClient.MakeBlobStorageRequest<string>(
                 (context, cancellationToken) => this.cloudBlobContainer.AcquireLeaseAsync(leaseInterval, proposedLeaseId, null, null, context, cancellationToken),
                 "Container AcquireLease");
         }
@@ -139,7 +139,7 @@ namespace DurableTask.AzureStorage.Storage
         public async Task RenewLeaseAsync(string leaseId)
         {
             AccessCondition accessCondition = new AccessCondition() { LeaseId = leaseId };
-            await this.azureStorageClient.MakeStorageRequest(
+            await this.azureStorageClient.MakeBlobStorageRequest(
                 (context, cancellationToken) => this.cloudBlobContainer.RenewLeaseAsync(accessCondition, null, context, cancellationToken),
                 "Container RenewLease");
         }
