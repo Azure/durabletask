@@ -107,13 +107,13 @@ namespace DurableTask.AzureStorage.Storage
         }
 
         public Task<T> MakeBlobStorageRequest<T>(Func<OperationContext, CancellationToken, Task<T>> storageRequest, string operationName, string? clientRequestId = null) =>
-            this.MakeStorageRequest(storageRequest, BlobAccountName, operationName, clientRequestId);
+            this.MakeStorageRequest<T>(storageRequest, BlobAccountName, operationName, clientRequestId);
 
         public Task<T> MakeQueueStorageRequest<T>(Func<OperationContext, CancellationToken, Task<T>> storageRequest, string operationName, string? clientRequestId = null) =>
-            this.MakeStorageRequest(storageRequest, QueueAccountName, operationName, clientRequestId);
+            this.MakeStorageRequest<T>(storageRequest, QueueAccountName, operationName, clientRequestId);
 
         public Task<T> MakeTableStorageRequest<T>(Func<OperationContext, CancellationToken, Task<T>> storageRequest, string operationName, string? clientRequestId = null) =>
-            this.MakeStorageRequest(storageRequest, TableAccountName, operationName, clientRequestId);
+            this.MakeStorageRequest<T>(storageRequest, TableAccountName, operationName, clientRequestId);
 
         public Task MakeBlobStorageRequest(Func<OperationContext, CancellationToken, Task> storageRequest, string operationName, string? clientRequestId = null) =>
             this.MakeStorageRequest(storageRequest, BlobAccountName, operationName, clientRequestId);
@@ -143,7 +143,7 @@ namespace DurableTask.AzureStorage.Storage
         }
 
         private Task MakeStorageRequest(Func<OperationContext, CancellationToken, Task> storageRequest, string accountName, string operationName, string? clientRequestId = null) =>
-            this.MakeStorageRequest((context, cancellationToken) => WrapFunctionWithReturnType(storageRequest, context, cancellationToken), accountName, operationName, clientRequestId);
+            this.MakeStorageRequest<object?>((context, cancellationToken) => WrapFunctionWithReturnType(storageRequest, context, cancellationToken), accountName, operationName, clientRequestId);
 
         private static async Task<object?> WrapFunctionWithReturnType(Func<OperationContext, CancellationToken, Task> storageRequest, OperationContext context, CancellationToken cancellationToken)
         {
