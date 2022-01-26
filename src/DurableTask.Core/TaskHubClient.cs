@@ -694,8 +694,6 @@ namespace DurableTask.Core
             
             // Distributed Tracing
             EventRaisedEvent eventRaisedEvent = new EventRaisedEvent(-1, serializedInput) { Name = eventName };
-            eventRaisedEvent.SetParentTraceContext(Activity.Current);
-
             using Activity traceActivity = TraceHelper.CreateActivityForNewEventRaised(eventRaisedEvent, orchestrationInstance);
 
             var taskMessage = new TaskMessage
