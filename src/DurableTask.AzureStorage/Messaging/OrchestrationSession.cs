@@ -184,7 +184,7 @@ namespace DurableTask.AzureStorage.Messaging
                 var requestId = ((EventRaisedEvent)message.TaskMessage.Event).Name;
                 if (requestId != null)
                 {
-                    HistoryEvent mostRecentTaskEvent = this.RuntimeState.Events.FirstOrDefault(e => e.EventType == EventType.EventSent && ((EventSentEvent)e).Name?.ToString() == requestId);
+                    HistoryEvent mostRecentTaskEvent = this.RuntimeState.Events.FirstOrDefault(e => e.EventType == EventType.EventSent && FindRequestId(((EventSentEvent)e).Input)?.ToString() == requestId);
                     if (mostRecentTaskEvent != null)
                     {
                         return false;
@@ -194,6 +194,35 @@ namespace DurableTask.AzureStorage.Messaging
 
             // The message is out of order and cannot be handled by the current session.
             return true;
+        }
+
+        Guid? FindRequestId(string input)
+        {
+            try
+            {
+                JsonTextReader reader = new JsonTextReader(new StringReader(input));
+                reader.Read(); // JsonToken.StartObject
+                while (reader.Read() && reader.TokenType == JsonToken.PropertyName)
+                {
+                    switch (reader.Value)
+                    {
+                        case "$type":
+                        case "op":
+                        case "signal":
+                        case "input":
+                            reader.Read(); // skip these, they may appear before the id
+                            continue;
+                        case "id":
+                            return Guid.Parse(reader.ReadAsString());
+                        default:
+                            break;
+                    }
+                }
+            }
+            catch
+            {
+            }
+            return null;
         }
 
         bool IsNonexistantInstance()
