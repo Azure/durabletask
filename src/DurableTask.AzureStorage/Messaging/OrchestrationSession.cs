@@ -181,19 +181,13 @@ namespace DurableTask.AzureStorage.Messaging
             if (message.TaskMessage.Event.EventType == EventType.EventRaised)
             {
                 // This EventRaised message is a response to an EventSent message.
-                var raisedEventRequestId = ((EventRaisedEvent)message.TaskMessage.Event).Name;
-                if (raisedEventRequestId != null)
+                var requestId = ((EventRaisedEvent)message.TaskMessage.Event).Name;
+                if (requestId != null)
                 {
-                    foreach (HistoryEvent historyEvent in this.RuntimeState.Events)
+                    HistoryEvent mostRecentTaskEvent = this.RuntimeState.Events.FirstOrDefault(e => e.EventType == EventType.EventSent && FindRequestId(((EventSentEvent)e).Input)?.ToString() == requestId);
+                    if (mostRecentTaskEvent != null)
                     {
-                        if (historyEvent.EventType == EventType.EventSent)
-                        {
-                            var sentEventRequestId = FindRequestId(((EventSentEvent)historyEvent).Input);
-                            if (sentEventRequestId == null || sentEventRequestId.ToString() == raisedEventRequestId)
-                            {
-                                return false;
-                            }
-                        }
+                        return false;
                     }
                 }
             }
