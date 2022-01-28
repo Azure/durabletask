@@ -175,7 +175,7 @@ namespace DurableTask.AzureStorage.Monitoring
             {
                 // The queues are not yet provisioned.
                 this.settings.Logger.GeneralWarning(
-                    this.azureStorageClient.StorageAccountName,
+                    this.azureStorageClient.QueueAccountName,
                     this.settings.TaskHubName,
                     $"Task hub has not been provisioned: {e.RequestInformation.ExtendedErrorInformation?.ErrorMessage}");
                 return false;

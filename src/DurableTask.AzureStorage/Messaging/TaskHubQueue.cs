@@ -41,7 +41,7 @@ namespace DurableTask.AzureStorage.Messaging
         {
             this.azureStorageClient = azureStorageClient;
             this.messageManager = messageManager;
-            this.storageAccountName = azureStorageClient.StorageAccountName;
+            this.storageAccountName = azureStorageClient.QueueAccountName;
             this.settings = azureStorageClient.Settings;
 
 
