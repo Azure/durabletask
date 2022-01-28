@@ -45,10 +45,16 @@ namespace DurableTask.AzureStorage.Storage
 
         public async Task AddMessageAsync(QueueMessage queueMessage, TimeSpan? visibilityDelay, Guid? clientRequestId = null)
         {
+            // Infinite time to live
+            TimeSpan? timeToLive = TimeSpan.FromSeconds(-1);
+#if NET461
+            // When using net461 SDK version WindowsAzure.Storage 7.2.1 does not allow infinite time to live. Passing in null will default the time to live to 7 days.
+            timeToLive = null;
+#endif
             await this.azureStorageClient.MakeStorageRequest(
                 (context, cancellationToken) => this.cloudQueue.AddMessageAsync(
                     queueMessage.CloudQueueMessage,
-                    TimeSpan.FromSeconds(-1) /* disable TTL */,
+                    timeToLive,
                     visibilityDelay,
                     null,
                     context),
