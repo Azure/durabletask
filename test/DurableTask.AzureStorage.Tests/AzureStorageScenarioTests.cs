@@ -32,6 +32,7 @@ namespace DurableTask.AzureStorage.Tests
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Blob;
     using Microsoft.WindowsAzure.Storage.Table;
+    using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
 
     [TestClass]
@@ -2725,15 +2726,16 @@ namespace DurableTask.AzureStorage.Tests
                 // HACK: This is just a hack to communicate result of orchestration back to test
                 public static bool OkResult;
 
-                private const string ChannelName = "conversation";
+                private static string ChannelName = Guid.NewGuid().ToString();
 
                 public async override Task<string> RunTask(OrchestrationContext context, string input)
                 {
                     var responderId = $"@{typeof(Responder).FullName}";
                     var responderInstance = new OrchestrationInstance() { InstanceId = responderId };
+                    var requestInformation = new RequestInformation { InstanceId = context.OrchestrationInstance.InstanceId, RequestId = ChannelName };
 
-                    // send the id of this orchestration to a not-yet-started orchestration
-                    context.SendEvent(responderInstance, ChannelName, context.OrchestrationInstance.InstanceId);
+                    // send the RequestInformation containing RequestId and Instanceid of this orchestration to a not-yet-started orchestration
+                    context.SendEvent(responderInstance, ChannelName, requestInformation);
 
                     // wait for a response event 
                     var message = await tcs.Task;
@@ -2745,6 +2747,13 @@ namespace DurableTask.AzureStorage.Tests
                     return "OK";
                 }
 
+                public class RequestInformation
+                {
+                    [JsonProperty("id")]
+                    public string RequestId { get; set; }
+                    public string InstanceId { get; set; }
+                }
+
                 public override void OnEvent(OrchestrationContext context, string name, string input)
                 {
                     if (name == ChannelName)
@@ -2753,7 +2762,7 @@ namespace DurableTask.AzureStorage.Tests
                     }
                 }
 
-                public class Responder : TaskOrchestration<string, string>
+                public class Responder : TaskOrchestration<string, string, RequestInformation, string>
                 {
                     private readonly TaskCompletionSource<string> tcs
                         = new TaskCompletionSource<string>(TaskContinuationOptions.ExecuteSynchronously);
@@ -2778,11 +2787,11 @@ namespace DurableTask.AzureStorage.Tests
                         return "this return value is not observed by anyone";
                     }
 
-                    public override void OnEvent(OrchestrationContext context, string name, string input)
+                    public override void OnEvent(OrchestrationContext context, string name, RequestInformation input)
                     {
                         if (name == ChannelName)
                         {
-                            tcs.TrySetResult(input);
+                            tcs.TrySetResult(input.InstanceId);
                         }
                     }
                 }
