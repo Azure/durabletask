@@ -396,7 +396,7 @@ namespace DurableTask.Core
                             case OrchestratorActionType.SendEvent:
                                 var sendEventAction = (SendEventOrchestratorAction)decision;
                                 orchestratorMessages.Add(
-                                    this.ProcessSendEventDecision(sendEventAction, runtimeState));
+                                    this.ProcessSendEventDecision(sendEventAction, runtimeState, traceActivity));
                                 break;
                             case OrchestratorActionType.OrchestrationComplete:
                                 OrchestrationCompleteOrchestratorAction completeDecision = (OrchestrationCompleteOrchestratorAction)decision;
@@ -922,7 +922,8 @@ namespace DurableTask.Core
 
         TaskMessage ProcessSendEventDecision(
             SendEventOrchestratorAction sendEventAction,
-            OrchestrationRuntimeState runtimeState)
+            OrchestrationRuntimeState runtimeState,
+            Activity parentTraceActivity)
         {
             var historyEvent = new EventSentEvent(sendEventAction.Id)
             {
@@ -933,15 +934,25 @@ namespace DurableTask.Core
             
             runtimeState.AddEvent(historyEvent);
 
+            EventRaisedEvent eventRaisedEvent = new EventRaisedEvent(-1, sendEventAction.EventData)
+            {
+                Name = sendEventAction.EventName
+            };
+
+            // Distributed Tracing: start a new trace activity derived from the orchestration
+            // for an EventRaisedEvent (external event)
+            eventRaisedEvent.SetParentTraceContext(parentTraceActivity);
+
+            using Activity traceActivity = TraceHelper.StartTraceActivityForEventRaised(eventRaisedEvent, runtimeState.OrchestrationInstance);
+
             this.logHelper.RaisingEvent(runtimeState.OrchestrationInstance, historyEvent);
+
+            traceActivity?.Stop();
 
             return new TaskMessage
             {
                 OrchestrationInstance = sendEventAction.Instance,
-                Event = new EventRaisedEvent(-1, sendEventAction.EventData)
-                {
-                    Name = sendEventAction.EventName
-                }
+                Event = eventRaisedEvent
             };
         }
  

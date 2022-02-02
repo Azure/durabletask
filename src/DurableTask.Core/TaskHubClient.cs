@@ -691,13 +691,19 @@ namespace DurableTask.Core
             }
 
             string serializedInput = this.defaultConverter.Serialize(eventData);
+            
+            // Distributed Tracing
+            EventRaisedEvent eventRaisedEvent = new EventRaisedEvent(-1, serializedInput) { Name = eventName };
+            using Activity traceActivity = TraceHelper.CreateActivityForNewEventRaised(eventRaisedEvent, orchestrationInstance);
+
             var taskMessage = new TaskMessage
             {
                 OrchestrationInstance = orchestrationInstance,
-                Event = new EventRaisedEvent(-1, serializedInput) { Name = eventName }
+                Event = eventRaisedEvent
             };
 
             this.logHelper.RaisingEvent(orchestrationInstance, (EventRaisedEvent)taskMessage.Event);
+            
             await this.ServiceClient.SendTaskOrchestrationMessageAsync(taskMessage);
         }
 
