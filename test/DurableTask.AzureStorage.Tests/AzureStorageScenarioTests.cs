@@ -32,7 +32,12 @@ namespace DurableTask.AzureStorage.Tests
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Blob;
     using Microsoft.WindowsAzure.Storage.Table;
+    using Moq;
     using Newtonsoft.Json.Linq;
+#if NETCOREAPP3_1
+    using OpenTelemetry;
+    using OpenTelemetry.Trace;
+#endif
 
     [TestClass]
     public class AzureStorageScenarioTests
@@ -2077,6 +2082,78 @@ namespace DurableTask.AzureStorage.Tests
                 await host.StopAsync();
             }
         }
+
+#if NETCOREAPP3_1
+        /// <summary>
+        /// End-to-end test which validates a simple orchestrator function that calls an activity function
+        /// and checks the OpenTelemetry trace information
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task OpenTelemetry_SayHelloWithActivity(bool enableExtendedSessions)
+        {
+            var processor = new Mock<BaseProcessor<Activity>>();
+
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                using (Sdk.CreateTracerProviderBuilder()
+                .AddSource("DurableTask")
+                .AddProcessor(processor.Object)
+                .Build())
+                {
+                    await host.StartAsync();
+
+                    var client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloWithActivity), "World");
+                    var status = await client.WaitForCompletionAsync(StandardTimeout);
+
+                    await host.StopAsync();
+                }
+            }
+
+            // Explanation about indexes:
+            // The orchestration Activity's start at Invocation[1] and each action logs
+            // two activities - (Processor.OnStart(Activity) and Processor.OnEnd(Activity)
+            // so we start looking at invocations from index 2 and look at every other one from there
+
+            // Additional invocations:
+            // processor.Invocations[0] - processor.SetParentProvider(TracerProviderSdk)
+            // processor.Invocations[9] - processor.OnShutdown()
+            // processor.Invocations[10] - processor.Dispose(true)
+
+            Activity activity2 = (Activity)processor.Invocations[2].Arguments[0];
+            Activity activity4 = (Activity)processor.Invocations[4].Arguments[0];
+            Activity activity6 = (Activity)processor.Invocations[6].Arguments[0];
+            Activity activity8 = (Activity)processor.Invocations[8].Arguments[0];
+
+            // Checking total number activities
+            Assert.AreEqual(11, processor.Invocations.Count);
+
+            // Checking tag values
+            string activity2TypeValue = activity2.Tags.First(k => (k.Key).Equals("dt.type")).Value;
+            string activity4TypeValue = activity4.Tags.First(k => (k.Key).Equals("dt.type")).Value;
+            string activity6TypeValue = activity6.Tags.First(k => (k.Key).Equals("dt.type")).Value;
+            string activity8TypeValue = activity8.Tags.First(k => (k.Key).Equals("dt.type")).Value;
+
+            string activity4RuntimeStatusValue = activity4.Tags.First(k => (k.Key).Equals("dt.runtimestatus")).Value;
+            string activity8RuntimeStatusValue = activity8.Tags.First(k => (k.Key).Equals("dt.runtimestatus")).Value;
+
+            Assert.AreEqual("client", activity2TypeValue);
+            Assert.AreEqual("orchestrator", activity4TypeValue);
+            Assert.AreEqual("Running", activity4RuntimeStatusValue);
+            Assert.AreEqual("activity", activity6TypeValue);
+            Assert.AreEqual("orchestrator", activity8TypeValue);
+            Assert.AreEqual("Completed", activity8RuntimeStatusValue);
+
+            // Checking span ID correlation between parent and child
+            Assert.AreEqual(activity2.SpanId, activity4.ParentSpanId);
+            Assert.AreEqual(activity4.SpanId, activity6.ParentSpanId);
+            Assert.AreEqual(activity2.SpanId, activity8.ParentSpanId);
+
+            // Checking trace ID values
+            Assert.AreEqual(activity2.TraceId.ToString(), activity4.TraceId.ToString(), activity6.TraceId.ToString(), activity8.TraceId.ToString());
+        }
+#endif
 
         static class Orchestrations
         {
