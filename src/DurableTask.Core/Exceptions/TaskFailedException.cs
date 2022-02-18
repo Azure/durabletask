@@ -104,5 +104,11 @@ namespace DurableTask.Core.Exceptions
         /// Version of the Type Instance that experienced the error
         /// </summary>
         public string Version { get; set; }
+
+        // NOTE: Intentionally not serialized
+        /// <summary>
+        /// Additional details about the failure. May be <c>null</c> if the failure details collection is not enabled.
+        /// </summary>
+        public FailureDetails FailureDetails { get; set; }
     }
 }

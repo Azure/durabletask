@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.Core.History
 {
     using System.Runtime.Serialization;
@@ -28,13 +28,19 @@ namespace DurableTask.Core.History
         /// <param name="taskScheduledId">The scheduled parent instance event id</param>
         /// <param name="reason">The sub orchestration failure reason</param>
         /// <param name="details">Details of the sub orchestration failure</param>
-        public SubOrchestrationInstanceFailedEvent(int eventId, int taskScheduledId, string reason, string details)
+        public SubOrchestrationInstanceFailedEvent(int eventId, int taskScheduledId, string? reason, string? details)
             : base(eventId)
         {
             TaskScheduledId = taskScheduledId;
             Reason = reason;
             Details = details;
         }
+
+
+        // Needed for deserialization
+        private SubOrchestrationInstanceFailedEvent()
+            : base(-1)
+        { }
 
         /// <summary>
         /// Gets the event type
@@ -51,12 +57,18 @@ namespace DurableTask.Core.History
         /// Gets the sub orchestration failure reason
         /// </summary>
         [DataMember]
-        public string Reason { get; private set; }
+        public string? Reason { get; private set; }
 
         /// <summary>
         /// Gets the details of the sub orchestration failure
         /// </summary>
         [DataMember]
-        public string Details { get; private set; }
+        public string? Details { get; private set; }
+
+        /// <summary>
+        /// Gets the structured details of the sub orchestration failure.
+        /// </summary>
+        [DataMember]
+        public FailureDetails? FailureDetails { get; internal set; }
     }
 }

@@ -34,17 +34,20 @@ namespace DurableTask.Core
         readonly IOrchestrationService orchestrationService;
         readonly DispatchMiddlewarePipeline dispatchPipeline;
         readonly LogHelper logHelper;
+        readonly ErrorPropagationMode errorPropagationMode;
 
         internal TaskActivityDispatcher(
             IOrchestrationService orchestrationService,
             INameVersionObjectManager<TaskActivity> objectManager,
             DispatchMiddlewarePipeline dispatchPipeline,
-            LogHelper logHelper)
+            LogHelper logHelper,
+            ErrorPropagationMode errorPropagationMode)
         {
             this.orchestrationService = orchestrationService ?? throw new ArgumentNullException(nameof(orchestrationService));
             this.objectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
             this.dispatchPipeline = dispatchPipeline ?? throw new ArgumentNullException(nameof(dispatchPipeline));
             this.logHelper = logHelper;
+            this.errorPropagationMode = errorPropagationMode;
 
             this.dispatcher = new WorkItemDispatcher<TaskActivityWorkItem>(
                 "TaskActivityDispatcher",
@@ -62,6 +65,11 @@ namespace DurableTask.Core
         }
 
         /// <summary>
+        /// Gets or sets flag whether to include additional details in error messages
+        /// </summary>
+        public bool IncludeDetails { get; set; }
+
+        /// <summary>
         /// Starts the dispatcher to start getting and processing task activities
         /// </summary>
         public async Task StartAsync()
@@ -77,11 +85,6 @@ namespace DurableTask.Core
         {
             await this.dispatcher.StopAsync(forced);
         }
-
-        /// <summary>
-        /// Gets or sets flag whether to include additional details in error messages
-        /// </summary>
-        public bool IncludeDetails { get; set; }
 
         Task<TaskActivityWorkItem> OnFetchWorkItemAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken)
         {
@@ -171,6 +174,8 @@ namespace DurableTask.Core
                         }
 
                         var context = new TaskContext(taskMessage.OrchestrationInstance);
+                        context.ErrorPropagationMode = this.errorPropagationMode;
+
                         HistoryEvent? responseEvent;
 
                         try
@@ -187,7 +192,7 @@ namespace DurableTask.Core
                             string? details = this.IncludeDetails
                                 ? $"Unhandled exception while executing task: {e}"
                                 : null;
-                            responseEvent = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details);
+                            responseEvent = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details, new FailureDetails(e));
                             this.logHelper.TaskActivityFailure(orchestrationInstance, scheduledEvent.Name, (TaskFailedEvent)responseEvent, e);
                         }
 
@@ -202,7 +207,7 @@ namespace DurableTask.Core
                     // These are normal task activity failures. They can come from Activity implementations or from middleware.
                     TraceHelper.TraceExceptionInstance(TraceEventType.Error, "TaskActivityDispatcher-ProcessTaskFailure", taskMessage.OrchestrationInstance, e);
                     string? details = this.IncludeDetails ? e.Details : null;
-                    var failureEvent = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details);
+                    var failureEvent = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details, e.FailureDetails);
                     this.logHelper.TaskActivityFailure(orchestrationInstance, scheduledEvent.Name, failureEvent, e);
                     CorrelationTraceClient.Propagate(() => CorrelationTraceClient.TrackException(e));
                     result = new ActivityExecutionResult { ResponseEvent = failureEvent };

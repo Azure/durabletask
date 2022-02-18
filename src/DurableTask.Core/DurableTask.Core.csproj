@@ -11,9 +11,9 @@
   <!-- Package Info -->
   <PropertyGroup>
     <PackageId>Microsoft.Azure.DurableTask.Core</PackageId>
-    <AssemblyVersion>2.7.0</AssemblyVersion>
-    <FileVersion>2.7.0</FileVersion>
-    <Version>2.7.0</Version>
+    <AssemblyVersion>2.8.0</AssemblyVersion>
+    <FileVersion>2.8.0</FileVersion>
+    <Version>2.8.0</Version>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
   </PropertyGroup>
 

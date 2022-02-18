@@ -124,6 +124,22 @@ namespace DurableTask.Core
         public TaskActivityDispatcher TaskActivityDispatcher => this.activityDispatcher;
 
         /// <summary>
+        /// Gets or sets the error propagation behavior when an activity or orchestration fails with an unhandled exception.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Use caution when making changes to this property over the lifetime of an application. In-flight orchestrations
+        /// could fail unexpectedly if there is any logic that depends on a particular behavior of exception propagation.
+        /// For example, setting <see cref="ErrorPropagationMode.UseFailureDetails"/> causes
+        /// <see cref="DurableTask.Core.Exceptions.TaskFailedException.FailureDetails"/> to be populated but also causes
+        /// its <see cref="Exception.InnerException"/> property to be <c>null</c>.
+        /// </para><para>
+        /// This property must be set before the worker is started. Otherwise it will have no effect.
+        /// </para>
+        /// </remarks>
+        public ErrorPropagationMode ErrorPropagationMode { get; set; }
+
+        /// <summary>
         /// Adds a middleware delegate to the orchestration dispatch pipeline.
         /// </summary>
         /// <param name="middleware">Delegate to invoke whenever a message is dispatched to an orchestration.</param>
@@ -162,12 +178,14 @@ namespace DurableTask.Core
                     this.orchestrationService,
                     this.orchestrationManager,
                     this.orchestrationDispatchPipeline,
-                    this.logHelper);
+                    this.logHelper,
+                    this.ErrorPropagationMode);
                 this.activityDispatcher = new TaskActivityDispatcher(
                     this.orchestrationService,
                     this.activityManager,
                     this.activityDispatchPipeline,
-                    this.logHelper);
+                    this.logHelper,
+                    this.ErrorPropagationMode);
 
                 await this.orchestrationService.StartAsync();
                 await this.orchestrationDispatcher.StartAsync();
