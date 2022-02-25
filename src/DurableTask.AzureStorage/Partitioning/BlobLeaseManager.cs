@@ -88,6 +88,18 @@ namespace DurableTask.AzureStorage.Partitioning
 
             blobLeases.AddRange(downloadTasks.Select(t => t.Result));
 
+            if (blobLeases.Count > this.settings.PartitionCount)
+            {
+                this.settings.Logger.PartitionManagerError(
+                       this.storageAccountName,
+                       this.taskHubName,
+                       this.workerName,
+                       string.Empty,
+                       $"Partition count for the task hub is set to {this.settings.PartitionCount} while {blobLeases.Count} blobs are detected in storage." +
+                       $"This happens when partition count has been decreased without removing unused storage resources or switching to a new task hub. " +
+                       $"This will result in inefficient partition load balancing.");
+            }
+
             return blobLeases;
         }
 
