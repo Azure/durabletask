@@ -123,12 +123,6 @@ steps:
         }
      ]
 
-- task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
-  displayName: 'SBOM Generation Task'
-  inputs:
-    BuildDropPath: '$(build.artifactStagingDirectory)'
-    Verbosity: 'Information'
-
 # Make the nuget packages available for download in the ADO portal UI
 - publish: $(build.artifactStagingDirectory)
   displayName: 'Publish nuget packages to Artifacts'
