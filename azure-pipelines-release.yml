@@ -49,6 +49,24 @@ steps:
     msbuildArgs: /p:GITHUB_RUN_NUMBER=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
 
 - task: DotNetCoreCLI@2
+  displayName: 'dotnet publish (Core net461)'
+  inputs:
+    command: 'publish'
+    publishWebProjects: false
+    projects: 'src\DurableTask.Core\DurableTask.Core.csproj' 
+    arguments: "-c Release -f net461"
+    zipAfterPublish: false
+
+- task: DotNetCoreCLI@2
+  displayName: 'dotnet publish (Core netstandard2.0)'
+  inputs:
+    command: 'publish'
+    publishWebProjects: false
+    projects: 'src\DurableTask.Core\DurableTask.Core.csproj' 
+    arguments: "-c Release -f netstandard2.0"
+    zipAfterPublish: false
+
+- task: DotNetCoreCLI@2
   displayName: 'dotnet publish (AzureStorage net461)'
   inputs:
     command: 'publish'
