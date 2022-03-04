@@ -8,11 +8,13 @@ Licensed under the MIT license. See LICENSE file in the project root for full li
     <id>DurableTask.ServiceBus</id>
     <!-- Needed to specify the version here for the nuspec to be valid -->
     <version>$version$</version>
+    <title>ServiceBus provider extension for the Durable Task Framework.</title>
     <authors>Microsoft</authors>
     <owners>Microsoft</owners>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <license type="expression">MIT</license>
     <projectUrl>https://github.com/Azure/durabletask</projectUrl>
+    <description>Orchestration message and runtime state is stored in Service Bus queues while tracking state is stored in Azure Storage.</description>
     <copyright>© Microsoft Corporation. All rights reserved.</copyright>
     <dependencies>
       <group targetFramework=".NETFramework4.6.1" />
