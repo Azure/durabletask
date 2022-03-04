@@ -143,6 +143,7 @@ steps:
 
 # Packaging needs to be a separate step from build.
 # This will automatically pick up the signed DLLs.
+
 - task: DotNetCoreCLI@2
   displayName: Generate nuget packages
   inputs:
@@ -151,10 +152,28 @@ steps:
     configuration: Release
     nobuild: true
     packDirectory: $(build.artifactStagingDirectory)
-    packagesToPack: |
-      src/DurableTask.AzureStorage/DurableTask.AzureStorage.sln
-      src/DurableTask.Emulator/DurableTask.Emulator.csproj
-      src/DurableTask.ServiceBus/DurableTask.ServiceBus.csproj
+    packagesToPack: 'src/DurableTask.AzureStorage/DurableTask.AzureStorage.sln'
+
+
+- task: DotNetCoreCLI@2
+  displayName: Generate nuget packages
+  inputs:
+    command: pack
+    verbosityPack: Minimal
+    configuration: Release
+    nobuild: true
+    packDirectory: $(build.artifactStagingDirectory)
+    packagesToPack: 'src/DurableTask.Emulator/DurableTask.Emulator.csproj'
+
+- task: DotNetCoreCLI@2
+  displayName: Generate nuget packages
+  inputs:
+    command: pack
+    verbosityPack: Minimal
+    configuration: Release
+    nobuild: true
+    packDirectory: $(build.artifactStagingDirectory)
+    packagesToPack: 'src/DurableTask.ServiceBus/DurableTask.ServiceBus.csproj'
 
 # Digitally sign all the nuget packages with the Microsoft certificate.
 # This appears to be an in-place signing job, which is convenient.
