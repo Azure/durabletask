@@ -13,7 +13,7 @@ Licensed under the MIT license. See LICENSE file in the project root for full li
     <owners>Microsoft</owners>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <license type="expression">MIT</license>
-    <projectUrl>https://github.com/Azure/azure-functions-durable-extension</projectUrl>
+    <projectUrl>https://github.com/Azure/durabletask</projectUrl>
     <description>This package provides a C# based durable task framework for writing long running applications.</description>
     <copyright>© Microsoft Corporation. All rights reserved.</copyright>
     <dependencies>
