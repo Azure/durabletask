@@ -579,9 +579,6 @@ namespace DurableTask.Core
 
             workItem.OrchestrationRuntimeState = runtimeState;
 
-            traceActivity?.SetTag("dt.runtimestatus", runtimeState.OrchestrationStatus.ToString());
-            //traceActivity?.Stop();
-
             return isCompleted || continuedAsNew || isInterrupted;
         }
 
@@ -807,6 +804,7 @@ namespace DurableTask.Core
                 }
             }
 
+            DistributedTraceContextCorrelation.Current?.SetTag("dt.runtimestatus", runtimeState.OrchestrationStatus.ToString());
             DistributedTraceContextCorrelation.Current?.Stop();
             DistributedTraceContextCorrelation.Current = null;
 

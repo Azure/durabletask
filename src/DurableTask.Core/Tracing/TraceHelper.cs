@@ -76,13 +76,6 @@ namespace DurableTask.Core.Tracing
                 return DistributedTraceContextCorrelation.Current;
             }
 
-            /*
-            if (startEvent.executionActivity != null)
-            {
-                return startEvent.executionActivity;
-            }
-            */
-
             Activity? activity = ActivityTraceSource.StartActivity(
                 name: startEvent.Name,
                 kind: ActivityKind.Internal,
@@ -94,7 +87,6 @@ namespace DurableTask.Core.Tracing
                     new("dt.executionid", startEvent.OrchestrationInstance.ExecutionId),
                 });
 
-            //startEvent.executionActivity = activity;
             DistributedTraceContextCorrelation.Current = activity;
 
             return activity;
