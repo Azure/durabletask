@@ -71,7 +71,19 @@ namespace DurableTask.Core.Tracing
                 return null;
             }
 
-            return ActivityTraceSource.StartActivity(
+            if (DistributedTraceContextCorrelation.Current != null)
+            {
+                return DistributedTraceContextCorrelation.Current;
+            }
+
+            /*
+            if (startEvent.executionActivity != null)
+            {
+                return startEvent.executionActivity;
+            }
+            */
+
+            Activity? activity = ActivityTraceSource.StartActivity(
                 name: startEvent.Name,
                 kind: ActivityKind.Internal,
                 parentContext: activityContext,
@@ -81,6 +93,11 @@ namespace DurableTask.Core.Tracing
                     new("dt.instanceid", startEvent.OrchestrationInstance.InstanceId),
                     new("dt.executionid", startEvent.OrchestrationInstance.ExecutionId),
                 });
+
+            //startEvent.executionActivity = activity;
+            DistributedTraceContextCorrelation.Current = activity;
+
+            return activity;
         }
 
         /// <summary>

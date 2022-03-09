@@ -91,10 +91,16 @@ namespace DurableTask.Core.History
         public string Correlation { get; set; }
 
         /// <summary>
-        /// The W3C trace context associated with this event.
+        /// The W3C trace context associated with this event's parent.
         /// </summary>
         [DataMember]
         public DistributedTraceContext ParentTraceContext { get; set; }
+
+        /// <summary>
+        /// The W3C trace context associated with this event.
+        /// </summary>
+        [DataMember]
+        public Activity executionActivity { get; set; }
 
         /// <summary>
         /// Gets or sets date to start the orchestration
