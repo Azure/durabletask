@@ -305,7 +305,7 @@ namespace DurableTask.Core
             ExecutionStartedEvent startEvent =
                 runtimeState.ExecutionStartedEvent ??
                 workItem.NewMessages.Select(msg => msg.Event).OfType<ExecutionStartedEvent>().FirstOrDefault();
-            using Activity traceActivity = TraceHelper.StartTraceActivityForExecution(startEvent);
+            Activity traceActivity = TraceHelper.StartTraceActivityForExecution(startEvent);
 
             OrchestrationState instanceState = null;
 
@@ -804,6 +804,8 @@ namespace DurableTask.Core
                 }
             }
 
+            Console.WriteLine("Status: ");
+            Console.WriteLine(runtimeState.OrchestrationStatus.ToString());
             DistributedTraceContextCorrelation.Current?.SetTag("dt.runtimestatus", runtimeState.OrchestrationStatus.ToString());
             DistributedTraceContextCorrelation.Current?.Stop();
             DistributedTraceContextCorrelation.Current = null;
