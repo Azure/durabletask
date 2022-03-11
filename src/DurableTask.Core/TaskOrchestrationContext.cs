@@ -46,7 +46,7 @@ namespace DurableTask.Core
             Utils.UnusedParameter(taskScheduler);
 
             this.openTasks = new Dictionary<int, OpenTaskInfo>();
-            this.orchestratorActionsMap = new Dictionary<int, OrchestratorAction>();
+            this.orchestratorActionsMap = new SortedDictionary<int, OrchestratorAction>();
             this.idCounter = 0;
             this.MessageDataConverter = new JsonDataConverter();
             this.ErrorDataConverter = new JsonDataConverter();
