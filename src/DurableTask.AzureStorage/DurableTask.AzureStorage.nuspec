@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+Copyright (c) Microsoft. All rights reserved.
+Licensed under the MIT license. See LICENSE file in the project root for full license information.
+-->
+<package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
+  <metadata>
+    <id>DurableTask.AzureStorage</id>
+    <!-- Needed to specify the version here for the nuspec to be valid -->
+    <version>$version$</version>
+    <title>Azure Storage provider extension for the Durable Task Framework.</title>
+    <authors>Microsoft</authors>
+    <owners>Microsoft</owners>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <license type="expression">MIT</license>
+    <projectUrl>https://github.com/Azure/azure-functions-durable-extension</projectUrl>
+    <description>AAzure Task Durable Orchestration Workflow Activity Reliable AzureStorage</description>
+    <copyright>© Microsoft Corporation. All rights reserved.</copyright>
+    <dependencies>
+      <group targetFramework=".NETFramework4.6.1" />
+      <group targetFramework=".NETStandard2.0" />
+    </dependencies>
+  </metadata>
+  <files>
+    <file src=".\bin\$configuration$\net461\publish\**" target="lib/net461"/>
+    <file src=".\bin\$configuration$\netstandard2.0\publish\**" target="lib/netstandard2.0"/>
+    <file src="..\..\_manifest\**" target="content/SBOM"/>
+  </files>
+</package>

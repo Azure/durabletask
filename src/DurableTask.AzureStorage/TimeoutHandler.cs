@@ -29,8 +29,11 @@ namespace DurableTask.AzureStorage
         private const int MaxNumberOfTimeoutsBeforeRecycle = 5;
 
         private static readonly TimeSpan DefaultTimeout = TimeSpan.FromMinutes(2);
+        private static readonly TimeSpan DefaultTimeoutCooldown = TimeSpan.FromMinutes(5);
 
         private static int NumTimeoutsHit = 0;
+
+        private static DateTime LastTimeoutHit = DateTime.MinValue;
 
         /// <summary>
         /// Process kill action. This is exposed here to allow override from tests.
@@ -67,7 +70,20 @@ namespace DurableTask.AzureStorage
 
                     if (Equals(timeoutTask, completedTask))
                     {
-                        NumTimeoutsHit++;
+                        // If more less than DefaultTimeoutCooldown passed, increase timeouts count
+                        // otherwise, reset the count to 1, since this is the first timeout we receive
+                        // after a long (enough) while
+                        if (LastTimeoutHit + DefaultTimeoutCooldown > DateTime.UtcNow)
+                        {
+                            NumTimeoutsHit++;
+                        }
+                        else
+                        {
+                            NumTimeoutsHit = 1;
+                        }
+
+                        LastTimeoutHit = DateTime.UtcNow;
+
                         string taskHubName = settings?.TaskHubName;
                         if (NumTimeoutsHit < MaxNumberOfTimeoutsBeforeRecycle)
                         {

@@ -41,4 +41,9 @@
   <ItemGroup>
     <ProjectReference Include="..\DurableTask.Core\DurableTask.Core.csproj" />
   </ItemGroup>
+
+  <PropertyGroup Condition="'$(Configuration)'=='Release'">
+    <NuspecFile>DurableTask.AzureStorage.nuspec</NuspecFile>
+    <NuspecProperties>configuration=$(Configuration);targetFramework=$(TargetFramework);version=$(Version)</NuspecProperties>
+  </PropertyGroup>
 </Project>

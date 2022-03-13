@@ -34,5 +34,10 @@
     <PackageReference Include="System.Reactive.Core" Version="4.4.1" />
     <PackageReference Include="System.Reactive.Compatibility" Version="4.4.1" />
   </ItemGroup>
+   
+   <PropertyGroup Condition="'$(Configuration)'=='Release'">
+    <NuspecFile>DurableTask.Core.nuspec</NuspecFile>
+    <NuspecProperties>configuration=$(Configuration);targetFramework=$(TargetFramework);version=$(Version)</NuspecProperties>
+  </PropertyGroup>
   
 </Project>
