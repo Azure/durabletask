@@ -562,12 +562,6 @@ namespace DurableTask.Core
                 instanceState.Status = runtimeState.Status;
             }
 
-            // Add the runtime status to the trace context so that listeners can know
-            // whether the orchestration is still running. Also, stop the activity here so
-            // that we don't include the time required to persist the side effects.
-            //traceActivity?.SetTag("dt.runtimestatus", runtimeState.OrchestrationStatus.ToString());
-            //traceActivity?.Stop();
-
             await this.orchestrationService.CompleteTaskOrchestrationWorkItemAsync(
                 workItem,
                 runtimeState,
@@ -746,9 +740,6 @@ namespace DurableTask.Core
                 runtimeState.OrchestrationInstance,
                 () => Utils.EscapeJson(DataConverter.Serialize(runtimeState.GetOrchestrationRuntimeStateDump(), true)));
 
-            //DistributedTraceContextCorrelation.Current?.Stop();
-            //DistributedTraceContextCorrelation.Current = null;
-
             // Check to see if we need to start a new execution
             if (completeOrchestratorAction.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew)
             {
@@ -804,11 +795,9 @@ namespace DurableTask.Core
                 }
             }
 
-            Console.WriteLine("Status: ");
-            Console.WriteLine(runtimeState.OrchestrationStatus.ToString());
-            DistributedTraceContextCorrelation.Current?.SetTag("dt.runtimestatus", runtimeState.OrchestrationStatus.ToString());
-            DistributedTraceContextCorrelation.Current?.Stop();
-            DistributedTraceContextCorrelation.Current = null;
+            DistributedTraceActivity.Current?.SetTag("dt.runtimestatus", runtimeState.OrchestrationStatus.ToString());
+            DistributedTraceActivity.Current?.Stop();
+            DistributedTraceActivity.Current = null;
 
             return null;
         }
