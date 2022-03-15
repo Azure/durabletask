@@ -21,7 +21,7 @@ limitations under the License.
     <authors>Microsoft</authors>
     <owners>Microsoft</owners>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
-	<license type="expression">Apache-2.0</license>
+    <license type="expression">Apache-2.0</license>
     <projectUrl>https://github.com/Azure/durabletask</projectUrl>
     <description>This package provides a C# based durable task framework for writing long running applications.</description>
     <copyright>© Microsoft Corporation. All rights reserved.</copyright>
