@@ -19,6 +19,7 @@ steps:
       src/DurableTask.AzureStorage/DurableTask.AzureStorage.sln
       src/DurableTask.Emulator/DurableTask.Emulator.csproj
       src/DurableTask.ServiceBus/DurableTask.ServiceBus.csproj
+      src/DurableTask.AzureServiceFabric/DurableTask.AzureServiceFabric.csproj
 
 # Build the filtered solution in release mode, specifying the continuous integration flag.
 - task: VSBuild@1
@@ -43,6 +44,15 @@ steps:
   displayName: 'Build (ServiceBus)'
   inputs:
     solution: 'src/DurableTask.ServiceBus/DurableTask.ServiceBus.csproj'
+    vsVersion: '16.0'
+    logFileVerbosity: minimal
+    configuration: Release
+    msbuildArgs: /p:GITHUB_RUN_NUMBER=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+
+- task: VSBuild@1
+  displayName: 'Build (AzureServiceFabric)'
+  inputs:
+    solution: 'src/DurableTask.AzureServiceFabric/DurableTask.AzureServiceFabric.csproj'
     vsVersion: '16.0'
     logFileVerbosity: minimal
     configuration: Release
@@ -120,6 +130,15 @@ steps:
     arguments: "-c Release -f netstandard2.0"
     zipAfterPublish: false
 
+- task: DotNetCoreCLI@2
+  displayName: 'dotnet publish (AzureServiceFabric net461)'
+  inputs:
+    command: 'publish'
+    publishWebProjects: false
+    projects: 'src/DurableTask.AzureServiceFabric/DurableTask.AzureServiceFabric.csproj' 
+    arguments: "-c Release -f net461"
+    zipAfterPublish: false
+
 # Manifest Generator Task
 - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
   displayName: 'Manifest Generator '
@@ -192,6 +211,16 @@ steps:
     nobuild: true
     packDirectory: $(build.artifactStagingDirectory)
     packagesToPack: 'src/DurableTask.ServiceBus/DurableTask.ServiceBus.csproj'
+
+- task: DotNetCoreCLI@2
+  displayName: Generate nuget packages
+  inputs:
+    command: pack
+    verbosityPack: Minimal
+    configuration: Release
+    nobuild: true
+    packDirectory: $(build.artifactStagingDirectory)
+    packagesToPack: 'src/DurableTask.AzureServiceFabric/DurableTask.AzureServiceFabric.csproj'
 
 # Digitally sign all the nuget packages with the Microsoft certificate.
 # This appears to be an in-place signing job, which is convenient.
