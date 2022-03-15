@@ -21,7 +21,7 @@ limitations under the License.
     <authors>Microsoft</authors>
     <owners>Microsoft</owners>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
-	<license type="expression">Apache-2.0</license>
+    <license type="expression">Apache-2.0</license>
     <projectUrl>https://github.com/Azure/azure-functions-durable-extension</projectUrl>
     <description>AAzure Task Durable Orchestration Workflow Activity Reliable AzureStorage</description>
     <copyright>© Microsoft Corporation. All rights reserved.</copyright>
