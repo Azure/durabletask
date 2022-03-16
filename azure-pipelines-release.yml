@@ -130,15 +130,6 @@ steps:
     arguments: "-c Release -f netstandard2.0"
     zipAfterPublish: false
 
-- task: DotNetCoreCLI@2
-  displayName: 'dotnet publish (AzureServiceFabric net461)'
-  inputs:
-    command: 'publish'
-    publishWebProjects: false
-    projects: 'src/DurableTask.AzureServiceFabric/DurableTask.AzureServiceFabric.csproj' 
-    arguments: "-c Release -f net461"
-    zipAfterPublish: false
-
 # Manifest Generator Task
 - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
   displayName: 'Manifest Generator '
