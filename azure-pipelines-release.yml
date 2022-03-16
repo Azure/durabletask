@@ -213,6 +213,7 @@ steps:
     nobuild: true
     packDirectory: $(build.artifactStagingDirectory)
     packagesToPack: 'src/DurableTask.AzureServiceFabric/DurableTask.AzureServiceFabric.csproj'
+    buildProperties: 'Platform=x64'
 
 # Digitally sign all the nuget packages with the Microsoft certificate.
 # This appears to be an in-place signing job, which is convenient.
