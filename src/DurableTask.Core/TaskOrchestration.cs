@@ -98,6 +98,10 @@ namespace DurableTask.Core
             catch (Exception e) when (!Utils.IsFatal(e) && !Utils.IsExecutionAborting(e))
             {
                 string details = Utils.SerializeCause(e, DataConverter);
+
+                DistributedTraceActivity.Current?.SetTag("otel.status_code", "ERROR");
+                DistributedTraceActivity.Current?.SetTag("otel.status_description", details);
+
                 throw new OrchestrationFailureException(e.Message, details);
             }
 

@@ -46,6 +46,8 @@ namespace OpenTelemetrySample
             worker.AddTaskOrchestrations(typeof(HelloSequence));
             worker.AddTaskOrchestrations(typeof(HelloFanOut));
             worker.AddTaskActivities(typeof(SayHello));
+            worker.AddTaskOrchestrations(typeof(HelloSequenceException));
+            worker.AddTaskActivities(typeof(ThrowException));
             worker.AddTaskActivities(typeof(GetRequestResultMessageActivity));
             worker.AddTaskOrchestrations(typeof(GetRequestionDecisionOrchestration));
             worker.AddTaskOrchestrations(typeof(EventConversationOrchestration));
@@ -56,12 +58,21 @@ namespace OpenTelemetrySample
 
             // Hello Sequence
             OrchestrationInstance helloSeqInstance = await client.CreateOrchestrationInstanceAsync(
-                typeof(HelloFanOut),
-                //typeof(HelloSequence),
+                //typeof(HelloFanOut),
+                typeof(HelloSequence),
                 input: null);
             await client.WaitForOrchestrationAsync(helloSeqInstance, TimeSpan.FromMinutes(5));
 
             Console.WriteLine("Done with Hello Sequence!");
+
+            // Hello Sequence throws exception
+            OrchestrationInstance helloSeqExceptionInstance = await client.CreateOrchestrationInstanceAsync(
+                //typeof(HelloFanOut),
+                typeof(HelloSequenceException),
+                input: null);
+            await client.WaitForOrchestrationAsync(helloSeqExceptionInstance, TimeSpan.FromMinutes(5));
+
+            Console.WriteLine("Done with Hello Sequence Exception!");
 
             // External event - SendEvent
             OrchestrationInstance eventConversationInstance = await client.CreateOrchestrationInstanceAsync(typeof(EventConversationOrchestration), null);
@@ -108,6 +119,19 @@ namespace OpenTelemetrySample
             }
         }
 
+        class HelloSequenceException : TaskOrchestration<string, string>
+        {
+            public override async Task<string> RunTask(OrchestrationContext context, string input)
+            {
+                string output = "";
+                output += await context.ScheduleTask<string>(typeof(SayHello), "Tokyo") + ", ";
+                output += await context.ScheduleTask<string>(typeof(SayHello), "London") + ", ";
+                output += await context.ScheduleTask<string>(typeof(ThrowException), "This is an invalid operation.") + ", ";
+                output += await context.ScheduleTask<string>(typeof(SayHello), "Seattle");
+                return output;
+            }
+        }
+
         class HelloFanOut : TaskOrchestration<string, string>
         {
             public override async Task<string> RunTask(OrchestrationContext context, string input)
@@ -127,6 +151,14 @@ namespace OpenTelemetrySample
             {
                 Thread.Sleep(1000);
                 return $"Hello, {input}!";
+            }
+        }
+
+        class ThrowException : TaskActivity<string, string>
+        {
+            protected override string Execute(TaskContext context, string input)
+            {
+                throw new InvalidOperationException(input);
             }
         }
 
