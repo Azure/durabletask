@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
   <PropertyGroup>
@@ -11,6 +11,7 @@
     <Title>Azure Service Fabric provider extension for the Durable Task Framework.</Title>
     <Description>Orchestration message and runtime state is stored in Azure Service Fabric reliable collections.</Description>
     <Authors>Microsoft</Authors>
+    <Platforms>AnyCPU;x64</Platforms>
  </PropertyGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net461'">

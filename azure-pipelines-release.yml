@@ -56,6 +56,7 @@ steps:
     vsVersion: '16.0'
     logFileVerbosity: minimal
     configuration: Release
+    platform: x64
     msbuildArgs: /p:GITHUB_RUN_NUMBER=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
 
 - task: DotNetCoreCLI@2
