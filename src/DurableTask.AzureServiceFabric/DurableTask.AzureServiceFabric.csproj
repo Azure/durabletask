@@ -8,7 +8,10 @@
     <Version>2.3.5</Version>
     <AssemblyVersion>$(Version)</AssemblyVersion>
     <FileVersion>$(Version)</FileVersion>
-  </PropertyGroup>
+    <Title>Azure Service Fabric provider extension for the Durable Task Framework.</Title>
+    <Description>Orchestration message and runtime state is stored in Azure Service Fabric reliable collections.</Description>
+    <Authors>Microsoft</Authors>
+ </PropertyGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net461'">
     <PackageReference Include="ImpromptuInterface" Version="6.2.2" />
@@ -42,8 +45,10 @@
     <ProjectReference Include="..\DurableTask.Core\DurableTask.Core.csproj" />
   </ItemGroup>
 
-  <PropertyGroup Condition="'$(Configuration)'=='Release'">
-    <NuspecFile>DurableTask.AzureServiceFabric.nuspec</NuspecFile>
-    <NuspecProperties>configuration=$(Configuration);targetFramework=$(TargetFramework);version=$(Version)</NuspecProperties>
-  </PropertyGroup>
+  <ItemGroup Condition="'$(Configuration)'=='Release'">
+    <Content Include="..\..\_manifest\**">
+      <Pack>true</Pack>
+      <PackagePath>content/SBOM</PackagePath>
+    </Content>
+  </ItemGroup>
 </Project>
