@@ -100,7 +100,7 @@ namespace DurableTask.Core
                 string details = Utils.SerializeCause(e, DataConverter);
 
                 DistributedTraceActivity.Current?.SetTag("otel.status_code", "ERROR");
-                DistributedTraceActivity.Current?.SetTag("otel.status_description", details);
+                DistributedTraceActivity.Current?.SetTag("otel.status_description", $"{e.GetType().FullName}: {e.Message}");
 
                 throw new OrchestrationFailureException(e.Message, details);
             }

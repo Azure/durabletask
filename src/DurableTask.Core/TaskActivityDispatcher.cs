@@ -175,7 +175,7 @@ namespace DurableTask.Core
                         CorrelationTraceClient.Propagate(() => CorrelationTraceClient.TrackException(e));
 
                         traceActivity?.SetTag("otel.status_code", "ERROR");
-                        traceActivity?.SetTag("otel.status_description", e.Message + "\n" + details);
+                        traceActivity?.SetTag("otel.status_description", $"{e.InnerException?.GetType().FullName}: {e.Message}");
                     }
                     catch (Exception e) when (!Utils.IsFatal(e) && !Utils.IsExecutionAborting(e))
                     {
@@ -187,7 +187,7 @@ namespace DurableTask.Core
                         this.logHelper.TaskActivityFailure(orchestrationInstance, scheduledEvent.Name, (TaskFailedEvent)eventToRespond, e);
                         
                         traceActivity?.SetTag("otel.status_code", "ERROR");
-                        traceActivity?.SetTag("otel.status_description", e.Message + "\n" + details);
+                        traceActivity?.SetTag("otel.status_description", $"{e.InnerException?.GetType().FullName}: {e.Message}");
                     }
 
                     if (eventToRespond is TaskCompletedEvent completedEvent)
