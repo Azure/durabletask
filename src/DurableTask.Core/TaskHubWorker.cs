@@ -333,10 +333,31 @@ namespace DurableTask.Core
         /// </param>
         public TaskHubWorker AddTaskActivitiesFromInterface<T>(T activities, bool useFullyQualifiedMethodNames)
         {
-            Type @interface = typeof(T);
+            return this.AddTaskActivitiesFromInterface(typeof(T), activities, useFullyQualifiedMethodNames);
+        }
+
+        /// <summary>
+        ///     Infers and adds every method in the specified interface T on the
+        ///     passed in object as a different TaskActivity with Name set to the method name
+        ///     and version set to an empty string. Methods can then be invoked from task orchestrations
+        ///     by calling ScheduleTask(name, version) with name as the method name and string.Empty as the version.
+        /// </summary>
+        /// <param name="interface">Interface type.</param>
+        /// <param name="activities">Object that implements the <paramref name="interface"/> interface</param>
+        /// <param name="useFullyQualifiedMethodNames">
+        ///     If true, the method name translation from the interface contains
+        ///     the interface name, if false then only the method name is used
+        /// </param>
+        public TaskHubWorker AddTaskActivitiesFromInterface(Type @interface, object activities, bool useFullyQualifiedMethodNames = false)
+        {
             if (!@interface.IsInterface)
             {
                 throw new Exception("Contract can only be an interface.");
+            }
+
+            if (!@interface.IsAssignableFrom(activities.GetType()))
+            {
+                throw new ArgumentException($"{activities.GetType().FullName} does not implement {@interface.FullName}", nameof(activities));
             }
 
             foreach (MethodInfo methodInfo in @interface.GetMethods())
