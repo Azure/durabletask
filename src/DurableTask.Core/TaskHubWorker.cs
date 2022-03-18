@@ -342,6 +342,11 @@ namespace DurableTask.Core
                 throw new Exception("Contract can only be an interface.");
             }
 
+            if (!@interface.IsAssignableFrom(activities.GetType()))
+            {
+                throw new ArgumentException($"{activities.GetType().FullName} does not implement {@interface.FullName}", nameof(activities));
+            }
+
             foreach (MethodInfo methodInfo in @interface.GetMethods())
             {
                 TaskActivity taskActivity = new ReflectionBasedTaskActivity(activities, methodInfo);
