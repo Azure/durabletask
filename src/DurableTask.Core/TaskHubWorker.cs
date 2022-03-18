@@ -314,9 +314,13 @@ namespace DurableTask.Core
         /// </summary>
         /// <typeparam name="T">Interface</typeparam>
         /// <param name="activities">Object that implements this interface</param>
-        public TaskHubWorker AddTaskActivitiesFromInterface<T>(T activities)
+        /// <param name="useFullyQualifiedMethodNames">
+        ///     If true, the method name translation from the interface contains
+        ///     the interface name, if false then only the method name is used
+        /// </param>
+        public TaskHubWorker AddTaskActivitiesFromInterface<T>(T activities, bool useFullyQualifiedMethodNames = false)
         {
-            return this.AddTaskActivitiesFromInterface(activities, false);
+            return this.AddTaskActivitiesFromInterface(typeof(T), activities, useFullyQualifiedMethodNames);
         }
 
         /// <summary>
@@ -325,15 +329,14 @@ namespace DurableTask.Core
         ///     and version set to an empty string. Methods can then be invoked from task orchestrations
         ///     by calling ScheduleTask(name, version) with name as the method name and string.Empty as the version.
         /// </summary>
-        /// <typeparam name="T">Interface</typeparam>
-        /// <param name="activities">Object that implements this interface</param>
+        /// <param name="interface">Interface type.</param>
+        /// <param name="activities">Object that implements the <paramref name="interface"/> interface</param>
         /// <param name="useFullyQualifiedMethodNames">
         ///     If true, the method name translation from the interface contains
         ///     the interface name, if false then only the method name is used
         /// </param>
-        public TaskHubWorker AddTaskActivitiesFromInterface<T>(T activities, bool useFullyQualifiedMethodNames)
+        public TaskHubWorker AddTaskActivitiesFromInterface(Type @interface, object activities, bool useFullyQualifiedMethodNames = false)
         {
-            Type @interface = typeof(T);
             if (!@interface.IsInterface)
             {
                 throw new Exception("Contract can only be an interface.");
