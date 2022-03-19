@@ -730,7 +730,8 @@ namespace DurableTask.Core
             {
                 executionCompletedEvent = new ExecutionCompletedEvent(completeOrchestratorAction.Id,
                     completeOrchestratorAction.Result,
-                    completeOrchestratorAction.OrchestrationStatus);
+                    completeOrchestratorAction.OrchestrationStatus,
+                    completeOrchestratorAction.FailureDetails);
             }
 
             runtimeState.AddEvent(executionCompletedEvent);

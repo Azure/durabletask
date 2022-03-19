@@ -70,15 +70,17 @@ namespace DurableTask.Core.Tests
                 // The failure details should contain the relevant exception metadata
                 FailureDetails details = JsonConvert.DeserializeObject<FailureDetails>(state.Output);
                 Assert.IsNotNull(details);
-                Assert.AreEqual(typeof(InvalidOperationException).FullName, details.ErrorName);
+                Assert.AreEqual(typeof(InvalidOperationException).FullName, details.ErrorType);
+                Assert.IsTrue(details.IsCausedBy<InvalidOperationException>());
+                Assert.IsTrue(details.IsCausedBy<Exception>()); // check that base types work too
                 Assert.AreEqual("This is a test exception", details.ErrorMessage);
-                Assert.IsNotNull(details.ErrorDetails);
+                Assert.IsNotNull(details.StackTrace);
 
                 // The callstack should be in the error details
                 string expectedCallstackSubstring = typeof(ThrowInvalidOperationException).FullName!.Replace('+', '.');
                 Assert.IsTrue(
-                    details.ErrorDetails!.IndexOf(expectedCallstackSubstring) > 0,
-                    $"Expected to find {expectedCallstackSubstring} in the exception details. Actual: {details.ErrorDetails}");
+                    details.StackTrace!.IndexOf(expectedCallstackSubstring) > 0,
+                    $"Expected to find {expectedCallstackSubstring} in the exception details. Actual: {details.StackTrace}");
             }
             else
             {
@@ -106,6 +108,44 @@ namespace DurableTask.Core.Tests
             // The orchestration is written in such a way that there should be only one call into the retry policy
             int retryPolicyInvokedCount = JsonConvert.DeserializeObject<int>(state.Output);
             Assert.AreEqual(1, retryPolicyInvokedCount);
+        }
+
+        [DataTestMethod]
+        [DataRow(ErrorPropagationMode.SerializeExceptions)]
+        [DataRow(ErrorPropagationMode.UseFailureDetails)]
+        public async Task FailureDetailsOnUnhandled(ErrorPropagationMode mode)
+        {
+            // The error propagation mode must be set before the worker is started
+            this.worker.ErrorPropagationMode = mode;
+
+            await this.worker
+                .AddTaskOrchestrations(typeof(NoExceptionHandlingOrchestration))
+                .AddTaskActivities(typeof(ThrowInvalidOperationException))
+                .StartAsync();
+
+            OrchestrationInstance instance = await this.client.CreateOrchestrationInstanceAsync(
+                typeof(NoExceptionHandlingOrchestration),
+                input: null);
+            OrchestrationState state = await this.client.WaitForOrchestrationAsync(instance, DefaultTimeout);
+            Assert.IsNotNull(state);
+            Assert.AreEqual(OrchestrationStatus.Failed, state.OrchestrationStatus);
+
+            string expectedErrorMessage = "This is a test exception";
+            if (mode == ErrorPropagationMode.SerializeExceptions)
+            {
+                // Legacy behavior is to set the output of the orchestration to be the exception message
+                Assert.AreEqual(expectedErrorMessage, state.Output);
+            }
+            else if (mode == ErrorPropagationMode.UseFailureDetails)
+            {
+                string activityName = typeof(ThrowInvalidOperationException).FullName!;
+                string expectedOutput = $"{typeof(TaskFailedException).FullName}: Task '{activityName}' (#0) failed with an unhandled exception: {expectedErrorMessage}";
+                Assert.AreEqual(expectedOutput, state.Output);
+           }
+            else
+            {
+                Assert.Fail($"Unexpected {nameof(ErrorPropagationMode)} value: {mode}");
+            }
         }
 
         class ExceptionHandlingOrchestration : TaskOrchestration<object, string>
@@ -143,8 +183,11 @@ namespace DurableTask.Core.Tests
                                 // ErrorPropagationMode is set to UseFailureDetails
                                 if (e is TaskFailedException tfe &&
                                     tfe.FailureDetails != null &&
-                                    tfe.FailureDetails.ErrorName == typeof(InvalidOperationException).FullName &&
-                                    tfe.FailureDetails.ErrorMessage == "This is a test exception")
+                                    tfe.FailureDetails.ErrorType == typeof(InvalidOperationException).FullName &&
+                                    tfe.FailureDetails.ErrorMessage == "This is a test exception" &&
+                                    tfe.FailureDetails.StackTrace!.Contains(typeof(ThrowInvalidOperationException).Name) &&
+                                    tfe.FailureDetails.IsCausedBy<InvalidOperationException>() &&
+                                    tfe.FailureDetails.IsCausedBy<Exception>()) // check that base types work too
                                 {
                                     // Stop retrying
                                     return false;
@@ -160,6 +203,15 @@ namespace DurableTask.Core.Tests
                 }
 
                 return handleCount;
+            }
+        }
+
+        class NoExceptionHandlingOrchestration : TaskOrchestration<object, string>
+        {
+            public override Task<object> RunTask(OrchestrationContext context, string input)
+            {
+                // let the exception go unhandled and fail the orchestration
+                return context.ScheduleTask<object>(typeof(ThrowInvalidOperationException));
             }
         }
 

@@ -25,15 +25,21 @@ namespace DurableTask.Core
         /// <summary>
         /// Initializes a new instance of the <see cref="FailureDetails"/> class.
         /// </summary>
-        /// <param name="errorName">The name of the error, which is expected to the the namespace-qualified name of the exception type.</param>
+        /// <param name="errorType">The name of the error, which is expected to the the namespace-qualified name of the exception type.</param>
         /// <param name="errorMessage">The message associated with the error, which is expected to be the exception's <see cref="Exception.Message"/> property.</param>
-        /// <param name="errorDetails">The full details of the error, which is expected to be the output of <see cref="Exception.ToString"/>.</param>
+        /// <param name="stackTrace">The exception stack trace.</param>
+        /// <param name="innerException">The inner cause of the failure.</param>
         [JsonConstructor]
-        public FailureDetails(string errorName, string errorMessage, string? errorDetails)
+        public FailureDetails(string errorType, string errorMessage, string? stackTrace, Exception? innerException)
         {
-            this.ErrorName = errorName;
+            this.ErrorType = errorType;
             this.ErrorMessage = errorMessage;
-            this.ErrorDetails = errorDetails;
+            this.StackTrace = stackTrace;
+
+            if (innerException != null)
+            {
+                this.InnerFailure = new FailureDetails(innerException);
+            }
         }
 
         /// <summary>
@@ -41,14 +47,14 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="e">The exception used to generate the failure details.</param>
         public FailureDetails(Exception e)
-            : this(e.GetType().FullName, GetErrorMessage(e), e.ToString())
+            : this(e.GetType().FullName, GetErrorMessage(e), e.StackTrace, e.InnerException)
         {
         }
 
         /// <summary>
-        /// Gets the name of the error, which is expected to the the namespace-qualified name of the exception type.
+        /// Gets the type of the error, which is expected to the exception type's <see cref="Type.FullName"/> value.
         /// </summary>
-        public string ErrorName { get; }
+        public string ErrorType { get; }
 
         /// <summary>
         /// Gets the message associated with the error, which is expected to be the exception's <see cref="Exception.Message"/> property.
@@ -56,23 +62,44 @@ namespace DurableTask.Core
         public string ErrorMessage { get; }
 
         /// <summary>
-        /// Gets the full details of the error, which is expected to be the output of <see cref="Exception.ToString"/>.
+        /// Gets the exception stack trace.
         /// </summary>
-        public string? ErrorDetails { get; }
+        public string? StackTrace { get; }
+
+        /// <summary>
+        /// Gets the inner cause of this failure.
+        /// </summary>
+        public FailureDetails? InnerFailure { get; }
 
         /// <summary>
         /// Gets a debug-friendly description of the failure information.
         /// </summary>
         public override string ToString()
         {
-            return $"{this.ErrorName}: {this.ErrorMessage}";
+            return $"{this.ErrorType}: {this.ErrorMessage}";
+        }
+
+        /// <summary>
+        /// Returns <c>true</c> if the task failure was provided by the specified exception type.
+        /// </summary>
+        /// <remarks>
+        /// This method allows checking if a task failed due to an exception of a specific type by attempting
+        /// to load the type specified in <see cref="ErrorType"/>. If the exception type cannot be loaded
+        /// for any reason, this method will return <c>false</c>. Base types are supported.
+        /// </remarks>
+        /// <typeparam name="T">The type of exception to test against.</typeparam>
+        /// <returns>Returns <c>true</c> if the <see cref="ErrorType"/> value matches <typeparamref name="T"/>; <c>false</c> otherwise.</returns>
+        public bool IsCausedBy<T>() where T : Exception
+        {
+            Type exceptionType = Type.GetType(this.ErrorType, throwOnError: false);
+            return exceptionType != null && typeof(T).IsAssignableFrom(exceptionType);
         }
 
         static string GetErrorMessage(Exception e)
         {
             if (e is TaskFailedException tfe)
             {
-                return $"Task '{tfe.Name}' (#{tfe.ScheduleId}) failed with an unhandled exception: {tfe.InnerException?.Message}";
+                return $"Task '{tfe.Name}' (#{tfe.ScheduleId}) failed with an unhandled exception: {tfe.Message}";
             }
             else
             {

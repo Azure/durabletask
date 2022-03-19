@@ -62,8 +62,6 @@ namespace DurableTask.Core
 
         public bool HasOpenTasks => this.openTasks.Count > 0;
 
-        public ErrorPropagationMode ErrorPropagationMode { get; }
-
         internal void ClearPendingActions()
         {
             this.orchestratorActionsMap.Clear();
@@ -277,12 +275,12 @@ namespace DurableTask.Core
             }
 
             var orchestrationAction = this.orchestratorActionsMap[taskId];
-            if (!(orchestrationAction is ScheduleTaskOrchestratorAction currentReplayAction))
+            if (orchestrationAction is not ScheduleTaskOrchestratorAction currentReplayAction)
             {
                 throw new NonDeterministicOrchestrationException(scheduledEvent.EventId,
                     $"A previous execution of this orchestration scheduled an activity task with sequence number {taskId} named "
-                    + $"'{scheduledEvent.Name}', but the current orchestration replay instead scheduled a "
-                    + $"{orchestrationAction.GetType().Name} task with this sequence number. Was a change made to the "
+                    + $"'{scheduledEvent.Name}', but the current orchestration replay instead produced a "
+                    + $"{orchestrationAction.GetType().Name} action with this sequence number. Was a change made to the "
                     + "orchestrator code after this instance had already started running?");
             }
 
@@ -316,11 +314,11 @@ namespace DurableTask.Core
             }
 
             var orchestrationAction = this.orchestratorActionsMap[taskId];
-            if (!(orchestrationAction is CreateTimerOrchestratorAction))
+            if (orchestrationAction is not CreateTimerOrchestratorAction)
             {
                 throw new NonDeterministicOrchestrationException(timerCreatedEvent.EventId,
                     $"A previous execution of this orchestration scheduled a timer task with sequence number {taskId} named "
-                    + $"but the current orchestration replay instead scheduled a {orchestrationAction.GetType().Name} task with "
+                    + $"but the current orchestration replay instead produced a {orchestrationAction.GetType().Name} action with "
                     + "this sequence number. Was a change made to the orchestrator code after this instance had already "
                     + "started running?");
             }
@@ -341,13 +339,13 @@ namespace DurableTask.Core
             }
 
             var orchestrationAction = this.orchestratorActionsMap[taskId];
-            if (!(orchestrationAction is CreateSubOrchestrationAction currentReplayAction))
+            if (orchestrationAction is not CreateSubOrchestrationAction currentReplayAction)
             {
                 throw new NonDeterministicOrchestrationException(subOrchestrationCreateEvent.EventId,
                    $"A previous execution of this orchestration scheduled a sub-orchestration task with sequence ID {taskId} "
                    + $"and name '{subOrchestrationCreateEvent.Name}' (version '{subOrchestrationCreateEvent.Version}', "
                    + $"instance ID '{subOrchestrationCreateEvent.InstanceId}'), but the current orchestration replay instead "
-                   + $"scheduled a {orchestrationAction.GetType().Name} task at this sequence number. Was a change made to "
+                   + $"produced a {orchestrationAction.GetType().Name} action at this sequence number. Was a change made to "
                    + "the orchestrator code after this instance had already started running?");
             }
 
@@ -537,7 +535,11 @@ namespace DurableTask.Core
             }
 
             string reason = failure.Message;
-            string details;
+
+            // string details is legacy, FailureDetails is the newer way to share failure information
+            string details = null;
+            FailureDetails failureDetails = null;
+
             // correlation 
             CorrelationTraceClient.Propagate(
                 () =>
@@ -545,18 +547,19 @@ namespace DurableTask.Core
                     CorrelationTraceClient.TrackException(failure);
                 });
 
-            FailureDetails failureDetails = null;
             if (failure is OrchestrationFailureException orchestrationFailureException)
             {
-                details = orchestrationFailureException.Details;
+                if (this.ErrorPropagationMode == ErrorPropagationMode.UseFailureDetails)
+                {
+                    // When not serializing exceptions, we instead construct FailureDetails objects
+                    failureDetails = orchestrationFailureException.FailureDetails;
+                }
+                else
+                {
+                    details = orchestrationFailureException.Details;
+                }
             }
-            else if (this.ErrorPropagationMode == ErrorPropagationMode.UseFailureDetails)
-            {
-                // When not serializing exceptions, we instead construct FailureDetails objects
-                failureDetails = new FailureDetails(failure);
-                details = null;
-            }
-            else
+            else 
             {
                 details = $"Unhandled exception while executing orchestration: {failure}\n\t{failure.StackTrace}";
             }

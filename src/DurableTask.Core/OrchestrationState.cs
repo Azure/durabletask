@@ -114,12 +114,6 @@ namespace DurableTask.Core
         public DateTime? ScheduledStartTime { get; set; }
 
         /// <summary>
-        /// Gets or sets failure details associated with the orchestration.
-        /// </summary>
-        [DataMember]
-        public FailureDetails FailureDetails { get; set; }
-
-        /// <summary>
         /// Clear input and/or output fields. Creates a shallow copy since
         /// we do not want to modify the original copy.
         /// </summary>
@@ -144,7 +138,6 @@ namespace DurableTask.Core
                 if (clearOutput)
                 {
                     copy.Output = null;
-                    copy.FailureDetails = null;
                 }
 
                 return copy;
