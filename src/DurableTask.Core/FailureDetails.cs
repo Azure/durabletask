@@ -14,13 +14,15 @@
 namespace DurableTask.Core
 {
     using System;
+    using System.Runtime.Serialization;
     using DurableTask.Core.Exceptions;
     using Newtonsoft.Json;
 
     /// <summary>
     /// Details of an activity or orchestration failure.
     /// </summary>
-    public class FailureDetails
+    [Serializable]
+    public class FailureDetails : IEquatable<FailureDetails>
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="FailureDetails"/> class.
@@ -49,6 +51,26 @@ namespace DurableTask.Core
         public FailureDetails(Exception e)
             : this(e.GetType().FullName, GetErrorMessage(e), e.StackTrace, e.InnerException)
         {
+        }
+
+        /// <summary>
+        /// For testing purposes only: Initializes a new, empty instance of the <see cref="FailureDetails"/> class.
+        /// </summary>
+        public FailureDetails()
+        {
+            this.ErrorType = "None";
+            this.ErrorMessage = string.Empty;
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="FailureDetails"/> class from a serialization context.
+        /// </summary>
+        protected FailureDetails(SerializationInfo info, StreamingContext context)
+        {
+            this.ErrorType = info.GetString(nameof(this.ErrorType));
+            this.ErrorMessage = info.GetString(nameof(this.ErrorMessage));
+            this.StackTrace = info.GetString(nameof(this.StackTrace));
+            this.InnerFailure = (FailureDetails)info.GetValue(nameof(this.InnerFailure), typeof(FailureDetails));
         }
 
         /// <summary>
@@ -93,6 +115,34 @@ namespace DurableTask.Core
         {
             Type exceptionType = Type.GetType(this.ErrorType, throwOnError: false);
             return exceptionType != null && typeof(T).IsAssignableFrom(exceptionType);
+        }
+
+        /// <summary>
+        /// Gets whether two <see cref="FailureDetails"/> objects are equivalent using value semantics.
+        /// </summary>
+        public override bool Equals(object other) => Equals(other as FailureDetails);
+
+        /// <summary>
+        /// Gets whether two <see cref="FailureDetails"/> objects are equivalent using value semantics.
+        /// </summary>
+        public bool Equals(FailureDetails? other)
+        {
+            if (ReferenceEquals(other, null))
+            {
+                return false;
+            }
+
+            return
+                this.ErrorType == other.ErrorType &&
+                this.ErrorMessage == other.ErrorMessage &&
+                this.StackTrace == other.StackTrace &&
+                this.InnerFailure == other.InnerFailure;
+        }
+
+        /// <inheritdoc/>
+        public override int GetHashCode()
+        {
+            return (ErrorType, ErrorMessage, StackTrace, InnerFailure).GetHashCode();
         }
 
         static string GetErrorMessage(Exception e)

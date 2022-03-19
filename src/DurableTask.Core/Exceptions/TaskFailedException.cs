@@ -79,6 +79,7 @@ namespace DurableTask.Core.Exceptions
             ScheduleId = info.GetInt32(nameof(ScheduleId));
             Name = info.GetString(nameof(Name));
             Version = info.GetString(nameof(Version));
+            FailureDetails = (FailureDetails)info.GetValue(nameof(FailureDetails), typeof(FailureDetails));
         }
 
         /// <inheritdoc />
@@ -88,6 +89,7 @@ namespace DurableTask.Core.Exceptions
             info.AddValue(nameof(ScheduleId), ScheduleId);
             info.AddValue(nameof(Name), Name);
             info.AddValue(nameof(Version), Version);
+            info.AddValue(nameof(FailureDetails), FailureDetails);
         }
 
         /// <summary>
@@ -105,7 +107,6 @@ namespace DurableTask.Core.Exceptions
         /// </summary>
         public string Version { get; set; }
 
-        // NOTE: Intentionally not serialized
         /// <summary>
         /// Additional details about the failure. May be <c>null</c> if the failure details collection is not enabled.
         /// </summary>
