@@ -448,6 +448,7 @@ namespace DurableTask.Core.Common
                 Input = runtimeState.Input,
                 Output = runtimeState.Output,
                 ScheduledStartTime = runtimeState.ExecutionStartedEvent?.ScheduledStartTime,
+                FailureDetails = runtimeState.FailureDetails,
             };
         }
 

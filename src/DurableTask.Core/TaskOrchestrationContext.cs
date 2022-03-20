@@ -561,7 +561,14 @@ namespace DurableTask.Core
             }
             else 
             {
-                details = $"Unhandled exception while executing orchestration: {failure}\n\t{failure.StackTrace}";
+                if (this.ErrorPropagationMode == ErrorPropagationMode.UseFailureDetails)
+                {
+                    failureDetails = new FailureDetails(failure);
+                }
+                else
+                {
+                    details = $"Unhandled exception while executing orchestration: {failure}\n\t{failure.StackTrace}";
+                }
             }
 
             CompleteOrchestration(reason, details, OrchestrationStatus.Failed, failureDetails);

@@ -30,18 +30,14 @@ namespace DurableTask.Core
         /// <param name="errorType">The name of the error, which is expected to the the namespace-qualified name of the exception type.</param>
         /// <param name="errorMessage">The message associated with the error, which is expected to be the exception's <see cref="Exception.Message"/> property.</param>
         /// <param name="stackTrace">The exception stack trace.</param>
-        /// <param name="innerException">The inner cause of the failure.</param>
+        /// <param name="innerFailure">The inner cause of the failure.</param>
         [JsonConstructor]
-        public FailureDetails(string errorType, string errorMessage, string? stackTrace, Exception? innerException)
+        public FailureDetails(string errorType, string errorMessage, string? stackTrace, FailureDetails? innerFailure)
         {
             this.ErrorType = errorType;
             this.ErrorMessage = errorMessage;
             this.StackTrace = stackTrace;
-
-            if (innerException != null)
-            {
-                this.InnerFailure = new FailureDetails(innerException);
-            }
+            this.InnerFailure = innerFailure;
         }
 
         /// <summary>
@@ -49,7 +45,7 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="e">The exception used to generate the failure details.</param>
         public FailureDetails(Exception e)
-            : this(e.GetType().FullName, GetErrorMessage(e), e.StackTrace, e.InnerException)
+            : this(e.GetType().FullName, GetErrorMessage(e), e.StackTrace, FromException(e.InnerException))
         {
         }
 
@@ -155,6 +151,11 @@ namespace DurableTask.Core
             {
                 return e.Message;
             }
+        }
+
+        static FailureDetails? FromException(Exception? e)
+        {
+            return e == null ? null : new FailureDetails(e);
         }
     }
 }
