@@ -18,6 +18,7 @@ namespace DurableTask.Core.Tracing
     using System.Diagnostics;
     using System.Globalization;
     using System.Runtime.ExceptionServices;
+    using System.Reflection;
     using DurableTask.Core.Common;
     using DurableTask.Core.History;
 
@@ -28,8 +29,17 @@ namespace DurableTask.Core.Tracing
     {
         const string Source = "DurableTask";
 
-        // TODO: Add tracing for external event send, which could be used to initialize an entity
         static readonly ActivitySource ActivityTraceSource = new ActivitySource(Source);
+
+        private static readonly Action<Activity, string> s_spanIdSet;
+        private static readonly Action<Activity, string> s_idSet;
+
+        static TraceHelper()
+        {
+            BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance;
+            s_idSet = typeof(Activity).GetField("_id", flags).CreateSetter<Activity, string>();
+            s_spanIdSet = typeof(Activity).GetField("_spanId", flags).CreateSetter<Activity, string>();
+        }
 
         internal static Activity? CreateActivityForNewOrchestration(ExecutionStartedEvent startEvent)
         {
@@ -71,25 +81,54 @@ namespace DurableTask.Core.Tracing
                 return null;
             }
 
-            if (DistributedTraceActivity.Current != null)
+            if (string.IsNullOrEmpty(startEvent.SerializedActivity))
             {
-                return DistributedTraceActivity.Current;
-            }
-
-            Activity? activity = ActivityTraceSource.StartActivity(
-                name: startEvent.Name,
-                kind: ActivityKind.Internal,
-                parentContext: activityContext,
-                tags: new KeyValuePair<string, object?>[]
-                {
+                DistributedTraceActivity.Current = ActivityTraceSource.StartActivity(
+                 name: startEvent.Name,
+                 kind: ActivityKind.Internal,
+                 parentContext: activityContext,
+                 tags: new KeyValuePair<string, object?>[]
+                 {
                     new("dtfx.type", "orchestrator"),
                     new("dtfx.instanceid", startEvent.OrchestrationInstance.InstanceId),
                     new("dtfx.executionid", startEvent.OrchestrationInstance.ExecutionId),
-                });
+                 });
 
-            DistributedTraceActivity.Current = activity;
+                startEvent.SerializedActivity = DistributedTraceActivity.SerializeActivity(startEvent.ParentTraceContext, DistributedTraceActivity.Current);                
+            }
+            else
+            {
+                // Restore the activity during replay
+                SerializedActivity restoredSerializedActivity = DistributedTraceActivity.Restore(startEvent.SerializedActivity);
 
-            return activity;
+                if (restoredSerializedActivity == null)
+                {
+                    return null;
+                }
+
+                Activity? activity = ActivityTraceSource.StartActivity(
+                    name: startEvent.Name,
+                    kind: ActivityKind.Internal,
+                    parentContext: activityContext,
+                    startTime: restoredSerializedActivity.StartTime,
+                    tags: new KeyValuePair<string, object?>[]
+                    {
+                    new("dtfx.type", "orchestrator"),
+                    new("dtfx.instanceid", startEvent.OrchestrationInstance.InstanceId),
+                    new("dtfx.executionid", startEvent.OrchestrationInstance.ExecutionId),
+                    });
+
+                if (activity != null)
+                {
+                    s_idSet(activity, restoredSerializedActivity.Id);
+                    s_spanIdSet(activity, restoredSerializedActivity.SpanId);
+                }
+
+                DistributedTraceActivity.Current = activity;
+            }
+
+            return DistributedTraceActivity.Current;
+
         }
 
         /// <summary>

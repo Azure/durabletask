@@ -91,6 +91,12 @@ namespace DurableTask.Core.History
         public string Correlation { get; set; }
 
         /// <summary>
+        /// Gets or sets the serialized end-to-end trace activity.
+        /// </summary>
+        [DataMember]
+        public string SerializedActivity { get; set; }
+
+        /// <summary>
         /// The W3C trace context associated with this event.
         /// </summary>
         [DataMember]
@@ -123,7 +129,7 @@ namespace DurableTask.Core.History
         internal void SetParentTraceContext(Activity traceActivity)
         {
             if (traceActivity != null)
-            {
+            {                
                 this.ParentTraceContext = new DistributedTraceContext(
                     traceActivity.Id,
                     traceActivity.TraceStateString);
