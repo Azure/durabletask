@@ -475,9 +475,12 @@ namespace DurableTask.Core
                 Exception cause = this.ErrorPropagationMode == ErrorPropagationMode.SerializeExceptions ?
                     Utils.RetrieveCause(failedEvent.Details, this.ErrorDataConverter) :
                     null;
+
                 var failedException = new SubOrchestrationFailedException(failedEvent.EventId, taskId, info.Name,
                     info.Version,
                     failedEvent.Reason, cause);
+                failedException.FailureDetails = failedEvent.FailureDetails;
+
                 TaskCompletionSource<string> tcs = info.Result;
                 tcs.SetException(failedException);
 

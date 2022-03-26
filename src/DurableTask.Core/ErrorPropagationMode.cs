@@ -28,7 +28,7 @@ namespace DurableTask.Core
         SerializeExceptions = 0,
 
         /// <summary>
-        /// Details of unhandled exceptions are surfaced via the <see cref="TaskFailedException.FailureDetails"/> property.
+        /// Details of unhandled exceptions are surfaced via the <see cref="OrchestrationException.FailureDetails"/> property.
         /// The original exception objects are not serialized and deserialized across tasks. This option is preferred
         /// when consistency is required or in advanced scenarios where orchestration or activity code are executed
         /// out of process, potentially in other language runtimes that don't support .NET/CLR exceptions.

@@ -28,14 +28,21 @@ namespace DurableTask.Core.History
         /// <param name="taskScheduledId">The scheduled parent instance event id</param>
         /// <param name="reason">The sub orchestration failure reason</param>
         /// <param name="details">Details of the sub orchestration failure</param>
-        public SubOrchestrationInstanceFailedEvent(int eventId, int taskScheduledId, string? reason, string? details)
+        /// <param name="failureDetails">Structured details of the sub orchestration failure.</param>
+        public SubOrchestrationInstanceFailedEvent(int eventId, int taskScheduledId, string? reason, string? details, FailureDetails? failureDetails)
             : base(eventId)
         {
             TaskScheduledId = taskScheduledId;
             Reason = reason;
             Details = details;
+            FailureDetails = failureDetails;
         }
 
+        /// <inheritdoc cref="SubOrchestrationInstanceFailedEvent(int, int, string?, string?, FailureDetails?)"/>
+        public SubOrchestrationInstanceFailedEvent(int eventId, int taskScheduledId, string? reason, string? details)
+            : this(eventId, taskScheduledId, reason, details, null)
+        {
+        }
 
         // Needed for deserialization
         private SubOrchestrationInstanceFailedEvent()

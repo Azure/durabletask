@@ -109,7 +109,7 @@ namespace DurableTask.Core
         /// <returns>Returns <c>true</c> if the <see cref="ErrorType"/> value matches <typeparamref name="T"/>; <c>false</c> otherwise.</returns>
         public bool IsCausedBy<T>() where T : Exception
         {
-            Type exceptionType = Type.GetType(this.ErrorType, throwOnError: false);
+            Type? exceptionType = Type.GetType(this.ErrorType, throwOnError: false);
             return exceptionType != null && typeof(T).IsAssignableFrom(exceptionType);
         }
 
