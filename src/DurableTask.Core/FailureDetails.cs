@@ -31,13 +31,15 @@ namespace DurableTask.Core
         /// <param name="errorMessage">The message associated with the error, which is expected to be the exception's <see cref="Exception.Message"/> property.</param>
         /// <param name="stackTrace">The exception stack trace.</param>
         /// <param name="innerFailure">The inner cause of the failure.</param>
+        /// <param name="isNonRetriable">Whether the failure is non-retriable.</param>
         [JsonConstructor]
-        public FailureDetails(string errorType, string errorMessage, string? stackTrace, FailureDetails? innerFailure)
+        public FailureDetails(string errorType, string errorMessage, string? stackTrace, FailureDetails? innerFailure, bool isNonRetriable)
         {
             this.ErrorType = errorType;
             this.ErrorMessage = errorMessage;
             this.StackTrace = stackTrace;
             this.InnerFailure = innerFailure;
+            this.IsNonRetriable = isNonRetriable;
         }
 
         /// <summary>
@@ -45,7 +47,7 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="e">The exception used to generate the failure details.</param>
         public FailureDetails(Exception e)
-            : this(e.GetType().FullName, GetErrorMessage(e), e.StackTrace, FromException(e.InnerException))
+            : this(e.GetType().FullName, GetErrorMessage(e), e.StackTrace, FromException(e.InnerException), false)
         {
         }
 
@@ -88,6 +90,11 @@ namespace DurableTask.Core
         /// Gets the inner cause of this failure.
         /// </summary>
         public FailureDetails? InnerFailure { get; }
+
+        /// <summary>
+        /// Gets a value indicating whether this failure is non-retriable, meaning it should not be retried.
+        /// </summary>
+        public bool IsNonRetriable { get; }
 
         /// <summary>
         /// Gets a debug-friendly description of the failure information.

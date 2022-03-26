@@ -18,6 +18,7 @@ namespace DurableTask.Core
     using System.Runtime.ExceptionServices;
     using System.Threading.Tasks;
     using DurableTask.Core.Common;
+    using DurableTask.Core.Exceptions;
     using DurableTask.Core.Tracing;
 
     /// <summary>
@@ -61,6 +62,11 @@ namespace DurableTask.Core
                 }
                 catch (Exception e) when (!Utils.IsFatal(e))
                 {
+                    if (e is OrchestrationException oe && oe.FailureDetails?.IsNonRetriable == true)
+                    {
+                        throw;
+                    }
+
                     lastException = e;
                 }
 
