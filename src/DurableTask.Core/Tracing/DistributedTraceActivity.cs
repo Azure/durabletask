@@ -45,7 +45,7 @@ namespace DurableTask.Core
         /// <summary>
         /// Serialize the orchestration Activity
         /// </summary>
-        public static string SerializeActivity(DistributedTraceContext distributedTraceContext, Activity activity)
+        internal static string SerializeActivity(DistributedTraceContext distributedTraceContext, Activity activity)
         {
             SerializedActivity serializedActivity = new SerializedActivity();
             serializedActivity.DistributedTraceContext = distributedTraceContext;
@@ -60,7 +60,7 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="json">Serialized Activity json</param>
         /// <returns></returns>
-        public static SerializedActivity Restore(string json)
+        internal static SerializedActivity Restore(string json)
         {
             // If the JSON is empty, we assume to have an empty context
             if (string.IsNullOrEmpty(json))
@@ -78,7 +78,7 @@ namespace DurableTask.Core
     /// <summary>
     /// Manage serialized Activity
     /// </summary>
-    public class SerializedActivity
+    internal class SerializedActivity
     {
         /// <summary>
         /// DistributedTraceContext which stores the traceparent and tracestate
