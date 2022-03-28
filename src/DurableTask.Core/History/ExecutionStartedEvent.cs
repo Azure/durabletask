@@ -129,7 +129,7 @@ namespace DurableTask.Core.History
         internal void SetParentTraceContext(Activity traceActivity)
         {
             if (traceActivity != null)
-            {                
+            {
                 this.ParentTraceContext = new DistributedTraceContext(
                     traceActivity.Id,
                     traceActivity.TraceStateString);

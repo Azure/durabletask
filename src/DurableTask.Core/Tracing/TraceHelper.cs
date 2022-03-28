@@ -113,9 +113,9 @@ namespace DurableTask.Core.Tracing
                     startTime: restoredSerializedActivity.StartTime,
                     tags: new KeyValuePair<string, object?>[]
                     {
-                    new("dtfx.type", "orchestrator"),
-                    new("dtfx.instanceid", startEvent.OrchestrationInstance.InstanceId),
-                    new("dtfx.executionid", startEvent.OrchestrationInstance.ExecutionId),
+                        new("dtfx.type", "orchestrator"),
+                        new("dtfx.instanceid", startEvent.OrchestrationInstance.InstanceId),
+                        new("dtfx.executionid", startEvent.OrchestrationInstance.ExecutionId),
                     });
 
                 if (activity != null)

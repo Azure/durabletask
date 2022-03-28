@@ -24,28 +24,22 @@ namespace DurableTask.Core
     /// </summary>
     public class DistributedTraceActivity
     {
-        static AsyncLocal<Activity> current = new AsyncLocal<Activity>();
+        private static AsyncLocal<Activity> CurrentActivity = new AsyncLocal<Activity>();
 
-        static DistributedTraceActivity()
+        private static JsonSerializerSettings CustomJsonSerializerSettings = new JsonSerializerSettings()
         {
-            CustomJsonSerializerSettings = new JsonSerializerSettings()
-            {
-                TypeNameHandling = TypeNameHandling.Objects,
-                PreserveReferencesHandling = PreserveReferencesHandling.Objects,
-                ReferenceLoopHandling = ReferenceLoopHandling.Serialize,
-            };
-        }
-
-        [JsonIgnore]
-        static JsonSerializerSettings CustomJsonSerializerSettings { get; }
+            TypeNameHandling = TypeNameHandling.Objects,
+            PreserveReferencesHandling = PreserveReferencesHandling.Objects,
+            ReferenceLoopHandling = ReferenceLoopHandling.Serialize,
+        };
 
         /// <summary>
         /// Share the Activity across an orchestration execution.
         /// </summary>
         public static Activity Current
         {
-            get { return current.Value; }
-            set { current.Value = value; }
+            get { return CurrentActivity.Value; }
+            set { CurrentActivity.Value = value; }
         }
 
         /// <summary>

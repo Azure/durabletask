@@ -20,7 +20,7 @@ namespace DurableTask.Core.Tracing
     /// <summary>
     /// Extensions for <see cref="FieldInfo"/>.
     /// </summary>
-    public static class FieldInfoExtensionMethods
+    internal static class FieldInfoExtensionMethods
     {
         /// <summary>
         /// Create a re-usable setter for a <see cref="FieldInfo"/>.
@@ -30,7 +30,7 @@ namespace DurableTask.Core.Tracing
         /// <typeparam name="TValue">The value type of the field.</typeparam>
         /// <param name="fieldInfo">The field info.</param>
         /// <returns>A re-usable action to set the field.</returns>
-        public static Action<TTarget, TValue> CreateSetter<TTarget, TValue>(this FieldInfo fieldInfo)
+        internal static Action<TTarget, TValue> CreateSetter<TTarget, TValue>(this FieldInfo fieldInfo)
         {
             if (fieldInfo == null)
             {
