@@ -49,7 +49,6 @@ namespace DurableTask.Core
         {
             SerializedActivity serializedActivity = new SerializedActivity();
             serializedActivity.DistributedTraceContext = distributedTraceContext;
-            serializedActivity.Id = activity.Id;
             serializedActivity.SpanId = activity.SpanId.ToString();
             serializedActivity.StartTime = activity.StartTimeUtc;
             return JsonConvert.SerializeObject(serializedActivity, CustomJsonSerializerSettings);
@@ -84,11 +83,6 @@ namespace DurableTask.Core
         /// DistributedTraceContext which stores the traceparent and tracestate
         /// </summary>
         public DistributedTraceContext DistributedTraceContext { get; set; }
-
-        /// <summary>
-        /// Stores the Id for the orchestration Activity.
-        /// </summary>
-        public string Id { get; set; }
 
         /// <summary>
         /// Stores the SpanId for the orchestration Activity.

@@ -32,12 +32,10 @@ namespace DurableTask.Core.Tracing
         static readonly ActivitySource ActivityTraceSource = new ActivitySource(Source);
 
         private static readonly Action<Activity, string> s_spanIdSet;
-        private static readonly Action<Activity, string> s_idSet;
 
         static TraceHelper()
         {
             BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance;
-            s_idSet = typeof(Activity).GetField("_id", flags).CreateSetter<Activity, string>();
             s_spanIdSet = typeof(Activity).GetField("_spanId", flags).CreateSetter<Activity, string>();
         }
 
@@ -120,7 +118,6 @@ namespace DurableTask.Core.Tracing
 
                 if (activity != null)
                 {
-                    s_idSet(activity, restoredSerializedActivity.Id);
                     s_spanIdSet(activity, restoredSerializedActivity.SpanId);
                 }
 
