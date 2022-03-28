@@ -26,7 +26,7 @@ namespace DurableTask.Core
     {
         private static AsyncLocal<Activity> CurrentActivity = new AsyncLocal<Activity>();
 
-        private static JsonSerializerSettings CustomJsonSerializerSettings = new JsonSerializerSettings()
+        private static readonly JsonSerializerSettings CustomJsonSerializerSettings = new JsonSerializerSettings()
         {
             TypeNameHandling = TypeNameHandling.Objects,
             PreserveReferencesHandling = PreserveReferencesHandling.Objects,
