@@ -124,6 +124,7 @@ namespace DurableTask.Core.Tracing
                 DistributedTraceActivity.Current = activity;
             }
 
+            Activity.Current = DistributedTraceActivity.Current;
             return DistributedTraceActivity.Current;
 
         }
