@@ -48,8 +48,8 @@ namespace DurableTask.Core.Tracing
                 tags: new KeyValuePair<string, object?>[]
                 {
                     new("dtfx.type", "client"),
-                    new("dtfx.instanceid", startEvent.OrchestrationInstance.InstanceId),
-                    new("dtfx.executionid", startEvent.OrchestrationInstance.ExecutionId),
+                    new("dtfx.instance_id", startEvent.OrchestrationInstance.InstanceId),
+                    new("dtfx.execution_id", startEvent.OrchestrationInstance.ExecutionId),
                 });
 
             if (newActivity != null)
@@ -88,8 +88,8 @@ namespace DurableTask.Core.Tracing
                  tags: new KeyValuePair<string, object?>[]
                  {
                     new("dtfx.type", "orchestrator"),
-                    new("dtfx.instanceid", startEvent.OrchestrationInstance.InstanceId),
-                    new("dtfx.executionid", startEvent.OrchestrationInstance.ExecutionId),
+                    new("dtfx.instance_id", startEvent.OrchestrationInstance.InstanceId),
+                    new("dtfx.execution_id", startEvent.OrchestrationInstance.ExecutionId),
                  });
 
                 startEvent.SerializedActivity = DistributedTraceActivity.SerializeActivity(startEvent.ParentTraceContext, DistributedTraceActivity.Current);                
@@ -112,8 +112,8 @@ namespace DurableTask.Core.Tracing
                     tags: new KeyValuePair<string, object?>[]
                     {
                         new("dtfx.type", "orchestrator"),
-                        new("dtfx.instanceid", startEvent.OrchestrationInstance.InstanceId),
-                        new("dtfx.executionid", startEvent.OrchestrationInstance.ExecutionId),
+                        new("dtfx.instance_id", startEvent.OrchestrationInstance.InstanceId),
+                        new("dtfx.execution_id", startEvent.OrchestrationInstance.ExecutionId),
                     });
 
                 if (activity != null)
@@ -152,9 +152,9 @@ namespace DurableTask.Core.Tracing
                 tags: new KeyValuePair<string, object?>[]
                 {
                     new("dtfx.type", "activity"),
-                    new("dtfx.instanceid", instance.InstanceId),
-                    new("dtfx.executionid", instance.ExecutionId),
-                    new("dtfx.taskid", scheduledEvent.EventId),
+                    new("dtfx.instance_id", instance.InstanceId),
+                    new("dtfx.execution_id", instance.ExecutionId),
+                    new("dtfx.task_id", scheduledEvent.EventId),
                 });
         }
 
@@ -167,8 +167,8 @@ namespace DurableTask.Core.Tracing
                 tags: new KeyValuePair<string, object?>[]
                 {
                     new("dtfx.type", "externalevent"),
-                    new("dtfx.instanceid", instance.InstanceId),
-                    new("dtfx.executionid", instance.ExecutionId),
+                    new("dtfx.instance_id", instance.InstanceId),
+                    new("dtfx.execution_id", instance.ExecutionId),
                 });
 
             return newActivity;
@@ -198,8 +198,8 @@ namespace DurableTask.Core.Tracing
                 tags: new KeyValuePair<string, object?>[]
                 {
                     new("dtfx.type", "externalevent"),
-                    new("dtfx.instanceid", instance.InstanceId),
-                    new("dtfx.executionid", instance.ExecutionId)
+                    new("dtfx.instance_id", instance.InstanceId),
+                    new("dtfx.execution_id", instance.ExecutionId)
                 });
         }
 
