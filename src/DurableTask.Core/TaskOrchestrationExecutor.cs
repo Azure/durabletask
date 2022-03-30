@@ -42,11 +42,18 @@ namespace DurableTask.Core
         /// <param name="orchestrationRuntimeState"></param>
         /// <param name="taskOrchestration"></param>
         /// <param name="eventBehaviourForContinueAsNew"></param>
-        public TaskOrchestrationExecutor(OrchestrationRuntimeState orchestrationRuntimeState,
-            TaskOrchestration taskOrchestration, BehaviorOnContinueAsNew eventBehaviourForContinueAsNew)
+        /// <param name="errorPropagationMode"></param>
+        public TaskOrchestrationExecutor(
+            OrchestrationRuntimeState orchestrationRuntimeState,
+            TaskOrchestration taskOrchestration,
+            BehaviorOnContinueAsNew eventBehaviourForContinueAsNew,
+            ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions)
         {
             this.decisionScheduler = new SynchronousTaskScheduler();
-            this.context = new TaskOrchestrationContext(orchestrationRuntimeState.OrchestrationInstance, this.decisionScheduler);
+            this.context = new TaskOrchestrationContext(
+                orchestrationRuntimeState.OrchestrationInstance,
+                this.decisionScheduler,
+                errorPropagationMode);
             this.orchestrationRuntimeState = orchestrationRuntimeState;
             this.taskOrchestration = taskOrchestration;
             this.skipCarryOverEvents = eventBehaviourForContinueAsNew == BehaviorOnContinueAsNew.Ignore;

@@ -31,5 +31,10 @@ namespace DurableTask.Core
         /// Gets the OrchestrationInstance for this task context
         /// </summary>
         public OrchestrationInstance OrchestrationInstance { get; private set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating how to propagate unhandled exception metadata.
+        /// </summary>
+        internal ErrorPropagationMode ErrorPropagationMode { get; set; }
     }
 }

@@ -97,8 +97,21 @@ namespace DurableTask.Core
             }
             catch (Exception e) when (!Utils.IsFatal(e) && !Utils.IsExecutionAborting(e))
             {
-                string details = Utils.SerializeCause(e, DataConverter);
-                throw new OrchestrationFailureException(e.Message, details);
+                string details = null;
+                FailureDetails failureDetails = null;
+                if (context.ErrorPropagationMode == ErrorPropagationMode.SerializeExceptions)
+                {
+                    details = Utils.SerializeCause(e, DataConverter);
+                }
+                else
+                {
+                    failureDetails = new FailureDetails(e);
+                }
+
+                throw new OrchestrationFailureException(e.Message, details)
+                {
+                    FailureDetails = failureDetails,
+                };
             }
 
             return DataConverter.Serialize(result);

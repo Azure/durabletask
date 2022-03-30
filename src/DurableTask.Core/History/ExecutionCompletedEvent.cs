@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.Core.History
 {
     using System.Runtime.Serialization;
@@ -27,11 +27,13 @@ namespace DurableTask.Core.History
         /// <param name="eventId">The event integer id</param>
         /// <param name="result">The string serialized completion result</param>
         /// <param name="orchestrationStatus">The orchestration status</param>
-        public ExecutionCompletedEvent(int eventId, string result, OrchestrationStatus orchestrationStatus)
+        /// <param name="failureDetails">Structured details of the orchestration failure</param>
+        public ExecutionCompletedEvent(int eventId, string? result, OrchestrationStatus orchestrationStatus, FailureDetails? failureDetails = null)
             : base(eventId)
         {
             Result = result;
             OrchestrationStatus = orchestrationStatus;
+            FailureDetails = failureDetails;
         }
 
         /// <summary>
@@ -49,6 +51,12 @@ namespace DurableTask.Core.History
         /// Gets the serialized completion result
         /// </summary>
         [DataMember]
-        public string Result { get; private set; }
+        public string? Result { get; private set; }
+
+        /// <summary>
+        /// Gets the structured details of the task failure.
+        /// </summary>
+        [DataMember]
+        public FailureDetails? FailureDetails { get; private set; }
     }
 }

@@ -43,6 +43,11 @@ namespace DurableTask.Core.Command
         public string? Details { get; set; }
 
         /// <summary>
+        /// Gets or sets error information associated with an orchestration failure, if applicable.
+        /// </summary>
+        public FailureDetails? FailureDetails { get; set; }
+
+        /// <summary>
         /// For continue-as-new scenarios, gets the new version of the orchestrator to start.
         /// </summary>
         public string? NewVersion { get; set; }

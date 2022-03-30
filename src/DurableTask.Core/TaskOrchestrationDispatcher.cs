@@ -42,18 +42,21 @@ namespace DurableTask.Core
         readonly WorkItemDispatcher<TaskOrchestrationWorkItem> dispatcher;
         readonly DispatchMiddlewarePipeline dispatchPipeline;
         readonly LogHelper logHelper;
+        ErrorPropagationMode errorPropagationMode;
         readonly NonBlockingCountdownLock concurrentSessionLock;
 
         internal TaskOrchestrationDispatcher(
             IOrchestrationService orchestrationService,
             INameVersionObjectManager<TaskOrchestration> objectManager,
             DispatchMiddlewarePipeline dispatchPipeline,
-            LogHelper logHelper)
+            LogHelper logHelper,
+            ErrorPropagationMode errorPropagationMode)
         {
             this.objectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
             this.orchestrationService = orchestrationService ?? throw new ArgumentNullException(nameof(orchestrationService));
             this.dispatchPipeline = dispatchPipeline ?? throw new ArgumentNullException(nameof(dispatchPipeline));
             this.logHelper = logHelper ?? throw new ArgumentNullException(nameof(logHelper));
+            this.errorPropagationMode = errorPropagationMode;
 
             this.dispatcher = new WorkItemDispatcher<TaskOrchestrationWorkItem>(
                 "TaskOrchestrationDispatcher",
@@ -591,7 +594,11 @@ namespace DurableTask.Core
                         new TypeMissingException($"Orchestration not found: ({runtimeState.Name}, {runtimeState.Version})"));
                 }
 
-                executor = new TaskOrchestrationExecutor(runtimeState, taskOrchestration, this.orchestrationService.EventBehaviourForContinueAsNew);
+                executor = new TaskOrchestrationExecutor(
+                    runtimeState,
+                    taskOrchestration,
+                    this.orchestrationService.EventBehaviourForContinueAsNew,
+                    this.errorPropagationMode);
                 OrchestratorExecutionResult resultFromOrchestrator = executor.Execute();
                 dispatchContext.SetProperty(resultFromOrchestrator);
                 return CompletedTask;
@@ -723,7 +730,8 @@ namespace DurableTask.Core
             {
                 executionCompletedEvent = new ExecutionCompletedEvent(completeOrchestratorAction.Id,
                     completeOrchestratorAction.Result,
-                    completeOrchestratorAction.OrchestrationStatus);
+                    completeOrchestratorAction.OrchestrationStatus,
+                    completeOrchestratorAction.FailureDetails);
             }
 
             runtimeState.AddEvent(executionCompletedEvent);
@@ -787,6 +795,7 @@ namespace DurableTask.Core
                         new SubOrchestrationInstanceFailedEvent(-1, runtimeState.ParentInstance.TaskScheduleId,
                             completeOrchestratorAction.Result,
                             includeDetails ? completeOrchestratorAction.Details : null);
+                    subOrchestrationFailedEvent.FailureDetails = completeOrchestratorAction.FailureDetails;
 
                     taskMessage.Event = subOrchestrationFailedEvent;
                 }

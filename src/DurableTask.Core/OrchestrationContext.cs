@@ -58,6 +58,11 @@ namespace DurableTask.Core
         public bool IsReplaying { get; internal protected set; }
 
         /// <summary>
+        /// Gets or sets a value indicating how to propagate unhandled exception metadata.
+        /// </summary>
+        internal ErrorPropagationMode ErrorPropagationMode { get; set; }
+
+        /// <summary>
         ///     Create a proxy client class to schedule remote TaskActivities via a strongly typed interface.
         /// </summary>
         /// <typeparam name="T">The interface for the proxy client</typeparam>

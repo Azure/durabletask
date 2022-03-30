@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.Core.Exceptions
 {
     using System;
@@ -71,6 +71,7 @@ namespace DurableTask.Core.Exceptions
             : base(info, context)
         {
             EventId = info.GetInt32(nameof(EventId));
+            FailureDetails = (FailureDetails)info.GetValue(nameof(FailureDetails), typeof(FailureDetails));
         }
 
         /// <inheritdoc />
@@ -78,11 +79,17 @@ namespace DurableTask.Core.Exceptions
         {
             base.GetObjectData(info, context);
             info.AddValue(nameof(EventId), EventId);
+            info.AddValue(nameof(FailureDetails), FailureDetails);
         }
 
         /// <summary>
         /// Gets or sets the EventId of the exception
         /// </summary>
         public int EventId { get; set; }
+
+        /// <summary>
+        /// Gets additional details about the failure. May be <c>null</c> if the failure details collection is not enabled.
+        /// </summary>
+        public FailureDetails? FailureDetails { get; internal set; }
     }
 }

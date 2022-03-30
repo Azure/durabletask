@@ -119,7 +119,16 @@ namespace DurableTask.Core
         /// <summary>
         /// Gets the serialized output of the ExecutionCompletedEvent if completed else null
         /// </summary>
-        public string? Output => ExecutionCompletedEvent?.Result;
+        public string? Output => ExecutionCompletedEvent?.FailureDetails?.ToString() ?? ExecutionCompletedEvent?.Result;
+
+        /// <summary>
+        /// Gets the structured failure details for this orchestration.
+        /// </summary>
+        /// <remarks>
+        /// This property is set only when the orchestration fails and <see cref="TaskHubWorker.ErrorPropagationMode"/>
+        /// is set to <see cref="ErrorPropagationMode.UseFailureDetails"/>.
+        /// </remarks>
+        public FailureDetails? FailureDetails => ExecutionCompletedEvent?.FailureDetails;
 
         /// <summary>
         /// Gets the orchestration name from the ExecutionStartedEvent
