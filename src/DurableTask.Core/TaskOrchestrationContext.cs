@@ -423,8 +423,10 @@ namespace DurableTask.Core
             {
                 OpenTaskInfo info = this.openTasks[taskId];
 
-                // Legacy behavior is to try to serialize and deserialize exceptions from activities.
-                // However, this behavior is not reliable and can be turned off in favor of alternate settings.
+                // When using ErrorPropagationMode.SerializeExceptions the "cause" is deserialized from history.
+                // This isn't fully reliable because not all exception types can be serialized/deserialized.
+                // When using ErrorPropagationMode.UseFailureDetails we instead use FailureDetails to convey
+                // error information, which doesn't involve any serialization at all.
                 Exception cause = this.ErrorPropagationMode == ErrorPropagationMode.SerializeExceptions ?
                     Utils.RetrieveCause(failedEvent.Details, this.ErrorDataConverter) :
                     null;
@@ -472,6 +474,11 @@ namespace DurableTask.Core
             if (this.openTasks.ContainsKey(taskId))
             {
                 OpenTaskInfo info = this.openTasks[taskId];
+
+                // When using ErrorPropagationMode.SerializeExceptions the "cause" is deserialized from history.
+                // This isn't fully reliable because not all exception types can be serialized/deserialized.
+                // When using ErrorPropagationMode.UseFailureDetails we instead use FailureDetails to convey
+                // error information, which doesn't involve any serialization at all.
                 Exception cause = this.ErrorPropagationMode == ErrorPropagationMode.SerializeExceptions ?
                     Utils.RetrieveCause(failedEvent.Details, this.ErrorDataConverter) :
                     null;
