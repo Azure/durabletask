@@ -108,6 +108,12 @@ namespace DurableTask.Core
         public string Version;
 
         /// <summary>
+        /// The orchestration gneration. Reused instanceIds will increment this value.
+        /// </summary>
+        [DataMember]
+        public int Generation;
+
+        /// <summary>
         /// Gets or sets date to start the orchestration
         /// </summary>
         [DataMember]
