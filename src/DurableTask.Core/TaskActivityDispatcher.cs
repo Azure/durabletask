@@ -177,7 +177,7 @@ namespace DurableTask.Core
                         traceActivity?.SetTag("otel.status_code", "ERROR");
 
                         Exception exceptionToTrace = e.InnerException ?? e;
-                        traceActivity?.SetTag("otel.status_description", $"{exceptionToTrace.GetType().FullName}: {exceptionToTrace.Message}");
+                        traceActivity?.SetTag("exception_description", $"{exceptionToTrace.GetType().FullName}: {exceptionToTrace.Message}");
                     }
                     catch (Exception e) when (!Utils.IsFatal(e) && !Utils.IsExecutionAborting(e))
                     {
@@ -189,7 +189,7 @@ namespace DurableTask.Core
                         this.logHelper.TaskActivityFailure(orchestrationInstance, scheduledEvent.Name, (TaskFailedEvent)eventToRespond, e);
                         
                         traceActivity?.SetTag("otel.status_code", "ERROR");
-                        traceActivity?.SetTag("otel.status_description", $"{e.GetType().FullName}: {e.Message}");
+                        traceActivity?.SetTag("exception_description", $"{e.GetType().FullName}: {e.Message}");
                     }
 
                     if (eventToRespond is TaskCompletedEvent completedEvent)
