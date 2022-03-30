@@ -58,7 +58,7 @@ namespace DurableTask.Core
         public bool IsReplaying { get; internal protected set; }
 
         /// <summary>
-        /// Gets or sets a value indicating how to propogate unhandled exception metadata.
+        /// Gets or sets a value indicating how to propagate unhandled exception metadata.
         /// </summary>
         internal ErrorPropagationMode ErrorPropagationMode { get; set; }
 
