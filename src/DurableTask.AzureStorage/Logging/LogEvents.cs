@@ -1800,12 +1800,14 @@ namespace DurableTask.AzureStorage.Logging
                 string taskHub,
                 string workerName,
                 string fromWorkerName,
+                string leaseType,
                 string partitionId)
             {
                 this.Account = account;
                 this.TaskHub = taskHub;
                 this.WorkerName = workerName;
                 this.FromWorkerName = fromWorkerName;
+                this.LeaseType = leaseType;
                 this.PartitionId = partitionId;
             }
 
@@ -1822,6 +1824,9 @@ namespace DurableTask.AzureStorage.Logging
             public string FromWorkerName { get; }
 
             [StructuredLogField]
+            public string LeaseType { get; }
+
+            [StructuredLogField]
             public string PartitionId { get; }
 
             public override EventId EventId => new EventId(
@@ -1831,13 +1836,14 @@ namespace DurableTask.AzureStorage.Logging
             public override LogLevel Level => LogLevel.Information;
 
             protected override string CreateLogMessage() =>
-                $"{this.PartitionId}: Attempting to steal lease from {this.FromWorkerName}";
+                $"{this.PartitionId}: Attempting to steal lease '{this.LeaseType}' from {this.FromWorkerName}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.AttemptingToStealLease(
                 this.Account,
                 this.TaskHub,
                 this.WorkerName,
                 this.FromWorkerName,
+                this.LeaseType,
                 this.PartitionId,
                 Utils.AppName,
                 Utils.ExtensionVersion);
@@ -1850,12 +1856,14 @@ namespace DurableTask.AzureStorage.Logging
                 string taskHub,
                 string workerName,
                 string fromWorkerName,
+                string leaseType,
                 string partitionId)
             {
                 this.Account = account;
                 this.TaskHub = taskHub;
                 this.WorkerName = workerName;
                 this.FromWorkerName = fromWorkerName;
+                this.LeaseType = LeaseType;
                 this.PartitionId = partitionId;
             }
 
@@ -1872,6 +1880,9 @@ namespace DurableTask.AzureStorage.Logging
             public string FromWorkerName { get; }
 
             [StructuredLogField]
+            public string LeaseType { get; }
+            
+            [StructuredLogField]
             public string PartitionId { get; }
 
             public override EventId EventId => new EventId(
@@ -1881,13 +1892,14 @@ namespace DurableTask.AzureStorage.Logging
             public override LogLevel Level => LogLevel.Information;
 
             protected override string CreateLogMessage() =>
-                $"{this.PartitionId}: Successfully stole lease from {this.FromWorkerName}";
+                $"{this.PartitionId}: Successfully stole lease '{this.LeaseType}' from {this.FromWorkerName}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.LeaseStealingSucceeded(
                 this.Account,
                 this.TaskHub,
                 this.WorkerName,
                 this.FromWorkerName,
+                this.LeaseType,
                 this.PartitionId,
                 Utils.AppName,
                 Utils.ExtensionVersion);

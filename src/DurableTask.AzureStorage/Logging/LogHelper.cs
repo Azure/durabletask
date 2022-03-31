@@ -592,6 +592,7 @@ namespace DurableTask.AzureStorage.Logging
             string taskHub,
             string workerName,
             string fromWorkerName,
+            string leaseType,
             string partitionId)
         {
             var logEvent = new LogEvents.AttemptingToStealLease(
@@ -599,6 +600,7 @@ namespace DurableTask.AzureStorage.Logging
                 taskHub,
                 workerName,
                 fromWorkerName,
+                leaseType,
                 partitionId);
             this.WriteStructuredLog(logEvent);
         }
@@ -608,6 +610,7 @@ namespace DurableTask.AzureStorage.Logging
             string taskHub,
             string workerName,
             string fromWorkerName,
+            string leaseType,
             string partitionId)
         {
             var logEvent = new LogEvents.LeaseStealingSucceeded(
@@ -615,6 +618,7 @@ namespace DurableTask.AzureStorage.Logging
                 taskHub,
                 workerName,
                 fromWorkerName,
+                leaseType,
                 partitionId);
             this.WriteStructuredLog(logEvent);
         }

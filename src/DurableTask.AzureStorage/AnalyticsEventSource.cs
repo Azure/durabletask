@@ -757,6 +757,7 @@ namespace DurableTask.AzureStorage
             string TaskHub,
             string WorkerName,
             string FromWorkerName,
+            string LeaseType,
             string PartitionId,
             string AppName,
             string ExtensionVersion)
@@ -767,6 +768,7 @@ namespace DurableTask.AzureStorage
                 TaskHub,
                 WorkerName ?? string.Empty,
                 FromWorkerName ?? string.Empty,
+                LeaseType ?? string.Empty,
                 PartitionId ?? string.Empty,
                 AppName,
                 ExtensionVersion);
@@ -778,6 +780,7 @@ namespace DurableTask.AzureStorage
             string TaskHub,
             string WorkerName,
             string FromWorkerName,
+            string LeaseType,
             string PartitionId,
             string AppName,
             string ExtensionVersion)
@@ -788,6 +791,7 @@ namespace DurableTask.AzureStorage
                 TaskHub,
                 WorkerName ?? string.Empty,
                 FromWorkerName ?? string.Empty,
+                LeaseType ?? string.Empty,
                 PartitionId ?? string.Empty,
                 AppName,
                 ExtensionVersion);
