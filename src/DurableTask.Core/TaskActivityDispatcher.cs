@@ -171,14 +171,14 @@ namespace DurableTask.Core
                         TraceHelper.TraceExceptionInstance(TraceEventType.Error, "TaskActivityDispatcher-ProcessTaskFailure", taskMessage.OrchestrationInstance, e);
                         string details = this.IncludeDetails ? e.Details : null;
                         eventToRespond = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details);
-                        this.logHelper.TaskActivityFailure(orchestrationInstance, scheduledEvent.Name, (TaskFailedEvent)eventToRespond, e);
-                        CorrelationTraceClient.Propagate(() => CorrelationTraceClient.TrackException(e));
-
-                        traceActivity?.SetTag("otel.status_code", "ERROR");
 
                         Exception exceptionToTrace = e.InnerException ?? e;
+                        traceActivity?.SetTag("otel.status_code", "ERROR");
                         traceActivity?.SetTag("exception.type", exceptionToTrace.GetType().FullName);
                         traceActivity?.SetTag("exception.message", exceptionToTrace.Message);
+
+                        this.logHelper.TaskActivityFailure(orchestrationInstance, scheduledEvent.Name, (TaskFailedEvent)eventToRespond, e);
+                        CorrelationTraceClient.Propagate(() => CorrelationTraceClient.TrackException(e));
                     }
                     catch (Exception e) when (!Utils.IsFatal(e) && !Utils.IsExecutionAborting(e))
                     {
@@ -187,11 +187,12 @@ namespace DurableTask.Core
                             ? $"Unhandled exception while executing task: {e}\n\t{e.StackTrace}"
                             : null;
                         eventToRespond = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details);
-                        this.logHelper.TaskActivityFailure(orchestrationInstance, scheduledEvent.Name, (TaskFailedEvent)eventToRespond, e);
-                        
+
                         traceActivity?.SetTag("otel.status_code", "ERROR");
                         traceActivity?.SetTag("exception.type", e.GetType().FullName);
                         traceActivity?.SetTag("exception.message", e.Message);
+
+                        this.logHelper.TaskActivityFailure(orchestrationInstance, scheduledEvent.Name, (TaskFailedEvent)eventToRespond, e);                       
                     }
 
                     if (eventToRespond is TaskCompletedEvent completedEvent)
