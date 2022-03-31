@@ -14,15 +14,14 @@
 using System;
 using System.Diagnostics;
 using System.Threading;
-using DurableTask.Core.Tracing;
 using Newtonsoft.Json;
 
-namespace DurableTask.Core
+namespace DurableTask.Core.Tracing
 {
     /// <summary>
     /// Manage Activity for orchestration execution.
     /// </summary>
-    public class DistributedTraceActivity
+    internal class DistributedTraceActivity
     {
         private static AsyncLocal<Activity> CurrentActivity = new AsyncLocal<Activity>();
 
@@ -36,7 +35,7 @@ namespace DurableTask.Core
         /// <summary>
         /// Share the Activity across an orchestration execution.
         /// </summary>
-        public static Activity Current
+        internal static Activity Current
         {
             get { return CurrentActivity.Value; }
             set { CurrentActivity.Value = value; }
