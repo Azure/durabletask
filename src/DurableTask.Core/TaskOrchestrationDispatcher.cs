@@ -795,7 +795,7 @@ namespace DurableTask.Core
                 }
             }
 
-            DistributedTraceActivity.Current?.SetTag("dt.runtimestatus", runtimeState.OrchestrationStatus.ToString());
+            DistributedTraceActivity.Current?.SetTag("dtfx.runtime_status", runtimeState.OrchestrationStatus.ToString());
             DistributedTraceActivity.Current?.Stop();
             DistributedTraceActivity.Current = null;
 
