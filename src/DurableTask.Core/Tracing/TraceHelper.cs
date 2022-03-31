@@ -82,15 +82,15 @@ namespace DurableTask.Core.Tracing
             if (string.IsNullOrEmpty(startEvent.SerializedActivity))
             {
                 DistributedTraceActivity.Current = ActivityTraceSource.StartActivity(
-                 name: startEvent.Name,
-                 kind: ActivityKind.Internal,
-                 parentContext: activityContext,
-                 tags: new KeyValuePair<string, object?>[]
-                 {
-                    new("dtfx.type", "orchestrator"),
-                    new("dtfx.instance_id", startEvent.OrchestrationInstance.InstanceId),
-                    new("dtfx.execution_id", startEvent.OrchestrationInstance.ExecutionId),
-                 });
+                    name: startEvent.Name,
+                    kind: ActivityKind.Internal,
+                    parentContext: activityContext,
+                    tags: new KeyValuePair<string, object?>[]
+                    {
+                        new("dtfx.type", "orchestrator"),
+                        new("dtfx.instance_id", startEvent.OrchestrationInstance.InstanceId),
+                        new("dtfx.execution_id", startEvent.OrchestrationInstance.ExecutionId),
+                    });
 
                 startEvent.SerializedActivity = DistributedTraceActivity.SerializeActivity(startEvent.ParentTraceContext, DistributedTraceActivity.Current);                
             }
