@@ -751,7 +751,7 @@ namespace DurableTask.AzureStorage
                 ExtensionVersion);
         }
 
-        [Event(EventIds.AttemptingToStealLease, Level = EventLevel.Informational, Version = 2)]
+        [Event(EventIds.AttemptingToStealLease, Level = EventLevel.Informational, Version = 3)]
         public void AttemptingToStealLease(
             string Account,
             string TaskHub,
@@ -774,7 +774,7 @@ namespace DurableTask.AzureStorage
                 ExtensionVersion);
         }
 
-        [Event(EventIds.LeaseStealingSucceeded, Level = EventLevel.Informational, Version = 2)]
+        [Event(EventIds.LeaseStealingSucceeded, Level = EventLevel.Informational, Version = 3)]
         public void LeaseStealingSucceeded(
             string Account,
             string TaskHub,
