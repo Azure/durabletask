@@ -438,6 +438,7 @@ namespace DurableTask.AzureStorage.Partitioning
                                         this.taskHub,
                                         this.workerName,
                                         workerToStealFrom.Key,
+                                        this.leaseType,
                                         leaseToTake.PartitionId);
 
                                     bool leaseStolen = await this.StealLeaseAsync(leaseToTake);
@@ -448,6 +449,7 @@ namespace DurableTask.AzureStorage.Partitioning
                                             this.taskHub,
                                             this.workerName,
                                             workerToStealFrom.Key,
+                                            this.leaseType,
                                             leaseToTake.PartitionId);
 
                                         takenLeases.Add(leaseToTake.PartitionId, leaseToTake);
