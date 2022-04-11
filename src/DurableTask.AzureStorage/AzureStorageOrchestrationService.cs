@@ -32,6 +32,7 @@ namespace DurableTask.AzureStorage
     using DurableTask.Core.History;
     using Microsoft.WindowsAzure.Storage;
     using Newtonsoft.Json;
+    using Core.Query;
 
     /// <summary>
     /// Orchestration service provider for the Durable Task Framework which uses Azure Storage as the durable store.
@@ -39,7 +40,8 @@ namespace DurableTask.AzureStorage
     public sealed class AzureStorageOrchestrationService :
         IOrchestrationService,
         IOrchestrationServiceClient,
-        IDisposable
+        IDisposable, 
+        IOrchestrationServiceQueryClient
     {
         static readonly HistoryEvent[] EmptyHistoryEventList = new HistoryEvent[0];
 
@@ -1888,6 +1890,28 @@ namespace DurableTask.AzureStorage
         public void Dispose()
         {
             this.orchestrationSessionManager.Dispose();
+        }
+
+        /// <summary>
+        /// Gets the status of all orchestration instances with paging that match the specified conditions.
+        /// </summary>
+        public Task GetOrchestrationStateWithFiltersAsync(OrchestrationStatusQueryCondition condition, CancellationToken cancellationToken)
+        {
+            var transferredCondition = TransferToAzureStorageCondition(condition);
+            return GetOrchestrationStateAsync(transferredCondition, condition.PageSize, condition.ContinuationToken, cancellationToken);
+        }
+
+        internal OrchestrationInstanceStatusQueryCondition TransferToAzureStorageCondition(OrchestrationStatusQueryCondition condition)
+        {
+            var transferredCondition = new OrchestrationInstanceStatusQueryCondition
+            {
+                CreatedTimeFrom = condition.CreatedTimeFrom,
+                CreatedTimeTo = condition.CreatedTimeTo != null ? condition.CreatedTimeTo : default(DateTime),
+                RuntimeStatus = condition.RuntimeStatus,
+                TaskHubNames = condition.TaskHubNames,
+
+            }; 
+            return transferredCondition;
         }
 
         class PendingMessageBatch
