@@ -1895,19 +1895,18 @@ namespace DurableTask.AzureStorage
         /// <summary>
         /// Gets the status of all orchestration instances with paging that match the specified conditions.
         /// </summary>
-        public async Task<OrchestrationStatusQueryResult> GetOrchestrationStateWithFiltersAsync(OrchestrationStatusQueryCondition condition, CancellationToken cancellationToken)
+        public async Task<OrchestrationQueryResult> GetOrchestrationWithQueryAsync(OrchestrationQuery query, CancellationToken cancellationToken)
         {
-            OrchestrationInstanceStatusQueryCondition convertedCondition = this.ToAzureStorageCondition(condition);
-            var statusContext = await this.GetOrchestrationStateAsync(convertedCondition, condition.PageSize, condition.ContinuationToken, cancellationToken);
-            return this.ConvertFrom(statusContext);
+            OrchestrationInstanceStatusQueryCondition convertedCondition = ToAzureStorageCondition(query);
+            DurableStatusQueryResult statusContext = await this.GetOrchestrationStateAsync(convertedCondition, query.PageSize, query.ContinuationToken, cancellationToken);
+            return ConvertFrom(statusContext);
         }
 
-        private OrchestrationInstanceStatusQueryCondition ToAzureStorageCondition(OrchestrationStatusQueryCondition condition)
+        private static OrchestrationInstanceStatusQueryCondition ToAzureStorageCondition(OrchestrationQuery condition)
         {
             return new OrchestrationInstanceStatusQueryCondition
             {
-                RuntimeStatus = condition.RuntimeStatus?.Select(
-                    p => (OrchestrationStatus)Enum.Parse(typeof(OrchestrationStatus), p.ToString())),
+                RuntimeStatus = condition.RuntimeStatus,
                 CreatedTimeFrom = condition.CreatedTimeFrom ?? default(DateTime),
                 CreatedTimeTo = condition.CreatedTimeTo ?? default(DateTime),
                 TaskHubNames = condition.TaskHubNames,
@@ -1916,17 +1915,17 @@ namespace DurableTask.AzureStorage
             };
         }
 
-        private OrchestrationStatusQueryResult ConvertFrom(DurableStatusQueryResult statusContext)
+        private static OrchestrationQueryResult ConvertFrom(DurableStatusQueryResult statusContext)
         {
-            var results = new List<DurableOrchestrationStatus>();
+            var results = new List<OrchestrationState>();
             foreach (var state in statusContext.OrchestrationState)
             {
-                results.Add(QueryUtils.ConvertOrchestrationStateToStatus(state));
+                results.Add(state);
             }
 
-            var result = new OrchestrationStatusQueryResult
+            var result = new OrchestrationQueryResult
             {
-                DurableOrchestrationState = results,
+                OrchestrationState = results,
                 ContinuationToken = statusContext.ContinuationToken,
             };
 

@@ -21,17 +21,17 @@ namespace DurableTask.Core.Query
     /// <summary>
     /// Query condition for searching the status of orchestration instances.
     /// </summary>
-    public class OrchestrationStatusQueryCondition
+    public class OrchestrationQuery
     {
         /// <summary>
-        /// Initializes a new instance of the <see cref="OrchestrationStatusQueryCondition"/> class.
+        /// Initializes a new instance of the <see cref="OrchestrationQuery"/> class.
         /// </summary>
-        public OrchestrationStatusQueryCondition() { }
+        public OrchestrationQuery() { }
 
         /// <summary>
         /// Return orchestration instances which matches the runtimeStatus.
         /// </summary>
-        public ICollection<OrchestrationRuntimeStatus>? RuntimeStatus { get; set; }
+        public ICollection<OrchestrationStatus>? RuntimeStatus { get; set; }
 
         /// <summary>
         /// Return orchestration instances which were created after this DateTime.

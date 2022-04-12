@@ -18,13 +18,13 @@ namespace DurableTask.Core.Query
     /// <summary>
     /// The status of all orchestration instances with paging for a given query.
     /// </summary>
-    public class OrchestrationStatusQueryResult
+    public class OrchestrationQueryResult
     {
         /// <summary>
         /// Gets or sets a collection of statuses of orchestration instances matching the query description.
         /// </summary>
         /// <value>A collection of orchestration instance status values.</value>
-        public IEnumerable<DurableOrchestrationStatus> DurableOrchestrationState { get; set; }
+        public IEnumerable<OrchestrationState> OrchestrationState { get; set; }
 
         /// <summary>
         /// Gets or sets a token that can be used to resume the query with data not already returned by this query.
