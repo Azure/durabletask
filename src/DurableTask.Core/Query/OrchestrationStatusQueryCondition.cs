@@ -1,8 +1,20 @@
-﻿// Copyright (c) .NET Foundation. All rights reserved.
-// Licensed under the MIT License. See LICENSE in the project root for license information.
+﻿//  ----------------------------------------------------------------------------------
+//  Copyright Microsoft Corporation
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//  http://www.apache.org/licenses/LICENSE-2.0
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+//  ----------------------------------------------------------------------------------
 
 using System;
 using System.Collections.Generic;
+
+#nullable enable
 
 namespace DurableTask.Core.Query
 {
@@ -16,43 +28,25 @@ namespace DurableTask.Core.Query
         /// </summary>
         public OrchestrationStatusQueryCondition() { }
 
-        //internal OrchestrationStatusQueryCondition(EntityQuery entityQuery)
-        //{
-        //    this.CreatedTimeFrom = entityQuery.LastOperationFrom;
-        //    this.CreatedTimeTo = entityQuery.LastOperationTo;
-        //    this.PageSize = entityQuery.PageSize;
-        //    this.ContinuationToken = entityQuery.ContinuationToken;
-        //    this.ShowInput = entityQuery.FetchState;
-
-        //    if (!string.IsNullOrEmpty(entityQuery.EntityName))
-        //    {
-        //        this.InstanceIdPrefix = EntityId.GetSchedulerIdPrefixFromEntityName(entityQuery.EntityName);
-        //    }
-        //    else
-        //    {
-        //        this.InstanceIdPrefix = "@";
-        //    }
-        //}
-
         /// <summary>
         /// Return orchestration instances which matches the runtimeStatus.
         /// </summary>
-        public IEnumerable<OrchestrationStatus> RuntimeStatus { get; set; }
+        public ICollection<OrchestrationRuntimeStatus>? RuntimeStatus { get; set; }
 
         /// <summary>
         /// Return orchestration instances which were created after this DateTime.
         /// </summary>
-        public DateTime CreatedTimeFrom { get; set; }
+        public DateTime? CreatedTimeFrom { get; set; }
 
         /// <summary>
         /// Return orchestration instances which were created before this DateTime.
         /// </summary>
-        public DateTime CreatedTimeTo { get; set; }
+        public DateTime? CreatedTimeTo { get; set; }
 
         /// <summary>
         /// Return orchestration instances which matches the TaskHubNames.
         /// </summary>
-        public IEnumerable<string> TaskHubNames { get; set; }
+        public ICollection<string>? TaskHubNames { get; set; }
 
         /// <summary>
         /// Maximum number of records that can be returned by the request. The default value is 100.
@@ -66,16 +60,16 @@ namespace DurableTask.Core.Query
         /// <summary>
         /// ContinuationToken of the pager.
         /// </summary>
-        public string ContinuationToken { get; set; }
+        public string? ContinuationToken { get; set; }
 
         /// <summary>
         /// Return orchestration instances that have this instance id prefix.
         /// </summary>
-        public string InstanceIdPrefix { get; set; }
+        public string? InstanceIdPrefix { get; set; }
 
         /// <summary>
         /// Determines whether the query will include the input of the orchestration.
         /// </summary>
-        public bool ShowInput { get; set; } = true;
+        public bool FetchInputsAndOutputs { get; set; } = true;
     }
 }

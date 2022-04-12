@@ -30,9 +30,9 @@ namespace DurableTask.AzureStorage
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
+    using DurableTask.Core.Query;
     using Microsoft.WindowsAzure.Storage;
     using Newtonsoft.Json;
-    using Core.Query;
 
     /// <summary>
     /// Orchestration service provider for the Durable Task Framework which uses Azure Storage as the durable store.
@@ -1895,23 +1895,42 @@ namespace DurableTask.AzureStorage
         /// <summary>
         /// Gets the status of all orchestration instances with paging that match the specified conditions.
         /// </summary>
-        public Task GetOrchestrationStateWithFiltersAsync(OrchestrationStatusQueryCondition condition, CancellationToken cancellationToken)
+        public async Task<OrchestrationStatusQueryResult> GetOrchestrationStateWithFiltersAsync(OrchestrationStatusQueryCondition condition, CancellationToken cancellationToken)
         {
-            var transferredCondition = TransferToAzureStorageCondition(condition);
-            return GetOrchestrationStateAsync(transferredCondition, condition.PageSize, condition.ContinuationToken, cancellationToken);
+            OrchestrationInstanceStatusQueryCondition convertedCondition = this.ToAzureStorageCondition(condition);
+            var statusContext = await this.GetOrchestrationStateAsync(convertedCondition, condition.PageSize, condition.ContinuationToken, cancellationToken);
+            return this.ConvertFrom(statusContext);
         }
 
-        internal OrchestrationInstanceStatusQueryCondition TransferToAzureStorageCondition(OrchestrationStatusQueryCondition condition)
+        private OrchestrationInstanceStatusQueryCondition ToAzureStorageCondition(OrchestrationStatusQueryCondition condition)
         {
-            var transferredCondition = new OrchestrationInstanceStatusQueryCondition
+            return new OrchestrationInstanceStatusQueryCondition
             {
-                CreatedTimeFrom = condition.CreatedTimeFrom,
-                CreatedTimeTo = condition.CreatedTimeTo != null ? condition.CreatedTimeTo : default(DateTime),
-                RuntimeStatus = condition.RuntimeStatus,
+                RuntimeStatus = condition.RuntimeStatus?.Select(
+                    p => (OrchestrationStatus)Enum.Parse(typeof(OrchestrationStatus), p.ToString())),
+                CreatedTimeFrom = condition.CreatedTimeFrom ?? default(DateTime),
+                CreatedTimeTo = condition.CreatedTimeTo ?? default(DateTime),
                 TaskHubNames = condition.TaskHubNames,
+                InstanceIdPrefix = condition.InstanceIdPrefix,
+                FetchInput = condition.FetchInputsAndOutputs,
+            };
+        }
 
-            }; 
-            return transferredCondition;
+        private OrchestrationStatusQueryResult ConvertFrom(DurableStatusQueryResult statusContext)
+        {
+            var results = new List<DurableOrchestrationStatus>();
+            foreach (var state in statusContext.OrchestrationState)
+            {
+                results.Add(QueryUtils.ConvertOrchestrationStateToStatus(state));
+            }
+
+            var result = new OrchestrationStatusQueryResult
+            {
+                DurableOrchestrationState = results,
+                ContinuationToken = statusContext.ContinuationToken,
+            };
+
+            return result;
         }
 
         class PendingMessageBatch
