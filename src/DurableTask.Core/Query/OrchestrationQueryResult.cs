@@ -26,7 +26,7 @@ namespace DurableTask.Core.Query
         /// </summary>
         /// <param name="orchestrationState">A collection of orchestration instance status values.</param>
         /// <param name="continuationToken">A server-generated continuation token or <c>null</c> if there are no further continuations.</param>
-        public OrchestrationQueryResult(IReadOnlyCollection<OrchestrationState> orchestrationState, string continuationToken)
+        public OrchestrationQueryResult(IReadOnlyCollection<OrchestrationState> orchestrationState, string? continuationToken)
         {
             this.OrchestrationState = orchestrationState ?? throw new ArgumentNullException(nameof(orchestrationState));
             this.ContinuationToken = continuationToken;
