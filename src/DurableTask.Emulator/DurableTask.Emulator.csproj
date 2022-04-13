@@ -23,7 +23,7 @@
   <ItemGroup Condition="'$(Configuration)'=='Release'">
     <Content Include="..\..\_manifest\**">
       <Pack>true</Pack>
-	  <PackagePath>content/SBOM</PackagePath>
-	</Content>
+      <PackagePath>content/SBOM</PackagePath>
+    </Content>
   </ItemGroup>
 </Project>
