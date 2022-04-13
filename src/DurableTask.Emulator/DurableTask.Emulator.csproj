@@ -19,10 +19,11 @@
   <ItemGroup>
     <ProjectReference Include="..\DurableTask.Core\DurableTask.Core.csproj" />
   </ItemGroup>
-   
-   <PropertyGroup Condition="'$(Configuration)'=='Release'">
-    <NuspecFile>DurableTask.Emulator.nuspec</NuspecFile>
-    <NuspecProperties>configuration=$(Configuration);targetFramework=$(TargetFramework);version=$(Version)</NuspecProperties>
-  </PropertyGroup>
-
+  
+  <ItemGroup Condition="'$(Configuration)'=='Release'">
+    <Content Include="..\..\_manifest\**">
+      <Pack>true</Pack>
+      <PackagePath>content/SBOM</PackagePath>
+    </Content>
+  </ItemGroup>
 </Project>

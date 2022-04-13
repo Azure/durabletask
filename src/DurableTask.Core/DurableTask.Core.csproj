@@ -35,9 +35,11 @@
     <PackageReference Include="System.Reactive.Compatibility" Version="4.4.1" />
   </ItemGroup>
    
-   <PropertyGroup Condition="'$(Configuration)'=='Release'">
-    <NuspecFile>DurableTask.Core.nuspec</NuspecFile>
-    <NuspecProperties>configuration=$(Configuration);targetFramework=$(TargetFramework);version=$(Version)</NuspecProperties>
-  </PropertyGroup>
+  <ItemGroup Condition="'$(Configuration)'=='Release'">
+    <Content Include="..\..\_manifest\**">
+      <Pack>true</Pack>
+      <PackagePath>content/SBOM</PackagePath>
+    </Content>
+  </ItemGroup>
   
 </Project>
