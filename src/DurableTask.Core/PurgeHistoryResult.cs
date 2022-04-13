@@ -11,13 +11,11 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureStorage
+namespace DurableTask.Core
 {
-    using System;
     /// <summary>
     /// Class to hold statistics about this execution of purge history
     /// </summary>
-    [Obsolete("Not used any more. Will use DurableTask.Core.PurgeHistoryResult going forward.", true)]
     public class PurgeHistoryResult
     {
         /// <summary>
