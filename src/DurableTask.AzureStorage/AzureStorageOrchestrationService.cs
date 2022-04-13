@@ -30,6 +30,7 @@ namespace DurableTask.AzureStorage
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
+    using DurableTask.Core.Query;
     using Microsoft.WindowsAzure.Storage;
     using Newtonsoft.Json;
 
@@ -39,7 +40,8 @@ namespace DurableTask.AzureStorage
     public sealed class AzureStorageOrchestrationService :
         IOrchestrationService,
         IOrchestrationServiceClient,
-        IDisposable
+        IDisposable, 
+        IOrchestrationServiceQueryClient
     {
         static readonly HistoryEvent[] EmptyHistoryEventList = new HistoryEvent[0];
 
@@ -1888,6 +1890,40 @@ namespace DurableTask.AzureStorage
         public void Dispose()
         {
             this.orchestrationSessionManager.Dispose();
+        }
+
+        /// <summary>
+        /// Gets the status of all orchestration instances with paging that match the specified conditions.
+        /// </summary>
+        public async Task<OrchestrationQueryResult> GetOrchestrationWithQueryAsync(OrchestrationQuery query, CancellationToken cancellationToken)
+        {
+            OrchestrationInstanceStatusQueryCondition convertedCondition = ToAzureStorageCondition(query);
+            DurableStatusQueryResult statusContext = await this.GetOrchestrationStateAsync(convertedCondition, query.PageSize, query.ContinuationToken, cancellationToken);
+            return ConvertFrom(statusContext);
+        }
+
+        private static OrchestrationInstanceStatusQueryCondition ToAzureStorageCondition(OrchestrationQuery condition)
+        {
+            return new OrchestrationInstanceStatusQueryCondition
+            {
+                RuntimeStatus = condition.RuntimeStatus,
+                CreatedTimeFrom = condition.CreatedTimeFrom ?? default(DateTime),
+                CreatedTimeTo = condition.CreatedTimeTo ?? default(DateTime),
+                TaskHubNames = condition.TaskHubNames,
+                InstanceIdPrefix = condition.InstanceIdPrefix,
+                FetchInput = condition.FetchInputsAndOutputs,
+            };
+        }
+
+        private static OrchestrationQueryResult ConvertFrom(DurableStatusQueryResult statusContext)
+        {
+            var results = new List<OrchestrationState>();
+            foreach (var state in statusContext.OrchestrationState)
+            {
+                results.Add(state);
+            }
+
+            return new OrchestrationQueryResult(results, statusContext.ContinuationToken);
         }
 
         class PendingMessageBatch
