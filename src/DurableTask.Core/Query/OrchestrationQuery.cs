@@ -10,14 +10,12 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
-using System;
-using System.Collections.Generic;
-
 #nullable enable
-
 namespace DurableTask.Core.Query
 {
+    using System;
+    using System.Collections.Generic;
+
     /// <summary>
     /// Query condition for searching the status of orchestration instances.
     /// </summary>

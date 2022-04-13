@@ -1923,13 +1923,7 @@ namespace DurableTask.AzureStorage
                 results.Add(state);
             }
 
-            var result = new OrchestrationQueryResult
-            {
-                OrchestrationState = results,
-                ContinuationToken = statusContext.ContinuationToken,
-            };
-
-            return result;
+            return new OrchestrationQueryResult(results, statusContext.ContinuationToken);
         }
 
         class PendingMessageBatch

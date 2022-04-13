@@ -11,25 +11,35 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System.Collections.Generic;
-
 namespace DurableTask.Core.Query
 {
+    using System.Collections.Generic;
+
     /// <summary>
     /// The status of all orchestration instances with paging for a given query.
     /// </summary>
     public class OrchestrationQueryResult
     {
         /// <summary>
-        /// Gets or sets a collection of statuses of orchestration instances matching the query description.
+        /// Constructor of OrchestrationQueryResult Class.
+        /// </summary>
+        /// <param name="OrchestrationState">A collection of orchestration instance status values.</param>
+        /// <param name="ContinuationToken">A server-generated continuation token or <c>null</c> if there are no further continuations.</param>
+        public OrchestrationQueryResult(IReadOnlyCollection<OrchestrationState> OrchestrationState, string ContinuationToken)
+        {
+            this.OrchestrationState = OrchestrationState;
+            this.ContinuationToken = ContinuationToken;
+        }
+        /// <summary>
+        /// Gets a collection of statuses of orchestration instances matching the query description.
         /// </summary>
         /// <value>A collection of orchestration instance status values.</value>
-        public IEnumerable<OrchestrationState> OrchestrationState { get; set; }
+        public IReadOnlyCollection<OrchestrationState> OrchestrationState { get; }
 
         /// <summary>
-        /// Gets or sets a token that can be used to resume the query with data not already returned by this query.
+        /// Gets token that can be used to resume the query with data not already returned by this query.
         /// </summary>
         /// <value>A server-generated continuation token or <c>null</c> if there are no further continuations.</value>
-        public string ContinuationToken { get; set; }
+        public string ContinuationToken { get; }
     }
 }
