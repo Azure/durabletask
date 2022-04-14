@@ -14,6 +14,7 @@
 namespace DurableTask.Core
 {
     using System;
+    using System.Reflection;
     using System.Runtime.Serialization;
     using DurableTask.Core.Exceptions;
     using Newtonsoft.Json;
@@ -29,14 +30,16 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="errorType">The name of the error, which is expected to the the namespace-qualified name of the exception type.</param>
         /// <param name="errorMessage">The message associated with the error, which is expected to be the exception's <see cref="Exception.Message"/> property.</param>
+        /// <param name="errorAssemblyName">The assembly name of the error.</param>
         /// <param name="stackTrace">The exception stack trace.</param>
         /// <param name="innerFailure">The inner cause of the failure.</param>
         /// <param name="isNonRetriable">Whether the failure is non-retriable.</param>
         [JsonConstructor]
-        public FailureDetails(string errorType, string errorMessage, string? stackTrace, FailureDetails? innerFailure, bool isNonRetriable)
+        public FailureDetails(string errorType, string errorMessage, string errorAssemblyName, string? stackTrace, FailureDetails? innerFailure, bool isNonRetriable)
         {
             this.ErrorType = errorType;
             this.ErrorMessage = errorMessage;
+            this.ErrorAssemblyName = errorAssemblyName;
             this.StackTrace = stackTrace;
             this.InnerFailure = innerFailure;
             this.IsNonRetriable = isNonRetriable;
@@ -47,7 +50,7 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="e">The exception used to generate the failure details.</param>
         public FailureDetails(Exception e)
-            : this(e.GetType().FullName, GetErrorMessage(e), e.StackTrace, FromException(e.InnerException), false)
+            : this(e.GetType().FullName, GetErrorMessage(e), e.GetType().Assembly.FullName, e.StackTrace, FromException(e.InnerException), false)
         {
         }
 
@@ -58,6 +61,7 @@ namespace DurableTask.Core
         {
             this.ErrorType = "None";
             this.ErrorMessage = string.Empty;
+            this.ErrorAssemblyName = string.Empty;
         }
 
         /// <summary>
@@ -67,6 +71,7 @@ namespace DurableTask.Core
         {
             this.ErrorType = info.GetString(nameof(this.ErrorType));
             this.ErrorMessage = info.GetString(nameof(this.ErrorMessage));
+            this.ErrorAssemblyName = info.GetString(nameof(this.ErrorAssemblyName));
             this.StackTrace = info.GetString(nameof(this.StackTrace));
             this.InnerFailure = (FailureDetails)info.GetValue(nameof(this.InnerFailure), typeof(FailureDetails));
         }
@@ -95,6 +100,11 @@ namespace DurableTask.Core
         /// Gets a value indicating whether this failure is non-retriable, meaning it should not be retried.
         /// </summary>
         public bool IsNonRetriable { get; }
+
+        /// <summary>
+        /// Gets the assembly name of the error, which is expected to the exception type's assembly name <see cref="Assembly.FullName"/> value.
+        /// </summary>
+        public string ErrorAssemblyName { get; }
 
         /// <summary>
         /// Gets a debug-friendly description of the failure information.
@@ -138,6 +148,7 @@ namespace DurableTask.Core
             return
                 this.ErrorType == other.ErrorType &&
                 this.ErrorMessage == other.ErrorMessage &&
+                this.ErrorAssemblyName == other.ErrorAssemblyName &&
                 this.StackTrace == other.StackTrace &&
                 this.InnerFailure == other.InnerFailure;
         }
@@ -145,7 +156,7 @@ namespace DurableTask.Core
         /// <inheritdoc/>
         public override int GetHashCode()
         {
-            return (ErrorType, ErrorMessage, StackTrace, InnerFailure).GetHashCode();
+            return (ErrorType, ErrorMessage, ErrorAssemblyName, StackTrace, InnerFailure).GetHashCode();
         }
 
         static string GetErrorMessage(Exception e)
