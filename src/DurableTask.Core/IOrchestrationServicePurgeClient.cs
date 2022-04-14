@@ -32,8 +32,8 @@ namespace DurableTask.Core
         /// <summary>
         /// Purge history for orchestrations that match the specified parameters.
         /// </summary>
-        /// <param name="purgeInstanceCondition"><see cref="PurgeInstanceCondition"/>Conditions that should match to purge orchestration history.</param>
+        /// <param name="purgeInstanceFilter"> A <see cref="PurgeInstanceFilter"/>object that determines which orchestration instance to purge.</param>
         /// <returns><see cref="PurgeResult"/> object containing more information about the purged instance.</returns>
-        Task<PurgeResult> PurgeInstanceStateAsync(PurgeInstanceCondition purgeInstanceCondition);
+        Task<PurgeResult> PurgeInstanceStateAsync(PurgeInstanceFilter purgeInstanceFilter);
     }
 }

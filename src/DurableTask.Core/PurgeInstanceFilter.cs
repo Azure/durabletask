@@ -19,7 +19,7 @@ namespace DurableTask.Core
     /// <summary>
     /// Class to hold conditions that should match to purge orchestration history
     /// </summary>
-    public class PurgeInstanceCondition
+    public class PurgeInstanceFilter
     {
         /// <summary>
         /// Constructor for purge instance conditions
@@ -27,7 +27,7 @@ namespace DurableTask.Core
         /// <param name="createdTimeFrom">CreatedTime of orchestrations. Purges history grater than this value.</param>
         /// <param name="createdTimeTo">CreatedTime of orchestrations. Purges history less than this value.</param>
         /// <param name="runtimeStatus">RuntimeStatus of orchestrations. You can specify several status.</param>
-        public PurgeInstanceCondition(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
+        public PurgeInstanceFilter(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
         {
             this.CreatedTimeFrom = createdTimeFrom;
             this.CreatedTimeTo = createdTimeTo;

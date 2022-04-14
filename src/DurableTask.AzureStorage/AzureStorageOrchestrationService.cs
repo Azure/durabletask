@@ -1789,25 +1789,17 @@ namespace DurableTask.AzureStorage
             return this.trackingStore.PurgeInstanceHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatus);
         }
 
-        /// <summary>
-        /// Purge history for an orchestration with a specified instance id.
-        /// </summary>
-        /// <param name="instanceId">Instance ID of the orchestration.</param>
-        /// <returns><see cref="PurgeResult"/> object containing more information about the purged instance.</returns>
+        /// <inheritdoc />
         async Task<PurgeResult> IOrchestrationServicePurgeClient.PurgeInstanceStateAsync(string instanceId)
         {
             PurgeHistoryResult storagePurgeHistoryResult = await this.PurgeInstanceHistoryAsync(instanceId);
             return storagePurgeHistoryResult.ToCorePurgeHistoryResult();
         }
 
-        /// <summary>
-        /// Purge history for orchestrations that match the specified parameters.
-        /// </summary>
-        /// <param name="purgeInstanceCondition"><see cref="PurgeInstanceCondition"/>Conditions that should match to purge orchestration history.</param>
-        /// <returns><see cref="PurgeResult"/> object containing more information about the purged instance.</returns>
-        async Task<PurgeResult> IOrchestrationServicePurgeClient.PurgeInstanceStateAsync(PurgeInstanceCondition purgeInstanceCondition)
+        /// <inheritdoc />
+        async Task<PurgeResult> IOrchestrationServicePurgeClient.PurgeInstanceStateAsync(PurgeInstanceFilter purgeInstanceFilter)
         {
-            PurgeHistoryResult storagePurgeHistoryResult = await this.PurgeInstanceHistoryAsync(purgeInstanceCondition.CreatedTimeFrom, purgeInstanceCondition.CreatedTimeTo, purgeInstanceCondition.RuntimeStatus);
+            PurgeHistoryResult storagePurgeHistoryResult = await this.PurgeInstanceHistoryAsync(purgeInstanceFilter.CreatedTimeFrom, purgeInstanceFilter.CreatedTimeTo, purgeInstanceFilter.RuntimeStatus);
             return storagePurgeHistoryResult.ToCorePurgeHistoryResult();
         }
 
