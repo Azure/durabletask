@@ -13,8 +13,6 @@
 
 namespace DurableTask.Core
 {
-    using System;
-    using System.Collections.Generic;
     using System.Threading.Tasks;
 
     /// <summary>
@@ -28,16 +26,14 @@ namespace DurableTask.Core
         /// Purge history for an orchestration with a specified instance id.
         /// </summary>
         /// <param name="instanceId">Instance ID of the orchestration.</param>
-        /// <returns><see cref="PurgeHistoryResult"/> object containing number of storage requests sent, along with instances and rows deleted/purged.</returns>
-        Task<PurgeHistoryResult> PurgeInstanceStateAsync(string instanceId);
+        /// <returns><see cref="PurgeResult"/> object containing more information about the purged instance.</returns>
+        Task<PurgeResult> PurgeInstanceStateAsync(string instanceId);
 
         /// <summary>
         /// Purge history for orchestrations that match the specified parameters.
         /// </summary>
-        /// <param name="createdTimeFrom">CreatedTime of orchestrations. Purges history grater than this value.</param>
-        /// <param name="createdTimeTo">CreatedTime of orchestrations. Purges history less than this value.</param>
-        /// <param name="runtimeStatus">RuntimeStatus of orchestrations. You can specify several status.</param>
-        /// <returns><see cref="PurgeHistoryResult"/> object containing number of storage requests sent, along with instances and rows deleted/purged.</returns>
-        Task<PurgeHistoryResult> PurgeInstanceStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus);
+        /// <param name="purgeInstanceCondition"><see cref="PurgeInstanceCondition"/>Conditions that should match to purge orchestration history.</param>
+        /// <returns><see cref="PurgeResult"/> object containing more information about the purged instance.</returns>
+        Task<PurgeResult> PurgeInstanceStateAsync(PurgeInstanceCondition purgeInstanceCondition);
     }
 }

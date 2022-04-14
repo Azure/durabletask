@@ -1772,7 +1772,7 @@ namespace DurableTask.AzureStorage
         /// </summary>
         /// <param name="instanceId">Instance ID of the orchestration.</param>
         /// <returns>Class containing number of storage requests sent, along with instances and rows deleted/purged</returns>
-        public Task<Core.PurgeHistoryResult> PurgeInstanceHistoryAsync(string instanceId)
+        public Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(string instanceId)
         {
             return this.trackingStore.PurgeInstanceHistoryAsync(instanceId);
         }
@@ -1784,7 +1784,7 @@ namespace DurableTask.AzureStorage
         /// <param name="createdTimeTo">CreatedTime of orchestrations. Purges history less than this value.</param>
         /// <param name="runtimeStatus">RuntimeStatus of orchestrations. You can specify several status.</param>
         /// <returns>Class containing number of storage requests sent, along with instances and rows deleted/purged</returns>
-        public Task<Core.PurgeHistoryResult> PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
+        public Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
         {
             return this.trackingStore.PurgeInstanceHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatus);
         }
@@ -1793,22 +1793,22 @@ namespace DurableTask.AzureStorage
         /// Purge history for an orchestration with a specified instance id.
         /// </summary>
         /// <param name="instanceId">Instance ID of the orchestration.</param>
-        /// <returns>Class containing number of storage requests sent, along with instances and rows deleted/purged</returns>
-        public Task<Core.PurgeHistoryResult> PurgeInstanceStateAsync(string instanceId)
+        /// <returns><see cref="PurgeResult"/> object containing more information about the purged instance.</returns>
+        async Task<PurgeResult> IOrchestrationServicePurgeClient.PurgeInstanceStateAsync(string instanceId)
         {
-            return this.PurgeInstanceHistoryAsync(instanceId);
+            PurgeHistoryResult storagePurgeHistoryResult = await this.PurgeInstanceHistoryAsync(instanceId);
+            return storagePurgeHistoryResult.ToCorePurgeHistoryResult();
         }
 
         /// <summary>
         /// Purge history for orchestrations that match the specified parameters.
         /// </summary>
-        /// <param name="createdTimeFrom">CreatedTime of orchestrations. Purges history grater than this value.</param>
-        /// <param name="createdTimeTo">CreatedTime of orchestrations. Purges history less than this value.</param>
-        /// <param name="runtimeStatus">RuntimeStatus of orchestrations. You can specify several status.</param>
-        /// <returns>Class containing number of storage requests sent, along with instances and rows deleted/purged</returns>
-        public Task<Core.PurgeHistoryResult> PurgeInstanceStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
+        /// <param name="purgeInstanceCondition"><see cref="PurgeInstanceCondition"/>Conditions that should match to purge orchestration history.</param>
+        /// <returns><see cref="PurgeResult"/> object containing more information about the purged instance.</returns>
+        async Task<PurgeResult> IOrchestrationServicePurgeClient.PurgeInstanceStateAsync(PurgeInstanceCondition purgeInstanceCondition)
         {
-            return this.PurgeInstanceHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatus);
+            PurgeHistoryResult storagePurgeHistoryResult = await this.PurgeInstanceHistoryAsync(purgeInstanceCondition.CreatedTimeFrom, purgeInstanceCondition.CreatedTimeTo, purgeInstanceCondition.RuntimeStatus);
+            return storagePurgeHistoryResult.ToCorePurgeHistoryResult();
         }
 
         /// <summary>
