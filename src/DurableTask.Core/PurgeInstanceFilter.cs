@@ -10,24 +10,24 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.Core
 {
     using System;
     using System.Collections.Generic;
 
     /// <summary>
-    /// Class to hold conditions that should match to purge orchestration history
+    /// Criteria for selecting orchestration instances to purge.
     /// </summary>
     public class PurgeInstanceFilter
     {
         /// <summary>
         /// Constructor for purge instance conditions
         /// </summary>
-        /// <param name="createdTimeFrom">CreatedTime of orchestrations. Purges history grater than this value.</param>
-        /// <param name="createdTimeTo">CreatedTime of orchestrations. Purges history less than this value.</param>
-        /// <param name="runtimeStatus">RuntimeStatus of orchestrations. You can specify several status.</param>
-        public PurgeInstanceFilter(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
+        /// <param name="createdTimeFrom">CreatedTime of orchestrations. Purges state of orchestrations created after this time.</param>
+        /// <param name="createdTimeTo">CreatedTime of orchestrations. Purges state of orchestrations created before this time.</param>
+        /// <param name="runtimeStatus">The runtime status of the orchestrations to purge.</param>
+        public PurgeInstanceFilter(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus>? runtimeStatus)
         {
             this.CreatedTimeFrom = createdTimeFrom;
             this.CreatedTimeTo = createdTimeTo;
@@ -35,19 +35,18 @@ namespace DurableTask.Core
         }
 
         /// <summary>
-        /// CreatedTime of orchestrations. Purges history grater than this value.
+        /// CreatedTime of orchestrations. Purges state of orchestrations created after this time.
         /// </summary>
-        public DateTime CreatedTimeFrom { get; set; }
+        public DateTime CreatedTimeFrom { get; }
 
         /// <summary>
-        /// CreatedTime of orchestrations. Purges history less than this value.
+        /// CreatedTime of orchestrations. Purges state of orchestrations created before this time.
         /// </summary>
-        public DateTime? CreatedTimeTo { get; set; }
+        public DateTime? CreatedTimeTo { get; }
 
         /// <summary>
-        /// RuntimeStatus of orchestrations
+        /// The runtime status of the orchestrations to purge.
         /// </summary>
-        public IEnumerable<OrchestrationStatus> RuntimeStatus { get; set; }
-
+        public IEnumerable<OrchestrationStatus>? RuntimeStatus { get; }
     }
 }

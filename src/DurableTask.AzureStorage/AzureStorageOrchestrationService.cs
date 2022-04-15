@@ -1799,7 +1799,10 @@ namespace DurableTask.AzureStorage
         /// <inheritdoc />
         async Task<PurgeResult> IOrchestrationServicePurgeClient.PurgeInstanceStateAsync(PurgeInstanceFilter purgeInstanceFilter)
         {
-            PurgeHistoryResult storagePurgeHistoryResult = await this.PurgeInstanceHistoryAsync(purgeInstanceFilter.CreatedTimeFrom, purgeInstanceFilter.CreatedTimeTo, purgeInstanceFilter.RuntimeStatus);
+            PurgeHistoryResult storagePurgeHistoryResult = await this.PurgeInstanceHistoryAsync(
+                purgeInstanceFilter.CreatedTimeFrom,
+                purgeInstanceFilter.CreatedTimeTo,
+                purgeInstanceFilter.RuntimeStatus);
             return storagePurgeHistoryResult.ToCorePurgeHistoryResult();
         }
 

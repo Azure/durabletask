@@ -16,24 +16,22 @@ namespace DurableTask.Core
     using System.Threading.Tasks;
 
     /// <summary>
-    /// Orchestration Service interface for purging instance history
+    /// Orchestration Service client interface for purging orchestration instance state.
     /// </summary>
     public interface IOrchestrationServicePurgeClient
     {
-        // Purge instance history operations
-
         /// <summary>
-        /// Purge history for an orchestration with a specified instance id.
+        /// Purge state for an orchestration with a specified instance ID.
         /// </summary>
-        /// <param name="instanceId">Instance ID of the orchestration.</param>
-        /// <returns><see cref="PurgeResult"/> object containing more information about the purged instance.</returns>
+        /// <param name="instanceId">Instance ID of the orchestration to purge.</param>
+        /// <returns>A <see cref="PurgeResult"/> object containing more information about the purged instance.</returns>
         Task<PurgeResult> PurgeInstanceStateAsync(string instanceId);
 
         /// <summary>
-        /// Purge history for orchestrations that match the specified parameters.
+        /// Purge state for orchestrations that match the specified parameters.
         /// </summary>
-        /// <param name="purgeInstanceFilter"> A <see cref="PurgeInstanceFilter"/>object that determines which orchestration instance to purge.</param>
-        /// <returns><see cref="PurgeResult"/> object containing more information about the purged instance.</returns>
+        /// <param name="purgeInstanceFilter">A <see cref="PurgeInstanceFilter"/> object that determines which orchestration instances to purge.</param>
+        /// <returns>A <see cref="PurgeResult"/> object containing more information about the purged instances.</returns>
         Task<PurgeResult> PurgeInstanceStateAsync(PurgeInstanceFilter purgeInstanceFilter);
     }
 }

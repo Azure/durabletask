@@ -14,22 +14,22 @@
 namespace DurableTask.Core
 {
     /// <summary>
-    /// Class to hold statistics about this execution of purge history
+    /// Class representing the result of a purge operation.
     /// </summary>
     public class PurgeResult
     {
         /// <summary>
-        /// Constructor for purge history statistics
+        /// Initializes a new instance of the <see cref="PurgeResult" /> class.
         /// </summary>
-        /// <param name="instancesDeleted">Number of instances deleted</param>
-        public PurgeResult(int instancesDeleted)
+        /// <param name="deletedInstanceCount">The number of instances deleted.</param>
+        public PurgeResult(int deletedInstanceCount)
         {
-            this.InstancesDeleted = instancesDeleted;
+            this.DeletedInstanceCount = deletedInstanceCount;
         }
 
         /// <summary>
-        /// Number of instances deleted during this execution of purge history
+        /// Number of instances deleted during this execution of the purge operation.
         /// </summary>
-        public int InstancesDeleted { get; }
+        public int DeletedInstanceCount { get; }
     }
 }
