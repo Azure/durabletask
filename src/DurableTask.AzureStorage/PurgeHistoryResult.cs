@@ -13,6 +13,8 @@
 
 namespace DurableTask.AzureStorage
 {
+    using DurableTask.Core;
+
     /// <summary>
     /// Class to hold statistics about this execution of purge history
     /// </summary>
@@ -45,5 +47,13 @@ namespace DurableTask.AzureStorage
         /// Number of rows deleted during this execution of purge history
         /// </summary>
         public int RowsDeleted { get; }
+
+        /// <summary>
+        /// Converts from AzureStorage.PurgeHistoryResult to Core.PurgeResult type
+        /// </summary>
+        public PurgeResult ToCorePurgeHistoryResult()
+        {
+            return new PurgeResult(this.InstancesDeleted);
+        }
     }
 }

@@ -41,7 +41,8 @@ namespace DurableTask.AzureStorage
         IOrchestrationService,
         IOrchestrationServiceClient,
         IDisposable, 
-        IOrchestrationServiceQueryClient
+        IOrchestrationServiceQueryClient,
+        IOrchestrationServicePurgeClient
     {
         static readonly HistoryEvent[] EmptyHistoryEventList = new HistoryEvent[0];
 
@@ -1786,6 +1787,23 @@ namespace DurableTask.AzureStorage
         public Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
         {
             return this.trackingStore.PurgeInstanceHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatus);
+        }
+
+        /// <inheritdoc />
+        async Task<PurgeResult> IOrchestrationServicePurgeClient.PurgeInstanceStateAsync(string instanceId)
+        {
+            PurgeHistoryResult storagePurgeHistoryResult = await this.PurgeInstanceHistoryAsync(instanceId);
+            return storagePurgeHistoryResult.ToCorePurgeHistoryResult();
+        }
+
+        /// <inheritdoc />
+        async Task<PurgeResult> IOrchestrationServicePurgeClient.PurgeInstanceStateAsync(PurgeInstanceFilter purgeInstanceFilter)
+        {
+            PurgeHistoryResult storagePurgeHistoryResult = await this.PurgeInstanceHistoryAsync(
+                purgeInstanceFilter.CreatedTimeFrom,
+                purgeInstanceFilter.CreatedTimeTo,
+                purgeInstanceFilter.RuntimeStatus);
+            return storagePurgeHistoryResult.ToCorePurgeHistoryResult();
         }
 
         /// <summary>
