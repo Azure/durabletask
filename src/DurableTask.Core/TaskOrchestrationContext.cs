@@ -252,6 +252,7 @@ namespace DurableTask.Core
                 {
                     if (tcs.TrySetCanceled())
                     {
+                        // TODO: Emit a log message that the timer is cancelled.
                         this.openTasks.Remove(id);
                     }
                 }, tcs);

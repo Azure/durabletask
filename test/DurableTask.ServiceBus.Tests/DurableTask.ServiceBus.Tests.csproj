@@ -2,10 +2,10 @@
 
 	<Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
 	<PropertyGroup>
-		<TargetFrameworks>netcoreapp3.1;net461</TargetFrameworks>
+		<TargetFrameworks>netcoreapp3.1;net462</TargetFrameworks>
 	</PropertyGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'net461'">
+  <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
     <PackageReference Include="CommandLineParser" version="1.9.71" />
     <PackageReference Include="EnterpriseLibrary.SemanticLogging" version="2.0.1406.1" />
     <PackageReference Include="ImpromptuInterface" version="6.2.2" />
@@ -50,7 +50,7 @@
 		</None>
 	</ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'net461'">
+  <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
     <Reference Include="System.Configuration" />
   </ItemGroup>
 

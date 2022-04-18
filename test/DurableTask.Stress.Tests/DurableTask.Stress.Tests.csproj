@@ -2,7 +2,7 @@
 
 	<Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
 	<PropertyGroup>
-	  <TargetFrameworks>netcoreapp3.1;net461</TargetFrameworks>
+	  <TargetFrameworks>netcoreapp3.1;net462</TargetFrameworks>
 	  <StartupObject>DurableTask.Stress.Tests.Program</StartupObject>
 	  <ApplicationIcon />
 	  <OutputType>Exe</OutputType>
@@ -27,7 +27,7 @@
 	  <PackageReference Include="WindowsAzure.Storage" Version="9.3.3" />  
 	</ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'net461'">
+  <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
     <PackageReference Include="CommandLineParser" version="1.9.71" />
     <PackageReference Include="EnterpriseLibrary.SemanticLogging" version="2.0.1406.1" />
     <PackageReference Include="EnterpriseLibrary.SemanticLogging.TextFile" version="2.0.1406.1" />
@@ -55,7 +55,7 @@
 	  </None>
 	</ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'net461'">
+  <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
     <Reference Include="System.Configuration" />
   </ItemGroup>
 
