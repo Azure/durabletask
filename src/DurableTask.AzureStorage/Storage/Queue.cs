@@ -47,8 +47,8 @@ namespace DurableTask.AzureStorage.Storage
         {
             // Infinite time to live
             TimeSpan? timeToLive = TimeSpan.FromSeconds(-1);
-#if NET461
-            // When using net461 SDK version WindowsAzure.Storage 7.2.1 does not allow infinite time to live. Passing in null will default the time to live to 7 days.
+#if NET462
+            // WindowsAzure.Storage 7.2.1 does not allow infinite time to live. Passing in null will default the time to live to 7 days.
             timeToLive = null;
 #endif
             await this.azureStorageClient.MakeQueueStorageRequest(
