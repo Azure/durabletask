@@ -491,6 +491,10 @@ namespace DurableTask.AzureStorage.Tracking
                         {
                             property.SetValue(orchestrationInstanceStatus, value.DateTime);
                         }
+                        else if (property.PropertyType == typeof(int) || property.PropertyType == typeof(int?))
+                        {
+                            property.SetValue(orchestrationInstanceStatus, value.Int32Value);
+                        }
                         else
                         {
                             property.SetValue(orchestrationInstanceStatus, value.StringValue);
@@ -526,6 +530,7 @@ namespace DurableTask.AzureStorage.Tracking
             orchestrationState.Input = orchestrationInstanceStatus.Input;
             orchestrationState.Output = orchestrationInstanceStatus.Output;
             orchestrationState.ScheduledStartTime = orchestrationInstanceStatus.ScheduledStartTime;
+            orchestrationState.Generation = orchestrationInstanceStatus.Generation;
 
             if (this.settings.FetchLargeMessageDataEnabled)
             {
@@ -766,6 +771,7 @@ namespace DurableTask.AzureStorage.Tracking
                     ["TaskHubName"] = new EntityProperty(this.settings.TaskHubName),
                     ["ScheduledStartTime"] = new EntityProperty(executionStartedEvent.ScheduledStartTime),
                     ["ExecutionId"] = new EntityProperty(executionStartedEvent.OrchestrationInstance.ExecutionId),
+                    ["Generation"] = new EntityProperty(executionStartedEvent.Generation),
                 }
             };
 

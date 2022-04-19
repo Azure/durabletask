@@ -92,5 +92,11 @@ namespace DurableTask.Core.History
         /// </summary>
         [DataMember]
         public DateTime? ScheduledStartTime { get; set; }
+
+        /// <summary>
+        /// Gets or sets the generation of the orchestration
+        /// </summary>
+        [DataMember]
+        public int? Generation { get; set; }
     }
 }

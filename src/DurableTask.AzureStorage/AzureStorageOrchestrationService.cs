@@ -1554,6 +1554,18 @@ namespace DurableTask.AzureStorage
                 return;
             }
 
+            if (executionStartedEvent.Generation == null)
+            {
+                if (existingInstance != null)
+                {
+                    executionStartedEvent.Generation = existingInstance.State.Generation + 1;
+                }
+                else
+                {
+                    executionStartedEvent.Generation = 1;
+                }
+            }
+
             ControlQueue controlQueue = await this.GetControlQueueAsync(creationMessage.OrchestrationInstance.InstanceId);
             MessageData internalMessage = await this.SendTaskOrchestrationMessageInternalAsync(
                 EmptySourceInstance,
