@@ -1578,8 +1578,6 @@ namespace DurableTask.AzureStorage
                 inputStatusOverride = this.messageManager.GetBlobUrl(internalMessage.CompressedBlobName);
             }
 
-            Thread.Sleep(5000);
-
             await this.trackingStore.SetNewExecutionAsync(
                 executionStartedEvent,
                 existingInstance?.ETag,
