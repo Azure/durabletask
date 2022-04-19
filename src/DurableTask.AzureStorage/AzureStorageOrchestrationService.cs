@@ -1551,6 +1551,20 @@ namespace DurableTask.AzureStorage
                 return;
             }
 
+            if (executionStartedEvent.Generation == null)
+            {
+                if (existingInstance != null)
+                {
+                    executionStartedEvent.Generation = existingInstance.State.Generation + 1;
+                }
+                else
+                {
+                    executionStartedEvent.Generation = 1;
+                }
+
+                creationMessage.Event = executionStartedEvent;
+            }
+
             ControlQueue controlQueue = await this.GetControlQueueAsync(creationMessage.OrchestrationInstance.InstanceId);
             MessageData internalMessage = await this.SendTaskOrchestrationMessageInternalAsync(
                 EmptySourceInstance,
@@ -1563,6 +1577,8 @@ namespace DurableTask.AzureStorage
             {
                 inputStatusOverride = this.messageManager.GetBlobUrl(internalMessage.CompressedBlobName);
             }
+
+            Thread.Sleep(5000);
 
             await this.trackingStore.SetNewExecutionAsync(
                 executionStartedEvent,
