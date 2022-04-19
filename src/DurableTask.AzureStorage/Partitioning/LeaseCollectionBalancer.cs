@@ -575,6 +575,11 @@ namespace DurableTask.AzureStorage.Partitioning
                 // Concurrency issue in stealing the lease, someone else got it before us
                 this.settings.Logger.LeaseStealingFailed(this.accountName, this.taskHub, this.workerName, lease.PartitionId);
             }
+            catch (ArgumentException)
+            {
+                // Concurrency issue in stealing the lease, someone else got it before us
+                this.settings.Logger.LeaseStealingFailed(this.accountName, this.taskHub, this.workerName, lease.PartitionId);
+            }
             catch (Exception ex)
             {
                 // Eat any exceptions during stealing
