@@ -636,7 +636,7 @@ namespace DurableTask.AzureStorage.Partitioning
                         lease.PartitionId,
                         $"Unable to add {this.leaseType} lease with PartitionId '{lease.PartitionId}' with lease token '{lease.Token}' to currently owned leases.");
 
-                    await this.leaseManager.ReleaseAsync(lease);
+                    await this.RemoveLeaseAsync(lease, true);
                     this.settings.Logger.LeaseRemoved(
                         this.accountName,
                         this.taskHub,
