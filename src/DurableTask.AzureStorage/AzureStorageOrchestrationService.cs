@@ -1561,8 +1561,6 @@ namespace DurableTask.AzureStorage
                 {
                     executionStartedEvent.Generation = 1;
                 }
-
-                creationMessage.Event = executionStartedEvent;
             }
 
             ControlQueue controlQueue = await this.GetControlQueueAsync(creationMessage.OrchestrationInstance.InstanceId);
