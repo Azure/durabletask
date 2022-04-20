@@ -1562,7 +1562,7 @@ namespace DurableTask.AzureStorage
                 }
                 else
                 {
-                    executionStartedEvent.Generation = 1;
+                    executionStartedEvent.Generation = 0;
                 }
             }
 

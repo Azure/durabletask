@@ -164,12 +164,12 @@ namespace DurableTask.AzureStorage.Tracking
                     {
                         if (property != null)
                         {
-                            getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForInt((int)property.GetValue(o));
+                            getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForInt((int?)property.GetValue(o));
                             setObjectPropertyFunc = (o, e) => property.SetValue(o, e.Int32Value);
                         }
                         else
                         {
-                            getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForInt((int)field.GetValue(o));
+                            getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForInt((int?)field.GetValue(o));
                             setObjectPropertyFunc = (o, e) => field.SetValue(o, e.Int32Value);
                         }
                     }
@@ -177,12 +177,12 @@ namespace DurableTask.AzureStorage.Tracking
                     {
                         if (property != null)
                         {
-                            getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForLong((long)property.GetValue(o));
+                            getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForLong((long?)property.GetValue(o));
                             setObjectPropertyFunc = (o, e) => property.SetValue(o, e.Int64Value);
                         }
                         else
                         {
-                            getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForLong((long)field.GetValue(o));
+                            getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForLong((long?)field.GetValue(o));
                             setObjectPropertyFunc = (o, e) => field.SetValue(o, e.Int64Value);
                         }
                     }
@@ -190,12 +190,12 @@ namespace DurableTask.AzureStorage.Tracking
                     {
                         if (property != null)
                         {
-                            getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForBool((bool)property.GetValue(o));
+                            getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForBool((bool?)property.GetValue(o));
                             setObjectPropertyFunc = (o, e) => property.SetValue(o, e.BooleanValue);
                         }
                         else
                         {
-                            getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForBool((bool)field.GetValue(o));
+                            getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForBool((bool?)field.GetValue(o));
                             setObjectPropertyFunc = (o, e) => field.SetValue(o, e.BooleanValue);
                         }
                     }
