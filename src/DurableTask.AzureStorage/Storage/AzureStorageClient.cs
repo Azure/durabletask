@@ -115,8 +115,8 @@ namespace DurableTask.AzureStorage.Storage
         public Task<T> MakeTableStorageRequest<T>(Func<OperationContext, CancellationToken, Task<T>> storageRequest, string operationName, string? clientRequestId = null) =>
             this.MakeStorageRequest<T>(storageRequest, TableAccountName, operationName, clientRequestId);
 
-        public Task MakeBlobStorageRequest(Func<OperationContext, CancellationToken, Task> storageRequest, string operationName, string? clientRequestId = null) =>
-            this.MakeStorageRequest(storageRequest, BlobAccountName, operationName, clientRequestId);
+        public Task MakeBlobStorageRequest(Func<OperationContext, CancellationToken, Task> storageRequest, string operationName, string? clientRequestId = null, bool throttle = true) =>
+            this.MakeStorageRequest(storageRequest, BlobAccountName, operationName, clientRequestId, throttle);
 
         public Task MakeQueueStorageRequest(Func<OperationContext, CancellationToken, Task> storageRequest, string operationName, string? clientRequestId = null) =>
             this.MakeStorageRequest(storageRequest, QueueAccountName, operationName, clientRequestId);
@@ -124,9 +124,12 @@ namespace DurableTask.AzureStorage.Storage
         public Task MakeTableStorageRequest(Func<OperationContext, CancellationToken, Task> storageRequest, string operationName, string? clientRequestId = null) =>
             this.MakeStorageRequest(storageRequest, TableAccountName, operationName, clientRequestId);
 
-        private async Task<T> MakeStorageRequest<T>(Func<OperationContext, CancellationToken, Task<T>> storageRequest, string accountName, string operationName, string? clientRequestId = null)
+        private async Task<T> MakeStorageRequest<T>(Func<OperationContext, CancellationToken, Task<T>> storageRequest, string accountName, string operationName, string? clientRequestId = null, bool throttle = true)
         {
-            await requestThrottleSemaphore.WaitAsync();
+            if (throttle)
+            {
+                await requestThrottleSemaphore.WaitAsync();
+            }
 
             try
             {
@@ -138,12 +141,15 @@ namespace DurableTask.AzureStorage.Storage
             }
             finally
             {
-                requestThrottleSemaphore.Release();
+                if (throttle)
+                {
+                    requestThrottleSemaphore.Release();
+                }
             }
         }
 
-        private Task MakeStorageRequest(Func<OperationContext, CancellationToken, Task> storageRequest, string accountName, string operationName, string? clientRequestId = null) =>
-            this.MakeStorageRequest<object?>((context, cancellationToken) => WrapFunctionWithReturnType(storageRequest, context, cancellationToken), accountName, operationName, clientRequestId);
+        private Task MakeStorageRequest(Func<OperationContext, CancellationToken, Task> storageRequest, string accountName, string operationName, string? clientRequestId = null, bool throttle = true) =>
+            this.MakeStorageRequest<object?>((context, cancellationToken) => WrapFunctionWithReturnType(storageRequest, context, cancellationToken), accountName, operationName, clientRequestId, throttle);
 
         private static async Task<object?> WrapFunctionWithReturnType(Func<OperationContext, CancellationToken, Task> storageRequest, OperationContext context, CancellationToken cancellationToken)
         {
