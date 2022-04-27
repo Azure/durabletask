@@ -25,13 +25,6 @@ namespace DurableTask.Core.Tracing
     {
         private static AsyncLocal<Activity> CurrentActivity = new AsyncLocal<Activity>();
 
-        private static readonly JsonSerializerSettings CustomJsonSerializerSettings = new JsonSerializerSettings()
-        {
-            TypeNameHandling = TypeNameHandling.Objects,
-            PreserveReferencesHandling = PreserveReferencesHandling.Objects,
-            ReferenceLoopHandling = ReferenceLoopHandling.Serialize,
-        };
-
         /// <summary>
         /// Share the Activity across an orchestration execution.
         /// </summary>
