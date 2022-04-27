@@ -40,57 +40,5 @@ namespace DurableTask.Core.Tracing
             get { return CurrentActivity.Value; }
             set { CurrentActivity.Value = value; }
         }
-
-        /// <summary>
-        /// Serialize the orchestration Activity
-        /// </summary>
-        internal static string SerializeActivity(DistributedTraceContext distributedTraceContext, Activity activity)
-        {
-            SerializedActivity serializedActivity = new SerializedActivity();
-            serializedActivity.DistributedTraceContext = distributedTraceContext;
-            serializedActivity.SpanId = activity.SpanId.ToString();
-            serializedActivity.StartTime = activity.StartTimeUtc;
-            return JsonConvert.SerializeObject(serializedActivity, CustomJsonSerializerSettings);
-        }
-
-        /// <summary>
-        /// Restore Activity sub class
-        /// </summary>
-        /// <param name="json">Serialized Activity json</param>
-        /// <returns></returns>
-        internal static SerializedActivity Restore(string json)
-        {
-            // If the JSON is empty, we assume to have an empty context
-            if (string.IsNullOrEmpty(json))
-            {
-                return null;
-            }
-
-            // De-serialize the object now that we now it's safe
-            SerializedActivity restored = JsonConvert.DeserializeObject<SerializedActivity>(json, CustomJsonSerializerSettings);
-
-            return restored;
-        }
-    }
-
-    /// <summary>
-    /// Manage serialized Activity
-    /// </summary>
-    internal class SerializedActivity
-    {
-        /// <summary>
-        /// DistributedTraceContext which stores the traceparent and tracestate
-        /// </summary>
-        public DistributedTraceContext DistributedTraceContext { get; set; }
-
-        /// <summary>
-        /// Stores the SpanId for the orchestration Activity.
-        /// </summary>
-        public string SpanId { get; set; }
-
-        /// <summary>
-        /// Stores the start time for the orchestration Activity.
-        /// </summary>
-        public DateTime StartTime { get; set; }
     }
 }

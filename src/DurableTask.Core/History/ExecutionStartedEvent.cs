@@ -91,15 +91,6 @@ namespace DurableTask.Core.History
         public string Correlation { get; set; }
 
         /// <summary>
-        /// SerializedActivity includes the following serialized
-        /// information: ParentTraceContext, SpanId, and the Activity's StartTime.
-        /// It's set when the Activity is first created. This information is saved
-        /// and used to restore the Activity during replays.
-        /// </summary>
-        [DataMember]
-        public string SerializedActivity { get; set; }
-
-        /// <summary>
         /// The W3C trace context associated with this event.
         /// </summary>
         [DataMember]

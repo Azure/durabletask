@@ -13,6 +13,7 @@
 #nullable enable
 namespace DurableTask.Core.Tracing
 {
+    using System;
     using System.Runtime.Serialization;
 
     /// <summary>
@@ -49,5 +50,17 @@ namespace DurableTask.Core.Tracing
         /// </summary>
         [DataMember]
         public string? TraceState { get; set; }
+
+        /// <summary>
+        /// The Activity's SpanId value that is used to restore an Activity during replays.
+        /// </summary>
+        [DataMember]
+        public string? SpanId { get; set; }
+
+        /// <summary>
+        /// The Activity's start time value that is used to restore an Activity during replays.
+        /// </summary>
+        [DataMember]
+        public DateTime? ActivityStartTime { get; set; }
     }
 }

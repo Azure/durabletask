@@ -79,7 +79,7 @@ namespace DurableTask.Core.Tracing
                 return null;
             }
 
-            if (string.IsNullOrEmpty(startEvent.SerializedActivity))
+            if (string.IsNullOrEmpty(startEvent.ParentTraceContext.SpanId))
             {
                 DistributedTraceActivity.Current = ActivityTraceSource.StartActivity(
                     name: startEvent.Name,
@@ -92,14 +92,14 @@ namespace DurableTask.Core.Tracing
                         new("dtfx.execution_id", startEvent.OrchestrationInstance.ExecutionId),
                     });
 
-                startEvent.SerializedActivity = DistributedTraceActivity.SerializeActivity(startEvent.ParentTraceContext, DistributedTraceActivity.Current);                
+                startEvent.ParentTraceContext.SpanId = DistributedTraceActivity.Current?.SpanId.ToString();
+                startEvent.ParentTraceContext.ActivityStartTime = DistributedTraceActivity.Current?.StartTimeUtc;
             }
             else
             {
                 // Restore the activity during replay
-                SerializedActivity restoredSerializedActivity = DistributedTraceActivity.Restore(startEvent.SerializedActivity);
-
-                if (restoredSerializedActivity == null)
+                string? spanId = startEvent.ParentTraceContext.SpanId;
+                if (string.IsNullOrEmpty(spanId) || startEvent.ParentTraceContext.ActivityStartTime == null)
                 {
                     return null;
                 }
@@ -108,7 +108,7 @@ namespace DurableTask.Core.Tracing
                     name: startEvent.Name,
                     kind: ActivityKind.Internal,
                     parentContext: activityContext,
-                    startTime: restoredSerializedActivity.StartTime,
+                    startTime: (DateTimeOffset)startEvent.ParentTraceContext.ActivityStartTime,
                     tags: new KeyValuePair<string, object?>[]
                     {
                         new("dtfx.type", "orchestrator"),
@@ -116,9 +116,9 @@ namespace DurableTask.Core.Tracing
                         new("dtfx.execution_id", startEvent.OrchestrationInstance.ExecutionId),
                     });
 
-                if (activity != null)
+                if (activity != null && spanId != null)
                 {
-                    s_spanIdSet(activity, restoredSerializedActivity.SpanId);
+                    s_spanIdSet(activity, spanId);
                 }
 
                 DistributedTraceActivity.Current = activity;
