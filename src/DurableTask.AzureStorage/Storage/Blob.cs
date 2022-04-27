@@ -128,7 +128,7 @@ namespace DurableTask.AzureStorage.Storage
             await this.azureStorageClient.MakeBlobStorageRequest(
                 (context, cancellationToken) => this.cloudBlockBlob.RenewLeaseAsync(AccessCondition.GenerateLeaseCondition(leaseId), requestOptions, context, cancellationToken),
                 "Blob RenewLease",
-                throttle: false); // lease renewals should not be throttled
+                force: true); // lease renewals should not be throttled
         }
 
         public async Task ReleaseLeaseAsync(string leaseId)
