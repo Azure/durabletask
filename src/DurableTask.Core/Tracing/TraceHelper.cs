@@ -79,18 +79,22 @@ namespace DurableTask.Core.Tracing
                 return null;
             }
 
+            string activityName = startEvent.Name;
+            ActivityKind activityKind = ActivityKind.Internal;
+            KeyValuePair<string, object?>[] activityTags = new KeyValuePair<string, object?>[]
+            {
+                new("dtfx.type", "orchestrator"),
+                new("dtfx.instance_id", startEvent.OrchestrationInstance.InstanceId),
+                new("dtfx.execution_id", startEvent.OrchestrationInstance.ExecutionId),
+            };
+
             if (string.IsNullOrEmpty(startEvent.ParentTraceContext.SpanId))
             {
                 DistributedTraceActivity.Current = ActivityTraceSource.StartActivity(
-                    name: startEvent.Name,
-                    kind: ActivityKind.Internal,
+                    name: activityName,
+                    kind: activityKind,
                     parentContext: activityContext,
-                    tags: new KeyValuePair<string, object?>[]
-                    {
-                        new("dtfx.type", "orchestrator"),
-                        new("dtfx.instance_id", startEvent.OrchestrationInstance.InstanceId),
-                        new("dtfx.execution_id", startEvent.OrchestrationInstance.ExecutionId),
-                    });
+                    tags: activityTags);
 
                 startEvent.ParentTraceContext.SpanId = DistributedTraceActivity.Current?.SpanId.ToString();
                 startEvent.ParentTraceContext.ActivityStartTime = DistributedTraceActivity.Current?.StartTimeUtc;
@@ -105,16 +109,11 @@ namespace DurableTask.Core.Tracing
                 }
 
                 Activity? activity = ActivityTraceSource.StartActivity(
-                    name: startEvent.Name,
-                    kind: ActivityKind.Internal,
+                    name: activityName,
+                    kind: activityKind,
                     parentContext: activityContext,
                     startTime: (DateTimeOffset)startEvent.ParentTraceContext.ActivityStartTime,
-                    tags: new KeyValuePair<string, object?>[]
-                    {
-                        new("dtfx.type", "orchestrator"),
-                        new("dtfx.instance_id", startEvent.OrchestrationInstance.InstanceId),
-                        new("dtfx.execution_id", startEvent.OrchestrationInstance.ExecutionId),
-                    });
+                    tags: activityTags);
 
                 if (activity != null && spanId != null)
                 {
