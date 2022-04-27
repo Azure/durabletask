@@ -148,8 +148,8 @@ namespace DurableTask.AzureStorage.Storage
             }
         }
 
-        private Task MakeStorageRequest(Func<OperationContext, CancellationToken, Task> storageRequest, string accountName, string operationName, string? clientRequestId = null, bool throttle = true) =>
-            this.MakeStorageRequest<object?>((context, cancellationToken) => WrapFunctionWithReturnType(storageRequest, context, cancellationToken), accountName, operationName, clientRequestId, throttle);
+        private Task MakeStorageRequest(Func<OperationContext, CancellationToken, Task> storageRequest, string accountName, string operationName, string? clientRequestId = null, bool force = false) =>
+            this.MakeStorageRequest<object?>((context, cancellationToken) => WrapFunctionWithReturnType(storageRequest, context, cancellationToken), accountName, operationName, clientRequestId, force);
 
         private static async Task<object?> WrapFunctionWithReturnType(Func<OperationContext, CancellationToken, Task> storageRequest, OperationContext context, CancellationToken cancellationToken)
         {
