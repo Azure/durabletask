@@ -171,102 +171,115 @@ namespace DurableTask.AzureStorage.Partitioning
             }
         }
 
-        async Task LeaseRenewer()
+        Task LeaseRenewer()
         {
-            this.settings.Logger.PartitionManagerInfo(
-                this.accountName,
-                this.taskHub,
-                this.workerName,
-                string.Empty /* partitionId */,
-                $"Starting background renewal of {this.leaseType} leases with interval: {this.options.RenewInterval}.");
+            // use a dedicated thread to make the lease renewal less susceptible to thread pool starvation
+            var taskCompletionSource = new TaskCompletionSource<bool>();
+            var leaseRenewalThread = new Thread(LeaseRenewalLoop);
+            leaseRenewalThread.Name = "LeaseRenewalThread";
+            leaseRenewalThread.Start();
+            return taskCompletionSource.Task;
 
-            while (this.isStarted == 1 || !shutdownComplete)
+            void LeaseRenewalLoop()
             {
-                try
-                {
-                    var nonRenewedLeases = new ConcurrentBag<T>();
-                    var renewTasks = new List<Task>();
+                this.settings.Logger.PartitionManagerInfo(
+                    this.accountName,
+                    this.taskHub,
+                    this.workerName,
+                    string.Empty /* partitionId */,
+                    $"Starting background renewal of {this.leaseType} leases with interval: {this.options.RenewInterval}.");
 
-                    // Renew leases for all currently owned partitions in parallel
-                    foreach (T lease in this.currentlyOwnedShards.Values)
+                var stopwatch = new Stopwatch();
+                var leaseTasks = new List<Task>();
+
+                while (this.isStarted == 1 || !this.shutdownComplete)
+                {
+                    try
                     {
-                        if (this.shouldRenewLeaseDelegate(lease.PartitionId))
+                        this.settings.Logger.PartitionManagerInfo(
+                           this.accountName,
+                           this.taskHub,
+                           this.workerName,
+                           string.Empty /* partitionId */,
+                           $"Starting next round of {this.leaseType} lease renewals after {stopwatch.Elapsed}.");
+
+                        stopwatch.Restart();
+
+                        foreach (T lease in this.currentlyOwnedShards.Values.ToList())
                         {
-                            renewTasks.Add(this.RenewLeaseAsync(lease).ContinueWith(renewResult =>
+                            leaseTasks.Add(RenewOwnedLease(lease));
+                        }
+                        foreach (T shutdownLease in this.keepRenewingDuringClose.Values.ToList())
+                        {
+                            leaseTasks.Add(RenewShutdownLease(shutdownLease));
+                        }
+
+                        Task.WhenAll(leaseTasks).Wait();
+                        leaseTasks.Clear();
+
+                        var delayBy = this.options.RenewInterval - stopwatch.Elapsed;
+                        if (delayBy > TimeSpan.Zero)
+                        {
+                            this.leaseRenewerCancellationTokenSource.Token.WaitHandle.WaitOne(delayBy);
+                        }
+
+                        async Task RenewOwnedLease(T lease)
+                        {
+                            if (this.shouldRenewLeaseDelegate(lease.PartitionId))
                             {
-                                if (!renewResult.Result)
+                                if (!await this.RenewLeaseAsync(lease))
                                 {
-                                    // Keep track of all failed attempts to renew so we can trigger shutdown for these partitions
-                                    nonRenewedLeases.Add(lease);
+                                    await this.RemoveLeaseAsync(lease, false);
                                 }
-                            }));
-                        } 
-                        else 
+                            }
+                            else
+                            {
+                                await this.RemoveLeaseAsync(lease, true);
+                            }
+                        }
+
+                        async Task RenewShutdownLease(T lease)
                         {
-                            nonRenewedLeases.Add(lease);
+                            if (this.shouldRenewLeaseDelegate(lease.PartitionId))
+                            {
+                                if (!await this.RenewLeaseAsync(lease))
+                                {
+                                    this.keepRenewingDuringClose.TryRemove(lease.PartitionId, out var _);
+                                }
+                            }
                         }
                     }
-
-                    // Renew leases for all partitions currently in shutdown 
-                    var failedToRenewShutdownLeases = new List<T>();
-                    foreach (T shutdownLease in this.keepRenewingDuringClose.Values)
+                    catch (OperationCanceledException)
                     {
-                        if (this.shouldRenewLeaseDelegate(shutdownLease.PartitionId))
-                        {
-                            renewTasks.Add(this.RenewLeaseAsync(shutdownLease).ContinueWith(renewResult =>
-                            {
-                                if (!renewResult.Result)
-                                {
-                                    // Keep track of all failed attempts to renew shutdown leases so we can remove them from further renew attempts
-                                    failedToRenewShutdownLeases.Add(shutdownLease);
-                                }
-                            }));
-                        }
+                        this.settings.Logger.PartitionManagerInfo(
+                            this.accountName,
+                            this.taskHub,
+                            this.workerName,
+                            string.Empty /* partitionId */,
+                            $"Background renewal task for {this.leaseType} leases was canceled.");
                     }
-
-                    // Wait for all renews to complete
-                    await Task.WhenAll(renewTasks.ToArray());
-
-                    // Trigger shutdown of all partitions we did not successfully renew leases for
-                    await nonRenewedLeases.ParallelForEachAsync(lease => this.RemoveLeaseAsync(lease, false));
-
-                    // Now remove all failed renewals of shutdown leases from further renewals
-                    foreach (T failedToRenewShutdownLease in failedToRenewShutdownLeases)
+                    catch (Exception ex)
                     {
-                        T removedLease = null;
-                        this.keepRenewingDuringClose.TryRemove(failedToRenewShutdownLease.PartitionId, out removedLease);
+                        this.settings.Logger.PartitionManagerError(
+                            this.accountName,
+                            this.taskHub,
+                            this.workerName,
+                            string.Empty,
+                            $"Failed during {this.leaseType} lease renewal: {ex.ToString()}");
                     }
+                }
 
-                    await Task.Delay(this.options.RenewInterval, this.leaseRenewerCancellationTokenSource.Token);
-                }
-                catch (OperationCanceledException)
-                {
-                    this.settings.Logger.PartitionManagerInfo(
-                        this.accountName,
-                        this.taskHub,
-                        this.workerName,
-                        string.Empty /* partitionId */,
-                        $"Background renewal task for {this.leaseType} leases was canceled.");
-                }
-                catch (Exception ex)
-                {
-                    this.settings.Logger.PartitionManagerError(
-                        this.accountName,
-                        this.taskHub,
-                        this.workerName,
-                        string.Empty,
-                        $"Failed during {this.leaseType} lease renewal: {ex.ToString()}");
-                }
+                this.currentlyOwnedShards.Clear();
+                this.keepRenewingDuringClose.Clear();
+                this.settings.Logger.PartitionManagerInfo(
+                    this.accountName,
+                    this.taskHub,
+                    this.workerName,
+                    string.Empty /* partitionId */,
+                    $"Background renewer task for {this.leaseType} leases completed.");
+
+                taskCompletionSource.SetResult(true);
             }
-
-            this.currentlyOwnedShards.Clear();
-            this.keepRenewingDuringClose.Clear();
-            this.settings.Logger.PartitionManagerInfo(
-                this.accountName,
-                this.taskHub,
-                this.workerName,
-                string.Empty /* partitionId */,
-                $"Background renewer task for {this.leaseType} leases completed.");
         }
 
         async Task LeaseTakerAsync()
