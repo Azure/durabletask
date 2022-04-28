@@ -26,8 +26,6 @@ namespace DurableTask.Core
     /// </summary>
     public class ReflectionBasedTaskActivity : TaskActivity
     {
-        private readonly static JsonDataConverter defaultDataConverter  = new JsonDataConverter();
-
         private DataConverter dataConverter;
 
         /// <summary>
@@ -37,7 +35,7 @@ namespace DurableTask.Core
         /// <param name="methodInfo">The Reflection.methodInfo for invoking the method on the activity object</param>
         public ReflectionBasedTaskActivity(object activityObject, MethodInfo methodInfo)
         {
-            DataConverter = defaultDataConverter;
+            DataConverter = JsonDataConverter.Default;
             ActivityObject = activityObject;
             MethodInfo = methodInfo;
         }

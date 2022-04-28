@@ -68,14 +68,12 @@ namespace DurableTask.Core
     /// <typeparam name="TStatus">Output Type for GetStatus calls</typeparam>
     public abstract class TaskOrchestration<TResult, TInput, TEvent, TStatus> : TaskOrchestration
     {
-        private readonly static JsonDataConverter defaultDataConverter  = new JsonDataConverter();
-        
         /// <summary>
         /// Creates a new TaskOrchestration with the default DataConverter
         /// </summary>
         protected TaskOrchestration()
         {
-            DataConverter = defaultDataConverter;
+            DataConverter = JsonDataConverter.Default;
         }
 
         /// <summary>

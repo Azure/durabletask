@@ -54,14 +54,12 @@ namespace DurableTask.Core
     /// <typeparam name="TResult">Output type of the activity</typeparam>
     public abstract class AsyncTaskActivity<TInput, TResult> : TaskActivity
     {
-        private readonly static JsonDataConverter defaultDataConverter  = new JsonDataConverter();
-     
         /// <summary>
         /// Creates a new AsyncTaskActivity with the default DataConverter
         /// </summary>
         protected AsyncTaskActivity()
         {
-            DataConverter = defaultDataConverter;
+            DataConverter = JsonDataConverter.Default;
         }
 
         /// <summary>
@@ -70,7 +68,7 @@ namespace DurableTask.Core
         /// <param name="dataConverter"></param>
         protected AsyncTaskActivity(DataConverter dataConverter)
         {
-            DataConverter = dataConverter ?? defaultDataConverter;
+            DataConverter = dataConverter ?? JsonDataConverter.Default;
         }
 
         /// <summary>

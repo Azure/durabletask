@@ -28,8 +28,6 @@ namespace DurableTask.Core
 
     internal class TaskOrchestrationContext : OrchestrationContext
     {
-        private readonly static JsonDataConverter defaultDataConverter  = new JsonDataConverter();
- 
         private readonly IDictionary<int, OpenTaskInfo> openTasks;
         private readonly IDictionary<int, OrchestratorAction> orchestratorActionsMap;
         private OrchestrationCompleteOrchestratorAction continueAsNew;
@@ -53,8 +51,8 @@ namespace DurableTask.Core
             this.openTasks = new Dictionary<int, OpenTaskInfo>();
             this.orchestratorActionsMap = new SortedDictionary<int, OrchestratorAction>();
             this.idCounter = 0;
-            this.MessageDataConverter = defaultDataConverter;
-            this.ErrorDataConverter = defaultDataConverter;
+            this.MessageDataConverter = JsonDataConverter.Default;
+            this.ErrorDataConverter = JsonDataConverter.Default;
             OrchestrationInstance = orchestrationInstance;
             IsReplaying = false;
             ErrorPropagationMode = errorPropagationMode;

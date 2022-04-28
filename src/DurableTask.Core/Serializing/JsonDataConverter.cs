@@ -24,6 +24,11 @@ namespace DurableTask.Core.Serializing
     /// </summary>
     public class JsonDataConverter : DataConverter
     {
+        /// <summary>
+        /// Default JsonDataConverter
+        /// </summary>
+        public static readonly JsonDataConverter Default = new JsonDataConverter();
+
         readonly JsonSerializer serializer;
 
         /// <summary>

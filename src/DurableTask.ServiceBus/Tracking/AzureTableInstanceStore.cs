@@ -35,8 +35,6 @@ namespace DurableTask.ServiceBus.Tracking
         const int MaxRetriesTableStore = 5;
         const int IntervalBetweenRetriesSecs = 5;
 
-        static readonly DataConverter DataConverter = new JsonDataConverter();
-
         readonly AzureTableClient tableClient;
 
         /// <summary>
@@ -473,7 +471,7 @@ namespace DurableTask.ServiceBus.Tracking
                 throw new ArgumentNullException(nameof(continuationToken));
             }
 
-            string serializedToken = DataConverter.Serialize(continuationToken);
+            string serializedToken = JsonDataConverter.Default.Serialize(continuationToken);
             return Convert.ToBase64String(Encoding.Unicode.GetBytes(serializedToken));
         }
 
@@ -486,7 +484,7 @@ namespace DurableTask.ServiceBus.Tracking
 
             byte[] tokenBytes = Convert.FromBase64String(serializedContinuationToken);
 
-            return DataConverter.Deserialize<TableContinuationToken>(Encoding.Unicode.GetString(tokenBytes));
+            return JsonDataConverter.Default.Deserialize<TableContinuationToken>(Encoding.Unicode.GetString(tokenBytes));
         }
     }
 }
