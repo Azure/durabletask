@@ -383,7 +383,10 @@ namespace DurableTask.AzureStorage.Partitioning
                 }
 
                 int myCount = workerToShardCount[this.workerName];
-                int moreShardsNeeded = target - myCount;
+
+                // if we are stealing intent leases, we are trying to take as many as required to reach balance
+                // if we are aquiring owner leases, we want to acquire all of the expired leases
+                int moreShardsNeeded = this.options.ShouldStealLeases ? target - myCount : expiredLeases.Count;
 
                 if (moreShardsNeeded > 0)
                 {
