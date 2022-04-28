@@ -73,7 +73,7 @@ namespace DurableTask.Core
         /// </summary>
         protected TaskOrchestration()
         {
-            DataConverter = new JsonDataConverter();
+            DataConverter = JsonDataConverter.Default;
         }
 
         /// <summary>

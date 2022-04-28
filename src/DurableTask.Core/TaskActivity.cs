@@ -59,7 +59,7 @@ namespace DurableTask.Core
         /// </summary>
         protected AsyncTaskActivity()
         {
-            DataConverter = new JsonDataConverter();
+            DataConverter = JsonDataConverter.Default;
         }
 
         /// <summary>
@@ -68,7 +68,7 @@ namespace DurableTask.Core
         /// <param name="dataConverter"></param>
         protected AsyncTaskActivity(DataConverter dataConverter)
         {
-            DataConverter = dataConverter ?? new JsonDataConverter();
+            DataConverter = dataConverter ?? JsonDataConverter.Default;
         }
 
         /// <summary>
