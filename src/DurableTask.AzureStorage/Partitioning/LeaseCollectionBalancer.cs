@@ -340,7 +340,7 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.accountName,
                         this.taskHub,
                         this.workerName,
-                        string.Empty /* partitionId */,
+                        lease.PartitionId,
                         $"Skipping {this.leaseType} lease aquiring for {lease.PartitionId}");
                     continue;
                 }
