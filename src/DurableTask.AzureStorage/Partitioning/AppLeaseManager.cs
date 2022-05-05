@@ -168,9 +168,12 @@ namespace DurableTask.AzureStorage.Partitioning
                 await this.partitionManager.StopAsync();
             }
 
-            this.starterTokenSource.Cancel();
-            this.starterTokenSource.Dispose();
-            this.starterTokenSource = null;
+            if (this.starterTokenSource != null)
+            {
+                this.starterTokenSource.Cancel();
+                this.starterTokenSource.Dispose();
+                this.starterTokenSource = null;
+            }
         }
 
         public async Task ForceChangeAppLeaseAsync()
