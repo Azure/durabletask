@@ -223,7 +223,7 @@ namespace DurableTask.AzureStorage.Messaging
                 this.settings.TaskHubName,
                 this.settings.WorkerId,
                 this.Name,
-                $"{caller} is releasing lease on {this.Name} for reason: {reason}");
+                $"{caller} is releasing partition {this.Name} for reason: {reason}");
         }
 
         public virtual void Dispose()
