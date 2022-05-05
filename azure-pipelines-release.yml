@@ -19,7 +19,9 @@ steps:
       src/DurableTask.AzureStorage/DurableTask.AzureStorage.sln
       src/DurableTask.Emulator/DurableTask.Emulator.csproj
       src/DurableTask.ServiceBus/DurableTask.ServiceBus.csproj
-      src/DurableTask.AzureServiceFabric/DurableTask.AzureServiceFabric.csproj
+      src/DurableTask.AzureServiceFabric.Client/DurableTask.AzureServiceFabric.Client.csproj
+      src/DurableTask.AzureServiceFabric.Core/DurableTask.AzureServiceFabric.Core.csproj
+      src/DurableTask.AzureServiceFabric.Service/DurableTask.AzureServiceFabric.Service.csproj
 
 # Build the filtered solution in release mode, specifying the continuous integration flag.
 - task: VSBuild@1
@@ -47,6 +49,36 @@ steps:
     vsVersion: '16.0'
     logFileVerbosity: minimal
     configuration: Release
+    msbuildArgs: /p:GITHUB_RUN_NUMBER=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+
+- task: VSBuild@1
+  displayName: 'Build (AzureServiceFabric.Client)'
+  inputs:
+    solution: 'src/DurableTask.AzureServiceFabric.Client/DurableTask.AzureServiceFabric.Client.csproj'
+    vsVersion: '16.0'
+    logFileVerbosity: minimal
+    configuration: Release
+    platform: x64
+    msbuildArgs: /p:GITHUB_RUN_NUMBER=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+
+- task: VSBuild@1
+  displayName: 'Build (AzureServiceFabric.Core)'
+  inputs:
+    solution: 'src/DurableTask.AzureServiceFabric.Core/DurableTask.AzureServiceFabric.Core.csproj'
+    vsVersion: '16.0'
+    logFileVerbosity: minimal
+    configuration: Release
+    platform: x64
+    msbuildArgs: /p:GITHUB_RUN_NUMBER=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+
+- task: VSBuild@1
+  displayName: 'Build (AzureServiceFabric.Service)'
+  inputs:
+    solution: 'src/DurableTask.AzureServiceFabric.Service/DurableTask.AzureServiceFabric.Service.csproj'
+    vsVersion: '16.0'
+    logFileVerbosity: minimal
+    configuration: Release
+    platform: x64
     msbuildArgs: /p:GITHUB_RUN_NUMBER=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
 
 - task: VSBuild@1
@@ -131,6 +163,39 @@ steps:
     nobuild: true
     packDirectory: $(build.artifactStagingDirectory)
     packagesToPack: 'src/DurableTask.ServiceBus/DurableTask.ServiceBus.csproj'
+
+- task: DotNetCoreCLI@2
+  displayName: Generate nuget packages
+  inputs:
+    command: pack
+    verbosityPack: Minimal
+    configuration: Release
+    nobuild: true
+    packDirectory: $(build.artifactStagingDirectory)
+    packagesToPack: 'src/DurableTask.AzureServiceFabric.Client/DurableTask.AzureServiceFabric.Client.csproj'
+    buildProperties: 'Platform=x64'
+
+- task: DotNetCoreCLI@2
+  displayName: Generate nuget packages
+  inputs:
+    command: pack
+    verbosityPack: Minimal
+    configuration: Release
+    nobuild: true
+    packDirectory: $(build.artifactStagingDirectory)
+    packagesToPack: 'src/DurableTask.AzureServiceFabric.Core/DurableTask.AzureServiceFabric.Core.csproj'
+    buildProperties: 'Platform=x64'
+
+- task: DotNetCoreCLI@2
+  displayName: Generate nuget packages
+  inputs:
+    command: pack
+    verbosityPack: Minimal
+    configuration: Release
+    nobuild: true
+    packDirectory: $(build.artifactStagingDirectory)
+    packagesToPack: 'src/DurableTask.AzureServiceFabric.Service/DurableTask.AzureServiceFabric.Service.csproj'
+    buildProperties: 'Platform=x64'
 
 - task: DotNetCoreCLI@2
   displayName: Generate nuget packages

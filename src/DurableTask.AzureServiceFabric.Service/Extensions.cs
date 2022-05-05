@@ -14,12 +14,8 @@
 namespace DurableTask.AzureServiceFabric
 {
     using System;
-    using System.Net.Http;
-    using System.Threading.Tasks;
-    using System.Web;
-
-    using DurableTask.AzureServiceFabric.Exceptions;
-
+    using System.Text.Encodings.Web;
+    
     /// <summary>
     /// Defines extensions methods.
     /// </summary>
@@ -38,7 +34,7 @@ namespace DurableTask.AzureServiceFabric
             }
 
             // InsanceId consists of valid url characters is treated as valid.
-            var encodedInstanceId = HttpUtility.UrlEncode(instanceId);
+            var encodedInstanceId = UrlEncoder.Default.Encode(instanceId);
 
             return instanceId.Equals(encodedInstanceId, StringComparison.OrdinalIgnoreCase);
         }

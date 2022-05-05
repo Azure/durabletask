@@ -242,7 +242,7 @@ namespace DurableTask.AzureServiceFabric
             }
             catch (Exception e)
             {
-                ServiceFabricProviderEventSource.Tracing.LogProxyServiceError($"PurgeOrchestrationHistoryEventsAsync failed with exception {e.ToString()}");
+                ServiceFabricProviderEventSource.Tracing.LogError($"PurgeOrchestrationHistoryEventsAsync failed with exception {e}");
             }
         }
 

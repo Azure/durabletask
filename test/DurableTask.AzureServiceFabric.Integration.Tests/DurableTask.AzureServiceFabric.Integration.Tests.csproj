@@ -18,8 +18,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\DurableTask.AzureServiceFabric.Client\DurableTask.AzureServiceFabric.Client.csproj" />
     <ProjectReference Include="..\..\src\DurableTask.Core\DurableTask.Core.csproj" />
-    <ProjectReference Include="..\..\src\DurableTask.AzureServiceFabric\DurableTask.AzureServiceFabric.csproj" />
     <ProjectReference Include="..\DurableTask.Test.Orchestrations\DurableTask.Test.Orchestrations.csproj" />
     <ProjectReference Include="..\TestFabricApplication\TestApplication.Common\TestApplication.Common.csproj" />
   </ItemGroup>

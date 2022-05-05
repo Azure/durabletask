@@ -17,15 +17,13 @@ namespace DurableTask.AzureServiceFabric.Tracing
     using System.Diagnostics.Tracing;
     using System.Threading.Tasks;
 
-    using Microsoft.ServiceFabric.Services.Runtime;
-
     /// <summary>
     /// The event source which emits ETW events for service fabric based provider functionality.
     /// </summary>
     [EventSource(
-        Guid = "9FF47541-6D50-4DDF-AF88-D9EF1807810C",
-        Name = "DurableTask-AzureServiceFabricProvider")]
-    public sealed class ServiceFabricProviderEventSource : EventSource
+        Guid = "2B44FC3F-F4FD-4B1C-8EE4-67F4F2BFEDED",
+        Name = "DurableTask-AzureServiceFabricProvider-Core")]
+    internal sealed class ServiceFabricProviderEventSource : EventSource
     {
         /// <summary>
         /// Singleton instance of the event source.
@@ -72,16 +70,6 @@ namespace DurableTask.AzureServiceFabric.Tracing
             /// Error Keyword
             /// </summary>
             public const EventKeywords Error = (EventKeywords)0x10L;
-
-            /// <summary>
-            /// ProxyService Keyword
-            /// </summary>
-            public const EventKeywords ProxyService = (EventKeywords)0x20L;
-
-            /// <summary>
-            /// Requests Keyword
-            /// </summary>
-            public const EventKeywords FabricService = (EventKeywords)0x40L;
         }
 
         #region Verbose Events 001-500
@@ -164,36 +152,6 @@ namespace DurableTask.AzureServiceFabric.Tracing
             }
         }
 
-        [Event(506,
-            Keywords = Keywords.ProxyService,
-            Level = EventLevel.Informational)]
-        internal void LogProxyServiceRequestInformation(string message)
-        {
-            if (this.IsEnabled(EventLevel.Informational, Keywords.ProxyService))
-            {
-                this.WriteEvent(506, message);
-            }
-        }
-
-        [Event(510,
-            Keywords = Keywords.FabricService,
-            Level = EventLevel.Informational,
-            Message = "{7}")]
-        internal void LogFabricServiceInformation(
-            string serviceName,
-            string serviceTypeName,
-            long replicaOrInstanceId,
-            Guid partitionId,
-            string applicationName,
-            string applicationTypeName,
-            string nodeName,
-            string message)
-        {
-            if (this.IsEnabled(EventLevel.Informational, Keywords.FabricService))
-            {
-                this.WriteEvent(510, serviceName, serviceTypeName, replicaOrInstanceId, partitionId, applicationName, applicationTypeName, nodeName, message);
-            }
-        }
         #endregion
 
         #region Warnings 1001-1500
@@ -253,27 +211,16 @@ namespace DurableTask.AzureServiceFabric.Tracing
         }
 
         [Event(1503,
-            Keywords = Keywords.ProxyService,
+            Keywords = Keywords.Common | Keywords.Error,
             Level = EventLevel.Error)]
-        internal void LogProxyServiceError(string message)
+        public void LogError(string message)
         {
-            if (this.IsEnabled(EventLevel.Error, Keywords.ProxyService))
+            if (this.IsEnabled(EventLevel.Error, Keywords.Common | Keywords.Error))
             {
                 this.WriteEvent(1503, message);
             }
         }
 
-        [Event(1504,
-            Keywords = Keywords.FabricService,
-            Level = EventLevel.Error,
-            Message = "Service request '{0}' failed")]
-        internal void ServiceRequestFailed(string requestTypeName, string exception)
-        {
-            if (this.IsEnabled(EventLevel.Error, Keywords.FabricService))
-            {
-                this.WriteEvent(1504, exception);
-            }
-        }
         #endregion
     }
 }

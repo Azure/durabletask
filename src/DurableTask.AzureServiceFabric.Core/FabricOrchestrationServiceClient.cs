@@ -52,7 +52,6 @@ namespace DurableTask.AzureServiceFabric
                 throw new NotSupportedException("Service Fabric storage provider for Durable Tasks currently does not support scheduled starts");
             }
 
-            creationMessage.OrchestrationInstance.InstanceId.EnsureValidInstanceId();
             ExecutionStartedEvent startEvent = creationMessage.Event as ExecutionStartedEvent;
             if (startEvent == null)
             {
@@ -102,7 +101,6 @@ namespace DurableTask.AzureServiceFabric
 
         public Task SendTaskOrchestrationMessageAsync(TaskMessage message)
         {
-            message.OrchestrationInstance.InstanceId.EnsureValidInstanceId();
             return this.orchestrationProvider.AppendMessageAsync(new TaskMessageItem(message));
         }
 
@@ -110,14 +108,12 @@ namespace DurableTask.AzureServiceFabric
         {
             foreach (var message in messages)
             {
-                message.OrchestrationInstance.InstanceId.EnsureValidInstanceId();
                 await this.SendTaskOrchestrationMessageAsync(message);
             }
         }
 
         public async Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason)
         {
-            instanceId.EnsureValidInstanceId();
             var latestExecutionId = (await this.instanceStore.GetExecutionIds(instanceId)).Last();
 
             if (latestExecutionId == null)
@@ -153,7 +149,6 @@ namespace DurableTask.AzureServiceFabric
 
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
         {
-            instanceId.EnsureValidInstanceId();
             var stateInstances = await this.instanceStore.GetOrchestrationStateAsync(instanceId, allExecutions);
 
             var result = new List<OrchestrationState>();
@@ -169,15 +164,12 @@ namespace DurableTask.AzureServiceFabric
 
         public async Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)
         {
-            instanceId.EnsureValidInstanceId();
             var stateInstance = await this.instanceStore.GetOrchestrationStateAsync(instanceId, executionId);
             return stateInstance?.State;
         }
 
         public Task<string> GetOrchestrationHistoryAsync(string instanceId, string executionId)
         {
-            instanceId.EnsureValidInstanceId();
-
             // Other implementations returns full history for the execution.
             // This implementation returns just the final history, i.e., state.
             var result = JsonConvert.SerializeObject(this.instanceStore.GetOrchestrationStateAsync(instanceId, executionId));
@@ -196,7 +188,6 @@ namespace DurableTask.AzureServiceFabric
 
         public async Task<OrchestrationState> WaitForOrchestrationAsync(string instanceId, string executionId, TimeSpan timeout, CancellationToken cancellationToken)
         {
-            instanceId.EnsureValidInstanceId();
             var state = await this.instanceStore.WaitForOrchestrationAsync(instanceId, timeout);
             return state?.State;
         }

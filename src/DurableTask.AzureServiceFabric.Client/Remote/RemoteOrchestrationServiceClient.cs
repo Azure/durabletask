@@ -20,9 +20,9 @@ namespace DurableTask.AzureServiceFabric.Remote
     using System.Net.Http;
     using System.Net.Http.Formatting;
     using System.Net.Sockets;
+    using System.Text.Encodings.Web;
     using System.Threading;
     using System.Threading.Tasks;
-    using System.Web;
 
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
@@ -31,7 +31,7 @@ namespace DurableTask.AzureServiceFabric.Remote
 
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
-
+    
     /// <summary>
     /// Allows to interact with a remote IOrchestrationServiceClient
     /// </summary>
@@ -114,7 +114,7 @@ namespace DurableTask.AzureServiceFabric.Remote
         {
             instanceId.EnsureValidInstanceId();
 
-            var fragment = $"{this.GetOrchestrationFragment(instanceId)}?reason={HttpUtility.UrlEncode(reason)}";
+            var fragment = $"{this.GetOrchestrationFragment(instanceId)}?reason={UrlEncoder.Default.Encode(reason)}";
             using (var response = await this.ExecuteRequestWithRetriesAsync(
                 instanceId,
                 async (baseUri) => await this.HttpClient.DeleteAsync(new Uri(baseUri, fragment)),

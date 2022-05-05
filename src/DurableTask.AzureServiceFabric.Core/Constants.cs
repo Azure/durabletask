@@ -22,8 +22,5 @@ namespace DurableTask.AzureServiceFabric
         internal const string InstanceStoreDictionaryName = CollectionNameUniquenessPrefix + "InstanceStore";
         internal const string ExecutionStoreDictionaryName = CollectionNameUniquenessPrefix + "ExecutionIdStore";
         internal const string ScheduledMessagesDictionaryName = CollectionNameUniquenessPrefix + "ScheduledMessages";
-        internal const string TaskHubProxyServiceName = "DurableTask-TaskHubProxyService";
-        internal const string TaskHubProxyListenerEndpointName = "DtfxServiceEndpoint";
-        internal const string ActivityIdHeaderName = "x-ms-durabletask-activityid";
     }
 }

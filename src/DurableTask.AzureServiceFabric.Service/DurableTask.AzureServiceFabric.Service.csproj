@@ -4,16 +4,15 @@
   <PropertyGroup>
     <TargetFrameworks>net462</TargetFrameworks>
     <!--NuGet licenseUrl and PackageIconUrl/iconUrl deprecation. -->
-    <NoWarn>NU5125;NU5048;NU5128</NoWarn>
+    <NoWarn>NU5125;NU5048</NoWarn>
     <Platforms>x64</Platforms>
   </PropertyGroup>
 
   <!-- Package Info -->
   <PropertyGroup>
-    <IncludeBuildOutput>false</IncludeBuildOutput>
-    <PackageId>Microsoft.Azure.DurableTask.AzureServiceFabric</PackageId>
-    <Title>Azure Service Fabric provider extension for the Durable Task Framework.</Title>
-    <Description>Orchestration message and runtime state is stored in Azure Service Fabric reliable collections.</Description>
+    <PackageId>Microsoft.Azure.DurableTask.AzureServiceFabric.Service</PackageId>
+    <Title>Azure Service Fabric Service based on the Durable Task Framework.</Title>
+    <Description>Stateful Service Fabric servic exposing Durable Task via Web API.</Description>
     <FileVersion>1.0.0</FileVersion>
     <AssemblyVersion>$(FileVersion)</AssemblyVersion>
     <Version>$(FileVersion)</Version>
@@ -21,9 +20,15 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\DurableTask.AzureServiceFabric.Client\DurableTask.AzureServiceFabric.Client.csproj" />
+    <PackageReference Include="Microsoft.AspNet.WebApi.OwinSelfHost" Version="5.2.6" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="2.1.1" />
+    <PackageReference Include="ImpromptuInterface" Version="6.2.2" />
+    <PackageReference Include="Newtonsoft.Json" Version="7.0.1" />
+    <PackageReference Include="System.Text.Encodings.Web" Version="6.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\DurableTask.AzureServiceFabric.Core\DurableTask.AzureServiceFabric.Core.csproj" />
-    <ProjectReference Include="..\DurableTask.AzureServiceFabric.Service\DurableTask.AzureServiceFabric.Service.csproj" />
     <ProjectReference Include="..\DurableTask.Core\DurableTask.Core.csproj" />
   </ItemGroup>
 

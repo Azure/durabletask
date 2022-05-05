@@ -1,0 +1,47 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net462</TargetFrameworks>
+    <!--NuGet licenseUrl and PackageIconUrl/iconUrl deprecation. -->
+    <NoWarn>NU5125;NU5048</NoWarn>
+    <Platforms>x64</Platforms>
+  </PropertyGroup>
+
+  <!-- Package Info -->
+  <PropertyGroup>
+    <PackageId>Microsoft.Azure.DurableTask.AzureServiceFabric.Client</PackageId>
+    <Description>Client for Azure Service Fabric Service based on the Durable Task Framework..</Description>
+    <PackageTags>Azure Task Durable Orchestration Workflow Activity Reliable ServiceFabric Client</PackageTags>
+    <FileVersion>1.0.0</FileVersion>
+    <AssemblyVersion>$(FileVersion)</AssemblyVersion>
+    <Version>$(FileVersion)</Version>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+  </PropertyGroup>  
+  
+  <ItemGroup>
+    <Compile Include="..\DurableTask.AzureServiceFabric.Core\OrchestrationStatusExtensions.cs" Link="OrchestrationStatusExtensions.cs" />
+    <Compile Include="..\DurableTask.AzureServiceFabric.Service\Constants.cs" Link="Constants.cs" />
+    <Compile Include="..\DurableTask.AzureServiceFabric.Service\Extensions.cs" Link="Extensions.cs" />
+    <Compile Include="..\DurableTask.AzureServiceFabric.Service\Models\CreateTaskOrchestrationParameters.cs" Link="Models\CreateTaskOrchestrationParameters.cs" />
+    <Compile Include="..\DurableTask.AzureServiceFabric.Service\Models\PurgeOrchestrationHistoryParameters.cs" Link="Models\PurgeOrchestrationHistoryParameters.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DurableTask.Core\DurableTask.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(Configuration)'=='Release'">
+    <Content Include="..\..\_manifest\**">
+      <Pack>true</Pack>
+      <PackagePath>content/SBOM</PackagePath>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNet.WebApi.Client" Version="5.2.8" />
+    <PackageReference Include="Microsoft.ServiceFabric" Version="9.0.1017" />
+    <PackageReference Include="Microsoft.ServiceFabric.Services" Version="6.0.1017" />
+    <PackageReference Include="System.Text.Encodings.Web" Version="6.0.0" />
+  </ItemGroup>
+</Project>

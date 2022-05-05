@@ -1,0 +1,50 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net462</TargetFrameworks>
+    <!--NuGet licenseUrl and PackageIconUrl/iconUrl deprecation. -->
+    <NoWarn>NU5125;NU5048</NoWarn>
+    <Platforms>x64</Platforms>
+  </PropertyGroup>
+
+  <!-- Package Info -->
+  <PropertyGroup>
+    <PackageId>Microsoft.Azure.DurableTask.AzureServiceFabric.Core</PackageId>
+    <Description>Service Fabric provider extension for the Durable Task Framework.</Description>
+    <PackageTags>Azure Task Durable Orchestration Workflow Activity Reliable ServiceFabric</PackageTags>
+    <FileVersion>1.0.0</FileVersion>
+    <AssemblyVersion>$(FileVersion)</AssemblyVersion>
+    <Version>$(FileVersion)</Version>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="1.1.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="7.0.1" />
+    <PackageReference Include="Microsoft.ServiceFabric.Data" Version="3.3.617" />
+    <PackageReference Include="Microsoft.ServiceFabric.Services" Version="3.3.617" />
+    <PackageReference Include="Microsoft.ServiceFabric" Version="6.4.617" />
+    <PackageReference Include="System.Collections.Immutable" Version="1.2.0" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="6.0.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+    <PackageReference Include="Microsoft.ServiceFabric.Data" Version="6.0.1017" />
+    <PackageReference Include="Microsoft.ServiceFabric.Services" Version="6.0.1017" />
+    <PackageReference Include="Microsoft.ServiceFabric" Version="9.0.1017" />
+    <PackageReference Include="System.Collections.Immutable" Version="6.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DurableTask.Core\DurableTask.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(Configuration)'=='Release'">
+    <Content Include="..\..\_manifest\**">
+      <Pack>true</Pack>
+      <PackagePath>content/SBOM</PackagePath>
+    </Content>
+  </ItemGroup>
+</Project>

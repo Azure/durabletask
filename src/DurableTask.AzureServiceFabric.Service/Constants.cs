@@ -11,11 +11,12 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
-
-[assembly: ComVisible(false)]
-[assembly: System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2237:MarkISerializableTypesWithSerializable", Scope = "type", Target = "DurableTask.AzureServiceFabric.Exceptions.RemoteServiceException")]
-#if !SIGN_ASSEMBLY
-[assembly: InternalsVisibleTo("DurableTask.AzureServiceFabric.Tests")]
-#endif
+namespace DurableTask.AzureServiceFabric
+{
+    static class Constants
+    {
+        internal const string TaskHubProxyServiceName = "DurableTask-TaskHubProxyService";
+        internal const string TaskHubProxyListenerEndpointName = "DtfxServiceEndpoint";
+        internal const string ActivityIdHeaderName = "x-ms-durabletask-activityid";
+    }
+}
