@@ -30,7 +30,7 @@ namespace DurableTask.Core
         /// <summary>
         /// The DataConverter to use for input and output serialization/deserialization
         /// </summary>
-        public DataConverter DataConverter { get; internal set; } = new JsonDataConverter();
+        public DataConverter DataConverter { get; internal set; } = JsonDataConverter.Default;
 
         DataConverter IDataConverterConfigurable.DataConverter
         {

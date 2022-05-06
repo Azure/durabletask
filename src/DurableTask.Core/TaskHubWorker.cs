@@ -116,7 +116,7 @@ namespace DurableTask.Core
             this.orchestrationManager = orchestrationObjectManager ?? throw new ArgumentNullException(nameof(orchestrationObjectManager));
             this.activityManager = activityObjectManager ?? throw new ArgumentNullException(nameof(activityObjectManager));
             this.orchestrationService = orchestrationService ?? throw new ArgumentNullException(nameof(orchestrationService));
-            this.dataConverter = dataConverter ?? new JsonDataConverter();
+            this.dataConverter = dataConverter ?? JsonDataConverter.Default;
             this.logHelper = new LogHelper(loggerFactory?.CreateLogger("DurableTask.Core"));
         }
 

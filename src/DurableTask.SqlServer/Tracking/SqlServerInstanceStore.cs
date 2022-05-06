@@ -43,7 +43,7 @@ namespace DurableTask.SqlServer.Tracking
             ValidateSettings(settings);
 
             this.settings = settings;
-            this.dataConverter = dataConverter ?? new JsonDataConverter();
+            this.dataConverter = dataConverter ?? JsonDataConverter.Default;
         }
 
         /// <inheritdoc />

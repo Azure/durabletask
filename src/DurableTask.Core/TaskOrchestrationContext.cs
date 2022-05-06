@@ -63,7 +63,7 @@ namespace DurableTask.Core
             OrchestrationInstance orchestrationInstance,
             TaskScheduler taskScheduler,
             ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions)
-            : this(orchestrationInstance, taskScheduler, new JsonDataConverter(), errorPropagationMode)
+            : this(orchestrationInstance, taskScheduler, JsonDataConverter.Default, errorPropagationMode)
         {
         }
 

@@ -60,7 +60,7 @@ namespace DurableTask.ServiceBus.Tracking
 
             // Workaround an issue with Storage that throws exceptions for any date < 1600 so DateTime.Min cannot be used
             DateTimeUtils.SetMinDateTimeForStorageEmulator();
-            this.dataConverter = dataConverter ?? new JsonDataConverter();
+            this.dataConverter = dataConverter ?? JsonDataConverter.Default;
         }
 
         /// <summary>
@@ -85,7 +85,7 @@ namespace DurableTask.ServiceBus.Tracking
 
             // Workaround an issue with Storage that throws exceptions for any date < 1600 so DateTime.Min cannot be used
             DateTimeUtils.SetMinDateTimeForStorageEmulator();
-            this.dataConverter = dataConverter ?? new JsonDataConverter();
+            this.dataConverter = dataConverter ?? JsonDataConverter.Default;
         }
 
         /// <summary>
