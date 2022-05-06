@@ -28,12 +28,13 @@ namespace DurableTask.AzureServiceFabric
     {
         readonly IReliableStateManager stateManager;
         readonly SessionProvider orchestrationProvider;
-        readonly JsonDataConverter FormattingConverter = new JsonDataConverter(new JsonSerializerSettings() { Formatting = Formatting.Indented });
+        readonly DataConverter FormattingConverter;
 
-        public FabricProviderClient(IReliableStateManager stateManager, SessionProvider orchestrationProvider)
+        public FabricProviderClient(IReliableStateManager stateManager, SessionProvider orchestrationProvider, DataConverter dataConverter = null)
         {
             this.stateManager = stateManager ?? throw new ArgumentNullException(nameof(stateManager));
             this.orchestrationProvider = orchestrationProvider ?? throw new ArgumentNullException(nameof(orchestrationProvider));
+            this.FormattingConverter = dataConverter ?? new JsonDataConverter(new JsonSerializerSettings() { Formatting = Formatting.Indented });
         }
 
         public async Task<IEnumerable<OrchestrationInstance>> GetRunningOrchestrationsAsync()

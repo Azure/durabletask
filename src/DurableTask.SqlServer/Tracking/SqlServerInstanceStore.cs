@@ -30,18 +30,20 @@ namespace DurableTask.SqlServer.Tracking
     /// </summary>
     public class SqlServerInstanceStore : IOrchestrationServiceInstanceStore
     {
-        private readonly DataConverter dataConverter = new JsonDataConverter();
+        private readonly DataConverter dataConverter;
         private readonly SqlServerInstanceStoreSettings settings;
 
         /// <summary>
         /// Creates a new SqlServerInstanceStore using the supplied settings
         /// </summary>
         /// <param name="settings">Configuration values for the Instnace Store</param>
-        public SqlServerInstanceStore(SqlServerInstanceStoreSettings settings)
+        /// <param name="dataConverter">Data converter used for task serialization.</param>
+        public SqlServerInstanceStore(SqlServerInstanceStoreSettings settings, DataConverter dataConverter = null)
         {
             ValidateSettings(settings);
 
             this.settings = settings;
+            this.dataConverter = dataConverter ?? new JsonDataConverter();
         }
 
         /// <inheritdoc />

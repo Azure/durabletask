@@ -25,8 +25,18 @@ namespace DurableTask.Core
     ///     User activity should almost always derive from either TypedTaskActivity
     ///     &lt;TInput, TResult&gt; or TaskActivity&lt;TInput, TResult&gt;
     /// </summary>
-    public abstract class TaskActivity
+    public abstract class TaskActivity : IDataConverterConfigurable
     {
+        /// <summary>
+        /// The DataConverter to use for input and output serialization/deserialization
+        /// </summary>
+        public DataConverter DataConverter { get; internal set; } = new JsonDataConverter();
+
+        DataConverter IDataConverterConfigurable.DataConverter
+        {
+            set => DataConverter = value;
+        }
+
         /// <summary>
         /// Abstract method for executing a task activity synchronously
         /// </summary>
@@ -54,28 +64,6 @@ namespace DurableTask.Core
     /// <typeparam name="TResult">Output type of the activity</typeparam>
     public abstract class AsyncTaskActivity<TInput, TResult> : TaskActivity
     {
-        /// <summary>
-        /// Creates a new AsyncTaskActivity with the default DataConverter
-        /// </summary>
-        protected AsyncTaskActivity()
-        {
-            DataConverter = new JsonDataConverter();
-        }
-
-        /// <summary>
-        /// Creates a new AsyncTaskActivity with the supplied DataConverter
-        /// </summary>
-        /// <param name="dataConverter"></param>
-        protected AsyncTaskActivity(DataConverter dataConverter)
-        {
-            DataConverter = dataConverter ?? new JsonDataConverter();
-        }
-
-        /// <summary>
-        /// The DataConverter to use for input and output serialization/deserialization
-        /// </summary>
-        public DataConverter DataConverter { get; protected set; }
-
         /// <summary>
         /// Synchronous execute method, blocked for AsyncTaskActivity
         /// </summary>

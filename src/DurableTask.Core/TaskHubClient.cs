@@ -51,7 +51,7 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="serviceClient">Object implementing the <see cref="IOrchestrationServiceClient"/> interface </param>
         /// <param name="dataConverter">The <see cref="JsonDataConverter"/> to use for message serialization.</param>
-        public TaskHubClient(IOrchestrationServiceClient serviceClient, JsonDataConverter dataConverter)
+        public TaskHubClient(IOrchestrationServiceClient serviceClient, DataConverter dataConverter)
             : this(serviceClient, dataConverter, null)
         {
         }

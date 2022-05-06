@@ -44,6 +44,7 @@ namespace DurableTask.Core
         public TaskOrchestrationContext(
             OrchestrationInstance orchestrationInstance,
             TaskScheduler taskScheduler,
+            DataConverter dataConverter,
             ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions)
         {
             Utils.UnusedParameter(taskScheduler);
@@ -51,11 +52,19 @@ namespace DurableTask.Core
             this.openTasks = new Dictionary<int, OpenTaskInfo>();
             this.orchestratorActionsMap = new SortedDictionary<int, OrchestratorAction>();
             this.idCounter = 0;
-            this.MessageDataConverter = new JsonDataConverter();
-            this.ErrorDataConverter = new JsonDataConverter();
+            this.MessageDataConverter = dataConverter;
+            this.ErrorDataConverter = dataConverter;
             OrchestrationInstance = orchestrationInstance;
             IsReplaying = false;
             ErrorPropagationMode = errorPropagationMode;
+        }
+
+        public TaskOrchestrationContext(
+            OrchestrationInstance orchestrationInstance,
+            TaskScheduler taskScheduler,
+            ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions)
+            : this(orchestrationInstance, taskScheduler, new JsonDataConverter(), errorPropagationMode)
+        {
         }
 
         public IEnumerable<OrchestratorAction> OrchestratorActions => this.orchestratorActionsMap.Values;

@@ -15,6 +15,7 @@ namespace DurableTask.Core
 {
     using System;
     using System.Collections.Generic;
+    using DurableTask.Core.Serializing;
 
     internal class NameVersionObjectManager<T> : INameVersionObjectManager<T>
     {
@@ -42,7 +43,7 @@ namespace DurableTask.Core
             }
         }
 
-        public T GetObject(string name, string version)
+        public T GetObject(string name, string version, DataConverter dataConverter)
         {
             string key = GetKey(name, version);
 
@@ -50,7 +51,13 @@ namespace DurableTask.Core
             {
                 if (this.creators.TryGetValue(key, out ObjectCreator<T> creator))
                 {
-                    return creator.Create();
+                    var instance = creator.Create();
+                    if (instance is IDataConverterConfigurable dataConverterConfigurable)
+                    {
+                        dataConverterConfigurable.DataConverter = dataConverter;
+                    }
+
+                    return instance;
                 }
 
                 return default(T);

@@ -35,12 +35,12 @@ namespace DurableTask.Core
         /// <summary>
         /// JsonDataConverter for message serialization settings
         /// </summary>
-        public JsonDataConverter MessageDataConverter { get; set; }
+        public DataConverter MessageDataConverter { get; set; }
 
         /// <summary>
         /// JsonDataConverter for error serialization settings
         /// </summary>
-        public JsonDataConverter ErrorDataConverter { get; set; }
+        public DataConverter ErrorDataConverter { get; set; }
 
         /// <summary>
         /// Instance of the currently executing orchestration

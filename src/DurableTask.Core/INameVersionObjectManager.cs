@@ -13,6 +13,8 @@
 #nullable enable
 namespace DurableTask.Core
 {
+    using DurableTask.Core.Serializing;
+
     /// <summary>
     /// Interface for name and version manager class to be used in type lookup mappings
     /// </summary>
@@ -29,7 +31,8 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="name">Name of the class to return the creator for</param>
         /// <param name="version">Version of the class to return the creator for</param>
+        /// <param name="dataConverter">Data converter to be used by instance to store/read internal data</param>
         /// <returns>Class instance based on the matching creator class for the supplied name and version</returns>
-        T? GetObject(string name, string? version);
+        T? GetObject(string name, string? version, DataConverter dataConverter);
     }
 }

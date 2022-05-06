@@ -35,7 +35,7 @@ namespace DurableTask.ServiceBus.Tracking
         const int MaxRetriesTableStore = 5;
         const int IntervalBetweenRetriesSecs = 5;
 
-        static readonly DataConverter DataConverter = new JsonDataConverter();
+        private readonly DataConverter dataConverter;
 
         readonly AzureTableClient tableClient;
 
@@ -44,7 +44,8 @@ namespace DurableTask.ServiceBus.Tracking
         /// </summary>
         /// <param name="hubName">The hub name for this instance store</param>
         /// <param name="tableConnectionString">Azure table connection string</param>
-        public AzureTableInstanceStore(string hubName, string tableConnectionString)
+        /// <param name="dataConverter">Data converter used for task serialization.</param>
+        public AzureTableInstanceStore(string hubName, string tableConnectionString, DataConverter dataConverter = null)
         {
             if (string.IsNullOrWhiteSpace(tableConnectionString))
             {
@@ -60,6 +61,7 @@ namespace DurableTask.ServiceBus.Tracking
 
             // Workaround an issue with Storage that throws exceptions for any date < 1600 so DateTime.Min cannot be used
             DateTimeUtils.SetMinDateTimeForStorageEmulator();
+            this.dataConverter = dataConverter ?? new JsonDataConverter();
         }
 
         /// <summary>
@@ -67,7 +69,8 @@ namespace DurableTask.ServiceBus.Tracking
         /// </summary>
         /// <param name="hubName">The hub name for this instance store</param>
         /// <param name="cloudStorageAccount">Cloud Storage Account</param>
-        public AzureTableInstanceStore(string hubName, CloudStorageAccount cloudStorageAccount)
+        /// <param name="dataConverter">Data converter used for task serialization.</param>
+        public AzureTableInstanceStore(string hubName, CloudStorageAccount cloudStorageAccount, DataConverter dataConverter = null)
         {
             if (cloudStorageAccount == null)
             {
@@ -83,6 +86,7 @@ namespace DurableTask.ServiceBus.Tracking
 
             // Workaround an issue with Storage that throws exceptions for any date < 1600 so DateTime.Min cannot be used
             DateTimeUtils.SetMinDateTimeForStorageEmulator();
+            this.dataConverter = dataConverter ?? new JsonDataConverter();
         }
 
         /// <summary>
@@ -473,7 +477,7 @@ namespace DurableTask.ServiceBus.Tracking
                 throw new ArgumentNullException(nameof(continuationToken));
             }
 
-            string serializedToken = DataConverter.Serialize(continuationToken);
+            string serializedToken = this.dataConverter.Serialize(continuationToken);
             return Convert.ToBase64String(Encoding.Unicode.GetBytes(serializedToken));
         }
 
@@ -486,7 +490,7 @@ namespace DurableTask.ServiceBus.Tracking
 
             byte[] tokenBytes = Convert.FromBase64String(serializedContinuationToken);
 
-            return DataConverter.Deserialize<TableContinuationToken>(Encoding.Unicode.GetString(tokenBytes));
+            return this.dataConverter.Deserialize<TableContinuationToken>(Encoding.Unicode.GetString(tokenBytes));
         }
     }
 }

@@ -87,7 +87,7 @@ namespace DurableTask.ServiceBus
         /// </summary>
         public readonly ServiceBusOrchestrationServiceStats ServiceStats;
 
-        static readonly DataConverter DataConverter = new JsonDataConverter();
+        private readonly DataConverter dataConverter;
 
         readonly ServiceBusConnectionSettings connectionSettings;
 
@@ -124,19 +124,22 @@ namespace DurableTask.ServiceBus
         /// <param name="instanceStore">Instance store Provider, where state and history messages will be stored</param>
         /// <param name="blobStore">Blob store Provider, where oversized messages and sessions will be stored</param>
         /// <param name="settings">Settings object for service and client</param>
+        /// <param name="dataConverter">Data converter used for task serialization.</param>
         public ServiceBusOrchestrationService(
             string namespaceHostName,
             ITokenProvider tokenProvider,
             string hubName,
             IOrchestrationServiceInstanceStore instanceStore,
             IOrchestrationServiceBlobStore blobStore,
-            ServiceBusOrchestrationServiceSettings settings) :
+            ServiceBusOrchestrationServiceSettings settings,
+            DataConverter dataConverter = null) :
                 this(
                       ServiceBusConnectionSettings.Create(namespaceHostName, tokenProvider),
                       hubName,
                       instanceStore,
                       blobStore,
-                      settings)
+                      settings,
+                      dataConverter)
         {
         }
 
@@ -150,18 +153,21 @@ namespace DurableTask.ServiceBus
         /// <param name="instanceStore">Instance store Provider, where state and history messages will be stored</param>
         /// <param name="blobStore">Blob store Provider, where oversized messages and sessions will be stored</param>
         /// <param name="settings">Settings object for service and client</param>
+        /// <param name="dataConverter">Data converter used for task serialization.</param>
         public ServiceBusOrchestrationService(
             string connectionString,
             string hubName,
             IOrchestrationServiceInstanceStore instanceStore,
             IOrchestrationServiceBlobStore blobStore,
-            ServiceBusOrchestrationServiceSettings settings) :
+            ServiceBusOrchestrationServiceSettings settings,
+            DataConverter dataConverter = null) :
                 this(
                     ServiceBusConnectionSettings.Create(connectionString),
                     hubName,
                     instanceStore,
                     blobStore,
-                    settings)
+                    settings,
+                    dataConverter)
         {
         }
 
@@ -173,12 +179,14 @@ namespace DurableTask.ServiceBus
         /// <param name="instanceStore">Instance store Provider, where state and history messages will be stored</param>
         /// <param name="blobStore">Blob store Provider, where oversized messages and sessions will be stored</param>
         /// <param name="settings">Settings object for service and client</param>
+        /// <param name="dataConverter">Data converter used for task serialization.</param>
         public ServiceBusOrchestrationService(
             ServiceBusConnectionSettings connectionSettings,
             string hubName,
             IOrchestrationServiceInstanceStore instanceStore,
             IOrchestrationServiceBlobStore blobStore,
-            ServiceBusOrchestrationServiceSettings settings)
+            ServiceBusOrchestrationServiceSettings settings,
+            DataConverter dataConverter = null)
         {
             this.connectionSettings = connectionSettings;
             this.hubName = hubName;
@@ -213,7 +221,7 @@ namespace DurableTask.ServiceBus
 
             this.Settings = settings ?? new ServiceBusOrchestrationServiceSettings();
             this.orchestrationBatchMessageSender = new MessageSender(this.serviceBusConnection, this.orchestratorEntityName);
-
+            this.dataConverter = dataConverter;
 
             this.BlobStore = blobStore;
             if (instanceStore != null)
@@ -1296,7 +1304,7 @@ namespace DurableTask.ServiceBus
             IEnumerable<OrchestrationWorkItemInstanceEntity> historyEvents =
                 await this.InstanceStore.GetOrchestrationHistoryEventsAsync(instanceId, executionId);
 
-            return DataConverter.Serialize(historyEvents.Select(historyEventEntity => historyEventEntity.HistoryEvent));
+            return dataConverter.Serialize(historyEvents.Select(historyEventEntity => historyEventEntity.HistoryEvent));
         }
 
         /// <summary>
@@ -1534,7 +1542,7 @@ namespace DurableTask.ServiceBus
 
         string GetNormalizedStateEvent(int index, string message, OrchestrationStateInstanceEntity stateEntity)
         {
-            string serializedHistoryEvent = Utils.EscapeJson(DataConverter.Serialize(stateEntity.State));
+            string serializedHistoryEvent = Utils.EscapeJson(dataConverter.Serialize(stateEntity.State));
             int historyEventLength = serializedHistoryEvent.Length;
 
             int maxLen = this.InstanceStore?.MaxHistoryEntryLength ?? int.MaxValue;
@@ -1552,7 +1560,7 @@ namespace DurableTask.ServiceBus
 
         string GetNormalizedWorkItemEvent(int index, string message, OrchestrationWorkItemInstanceEntity entity)
         {
-            string serializedHistoryEvent = Utils.EscapeJson(DataConverter.Serialize(entity.HistoryEvent));
+            string serializedHistoryEvent = Utils.EscapeJson(dataConverter.Serialize(entity.HistoryEvent));
             int historyEventLength = serializedHistoryEvent.Length;
             int maxLen = this.InstanceStore?.MaxHistoryEntryLength ?? int.MaxValue;
 
@@ -1588,7 +1596,7 @@ namespace DurableTask.ServiceBus
             using (Stream rawSessionStream = state != null ? new MemoryStream(state) : null)
             {
                 this.ServiceStats.OrchestrationDispatcherStats.SessionGets.Increment();
-                return await RuntimeStateStreamConverter.RawStreamToRuntimeState(rawSessionStream, session.SessionId, orchestrationServiceBlobStore, DataConverter);
+                return await RuntimeStateStreamConverter.RawStreamToRuntimeState(rawSessionStream, session.SessionId, orchestrationServiceBlobStore, dataConverter);
             }
         }
 
@@ -1623,7 +1631,7 @@ namespace DurableTask.ServiceBus
                     RuntimeStateStreamConverter.OrchestrationRuntimeStateToRawStream(
                         newOrchestrationRuntimeState,
                         runtimeState,
-                        DataConverter,
+                        dataConverter,
                         this.Settings.TaskOrchestrationDispatcherSettings.CompressOrchestrationState,
                         this.Settings.SessionSettings,
                         this.BlobStore,

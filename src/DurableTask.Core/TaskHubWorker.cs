@@ -21,6 +21,7 @@ namespace DurableTask.Core
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.Logging;
     using DurableTask.Core.Middleware;
+    using DurableTask.Core.Serializing;
     using Microsoft.Extensions.Logging;
 
     /// <summary>
@@ -31,6 +32,7 @@ namespace DurableTask.Core
     {
         readonly INameVersionObjectManager<TaskActivity> activityManager;
         readonly INameVersionObjectManager<TaskOrchestration> orchestrationManager;
+        readonly DataConverter dataConverter;
 
         readonly DispatchMiddlewarePipeline orchestrationDispatchPipeline = new DispatchMiddlewarePipeline();
         readonly DispatchMiddlewarePipeline activityDispatchPipeline = new DispatchMiddlewarePipeline();
@@ -67,12 +69,14 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="orchestrationService">Reference the orchestration service implementation</param>
         /// <param name="loggerFactory">The <see cref="ILoggerFactory"/> to use for logging</param>
-        public TaskHubWorker(IOrchestrationService orchestrationService, ILoggerFactory loggerFactory = null)
+        /// <param name="dataConverter">Data converter used for task serialization. By default - Newtonsoft.Json based implementation is used.</param>
+        public TaskHubWorker(IOrchestrationService orchestrationService, ILoggerFactory loggerFactory = null, DataConverter dataConverter = null)
             : this(
                   orchestrationService,
                   new NameVersionObjectManager<TaskOrchestration>(),
                   new NameVersionObjectManager<TaskActivity>(),
-                  loggerFactory)
+                  loggerFactory,
+                  dataConverter)
         {
         }
 
@@ -94,7 +98,6 @@ namespace DurableTask.Core
         {
         }
 
-
         /// <summary>
         ///     Create a new <see cref="TaskHubWorker"/> with given <see cref="IOrchestrationService"/> and name version managers
         /// </summary>
@@ -102,15 +105,18 @@ namespace DurableTask.Core
         /// <param name="orchestrationObjectManager">The <see cref="INameVersionObjectManager{TaskOrchestration}"/> for orchestrations</param>
         /// <param name="activityObjectManager">The <see cref="INameVersionObjectManager{TaskActivity}"/> for activities</param>
         /// <param name="loggerFactory">The <see cref="ILoggerFactory"/> to use for logging</param>
+        /// <param name="dataConverter">Data converter used for task serialization. By default - Newtonsoft.Json based implementation is used.</param>
         public TaskHubWorker(
             IOrchestrationService orchestrationService,
             INameVersionObjectManager<TaskOrchestration> orchestrationObjectManager,
             INameVersionObjectManager<TaskActivity> activityObjectManager,
-            ILoggerFactory loggerFactory = null)
+            ILoggerFactory loggerFactory = null,
+            DataConverter dataConverter = null)
         {
-            this.orchestrationManager = orchestrationObjectManager ?? throw new ArgumentException("orchestrationObjectManager");
-            this.activityManager = activityObjectManager ?? throw new ArgumentException("activityObjectManager");
-            this.orchestrationService = orchestrationService ?? throw new ArgumentException("orchestrationService");
+            this.orchestrationManager = orchestrationObjectManager ?? throw new ArgumentNullException(nameof(orchestrationObjectManager));
+            this.activityManager = activityObjectManager ?? throw new ArgumentNullException(nameof(activityObjectManager));
+            this.orchestrationService = orchestrationService ?? throw new ArgumentNullException(nameof(orchestrationService));
+            this.dataConverter = dataConverter ?? new JsonDataConverter();
             this.logHelper = new LogHelper(loggerFactory?.CreateLogger("DurableTask.Core"));
         }
 
@@ -181,13 +187,15 @@ namespace DurableTask.Core
                     this.orchestrationManager,
                     this.orchestrationDispatchPipeline,
                     this.logHelper,
-                    this.ErrorPropagationMode);
+                    this.ErrorPropagationMode,
+                    this.dataConverter);
                 this.activityDispatcher = new TaskActivityDispatcher(
                     this.orchestrationService,
                     this.activityManager,
                     this.activityDispatchPipeline,
                     this.logHelper,
-                    this.ErrorPropagationMode);
+                    this.ErrorPropagationMode,
+                    this.dataConverter);
 
                 await this.orchestrationService.StartAsync();
                 await this.orchestrationDispatcher.StartAsync();

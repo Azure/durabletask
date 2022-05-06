@@ -25,8 +25,18 @@ namespace DurableTask.Core
     ///     TaskOrchestration&lt;TResult, TInput&gt; or 
     ///     TaskOrchestration&lt;TResult, TInput, TEvent, TStatus&gt;
     /// </summary>
-    public abstract class TaskOrchestration
+    public abstract class TaskOrchestration : IDataConverterConfigurable
     {
+        /// <summary>
+        /// The DataConverter to use for input and output serialization/deserialization
+        /// </summary>
+        public DataConverter DataConverter { get; internal set; } = new JsonDataConverter();
+
+        DataConverter IDataConverterConfigurable.DataConverter
+        {
+            set => DataConverter = value;
+        }
+
         /// <summary>
         /// Abstract method for executing an orchestration based on the context and serialized input
         /// </summary>
@@ -68,19 +78,6 @@ namespace DurableTask.Core
     /// <typeparam name="TStatus">Output Type for GetStatus calls</typeparam>
     public abstract class TaskOrchestration<TResult, TInput, TEvent, TStatus> : TaskOrchestration
     {
-        /// <summary>
-        /// Creates a new TaskOrchestration with the default DataConverter
-        /// </summary>
-        protected TaskOrchestration()
-        {
-            DataConverter = new JsonDataConverter();
-        }
-
-        /// <summary>
-        /// The DataConverter to use for input and output serialization/deserialization
-        /// </summary>
-        public DataConverter DataConverter { get; protected set; }
-
         /// <summary>
         /// Method for executing an orchestration based on the context and serialized input
         /// </summary>

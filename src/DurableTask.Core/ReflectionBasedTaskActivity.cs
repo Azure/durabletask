@@ -18,7 +18,6 @@ namespace DurableTask.Core
     using System.Threading.Tasks;
     using DurableTask.Core.Common;
     using DurableTask.Core.Exceptions;
-    using DurableTask.Core.Serializing;
     using Newtonsoft.Json.Linq;
 
     /// <summary>
@@ -26,8 +25,6 @@ namespace DurableTask.Core
     /// </summary>
     public class ReflectionBasedTaskActivity : TaskActivity
     {
-        private DataConverter dataConverter;
-
         /// <summary>
         /// Creates a new ReflectionBasedTaskActivity based on an activity object and method info
         /// </summary>
@@ -35,20 +32,10 @@ namespace DurableTask.Core
         /// <param name="methodInfo">The Reflection.methodInfo for invoking the method on the activity object</param>
         public ReflectionBasedTaskActivity(object activityObject, MethodInfo methodInfo)
         {
-            DataConverter = new JsonDataConverter();
             ActivityObject = activityObject;
             MethodInfo = methodInfo;
         }
-
-        /// <summary>
-        /// The DataConverter to use for input and output serialization/deserialization
-        /// </summary>
-        public DataConverter DataConverter
-        {
-            get => dataConverter;
-            set => dataConverter = value ?? throw new ArgumentNullException(nameof(value));
-        }
-
+        
         /// <summary>
         /// The activity object to invoke methods on
         /// </summary>

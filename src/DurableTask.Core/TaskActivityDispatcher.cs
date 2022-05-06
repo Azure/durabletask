@@ -22,6 +22,7 @@ namespace DurableTask.Core
     using DurableTask.Core.History;
     using DurableTask.Core.Logging;
     using DurableTask.Core.Middleware;
+    using DurableTask.Core.Serializing;
     using DurableTask.Core.Tracing;
 
     /// <summary>
@@ -35,19 +36,22 @@ namespace DurableTask.Core
         readonly DispatchMiddlewarePipeline dispatchPipeline;
         readonly LogHelper logHelper;
         readonly ErrorPropagationMode errorPropagationMode;
+        readonly DataConverter dataConverter;
 
         internal TaskActivityDispatcher(
             IOrchestrationService orchestrationService,
             INameVersionObjectManager<TaskActivity> objectManager,
             DispatchMiddlewarePipeline dispatchPipeline,
             LogHelper logHelper,
-            ErrorPropagationMode errorPropagationMode)
+            ErrorPropagationMode errorPropagationMode,
+            DataConverter dataConverter)
         {
             this.orchestrationService = orchestrationService ?? throw new ArgumentNullException(nameof(orchestrationService));
             this.objectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
             this.dispatchPipeline = dispatchPipeline ?? throw new ArgumentNullException(nameof(dispatchPipeline));
             this.logHelper = logHelper;
             this.errorPropagationMode = errorPropagationMode;
+            this.dataConverter = dataConverter;
 
             this.dispatcher = new WorkItemDispatcher<TaskActivityWorkItem>(
                 "TaskActivityDispatcher",
@@ -137,7 +141,7 @@ namespace DurableTask.Core
                 }
 
                 this.logHelper.TaskActivityStarting(orchestrationInstance, scheduledEvent);
-                TaskActivity? taskActivity = this.objectManager.GetObject(scheduledEvent.Name, scheduledEvent.Version);
+                TaskActivity? taskActivity = this.objectManager.GetObject(scheduledEvent.Name, scheduledEvent.Version, this.dataConverter);
 
                 if (workItem.LockedUntilUtc < DateTime.MaxValue)
                 {

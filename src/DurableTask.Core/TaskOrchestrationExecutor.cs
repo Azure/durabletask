@@ -23,6 +23,7 @@ namespace DurableTask.Core
     using DurableTask.Core.Common;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
+    using DurableTask.Core.Serializing;
 
     /// <summary>
     /// Utility for executing task orchestrators.
@@ -42,17 +43,20 @@ namespace DurableTask.Core
         /// <param name="orchestrationRuntimeState"></param>
         /// <param name="taskOrchestration"></param>
         /// <param name="eventBehaviourForContinueAsNew"></param>
+        /// <param name="dataConverter">Data converter used for task serialization.</param>
         /// <param name="errorPropagationMode"></param>
         public TaskOrchestrationExecutor(
             OrchestrationRuntimeState orchestrationRuntimeState,
             TaskOrchestration taskOrchestration,
             BehaviorOnContinueAsNew eventBehaviourForContinueAsNew,
+            DataConverter dataConverter,
             ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions)
         {
             this.decisionScheduler = new SynchronousTaskScheduler();
             this.context = new TaskOrchestrationContext(
                 orchestrationRuntimeState.OrchestrationInstance,
                 this.decisionScheduler,
+                dataConverter,
                 errorPropagationMode);
             this.orchestrationRuntimeState = orchestrationRuntimeState;
             this.taskOrchestration = taskOrchestration;
@@ -223,6 +227,7 @@ namespace DurableTask.Core
                     {
                         this.context.AddEventToNextIteration(historyEvent);
                     }
+                    
                     break;
             }
         }
