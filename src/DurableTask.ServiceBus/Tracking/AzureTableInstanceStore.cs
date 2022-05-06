@@ -36,7 +36,6 @@ namespace DurableTask.ServiceBus.Tracking
         const int IntervalBetweenRetriesSecs = 5;
 
         private readonly DataConverter dataConverter;
-
         readonly AzureTableClient tableClient;
 
         /// <summary>

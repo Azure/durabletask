@@ -97,7 +97,7 @@ namespace DurableTask.AzureStorage
         /// <summary>
         /// Gets or sets the name of the task hub. This value is used to group related storage resources.
         /// </summary>
-        public string TaskHubName { get; set; }
+        public string TaskHubName { get; set; } = "Default";
 
         /// <summary>
         /// Gets or sets the maximum number of work items that can be processed concurrently on a single node.

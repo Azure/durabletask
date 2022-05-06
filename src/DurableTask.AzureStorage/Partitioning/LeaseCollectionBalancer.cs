@@ -16,7 +16,6 @@ namespace DurableTask.AzureStorage.Partitioning
     using System;
     using System.Collections.Concurrent;
     using System.Collections.Generic;
-    using System.Diagnostics;
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
@@ -180,7 +179,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 string.Empty /* partitionId */,
                 $"Starting background renewal of {this.leaseType} leases with interval: {this.options.RenewInterval}.");
 
-            while (this.isStarted == 1 || !shutdownComplete)
+            while (this.isStarted == 1 || !this.shutdownComplete)
             {
                 try
                 {
@@ -255,7 +254,7 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.taskHub,
                         this.workerName,
                         string.Empty,
-                        $"Failed during {this.leaseType} lease renewal: {ex.ToString()}");
+                        $"Failed during {this.leaseType} lease renewal: {ex}");
                 }
             }
 
@@ -299,7 +298,7 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.taskHub,
                         this.workerName,
                         string.Empty,
-                        $"Failed during {this.leaseType} acquisition: {ex.ToString()}");
+                        $"Failed during {this.leaseType} acquisition: {ex}");
                 }
 
                 try
@@ -341,7 +340,7 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.accountName,
                         this.taskHub,
                         this.workerName,
-                        string.Empty /* partitionId */,
+                        lease.PartitionId,
                         $"Skipping {this.leaseType} lease aquiring for {lease.PartitionId}");
                     continue;
                 }
@@ -383,11 +382,13 @@ namespace DurableTask.AzureStorage.Partitioning
                 }
 
                 int myCount = workerToShardCount[this.workerName];
-                int moreShardsNeeded = target - myCount;
+
+                // if we are stealing intent leases, we are trying to take as many as required to reach balance
+                // if we are aquiring owner leases, we want to acquire all of the expired leases
+                int moreShardsNeeded = this.options.ShouldStealLeases ? target - myCount : expiredLeases.Count;
 
                 if (moreShardsNeeded > 0)
                 {
-                    HashSet<T> shardsToAcquire = new HashSet<T>();
                     if (expiredLeases.Count > 0)
                     {
                         foreach (T leaseToTake in expiredLeases)
@@ -398,7 +399,8 @@ namespace DurableTask.AzureStorage.Partitioning
                                 this.accountName,
                                 this.taskHub,
                                 this.workerName,
-                                leaseToTake.PartitionId);
+                                leaseToTake.PartitionId,
+                                this.leaseType);
 
                             bool leaseAcquired = await this.AcquireLeaseAsync(leaseToTake);
                             if (leaseAcquired)
@@ -407,7 +409,8 @@ namespace DurableTask.AzureStorage.Partitioning
                                     this.accountName,
                                     this.taskHub,
                                     this.workerName,
-                                    leaseToTake.PartitionId);
+                                    leaseToTake.PartitionId,
+                                    this.leaseType);
 
                                 takenLeases.Add(leaseToTake.PartitionId, leaseToTake);
 
@@ -481,7 +484,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
         async Task<bool> RenewLeaseAsync(T lease)
         {
-            bool renewed = false;
+            bool renewed;
             string errorMessage = string.Empty;
 
             try
@@ -491,7 +494,8 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.taskHub,
                     this.workerName,
                     lease.PartitionId,
-                    lease.Token);
+                    lease.Token,
+                    this.leaseType);
                 renewed = await this.leaseManager.RenewAsync(lease);
             }
             catch (Exception ex)
@@ -518,7 +522,8 @@ namespace DurableTask.AzureStorage.Partitioning
                 lease.PartitionId,
                 renewed,
                 lease.Token,
-                $"Renewal result for {this.leaseType}: {renewed}. {errorMessage}");
+                this.leaseType,
+                errorMessage);
 
             if (!renewed)
             {
@@ -528,7 +533,8 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.workerName,
                     lease.PartitionId,
                     lease.Token,
-                    $"Renewal failed for {this.leaseType}. Exception: {errorMessage}");
+                    this.leaseType,
+                    errorMessage);
             }
 
             return renewed;
@@ -547,7 +553,8 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.accountName,
                     this.taskHub,
                     this.workerName,
-                    lease.PartitionId);
+                    lease.PartitionId,
+                    this.leaseType);
             }
             catch (Exception ex)
             {
@@ -573,12 +580,12 @@ namespace DurableTask.AzureStorage.Partitioning
             catch (LeaseLostException)
             {
                 // Concurrency issue in stealing the lease, someone else got it before us
-                this.settings.Logger.LeaseStealingFailed(this.accountName, this.taskHub, this.workerName, lease.PartitionId);
+                this.settings.Logger.LeaseStealingFailed(this.accountName, this.taskHub, this.workerName, lease.PartitionId, this.leaseType);
             }
             catch (ArgumentException)
             {
                 // Concurrency issue in stealing the lease, someone else got it before us
-                this.settings.Logger.LeaseStealingFailed(this.accountName, this.taskHub, this.workerName, lease.PartitionId);
+                this.settings.Logger.LeaseStealingFailed(this.accountName, this.taskHub, this.workerName, lease.PartitionId, this.leaseType);
             }
             catch (Exception ex)
             {
@@ -642,7 +649,8 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.taskHub,
                         this.workerName,
                         lease.PartitionId,
-                        lease.Token);
+                        lease.Token,
+                        this.leaseType);
                 }
                 catch (LeaseLostException)
                 {
@@ -651,7 +659,8 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.taskHub,
                         this.workerName,
                         lease.PartitionId,
-                        lease.Token);
+                        lease.Token,
+                        this.leaseType);
                 }
                 catch (Exception ex)
                 {
@@ -716,7 +725,8 @@ namespace DurableTask.AzureStorage.Partitioning
                             this.taskHub,
                             this.workerName,
                             lease.PartitionId,
-                            lease.Token);
+                            lease.Token,
+                            this.leaseType);
                     }
                     catch (LeaseLostException)
                     {
@@ -763,11 +773,11 @@ namespace DurableTask.AzureStorage.Partitioning
                         {
                             // Eat any exceptions during notification of observers
                             this.partitionManager.settings.Logger.PartitionManagerError(
-                                partitionManager.accountName,
-                                partitionManager.taskHub,
-                                partitionManager.workerName,
+                                this.partitionManager.accountName,
+                                this.partitionManager.taskHub,
+                                this.partitionManager.workerName,
                                 lease.PartitionId,
-                                $"Failed during notification of observers of {this.partitionManager.leaseManager} lease: {ex}");
+                                $"Failed during notification of observers of {this.partitionManager.leaseType} lease: {ex}");
                         }
                     }
                 }

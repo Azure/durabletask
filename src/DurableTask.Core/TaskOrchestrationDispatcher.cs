@@ -332,7 +332,7 @@ namespace DurableTask.Core
                         "TaskOrchestrationDispatcher-ExecuteUserOrchestration-Begin",
                         runtimeState.OrchestrationInstance,
                         "Executing user orchestration: {0}",
-                        DataConverter.Serialize(runtimeState.GetOrchestrationRuntimeStateDump(), true));
+                        JsonDataConverter.Default.Serialize(runtimeState.GetOrchestrationRuntimeStateDump(), true));
 
                     if (workItem.Cursor == null)
                     {
@@ -752,7 +752,7 @@ namespace DurableTask.Core
                 TraceEventType.Information,
                 "TaskOrchestrationDispatcher-InstanceCompletionEvents",
                 runtimeState.OrchestrationInstance,
-                () => Utils.EscapeJson(DataConverter.Serialize(runtimeState.GetOrchestrationRuntimeStateDump(), true)));
+                () => Utils.EscapeJson(JsonDataConverter.Default.Serialize(runtimeState.GetOrchestrationRuntimeStateDump(), true)));
 
             // Check to see if we need to start a new execution
             if (completeOrchestratorAction.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew)

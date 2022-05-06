@@ -88,7 +88,6 @@ namespace DurableTask.ServiceBus
         public readonly ServiceBusOrchestrationServiceStats ServiceStats;
 
         private readonly DataConverter dataConverter;
-
         readonly ServiceBusConnectionSettings connectionSettings;
 
         readonly string hubName;

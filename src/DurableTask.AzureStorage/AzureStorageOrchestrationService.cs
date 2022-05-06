@@ -228,6 +228,11 @@ namespace DurableTask.AzureStorage
                 throw new ArgumentOutOfRangeException(nameof(settings), "The number of partitions must be a positive integer and no greater than 16.");
             }
 
+            if (string.IsNullOrEmpty(settings.TaskHubName))
+            {
+                throw new ArgumentNullException(nameof(settings), $"A {nameof(settings.TaskHubName)} value must be configured in the settings.");
+            }
+
             // TODO: More validation.
         }
 
