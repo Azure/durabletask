@@ -32,11 +32,13 @@ namespace DurableTask.Core.Tracing
         static readonly ActivitySource ActivityTraceSource = new ActivitySource(Source);
 
         private static readonly Action<Activity, string> s_spanIdSet;
+        private static readonly Action<Activity, string> s_idSet;
 
         static TraceHelper()
         {
             BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance;
             s_spanIdSet = typeof(Activity).GetField("_spanId", flags).CreateSetter<Activity, string>();
+            s_idSet = typeof(Activity).GetField("_id", flags).CreateSetter<Activity, string>();
         }
 
         internal static Activity? CreateActivityForNewOrchestration(ExecutionStartedEvent startEvent)
@@ -88,44 +90,33 @@ namespace DurableTask.Core.Tracing
                 new("dtfx.execution_id", startEvent.OrchestrationInstance.ExecutionId),
             };
 
-            if (string.IsNullOrEmpty(startEvent.ParentTraceContext.SpanId))
-            {
-                DistributedTraceActivity.Current = ActivityTraceSource.StartActivity(
-                    name: activityName,
-                    kind: activityKind,
-                    parentContext: activityContext,
-                    tags: activityTags);
+            DateTimeOffset startTime = startEvent.ParentTraceContext.ActivityStartTime ?? default;
+            Activity? activity = ActivityTraceSource.StartActivity(
+                name: activityName,
+                kind: activityKind,
+                parentContext: activityContext,
+                startTime: startTime,
+                tags: activityTags);
 
-                startEvent.ParentTraceContext.SpanId = DistributedTraceActivity.Current?.SpanId.ToString();
-                startEvent.ParentTraceContext.ActivityStartTime = DistributedTraceActivity.Current?.StartTimeUtc;
+            if (activity == null)
+            {
+                return null;
+            }
+
+            if (startEvent.ParentTraceContext.Id != null && startEvent.ParentTraceContext.SpanId != null)
+            {
+                s_idSet(activity, startEvent.ParentTraceContext.Id);
+                s_spanIdSet(activity, startEvent.ParentTraceContext.SpanId);
             }
             else
             {
-                // Restore the activity during replay
-                string? spanId = startEvent.ParentTraceContext.SpanId;
-                if (string.IsNullOrEmpty(spanId) || startEvent.ParentTraceContext.ActivityStartTime == null)
-                {
-                    return null;
-                }
-
-                Activity? activity = ActivityTraceSource.StartActivity(
-                    name: activityName,
-                    kind: activityKind,
-                    parentContext: activityContext,
-                    startTime: (DateTimeOffset)startEvent.ParentTraceContext.ActivityStartTime,
-                    tags: activityTags);
-
-                if (activity != null && spanId != null)
-                {
-                    s_spanIdSet(activity, spanId);
-                }
-
-                DistributedTraceActivity.Current = activity;
+                startEvent.ParentTraceContext.Id = activity.Id;
+                startEvent.ParentTraceContext.SpanId = activity.SpanId.ToString();
+                startEvent.ParentTraceContext.ActivityStartTime = activity.StartTimeUtc;
             }
 
-            Activity.Current = DistributedTraceActivity.Current;
+            DistributedTraceActivity.Current = activity;
             return DistributedTraceActivity.Current;
-
         }
 
         /// <summary>

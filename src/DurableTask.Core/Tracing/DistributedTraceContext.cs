@@ -52,6 +52,12 @@ namespace DurableTask.Core.Tracing
         public string? TraceState { get; set; }
 
         /// <summary>
+        /// The Activity's Id value that is used to restore an Activity during replays.
+        /// </summary>
+        [DataMember]
+        public string? Id { get; set; }
+
+        /// <summary>
         /// The Activity's SpanId value that is used to restore an Activity during replays.
         /// </summary>
         [DataMember]
@@ -61,6 +67,6 @@ namespace DurableTask.Core.Tracing
         /// The Activity's start time value that is used to restore an Activity during replays.
         /// </summary>
         [DataMember]
-        public DateTime? ActivityStartTime { get; set; }
+        public DateTimeOffset? ActivityStartTime { get; set; }
     }
 }

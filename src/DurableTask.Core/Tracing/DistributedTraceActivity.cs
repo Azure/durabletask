@@ -23,7 +23,7 @@ namespace DurableTask.Core.Tracing
     /// </summary>
     internal class DistributedTraceActivity
     {
-        private static AsyncLocal<Activity> CurrentActivity = new AsyncLocal<Activity>();
+        private static readonly AsyncLocal<Activity> CurrentActivity = new AsyncLocal<Activity>();
 
         /// <summary>
         /// Share the Activity across an orchestration execution.
