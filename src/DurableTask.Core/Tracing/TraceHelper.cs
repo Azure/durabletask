@@ -105,8 +105,8 @@ namespace DurableTask.Core.Tracing
 
             if (startEvent.ParentTraceContext.Id != null && startEvent.ParentTraceContext.SpanId != null)
             {
-                s_idSet(activity, startEvent.ParentTraceContext.Id);
-                s_spanIdSet(activity, startEvent.ParentTraceContext.SpanId);
+                s_idSet(activity, startEvent.ParentTraceContext.Id!);
+                s_spanIdSet(activity, startEvent.ParentTraceContext.SpanId!);
             }
             else
             {
