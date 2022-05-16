@@ -305,7 +305,7 @@ namespace DurableTask.Core
             ExecutionStartedEvent startEvent =
                 runtimeState.ExecutionStartedEvent ??
                 workItem.NewMessages.Select(msg => msg.Event).OfType<ExecutionStartedEvent>().FirstOrDefault();
-            using Activity traceActivity = TraceHelper.StartTraceActivityForExecution(startEvent);
+            Activity traceActivity = TraceHelper.StartTraceActivityForExecution(startEvent);
 
             OrchestrationState instanceState = null;
 
@@ -562,12 +562,6 @@ namespace DurableTask.Core
                 instanceState.Status = runtimeState.Status;
             }
 
-            // Add the runtime status to the trace context so that listeners can know
-            // whether the orchestration is still running. Also, stop the activity here so
-            // that we don't include the time required to persist the side effects.
-            traceActivity?.SetTag("dt.runtimestatus", runtimeState.OrchestrationStatus.ToString());
-            traceActivity?.Stop();
-
             await this.orchestrationService.CompleteTaskOrchestrationWorkItemAsync(
                 workItem,
                 runtimeState,
@@ -800,6 +794,10 @@ namespace DurableTask.Core
                     return taskMessage;
                 }
             }
+
+            DistributedTraceActivity.Current?.SetTag("dtfx.runtime_status", runtimeState.OrchestrationStatus.ToString());
+            DistributedTraceActivity.Current?.Stop();
+            DistributedTraceActivity.Current = null;
 
             return null;
         }
