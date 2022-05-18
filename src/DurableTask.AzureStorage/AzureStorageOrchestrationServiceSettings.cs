@@ -235,15 +235,10 @@ namespace DurableTask.AzureStorage
         public Func<string, Task<bool>> OnImminentFailFast { get; set; } = (message) => Task.FromResult(true);
 
         /// <summary>
-        /// The number of times we allow the timeout to be hit before recycling the app. We set this
-        /// to a fixed value to prevent building up an infinite number of deadlocked tasks and leak resources.
-        /// </summary>
-        public int MaxNumberOfTimeoutsBeforeRecycle { get; set; } = 5;
-
-        /// <summary>
         /// Gets or sets the  number of times we allow the timeout to be hit before recycling the app. We set this
         /// to a fixed value to prevent building up an infinite number of deadlocked tasks and leak resources.
         /// </summary>
+        public int MaxNumberOfTimeoutsBeforeRecycle { get; set; } = 5;
 
         /// <summary>
         /// Gets or sets the number of seconds before a request to Azure Storage is considered as timed out.
