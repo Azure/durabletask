@@ -58,6 +58,11 @@ namespace DurableTask.Core
         /// </summary>
         public bool IsExtendedSession = false;
 
+        /// <summary>
+        /// A flag to control whether the original runtime state should be used while completing a work item.
+        /// </summary>
+        public virtual bool RestoreOriginalRuntimeStateDuringCompletion => true;
+
         internal OrchestrationExecutionCursor Cursor;
     }
 }

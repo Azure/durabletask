@@ -534,7 +534,11 @@ namespace DurableTask.Core
                 } while (continuedAsNew);
             }
 
-            workItem.OrchestrationRuntimeState = originalOrchestrationRuntimeState;
+            if (workItem.RestoreOriginalRuntimeStateDuringCompletion)
+            {
+                // some backends expect the original runtime state object
+                workItem.OrchestrationRuntimeState = originalOrchestrationRuntimeState;
+            }
 
             runtimeState.Status = runtimeState.Status ?? carryOverStatus;
 
@@ -552,8 +556,11 @@ namespace DurableTask.Core
                 continuedAsNew ? null : timerMessages,
                 continuedAsNewMessage,
                 instanceState);
-
-            workItem.OrchestrationRuntimeState = runtimeState;
+            
+            if (workItem.RestoreOriginalRuntimeStateDuringCompletion)
+            {
+                workItem.OrchestrationRuntimeState = runtimeState;
+            }
 
             return isCompleted || continuedAsNew || isInterrupted;
         }
