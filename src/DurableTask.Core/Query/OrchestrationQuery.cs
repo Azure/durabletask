@@ -69,5 +69,10 @@ namespace DurableTask.Core.Query
         /// Determines whether the query will include the input of the orchestration.
         /// </summary>
         public bool FetchInputsAndOutputs { get; set; } = true;
-    }
+
+        /// <summary>
+        /// Determines whether the query will retrieve only parent instances.
+        /// </summary>
+        public bool FetchParentInstancesOnly { get; set; } = false;
+	}
 }
