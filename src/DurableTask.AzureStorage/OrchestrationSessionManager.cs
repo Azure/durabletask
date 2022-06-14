@@ -42,12 +42,12 @@ namespace DurableTask.AzureStorage
         readonly DispatchQueue fetchRuntimeStateQueue;
 
         public OrchestrationSessionManager(
-            string storageAccountName,
+            string queueAccountName,
             AzureStorageOrchestrationServiceSettings settings,
             AzureStorageOrchestrationServiceStats stats,
             ITrackingStore trackingStore)
         {
-            this.storageAccountName = storageAccountName;
+            this.storageAccountName = queueAccountName;
             this.settings = settings;
             this.stats = stats;
             this.trackingStore = trackingStore;
@@ -235,13 +235,14 @@ namespace DurableTask.AzureStorage
             foreach (MessageData message in executionStartedMessages)
             {
                 OrchestrationInstance localInstance = message.TaskMessage.OrchestrationInstance;
+                var expectedGeneration = ((ExecutionStartedEvent)message.TaskMessage.Event).Generation;
                 if (remoteOrchestrationsById.TryGetValue(localInstance.InstanceId, out OrchestrationState remoteInstance) &&
                     (remoteInstance.OrchestrationInstance.ExecutionId == null || string.Equals(localInstance.ExecutionId, remoteInstance.OrchestrationInstance.ExecutionId, StringComparison.OrdinalIgnoreCase)))
                 {
                     // Happy path: The message matches the table status. Alternatively, if the table doesn't have an ExecutionId field (older clients, pre-v1.8.5),
                     // then we have no way of knowing if it's a duplicate. Either way, allow it to run.
                 }
-                else if (this.IsScheduledAfterInstanceUpdate(message, remoteInstance))
+                else if (expectedGeneration == remoteInstance?.Generation && this.IsScheduledAfterInstanceUpdate(message, remoteInstance))
                 {
                     // The message was scheduled after the Instances table was updated with the orchestration info.
                     // We know almost certainly that this is a redundant message and can be safely discarded because

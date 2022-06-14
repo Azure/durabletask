@@ -33,6 +33,9 @@ namespace DurableTask.AzureStorage.Partitioning
         readonly BlobLeaseManager ownershipLeaseManager;
         readonly LeaseCollectionBalancer<BlobLease> ownershipLeaseCollectionManager;
 
+        IDisposable intentLeaseSubscription;
+        IDisposable ownershipLeaseSubscription;
+
         public SafePartitionManager(
             AzureStorageOrchestrationService service,
             AzureStorageClient azureStorageClient,
@@ -50,7 +53,7 @@ namespace DurableTask.AzureStorage.Partitioning
             this.intentLeaseCollectionManager = new LeaseCollectionBalancer<BlobLease>(
                 "intent",
                 settings,
-                this.azureStorageClient.StorageAccountName,
+                this.azureStorageClient.BlobAccountName,
                 this.intentLeaseManager,
                 new LeaseCollectionBalancerOptions
                 {
@@ -68,7 +71,7 @@ namespace DurableTask.AzureStorage.Partitioning
             this.ownershipLeaseCollectionManager = new LeaseCollectionBalancer<BlobLease>(
                 "ownership",
                 this.settings,
-                this.azureStorageClient.StorageAccountName,
+                this.azureStorageClient.BlobAccountName,
                 this.ownershipLeaseManager,
                 new LeaseCollectionBalancerOptions
                 {
@@ -122,24 +125,25 @@ namespace DurableTask.AzureStorage.Partitioning
         async Task IPartitionManager.StartAsync()
         {
             await this.intentLeaseCollectionManager.InitializeAsync();
-            await this.intentLeaseCollectionManager.SubscribeAsync(
-                    this.service.OnIntentLeaseAquiredAsync,
-                    this.service.OnIntentLeaseReleasedAsync);
+            this.intentLeaseSubscription = await this.intentLeaseCollectionManager.SubscribeAsync(
+                this.service.OnIntentLeaseAquiredAsync,
+                this.service.OnIntentLeaseReleasedAsync);
             await this.intentLeaseCollectionManager.StartAsync();
 
             await this.ownershipLeaseCollectionManager.InitializeAsync();
-            await this.ownershipLeaseCollectionManager.SubscribeAsync(
-                    this.service.OnOwnershipLeaseAquiredAsync,
-                    this.service.OnOwnershipLeaseReleasedAsync);
+            this.ownershipLeaseSubscription = await this.ownershipLeaseCollectionManager.SubscribeAsync(
+                this.service.OnOwnershipLeaseAquiredAsync,
+                this.service.OnOwnershipLeaseReleasedAsync);
             await this.ownershipLeaseCollectionManager.StartAsync();
         }
 
-        Task IPartitionManager.StopAsync()
+        async Task IPartitionManager.StopAsync()
         {
-            return Task.WhenAll(
-                this.intentLeaseCollectionManager.StopAsync(),
-                this.ownershipLeaseCollectionManager.StopAsync()
-            );
+            await this.intentLeaseCollectionManager.StopAsync();
+            this.intentLeaseSubscription?.Dispose();
+
+            await this.ownershipLeaseCollectionManager.StopAsync();
+            this.ownershipLeaseSubscription?.Dispose();
         }
 
         Task IPartitionManager.CreateLease(string leaseName)

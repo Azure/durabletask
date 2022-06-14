@@ -16,8 +16,10 @@ namespace DurableTask.AzureStorage.Partitioning
     using System;
     using System.Collections.Generic;
     using System.Globalization;
+    using System.IO;
     using System.Linq;
     using System.Net;
+    using System.Text;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Storage;
     using Newtonsoft.Json;
@@ -45,7 +47,7 @@ namespace DurableTask.AzureStorage.Partitioning
         {
             this.azureStorageClient = azureStorageClient;
             this.settings = this.azureStorageClient.Settings;
-            this.storageAccountName = this.azureStorageClient.StorageAccountName;
+            this.storageAccountName = this.azureStorageClient.BlobAccountName;
             this.taskHubName = this.settings.TaskHubName;
             this.workerName = this.settings.WorkerId;
             this.leaseContainerName = leaseContainerName;
@@ -321,7 +323,21 @@ namespace DurableTask.AzureStorage.Partitioning
 
         async Task<BlobLease> DownloadLeaseBlob(Blob blob)
         {
-            string serializedLease = await blob.DownloadTextAsync();
+            string serializedLease = null;
+            var buffer = SimpleBufferManager.Shared.TakeBuffer(SimpleBufferManager.SmallBufferSize);
+            try
+            {
+                using (var memoryStream = new MemoryStream(buffer))
+                {
+                    await blob.DownloadToStreamAsync(memoryStream);
+                    serializedLease = Encoding.UTF8.GetString(buffer, 0, (int)memoryStream.Position);
+                }
+            }
+            finally
+            {
+                SimpleBufferManager.Shared.ReturnBuffer(buffer);
+            }
+
             BlobLease deserializedLease = JsonConvert.DeserializeObject<BlobLease>(serializedLease);
             deserializedLease.Blob = blob;
 

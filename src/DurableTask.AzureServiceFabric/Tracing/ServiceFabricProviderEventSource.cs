@@ -130,7 +130,7 @@ namespace DurableTask.AzureServiceFabric.Tracing
 
         [Event(503,
             Keywords = Keywords.Common,
-            Level = EventLevel.Informational,
+            Level = EventLevel.Verbose,
             Message = "Current number of entries in store {0} : {1}")]
         internal void LogStoreCount(string storeName, long count)
         {

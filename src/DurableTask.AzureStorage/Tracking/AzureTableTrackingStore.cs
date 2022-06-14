@@ -55,7 +55,8 @@ namespace DurableTask.AzureStorage.Tracking
             OutputProperty,
             "Reason",
             "Details",
-            "Correlation"
+            "Correlation",
+            "FailureDetails",
         };
 
         readonly string storageAccountName;
@@ -78,7 +79,7 @@ namespace DurableTask.AzureStorage.Tracking
             this.tableEntityConverter = new TableEntityConverter();
             this.taskHubName = settings.TaskHubName;
 
-            this.storageAccountName = this.azureStorageClient.StorageAccountName;
+            this.storageAccountName = this.azureStorageClient.TableAccountName;
 
             string historyTableName = settings.HistoryTableName;
             string instancesTableName = settings.InstanceTableName;
@@ -490,6 +491,10 @@ namespace DurableTask.AzureStorage.Tracking
                         {
                             property.SetValue(orchestrationInstanceStatus, value.DateTime);
                         }
+                        else if (property.PropertyType == typeof(int) || property.PropertyType == typeof(int?))
+                        {
+                            property.SetValue(orchestrationInstanceStatus, value.Int32Value);
+                        }
                         else
                         {
                             property.SetValue(orchestrationInstanceStatus, value.StringValue);
@@ -525,6 +530,7 @@ namespace DurableTask.AzureStorage.Tracking
             orchestrationState.Input = orchestrationInstanceStatus.Input;
             orchestrationState.Output = orchestrationInstanceStatus.Output;
             orchestrationState.ScheduledStartTime = orchestrationInstanceStatus.ScheduledStartTime;
+            orchestrationState.Generation = orchestrationInstanceStatus.Generation;
 
             if (this.settings.FetchLargeMessageDataEnabled)
             {
@@ -765,6 +771,7 @@ namespace DurableTask.AzureStorage.Tracking
                     ["TaskHubName"] = new EntityProperty(this.settings.TaskHubName),
                     ["ScheduledStartTime"] = new EntityProperty(executionStartedEvent.ScheduledStartTime),
                     ["ExecutionId"] = new EntityProperty(executionStartedEvent.OrchestrationInstance.ExecutionId),
+                    ["Generation"] = new EntityProperty(executionStartedEvent.Generation),
                 }
             };
 
@@ -914,7 +921,8 @@ namespace DurableTask.AzureStorage.Tracking
                         instanceEntity.Properties["Version"] = new EntityProperty(executionStartedEvent.Version);
                         instanceEntity.Properties["CreatedTime"] = new EntityProperty(executionStartedEvent.Timestamp);
                         instanceEntity.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Running.ToString());
-                        if (executionStartedEvent.ScheduledStartTime.HasValue) {
+                        if (executionStartedEvent.ScheduledStartTime.HasValue)
+                        {
                             instanceEntity.Properties["ScheduledStartTime"] = new EntityProperty(executionStartedEvent.ScheduledStartTime);
                         }
 
@@ -935,7 +943,7 @@ namespace DurableTask.AzureStorage.Tracking
                             instanceEntity,
                             historyPropertyName: nameof(executionCompleted.Result),
                             instancePropertyName: OutputProperty,
-                            data: executionCompleted.Result);
+                            data: executionCompleted.FailureDetails?.ToString() ?? executionCompleted.Result);
                         break;
                     case EventType.ExecutionTerminated:
                         runtimeStatus = OrchestrationStatus.Terminated;

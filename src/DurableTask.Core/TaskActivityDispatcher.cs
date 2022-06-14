@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.Core
 {
     using System;
@@ -34,17 +34,20 @@ namespace DurableTask.Core
         readonly IOrchestrationService orchestrationService;
         readonly DispatchMiddlewarePipeline dispatchPipeline;
         readonly LogHelper logHelper;
+        readonly ErrorPropagationMode errorPropagationMode;
 
         internal TaskActivityDispatcher(
             IOrchestrationService orchestrationService,
             INameVersionObjectManager<TaskActivity> objectManager,
             DispatchMiddlewarePipeline dispatchPipeline,
-            LogHelper logHelper)
+            LogHelper logHelper,
+            ErrorPropagationMode errorPropagationMode)
         {
             this.orchestrationService = orchestrationService ?? throw new ArgumentNullException(nameof(orchestrationService));
             this.objectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
             this.dispatchPipeline = dispatchPipeline ?? throw new ArgumentNullException(nameof(dispatchPipeline));
             this.logHelper = logHelper;
+            this.errorPropagationMode = errorPropagationMode;
 
             this.dispatcher = new WorkItemDispatcher<TaskActivityWorkItem>(
                 "TaskActivityDispatcher",
@@ -60,6 +63,11 @@ namespace DurableTask.Core
                 LogHelper = logHelper,
             };
         }
+
+        /// <summary>
+        /// Gets or sets flag whether to include additional details in error messages
+        /// </summary>
+        public bool IncludeDetails { get; set; }
 
         /// <summary>
         /// Starts the dispatcher to start getting and processing task activities
@@ -78,11 +86,6 @@ namespace DurableTask.Core
             await this.dispatcher.StopAsync(forced);
         }
 
-        /// <summary>
-        /// Gets or sets flag whether to include additional details in error messages
-        /// </summary>
-        public bool IncludeDetails { get; set; }
-
         Task<TaskActivityWorkItem> OnFetchWorkItemAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken)
         {
             return this.orchestrationService.LockNextTaskActivityWorkItem(receiveTimeout, cancellationToken);
@@ -90,13 +93,13 @@ namespace DurableTask.Core
 
         async Task OnProcessWorkItemAsync(TaskActivityWorkItem workItem)
         {
-            Task renewTask = null;
+            Task? renewTask = null;
             using var renewCancellationTokenSource = new CancellationTokenSource();
 
             TaskMessage taskMessage = workItem.TaskMessage;
             OrchestrationInstance orchestrationInstance = taskMessage.OrchestrationInstance;
-            TaskScheduledEvent scheduledEvent = null;
-            Activity diagnosticActivity = null;
+            TaskScheduledEvent? scheduledEvent = null;
+            Activity? diagnosticActivity = null;
             try
             {
                 if (string.IsNullOrWhiteSpace(orchestrationInstance?.InstanceId))
@@ -122,17 +125,29 @@ namespace DurableTask.Core
                                                   taskMessage.Event.EventType));
                 }
 
-                // call and get return message
                 scheduledEvent = (TaskScheduledEvent)taskMessage.Event;
 
                 // Distributed tracing: start a new trace activity derived from the orchestration's trace context.
-                using Activity traceActivity = TraceHelper.StartTraceActivityForTask(scheduledEvent, orchestrationInstance);
+                using Activity? traceActivity = TraceHelper.StartTraceActivityForTask(scheduledEvent, orchestrationInstance);
 
                 this.logHelper.TaskActivityStarting(orchestrationInstance, scheduledEvent);
-                TaskActivity taskActivity = this.objectManager.GetObject(scheduledEvent.Name, scheduledEvent.Version);
+
+                TaskActivity? taskActivity = null;
+                string? scheduledEventName = scheduledEvent.Name;
+
+                if (!string.IsNullOrEmpty(scheduledEventName))
+                {
+                    taskActivity = this.objectManager.GetObject(scheduledEventName!, scheduledEvent.Version);
+                }
+
                 if (taskActivity == null)
                 {
-                    throw new TypeMissingException($"TaskActivity {scheduledEvent.Name} version {scheduledEvent.Version} was not found");
+                    string message = $"The activity worker received a {nameof(EventType.TaskScheduled)} event that does not specify an activity name.";
+                    this.logHelper.TaskActivityDispatcherError(workItem, message);
+                    throw TraceHelper.TraceException(
+                        TraceEventType.Error,
+                        "TaskActivityDispatcher-MissingActivityName",
+                        new InvalidOperationException(message));
                 }
 
                 if (workItem.LockedUntilUtc < DateTime.MaxValue)
@@ -142,10 +157,6 @@ namespace DurableTask.Core
                         () => this.RenewUntil(workItem, renewCancellationTokenSource.Token),
                         renewCancellationTokenSource.Token);
                 }
-
-                // TODO : pass workflow instance data
-                var context = new TaskContext(taskMessage.OrchestrationInstance);
-                HistoryEvent eventToRespond = null;
 
                 var dispatchContext = new DispatchMiddlewareContext();
                 dispatchContext.SetProperty(taskMessage.OrchestrationInstance);
@@ -159,47 +170,77 @@ namespace DurableTask.Core
                     diagnosticActivity = workItem.TraceContextBase?.CurrentActivity;
                 });
 
-                await this.dispatchPipeline.RunAsync(dispatchContext, async _ =>
+                ActivityExecutionResult? result;
+                try
                 {
-                    try
+                    await this.dispatchPipeline.RunAsync(dispatchContext, async _ =>
                     {
-                        string output = await taskActivity.RunAsync(context, scheduledEvent.Input);
-                        eventToRespond = new TaskCompletedEvent(-1, scheduledEvent.EventId, output);
-                    }
-                    catch (TaskFailureException e)
-                    {
-                        TraceHelper.TraceExceptionInstance(TraceEventType.Error, "TaskActivityDispatcher-ProcessTaskFailure", taskMessage.OrchestrationInstance, e);
-                        string details = this.IncludeDetails ? e.Details : null;
-                        eventToRespond = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details);
+                        if (taskActivity == null)
+                        {
+                            // This likely indicates a deployment error of some kind. Because these unhandled exceptions are
+                            // automatically retried, resolving this may require redeploying the app code so that the activity exists again.
+                            // CONSIDER: Should this be changed into a permanent error that fails the orchestration? Perhaps
+                            //           the app owner doesn't care to preserve existing instances when doing code deployments?
+                            throw new TypeMissingException($"TaskActivity {scheduledEvent.Name} version {scheduledEvent.Version} was not found");
+                        }
 
-                        Exception exceptionToTrace = e.InnerException ?? e;
-                        traceActivity?.SetTag("otel.status_code", "ERROR");
-                        traceActivity?.SetTag("exception.type", exceptionToTrace.GetType().FullName);
-                        traceActivity?.SetTag("exception.message", exceptionToTrace.Message);
+                        var context = new TaskContext(taskMessage.OrchestrationInstance);
+                        context.ErrorPropagationMode = this.errorPropagationMode;
 
-                        this.logHelper.TaskActivityFailure(orchestrationInstance, scheduledEvent.Name, (TaskFailedEvent)eventToRespond, e);
-                        CorrelationTraceClient.Propagate(() => CorrelationTraceClient.TrackException(e));
-                    }
-                    catch (Exception e) when (!Utils.IsFatal(e) && !Utils.IsExecutionAborting(e))
-                    {
-                        TraceHelper.TraceExceptionInstance(TraceEventType.Error, "TaskActivityDispatcher-ProcessException", taskMessage.OrchestrationInstance, e);
-                        string details = this.IncludeDetails
-                            ? $"Unhandled exception while executing task: {e}\n\t{e.StackTrace}"
-                            : null;
-                        eventToRespond = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details);
+                        HistoryEvent? responseEvent;
 
-                        traceActivity?.SetTag("otel.status_code", "ERROR");
-                        traceActivity?.SetTag("exception.type", e.GetType().FullName);
-                        traceActivity?.SetTag("exception.message", e.Message);
+                        try
+                        {
+                            string? output = await taskActivity.RunAsync(context, scheduledEvent.Input);
+                            responseEvent = new TaskCompletedEvent(-1, scheduledEvent.EventId, output);
+                        }
+                        catch (Exception e) when (e is not TaskFailureException && !Utils.IsFatal(e) && !Utils.IsExecutionAborting(e))
+                        {
+                            // These are unexpected exceptions that occur in the task activity abstraction. Normal exceptions from 
+                            // activities are expected to be translated into TaskFailureException and handled outside the middleware
+                            // context (see further below).
+                            TraceHelper.TraceExceptionInstance(TraceEventType.Error, "TaskActivityDispatcher-ProcessException", taskMessage.OrchestrationInstance, e);
+                            string? details = this.IncludeDetails
+                                ? $"Unhandled exception while executing task: {e}"
+                                : null;
+                            responseEvent = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details, new FailureDetails(e));
+                            this.logHelper.TaskActivityFailure(orchestrationInstance, scheduledEvent.Name, (TaskFailedEvent)responseEvent, e);
+                        }
 
-                        this.logHelper.TaskActivityFailure(orchestrationInstance, scheduledEvent.Name, (TaskFailedEvent)eventToRespond, e);                       
-                    }
+                        var result = new ActivityExecutionResult { ResponseEvent = responseEvent };
+                        dispatchContext.SetProperty(result);
+                    });
 
-                    if (eventToRespond is TaskCompletedEvent completedEvent)
-                    {
-                        this.logHelper.TaskActivityCompleted(orchestrationInstance, scheduledEvent.Name, completedEvent);
-                    }
-                });
+                    result = dispatchContext.GetProperty<ActivityExecutionResult>();
+                }
+                catch (TaskFailureException e)
+                {
+                    // These are normal task activity failures. They can come from Activity implementations or from middleware.
+                    TraceHelper.TraceExceptionInstance(TraceEventType.Error, "TaskActivityDispatcher-ProcessTaskFailure", taskMessage.OrchestrationInstance, e);
+                    string? details = this.IncludeDetails ? e.Details : null;
+                    var failureEvent = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details, e.FailureDetails);
+                    this.logHelper.TaskActivityFailure(orchestrationInstance, scheduledEvent.Name, failureEvent, e);
+                    CorrelationTraceClient.Propagate(() => CorrelationTraceClient.TrackException(e));
+                    result = new ActivityExecutionResult { ResponseEvent = failureEvent };
+                }
+                catch (Exception middlewareException) when (!Utils.IsFatal(middlewareException))
+                {
+                    // These are considered retriable
+                    this.logHelper.TaskActivityDispatcherError(workItem, $"Unhandled exception in activity middleware pipeline: {middlewareException}");
+                    throw;
+                }
+
+                HistoryEvent? eventToRespond = result?.ResponseEvent;
+
+                if (eventToRespond is TaskCompletedEvent completedEvent)
+                {
+                    this.logHelper.TaskActivityCompleted(orchestrationInstance, scheduledEvent.Name, completedEvent);
+                }
+                else if (eventToRespond is null)
+                {
+                    // Default response if middleware prevents a response from being generated
+                    eventToRespond = new TaskCompletedEvent(-1, scheduledEvent.EventId, null);
+                }
 
                 var responseTaskMessage = new TaskMessage
                 {
@@ -216,7 +257,7 @@ namespace DurableTask.Core
             {
                 // The activity aborted its execution
                 this.logHelper.TaskActivityAborted(orchestrationInstance, scheduledEvent, e.Message);
-                TraceHelper.TraceInstance(TraceEventType.Warning, "TaskActivityDispatcher-ExecutionAborted", orchestrationInstance, "{0}: {1}", scheduledEvent.Name, e.Message);
+                TraceHelper.TraceInstance(TraceEventType.Warning, "TaskActivityDispatcher-ExecutionAborted", orchestrationInstance, "{0}: {1}", scheduledEvent?.Name ?? string.Empty, e.Message);
                 await this.orchestrationService.AbandonTaskActivityWorkItemAsync(workItem);
             }
             finally

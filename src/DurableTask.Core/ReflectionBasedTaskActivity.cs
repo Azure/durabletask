@@ -35,7 +35,7 @@ namespace DurableTask.Core
         /// <param name="methodInfo">The Reflection.methodInfo for invoking the method on the activity object</param>
         public ReflectionBasedTaskActivity(object activityObject, MethodInfo methodInfo)
         {
-            DataConverter = new JsonDataConverter();
+            DataConverter = JsonDataConverter.Default;
             ActivityObject = activityObject;
             MethodInfo = methodInfo;
         }
@@ -118,7 +118,8 @@ namespace DurableTask.Core
                 }
             }
 
-            string serializedReturn;
+            string serializedReturn = string.Empty;
+            Exception exception = null;
             try
             {
                 object invocationResult = InvokeActivity(inputParameters);
@@ -141,16 +142,29 @@ namespace DurableTask.Core
             }
             catch (TargetInvocationException e)
             {
-                Exception realException = e.InnerException ?? e;
-                string details = Utils.SerializeCause(realException, DataConverter);
-                throw new TaskFailureException(realException.Message, details)
-                    .WithFailureSource(MethodInfoString());
+                exception = e.InnerException ?? e;
             }
             catch (Exception e) when (!Utils.IsFatal(e))
             {
-                string details = Utils.SerializeCause(e, DataConverter);
-                throw new TaskFailureException(e.Message, e, details)
-                    .WithFailureSource(MethodInfoString());
+                exception = e;
+            }
+
+            if (exception != null)
+            {
+                string details = null;
+                FailureDetails failureDetails = null;
+                if (context.ErrorPropagationMode == ErrorPropagationMode.SerializeExceptions)
+                {
+                    details = Utils.SerializeCause(exception, DataConverter);
+                }
+                else
+                {
+                    failureDetails = new FailureDetails(exception);
+                }
+
+                throw new TaskFailureException(exception.Message, exception, details)
+                    .WithFailureSource(MethodInfoString())
+                    .WithFailureDetails(failureDetails);
             }
 
             return serializedReturn;

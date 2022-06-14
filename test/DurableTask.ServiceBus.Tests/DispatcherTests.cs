@@ -572,7 +572,7 @@ namespace DurableTask.ServiceBus.Tests
 
             await this.taskHub.AddTaskOrchestrations(typeof (AsyncDynamicGreetingsOrchestration))
                 .AddTaskActivitiesFromInterface<IGreetings>(new GreetingsManager(), true)
-                .AddTaskActivitiesFromInterface<IGreetings2>(new GreetingsManager2(), true)
+                .AddTaskActivitiesFromInterface(typeof(IGreetings2), new GreetingsManager2(), true)
                 .StartAsync();
 
             OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof (AsyncDynamicGreetingsOrchestration),

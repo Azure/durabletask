@@ -25,6 +25,8 @@ namespace DurableTask.AzureStorage.Partitioning
     /// </summary>
     sealed class AppLeaseManager
     {
+        const string LeaseType = "app";
+
         readonly AzureStorageClient azureStorageClient;
         readonly IPartitionManager partitionManager;
         readonly AzureStorageOrchestrationServiceSettings settings;
@@ -60,7 +62,7 @@ namespace DurableTask.AzureStorage.Partitioning
             this.appLeaseInfoBlobName = appLeaseInfoBlobName;
             this.options = options;
 
-            this.storageAccountName = this.azureStorageClient.StorageAccountName;
+            this.storageAccountName = this.azureStorageClient.BlobAccountName;
             this.settings = this.azureStorageClient.Settings;
             this.taskHub = settings.TaskHubName;
             this.workerName = settings.WorkerId;
@@ -166,8 +168,12 @@ namespace DurableTask.AzureStorage.Partitioning
                 await this.partitionManager.StopAsync();
             }
 
-            this.starterTokenSource.Cancel();
-            this.starterTokenSource.Dispose();
+            if (this.starterTokenSource != null)
+            {
+                this.starterTokenSource.Cancel();
+                this.starterTokenSource.Dispose();
+                this.starterTokenSource = null;
+            }
         }
 
         public async Task ForceChangeAppLeaseAsync()
@@ -300,9 +306,10 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.storageAccountName,
                     this.taskHub,
                     this.workerName,
-                    this.appLeaseContainerName);
+                    this.appLeaseContainerName,
+                    LeaseType);
 
-                await appLeaseContainer.ChangeLeaseAsync(this.appLeaseId, currentLeaseId);
+                await this.appLeaseContainer.ChangeLeaseAsync(this.appLeaseId, currentLeaseId);
 
                 var appLeaseInfo = new AppLeaseInfo()
                 {
@@ -316,7 +323,8 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.storageAccountName,
                     this.taskHub,
                     this.workerName,
-                    this.appLeaseContainerName);
+                    this.appLeaseContainerName,
+                    LeaseType);
 
                 // When changing the lease over to another app, the paritions will still be listened to on the first app until the AppLeaseManager
                 // renew task fails to renew the lease. To avoid potential split brain we must delay before the new lease holder can start
@@ -351,9 +359,10 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.storageAccountName,
                     this.taskHub,
                     this.workerName,
-                    this.appLeaseContainerName);
+                    this.appLeaseContainerName,
+                    LeaseType);
 
-                await appLeaseContainer.AcquireLeaseAsync(this.options.LeaseInterval, this.appLeaseId);
+                await this.appLeaseContainer.AcquireLeaseAsync(this.options.LeaseInterval, this.appLeaseId);
 
                 await this.UpdateOwnerAppIdToCurrentApp();
                 leaseAcquired = true;
@@ -362,7 +371,8 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.storageAccountName,
                     this.taskHub,
                     this.workerName,
-                    this.appLeaseContainerName);
+                    this.appLeaseContainerName,
+                    LeaseType);
             }
             catch (DurableTaskStorageException e)
             {
@@ -372,7 +382,8 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.storageAccountName,
                     this.taskHub,
                     this.workerName,
-                    this.appLeaseContainerName);
+                    this.appLeaseContainerName,
+                    LeaseType);
 
                 this.settings.Logger.PartitionManagerWarning(
                     this.storageAccountName,
@@ -417,7 +428,7 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.storageAccountName, 
                         this.taskHub, 
                         this.workerName,
-                        this.appLeaseContainerName, 
+                        this.appLeaseContainerName,
                         $"App lease renewer task failed. AppLeaseId: {this.appLeaseId} Exception: {ex}");
                 }
             }
@@ -451,9 +462,10 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.taskHub,
                     this.workerName,
                     this.appLeaseContainerName,
-                    this.appLeaseId);
+                    this.appLeaseId,
+                    LeaseType);
 
-                await appLeaseContainer.RenewLeaseAsync(appLeaseId);
+                await this.appLeaseContainer.RenewLeaseAsync(appLeaseId);
 
                 renewed = true;
             }
@@ -474,6 +486,7 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.workerName,
                         this.appLeaseContainerName,
                         this.appLeaseId,
+                        LeaseType,
                         ex.Message);
 
                     this.settings.Logger.PartitionManagerWarning(
@@ -498,6 +511,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.appLeaseContainerName,
                 renewed,
                 this.appLeaseId,
+                LeaseType,
                 errorMessage);
 
             return renewed;

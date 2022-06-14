@@ -33,7 +33,7 @@ namespace DurableTask.ServiceBus.Tracking
         /// </summary>
         public AzureTableOrchestrationStateEntity()
         {
-            this.dataConverter = new JsonDataConverter();
+            this.dataConverter = JsonDataConverter.Default;
         }
 
         /// <summary>

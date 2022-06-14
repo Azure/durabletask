@@ -10,19 +10,33 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.Core.Command
 {
-    using System;
-
-    internal class SendEventOrchestratorAction : OrchestratorAction
+    /// <summary>
+    /// Orchestrator action for sending external events to other orchestrations.
+    /// </summary>
+    public class SendEventOrchestratorAction : OrchestratorAction
     {
+        // NOTE: Actions must be serializable by a variety of different serializer types to support out-of-process execution.
+        //       To ensure maximum compatibility, all properties should be public and settable by default.
+
+        /// <inheritdoc/>
         public override OrchestratorActionType OrchestratorActionType => OrchestratorActionType.SendEvent;
 
-        public OrchestrationInstance Instance { get; set; }
+        /// <summary>
+        /// The orchestration instance to receive the event.
+        /// </summary>
+        public OrchestrationInstance? Instance { get; set; }
 
-        public string EventName { get; set; }
+        /// <summary>
+        /// The name of the external event.
+        /// </summary>
+        public string? EventName { get; set; }
 
-        public string EventData { get; set; }
+        /// <summary>
+        /// The payload data of the external event.
+        /// </summary>
+        public string? EventData { get; set; }
     }
 }

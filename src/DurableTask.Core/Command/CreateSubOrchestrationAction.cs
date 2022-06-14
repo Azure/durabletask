@@ -10,23 +10,45 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.Core.Command
 {
     using System.Collections.Generic;
 
-    internal class CreateSubOrchestrationAction : OrchestratorAction
+    /// <summary>
+    /// Orchestrator action for creating sub-orchestrations.
+    /// </summary>
+    public class CreateSubOrchestrationAction : OrchestratorAction
     {
+        // NOTE: Actions must be serializable by a variety of different serializer types to support out-of-process execution.
+        //       To ensure maximum compatibility, all properties should be public and settable by default.
+
+        /// <inheritdoc/>
         public override OrchestratorActionType OrchestratorActionType => OrchestratorActionType.CreateSubOrchestration;
 
-        public string Name { get; set; }
+        /// <summary>
+        /// The name of the sub-orchestrator to start.
+        /// </summary>
+        public string? Name { get; set; }
 
-        public string Version { get; set; }
+        /// <summary>
+        /// The version of the sub-orchestrator to start.
+        /// </summary>
+        public string? Version { get; set; }
 
-        public string InstanceId { get; set; }
+        /// <summary>
+        /// The instance ID of the created sub-orchestration.
+        /// </summary>
+        public string? InstanceId { get; set; }
 
-        public string Input { get; set; }
+        /// <summary>
+        /// The input of the sub-orchestration.
+        /// </summary>
+        public string? Input { get; set; }
 
-        public IDictionary<string, string> Tags { get; set; }
+        /// <summary>
+        /// Tags to be applied to the sub-orchestration.
+        /// </summary>
+        public IDictionary<string, string>? Tags { get; set; }
     }
 }

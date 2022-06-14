@@ -191,7 +191,7 @@ namespace DurableTask.ServiceBus.Tests
             var smallInput = "abc";
             OrchestrationRuntimeState newOrchestrationRuntimeStateSmall = generateOrchestrationRuntimeState(smallInput);
 
-            DataConverter dataConverter = new JsonDataConverter();
+            DataConverter dataConverter = JsonDataConverter.Default;
 
             // deserialize a OrchestrationRuntimeState object, with both compression and not compression
             Stream stream = serializeToStream(dataConverter, newOrchestrationRuntimeStateSmall, true);

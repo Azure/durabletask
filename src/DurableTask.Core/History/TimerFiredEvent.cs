@@ -22,6 +22,24 @@ namespace DurableTask.Core.History
     [DataContract]
     public class TimerFiredEvent : HistoryEvent
     {
+        // Private ctor for JSON deserialization (required by some storage providers and out-of-proc executors)
+        TimerFiredEvent()
+            : base(-1)
+        {
+        }
+
+        /// <summary>
+        /// Creates a new <see cref="TimerFiredEvent"/> with the supplied event ID
+        /// and <paramref name="fireAt"/> timestamp.
+        /// </summary>
+        /// <param name="eventId">The ID of the timer event.</param>
+        /// <param name="fireAt">The time at which the timer was scheduled to fire.</param>
+        public TimerFiredEvent(int eventId, DateTime fireAt)
+            : base(eventId)
+        {
+            this.FireAt = fireAt;
+        }
+
         /// <summary>
         /// Creates a new TimerFiredEvent with the supplied event id
         /// </summary>

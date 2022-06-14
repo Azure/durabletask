@@ -11,7 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-#if NETCOREAPP2_1
+#if NETCOREAPP
 [assembly: System.Runtime.InteropServices.ComVisible(false)]
 
 namespace DurableTask.Stress.Tests

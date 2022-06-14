@@ -33,8 +33,9 @@ namespace DurableTask.AzureStorage.Tests
     using Microsoft.WindowsAzure.Storage.Blob;
     using Microsoft.WindowsAzure.Storage.Table;
     using Moq;
+    using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
-#if !NET461
+#if !NET462
     using OpenTelemetry;
     using OpenTelemetry.Trace;
 #endif
@@ -198,6 +199,51 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.IsNull(queryResult.ContinuationToken);
                 await host.StopAsync();
             }
+        }
+
+        [TestMethod]
+        public async Task GetInstanceIdsByPrefix()
+        {
+            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false);
+            string instanceIdPrefixGuid = "0abb6ebb-d712-453a-97c4-6c7c1f78f49f";
+
+            string[] instanceIds = new[]
+            {
+                instanceIdPrefixGuid,
+                instanceIdPrefixGuid + "_0_Foo",
+                instanceIdPrefixGuid + "_1_Bar",
+                instanceIdPrefixGuid + "_Foo",
+                instanceIdPrefixGuid + "_Bar",
+            };
+
+            // Create multiple instances that we'll try to query back
+            await host.StartAsync();
+
+            TestOrchestrationClient client;
+            foreach (string instanceId in instanceIds)
+            {
+                client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), input: "Greetings!", instanceId);
+                await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
+            }
+
+            // Add one more instance which shouldn't get picked up
+            client = await host.StartOrchestrationAsync(
+                typeof(Orchestrations.Echo),
+                input: "Greetings!",
+                instanceId: $"Foo_{instanceIdPrefixGuid}");
+            await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
+
+            DurableStatusQueryResult queryResult = await host.service.GetOrchestrationStateAsync(
+                new OrchestrationInstanceStatusQueryCondition()
+                {
+                    InstanceIdPrefix = instanceIdPrefixGuid,
+                },
+                top: instanceIds.Length,
+                continuationToken: null);
+            Assert.AreEqual(instanceIds.Length, queryResult.OrchestrationState.Count());
+            Assert.IsNull(queryResult.ContinuationToken);
+
+            await host.StopAsync();
         }
 
         [TestMethod]
@@ -1253,7 +1299,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 // Empty string input should result in ArgumentNullException in the orchestration code.
                 var client = await host.StartOrchestrationAsync(typeof(Orchestrations.TryCatchLoop), 5);
-                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(15));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
                 Assert.AreEqual(5, JToken.Parse(status?.Output));
@@ -2083,7 +2129,7 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-#if !NET461
+#if !NET462
         /// <summary>
         /// End-to-end test which validates a simple orchestrator function that calls an activity function
         /// and checks the OpenTelemetry trace information
@@ -2967,15 +3013,16 @@ namespace DurableTask.AzureStorage.Tests
                 // HACK: This is just a hack to communicate result of orchestration back to test
                 public static bool OkResult;
 
-                private const string ChannelName = "conversation";
+                private static string ChannelName = Guid.NewGuid().ToString();
 
                 public async override Task<string> RunTask(OrchestrationContext context, string input)
                 {
                     var responderId = $"@{typeof(Responder).FullName}";
                     var responderInstance = new OrchestrationInstance() { InstanceId = responderId };
+                    var requestInformation = new RequestInformation { InstanceId = context.OrchestrationInstance.InstanceId, RequestId = ChannelName };
 
-                    // send the id of this orchestration to a not-yet-started orchestration
-                    context.SendEvent(responderInstance, ChannelName, context.OrchestrationInstance.InstanceId);
+                    // send the RequestInformation containing RequestId and Instanceid of this orchestration to a not-yet-started orchestration
+                    context.SendEvent(responderInstance, ChannelName, requestInformation);
 
                     // wait for a response event 
                     var message = await tcs.Task;
@@ -2987,6 +3034,13 @@ namespace DurableTask.AzureStorage.Tests
                     return "OK";
                 }
 
+                public class RequestInformation
+                {
+                    [JsonProperty("id")]
+                    public string RequestId { get; set; }
+                    public string InstanceId { get; set; }
+                }
+
                 public override void OnEvent(OrchestrationContext context, string name, string input)
                 {
                     if (name == ChannelName)
@@ -2995,7 +3049,7 @@ namespace DurableTask.AzureStorage.Tests
                     }
                 }
 
-                public class Responder : TaskOrchestration<string, string>
+                public class Responder : TaskOrchestration<string, string, RequestInformation, string>
                 {
                     private readonly TaskCompletionSource<string> tcs
                         = new TaskCompletionSource<string>(TaskContinuationOptions.ExecuteSynchronously);
@@ -3020,11 +3074,11 @@ namespace DurableTask.AzureStorage.Tests
                         return "this return value is not observed by anyone";
                     }
 
-                    public override void OnEvent(OrchestrationContext context, string name, string input)
+                    public override void OnEvent(OrchestrationContext context, string name, RequestInformation input)
                     {
                         if (name == ChannelName)
                         {
-                            tcs.TrySetResult(input);
+                            tcs.TrySetResult(input.InstanceId);
                         }
                     }
                 }

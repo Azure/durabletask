@@ -64,12 +64,6 @@ namespace DurableTask.Core.Exceptions
             Details = details;
         }
 
-        internal TaskFailureException WithFailureSource(string failureSource)
-        {
-            FailureSource = failureSource;
-            return this;
-        }
-
         /// <summary>
         /// Initializes a new instance of the <see cref="TaskFailureException"/> class.
         /// </summary>
@@ -114,6 +108,20 @@ namespace DurableTask.Core.Exceptions
         public string Details { get; set; }
 
         internal string FailureSource { get; set; }
+
+        internal FailureDetails FailureDetails { get; set; }
+
+        internal TaskFailureException WithFailureSource(string failureSource)
+        {
+            FailureSource = failureSource;
+            return this;
+        }
+
+        internal TaskFailureException WithFailureDetails(FailureDetails failureDetails)
+        {
+            FailureDetails = failureDetails;
+            return this;
+        }
 
         bool ExistPropertyInfo(SerializationInfo info, string propertyName)
         {

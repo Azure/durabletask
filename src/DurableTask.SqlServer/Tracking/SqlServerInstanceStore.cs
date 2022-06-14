@@ -30,7 +30,6 @@ namespace DurableTask.SqlServer.Tracking
     /// </summary>
     public class SqlServerInstanceStore : IOrchestrationServiceInstanceStore
     {
-        private readonly DataConverter dataConverter = new JsonDataConverter();
         private readonly SqlServerInstanceStoreSettings settings;
 
         /// <summary>
@@ -116,7 +115,7 @@ namespace DurableTask.SqlServer.Tracking
 
                     while (await reader.ReadAsync())
                     {
-                        entities.Add(new OrchestrationStateInstanceEntity { State = dataConverter.Deserialize<OrchestrationState>(reader.GetString(0)) });
+                        entities.Add(new OrchestrationStateInstanceEntity { State = JsonDataConverter.Default.Deserialize<OrchestrationState>(reader.GetString(0)) });
                     }
 
                     return entities;
@@ -152,7 +151,7 @@ namespace DurableTask.SqlServer.Tracking
                         ExecutionId = reader.GetFieldValue<string>(1),
                         EventTimestamp = reader.GetFieldValue<DateTime>(2),
                         SequenceNumber = reader.GetFieldValue<long>(3),
-                        HistoryEvent = dataConverter.Deserialize<HistoryEvent>(reader.GetFieldValue<string>(4))
+                        HistoryEvent = JsonDataConverter.Default.Deserialize<HistoryEvent>(reader.GetFieldValue<string>(4))
                     });
                 }
 
@@ -184,7 +183,7 @@ namespace DurableTask.SqlServer.Tracking
 
                     while (await reader.ReadAsync())
                     {
-                        entities.Add(new OrchestrationStateInstanceEntity { State = dataConverter.Deserialize<OrchestrationState>(reader.GetFieldValue<string>(0)) });
+                        entities.Add(new OrchestrationStateInstanceEntity { State = JsonDataConverter.Default.Deserialize<OrchestrationState>(reader.GetFieldValue<string>(0)) });
 
                         if (allInstances == false) break;
                     }
@@ -207,7 +206,7 @@ namespace DurableTask.SqlServer.Tracking
                 await connection.OpenAsync();
                 var value = await command.ExecuteScalarAsync();
 
-                return new OrchestrationStateInstanceEntity { State = dataConverter.Deserialize<OrchestrationState>(value.ToString()) };
+                return new OrchestrationStateInstanceEntity { State = JsonDataConverter.Default.Deserialize<OrchestrationState>(value.ToString()) };
             }
         }
 
@@ -308,7 +307,7 @@ namespace DurableTask.SqlServer.Tracking
                                 createdTime = state.CreatedTime,
                                 completedTime = state.CompletedTime,
                                 lastUpdatedTime = state.LastUpdatedTime,
-                                stateData = dataConverter.Serialize(state)
+                                stateData = JsonDataConverter.Default.Serialize(state)
                             });
 
                     }
@@ -321,7 +320,7 @@ namespace DurableTask.SqlServer.Tracking
                                 executionId = workItem.ExecutionId,
                                 sequenceNumber = workItem.SequenceNumber,
                                 eventTimestamp = workItem.EventTimestamp,
-                                historyEvent = dataConverter.Serialize(workItem.HistoryEvent)
+                                historyEvent = JsonDataConverter.Default.Serialize(workItem.HistoryEvent)
                             });
                     }
                     else

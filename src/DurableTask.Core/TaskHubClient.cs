@@ -43,7 +43,7 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="serviceClient">Object implementing the <see cref="IOrchestrationServiceClient"/> interface </param>
         public TaskHubClient(IOrchestrationServiceClient serviceClient)
-            : this(serviceClient, new JsonDataConverter())
+            : this(serviceClient, JsonDataConverter.Default)
         {
         }
 
@@ -66,7 +66,7 @@ namespace DurableTask.Core
         public TaskHubClient(IOrchestrationServiceClient serviceClient, DataConverter dataConverter = null, ILoggerFactory loggerFactory = null)
         {
             this.ServiceClient = serviceClient ?? throw new ArgumentNullException(nameof(serviceClient));
-            this.defaultConverter = dataConverter ?? new JsonDataConverter();
+            this.defaultConverter = dataConverter ?? JsonDataConverter.Default;
             this.logHelper = new LogHelper(loggerFactory?.CreateLogger("DurableTask.Core"));
         }
 

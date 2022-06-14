@@ -103,6 +103,12 @@ namespace DurableTask.Core.History
         public DateTime? ScheduledStartTime { get; set; }
 
         /// <summary>
+        /// Gets or sets the generation of the orchestration
+        /// </summary>
+        [DataMember]
+        public int? Generation { get; set; }
+
+        /// <summary>
         /// Gets the W3C distributed trace parent context from this event, if any.
         /// </summary>
         public bool TryGetParentTraceContext(out ActivityContext parentTraceContext)

@@ -41,17 +41,21 @@ namespace DurableTask.Core
             continueAsNew.CarryoverEvents.Add(he);
         }
 
-        public TaskOrchestrationContext(OrchestrationInstance orchestrationInstance, TaskScheduler taskScheduler)
+        public TaskOrchestrationContext(
+            OrchestrationInstance orchestrationInstance,
+            TaskScheduler taskScheduler,
+            ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions)
         {
             Utils.UnusedParameter(taskScheduler);
 
             this.openTasks = new Dictionary<int, OpenTaskInfo>();
-            this.orchestratorActionsMap = new Dictionary<int, OrchestratorAction>();
+            this.orchestratorActionsMap = new SortedDictionary<int, OrchestratorAction>();
             this.idCounter = 0;
-            this.MessageDataConverter = new JsonDataConverter();
-            this.ErrorDataConverter = new JsonDataConverter();
+            this.MessageDataConverter = JsonDataConverter.Default;
+            this.ErrorDataConverter = JsonDataConverter.Default;
             OrchestrationInstance = orchestrationInstance;
             IsReplaying = false;
+            ErrorPropagationMode = errorPropagationMode;
         }
 
         public IEnumerable<OrchestratorAction> OrchestratorActions => this.orchestratorActionsMap.Values;
@@ -248,6 +252,7 @@ namespace DurableTask.Core
                 {
                     if (tcs.TrySetCanceled())
                     {
+                        // TODO: Emit a log message that the timer is cancelled.
                         this.openTasks.Remove(id);
                     }
                 }, tcs);
@@ -271,12 +276,12 @@ namespace DurableTask.Core
             }
 
             var orchestrationAction = this.orchestratorActionsMap[taskId];
-            if (!(orchestrationAction is ScheduleTaskOrchestratorAction currentReplayAction))
+            if (orchestrationAction is not ScheduleTaskOrchestratorAction currentReplayAction)
             {
                 throw new NonDeterministicOrchestrationException(scheduledEvent.EventId,
                     $"A previous execution of this orchestration scheduled an activity task with sequence number {taskId} named "
-                    + $"'{scheduledEvent.Name}', but the current orchestration replay instead scheduled a "
-                    + $"{orchestrationAction.GetType().Name} task with this sequence number. Was a change made to the "
+                    + $"'{scheduledEvent.Name}', but the current orchestration replay instead produced a "
+                    + $"{orchestrationAction.GetType().Name} action with this sequence number. Was a change made to the "
                     + "orchestrator code after this instance had already started running?");
             }
 
@@ -310,11 +315,11 @@ namespace DurableTask.Core
             }
 
             var orchestrationAction = this.orchestratorActionsMap[taskId];
-            if (!(orchestrationAction is CreateTimerOrchestratorAction))
+            if (orchestrationAction is not CreateTimerOrchestratorAction)
             {
                 throw new NonDeterministicOrchestrationException(timerCreatedEvent.EventId,
                     $"A previous execution of this orchestration scheduled a timer task with sequence number {taskId} named "
-                    + $"but the current orchestration replay instead scheduled a {orchestrationAction.GetType().Name} task with "
+                    + $"but the current orchestration replay instead produced a {orchestrationAction.GetType().Name} action with "
                     + "this sequence number. Was a change made to the orchestrator code after this instance had already "
                     + "started running?");
             }
@@ -335,13 +340,13 @@ namespace DurableTask.Core
             }
 
             var orchestrationAction = this.orchestratorActionsMap[taskId];
-            if (!(orchestrationAction is CreateSubOrchestrationAction currentReplayAction))
+            if (orchestrationAction is not CreateSubOrchestrationAction currentReplayAction)
             {
                 throw new NonDeterministicOrchestrationException(subOrchestrationCreateEvent.EventId,
                    $"A previous execution of this orchestration scheduled a sub-orchestration task with sequence ID {taskId} "
                    + $"and name '{subOrchestrationCreateEvent.Name}' (version '{subOrchestrationCreateEvent.Version}', "
                    + $"instance ID '{subOrchestrationCreateEvent.InstanceId}'), but the current orchestration replay instead "
-                   + $"scheduled a {orchestrationAction.GetType().Name} task at this sequence number. Was a change made to "
+                   + $"produced a {orchestrationAction.GetType().Name} action at this sequence number. Was a change made to "
                    + "the orchestrator code after this instance had already started running?");
             }
 
@@ -418,10 +423,24 @@ namespace DurableTask.Core
             if (this.openTasks.ContainsKey(taskId))
             {
                 OpenTaskInfo info = this.openTasks[taskId];
-                Exception cause = Utils.RetrieveCause(failedEvent.Details, this.ErrorDataConverter);
 
-                var taskFailedException = new TaskFailedException(failedEvent.EventId, taskId, info.Name, info.Version,
-                    failedEvent.Reason, cause);
+                // When using ErrorPropagationMode.SerializeExceptions the "cause" is deserialized from history.
+                // This isn't fully reliable because not all exception types can be serialized/deserialized.
+                // When using ErrorPropagationMode.UseFailureDetails we instead use FailureDetails to convey
+                // error information, which doesn't involve any serialization at all.
+                Exception cause = this.ErrorPropagationMode == ErrorPropagationMode.SerializeExceptions ?
+                    Utils.RetrieveCause(failedEvent.Details, this.ErrorDataConverter) :
+                    null;
+
+                var taskFailedException = new TaskFailedException(
+                    failedEvent.EventId,
+                    taskId,
+                    info.Name,
+                    info.Version,
+                    failedEvent.Reason,
+                    cause);
+
+                taskFailedException.FailureDetails = failedEvent.FailureDetails;
 
                 TaskCompletionSource<string> tcs = info.Result;
                 tcs.SetException(taskFailedException);
@@ -456,10 +475,20 @@ namespace DurableTask.Core
             if (this.openTasks.ContainsKey(taskId))
             {
                 OpenTaskInfo info = this.openTasks[taskId];
-                Exception cause = Utils.RetrieveCause(failedEvent.Details, this.ErrorDataConverter);
+
+                // When using ErrorPropagationMode.SerializeExceptions the "cause" is deserialized from history.
+                // This isn't fully reliable because not all exception types can be serialized/deserialized.
+                // When using ErrorPropagationMode.UseFailureDetails we instead use FailureDetails to convey
+                // error information, which doesn't involve any serialization at all.
+                Exception cause = this.ErrorPropagationMode == ErrorPropagationMode.SerializeExceptions ?
+                    Utils.RetrieveCause(failedEvent.Details, this.ErrorDataConverter) :
+                    null;
+
                 var failedException = new SubOrchestrationFailedException(failedEvent.EventId, taskId, info.Name,
                     info.Version,
                     failedEvent.Reason, cause);
+                failedException.FailureDetails = failedEvent.FailureDetails;
+
                 TaskCompletionSource<string> tcs = info.Result;
                 tcs.SetException(failedException);
 
@@ -517,7 +546,11 @@ namespace DurableTask.Core
             }
 
             string reason = failure.Message;
-            string details;
+
+            // string details is legacy, FailureDetails is the newer way to share failure information
+            string details = null;
+            FailureDetails failureDetails = null;
+
             // correlation 
             CorrelationTraceClient.Propagate(
                 () =>
@@ -527,17 +560,32 @@ namespace DurableTask.Core
 
             if (failure is OrchestrationFailureException orchestrationFailureException)
             {
-                details = orchestrationFailureException.Details;
+                if (this.ErrorPropagationMode == ErrorPropagationMode.UseFailureDetails)
+                {
+                    // When not serializing exceptions, we instead construct FailureDetails objects
+                    failureDetails = orchestrationFailureException.FailureDetails;
+                }
+                else
+                {
+                    details = orchestrationFailureException.Details;
+                }
             }
-            else
+            else 
             {
-                details = $"Unhandled exception while executing orchestration: {failure}\n\t{failure.StackTrace}";
+                if (this.ErrorPropagationMode == ErrorPropagationMode.UseFailureDetails)
+                {
+                    failureDetails = new FailureDetails(failure);
+                }
+                else
+                {
+                    details = $"Unhandled exception while executing orchestration: {failure}\n\t{failure.StackTrace}";
+                }
             }
 
-            CompleteOrchestration(reason, details, OrchestrationStatus.Failed);
+            CompleteOrchestration(reason, details, OrchestrationStatus.Failed, failureDetails);
         }
 
-        public void CompleteOrchestration(string result, string details, OrchestrationStatus orchestrationStatus)
+        public void CompleteOrchestration(string result, string details, OrchestrationStatus orchestrationStatus, FailureDetails failureDetails = null)
         {
             int id = this.idCounter++;
             OrchestrationCompleteOrchestratorAction completedOrchestratorAction;
@@ -558,6 +606,7 @@ namespace DurableTask.Core
                 completedOrchestratorAction.Result = result;
                 completedOrchestratorAction.Details = details;
                 completedOrchestratorAction.OrchestrationStatus = orchestrationStatus;
+                completedOrchestratorAction.FailureDetails = failureDetails;
             }
 
             completedOrchestratorAction.Id = id;

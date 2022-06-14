@@ -192,11 +192,11 @@ namespace DurableTask.AzureServiceFabric.Service
             {
                 EnsureFabricOrchestrationProviderIsInitialized();
 
-                this.worker = new TaskHubWorker(this.fabricOrchestrationProvider.OrchestrationService);
+                this.worker = new TaskHubWorker(this.fabricOrchestrationProvider.OrchestrationService, this.fabricOrchestrationProviderSettings.LoggerFactory);
 
                 if (this.registerOrchestrations2 != null)
                 {
-                    this.localClient = new TaskHubClient(this.fabricOrchestrationProvider.OrchestrationServiceClient);
+                    this.localClient = new TaskHubClient(this.fabricOrchestrationProvider.OrchestrationServiceClient, loggerFactory: this.fabricOrchestrationProviderSettings.LoggerFactory);
                     this.registerOrchestrations2(this.worker, this.localClient);
                 }
                 else

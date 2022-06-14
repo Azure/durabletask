@@ -625,13 +625,14 @@ namespace DurableTask.AzureStorage
                 ExtensionVersion);
         }
 
-        [Event(EventIds.StartingLeaseRenewal, Level = EventLevel.Verbose, Version = 2)]
+        [Event(EventIds.StartingLeaseRenewal, Level = EventLevel.Verbose, Version = 3)]
         public void StartingLeaseRenewal(
             string Account,
             string TaskHub,
             string WorkerName,
             string PartitionId,
             string Token,
+            string LeaseType,
             string AppName,
             string ExtensionVersion)
         {
@@ -642,11 +643,12 @@ namespace DurableTask.AzureStorage
                 WorkerName ?? string.Empty,
                 PartitionId ?? string.Empty,
                 Token ?? string.Empty,
+                LeaseType,
                 AppName,
                 ExtensionVersion);
         }
 
-        [Event(EventIds.LeaseRenewalResult, Level = EventLevel.Verbose, Version = 2)]
+        [Event(EventIds.LeaseRenewalResult, Level = EventLevel.Verbose, Version = 3)]
         public void LeaseRenewalResult(
             string Account,
             string TaskHub,
@@ -654,6 +656,7 @@ namespace DurableTask.AzureStorage
             string PartitionId,
             bool Success,
             string Token,
+            string LeaseType,
             string Details,
             string AppName,
             string ExtensionVersion)
@@ -666,18 +669,20 @@ namespace DurableTask.AzureStorage
                 PartitionId ?? string.Empty,
                 Success,
                 Token ?? string.Empty,
+                LeaseType,
                 Details ?? string.Empty,
                 AppName,
                 ExtensionVersion);
         }
 
-        [Event(EventIds.LeaseRenewalFailed, Level = EventLevel.Informational, Version = 2)]
+        [Event(EventIds.LeaseRenewalFailed, Level = EventLevel.Informational, Version = 3)]
         public void LeaseRenewalFailed(
             string Account,
             string TaskHub,
             string WorkerName,
             string PartitionId,
             string Token,
+            string LeaseType,
             string Details,
             string AppName,
             string ExtensionVersion)
@@ -689,17 +694,19 @@ namespace DurableTask.AzureStorage
                 WorkerName ?? string.Empty,
                 PartitionId ?? string.Empty,
                 Token ?? string.Empty,
+                LeaseType,
                 Details ?? string.Empty,
                 AppName,
                 ExtensionVersion);
         }
 
-        [Event(EventIds.LeaseAcquisitionStarted, Level = EventLevel.Informational, Version = 2)]
+        [Event(EventIds.LeaseAcquisitionStarted, Level = EventLevel.Informational, Version = 3)]
         public void LeaseAcquisitionStarted(
             string Account,
             string TaskHub,
             string WorkerName,
             string PartitionId,
+            string LeaseType,
             string AppName,
             string ExtensionVersion)
         {
@@ -709,16 +716,18 @@ namespace DurableTask.AzureStorage
                 TaskHub,
                 WorkerName ?? string.Empty,
                 PartitionId ?? string.Empty,
+                LeaseType,
                 AppName,
                 ExtensionVersion);
         }
 
-        [Event(EventIds.LeaseAcquisitionSucceeded, Level = EventLevel.Informational, Version = 2)]
+        [Event(EventIds.LeaseAcquisitionSucceeded, Level = EventLevel.Informational, Version = 3)]
         public void LeaseAcquisitionSucceeded(
             string Account,
             string TaskHub,
             string WorkerName,
             string PartitionId,
+            string LeaseType,
             string AppName,
             string ExtensionVersion)
         {
@@ -728,16 +737,18 @@ namespace DurableTask.AzureStorage
                 TaskHub,
                 WorkerName ?? string.Empty,
                 PartitionId ?? string.Empty,
+                LeaseType,
                 AppName,
                 ExtensionVersion);
         }
 
-        [Event(EventIds.LeaseAcquisitionFailed, Level = EventLevel.Informational, Version = 2)]
+        [Event(EventIds.LeaseAcquisitionFailed, Level = EventLevel.Informational, Version = 3)]
         public void LeaseAcquisitionFailed(
             string Account,
             string TaskHub,
             string WorkerName,
             string PartitionId,
+            string LeaseType,
             string AppName,
             string ExtensionVersion)
         {
@@ -747,16 +758,18 @@ namespace DurableTask.AzureStorage
                 TaskHub,
                 WorkerName ?? string.Empty,
                 PartitionId ?? string.Empty,
+                LeaseType,
                 AppName,
                 ExtensionVersion);
         }
 
-        [Event(EventIds.AttemptingToStealLease, Level = EventLevel.Informational, Version = 2)]
+        [Event(EventIds.AttemptingToStealLease, Level = EventLevel.Informational, Version = 3)]
         public void AttemptingToStealLease(
             string Account,
             string TaskHub,
             string WorkerName,
             string FromWorkerName,
+            string LeaseType,
             string PartitionId,
             string AppName,
             string ExtensionVersion)
@@ -767,17 +780,19 @@ namespace DurableTask.AzureStorage
                 TaskHub,
                 WorkerName ?? string.Empty,
                 FromWorkerName ?? string.Empty,
+                LeaseType ?? string.Empty,
                 PartitionId ?? string.Empty,
                 AppName,
                 ExtensionVersion);
         }
 
-        [Event(EventIds.LeaseStealingSucceeded, Level = EventLevel.Informational, Version = 2)]
+        [Event(EventIds.LeaseStealingSucceeded, Level = EventLevel.Informational, Version = 3)]
         public void LeaseStealingSucceeded(
             string Account,
             string TaskHub,
             string WorkerName,
             string FromWorkerName,
+            string LeaseType,
             string PartitionId,
             string AppName,
             string ExtensionVersion)
@@ -788,17 +803,19 @@ namespace DurableTask.AzureStorage
                 TaskHub,
                 WorkerName ?? string.Empty,
                 FromWorkerName ?? string.Empty,
+                LeaseType ?? string.Empty,
                 PartitionId ?? string.Empty,
                 AppName,
                 ExtensionVersion);
         }
 
-        [Event(EventIds.LeaseStealingFailed, Level = EventLevel.Informational, Version = 2)]
+        [Event(EventIds.LeaseStealingFailed, Level = EventLevel.Informational, Version = 3)]
         public void LeaseStealingFailed(
             string Account,
             string TaskHub,
             string WorkerName,
             string PartitionId,
+            string LeaseType,
             string AppName,
             string ExtensionVersion)
         {
@@ -808,6 +825,7 @@ namespace DurableTask.AzureStorage
                 TaskHub,
                 WorkerName ?? string.Empty,
                 PartitionId ?? string.Empty,
+                LeaseType,
                 AppName,
                 ExtensionVersion);
         }
@@ -833,13 +851,14 @@ namespace DurableTask.AzureStorage
                 ExtensionVersion);
         }
 
-        [Event(EventIds.LeaseRemoved, Level = EventLevel.Informational, Version = 2)]
+        [Event(EventIds.LeaseRemoved, Level = EventLevel.Informational, Version = 3)]
         public void LeaseRemoved(
             string Account,
             string TaskHub,
             string WorkerName,
             string PartitionId,
             string Token,
+            string LeaseType,
             string AppName,
             string ExtensionVersion)
         {
@@ -850,17 +869,19 @@ namespace DurableTask.AzureStorage
                 WorkerName ?? string.Empty,
                 PartitionId ?? string.Empty,
                 Token ?? string.Empty,
+                LeaseType,
                 AppName,
                 ExtensionVersion);
         }
 
-        [Event(EventIds.LeaseRemovalFailed, Level = EventLevel.Warning, Version = 2)]
+        [Event(EventIds.LeaseRemovalFailed, Level = EventLevel.Warning, Version = 3)]
         public void LeaseRemovalFailed(
             string Account,
             string TaskHub,
             string WorkerName,
             string PartitionId,
             string Token,
+            string LeaseType,
             string AppName,
             string ExtensionVersion)
         {
@@ -871,6 +892,7 @@ namespace DurableTask.AzureStorage
                 WorkerName ?? string.Empty,
                 PartitionId ?? string.Empty,
                 Token ?? string.Empty,
+                LeaseType,
                 AppName,
                 ExtensionVersion);
         }

@@ -102,7 +102,7 @@ namespace DurableTask.Core.Tracing
         /// </returns>
         internal static Activity? StartTraceActivityForTask(
             TaskScheduledEvent scheduledEvent,
-            OrchestrationInstance instance)
+            OrchestrationInstance? instance)
         {
             if (!scheduledEvent.TryGetParentTraceContext(out ActivityContext activityContext))
             {
@@ -116,8 +116,8 @@ namespace DurableTask.Core.Tracing
                 tags: new KeyValuePair<string, object?>[]
                 {
                     new("dt.type", "activity"),
-                    new("dt.instanceid", instance.InstanceId),
-                    new("dt.executionid", instance.ExecutionId),
+                    new("dt.instanceid", instance?.InstanceId),
+                    new("dt.executionid", instance?.ExecutionId),
                     new("dt.taskid", scheduledEvent.EventId),
                 });
         }
@@ -148,7 +148,7 @@ namespace DurableTask.Core.Tracing
         /// </returns>
         internal static Activity? StartTraceActivityForEventRaised(
             EventRaisedEvent eventRaisedEvent,
-            OrchestrationInstance instance)
+            OrchestrationInstance? instance)
         {
             if (!eventRaisedEvent.TryGetParentTraceContext(out ActivityContext activityContext))
             {
@@ -162,8 +162,8 @@ namespace DurableTask.Core.Tracing
                 tags: new KeyValuePair<string, object?>[]
                 {
                     new("dt.type", "externalevent"),
-                    new("dt.instanceid", instance.InstanceId),
-                    new("dt.executionid", instance.ExecutionId)
+                    new("dt.instanceid", instance?.InstanceId),
+                    new("dt.executionid", instance?.ExecutionId)
                 });
         }
 
@@ -206,7 +206,7 @@ namespace DurableTask.Core.Tracing
         /// <summary>
         ///     Trace with iid and eid
         /// </summary>
-        public static void TraceInstance(TraceEventType eventLevel, string eventType, OrchestrationInstance orchestrationInstance,
+        public static void TraceInstance(TraceEventType eventLevel, string eventType, OrchestrationInstance? orchestrationInstance,
             string format, params object[] args)
         {
             ExceptionHandlingWrapper(
@@ -223,7 +223,7 @@ namespace DurableTask.Core.Tracing
         /// <summary>
         ///     Trace with iid and eid
         /// </summary>
-        public static void TraceInstance(TraceEventType eventLevel, string eventType, OrchestrationInstance orchestrationInstance,
+        public static void TraceInstance(TraceEventType eventLevel, string eventType, OrchestrationInstance? orchestrationInstance,
             Func<string> generateMessage)
         {
             ExceptionHandlingWrapper(
@@ -267,9 +267,9 @@ namespace DurableTask.Core.Tracing
         ///     Trace an instance exception
         /// </summary>
         public static Exception TraceExceptionInstance(TraceEventType eventLevel, string eventType,
-            OrchestrationInstance orchestrationInstance, Exception exception)
+            OrchestrationInstance? orchestrationInstance, Exception exception)
         {
-            return TraceExceptionCore(eventLevel, eventType, orchestrationInstance.InstanceId, orchestrationInstance.ExecutionId,
+            return TraceExceptionCore(eventLevel, eventType, orchestrationInstance?.InstanceId ?? String.Empty, orchestrationInstance?.ExecutionId ?? String.Empty,
                 ExceptionDispatchInfo.Capture(exception), string.Empty).SourceException;
         }
 
