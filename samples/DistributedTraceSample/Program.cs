@@ -43,6 +43,8 @@ namespace OpenTelemetrySample
                 await GetOrchestrationServiceAndClient();
 
             using TaskHubWorker worker = new TaskHubWorker(service);
+            worker.ErrorPropagationMode = ErrorPropagationMode.UseFailureDetails;
+
             worker.AddTaskOrchestrations(typeof(HelloSequence));
             worker.AddTaskOrchestrations(typeof(HelloFanOut));
             worker.AddTaskActivities(typeof(SayHello));

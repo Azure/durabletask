@@ -97,10 +97,6 @@ namespace DurableTask.Core
             }
             catch (Exception e) when (!Utils.IsFatal(e) && !Utils.IsExecutionAborting(e))
             {
-                DistributedTraceActivity.Current?.SetTag("otel.status_code", "ERROR");
-                DistributedTraceActivity.Current?.SetTag("exception.type", e.GetType().FullName);
-                DistributedTraceActivity.Current?.SetTag("exception.message", e.Message);
-
                 string details = null;
                 FailureDetails failureDetails = null;
                 if (context.ErrorPropagationMode == ErrorPropagationMode.SerializeExceptions)

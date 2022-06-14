@@ -831,6 +831,18 @@ namespace DurableTask.Core
                 }
             }
 
+            if (completeOrchestratorAction.OrchestrationStatus == OrchestrationStatus.Failed)
+            {
+                DistributedTraceActivity.Current?.SetTag("otel.status_code", "ERROR");
+
+                FailureDetails? failureDetails = runtimeState.FailureDetails;
+                if (failureDetails != null)
+                {
+                    DistributedTraceActivity.Current?.SetTag("exception.type", failureDetails.ErrorType);
+                    DistributedTraceActivity.Current?.SetTag("exception.message", failureDetails.ErrorMessage);
+                }
+            }
+
             DistributedTraceActivity.Current?.SetTag("dt.runtimestatus", runtimeState.OrchestrationStatus.ToString());
             DistributedTraceActivity.Current?.Stop();
             DistributedTraceActivity.Current = null;
