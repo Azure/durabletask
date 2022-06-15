@@ -827,7 +827,7 @@ namespace DurableTask.ServiceBus.Tests
             Assert.AreEqual(@"[""3.142"",null,{""property"":3.142}]", GenericMethodInterfaceOrchestration.Result);
         }
 
-        private interface IGenericMethodInterface
+        public interface IGenericMethodInterface
         {
             Task<T> GetWhenTIsInput<T>(T input);
 
