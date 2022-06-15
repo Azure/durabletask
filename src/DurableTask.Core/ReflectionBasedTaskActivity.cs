@@ -29,6 +29,7 @@ namespace DurableTask.Core
     public class ReflectionBasedTaskActivity : TaskActivity
     {
         private DataConverter dataConverter;
+        private readonly Type[] genericArguments;
 
         /// <summary>
         /// Creates a new ReflectionBasedTaskActivity based on an activity object and method info
@@ -40,6 +41,7 @@ namespace DurableTask.Core
             DataConverter = JsonDataConverter.Default;
             ActivityObject = activityObject;
             MethodInfo = methodInfo;
+            genericArguments = methodInfo.GetGenericArguments();
         }
 
         /// <summary>
@@ -81,7 +83,7 @@ namespace DurableTask.Core
         {
             var jArray = Utils.ConvertToJArray(input);
 
-            int parameterCount = jArray.Count - MethodInfo.GetGenericArguments().Length;
+            int parameterCount = jArray.Count - this.genericArguments.Length;
             ParameterInfo[] methodParameters = MethodInfo.GetParameters();
             if (methodParameters.Length < parameterCount)
             {
@@ -99,7 +101,7 @@ namespace DurableTask.Core
 
                 if (parameterType.IsGenericParameter)
                 {
-                    int index = Array.IndexOf(MethodInfo.GetGenericArguments(), parameterType);
+                    int index = Array.IndexOf(this.genericArguments, parameterType);
                     
                     // Change the type from its generic representation to the type passed in on invocation.
                     parameterType = genericTypeParameters[index];
@@ -210,12 +212,12 @@ namespace DurableTask.Core
 
         private Type[] GetGenericTypeParameters(JArray jArray)
         {
-            int genericArgumentCount = this.MethodInfo.GetGenericArguments().Length;
-            List<Type> genericParameters = new List<Type>(genericArgumentCount);
-            for (int i = jArray.Count - genericArgumentCount; i < jArray.Count; i++)
+            List<Type> genericParameters = new List<Type>(this.genericArguments.Length);
+
+            for (int i = jArray.Count - this.genericArguments.Length; i < jArray.Count; i++)
             {
-                Utils.TypeMetadata t = jArray[i].ToObject<Utils.TypeMetadata>();
-                genericParameters.Add(Assembly.Load(t.AssemblyName)!.GetType(t.FullyQualifiedTypeName)!);
+                Utils.TypeMetadata typeMetadata = jArray[i].ToObject<Utils.TypeMetadata>();
+                genericParameters.Add(Assembly.Load(typeMetadata.AssemblyName).GetType(typeMetadata.FullyQualifiedTypeName));
             }
 
             return genericParameters.ToArray();
