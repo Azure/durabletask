@@ -54,9 +54,25 @@ namespace DurableTask.Core
                 throw new Exception("Method name '" + binder.Name + "' not known.");
             }
 
+            var binderType = binder.GetType()!;
+
+            MethodInfo methodInfo = typeof(T).GetMethod(binder.Name) ?? throw new InvalidOperationException("Method info not found.");
+
+            if (methodInfo.IsGenericMethod && !string.Equals(binderType.Name, "CSharpInvokeMemberBinder"))
+            {
+                throw new InvalidOperationException("Generic method invoked but method binder is not C#");
+            }
+
+            Type[] typeArguments = binderType.GetProperty("TypeArguments")!.GetValue(binder) as Type[] ?? Array.Empty<Type>();
+
+            if (typeArguments.Length != methodInfo.GetGenericArguments().Length)
+            {
+                throw new InvalidOperationException("Generic method mismatch");
+            }
+
             if (returnType == typeof(Task))
             {
-                result = InvokeWithRetry<object>(binder.Name, args);
+                result = InvokeWithRetry<object>(binder.Name, typeArguments, args);
             }
             else
             {
@@ -71,25 +87,35 @@ namespace DurableTask.Core
                     throw new Exception("Generic Parameters are not equal to 1. Type Name: " + returnType.FullName);
                 }
 
+                var genericArgument = genericArguments.Single();
+
+                if (genericArgument.IsGenericParameter)
+                {
+                    var index = Array.IndexOf(methodInfo.GetGenericArguments(), genericArgument);
+
+                    // Change the type from its generic representation to the type passed in on invocation.
+                    genericArgument = typeArguments[index];
+                }
+
                 MethodInfo invokeMethod = GetType().GetMethod("InvokeWithRetry");
 
                 Debug.Assert(invokeMethod != null);
 
-                MethodInfo genericInvokeMethod = invokeMethod.MakeGenericMethod(genericArguments[0]);
-                result = genericInvokeMethod.Invoke(this, new object[] { binder.Name, args });
+                MethodInfo genericInvokeMethod = invokeMethod.MakeGenericMethod(genericArgument);
+                result = genericInvokeMethod.Invoke(this, new object[] { binder.Name, typeArguments, args });
             }
 
             return true;
         }
 
-        public async Task<TReturnType> InvokeWithRetry<TReturnType>(string methodName, object[] args)
+        public async Task<TReturnType> InvokeWithRetry<TReturnType>(string methodName, Type[] genericArgs, object[] args)
         {
             Task<TReturnType> RetryCall()
             {
 #if NETSTANDARD2_0
-                return Dynamitey.Dynamic.InvokeMember(this.wrappedObject, methodName, args);
+                return Dynamitey.Dynamic.InvokeMember(this.wrappedObject, new Dynamitey.InvokeMemberName(methodName, genericArgs), methodName, args);
 #else
-                return ImpromptuInterface.Impromptu.InvokeMember(this.wrappedObject, methodName, args);
+                return ImpromptuInterface.Impromptu.InvokeMember(this.wrappedObject, new ImpromptuInterface.InvokeMemberName(methodName, genericArgs), args);
 #endif
             }
 

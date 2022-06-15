@@ -868,12 +868,13 @@ namespace DurableTask.ServiceBus.Tests
             public override async Task<string> RunTask(OrchestrationContext context, GenericInterfaceOrchestrationInput input)
             {
                 IGenericMethodInterface client = context.CreateClient<IGenericMethodInterface>();
+                IGenericMethodInterface client2 = context.CreateRetryableClient<IGenericMethodInterface>(new RetryOptions(TimeSpan.FromMilliseconds(1), 1));
 
                 IList<object> values = new List<object>();
 
                 var a = await client.GetWhenTIsInput<string>(input.Property.ToString());
                 var b = await client.GetWhenNoParams<GenericInterfaceOrchestrationInput>();
-                var c = await client.GetWhenMultipleGenericTypes<double, GenericInterfaceOrchestrationInput>(input.Property, input);
+                var c = await client2.GetWhenMultipleGenericTypes<double, GenericInterfaceOrchestrationInput>(input.Property, input);
 
                 values.Add(a);
                 values.Add(b);
