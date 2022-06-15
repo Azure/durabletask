@@ -210,9 +210,9 @@ namespace DurableTask.Core
 
         private Type[] GetGenericTypeParameters(JArray jArray)
         {
-            int length = this.MethodInfo.GetGenericArguments().Length;
-            List<Type> genericParameters = new(length);
-            for (int i = jArray.Count - length; i < jArray.Count; i++)
+            int genericArgumentCount = this.MethodInfo.GetGenericArguments().Length;
+            List<Type> genericParameters = new List<Type>(genericArgumentCount);
+            for (int i = jArray.Count - genericArgumentCount; i < jArray.Count; i++)
             {
                 Utils.TypeMetadata t = jArray[i].ToObject<Utils.TypeMetadata>();
                 genericParameters.Add(Assembly.Load(t.AssemblyName)!.GetType(t.FullyQualifiedTypeName)!);
