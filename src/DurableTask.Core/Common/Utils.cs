@@ -512,5 +512,12 @@ namespace DurableTask.Core.Common
                     return false;
             }
         }
+
+        internal sealed class TypeMetadata
+        {
+            public string AssemblyName { get; set; }
+
+            public string FullyQualifiedTypeName { get; set; }
+        }
     }
 }

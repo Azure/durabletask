@@ -14,6 +14,8 @@
 namespace DurableTask.Core
 {
     using System;
+    using System.Collections.Generic;
+    using System.Linq;
     using System.Reflection;
     using System.Threading.Tasks;
     using DurableTask.Core.Common;
@@ -79,7 +81,7 @@ namespace DurableTask.Core
         {
             var jArray = Utils.ConvertToJArray(input);
 
-            int parameterCount = jArray.Count;
+            int parameterCount = jArray.Count - MethodInfo.GetGenericArguments().Length;
             ParameterInfo[] methodParameters = MethodInfo.GetParameters();
             if (methodParameters.Length < parameterCount)
             {
@@ -88,10 +90,21 @@ namespace DurableTask.Core
                     .WithFailureSource(MethodInfoString());
             }
 
+            Type[] genericTypeParameters = this.GetGenericTypeParameters(jArray);
+
             var inputParameters = new object[methodParameters.Length];
             for (var i = 0; i < methodParameters.Length; i++)
             {
                 Type parameterType = methodParameters[i].ParameterType;
+
+                if (parameterType.IsGenericParameter)
+                {
+                    int index = Array.IndexOf(MethodInfo.GetGenericArguments(), parameterType);
+                    
+                    // Change the type from its generic representation to the type passed in on invocation.
+                    parameterType = genericTypeParameters[index];
+                }
+
                 if (i < parameterCount)
                 {
                     JToken jToken = jArray[i];
@@ -122,7 +135,7 @@ namespace DurableTask.Core
             Exception exception = null;
             try
             {
-                object invocationResult = InvokeActivity(inputParameters);
+                object invocationResult = InvokeActivity(inputParameters, genericTypeParameters);
                 if (invocationResult is Task invocationTask)
                 {
                     if (MethodInfo.ReturnType.IsGenericType)
@@ -180,9 +193,32 @@ namespace DurableTask.Core
             return MethodInfo.Invoke(ActivityObject, inputParameters);
         }
 
+        private object InvokeActivity(object[] inputParameters, Type[] genericTypeParameters)
+        {
+            if (genericTypeParameters.Any())
+            {
+                return MethodInfo.MakeGenericMethod(genericTypeParameters).Invoke(ActivityObject, inputParameters);
+            }
+
+            return MethodInfo.Invoke(ActivityObject, inputParameters);
+        }
+
         string MethodInfoString()
         {
             return $"{MethodInfo.ReflectedType?.FullName}.{MethodInfo.Name}";
+        }
+
+        private Type[] GetGenericTypeParameters(JArray jArray)
+        {
+            int length = this.MethodInfo.GetGenericArguments().Length;
+            List<Type> genericParameters = new(length);
+            for (int i = jArray.Count - length; i < jArray.Count; i++)
+            {
+                Utils.TypeMetadata t = jArray[i].ToObject<Utils.TypeMetadata>();
+                genericParameters.Add(Assembly.Load(t.AssemblyName)!.GetType(t.FullyQualifiedTypeName)!);
+            }
+
+            return genericParameters.ToArray();
         }
     }
 }

@@ -19,6 +19,7 @@ namespace DurableTask.Core
     using System.Linq;
     using System.Reflection;
     using System.Threading.Tasks;
+    using DurableTask.Core.Common;
 
     internal class ScheduleProxy : DynamicObject
     {
@@ -60,6 +61,37 @@ namespace DurableTask.Core
                 throw new Exception("Method name '" + binder.Name + "' not known.");
             }
 
+            var binderType = binder.GetType();
+
+            MethodInfo methodInfo = this.interfaze.GetMethod(binder.Name);
+
+            if (methodInfo.IsGenericMethod && !string.Equals(binderType.Name, "CSharpInvokeMemberBinder"))
+            {
+                throw new InvalidOperationException("Generic method invoked but method binder is not C#");
+            }
+
+            Type[] typeArguments = binderType.GetProperty("TypeArguments").GetValue(binder) as Type[];
+            typeArguments = typeArguments == null ? Array.Empty<Type>() : typeArguments;
+
+            if (typeArguments.Length != methodInfo.GetGenericArguments().Length)
+            {
+                throw new InvalidOperationException("Generic method mismatch");
+            }
+
+            // Append the type arguments at the end of the args array.
+            List<object> arguments = new(args);
+
+            foreach (var typeArg in typeArguments)
+            {
+                arguments.Add(new Utils.TypeMetadata()
+                {
+                    AssemblyName = typeArg.Assembly.FullName,
+                    FullyQualifiedTypeName = typeArg.FullName,
+                });
+            }
+
+            args = arguments.ToArray();
+
             string normalizedMethodName = this.useFullyQualifiedMethodNames
                 ? NameVersionHelper.GetFullyQualifiedMethodName(this.interfaze.Name, NameVersionHelper.GetDefaultName(binder))
                 : NameVersionHelper.GetDefaultName(binder);
@@ -82,6 +114,16 @@ namespace DurableTask.Core
                     throw new Exception("Generic Parameters are not equal to 1. Type Name: " + returnType.FullName);
                 }
 
+                var genericArgument = genericArguments.Single();
+
+                if (genericArgument.IsGenericParameter)
+                {
+                    var index = Array.IndexOf(methodInfo.GetGenericArguments(), genericArgument);
+
+                    // Change the type from its generic representation to the type passed in on invocation.
+                    genericArgument = typeArguments[index];
+                }
+
                 MethodInfo scheduleMethod = typeof(OrchestrationContext).GetMethod("ScheduleTask",
                     new[] { typeof(string), typeof(string), typeof(object[]) });
                 if (scheduleMethod == null)
@@ -89,7 +131,7 @@ namespace DurableTask.Core
                     throw new Exception($"Method 'ScheduleTask' not found. Type Name: {nameof(OrchestrationContext)}");
                 }
 
-                MethodInfo genericScheduleMethod = scheduleMethod.MakeGenericMethod(genericArguments[0]);
+                MethodInfo genericScheduleMethod = scheduleMethod.MakeGenericMethod(genericArgument);
 
                 result = genericScheduleMethod.Invoke(this.context, new object[]
                 {

@@ -14,6 +14,7 @@
 namespace DurableTask.ServiceBus.Tests
 {
     using System;
+    using System.Collections.Generic;
     using System.Diagnostics.CodeAnalysis;
     using System.IO;
     using System.Threading.Tasks;
@@ -806,6 +807,82 @@ namespace DurableTask.ServiceBus.Tests
             public string Str { get; set; }
         }
 
+        #endregion
+
+        #region Generic interface activities
+
+        [TestMethod]
+        public async Task GenericInterfaceMethodTests()
+        {
+            await this.taskHub.AddTaskOrchestrations(typeof(GenericMethodInterfaceOrchestration))
+                .AddTaskActivitiesFromInterface<IGenericMethodInterface>(new GenericMethodImplementation())
+                .StartAsync();
+
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(GenericMethodInterfaceOrchestration),
+                new GenericInterfaceOrchestrationInput { Property = 3.142f });
+
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
+
+            Assert.AreEqual(@"[""3.142"",null,{""property"":3.142}]", GenericMethodInterfaceOrchestration.Result);
+        }
+
+        private interface IGenericMethodInterface
+        {
+            Task<T> GetWhenTIsInput<T>(T input);
+
+            Task<T> GetWhenNoParams<T>();
+
+            Task<U> GetWhenMultipleGenericTypes<T, U>(T input1, U input2);
+        }
+
+        private sealed class GenericInterfaceOrchestrationInput
+        {
+            public float Property { get; set; }
+        }
+
+        private sealed class GenericMethodImplementation : IGenericMethodInterface
+        {
+            public Task<U> GetWhenMultipleGenericTypes<T, U>(T input1, U input2)
+            {
+                return Task.FromResult(input2);
+            }
+
+            public Task<T> GetWhenNoParams<T>()
+            {
+                return Task.FromResult(default(T));
+            }
+
+            public Task<T> GetWhenTIsInput<T>(T input)
+            {
+                return Task.FromResult(input);
+            }
+        }
+
+        sealed class GenericMethodInterfaceOrchestration : TaskOrchestration<string, GenericInterfaceOrchestrationInput>
+        {
+            // HACK: This is just a hack to communicate result of orchestration back to test
+            public static string Result;
+
+
+            public override async Task<string> RunTask(OrchestrationContext context, GenericInterfaceOrchestrationInput input)
+            {
+                IGenericMethodInterface client = context.CreateClient<IGenericMethodInterface>();
+
+                IList<object> values = new List<object>();
+
+                var a = await client.GetWhenTIsInput<string>(input.Property.ToString());
+                var b = await client.GetWhenNoParams<GenericInterfaceOrchestrationInput>();
+                var c = await client.GetWhenMultipleGenericTypes<double, GenericInterfaceOrchestrationInput>(input.Property, input);
+
+                values.Add(a);
+                values.Add(b);
+                values.Add(c);
+                Result = JsonDataConverter.Default.Serialize(values);
+
+                return Result;
+            }
+        }
         #endregion
     }
 }
