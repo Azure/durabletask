@@ -14,9 +14,13 @@
 namespace DurableTask.Core.Common
 {
     using System;
+    using System.Collections.Generic;
     using System.Diagnostics;
+    using System.Dynamic;
     using System.IO;
     using System.IO.Compression;
+    using System.Linq;
+    using System.Reflection;
     using System.Runtime.ExceptionServices;
     using System.Text;
     using System.Threading;
@@ -511,6 +515,105 @@ namespace DurableTask.Core.Common
                     taskScheduledId = -1;
                     return false;
             }
+        }
+
+        /// <summary>
+        /// Gets the generic return type for a specific <paramref name="methodInfo"/>.
+        /// </summary>
+        /// <param name="methodInfo">The method to get the generic return type for.</param>
+        /// <param name="genericArguments">The generic method arguments.</param>
+        internal static Type GetGenericReturnType(MethodInfo methodInfo, Type[] genericArguments)
+        {
+            if (!methodInfo.ReturnType.IsGenericType)
+            {
+                throw new Exception("Return type is not a generic type. Type Name: " + methodInfo.ReturnType.FullName);
+            }
+
+            var genericArgument = methodInfo.ReturnType.GetGenericArguments().SingleOrDefault() ??
+                throw new Exception("Generic Parameters are not equal to 1. Type Name: " + methodInfo.ReturnType.FullName);
+
+            return ConvertFromGenericType(genericParameters: methodInfo.GetGenericArguments(), genericArguments, genericArgument);
+        }
+
+        /// <summary>
+        /// Returns the generic arguments from the invoked method if any.
+        /// </summary>
+        /// <param name="binder">The invoke member binder.</param>
+        /// <param name="methodInfo">The invoked method info.</param>
+        /// <returns>The generic arguments.</returns>
+        /// <exception cref="InvalidOperationException">Thrown when the invoked member is not C#.</exception>
+        internal static Type[] GetGenericMethodArguments(InvokeMemberBinder binder, MethodInfo methodInfo)
+        {
+            var binderType = binder.GetType()!;
+
+            if (methodInfo.IsGenericMethod && !string.Equals(binderType.Name, "CSharpInvokeMemberBinder"))
+            {
+                throw new InvalidOperationException("Generic method invoked but method binder is not C#");
+            }
+
+            Type[] genericTypeArguments = binderType.GetProperty("TypeArguments")!.GetValue(binder) as Type[] ?? Array.Empty<Type>();
+
+            if (genericTypeArguments.Length != methodInfo.GetGenericArguments().Length)
+            {
+                throw new InvalidOperationException("Generic method mismatch");
+            }
+
+            return genericTypeArguments;
+        }
+
+        /// <summary>
+        /// Converts the specified <paramref name="typeToConvert"/> to a non-generic equivalent.
+        /// </summary>
+        /// <param name="genericParameters">The generic type parameters.</param>
+        /// <param name="genericArguments">The generic type arguments.</param>
+        /// <param name="typeToConvert">The type to convert.</param>
+        /// <returns>The non-generic representation of the type.</returns>
+        internal static Type ConvertFromGenericType(Type[] genericParameters, Type[] genericArguments, Type typeToConvert)
+        {
+            if (typeToConvert.IsArray)
+            {
+                var elementType = typeToConvert.GetElementType();
+                if (elementType!.IsGenericParameter)
+                {
+                    var index = Array.IndexOf(genericParameters, elementType);
+
+                    // Return the value of the generic argument.
+                    return ConvertFromGenericType(
+                        genericParameters,
+                        genericArguments,
+                        genericArguments[index].MakeArrayType());
+                }
+            }
+
+            if (typeToConvert.IsGenericType)
+            {
+                var genericArgs = typeToConvert.GetGenericArguments();
+                List<Type> genericTypeValues = new();
+
+                foreach (var genericArg in genericArgs)
+                {
+                    var index = Array.IndexOf(genericParameters, genericArg);
+
+                    // Return the value of the generic argument.
+                    genericTypeValues.Add(ConvertFromGenericType(genericParameters, genericArguments, genericArguments[index]));
+                }
+
+                return typeToConvert.GetGenericTypeDefinition().MakeGenericType(genericTypeValues.ToArray());
+            }
+
+            if (typeToConvert.IsGenericParameter)
+            {
+                var index = Array.IndexOf(genericParameters, typeToConvert);
+
+                // Return the value of the generic argument.
+                return ConvertFromGenericType(
+                    genericParameters,
+                    genericArguments,
+                    genericArguments[index]);
+            }
+
+            // return since the argument is a concrete type.
+            return typeToConvert;
         }
 
         internal sealed class TypeMetadata

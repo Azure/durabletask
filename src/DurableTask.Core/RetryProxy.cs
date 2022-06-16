@@ -13,6 +13,7 @@
 
 namespace DurableTask.Core
 {
+    using DurableTask.Core.Common;
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
@@ -54,61 +55,29 @@ namespace DurableTask.Core
                 throw new Exception("Method name '" + binder.Name + "' not known.");
             }
 
-            var binderType = binder.GetType()!;
-
             MethodInfo methodInfo = typeof(T).GetMethod(binder.Name) ?? throw new InvalidOperationException("Method info not found.");
 
-            if (methodInfo.IsGenericMethod && !string.Equals(binderType.Name, "CSharpInvokeMemberBinder"))
-            {
-                throw new InvalidOperationException("Generic method invoked but method binder is not C#");
-            }
-
-            Type[] typeArguments = binderType.GetProperty("TypeArguments")!.GetValue(binder) as Type[] ?? Array.Empty<Type>();
-
-            if (typeArguments.Length != methodInfo.GetGenericArguments().Length)
-            {
-                throw new InvalidOperationException("Generic method mismatch");
-            }
+            Type[] genericArgumentValues = Utils.GetGenericMethodArguments(binder, methodInfo);
 
             if (returnType == typeof(Task))
             {
-                result = InvokeWithRetry<object>(binder.Name, typeArguments, args);
+                result = this.InvokeWithRetry<object>(binder.Name, genericArgumentValues, args);
+                return true;
             }
-            else
-            {
-                if (!returnType.IsGenericType)
-                {
-                    throw new Exception("Return type is not a generic type. Type Name: " + returnType.FullName);
-                }
 
-                Type[] genericArguments = returnType.GetGenericArguments();
-                if (genericArguments.Length != 1)
-                {
-                    throw new Exception("Generic Parameters are not equal to 1. Type Name: " + returnType.FullName);
-                }
+            returnType = Utils.GetGenericReturnType(methodInfo, genericArgumentValues);
 
-                var genericArgument = genericArguments.Single();
+            MethodInfo invokeMethod = this.GetType().GetMethod("InvokeWithRetry", BindingFlags.Instance | BindingFlags.NonPublic);
 
-                if (genericArgument.IsGenericParameter)
-                {
-                    var index = Array.IndexOf(methodInfo.GetGenericArguments(), genericArgument);
+            Debug.Assert(invokeMethod != null, "null");
 
-                    // Change the type from its generic representation to the type passed in on invocation.
-                    genericArgument = typeArguments[index];
-                }
-
-                MethodInfo invokeMethod = GetType().GetMethod("InvokeWithRetry");
-
-                Debug.Assert(invokeMethod != null);
-
-                MethodInfo genericInvokeMethod = invokeMethod.MakeGenericMethod(genericArgument);
-                result = genericInvokeMethod.Invoke(this, new object[] { binder.Name, typeArguments, args });
-            }
+            MethodInfo genericInvokeMethod = invokeMethod.MakeGenericMethod(returnType);
+            result = genericInvokeMethod.Invoke(this, new object[] { binder.Name, genericArgumentValues, args });
 
             return true;
         }
 
-        public async Task<TReturnType> InvokeWithRetry<TReturnType>(string methodName, Type[] genericArgs, object[] args)
+        private async Task<TReturnType> InvokeWithRetry<TReturnType>(string methodName, Type[] genericArgs, object[] args)
         {
             Task<TReturnType> RetryCall()
             {

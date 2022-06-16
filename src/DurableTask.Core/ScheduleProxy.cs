@@ -61,33 +61,14 @@ namespace DurableTask.Core
                 throw new Exception("Method name '" + binder.Name + "' not known.");
             }
 
-            var binderType = binder.GetType();
+            MethodInfo methodInfo = this.interfaze.GetMethod(binder.Name) ?? throw new InvalidOperationException("Method info not found.");
+            Type[] genericArgumentValues = Utils.GetGenericMethodArguments(binder, methodInfo);
 
-            MethodInfo methodInfo = this.interfaze.GetMethod(binder.Name);
+            List<object> arguments = new(args ?? Array.Empty<object>());
 
-            if (methodInfo.IsGenericMethod && !string.Equals(binderType.Name, "CSharpInvokeMemberBinder"))
+            foreach (var typeArg in genericArgumentValues)
             {
-                throw new InvalidOperationException("Generic method invoked but method binder is not C#");
-            }
-
-            Type[] typeArguments = binderType.GetProperty("TypeArguments").GetValue(binder) as Type[];
-            typeArguments = typeArguments == null ? Array.Empty<Type>() : typeArguments;
-
-            if (typeArguments.Length != methodInfo.GetGenericArguments().Length)
-            {
-                throw new InvalidOperationException("Generic method mismatch");
-            }
-
-            // Append the type arguments at the end of the args array.
-            List<object> arguments = new(args);
-
-            foreach (var typeArg in typeArguments)
-            {
-                arguments.Add(new Utils.TypeMetadata()
-                {
-                    AssemblyName = typeArg.Assembly.FullName,
-                    FullyQualifiedTypeName = typeArg.FullName,
-                });
+                arguments.Add(new Utils.TypeMetadata() { AssemblyName = typeArg.Assembly.FullName, FullyQualifiedTypeName = typeArg.FullName });
             }
 
             args = arguments.ToArray();
@@ -98,47 +79,25 @@ namespace DurableTask.Core
 
             if (returnType == typeof(Task))
             {
-                result = this.context.ScheduleTask<object>(normalizedMethodName,
-                    NameVersionHelper.GetDefaultVersion(binder), args);
+                result = this.context.ScheduleTask<object>(normalizedMethodName, NameVersionHelper.GetDefaultVersion(binder), args);
+                return true;
             }
-            else
+
+            returnType = Utils.GetGenericReturnType(methodInfo, genericArgumentValues);
+
+            MethodInfo scheduleMethod = typeof(OrchestrationContext).GetMethod(
+                "ScheduleTask",
+                new[] { typeof(string), typeof(string), typeof(object[]) }) ??
+                throw new Exception($"Method 'ScheduleTask' not found. Type Name: {nameof(OrchestrationContext)}");
+
+            MethodInfo genericScheduleMethod = scheduleMethod.MakeGenericMethod(returnType);
+
+            result = genericScheduleMethod.Invoke(this.context, new object[]
             {
-                if (!returnType.IsGenericType)
-                {
-                    throw new Exception("Return type is not a generic type. Type Name: " + returnType.FullName);
-                }
-
-                Type[] genericArguments = returnType.GetGenericArguments();
-                if (genericArguments.Length != 1)
-                {
-                    throw new Exception("Generic Parameters are not equal to 1. Type Name: " + returnType.FullName);
-                }
-
-                var genericArgument = genericArguments.Single();
-
-                if (genericArgument.IsGenericParameter)
-                {
-                    var index = Array.IndexOf(methodInfo.GetGenericArguments(), genericArgument);
-
-                    // Change the type from its generic representation to the type passed in on invocation.
-                    genericArgument = typeArguments[index];
-                }
-
-                MethodInfo scheduleMethod = typeof(OrchestrationContext).GetMethod("ScheduleTask",
-                    new[] { typeof(string), typeof(string), typeof(object[]) });
-                if (scheduleMethod == null)
-                {
-                    throw new Exception($"Method 'ScheduleTask' not found. Type Name: {nameof(OrchestrationContext)}");
-                }
-
-                MethodInfo genericScheduleMethod = scheduleMethod.MakeGenericMethod(genericArgument);
-
-                result = genericScheduleMethod.Invoke(this.context, new object[]
-                {
-                    normalizedMethodName,
-                    NameVersionHelper.GetDefaultVersion(binder), args
-                });
-            }
+                normalizedMethodName,
+                NameVersionHelper.GetDefaultVersion(binder),
+                args,
+            });
 
             return true;
         }

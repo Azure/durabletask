@@ -823,29 +823,27 @@ namespace DurableTask.ServiceBus.Tests
 
             bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
             Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
-
-            Assert.AreEqual(@"[""3.142"",null,{""property"":3.142}]", GenericMethodInterfaceOrchestration.Result);
         }
 
         public interface IGenericMethodInterface
         {
-            Task<T> GetWhenTIsInput<T>(T input);
+            Task<U[]> GetWhenMultipleGenericTypes<T, U>(T input1, U input2);
 
             Task<T> GetWhenNoParams<T>();
 
-            Task<U> GetWhenMultipleGenericTypes<T, U>(T input1, U input2);
+            Task<List<T>> GetWhenTIsInput<T>(T input, T[] input2, List<T> input3);
         }
 
-        private sealed class GenericInterfaceOrchestrationInput
+        public sealed class GenericInterfaceOrchestrationInput
         {
             public float Property { get; set; }
         }
 
         private sealed class GenericMethodImplementation : IGenericMethodInterface
         {
-            public Task<U> GetWhenMultipleGenericTypes<T, U>(T input1, U input2)
+            public Task<U[]> GetWhenMultipleGenericTypes<T, U>(T input1, U input2)
             {
-                return Task.FromResult(input2);
+                return Task.FromResult(new[] { input2 });
             }
 
             public Task<T> GetWhenNoParams<T>()
@@ -853,35 +851,33 @@ namespace DurableTask.ServiceBus.Tests
                 return Task.FromResult(default(T));
             }
 
-            public Task<T> GetWhenTIsInput<T>(T input)
+            public Task<List<T>> GetWhenTIsInput<T>(T input, T[] input2, List<T> input3)
             {
-                return Task.FromResult(input);
+                input3.Add(input);
+                input3.AddRange(input2);
+                return Task.FromResult(input3);
             }
         }
 
         sealed class GenericMethodInterfaceOrchestration : TaskOrchestration<string, GenericInterfaceOrchestrationInput>
         {
-            // HACK: This is just a hack to communicate result of orchestration back to test
-            public static string Result;
-
-
             public override async Task<string> RunTask(OrchestrationContext context, GenericInterfaceOrchestrationInput input)
             {
                 IGenericMethodInterface client = context.CreateClient<IGenericMethodInterface>();
-                IGenericMethodInterface client2 = context.CreateRetryableClient<IGenericMethodInterface>(new RetryOptions(TimeSpan.FromMilliseconds(1), 1));
+                IGenericMethodInterface retryableClient = context.CreateRetryableClient<IGenericMethodInterface>(new RetryOptions(TimeSpan.FromMilliseconds(1), 1));
 
-                IList<object> values = new List<object>();
+                var a = await client.GetWhenTIsInput<string>(input.Property.ToString(), new[] { "test" }, new List<string>());
+                Assert.IsNotNull(a);
+                Assert.AreEqual(2, a.Count);
 
-                var a = await client.GetWhenTIsInput<string>(input.Property.ToString());
                 var b = await client.GetWhenNoParams<GenericInterfaceOrchestrationInput>();
-                var c = await client2.GetWhenMultipleGenericTypes<double, GenericInterfaceOrchestrationInput>(input.Property, input);
+                Assert.IsNull(b);
 
-                values.Add(a);
-                values.Add(b);
-                values.Add(c);
-                Result = JsonDataConverter.Default.Serialize(values);
+                var c = await retryableClient.GetWhenMultipleGenericTypes<double, GenericInterfaceOrchestrationInput>(input.Property, input);
+                Assert.IsNotNull(c);
+                Assert.AreEqual(1, c.Length);
 
-                return Result;
+                return string.Empty;
             }
         }
         #endregion
