@@ -551,7 +551,7 @@ namespace DurableTask.Core.Common
                 throw new InvalidOperationException("Generic method invoked but method binder is not C#");
             }
 
-            Type[] genericTypeArguments = binderType.GetProperty("TypeArguments")!.GetValue(binder) as Type[] ?? Array.Empty<Type>();
+            Type[] genericTypeArguments = binderType.GetProperty("TypeArguments")?.GetValue(binder) as Type[] ?? Array.Empty<Type>();
 
             if (genericTypeArguments.Length != methodInfo.GetGenericArguments().Length)
             {
@@ -573,7 +573,7 @@ namespace DurableTask.Core.Common
             if (typeToConvert.IsArray)
             {
                 var elementType = typeToConvert.GetElementType();
-                if (elementType!.IsGenericParameter)
+                if (elementType.IsGenericParameter)
                 {
                     var index = Array.IndexOf(genericParameters, elementType);
 

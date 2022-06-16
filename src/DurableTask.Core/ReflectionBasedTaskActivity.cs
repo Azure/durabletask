@@ -107,7 +107,7 @@ namespace DurableTask.Core
                         await invocationTask;
 
                         var returnType = Utils.GetGenericReturnType(this.MethodInfo, genericTypeArguments);
-                        var resultProperty = typeof(Task<>).MakeGenericType(returnType).GetProperty("Result")!;
+                        var resultProperty = typeof(Task<>).MakeGenericType(returnType).GetProperty("Result");
                         serializedReturn = this.DataConverter.Serialize(resultProperty.GetValue(invocationTask));
                     }
                     else
