@@ -526,11 +526,11 @@ namespace DurableTask.Core.Common
         {
             if (!methodInfo.ReturnType.IsGenericType)
             {
-                throw new Exception("Return type is not a generic type. Type Name: " + methodInfo.ReturnType.FullName);
+                throw new InvalidOperationException("Return type is not a generic type. Type Name: " + methodInfo.ReturnType.FullName);
             }
 
-            var genericArgument = methodInfo.ReturnType.GetGenericArguments().SingleOrDefault() ??
-                throw new Exception("Generic Parameters are not equal to 1. Type Name: " + methodInfo.ReturnType.FullName);
+            Type genericArgument = methodInfo.ReturnType.GetGenericArguments().SingleOrDefault() ??
+                throw new NotSupportedException($"The method {methodInfo.Name} cannot be used because its return type '{methodInfo.ReturnType.FullName}' has more than one generic parameter."); ;
 
             return ConvertFromGenericType(genericParameters: methodInfo.GetGenericArguments(), genericArguments, genericArgument);
         }
@@ -544,7 +544,7 @@ namespace DurableTask.Core.Common
         /// <exception cref="InvalidOperationException">Thrown when the invoked member is not C#.</exception>
         internal static Type[] GetGenericMethodArguments(InvokeMemberBinder binder, MethodInfo methodInfo)
         {
-            var binderType = binder.GetType()!;
+            Type binderType = binder.GetType();
 
             if (methodInfo.IsGenericMethod && !string.Equals(binderType.Name, "CSharpInvokeMemberBinder"))
             {
@@ -555,7 +555,12 @@ namespace DurableTask.Core.Common
 
             if (genericTypeArguments.Length != methodInfo.GetGenericArguments().Length)
             {
-                throw new InvalidOperationException("Generic method mismatch");
+                throw new InvalidOperationException(string.Format(
+                    "The method '{0}' should have the same number of generic arguments as the invoked member '{1}'. Expected generic args is {2} but the provided method has {3}.",
+                    NameVersionHelper.GetFullyQualifiedMethodName(methodInfo.DeclaringType.FullName, methodInfo.Name),
+                    binder.Name,
+                    genericTypeArguments.Length,
+                    methodInfo.GetGenericArguments().Length));
             }
 
             return genericTypeArguments;
@@ -572,10 +577,10 @@ namespace DurableTask.Core.Common
         {
             if (typeToConvert.IsArray)
             {
-                var elementType = typeToConvert.GetElementType();
+                Type elementType = typeToConvert.GetElementType();
                 if (elementType.IsGenericParameter)
                 {
-                    var index = Array.IndexOf(genericParameters, elementType);
+                    int index = Array.IndexOf(genericParameters, elementType);
 
                     // Return the value of the generic argument.
                     return ConvertFromGenericType(
@@ -587,12 +592,12 @@ namespace DurableTask.Core.Common
 
             if (typeToConvert.IsGenericType)
             {
-                var genericArgs = typeToConvert.GetGenericArguments();
+                Type[] genericArgs = typeToConvert.GetGenericArguments();
                 List<Type> genericTypeValues = new();
 
-                foreach (var genericArg in genericArgs)
+                foreach (Type genericArg in genericArgs)
                 {
-                    var index = Array.IndexOf(genericParameters, genericArg);
+                    int index = Array.IndexOf(genericParameters, genericArg);
 
                     // Return the value of the generic argument.
                     genericTypeValues.Add(ConvertFromGenericType(genericParameters, genericArguments, genericArguments[index]));
@@ -603,7 +608,7 @@ namespace DurableTask.Core.Common
 
             if (typeToConvert.IsGenericParameter)
             {
-                var index = Array.IndexOf(genericParameters, typeToConvert);
+                int index = Array.IndexOf(genericParameters, typeToConvert);
 
                 // Return the value of the generic argument.
                 return ConvertFromGenericType(

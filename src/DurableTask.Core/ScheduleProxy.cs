@@ -66,7 +66,7 @@ namespace DurableTask.Core
 
             List<object> arguments = new(args ?? Array.Empty<object>());
 
-            foreach (var typeArg in genericArgumentValues)
+            foreach (Type typeArg in genericArgumentValues)
             {
                 arguments.Add(new Utils.TypeMetadata() { AssemblyName = typeArg.Assembly.FullName, FullyQualifiedTypeName = typeArg.FullName });
             }
