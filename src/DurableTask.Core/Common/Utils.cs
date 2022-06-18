@@ -573,8 +573,16 @@ namespace DurableTask.Core.Common
         /// <param name="genericArguments">The generic type arguments.</param>
         /// <param name="typeToConvert">The type to convert.</param>
         /// <returns>The non-generic representation of the type.</returns>
+        /// <remarks>
+        /// A type can exist in one of the following states;
+        /// 1. T[]: Array with generic element type
+        /// 2. Concrete<![CDATA[<T>]]>: A concrete type with generic type args e.g List<![CDATA[<T>]]>.
+        /// 3. T: A generic parameter.
+        /// 4. Concrete: A simple, non-generic type.
+        /// </remarks>
         internal static Type ConvertFromGenericType(Type[] genericParameters, Type[] genericArguments, Type typeToConvert)
         {
+            // Check if type is of form T[]
             if (typeToConvert.IsArray)
             {
                 Type elementType = typeToConvert.GetElementType();
@@ -590,10 +598,11 @@ namespace DurableTask.Core.Common
                 }
             }
 
+            // Check if type if of form Concrete<T> e.g Dictionary<T, U>
             if (typeToConvert.IsGenericType)
             {
                 Type[] genericArgs = typeToConvert.GetGenericArguments();
-                List<Type> genericTypeValues = new();
+                List<Type> genericTypeValues = new List<Type>();
 
                 foreach (Type genericArg in genericArgs)
                 {
@@ -606,6 +615,7 @@ namespace DurableTask.Core.Common
                 return typeToConvert.GetGenericTypeDefinition().MakeGenericType(genericTypeValues.ToArray());
             }
 
+            // Check if type is of form T
             if (typeToConvert.IsGenericParameter)
             {
                 int index = Array.IndexOf(genericParameters, typeToConvert);
