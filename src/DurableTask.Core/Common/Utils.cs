@@ -606,10 +606,8 @@ namespace DurableTask.Core.Common
 
                 foreach (Type genericArg in genericArgs)
                 {
-                    int index = Array.IndexOf(genericParameters, genericArg);
-
                     // Return the value of the generic argument.
-                    genericTypeValues.Add(ConvertFromGenericType(genericParameters, genericArguments, genericArguments[index]));
+                    genericTypeValues.Add(ConvertFromGenericType(genericParameters, genericArguments, genericArg));
                 }
 
                 return typeToConvert.GetGenericTypeDefinition().MakeGenericType(genericTypeValues.ToArray());

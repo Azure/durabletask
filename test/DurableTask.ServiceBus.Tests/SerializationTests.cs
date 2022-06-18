@@ -831,7 +831,7 @@ namespace DurableTask.ServiceBus.Tests
 
             Task<T> GetWhenNoParams<T>();
 
-            Task<List<T>> GetWhenTIsInput<T>(T input, T[] input2, List<T> input3);
+            Task<Dictionary<int, List<T>>> GetWhenTIsInput<T>(T input, T[] input2, List<T> input3);
         }
 
         public sealed class GenericInterfaceOrchestrationInput
@@ -851,11 +851,14 @@ namespace DurableTask.ServiceBus.Tests
                 return Task.FromResult(default(T));
             }
 
-            public Task<List<T>> GetWhenTIsInput<T>(T input, T[] input2, List<T> input3)
+            public Task<Dictionary<int, List<T>>> GetWhenTIsInput<T>(T input, T[] input2, List<T> input3)
             {
                 input3.Add(input);
                 input3.AddRange(input2);
-                return Task.FromResult(input3);
+                var result = new Dictionary<int, List<T>>();
+                result.Add(1, input3);
+
+                return Task.FromResult(result);
             }
         }
 
@@ -866,14 +869,14 @@ namespace DurableTask.ServiceBus.Tests
                 IGenericMethodInterface client = context.CreateClient<IGenericMethodInterface>();
                 IGenericMethodInterface retryableClient = context.CreateRetryableClient<IGenericMethodInterface>(new RetryOptions(TimeSpan.FromMilliseconds(1), 1));
 
-                var a = await client.GetWhenTIsInput<string>(input.Property.ToString(), new[] { "test" }, new List<string>());
+                Dictionary<int, List<string>> a = await client.GetWhenTIsInput<string>(input.Property.ToString(), new[] { "test" }, new List<string>());
                 Assert.IsNotNull(a);
-                Assert.AreEqual(2, a.Count);
+                Assert.AreEqual(2, a[1].Count);
 
-                var b = await client.GetWhenNoParams<GenericInterfaceOrchestrationInput>();
+                GenericInterfaceOrchestrationInput b = await client.GetWhenNoParams<GenericInterfaceOrchestrationInput>();
                 Assert.IsNull(b);
 
-                var c = await retryableClient.GetWhenMultipleGenericTypes<double, GenericInterfaceOrchestrationInput>(input.Property, input);
+                GenericInterfaceOrchestrationInput[] c = await retryableClient.GetWhenMultipleGenericTypes<double, GenericInterfaceOrchestrationInput>(input.Property, input);
                 Assert.IsNotNull(c);
                 Assert.AreEqual(1, c.Length);
 
