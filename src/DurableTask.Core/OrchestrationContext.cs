@@ -17,14 +17,19 @@ namespace DurableTask.Core
     using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
+    using Castle.DynamicProxy;
     using DurableTask.Core.Serializing;
-    using ImpromptuInterface;
 
     /// <summary>
     /// Context for an orchestration containing the instance, replay status, orchestration methods and proxy methods
     /// </summary>
     public abstract class OrchestrationContext
     {
+        /// <summary>
+        /// Used in generating proxy interfaces and classes.
+        /// </summary>
+        private static readonly ProxyGenerator ProxyGenerator = new ProxyGenerator();
+
         /// <summary>
         /// Thread-static variable used to signal whether the calling thread is the orchestrator thread.
         /// The primary use case is for detecting illegal async usage in orchestration code.
@@ -88,8 +93,8 @@ namespace DurableTask.Core
                 throw new InvalidOperationException("Pass in an interface.");
             }
 
-            var proxy = new ScheduleProxy(this, typeof(T), useFullyQualifiedMethodNames);
-            return proxy.ActLike<T>();
+            IInterceptor scheduleProxy = new ScheduleProxy(this, useFullyQualifiedMethodNames);
+            return ProxyGenerator.CreateInterfaceProxyWithoutTarget<T>(scheduleProxy);
         }
 
         /// <summary>
@@ -132,9 +137,11 @@ namespace DurableTask.Core
                 throw new InvalidOperationException("Pass in an interface.");
             }
 
-            var scheduleProxy = new ScheduleProxy(this, typeof(T), useFullyQualifiedMethodNames);
-            var retryProxy = new RetryProxy<T>(this, retryOptions, scheduleProxy.ActLike<T>());
-            return retryProxy.ActLike<T>();
+            IInterceptor scheduleProxy = new ScheduleProxy(this, useFullyQualifiedMethodNames);
+            IInterceptor retryProxy = new RetryProxy(this, retryOptions);
+
+            T scheduleInstance = ProxyGenerator.CreateInterfaceProxyWithoutTarget<T>(scheduleProxy);
+            return ProxyGenerator.CreateInterfaceProxyWithTarget(scheduleInstance, retryProxy);
         }
 
         /// <summary>
