@@ -14,6 +14,7 @@
 namespace DurableTask.Core
 {
     using System;
+    using System.Linq;
     using System.Reflection;
     using System.Threading.Tasks;
     using DurableTask.Core.Common;
@@ -127,7 +128,11 @@ namespace DurableTask.Core
                 {
                     if (MethodInfo.ReturnType.IsGenericType)
                     {
-                        serializedReturn = DataConverter.Serialize(await ((dynamic)invocationTask));
+                        await invocationTask;
+
+                        var returnType = this.MethodInfo.ReturnType.GetGenericArguments().Single(); //Task<T>
+                        var resultProperty = typeof(Task<>).MakeGenericType(returnType).GetProperty("Result");
+                        serializedReturn = DataConverter.Serialize(resultProperty.GetValue(invocationTask));
                     }
                     else
                     {
