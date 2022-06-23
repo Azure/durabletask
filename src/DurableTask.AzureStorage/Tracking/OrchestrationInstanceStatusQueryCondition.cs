@@ -193,8 +193,6 @@ namespace DurableTask.AzureStorage.Tracking
                 CreatedTimeFrom = createdTimeFrom,
                 CreatedTimeTo = createdTimeTo ?? default(DateTime),
                 RuntimeStatus = runtimeStatus,
-                FetchInput = false,
-                FetchOutput = false,
             };
             return condition;
         }

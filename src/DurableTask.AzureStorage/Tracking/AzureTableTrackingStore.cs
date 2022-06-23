@@ -628,13 +628,17 @@ namespace DurableTask.AzureStorage.Tracking
             DateTime? createdTimeTo,
             IEnumerable<OrchestrationStatus> runtimeStatus)
         {
-            TableQuery<OrchestrationInstanceStatus> query = OrchestrationInstanceStatusQueryCondition.Parse(
+            var filter = OrchestrationInstanceStatusQueryCondition.Parse(
                 createdTimeFrom,
                 createdTimeTo,
-                runtimeStatus).ToTableQuery<OrchestrationInstanceStatus>();
+                runtimeStatus);
+            filter.FetchInput = false;
+            filter.FetchOutput = false;
+
+            TableQuery<OrchestrationInstanceStatus> query = filter.ToTableQuery<OrchestrationInstanceStatus>();
 
             // Limit to batches of 100 to avoid excessive memory usage and table storage scanning
-            query.TakeCount = 2;
+            query.TakeCount = 100;
 
             int storageRequests = 0;
             int instancesDeleted = 0;
