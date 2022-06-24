@@ -873,12 +873,12 @@ namespace DurableTask.ServiceBus.Tests
                 Assert.IsNotNull(a);
                 Assert.AreEqual(2, a[1].Count);
 
-                GenericInterfaceOrchestrationInput b = await client.GetWhenNoParams<GenericInterfaceOrchestrationInput>();
-                Assert.IsNull(b);
-
                 GenericInterfaceOrchestrationInput[] c = await retryableClient.GetWhenMultipleGenericTypes<double, GenericInterfaceOrchestrationInput>(input.Property, input);
                 Assert.IsNotNull(c);
                 Assert.AreEqual(1, c.Length);
+
+                GenericInterfaceOrchestrationInput b = await client.GetWhenNoParams<GenericInterfaceOrchestrationInput>();
+                Assert.IsNull(b);
 
                 return string.Empty;
             }

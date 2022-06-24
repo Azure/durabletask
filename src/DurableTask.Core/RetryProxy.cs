@@ -13,7 +13,6 @@
 
 namespace DurableTask.Core
 {
-    using DurableTask.Core.Common;
     using System;
     using System.Diagnostics;
     using System.Linq;

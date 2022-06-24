@@ -19,6 +19,7 @@ namespace DurableTask.Core
     using System.Reflection;
     using System.Threading.Tasks;
     using Castle.DynamicProxy;
+    using DurableTask.Core.Common;
 
     internal class ScheduleProxy : IInterceptor
     {
@@ -56,14 +57,12 @@ namespace DurableTask.Core
             }
 
             Type[] genericArgumentValues = invocation.GenericArguments ?? Array.Empty<Type>();
-            List<object?> arguments = new(invocation.Arguments);
+            List<object> arguments = new(invocation.Arguments);
 
             foreach (var typeArg in genericArgumentValues)
             {
-                arguments.Add(new TypeMetadata(typeArg.Assembly.FullName!, typeArg.FullName!));
+                arguments.Add(new Utils.TypeMetadata { AssemblyName = typeArg.Assembly.FullName!, FullyQualifiedTypeName = typeArg.FullName });
             }
-
-            object[] args = arguments.ToArray()!;
 
             string normalizedMethodName = NameVersionHelper.GetDefaultName(invocation.Method, this.useFullyQualifiedMethodNames);
 
@@ -72,7 +71,7 @@ namespace DurableTask.Core
                 invocation.ReturnValue = this.context.ScheduleTask<object>(
                     normalizedMethodName,
                     NameVersionHelper.GetDefaultVersion(invocation.Method),
-                    args);
+                    arguments.ToArray());
                 return;
             }
 
@@ -89,7 +88,7 @@ namespace DurableTask.Core
             {
                 normalizedMethodName,
                 NameVersionHelper.GetDefaultVersion(invocation.Method),
-                invocation.Arguments.ToArray(),
+                arguments.ToArray(),
             });
 
             return;
