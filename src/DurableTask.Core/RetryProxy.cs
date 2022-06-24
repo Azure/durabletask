@@ -41,15 +41,10 @@ namespace DurableTask.Core
         public void Intercept(IInvocation invocation)
         {
             var returnType = invocation.Method.ReturnType;
-
             if (!typeof(Task).IsAssignableFrom(returnType))
             {
                 throw new InvalidOperationException($"Invoked method must return a task. Current return type is {invocation.Method.ReturnType}");
             }
-
-            MethodInfo methodInfo = typeof(T).GetMethod(binder.Name) ?? throw new InvalidOperationException("Method info not found.");
-
-            Type[] genericArgumentValues = Utils.GetGenericMethodArguments(binder, methodInfo);
 
             if (returnType == typeof(Task))
             {

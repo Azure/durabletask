@@ -55,6 +55,16 @@ namespace DurableTask.Core
                 throw new InvalidOperationException($"Invoked method must return a task. Current return type is {invocation.Method.ReturnType}");
             }
 
+            Type[] genericArgumentValues = invocation.GenericArguments ?? Array.Empty<Type>();
+            List<object?> arguments = new(invocation.Arguments);
+
+            foreach (var typeArg in genericArgumentValues)
+            {
+                arguments.Add(new TypeMetadata(typeArg.Assembly.FullName!, typeArg.FullName!));
+            }
+
+            object[] args = arguments.ToArray()!;
+
             string normalizedMethodName = NameVersionHelper.GetDefaultName(invocation.Method, this.useFullyQualifiedMethodNames);
 
             if (returnType == typeof(Task))
@@ -62,7 +72,7 @@ namespace DurableTask.Core
                 invocation.ReturnValue = this.context.ScheduleTask<object>(
                     normalizedMethodName,
                     NameVersionHelper.GetDefaultVersion(invocation.Method),
-                    invocation.Arguments.ToArray());
+                    args);
                 return;
             }
 
