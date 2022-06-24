@@ -14,6 +14,7 @@
 namespace DurableTask.ServiceBus.Tests
 {
     using System;
+    using System.Collections.Generic;
     using System.Diagnostics.CodeAnalysis;
     using System.IO;
     using System.Threading.Tasks;
@@ -806,6 +807,82 @@ namespace DurableTask.ServiceBus.Tests
             public string Str { get; set; }
         }
 
+        #endregion
+
+        #region Generic interface activities
+
+        [TestMethod]
+        public async Task GenericInterfaceMethodTests()
+        {
+            await this.taskHub.AddTaskOrchestrations(typeof(GenericMethodInterfaceOrchestration))
+                .AddTaskActivitiesFromInterface<IGenericMethodInterface>(new GenericMethodImplementation())
+                .StartAsync();
+
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(GenericMethodInterfaceOrchestration),
+                new GenericInterfaceOrchestrationInput { Property = 3.142f });
+
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
+        }
+
+        public interface IGenericMethodInterface
+        {
+            Task<U[]> GetWhenMultipleGenericTypes<T, U>(T input1, U input2);
+
+            Task<T> GetWhenNoParams<T>();
+
+            Task<Dictionary<int, List<T>>> GetWhenTIsInput<T>(T input, T[] input2, List<T> input3);
+        }
+
+        public sealed class GenericInterfaceOrchestrationInput
+        {
+            public float Property { get; set; }
+        }
+
+        private sealed class GenericMethodImplementation : IGenericMethodInterface
+        {
+            public Task<U[]> GetWhenMultipleGenericTypes<T, U>(T input1, U input2)
+            {
+                return Task.FromResult(new[] { input2 });
+            }
+
+            public Task<T> GetWhenNoParams<T>()
+            {
+                return Task.FromResult(default(T));
+            }
+
+            public Task<Dictionary<int, List<T>>> GetWhenTIsInput<T>(T input, T[] input2, List<T> input3)
+            {
+                input3.Add(input);
+                input3.AddRange(input2);
+                var result = new Dictionary<int, List<T>>();
+                result.Add(1, input3);
+
+                return Task.FromResult(result);
+            }
+        }
+
+        sealed class GenericMethodInterfaceOrchestration : TaskOrchestration<string, GenericInterfaceOrchestrationInput>
+        {
+            public override async Task<string> RunTask(OrchestrationContext context, GenericInterfaceOrchestrationInput input)
+            {
+                IGenericMethodInterface client = context.CreateClient<IGenericMethodInterface>();
+                IGenericMethodInterface retryableClient = context.CreateRetryableClient<IGenericMethodInterface>(new RetryOptions(TimeSpan.FromMilliseconds(1), 1));
+
+                Dictionary<int, List<string>> a = await client.GetWhenTIsInput<string>(input.Property.ToString(), new[] { "test" }, new List<string>());
+                Assert.IsNotNull(a);
+                Assert.AreEqual(2, a[1].Count);
+
+                GenericInterfaceOrchestrationInput[] c = await retryableClient.GetWhenMultipleGenericTypes<double, GenericInterfaceOrchestrationInput>(input.Property, input);
+                Assert.IsNotNull(c);
+                Assert.AreEqual(1, c.Length);
+
+                GenericInterfaceOrchestrationInput b = await client.GetWhenNoParams<GenericInterfaceOrchestrationInput>();
+                Assert.IsNull(b);
+
+                return string.Empty;
+            }
+        }
         #endregion
     }
 }
