@@ -19,6 +19,7 @@ namespace DurableTask.Core
     using System.Reflection;
     using System.Threading.Tasks;
     using Castle.DynamicProxy;
+    using DurableTask.Core.Common;
 
     internal class ScheduleProxy : IInterceptor
     {
@@ -55,6 +56,14 @@ namespace DurableTask.Core
                 throw new InvalidOperationException($"Invoked method must return a task. Current return type is {invocation.Method.ReturnType}");
             }
 
+            Type[] genericArgumentValues = invocation.GenericArguments ?? Array.Empty<Type>();
+            List<object> arguments = new(invocation.Arguments);
+
+            foreach (var typeArg in genericArgumentValues)
+            {
+                arguments.Add(new Utils.TypeMetadata { AssemblyName = typeArg.Assembly.FullName!, FullyQualifiedTypeName = typeArg.FullName });
+            }
+
             string normalizedMethodName = NameVersionHelper.GetDefaultName(invocation.Method, this.useFullyQualifiedMethodNames);
 
             if (returnType == typeof(Task))
@@ -62,7 +71,7 @@ namespace DurableTask.Core
                 invocation.ReturnValue = this.context.ScheduleTask<object>(
                     normalizedMethodName,
                     NameVersionHelper.GetDefaultVersion(invocation.Method),
-                    invocation.Arguments.ToArray());
+                    arguments.ToArray());
                 return;
             }
 
@@ -79,7 +88,7 @@ namespace DurableTask.Core
             {
                 normalizedMethodName,
                 NameVersionHelper.GetDefaultVersion(invocation.Method),
-                invocation.Arguments.ToArray(),
+                arguments.ToArray(),
             });
 
             return;

@@ -40,7 +40,6 @@ namespace DurableTask.Core
         public void Intercept(IInvocation invocation)
         {
             var returnType = invocation.Method.ReturnType;
-
             if (!typeof(Task).IsAssignableFrom(returnType))
             {
                 throw new InvalidOperationException($"Invoked method must return a task. Current return type is {invocation.Method.ReturnType}");
