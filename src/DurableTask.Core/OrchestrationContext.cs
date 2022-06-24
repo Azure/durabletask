@@ -88,7 +88,7 @@ namespace DurableTask.Core
         /// <returns></returns>
         public virtual T CreateClient<T>(bool useFullyQualifiedMethodNames) where T : class
         {
-            if (!typeof(T).IsInterface && !typeof(T).IsClass)
+            if (!typeof(T).IsInterface || !typeof(T).IsClass)
             {
                 throw new InvalidOperationException($"{nameof(T)} must be an interface or class.");
             }
@@ -143,7 +143,7 @@ namespace DurableTask.Core
         /// <returns>Dynamic proxy that can be used to schedule the remote tasks</returns>
         public virtual T CreateRetryableClient<T>(RetryOptions retryOptions, bool useFullyQualifiedMethodNames) where T : class
         {
-            if (!typeof(T).IsInterface && !typeof(T).IsClass)
+            if (!typeof(T).IsInterface || !typeof(T).IsClass)
             {
                 throw new InvalidOperationException($"{nameof(T)} must be an interface or class.");
             }
