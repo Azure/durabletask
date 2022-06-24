@@ -536,37 +536,6 @@ namespace DurableTask.Core.Common
         }
 
         /// <summary>
-        /// Returns the generic arguments from the invoked method if any.
-        /// </summary>
-        /// <param name="binder">The invoke member binder.</param>
-        /// <param name="methodInfo">The invoked method info.</param>
-        /// <returns>The generic arguments.</returns>
-        /// <exception cref="InvalidOperationException">Thrown when the invoked member is not C#.</exception>
-        internal static Type[] GetGenericMethodArguments(InvokeMemberBinder binder, MethodInfo methodInfo)
-        {
-            Type binderType = binder.GetType();
-
-            if (methodInfo.IsGenericMethod && !string.Equals(binderType.Name, "CSharpInvokeMemberBinder"))
-            {
-                throw new InvalidOperationException("Generic method invoked but method binder is not C#");
-            }
-
-            Type[] genericTypeArguments = binderType.GetProperty("TypeArguments")?.GetValue(binder) as Type[] ?? Array.Empty<Type>();
-
-            if (genericTypeArguments.Length != methodInfo.GetGenericArguments().Length)
-            {
-                throw new InvalidOperationException(string.Format(
-                    "The method '{0}' should have the same number of generic arguments as the invoked member '{1}'. Expected generic args is {2} but the provided method has {3}.",
-                    NameVersionHelper.GetFullyQualifiedMethodName(methodInfo.DeclaringType.FullName, methodInfo.Name),
-                    binder.Name,
-                    genericTypeArguments.Length,
-                    methodInfo.GetGenericArguments().Length));
-            }
-
-            return genericTypeArguments;
-        }
-
-        /// <summary>
         /// Converts the specified <paramref name="typeToConvert"/> to a non-generic equivalent.
         /// </summary>
         /// <param name="genericParameters">The generic type parameters.</param>
