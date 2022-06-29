@@ -69,5 +69,31 @@ namespace DurableTask.Core.Query
         /// Determines whether the query will include the input of the orchestration.
         /// </summary>
         public bool FetchInputsAndOutputs { get; set; } = true;
+
+        /// <summary>
+        /// Determines whether the sort order of query results. 
+        /// </summary>
+        public Order SortOrder { get; set; } = Order.Unspecified;
+    }
+
+    /// <summary>
+    /// Sort Order enum for query results. 
+    /// </summary>
+    public enum Order 
+    {
+        /// <summary>
+        /// Unsepecified sort order for query results. Default value. 
+        /// </summary>
+        Unspecified,
+
+        /// <summary>
+        /// Ascending order for query results. 
+        /// </summary>
+        Ascending,
+
+        /// <summary>
+        /// Descending order for query results. 
+        /// </summary>
+        Descending
     }
 }

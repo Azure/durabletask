@@ -17,6 +17,7 @@ namespace DurableTask.AzureStorage.Tracking
     using System.Collections.Generic;
     using System.Linq;
     using DurableTask.Core;
+    using DurableTask.Core.Query;
     using Microsoft.WindowsAzure.Storage.Table;
 
     /// <summary>
@@ -69,6 +70,11 @@ namespace DurableTask.AzureStorage.Tracking
         public bool FetchOutput { get; set; } = true;
 
         /// <summary>
+        /// Sort order of query results. 
+        /// </summary>
+        public Order SortOrder { get; set; } = Order.Unspecified;
+
+        /// <summary>
         /// Get the TableQuery object
         /// </summary>
         /// <typeparam name="T"></typeparam>
@@ -106,7 +112,7 @@ namespace DurableTask.AzureStorage.Tracking
                     query.Where(conditions);
                 }
             }
-
+            //TODO: seems TableQueyr not support orderby, how should implement sort logic here
             return query;
         }
 
