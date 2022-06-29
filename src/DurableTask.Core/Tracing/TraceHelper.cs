@@ -153,7 +153,7 @@ namespace DurableTask.Core.Tracing
         {
             Activity? newActivity = ActivityTraceSource.StartActivity(
                 name: eventRaised.Name,
-                kind: ActivityKind.Internal,
+                kind: ActivityKind.Server,
                 parentContext: Activity.Current?.Context ?? default,
                 tags: new KeyValuePair<string, object?>[]
                 {
@@ -184,7 +184,7 @@ namespace DurableTask.Core.Tracing
 
             return ActivityTraceSource.StartActivity(
                 name: eventRaisedEvent.Name,
-                kind: ActivityKind.Producer,
+                kind: ActivityKind.Server,
                 parentContext: activityContext,
                 tags: new KeyValuePair<string, object?>[]
                 {
