@@ -16,10 +16,11 @@ namespace DurableTask.AzureStorage.Monitoring
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using System.Net;
     using System.Text;
     using System.Threading.Tasks;
+    using Azure;
     using DurableTask.AzureStorage.Storage;
-    using Microsoft.WindowsAzure.Storage;
 
     /// <summary>
     /// Utility class for collecting performance information for a Durable Task hub without actually running inside a Durable Task worker.
@@ -50,7 +51,7 @@ namespace DurableTask.AzureStorage.Monitoring
         /// <param name="storageConnectionString">The connection string for the Azure Storage account to monitor.</param>
         /// <param name="taskHub">The name of the task hub within the specified storage account.</param>
         public DisconnectedPerformanceMonitor(string storageConnectionString, string taskHub)
-            : this(CloudStorageAccount.Parse(storageConnectionString), taskHub)
+            : this(new StorageAccountDetails { ConnectionString = storageConnectionString }, taskHub, null)
         {
         }
 
@@ -61,25 +62,22 @@ namespace DurableTask.AzureStorage.Monitoring
         /// <param name="taskHub">The name of the task hub within the specified storage account.</param>
         /// <param name="maxPollingIntervalMilliseconds">The maximum interval in milliseconds for polling control and work-item queues.</param>
         public DisconnectedPerformanceMonitor(
-            CloudStorageAccount storageAccount,
+            StorageAccountDetails storageAccount,
             string taskHub,
             int? maxPollingIntervalMilliseconds = null)
-            : this(storageAccount, GetSettings(taskHub, maxPollingIntervalMilliseconds))
+            : this(GetSettings(storageAccount, taskHub, maxPollingIntervalMilliseconds))
         {
         }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="DisconnectedPerformanceMonitor"/> class.
         /// </summary>
-        /// <param name="storageAccount">The Azure Storage account to monitor.</param>
         /// <param name="settings">The orchestration service settings.</param>
-        public DisconnectedPerformanceMonitor(
-            CloudStorageAccount storageAccount,
-            AzureStorageOrchestrationServiceSettings settings)
+        public DisconnectedPerformanceMonitor(AzureStorageOrchestrationServiceSettings settings)
         {
             this.settings = settings;
 
-            this.azureStorageClient = new AzureStorageClient(storageAccount, settings);
+            this.azureStorageClient = new AzureStorageClient(settings);
 
             this.maxPollingLatency = (int)settings.MaxQueuePollingInterval.TotalMilliseconds;
             this.highLatencyThreshold = Math.Min(this.maxPollingLatency, 1000);
@@ -98,10 +96,16 @@ namespace DurableTask.AzureStorage.Monitoring
         internal QueueMetricHistory WorkItemQueueLatencies => this.workItemQueueLatencies;
 
         static AzureStorageOrchestrationServiceSettings GetSettings(
+            StorageAccountDetails storageAccount,
             string taskHub,
             int? maxPollingIntervalMilliseconds = null)
         {
-            var settings = new AzureStorageOrchestrationServiceSettings { TaskHubName = taskHub };
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                StorageAccountDetails = storageAccount,
+                TaskHubName = taskHub
+            };
+
             if (maxPollingIntervalMilliseconds != null)
             {
                 settings.MaxQueuePollingInterval = TimeSpan.FromMilliseconds(maxPollingIntervalMilliseconds.Value);
@@ -171,13 +175,13 @@ namespace DurableTask.AzureStorage.Monitoring
             {
                 await Task.WhenAll(tasks);
             }
-            catch (StorageException e) when (e.RequestInformation?.HttpStatusCode == 404)
+            catch (RequestFailedException rfe) when (rfe.Status == (int)HttpStatusCode.NotFound)
             {
                 // The queues are not yet provisioned.
                 this.settings.Logger.GeneralWarning(
                     this.azureStorageClient.QueueAccountName,
                     this.settings.TaskHubName,
-                    $"Task hub has not been provisioned: {e.RequestInformation.ExtendedErrorInformation?.ErrorMessage}");
+                    $"Task hub has not been provisioned: {rfe.Message}");
                 return false;
             }
 

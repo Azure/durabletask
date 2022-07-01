@@ -15,127 +15,150 @@ namespace DurableTask.AzureStorage.Storage
 {
     using System;
     using System.IO;
+    using System.Linq;
+    using System.Text;
     using System.Threading.Tasks;
-    using Microsoft.WindowsAzure.Storage;
-    using Microsoft.WindowsAzure.Storage.Blob;
+    using Azure;
+    using Azure.Storage.Blobs;
+    using Azure.Storage.Blobs.Models;
+    using Azure.Storage.Blobs.Specialized;
 
     class Blob
     {
         readonly AzureStorageClient azureStorageClient;
-        readonly CloudBlobClient blobClient;
-        readonly CloudBlockBlob cloudBlockBlob;
+        readonly BlockBlobClient blockBlobClient;
 
-        public Blob(AzureStorageClient azureStorageClient, CloudBlobClient blobClient, string containerName, string blobName, string? blobDirectory = null)
+        public Blob(AzureStorageClient azureStorageClient, BlobServiceClient blobClient, string containerName, string blobName, string? blobDirectory = null)
         {
             this.azureStorageClient = azureStorageClient;
-            this.blobClient = blobClient;
             this.Name = blobName;
             var fullBlobPath = blobDirectory != null ? Path.Combine(blobDirectory, this.Name) : blobName;
 
-            this.cloudBlockBlob = this.blobClient.GetContainerReference(containerName).GetBlockBlobReference(fullBlobPath);
+            this.blockBlobClient = blobClient.GetBlobContainerClient(containerName).GetBlockBlobClient(fullBlobPath);
         }
 
-        public Blob(AzureStorageClient azureStorageClient, CloudBlobClient blobClient, Uri blobUri)
+        public Blob(AzureStorageClient azureStorageClient, BlobServiceClient blobClient, Uri blobUri)
         {
+            if (!blobUri.IsAbsoluteUri)
+                throw new ArgumentException("Blob URI must be absolute", nameof(blobUri));
+
+            if (blobUri.Scheme != blobClient.Uri.Scheme)
+                throw new ArgumentException("Blob URI has a different scheme from blob client,", nameof(blobUri));
+
+            if (blobUri.Host != blobClient.Uri.Host)
+                throw new ArgumentException("Blob URI has a different host from blob client,", nameof(blobUri));
+
+            if (blobUri.Port != blobClient.Uri.Port)
+                throw new ArgumentException("Blob URI has a different port from blob client,", nameof(blobUri));
+
+            if (blobUri.Segments.Length < 3)
+                throw new ArgumentException("Blob URI is missing the container.", nameof(blobUri));
+
             this.azureStorageClient = azureStorageClient;
-            this.blobClient = blobClient;
-            this.cloudBlockBlob = new CloudBlockBlob(blobUri, blobClient.Credentials);
+
+            // Uri.Segments splits on the '/' in the path such that it is always the last character.
+            // Eg. 'https://foo.blob.core.windows.net/bar/baz/dog.json' => [ '/', 'bar/', 'baz/', 'dog.json' ]
+            string container = blobUri.Segments[1];
+            this.blockBlobClient = blobClient
+                .GetBlobContainerClient(container.Substring(0, container.Length - 1))
+                .GetBlockBlobClient(string.Join("", blobUri.Segments.Skip(2)));
         }
 
         public string? Name { get; }
 
-        public bool IsLeased => this.cloudBlockBlob.Properties.LeaseState == LeaseState.Leased;
+        public string AbsoluteUri => this.blockBlobClient.Uri.AbsoluteUri;
 
-        public string AbsoluteUri => this.cloudBlockBlob.Uri.AbsoluteUri;
-
-        public async Task<bool> ExistsAsync()
-        {
-            return await this.azureStorageClient.MakeBlobStorageRequest<bool>(
-                (context, cancellationToken) => this.cloudBlockBlob.ExistsAsync(null, context, cancellationToken),
+        public Task<bool> ExistsAsync() =>
+            this.azureStorageClient.MakeBlobStorageRequest(
+                cancellationToken => this.blockBlobClient.ExistsAsync(cancellationToken),
                 "Blob Exists");
-        }
 
-        public async Task<bool> DeleteIfExistsAsync()
-        {
-            return await this.azureStorageClient.MakeBlobStorageRequest<bool>(
-                (context, cancellationToken) => this.cloudBlockBlob.DeleteIfExistsAsync(DeleteSnapshotsOption.IncludeSnapshots, null, null, context, cancellationToken),
+        public Task<bool> DeleteIfExistsAsync() =>
+            this.azureStorageClient.MakeBlobStorageRequest(
+                cancellationToken => this.blockBlobClient.DeleteIfExistsAsync(DeleteSnapshotsOption.IncludeSnapshots, cancellationToken: cancellationToken),
                 "Blob Delete");
+
+        public async Task<bool> IsLeasedAsync()
+        {
+            BlobProperties properties = await this.azureStorageClient.MakeBlobStorageRequest(
+                cancellationToken => this.blockBlobClient.GetPropertiesAsync(cancellationToken: cancellationToken),
+                "Blob Properties");
+
+            return properties.LeaseState == LeaseState.Leased;
         }
 
-        public async Task UploadTextAsync(string content, string? leaseId = null, bool ifDoesntExist = false)
+        public Task UploadTextAsync(string content, string? leaseId = null, bool ifDoesntExist = false)
         {
-            AccessCondition? accessCondition = null;
+            BlobRequestConditions? conditions = null;
             if (ifDoesntExist)
             {
-                accessCondition = AccessCondition.GenerateIfNoneMatchCondition("*");
+                conditions = new BlobRequestConditions { IfNoneMatch = new ETag("*") };
             }
             else if (leaseId != null)
             {
-                accessCondition = AccessCondition.GenerateLeaseCondition(leaseId);
+                conditions = new BlobRequestConditions { LeaseId = leaseId };
             }
 
-            await this.azureStorageClient.MakeBlobStorageRequest(
-                (context, cancellationToken) => this.cloudBlockBlob.UploadTextAsync(content, null, accessCondition, null, context, cancellationToken),
-                "Blob UploadText");
+            return this.azureStorageClient.MakeBlobStorageRequest(
+                async cancellationToken =>
+                {
+                    using var buffer = new MemoryStream(Encoding.UTF8.GetBytes(content));
+                    return await this.blockBlobClient.UploadAsync(buffer, conditions: conditions, cancellationToken: cancellationToken);
+                },
+                "Blob Upload");
         }
 
-        public async Task UploadFromByteArrayAsync(byte[] buffer, int index, int byteCount)
-        {
-            await this.azureStorageClient.MakeBlobStorageRequest(
-                (context, cancellationToken) => this.cloudBlockBlob.UploadFromByteArrayAsync(buffer, index, byteCount, null, null, context, cancellationToken),
-                "Blob UploadFromByeArray");
-        }
+        public Task UploadFromByteArrayAsync(byte[] buffer, int index, int byteCount) =>
+            this.azureStorageClient.MakeBlobStorageRequest(
+                async cancellationToken =>
+                {
+                    using MemoryStream stream = new MemoryStream(buffer, index, byteCount);
+                    return await this.blockBlobClient.UploadAsync(stream, cancellationToken: cancellationToken);
+                },
+                "Blob Upload");
 
         public async Task<string> DownloadTextAsync()
         {
-            return await this.azureStorageClient.MakeBlobStorageRequest(
-                (context, cancellationToken) => this.cloudBlockBlob.DownloadTextAsync(null, null, null, context, cancellationToken),
-                "Blob DownloadText");
+            BlobDownloadStreamingResult result = await this.azureStorageClient.MakeBlobStorageRequest(
+                cancellationToken => this.blockBlobClient.DownloadStreamingAsync(cancellationToken: cancellationToken),
+                "Blob Download");
+
+            using StreamReader reader = new StreamReader(result.Content, Encoding.UTF8);
+            return await reader.ReadToEndAsync();
         }
 
-        public async Task DownloadToStreamAsync(MemoryStream target)
-        {
-            await this.azureStorageClient.MakeBlobStorageRequest(
-                (context, cancellationToken) => this.cloudBlockBlob.DownloadToStreamAsync(target, null, null, context, cancellationToken),
+        public Task DownloadToStreamAsync(MemoryStream target) =>
+            this.azureStorageClient.MakeBlobStorageRequest(
+                cancellationToken => this.blockBlobClient.DownloadToAsync(target, cancellationToken: cancellationToken),
                 "Blob DownloadToStream");
-        }
-
-        public async Task FetchAttributesAsync()
-        {
-            await this.azureStorageClient.MakeBlobStorageRequest(
-                (context, cancellationToken) => this.cloudBlockBlob.FetchAttributesAsync(null, null, context, cancellationToken),
-                "Blob FetchAttributes");
-        }
 
         public async Task<string> AcquireLeaseAsync(TimeSpan leaseInterval, string leaseId)
         {
-            return await this.azureStorageClient.MakeBlobStorageRequest<string>(
-                (context, cancellationToken) => this.cloudBlockBlob.AcquireLeaseAsync(leaseInterval, leaseId, null, null, context, cancellationToken),
+            BlobLease lease = await this.azureStorageClient.MakeBlobStorageRequest(
+                cancellationToken => this.blockBlobClient.GetBlobLeaseClient(leaseId).AcquireAsync(leaseInterval, cancellationToken: cancellationToken),
                 "Blob AcquireLease");
-        }
 
+            return lease.LeaseId;
+        }
 
         public async Task<string> ChangeLeaseAsync(string proposedLeaseId, string currentLeaseId)
         {
-            return await this.azureStorageClient.MakeBlobStorageRequest<string>(
-                (context, cancellationToken) => this.cloudBlockBlob.ChangeLeaseAsync(proposedLeaseId, accessCondition: AccessCondition.GenerateLeaseCondition(currentLeaseId), null, context, cancellationToken),
+            BlobLease lease = await this.azureStorageClient.MakeBlobStorageRequest(
+                cancellationToken => this.blockBlobClient.GetBlobLeaseClient(currentLeaseId).ChangeAsync(proposedLeaseId, cancellationToken: cancellationToken),
                 "Blob ChangeLease");
+
+            return lease.LeaseId;
         }
 
-        public async Task RenewLeaseAsync(string leaseId)
-        {
-            var requestOptions = new BlobRequestOptions { ServerTimeout = azureStorageClient.Settings.LeaseRenewInterval };
-            await this.azureStorageClient.MakeBlobStorageRequest(
-                (context, cancellationToken) => this.cloudBlockBlob.RenewLeaseAsync(AccessCondition.GenerateLeaseCondition(leaseId), requestOptions, context, cancellationToken),
+        public Task RenewLeaseAsync(string leaseId) =>
+            this.azureStorageClient.MakeBlobStorageRequest(
+                cancellationToken => this.blockBlobClient.GetBlobLeaseClient(leaseId).RenewAsync(cancellationToken: cancellationToken),
                 "Blob RenewLease",
                 force: true); // lease renewals should not be throttled
-        }
 
-        public async Task ReleaseLeaseAsync(string leaseId)
-        {
-            await this.azureStorageClient.MakeBlobStorageRequest(
-                (context, cancellationToken) => this.cloudBlockBlob.ReleaseLeaseAsync(AccessCondition.GenerateLeaseCondition(leaseId), null, context, cancellationToken),
+        public Task ReleaseLeaseAsync(string leaseId) =>
+            this.azureStorageClient.MakeBlobStorageRequest(
+                cancellationToken => this.blockBlobClient.GetBlobLeaseClient(leaseId).ReleaseAsync(cancellationToken: cancellationToken),
                 "Blob ReleaseLease");
-        }
     }
 }

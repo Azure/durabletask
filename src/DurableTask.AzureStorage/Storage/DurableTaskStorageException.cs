@@ -14,8 +14,8 @@
 namespace DurableTask.AzureStorage.Storage
 {
     using System;
-    using Microsoft.WindowsAzure.Storage;
-    using Microsoft.WindowsAzure.Storage.Blob.Protocol;
+    using Azure;
+    using Azure.Storage.Blobs.Models;
 
     [Serializable]
     class DurableTaskStorageException : Exception
@@ -34,12 +34,11 @@ namespace DurableTask.AzureStorage.Storage
         {
         }
 
-        public DurableTaskStorageException(StorageException storageException)
-            : base(storageException.Message, storageException)
+        public DurableTaskStorageException(RequestFailedException requestFailedException)
+            : base(requestFailedException.Message, requestFailedException)
         {
-            this.HttpStatusCode = storageException.RequestInformation.HttpStatusCode;
-            StorageExtendedErrorInformation extendedErrorInfo = storageException.RequestInformation.ExtendedErrorInformation;
-            if (extendedErrorInfo?.ErrorCode == BlobErrorCodeStrings.LeaseLost)
+            this.HttpStatusCode = requestFailedException.Status;
+            if (requestFailedException?.ErrorCode == BlobErrorCode.LeaseLost)
             {
                 LeaseLost = true;
             }
