@@ -28,27 +28,27 @@ namespace DurableTask.AzureStorage.Storage
         readonly AzureStorageClient azureStorageClient;
         readonly BlockBlobClient blockBlobClient;
 
-        public Blob(AzureStorageClient azureStorageClient, BlobServiceClient blobClient, string containerName, string blobName, string? blobDirectory = null)
+        public Blob(AzureStorageClient azureStorageClient, BlobServiceClient blobServiceClient, string containerName, string blobName, string? blobDirectory = null)
         {
             this.azureStorageClient = azureStorageClient;
             this.Name = blobName;
             var fullBlobPath = blobDirectory != null ? Path.Combine(blobDirectory, this.Name) : blobName;
 
-            this.blockBlobClient = blobClient.GetBlobContainerClient(containerName).GetBlockBlobClient(fullBlobPath);
+            this.blockBlobClient = blobServiceClient.GetBlobContainerClient(containerName).GetBlockBlobClient(fullBlobPath);
         }
 
-        public Blob(AzureStorageClient azureStorageClient, BlobServiceClient blobClient, Uri blobUri)
+        public Blob(AzureStorageClient azureStorageClient, BlobServiceClient blobServiceClient, Uri blobUri)
         {
             if (!blobUri.IsAbsoluteUri)
                 throw new ArgumentException("Blob URI must be absolute", nameof(blobUri));
 
-            if (blobUri.Scheme != blobClient.Uri.Scheme)
+            if (blobUri.Scheme != blobServiceClient.Uri.Scheme)
                 throw new ArgumentException("Blob URI has a different scheme from blob client,", nameof(blobUri));
 
-            if (blobUri.Host != blobClient.Uri.Host)
+            if (blobUri.Host != blobServiceClient.Uri.Host)
                 throw new ArgumentException("Blob URI has a different host from blob client,", nameof(blobUri));
 
-            if (blobUri.Port != blobClient.Uri.Port)
+            if (blobUri.Port != blobServiceClient.Uri.Port)
                 throw new ArgumentException("Blob URI has a different port from blob client,", nameof(blobUri));
 
             if (blobUri.Segments.Length < 3)
@@ -59,7 +59,7 @@ namespace DurableTask.AzureStorage.Storage
             // Uri.Segments splits on the '/' in the path such that it is always the last character.
             // Eg. 'https://foo.blob.core.windows.net/bar/baz/dog.json' => [ '/', 'bar/', 'baz/', 'dog.json' ]
             string container = blobUri.Segments[1];
-            this.blockBlobClient = blobClient
+            this.blockBlobClient = blobServiceClient
                 .GetBlobContainerClient(container.Substring(0, container.Length - 1))
                 .GetBlockBlobClient(string.Join("", blobUri.Segments.Skip(2)));
         }
@@ -82,7 +82,7 @@ namespace DurableTask.AzureStorage.Storage
         {
             BlobProperties properties = await this.azureStorageClient.MakeBlobStorageRequest(
                 cancellationToken => this.blockBlobClient.GetPropertiesAsync(cancellationToken: cancellationToken),
-                "Blob Properties");
+                "Blob GetProperties");
 
             return properties.LeaseState == LeaseState.Leased;
         }
@@ -121,7 +121,7 @@ namespace DurableTask.AzureStorage.Storage
         {
             BlobDownloadStreamingResult result = await this.azureStorageClient.MakeBlobStorageRequest(
                 cancellationToken => this.blockBlobClient.DownloadStreamingAsync(cancellationToken: cancellationToken),
-                "Blob Download");
+                "Blob DownloadStreaming");
 
             using StreamReader reader = new StreamReader(result.Content, Encoding.UTF8);
             return await reader.ReadToEndAsync();
@@ -130,7 +130,7 @@ namespace DurableTask.AzureStorage.Storage
         public Task DownloadToStreamAsync(MemoryStream target) =>
             this.azureStorageClient.MakeBlobStorageRequest(
                 cancellationToken => this.blockBlobClient.DownloadToAsync(target, cancellationToken: cancellationToken),
-                "Blob DownloadToStream");
+                "Blob DownloadTo");
 
         public async Task<string> AcquireLeaseAsync(TimeSpan leaseInterval, string leaseId)
         {

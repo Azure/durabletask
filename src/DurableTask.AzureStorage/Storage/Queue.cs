@@ -17,47 +17,46 @@ namespace DurableTask.AzureStorage.Storage
     using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
+    using Azure.Storage.Queues;
+    using Azure.Storage.Queues.Models;
     using DurableTask.AzureStorage.Monitoring;
-    using Microsoft.WindowsAzure.Storage.Queue;
 
     class Queue
     {
         readonly AzureStorageClient azureStorageClient;
-        readonly CloudQueueClient queueClient;
         readonly AzureStorageOrchestrationServiceStats stats;
-        readonly CloudQueue cloudQueue;
+        readonly QueueClient queueClient;
 
-        public Queue(AzureStorageClient azureStorageClient, CloudQueueClient queueClient, string queueName)
+        public Queue(AzureStorageClient azureStorageClient, QueueServiceClient queueServiceClient, string queueName)
         {
             this.azureStorageClient = azureStorageClient;
-            this.queueClient = queueClient;
             this.stats = this.azureStorageClient.Stats;
             this.Name = queueName;
 
-            this.cloudQueue = this.queueClient.GetQueueReference(this.Name);
+            this.queueClient = queueServiceClient.GetQueueClient(this.Name);
         }
 
         public string Name { get; }
 
-        public Uri Uri => this.cloudQueue.Uri;
+        public Uri Uri => this.queueClient.Uri;
 
-        public int? ApproximateMessageCount => this.cloudQueue.ApproximateMessageCount;
-
-        public async Task AddMessageAsync(QueueMessage queueMessage, TimeSpan? visibilityDelay, Guid? clientRequestId = null)
+        public async Task<int> GetApproximateMessagesCountAsync()
         {
-            // Infinite time to live
-            TimeSpan? timeToLive = TimeSpan.FromSeconds(-1);
-#if NET462
-            // WindowsAzure.Storage 7.2.1 does not allow infinite time to live. Passing in null will default the time to live to 7 days.
-            timeToLive = null;
-#endif
+            QueueProperties properties = await this.azureStorageClient.MakeQueueStorageRequest(
+                cancellationToken => this.queueClient.GetPropertiesAsync(cancellationToken),
+                "Queue GetProperties");
+
+            return properties.ApproximateMessagesCount;
+        }
+
+        public async Task AddMessageAsync(string message, TimeSpan? visibilityDelay, Guid? clientRequestId = null)
+        {
             await this.azureStorageClient.MakeQueueStorageRequest(
-                (context, cancellationToken) => this.cloudQueue.AddMessageAsync(
-                    queueMessage.CloudQueueMessage,
-                    timeToLive,
+                cancellationToken => this.queueClient.SendMessageAsync(
+                    message,
                     visibilityDelay,
-                    null,
-                    context),
+                    TimeSpan.FromSeconds(-1), // Infinite time to live
+                    cancellationToken),
                 "Queue AddMessage",
                 clientRequestId?.ToString());
 
@@ -67,129 +66,87 @@ namespace DurableTask.AzureStorage.Storage
         public async Task UpdateMessageAsync(QueueMessage queueMessage, TimeSpan visibilityTimeout, Guid? clientRequestId = null)
         {
             await this.azureStorageClient.MakeQueueStorageRequest(
-                (context, cancellationToken) => this.cloudQueue.UpdateMessageAsync(
-                    queueMessage.CloudQueueMessage,
-                    visibilityTimeout,
-                    MessageUpdateFields.Visibility,
-                    null,
-                    context),
+                cancellationToken => this.queueClient.UpdateMessageAsync(
+                    queueMessage.MessageId,
+                    queueMessage.PopReceipt,
+                    visibilityTimeout: visibilityTimeout,
+                    cancellationToken: cancellationToken),
                 "Queue UpdateMessage",
                 clientRequestId?.ToString());
 
             this.stats.MessagesUpdated.Increment();
         }
 
-        public async Task DeleteMessageAsync(QueueMessage queueMessage, Guid? clientRequestId = null)
-        {
-            await this.azureStorageClient.MakeQueueStorageRequest(
-                (context, cancellationToken) => this.cloudQueue.DeleteMessageAsync(
-                    queueMessage.CloudQueueMessage,
-                    null,
-                    context),
+        public Task DeleteMessageAsync(QueueMessage queueMessage, Guid? clientRequestId = null) =>
+            this.azureStorageClient.MakeQueueStorageRequest(
+                cancellationToken => this.queueClient.DeleteMessageAsync(
+                    queueMessage.MessageId,
+                    queueMessage.PopReceipt,
+                    cancellationToken),
                 "Queue DeleteMessage",
                 clientRequestId?.ToString());
-        }
 
         public async Task<QueueMessage?> GetMessageAsync(TimeSpan visibilityTimeout, CancellationToken callerCancellationToken)
         {
-            var cloudQueueMessage = await this.azureStorageClient.MakeQueueStorageRequest<CloudQueueMessage>(
-                async (context, timeoutCancellationToken) =>
+            QueueMessage message = await this.azureStorageClient.MakeQueueStorageRequest(
+                async timeoutCancellationToken =>
                 {
-                    using (var finalLinkedCts = CancellationTokenSource.CreateLinkedTokenSource(callerCancellationToken, timeoutCancellationToken))
-                    {
-                        return await this.cloudQueue.GetMessageAsync(
-                            visibilityTimeout,
-                            null,
-                            context,
-                            finalLinkedCts.Token);
-                    }
+                    using var finalLinkedCts = CancellationTokenSource.CreateLinkedTokenSource(callerCancellationToken, timeoutCancellationToken);
+                    return await this.queueClient.ReceiveMessageAsync(visibilityTimeout, finalLinkedCts.Token);
                 },
-                "Queue GetMessage");
+                "Queue ReceiveMessage");
 
-            if (cloudQueueMessage == null)
+            if (message == null)
             {
                 return null;
             }
 
             this.stats.MessagesRead.Increment();
-            return new QueueMessage(cloudQueueMessage);
+            return message;
         }
 
-        public async Task<bool> ExistsAsync()
-        {
-            return await this.azureStorageClient.MakeQueueStorageRequest<bool>(
-                (context, cancellationToken) => this.cloudQueue.ExistsAsync(null, context, cancellationToken),
+        public Task<bool> ExistsAsync() =>
+            this.azureStorageClient.MakeQueueStorageRequest(
+                cancellationToken => this.queueClient.ExistsAsync(cancellationToken),
                 "Queue Exists");
-        }
 
-        public async Task<bool> CreateIfNotExistsAsync()
-        {
-            return await this.azureStorageClient.MakeQueueStorageRequest<bool>(
-                (context, cancellationToken) => this.cloudQueue.CreateIfNotExistsAsync(null, context, cancellationToken),
+        public Task<bool> CreateIfNotExistsAsync() =>
+            this.azureStorageClient.MakeQueueStorageRequest(
+                cancellationToken => this.queueClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken),
                 "Queue Create");
-        }
 
-        public async Task<bool> DeleteIfExistsAsync()
-        {
-            return await this.azureStorageClient.MakeQueueStorageRequest<bool>(
-                (context, cancellationToken) => this.cloudQueue.DeleteIfExistsAsync(null, context, cancellationToken),
+        public Task<bool> DeleteIfExistsAsync() =>
+            this.azureStorageClient.MakeQueueStorageRequest(
+                cancellationToken => this.queueClient.DeleteIfExistsAsync(cancellationToken),
                 "Queue Delete");
-        }
 
-        public async Task<IEnumerable<QueueMessage>> GetMessagesAsync(int batchSize, TimeSpan visibilityTimeout, CancellationToken callerCancellationToken)
+        public async Task<IReadOnlyCollection<QueueMessage>> GetMessagesAsync(int batchSize, TimeSpan visibilityTimeout, CancellationToken callerCancellationToken)
         {
-            var cloudQueueMessages = await this.azureStorageClient.MakeQueueStorageRequest<IEnumerable<CloudQueueMessage>>(
-                async (context, timeoutCancellationToken) =>
+            QueueMessage[] messages = await this.azureStorageClient.MakeQueueStorageRequest(
+                async cancellationToken =>
                 {
-                    using (var finalLinkedCts = CancellationTokenSource.CreateLinkedTokenSource(callerCancellationToken, timeoutCancellationToken))
-                    {
-                        return await this.cloudQueue.GetMessagesAsync(
-                            batchSize,
-                            visibilityTimeout,
-                            null,
-                            context,
-                            finalLinkedCts.Token);
-                    }
+                    using var finalLinkedCts = CancellationTokenSource.CreateLinkedTokenSource(callerCancellationToken, cancellationToken);
+                    return await this.queueClient.ReceiveMessagesAsync(batchSize, visibilityTimeout, finalLinkedCts.Token);
                 },
                 "Queue GetMessages");
 
-            var queueMessages = new List<QueueMessage>();
-            foreach (CloudQueueMessage cloudQueueMessage in cloudQueueMessages)
-            {
-                queueMessages.Add(new QueueMessage(cloudQueueMessage));
-                this.stats.MessagesRead.Increment();
-            }
-
-            return queueMessages;
+            this.stats.MessagesRead.Increment(messages.Length);
+            return messages;
         }
 
-        public async Task FetchAttributesAsync()
+        public async Task<IReadOnlyCollection<PeekedMessage>> PeekMessagesAsync(int batchSize)
         {
-            await this.azureStorageClient.MakeQueueStorageRequest(
-                (context, cancellationToken) => this.cloudQueue.FetchAttributesAsync(null, context, cancellationToken),
-                "Queue FetchAttributes");
-        }
-
-        public async Task<IEnumerable<QueueMessage>> PeekMessagesAsync(int batchSize)
-        {
-            var cloudQueueMessages = await this.azureStorageClient.MakeQueueStorageRequest<IEnumerable<CloudQueueMessage>>(
-                (context, cancellationToken) => this.cloudQueue.PeekMessagesAsync(batchSize, null, context, cancellationToken),
+            PeekedMessage[] messages = await this.azureStorageClient.MakeQueueStorageRequest(
+                cancellationToken => this.queueClient.PeekMessagesAsync(batchSize, cancellationToken),
                 "Queue PeekMessages");
 
-            var queueMessages = new List<QueueMessage>();
-            foreach (CloudQueueMessage cloudQueueMessage in cloudQueueMessages)
-            {
-                queueMessages.Add(new QueueMessage(cloudQueueMessage));
-                this.stats.MessagesRead.Increment();
-            }
-
-            return queueMessages;
+            this.stats.MessagesRead.Increment(messages.Length);
+            return messages;
         }
 
-        public async Task<QueueMessage?> PeekMessageAsync()
-        {
-            var queueMessage = await this.cloudQueue.PeekMessageAsync();
-            return queueMessage == null ? null : new QueueMessage(queueMessage);
-        }
+        public Task<PeekedMessage?> PeekMessageAsync() =>
+            this.azureStorageClient.MakeQueueStorageRequest(
+                cancellationToken => this.queueClient.PeekMessageAsync(cancellationToken),
+                "Queue PeekMessage");
     }
 }
