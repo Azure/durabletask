@@ -17,6 +17,7 @@ namespace DurableTask.AzureStorage.Storage
     using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
+    using Azure;
     using Azure.Storage.Queues;
     using Azure.Storage.Queues.Models;
     using DurableTask.AzureStorage.Monitoring;
@@ -110,10 +111,16 @@ namespace DurableTask.AzureStorage.Storage
                 cancellationToken => this.queueClient.ExistsAsync(cancellationToken),
                 "Queue Exists");
 
-        public Task<bool> CreateIfNotExistsAsync() =>
-            this.azureStorageClient.MakeQueueStorageRequest(
+        public async Task<bool> CreateIfNotExistsAsync()
+        {
+            Response response = await this.azureStorageClient.GetQueueStorageRequestResponse(
                 cancellationToken => this.queueClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken),
                 "Queue Create");
+
+            // If we received null, then the response must have been a 409 (Conflict)
+            // and the queue must already exist
+            return response != null;
+        }
 
         public Task<bool> DeleteIfExistsAsync() =>
             this.azureStorageClient.MakeQueueStorageRequest(

@@ -14,12 +14,9 @@
 namespace DurableTask.AzureStorage.Storage
 {
     using System;
-    using System.Collections.Generic;
-    using System.IO;
     using System.Threading;
     using System.Threading.Tasks;
     using Azure;
-    using Azure.Core;
     using Azure.Data.Tables;
     using Azure.Storage.Blobs;
     using Azure.Storage.Queues;
@@ -65,8 +62,8 @@ namespace DurableTask.AzureStorage.Storage
 
         public string TableAccountName => this.tableClient.AccountName;
 
-        public Blob GetBlobReference(string container, string blobName, string? blobDirectory = null) =>
-            new Blob(this, this.blobClient, container, blobName, blobDirectory);
+        public Blob GetBlobReference(string container, string blobName) =>
+            new Blob(this, this.blobClient, container, blobName);
 
         internal Blob GetBlobReference(Uri blobUri) =>
             new Blob(this, this.blobClient, blobUri);
@@ -80,25 +77,45 @@ namespace DurableTask.AzureStorage.Storage
         public Table GetTableReference(string tableName) =>
             new Table(this, this.tableClient, tableName);
 
-        public Task<T> MakeBlobStorageRequest<T>(Func<CancellationToken, Task<Response<T>>> storageRequest, string operationName, string? clientRequestId = null, bool force = false) =>
+        public Task<T> GetBlobStorageRequestResponse<T>(Func<CancellationToken, Task<T>> storageRequest, string operationName, string? clientRequestId = null, bool force = false) =>
             this.MakeStorageRequest(storageRequest, BlobAccountName, operationName, clientRequestId, force);
+
+        public Task<T> GetQueueStorageRequestResponse<T>(Func<CancellationToken, Task<T>> storageRequest, string operationName, string? clientRequestId = null, bool force = false) =>
+            this.MakeStorageRequest(storageRequest, QueueAccountName, operationName, clientRequestId, force);
+
+        public Task<T> MakeBlobStorageRequest<T>(Func<CancellationToken, Task<Response<T>>> storageRequest, string operationName, string? clientRequestId = null, bool force = false) =>
+            this.GetStorageResponseValue(storageRequest, BlobAccountName, operationName, clientRequestId, force);
 
         public Task<T> MakeQueueStorageRequest<T>(Func<CancellationToken, Task<Response<T>>> storageRequest, string operationName, string? clientRequestId = null) =>
-            this.MakeStorageRequest(storageRequest, QueueAccountName, operationName, clientRequestId);
+            this.GetStorageResponseValue(storageRequest, QueueAccountName, operationName, clientRequestId);
 
         public Task<T> MakeTableStorageRequest<T>(Func<CancellationToken, Task<Response<T>>> storageRequest, string operationName, string? clientRequestId = null) =>
-            this.MakeStorageRequest(storageRequest, TableAccountName, operationName, clientRequestId);
+            this.GetStorageResponseValue(storageRequest, TableAccountName, operationName, clientRequestId);
 
-        public Task<bool> MakeBlobStorageRequest(Func<CancellationToken, Task<Response>> storageRequest, string operationName, string? clientRequestId = null, bool force = false) =>
+        public Task<Page<T>?> MakePaginatedBlobStorageRequest<T>(Func<CancellationToken, AsyncPageable<T>> storageRequest, string operationName, string? continuationToken = null, string? clientRequestId = null)
+            where T : notnull =>
+            this.GetNextPage(storageRequest, BlobAccountName, operationName, continuationToken, clientRequestId);
+
+        public Task MakeBlobStorageRequest(Func<CancellationToken, Task<Response>> storageRequest, string operationName, string? clientRequestId = null, bool force = false) =>
             this.MakeStorageRequest(storageRequest, BlobAccountName, operationName, clientRequestId, force);
 
-        public Task<bool> MakeQueueStorageRequest(Func<CancellationToken, Task<Response>> storageRequest, string operationName, string? clientRequestId = null) =>
+        public Task MakeQueueStorageRequest(Func<CancellationToken, Task<Response>> storageRequest, string operationName, string? clientRequestId = null) =>
             this.MakeStorageRequest(storageRequest, QueueAccountName, operationName, clientRequestId);
 
-        public Task<bool> MakeTableStorageRequest(Func<CancellationToken, Task<Response>> storageRequest, string operationName, string? clientRequestId = null) =>
+        public Task MakeTableStorageRequest(Func<CancellationToken, Task<Response>> storageRequest, string operationName, string? clientRequestId = null) =>
             this.MakeStorageRequest(storageRequest, TableAccountName, operationName, clientRequestId);
 
-        private async Task<T> MakeStorageRequest<T>(Func<CancellationToken, Task<Response<T>>> storageRequest, string accountName, string operationName, string? clientRequestId = null, bool force = false)
+        private async Task<T> GetStorageResponseValue<T>(Func<CancellationToken, Task<Response<T>>> storageRequest, string accountName, string operationName, string? clientRequestId, bool force = false)
+        {
+            Response<T> response = await this.MakeStorageRequest(storageRequest, accountName, operationName, clientRequestId, force);
+            return response.Value;
+        }
+
+        private Task<Page<T>?> GetNextPage<T>(Func<CancellationToken, AsyncPageable<T>> storageRequest, string accountName, string operationName, string? continuationToken, string? clientRequestId, bool force = false)
+            where T : notnull =>
+            this.MakeStorageRequest(t => storageRequest(t).GetPageAsync(continuationToken, cancellationToken: t), accountName, operationName, clientRequestId, force);
+
+        private async Task<T> MakeStorageRequest<T>(Func<CancellationToken, Task<T>> storageRequest, string accountName, string operationName, string? clientRequestId = null, bool force = false)
         {
             if (!force)
             {
@@ -120,52 +137,6 @@ namespace DurableTask.AzureStorage.Storage
                     requestThrottleSemaphore.Release();
                 }
             }
-        }
-
-        private Task<bool> MakeStorageRequest(Func<CancellationToken, Task<Response>> storageRequest, string accountName, string operationName, string? clientRequestId = null, bool force = false) =>
-            this.MakeStorageRequest(cancellationToken => WrapFunctionWithReturnType(storageRequest, cancellationToken), accountName, operationName, clientRequestId, force);
-
-        private static async Task<Response<bool>> WrapFunctionWithReturnType(Func<CancellationToken, Task<Response>> storageRequest, CancellationToken cancellationToken)
-        {
-            Response response = await storageRequest(cancellationToken);
-            return response != null ? Response.FromValue(true, response) : Response.FromValue(false, NullResponse.Value);
-        }
-
-        private sealed class NullResponse : Response
-        {
-            public static Response Value { get; } = new NullResponse();
-
-            private NullResponse()
-            { }
-
-            #region Response Implementation
-
-            public override int Status => throw new NotImplementedException();
-
-            public override string ReasonPhrase => throw new NotImplementedException();
-
-            public override Stream? ContentStream { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
-
-            public override string ClientRequestId { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
-
-            
-
-            public override void Dispose() =>
-                throw new NotImplementedException();
-
-            protected override bool ContainsHeader(string name) =>
-                throw new NotImplementedException();
-
-            protected override IEnumerable<HttpHeader> EnumerateHeaders() =>
-                throw new NotImplementedException();
-
-            protected override bool TryGetHeader(string name, out string value) =>
-                throw new NotImplementedException();
-
-            protected override bool TryGetHeaderValues(string name, out IEnumerable<string> values) =>
-                throw new NotImplementedException();
-
-            #endregion
         }
     }
 }
