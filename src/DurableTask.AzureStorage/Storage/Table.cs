@@ -17,166 +17,176 @@ namespace DurableTask.AzureStorage.Storage
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Linq;
+    using System.Linq.Expressions;
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
+    using Azure;
+    using Azure.Data.Tables;
+    using Azure.Data.Tables.Models;
     using DurableTask.AzureStorage.Monitoring;
-    using Microsoft.WindowsAzure.Storage.Table;
     using Newtonsoft.Json;
 
     class Table
     {
         readonly AzureStorageClient azureStorageClient;
-        readonly CloudTableClient tableClient;
         readonly AzureStorageOrchestrationServiceStats stats;
-        readonly CloudTable cloudTable;
+        readonly TableServiceClient tableServiceClient;
+        readonly TableClient tableClient;
 
-        public Table(AzureStorageClient azureStorageClient, CloudTableClient tableClient, string tableName)
+        public Table(AzureStorageClient azureStorageClient, TableServiceClient tableServiceClient, string tableName)
         {
             this.azureStorageClient = azureStorageClient;
-            this.tableClient = tableClient;
             this.Name = tableName;
             this.stats = this.azureStorageClient.Stats;
 
-            this.cloudTable = this.tableClient.GetTableReference(this.Name);
+            this.tableServiceClient = tableServiceClient;
+            this.tableClient = tableServiceClient.GetTableClient(tableName);
         }
 
         public string Name { get; }
 
-        public Uri Uri => this.cloudTable.Uri;
+        public Uri Uri => foo;
 
         public async Task<bool> CreateIfNotExistsAsync()
         {
-            return await this.azureStorageClient.MakeTableStorageRequest<bool>(
-                (context, cancellationToken) => this.cloudTable.CreateIfNotExistsAsync(null, context, cancellationToken),
+            Response<TableItem> response = await this.azureStorageClient.GetTableStorageRequestResponse(
+                cancellationToken => this.tableClient.CreateIfNotExistsAsync(cancellationToken),
                 "Table Create");
+
+            // If we received null, then the response must have been a 409 (Conflict) and the table must already exist
+            return response != null;
         }
 
         public async Task<bool> DeleteIfExistsAsync()
         {
-            return await this.azureStorageClient.MakeTableStorageRequest<bool>(
-                (context, cancellationToken) => this.cloudTable.DeleteIfExistsAsync(null, context, cancellationToken),
+            Response response = await this.azureStorageClient.GetTableStorageRequestResponse(
+                cancellationToken => this.tableClient.DeleteAsync(cancellationToken),
                 "Table Delete");
+
+            // If we received null, then the response must have been a 404 (NotFound) and the table must not exist
+            return response != null;
         }
 
         public async Task<bool> ExistsAsync()
         {
-            return await this.azureStorageClient.MakeTableStorageRequest<bool>(
-                (context, cancellationToken) => this.cloudTable.ExistsAsync(null, context, cancellationToken),
-                "Table Exists");
+            // TODO: Re-evaluate the use of an "Exists" method as it was intentional omitted from the client API
+            List<TableItem> tables = await this.azureStorageClient
+                .EnumerateTableStorageRequest<TableItem>(
+                    cancellationToken => this.tableServiceClient.QueryAsync(filter: $"TableName eq '{tableClient.Name}'", cancellationToken: cancellationToken),
+                    "Table Query Tables")
+                .ToListAsync();
+
+            return tables.Count > 0;
         }
 
-        public async Task ReplaceAsync(DynamicTableEntity tableEntity)
+        public async Task ReplaceAsync<T>(T tableEntity, ETag ifMatch) where T : ITableEntity
         {
-            TableOperation tableOperation = TableOperation.Replace(tableEntity);
-
-            await ExecuteAsync(tableOperation, "Replace");
-        }
-
-        public async Task DeleteAsync(DynamicTableEntity tableEntity)
-        {
-            TableOperation tableOperation = TableOperation.Delete(tableEntity);
-
-            await ExecuteAsync(tableOperation, "Delete");
-        }
-
-        public async Task InsertAsync(DynamicTableEntity tableEntity)
-        {
-            TableOperation tableOperation = TableOperation.Insert(tableEntity);
-
-            await ExecuteAsync(tableOperation, "Insert");
-        }
-
-        public async Task MergeAsync(DynamicTableEntity tableEntity)
-        {
-            TableOperation tableOperation = TableOperation.Merge(tableEntity);
-
-            await ExecuteAsync(tableOperation, "Merge");
-        }
-
-        public async Task InsertOrMergeAsync(DynamicTableEntity tableEntity)
-        {
-            TableOperation tableOperation = TableOperation.InsertOrMerge(tableEntity);
-
-            await ExecuteAsync(tableOperation, "InsertOrMerge");
-        }
-
-        public async Task InsertOrReplaceAsync(DynamicTableEntity tableEntity)
-        {
-            TableOperation tableOperation = TableOperation.InsertOrReplace(tableEntity);
-
-            await ExecuteAsync(tableOperation, "InsertOrReplace");
-        }
-
-        private async Task ExecuteAsync(TableOperation operation, string operationType)
-        {
-            var storageTableResult = await this.azureStorageClient.MakeTableStorageRequest<TableResult>(
-                (context, cancellationToken) => this.cloudTable.ExecuteAsync(operation, null, context, cancellationToken),
-                "Table Execute " + operationType);
+            await this.azureStorageClient.GetTableStorageRequestResponse(
+                cancellationToken => this.tableClient.UpdateEntityAsync(tableEntity, ifMatch, TableUpdateMode.Replace, cancellationToken),
+                "Table Execute Replace");
 
             this.stats.TableEntitiesWritten.Increment();
         }
 
-        public async Task<TableResultResponseInfo> DeleteBatchAsync(IList<DynamicTableEntity> entityBatch)
+        public async Task DeleteAsync<T>(T tableEntity, ETag ifMatch = default) where T : ITableEntity
         {
-            return await this.ExecuteBatchAsync(entityBatch, "Delete", (batch, item) => { batch.Delete(item); return batch; });
+            await this.azureStorageClient.GetTableStorageRequestResponse(
+                cancellationToken => this.tableClient.DeleteEntityAsync(tableEntity.PartitionKey, tableEntity.RowKey, ifMatch, cancellationToken),
+                "Table Execute Delete");
+
+            this.stats.TableEntitiesWritten.Increment();
         }
 
-        public async Task<TableResultResponseInfo> InsertOrMergeBatchAsync(IList<DynamicTableEntity> entityBatch)
+        public async Task InsertAsync<T>(T tableEntity) where T : ITableEntity
+        {
+            await this.azureStorageClient.GetTableStorageRequestResponse(
+                cancellationToken => this.tableClient.AddEntityAsync(tableEntity, cancellationToken),
+                "Table Execute Insert");
+
+            this.stats.TableEntitiesWritten.Increment();
+        }
+
+        public async Task MergeAsync<T>(T tableEntity, ETag ifMatch) where T : ITableEntity
+        {
+            await this.azureStorageClient.GetTableStorageRequestResponse(
+                cancellationToken => this.tableClient.UpdateEntityAsync(tableEntity, ifMatch, TableUpdateMode.Merge, cancellationToken),
+                "Table Execute Merge");
+
+            this.stats.TableEntitiesWritten.Increment();
+        }
+
+        public async Task InsertOrMergeAsync<T>(T tableEntity) where T : ITableEntity
+        {
+            await this.azureStorageClient.GetTableStorageRequestResponse(
+                cancellationToken => this.tableClient.UpsertEntityAsync(tableEntity, TableUpdateMode.Merge, cancellationToken),
+                "Table Execute InsertOrMerge");
+
+            this.stats.TableEntitiesWritten.Increment();
+        }
+
+        public async Task InsertOrReplaceAsync<T>(T tableEntity) where T : ITableEntity
+        {
+            await this.azureStorageClient.GetTableStorageRequestResponse(
+                cancellationToken => this.tableClient.UpsertEntityAsync(tableEntity, TableUpdateMode.Replace, cancellationToken),
+                "Table Execute InsertOrReplace");
+
+            this.stats.TableEntitiesWritten.Increment();
+        }
+
+        public async Task<TableResultResponseInfo> DeleteBatchAsync<T>(IList<T> entityBatch) where T : ITableEntity
+        {
+            return await this.ExecuteBatchAsync(entityBatch, "Delete", item => new TableTransactionAction(TableTransactionActionType.Delete, item));
+        }
+
+        public async Task<TableResultResponseInfo> InsertOrMergeBatchAsync<T>(IList<T> entityBatch) where T : ITableEntity
         {
             this.stats.TableEntitiesWritten.Increment(entityBatch.Count);
-            return await this.ExecuteBatchAsync(entityBatch, "InsertOrMerge", (batch, item) => { batch.InsertOrMerge(item); return batch; });
+            return await this.ExecuteBatchAsync(entityBatch, "InsertOrMerge", item => new TableTransactionAction(TableTransactionActionType.UpsertMerge, item));
         }
 
-        private async Task<TableResultResponseInfo> ExecuteBatchAsync(
-            IList<DynamicTableEntity> entityBatch, 
-            string batchType, 
-            Func<TableBatchOperation, DynamicTableEntity, TableBatchOperation> batchOperation)
+        private async Task<TableResultResponseInfo> ExecuteBatchAsync<T>(
+            IList<T> entityBatch,
+            string batchType,
+            Func<T, TableTransactionAction> batchOperation) where T : ITableEntity
         {
-            List<TableResult> results = new List<TableResult>();
-            int requestCount = 0;
+            List<Response> results = new List<Response>();
             long elapsedMilliseconds = 0;
-            int pageOffset = 0;
-            while (pageOffset < entityBatch.Count)
+            for (int i = 0; i < entityBatch.Count; i += 100)
             {
-                List<DynamicTableEntity> entitiesInBatch = entityBatch.Skip(pageOffset).Take(100).ToList();
+                // Note: Skip optimizes for IList<T> implementations
+                IEnumerable<TableTransactionAction> batch = entityBatch
+                    .Skip(i)
+                    .Take(100)
+                    .Select(batchOperation);
 
-                var batch = new TableBatchOperation();
-                foreach (DynamicTableEntity item in entitiesInBatch)
-                {
-                    batch = batchOperation(batch, item);
-                }
-
-                var batchResults = await this.ExecuteBatchAsync(batch, batchType);
+                TableResultResponseInfo batchResults = await this.ExecuteBatchAsync(batch, batchType);
 
                 elapsedMilliseconds += batchResults.ElapsedMilliseconds;
-                requestCount += batchResults.RequestCount;
                 results.AddRange(batchResults.TableResults);
-                pageOffset += entitiesInBatch.Count;
             }
-
 
             return new TableResultResponseInfo
             {
                 ElapsedMilliseconds = elapsedMilliseconds,
-                RequestCount = requestCount,
+                RequestCount = entityBatch.Count,
                 TableResults = results
             };
         }
 
-        public async Task<TableResultResponseInfo> ExecuteBatchAsync(TableBatchOperation batchOperation, string batchType)
+        public async Task<TableResultResponseInfo> ExecuteBatchAsync(IEnumerable<TableTransactionAction> batchOperation, string batchType)
         {
             var stopwatch = new Stopwatch();
             long elapsedMilliseconds = 0;
 
-            var batchResults = await this.azureStorageClient.MakeTableStorageRequest(
-                (context, timeoutToken) => this.cloudTable.ExecuteBatchAsync(batchOperation, null, context, timeoutToken),
+            IReadOnlyList<Response> batchResults = await this.azureStorageClient.MakeTableStorageRequest(
+                timeoutToken => this.tableClient.SubmitTransactionAsync(batchOperation, timeoutToken),
                 "Table BatchExecute " + batchType);
 
             stopwatch.Stop();
             elapsedMilliseconds += stopwatch.ElapsedMilliseconds;
 
-            this.stats.TableEntitiesWritten.Increment(batchOperation.Count);
+            this.stats.TableEntitiesWritten.Increment(batchResults.Count);
 
             return new TableResultResponseInfo
             {
@@ -186,49 +196,25 @@ namespace DurableTask.AzureStorage.Storage
             };
         }
 
-        public async Task<TableEntitiesResponseInfo<T>> ExecuteQueryAsync<T>(TableQuery<T> query, CancellationToken callerCancellationToken) where T : ITableEntity, new()
+        public async Task<TableEntitiesResponseInfo<T>> ExecuteQueryAsync<T>(Expression<Func<T, bool>> filter, CancellationToken callerCancellationToken) where T : class, ITableEntity, new()
         {
-            var results = new List<T>();
-            TableContinuationToken? tableContinuationToken = null;
-
             var stopwatch = new Stopwatch();
-            int requestCount = 0;
-            long elapsedMilliseconds = 0;
+            stopwatch.Start();
 
-            while (true)
-            {
-                stopwatch.Start();
+            int pages = 0;
+            List<T> results = await this.azureStorageClient
+                .EnumerateTableStorageRequest(
+                     cancellationToken => this.tableClient.QueryAsync(filter, cancellationToken: cancellationToken),
+                     "Table Query",
+                     onPageFetch: p => pages++)
+                .ToListAsync();
 
-                TableQuerySegment<T> segment = await this.azureStorageClient.MakeTableStorageRequest(
-                    async (context, timeoutCancellationToken) =>
-                    {
-                        using var finalLinkedCts = CancellationTokenSource.CreateLinkedTokenSource(callerCancellationToken, timeoutCancellationToken);
-                        return await this.cloudTable.ExecuteQuerySegmentedAsync(query, tableContinuationToken, null, context, finalLinkedCts.Token);
-                    },
-                    "Table ExecuteQuerySegmented");
-
-                stopwatch.Stop();
-                elapsedMilliseconds += stopwatch.ElapsedMilliseconds;
-                this.stats.TableEntitiesRead.Increment(segment.Results.Count);
-                requestCount++;
-
-                results.AddRange(segment);
-                if (query.TakeCount > 0 && results.Count >= query.TakeCount)
-                {
-                    break;
-                }
-
-                tableContinuationToken = segment.ContinuationToken;
-                if (tableContinuationToken == null || callerCancellationToken.IsCancellationRequested)
-                {
-                    break;
-                }
-            }
+            stopwatch.Stop();
 
             return new TableEntitiesResponseInfo<T>
             {
-                ElapsedMilliseconds = elapsedMilliseconds,
-                RequestCount = requestCount,
+                ElapsedMilliseconds = stopwatch.ElapsedMilliseconds,
+                RequestCount = pages,
                 ReturnedEntities = results,
             };
         }

@@ -16,6 +16,7 @@ namespace DurableTask.AzureStorage.Storage
     using System;
     using System.Collections.Generic;
     using System.IO;
+    using System.Linq;
     using System.Threading.Tasks;
     using Azure;
     using Azure.Storage.Blobs;
@@ -44,13 +45,13 @@ namespace DurableTask.AzureStorage.Storage
 
         public async Task<bool> CreateIfNotExistsAsync()
         {
-            Response<BlobContainerInfo> info = await this.azureStorageClient.GetBlobStorageRequestResponse( // TODO: Any encryption scope?
+            // TODO: Any encryption scope?
+            Response<BlobContainerInfo> response = await this.azureStorageClient.GetBlobStorageRequestResponse(
                 cancellationToken => this.blobContainerClient.CreateIfNotExistsAsync(PublicAccessType.None, cancellationToken: cancellationToken),
                 "Create Container");
 
-            // If we received null, then the response must have been a 409 (Conflict)
-            // and the container must already exist
-            return info != null;
+            // If we received null, then the response must have been a 409 (Conflict) and the container must already exist
+            return response != null;
         }
 
         public Task<bool> ExistsAsync() =>
@@ -66,27 +67,17 @@ namespace DurableTask.AzureStorage.Storage
                 conditions = new BlobRequestConditions { LeaseId = appLeaseId };
             }
 
-            return await this.azureStorageClient.MakeBlobStorageRequest<bool>(
+            return await this.azureStorageClient.MakeBlobStorageRequest(
                 cancellationToken => this.blobContainerClient.DeleteIfExistsAsync(conditions, cancellationToken),
                 "Delete Container");
         }
 
-        public async IAsyncEnumerable<Blob> ListBlobsAsync(string? prefix = null)
-        {
-            Page<BlobItem>? page = null;
-            do
-            {
-                page = await this.azureStorageClient.MakePaginatedBlobStorageRequest(
+        public IAsyncEnumerable<Blob> ListBlobsAsync(string? prefix = null) =>
+            this.azureStorageClient
+                .EnumerateBlobStorageRequest(
                     cancellationToken => this.blobContainerClient.GetBlobsAsync(BlobTraits.Metadata, BlobStates.None, prefix, cancellationToken),
-                    "Container GetBlobs");
-
-                foreach (BlobItem blobItem in page?.Values ?? Array.Empty<BlobItem>())
-                {
-                    yield return this.GetBlobReference(blobItem.Name);
-                }
-            }
-            while (page?.ContinuationToken != null);
-        }
+                    "Container GetBlobs")
+                .Select(x => this.GetBlobReference(x.Name));
 
         public async Task<string> AcquireLeaseAsync(TimeSpan leaseInterval, string leaseId)
         {

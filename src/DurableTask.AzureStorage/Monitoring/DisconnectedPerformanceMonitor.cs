@@ -37,7 +37,7 @@ namespace DurableTask.AzureStorage.Monitoring
         readonly QueueMetricHistory workItemQueueLatencies = new QueueMetricHistory(QueueLengthSampleSize);
 
         readonly AzureStorageOrchestrationServiceSettings settings;
-        private readonly AzureStorageClient azureStorageClient;
+        private readonly AzureStorageServices azureStorageClient;
         readonly int maxPollingLatency;
         readonly int highLatencyThreshold;
 
@@ -51,7 +51,7 @@ namespace DurableTask.AzureStorage.Monitoring
         /// <param name="storageConnectionString">The connection string for the Azure Storage account to monitor.</param>
         /// <param name="taskHub">The name of the task hub within the specified storage account.</param>
         public DisconnectedPerformanceMonitor(string storageConnectionString, string taskHub)
-            : this(new StorageAccountDetails { ConnectionString = storageConnectionString }, taskHub, null)
+            : this(new AzureStorageServices { ConnectionString = storageConnectionString }, taskHub, null)
         {
         }
 
@@ -62,7 +62,7 @@ namespace DurableTask.AzureStorage.Monitoring
         /// <param name="taskHub">The name of the task hub within the specified storage account.</param>
         /// <param name="maxPollingIntervalMilliseconds">The maximum interval in milliseconds for polling control and work-item queues.</param>
         public DisconnectedPerformanceMonitor(
-            StorageAccountDetails storageAccount,
+            AzureStorageServices storageAccount,
             string taskHub,
             int? maxPollingIntervalMilliseconds = null)
             : this(GetSettings(storageAccount, taskHub, maxPollingIntervalMilliseconds))
@@ -96,13 +96,13 @@ namespace DurableTask.AzureStorage.Monitoring
         internal QueueMetricHistory WorkItemQueueLatencies => this.workItemQueueLatencies;
 
         static AzureStorageOrchestrationServiceSettings GetSettings(
-            StorageAccountDetails storageAccount,
+            AzureStorageServices storageAccount,
             string taskHub,
             int? maxPollingIntervalMilliseconds = null)
         {
             var settings = new AzureStorageOrchestrationServiceSettings
             {
-                StorageAccountDetails = storageAccount,
+                StorageServices = storageAccount,
                 TaskHubName = taskHub
             };
 

@@ -14,7 +14,7 @@
 namespace DurableTask.AzureStorage.Storage
 {
     using System.Collections.Generic;
-    using Microsoft.WindowsAzure.Storage.Table;
+    using Azure;
 
     class TableResultResponseInfo
     {
@@ -22,6 +22,6 @@ namespace DurableTask.AzureStorage.Storage
 
         public int RequestCount { get; set; }
 
-        public IList<TableResult>? TableResults { get; set; }
+        public IReadOnlyList<Response>? TableResults { get; set; }
     }
 }

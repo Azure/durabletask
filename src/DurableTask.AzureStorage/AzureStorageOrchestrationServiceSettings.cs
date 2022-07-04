@@ -18,10 +18,8 @@ namespace DurableTask.AzureStorage
     using DurableTask.AzureStorage.Logging;
     using DurableTask.Core;
     using Microsoft.Extensions.Logging;
-    using Microsoft.WindowsAzure.Storage.Queue;
-    using Microsoft.WindowsAzure.Storage.Table;
     using System.Runtime.Serialization;
-    using System.Threading.Tasks;
+    using Azure.Data.Tables;
 
     /// <summary>
     /// Settings that impact the runtime behavior of the <see cref="AzureStorageOrchestrationService"/>.
@@ -57,35 +55,9 @@ namespace DurableTask.AzureStorage
         public TimeSpan ControlQueueVisibilityTimeout { get; set; } = TimeSpan.FromMinutes(5);
 
         /// <summary>
-        /// Gets or sets the <see cref="QueueRequestOptions"/> that are provided to all internal 
-        /// usage of <see cref="CloudQueue"/> APIs for the control queue.
-        /// </summary>
-        [Obsolete("ControlQueueRequestOptions is deprecated. If you still need to configure QueueRequestOptions please open an issue at https://github.com/Azure/durabletask with the specific configurations options you need.")]
-        public QueueRequestOptions ControlQueueRequestOptions { get; set; }
-
-        /// <summary>
         /// Gets or sets the visibility timeout of dequeued work item queue messages. The default is 5 minutes.
         /// </summary>
         public TimeSpan WorkItemQueueVisibilityTimeout { get; set; } = TimeSpan.FromMinutes(5);
-
-        /// <summary>
-        /// Gets or sets the <see cref="QueueRequestOptions"/> that are provided to all internal 
-        /// usage of <see cref="CloudQueue"/> APIs for the work item queue.
-        /// </summary>
-        [Obsolete("WorkItemQueueRequestOptions is deprecated. If you still need to configure QueueRequestOptions please open an issue at https://github.com/Azure/durabletask with the specific configurations options you need.")]
-        public QueueRequestOptions WorkItemQueueRequestOptions { get; set; }
-
-        /// <summary>
-        /// Gets or sets the <see cref="TableRequestOptions"/> that are provided to all internal
-        /// usage of the <see cref="CloudTable"/> APIs for the history table.
-        /// </summary>
-        [Obsolete("HistoryTableRequestOptions is deprecated. If you still need to configure TableRequestOptions please open an issue at https://github.com/Azure/durabletask with the specific configurations options you need.")]
-        public TableRequestOptions HistoryTableRequestOptions { get; set; }
-
-        /// <summary>
-        /// Gets or sets the Azure Storage connection string.
-        /// </summary>
-        public string StorageConnectionString { get; set; }
 
         /// <summary>
         /// Gets or sets the prefix of the TrackingStore table name.
@@ -181,16 +153,15 @@ namespace DurableTask.AzureStorage
         public AppLeaseOptions AppLeaseOptions { get; set; } = AppLeaseOptions.DefaultOptions;
 
         /// <summary>
-        /// Gets or sets the Azure Storage Account details
-        /// If provided, this is used to connect to Azure Storage
+        /// The Azure Storage services used by the Durable Task framework.
         /// </summary>
-        public StorageAccountDetails StorageAccountDetails { get; set; }
+        public AzureStorageServices StorageServices { get; set; }
 
         /// <summary>
-        /// Gets or sets the Storage Account Details for Tracking Store.
-        /// In case of null, StorageAccountDetails is applied. 
+        /// Gets or sets the client used for the tracking store.
+        /// In case of <see langword="null"/>, <see cref="StorageServices"/> are used instead.
         /// </summary>
-        public StorageAccountDetails TrackingStoreStorageAccountDetails { get; set; }
+        public TableServiceClient TrackingStoreServiceClient { get; set; }
         
         /// <summary>
         ///  Should we carry over unexecuted raised events to the next iteration of an orchestration on ContinueAsNew
@@ -224,24 +195,13 @@ namespace DurableTask.AzureStorage
         public bool DisableExecutionStartedDeduplication { get; set; }
 
         /// <summary>
-        /// Gets or sets an optional function to be executed before the app is recycled. Reason for shutdown is passed as a string parameter.
-        /// This can be used to perform any pending cleanup tasks or just do a graceful shutdown.
-        /// The function returns a <see cref="bool"/>. If 'true' is returned <see cref="Environment.FailFast(string)"/> is executed, if 'false' is returned,
-        /// process kill is skipped.
-        /// A wait time of 35 seconds will be given for the task to finish, if the task does not finish in required time, <see cref="Environment.FailFast(string)"/> will be executed.
-        /// </summary>
-        /// <remarks>Skipping process kill by returning false might have negative consequences if since Storage SDK might be in deadlock. Ensure if you return
-        /// false a process shutdown is executed by you.</remarks>
-        public Func<string, Task<bool>> OnImminentFailFast { get; set; } = (message) => Task.FromResult(true);
-
-        /// <summary>
         /// Returns bool indicating is the TrackingStoreStorageAccount has been set.
         /// </summary>
-        public bool HasTrackingStoreStorageAccount => this.TrackingStoreStorageAccountDetails != null;
+        public bool HasSeparateTrackingStore => this.TrackingStoreServiceClient != null;
 
-        internal string HistoryTableName => this.HasTrackingStoreStorageAccount ? $"{this.TrackingStoreNamePrefix}History" : $"{this.TaskHubName}History";
+        internal string HistoryTableName => this.HasSeparateTrackingStore ? $"{this.TrackingStoreNamePrefix}History" : $"{this.TaskHubName}History";
 
-        internal string InstanceTableName => this.HasTrackingStoreStorageAccount ? $"{this.TrackingStoreNamePrefix}Instances" : $"{this.TaskHubName}Instances";
+        internal string InstanceTableName => this.HasSeparateTrackingStore ? $"{this.TrackingStoreNamePrefix}Instances" : $"{this.TaskHubName}Instances";
 
         /// <summary>
         /// Gets an instance of <see cref="LogHelper"/> that can be used for writing structured logs.

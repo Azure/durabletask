@@ -22,6 +22,8 @@ namespace DurableTask.AzureStorage
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
+    using Azure;
+    using Azure.Storage.Queues;
     using DurableTask.AzureStorage.Messaging;
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Partitioning;
@@ -31,7 +33,6 @@ namespace DurableTask.AzureStorage
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
     using DurableTask.Core.Query;
-    using Microsoft.WindowsAzure.Storage;
     using Newtonsoft.Json;
 
     /// <summary>
@@ -52,7 +53,6 @@ namespace DurableTask.AzureStorage
             ExecutionId = string.Empty
         };
 
-        readonly AzureStorageClient azureStorageClient;
         readonly AzureStorageOrchestrationServiceSettings settings;
         readonly AzureStorageOrchestrationServiceStats stats;
         readonly ConcurrentDictionary<string, ControlQueue> allControlQueues;
@@ -84,9 +84,9 @@ namespace DurableTask.AzureStorage
         /// <inheritdoc/>
         public override string ToString()
         {
-            string blobAccountName = this.azureStorageClient.BlobAccountName;
-            string queueAccountName = this.azureStorageClient.QueueAccountName;
-            string tableAccountName = this.azureStorageClient.TableAccountName;
+            string blobAccountName = this.settings.StorageServices.Blob.AccountName;
+            string queueAccountName = this.settings.StorageServices.Queue.AccountName;
+            string tableAccountName = this.settings.StorageServices.Table.AccountName;
 
             return blobAccountName == queueAccountName && blobAccountName == tableAccountName
                 ? $"AzureStorageOrchestrationService on {blobAccountName}"
@@ -106,10 +106,9 @@ namespace DurableTask.AzureStorage
             }
 
             ValidateSettings(settings);
+            settings.StorageServices.Blob
 
             this.settings = settings;
-
-            this.azureStorageClient = new AzureStorageClient(settings);
             this.stats = this.azureStorageClient.Stats;
 
             string compressedMessageBlobContainerName = $"{settings.TaskHubName.ToLowerInvariant()}-largemessages";
@@ -542,7 +541,7 @@ namespace DurableTask.AzureStorage
             return controlQueues;
         }
 
-        internal static Queue GetWorkItemQueue(AzureStorageClient azureStorageClient)
+        internal static Queue GetWorkItemQueue(QueueServiceClient queueService)
         {
             string queueName = GetWorkItemQueueName(azureStorageClient.Settings.TaskHubName);
             return azureStorageClient.GetQueueReference(queueName);
@@ -1052,26 +1051,23 @@ namespace DurableTask.AzureStorage
                     this.orchestrationSessionManager.AddMessageToPendingOrchestration(session.ControlQueue, messages, session.TraceActivityId, CancellationToken.None);
                 }
             }
-            catch (Exception e)
+            catch (RequestFailedException rfe) when (rfe.Status == (int)HttpStatusCode.PreconditionFailed)
             {
                 // Precondition failure is expected to be handled internally and logged as a warning.
-                if ((e as StorageException)?.RequestInformation?.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
-                {
-                    // The orchestration dispatcher will handle this exception by abandoning the work item
-                    throw new SessionAbortedException();
-                }
-                else
-                {
-                    // TODO: https://github.com/Azure/azure-functions-durable-extension/issues/332
-                    //       It's possible that history updates may have been partially committed at this point.
-                    //       If so, what are the implications of this as far as DurableTask.Core are concerned?
-                    this.settings.Logger.OrchestrationProcessingFailure(
-                        this.azureStorageClient.TableAccountName,
-                        this.settings.TaskHubName,
-                        instanceId,
-                        executionId,
-                        e.ToString());
-                }
+                // The orchestration dispatcher will handle this exception by abandoning the work item
+                throw new SessionAbortedException("Aborting execution due to failed precondition.", rfe);
+            }
+            catch (Exception e)
+            {
+                // TODO: https://github.com/Azure/azure-functions-durable-extension/issues/332
+                //       It's possible that history updates may have been partially committed at this point.
+                //       If so, what are the implications of this as far as DurableTask.Core are concerned?
+                this.settings.Logger.OrchestrationProcessingFailure(
+                    this.azureStorageClient.TableAccountName,
+                    this.settings.TaskHubName,
+                    instanceId,
+                    executionId,
+                    e.ToString());
 
                 throw;
             }

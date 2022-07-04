@@ -19,6 +19,7 @@ namespace DurableTask.AzureStorage.Messaging
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
+    using Azure.Storage.Queues;
     using DurableTask.AzureStorage.Storage;
     using DurableTask.Core;
     using DurableTask.Core.History;
@@ -28,7 +29,7 @@ namespace DurableTask.AzureStorage.Messaging
         static long messageSequenceNumber;
 
         protected readonly AzureStorageClient azureStorageClient;
-        protected readonly Queue storageQueue;
+        protected readonly QueueClient storageQueue;
         protected readonly MessageManager messageManager;
         protected readonly string storageAccountName;
         protected readonly AzureStorageOrchestrationServiceSettings settings;
@@ -109,8 +110,6 @@ namespace DurableTask.AzureStorage.Messaging
                 
                 string rawContent = await this.messageManager.SerializeMessageDataAsync(data);
 
-                QueueMessage queueMessage = new QueueMessage(rawContent);
-
                 this.settings.Logger.SendingMessage(
                     outboundTraceActivityId,
                     this.storageAccountName,
@@ -127,7 +126,7 @@ namespace DurableTask.AzureStorage.Messaging
                     data.Episode.GetValueOrDefault(-1));
 
                 await this.storageQueue.AddMessageAsync(
-                    queueMessage,
+                    rawContent,
                     GetVisibilityDelay(taskMessage),
                     session?.TraceActivityId);
 

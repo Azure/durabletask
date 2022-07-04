@@ -117,8 +117,7 @@ namespace DurableTask.AzureStorage.Storage
                 cancellationToken => this.queueClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken),
                 "Queue Create");
 
-            // If we received null, then the response must have been a 409 (Conflict)
-            // and the queue must already exist
+            // If we received null, then the response must have been a 409 (Conflict) and the queue must already exist
             return response != null;
         }
 
