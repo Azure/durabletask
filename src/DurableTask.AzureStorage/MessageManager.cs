@@ -269,22 +269,25 @@ namespace DurableTask.AzureStorage
             return $"{instanceId}/message-{activityId}-{eventType}.json.gz";
         }
 
-        public async Task DeleteLargeMessageBlobs(string sanitizedInstanceId)
+        public async Task<int> DeleteLargeMessageBlobs(string sanitizedInstanceId)
         {
-            if (!await this.blobContainer.ExistsAsync())
+            int storageOperationCount = 1;
+            if (await this.blobContainer.ExistsAsync())
             {
-                return;
+                IEnumerable<Blob> blobList = await this.blobContainer.ListBlobsAsync(sanitizedInstanceId);
+                storageOperationCount++;
+
+                var blobForDeletionTaskList = new List<Task>();
+                foreach (Blob blob in blobList)
+                {
+                    blobForDeletionTaskList.Add(blob.DeleteIfExistsAsync());
+                }
+
+                await Task.WhenAll(blobForDeletionTaskList);
+                storageOperationCount += blobForDeletionTaskList.Count;
             }
 
-            IEnumerable<Blob> blobList = await this.blobContainer.ListBlobsAsync(sanitizedInstanceId);
-
-            var blobForDeletionTaskList = new List<Task>();
-            foreach (Blob blob in blobList)
-            {
-                blobForDeletionTaskList.Add(blob.DeleteIfExistsAsync());
-            }
-
-            await Task.WhenAll(blobForDeletionTaskList);
+            return storageOperationCount;
         }
     }
 

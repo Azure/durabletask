@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-VisualStudioVersion = 17.1.32319.34
+VisualStudioVersion = 17.2.32516.85
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.ServiceBus", "src\DurableTask.ServiceBus\DurableTask.ServiceBus.csproj", "{6F5D2EAD-726D-4FE5-A575-AEB96D1CCE37}"
 EndProject
@@ -70,6 +70,10 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.AzureServiceFabric.Service", "src\DurableTask.AzureServiceFabric.Service\DurableTask.AzureServiceFabric.Service.csproj", "{13E49586-CDA1-41A3-84E0-CC5844C035BE}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DurableTask.AzureServiceFabric.Client", "src\DurableTask.AzureServiceFabric.Client\DurableTask.AzureServiceFabric.Client.csproj", "{F4EAD106-994D-4127-B5E8-191BE31EBA9D}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{D02EF5EF-3D7E-4223-B256-439BAF0C8853}"
+	ProjectSection(SolutionItems) = preProject
+		azure-pipelines-release.yml = azure-pipelines-release.yml
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -209,7 +213,7 @@ Global
 		{F4EAD106-994D-4127-B5E8-191BE31EBA9D} = {DBCD161C-D409-48E5-924E-9B7FA1C36B84}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {2D63A120-9394-48D9-8CA9-1184364FB854}
 		EnterpriseLibraryConfigurationToolBinariesPath = packages\TransientFaultHandling.Core.5.1.1209.1\lib\NET4
+		SolutionGuid = {2D63A120-9394-48D9-8CA9-1184364FB854}
 	EndGlobalSection
 EndGlobal

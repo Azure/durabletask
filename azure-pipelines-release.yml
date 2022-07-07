@@ -31,7 +31,7 @@ steps:
     vsVersion: '16.0'
     logFileVerbosity: minimal
     configuration: Release
-    msbuildArgs: /p:GITHUB_RUN_NUMBER=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+    msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
 
 - task: VSBuild@1
   displayName: 'Build (Emulator)'
@@ -40,7 +40,7 @@ steps:
     vsVersion: '16.0'
     logFileVerbosity: minimal
     configuration: Release
-    msbuildArgs: /p:GITHUB_RUN_NUMBER=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+    msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
 
 - task: VSBuild@1
   displayName: 'Build (ServiceBus)'
@@ -49,7 +49,7 @@ steps:
     vsVersion: '16.0'
     logFileVerbosity: minimal
     configuration: Release
-    msbuildArgs: /p:GITHUB_RUN_NUMBER=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+    msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
 
 - task: VSBuild@1
   displayName: 'Build (AzureServiceFabric.Client)'
@@ -89,7 +89,7 @@ steps:
     logFileVerbosity: minimal
     configuration: Release
     platform: x64
-    msbuildArgs: /p:GITHUB_RUN_NUMBER=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+    msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
 
 # Manifest Generator Task
 - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0

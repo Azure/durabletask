@@ -199,15 +199,13 @@ namespace DurableTask.AzureStorage.Storage
             {
                 stopwatch.Start();
 
-                var segment = await this.azureStorageClient.MakeTableStorageRequest(
+                TableQuerySegment<T> segment = await this.azureStorageClient.MakeTableStorageRequest(
                     async (context, timeoutCancellationToken) =>
                     {
-                        using (var finalLinkedCts = CancellationTokenSource.CreateLinkedTokenSource(callerCancellationToken, timeoutCancellationToken))
-                        {
-                            return await this.cloudTable.ExecuteQuerySegmentedAsync(query, tableContinuationToken, null, context, finalLinkedCts.Token);
-                        }
+                        using var finalLinkedCts = CancellationTokenSource.CreateLinkedTokenSource(callerCancellationToken, timeoutCancellationToken);
+                        return await this.cloudTable.ExecuteQuerySegmentedAsync(query, tableContinuationToken, null, context, finalLinkedCts.Token);
                     },
-                "Table ExecuteQuerySegmented");
+                    "Table ExecuteQuerySegmented");
 
                 stopwatch.Stop();
                 elapsedMilliseconds += stopwatch.ElapsedMilliseconds;
@@ -215,6 +213,10 @@ namespace DurableTask.AzureStorage.Storage
                 requestCount++;
 
                 results.AddRange(segment);
+                if (query.TakeCount > 0 && results.Count >= query.TakeCount)
+                {
+                    break;
+                }
 
                 tableContinuationToken = segment.ContinuationToken;
                 if (tableContinuationToken == null || callerCancellationToken.IsCancellationRequested)

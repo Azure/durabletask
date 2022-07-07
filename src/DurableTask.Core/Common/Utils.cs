@@ -14,9 +14,13 @@
 namespace DurableTask.Core.Common
 {
     using System;
+    using System.Collections.Generic;
     using System.Diagnostics;
+    using System.Dynamic;
     using System.IO;
     using System.IO.Compression;
+    using System.Linq;
+    using System.Reflection;
     using System.Runtime.ExceptionServices;
     using System.Text;
     using System.Threading;
@@ -511,6 +515,94 @@ namespace DurableTask.Core.Common
                     taskScheduledId = -1;
                     return false;
             }
+        }
+
+        /// <summary>
+        /// Gets the generic return type for a specific <paramref name="methodInfo"/>.
+        /// </summary>
+        /// <param name="methodInfo">The method to get the generic return type for.</param>
+        /// <param name="genericArguments">The generic method arguments.</param>
+        internal static Type GetGenericReturnType(MethodInfo methodInfo, Type[] genericArguments)
+        {
+            if (!methodInfo.ReturnType.IsGenericType)
+            {
+                throw new InvalidOperationException("Return type is not a generic type. Type Name: " + methodInfo.ReturnType.FullName);
+            }
+
+            Type genericArgument = methodInfo.ReturnType.GetGenericArguments().SingleOrDefault() ??
+                throw new NotSupportedException($"The method {methodInfo.Name} cannot be used because its return type '{methodInfo.ReturnType.FullName}' has more than one generic parameter."); ;
+
+            return ConvertFromGenericType(genericParameters: methodInfo.GetGenericArguments(), genericArguments, genericArgument);
+        }
+
+        /// <summary>
+        /// Converts the specified <paramref name="typeToConvert"/> to a non-generic equivalent.
+        /// </summary>
+        /// <param name="genericParameters">The generic type parameters.</param>
+        /// <param name="genericArguments">The generic type arguments.</param>
+        /// <param name="typeToConvert">The type to convert.</param>
+        /// <returns>The non-generic representation of the type.</returns>
+        /// <remarks>
+        /// A type can exist in one of the following states;
+        /// 1. T[]: Array with generic element type
+        /// 2. Concrete<![CDATA[<T>]]>: A concrete type with generic type args e.g List<![CDATA[<T>]]>.
+        /// 3. T: A generic parameter.
+        /// 4. Concrete: A simple, non-generic type.
+        /// </remarks>
+        internal static Type ConvertFromGenericType(Type[] genericParameters, Type[] genericArguments, Type typeToConvert)
+        {
+            // Check if type is of form T[]
+            if (typeToConvert.IsArray)
+            {
+                Type elementType = typeToConvert.GetElementType();
+                if (elementType.IsGenericParameter)
+                {
+                    int index = Array.IndexOf(genericParameters, elementType);
+
+                    // Return the value of the generic argument.
+                    return ConvertFromGenericType(
+                        genericParameters,
+                        genericArguments,
+                        genericArguments[index].MakeArrayType());
+                }
+            }
+
+            // Check if type if of form Concrete<T> e.g Dictionary<T, U>
+            if (typeToConvert.IsGenericType)
+            {
+                Type[] genericArgs = typeToConvert.GetGenericArguments();
+                List<Type> genericTypeValues = new List<Type>();
+
+                foreach (Type genericArg in genericArgs)
+                {
+                    // Return the value of the generic argument.
+                    genericTypeValues.Add(ConvertFromGenericType(genericParameters, genericArguments, genericArg));
+                }
+
+                return typeToConvert.GetGenericTypeDefinition().MakeGenericType(genericTypeValues.ToArray());
+            }
+
+            // Check if type is of form T
+            if (typeToConvert.IsGenericParameter)
+            {
+                int index = Array.IndexOf(genericParameters, typeToConvert);
+
+                // Return the value of the generic argument.
+                return ConvertFromGenericType(
+                    genericParameters,
+                    genericArguments,
+                    genericArguments[index]);
+            }
+
+            // return since the argument is a concrete type.
+            return typeToConvert;
+        }
+
+        internal sealed class TypeMetadata
+        {
+            public string AssemblyName { get; set; }
+
+            public string FullyQualifiedTypeName { get; set; }
         }
     }
 }

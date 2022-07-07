@@ -24,10 +24,9 @@ namespace DurableTask.AzureStorage.Tracking
     /// </summary>
     public class OrchestrationInstanceStatusQueryCondition
     {
-        private static readonly List<string> ColumnsWithoutInput = typeof(OrchestrationInstanceStatus).GetProperties()
-            .Where(prop => !prop.Name.Equals(nameof(OrchestrationInstanceStatus.Input)))
+        static readonly string[] ColumnNames = typeof(OrchestrationInstanceStatus).GetProperties()
             .Select(prop => prop.Name)
-            .ToList();
+            .ToArray();
 
         /// <summary>
         /// RuntimeStatus
@@ -65,6 +64,11 @@ namespace DurableTask.AzureStorage.Tracking
         public bool FetchInput { get; set; } = true;
 
         /// <summary>
+        /// If true, the output will be returned with the results. The default value is true.
+        /// </summary>
+        public bool FetchOutput { get; set; } = true;
+
+        /// <summary>
         /// Get the TableQuery object
         /// </summary>
         /// <typeparam name="T"></typeparam>
@@ -80,9 +84,20 @@ namespace DurableTask.AzureStorage.Tracking
                 this.InstanceIdPrefix == null &&
                 this.InstanceId == null))
             {
-                if (!this.FetchInput)
+                if (!this.FetchInput || !this.FetchOutput)
                 {
-                    query.Select(ColumnsWithoutInput);
+                    var columns = new HashSet<string>(ColumnNames);
+                    if (!this.FetchInput)
+                    {
+                        columns.Remove(nameof(OrchestrationInstanceStatus.Input));
+                    }
+
+                    if (!this.FetchOutput)
+                    {
+                        columns.Remove(nameof(OrchestrationInstanceStatus.Output));
+                    }
+
+                    query.Select(columns.ToList());
                 }
 
                 string conditions = this.GetConditions();
@@ -168,13 +183,16 @@ namespace DurableTask.AzureStorage.Tracking
         /// <param name="createdTimeTo">CreatedTimeTo</param>
         /// <param name="runtimeStatus">RuntimeStatus</param>
         /// <returns></returns>
-        public static OrchestrationInstanceStatusQueryCondition Parse(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
+        public static OrchestrationInstanceStatusQueryCondition Parse(
+            DateTime createdTimeFrom,
+            DateTime? createdTimeTo,
+            IEnumerable<OrchestrationStatus> runtimeStatus)
         {
             var condition = new OrchestrationInstanceStatusQueryCondition
             {
                 CreatedTimeFrom = createdTimeFrom,
                 CreatedTimeTo = createdTimeTo ?? default(DateTime),
-                RuntimeStatus = runtimeStatus
+                RuntimeStatus = runtimeStatus,
             };
             return condition;
         }

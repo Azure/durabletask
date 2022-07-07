@@ -623,55 +623,91 @@ namespace DurableTask.AzureStorage.Tracking
             return orchestrationStates;
         }
 
-        async Task<PurgeHistoryResult> DeleteHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
+        async Task<PurgeHistoryResult> DeleteHistoryAsync(
+            DateTime createdTimeFrom,
+            DateTime? createdTimeTo,
+            IEnumerable<OrchestrationStatus> runtimeStatus)
         {
-            TableQuery<OrchestrationInstanceStatus> query = OrchestrationInstanceStatusQueryCondition.Parse(createdTimeFrom, createdTimeTo, runtimeStatus)
-                .ToTableQuery<OrchestrationInstanceStatus>();
+            var filter = OrchestrationInstanceStatusQueryCondition.Parse(
+                createdTimeFrom,
+                createdTimeTo,
+                runtimeStatus);
+            filter.FetchInput = false;
+            filter.FetchOutput = false;
+
+            TableQuery<OrchestrationInstanceStatus> query = filter.ToTableQuery<OrchestrationInstanceStatus>();
+
+            // Limit to batches of 100 to avoid excessive memory usage and table storage scanning
+            query.TakeCount = 100;
 
             int storageRequests = 0;
+            int instancesDeleted = 0;
             int rowsDeleted = 0;
 
-            var tableEntitiesResponseInfo = await this.InstancesTable.ExecuteQueryAsync(query);
-            var results = tableEntitiesResponseInfo.ReturnedEntities;
-
-                foreach (OrchestrationInstanceStatus orchestrationInstanceStatus in results)
+            while (true)
+            {
+                TableEntitiesResponseInfo<OrchestrationInstanceStatus> tableEntitiesResponseInfo = 
+                    await this.InstancesTable.ExecuteQueryAsync(query);
+                IList<OrchestrationInstanceStatus> results = tableEntitiesResponseInfo.ReturnedEntities;
+                if (results.Count == 0)
                 {
-                    var statisticsFromDeletion = await this.DeleteAllDataForOrchestrationInstance(orchestrationInstanceStatus);
-                    storageRequests += statisticsFromDeletion.StorageRequests;
-                    rowsDeleted += statisticsFromDeletion.RowsDeleted;
+                    break;
                 }
 
-            return new PurgeHistoryResult(storageRequests, results.Count, rowsDeleted);
+                // Delete instances in parallel
+                await results.ParallelForEachAsync(
+                    this.settings.MaxStorageOperationConcurrency,
+                    async instance =>
+                    {
+                        PurgeHistoryResult statisticsFromDeletion = await this.DeleteAllDataForOrchestrationInstance(instance);
+                        Interlocked.Add(ref instancesDeleted, statisticsFromDeletion.InstancesDeleted);
+                        Interlocked.Add(ref storageRequests, statisticsFromDeletion.RowsDeleted);
+                        Interlocked.Add(ref rowsDeleted, statisticsFromDeletion.RowsDeleted);
+                    });
+            }
+
+            return new PurgeHistoryResult(storageRequests, instancesDeleted, rowsDeleted);
         }
 
         async Task<PurgeHistoryResult> DeleteAllDataForOrchestrationInstance(OrchestrationInstanceStatus orchestrationInstanceStatus)
         {
             int storageRequests = 0;
             int rowsDeleted = 0;
+
+            string sanitizedInstanceId = KeySanitation.UnescapePartitionKey(orchestrationInstanceStatus.PartitionKey);
+
             var historyEntitiesResponseInfo = await this.GetHistoryEntitiesResponseInfoAsync(
-                KeySanitation.UnescapePartitionKey(orchestrationInstanceStatus.PartitionKey),
-                null,
-                new []
-                {
-                    RowKeyProperty
-                });
+                instanceId: sanitizedInstanceId,
+                expectedExecutionId: null,
+                projectionColumns: new[] { RowKeyProperty });
             storageRequests += historyEntitiesResponseInfo.RequestCount;
 
-            var historyEntities = historyEntitiesResponseInfo.ReturnedEntities;
+            IList<DynamicTableEntity> historyEntities = historyEntitiesResponseInfo.ReturnedEntities;
 
-            await this.messageManager.DeleteLargeMessageBlobs(orchestrationInstanceStatus.PartitionKey);
+            var tasks = new List<Task>();
+            tasks.Add(Task.Run(async () =>
+            {
+                int storageOperations = await this.messageManager.DeleteLargeMessageBlobs(sanitizedInstanceId);
+                Interlocked.Add(ref storageRequests, storageOperations);
+            }));
 
-            var deletedEntitiesResponseInfo = await this.HistoryTable.DeleteBatchAsync(historyEntities);
-            rowsDeleted += deletedEntitiesResponseInfo.TableResults.Count;
-            storageRequests += deletedEntitiesResponseInfo.RequestCount;
+            tasks.Add(Task.Run(async () =>
+            {
+                var deletedEntitiesResponseInfo = await this.HistoryTable.DeleteBatchAsync(historyEntities);
+                Interlocked.Add(ref rowsDeleted, deletedEntitiesResponseInfo.TableResults.Count);
+                Interlocked.Add(ref storageRequests, deletedEntitiesResponseInfo.RequestCount);
+            }));
 
-            await this.InstancesTable.DeleteAsync(new DynamicTableEntity
-                    {
-                        PartitionKey = orchestrationInstanceStatus.PartitionKey,
-                        RowKey = string.Empty,
-                        ETag = "*"
-                    });
+            tasks.Add(this.InstancesTable.DeleteAsync(new DynamicTableEntity
+            {
+                PartitionKey = orchestrationInstanceStatus.PartitionKey,
+                RowKey = string.Empty,
+                ETag = "*"
+            }));
 
+            await Task.WhenAll(tasks);
+
+            // This is for the instances table deletion
             storageRequests++;
 
             return new PurgeHistoryResult(storageRequests, 1, rowsDeleted);
