@@ -37,7 +37,7 @@ namespace DurableTask.AzureStorage.Monitoring
         readonly QueueMetricHistory workItemQueueLatencies = new QueueMetricHistory(QueueLengthSampleSize);
 
         readonly AzureStorageOrchestrationServiceSettings settings;
-        private readonly AzureStorageServices azureStorageClient;
+        private readonly AzureStorageProviders azureStorageClient;
         readonly int maxPollingLatency;
         readonly int highLatencyThreshold;
 
@@ -62,7 +62,7 @@ namespace DurableTask.AzureStorage.Monitoring
         /// <param name="taskHub">The name of the task hub within the specified storage account.</param>
         /// <param name="maxPollingIntervalMilliseconds">The maximum interval in milliseconds for polling control and work-item queues.</param>
         public DisconnectedPerformanceMonitor(
-            AzureStorageServices storageAccount,
+            AzureStorageProviders storageAccount,
             string taskHub,
             int? maxPollingIntervalMilliseconds = null)
             : this(GetSettings(storageAccount, taskHub, maxPollingIntervalMilliseconds))
@@ -96,13 +96,13 @@ namespace DurableTask.AzureStorage.Monitoring
         internal QueueMetricHistory WorkItemQueueLatencies => this.workItemQueueLatencies;
 
         static AzureStorageOrchestrationServiceSettings GetSettings(
-            AzureStorageServices storageAccount,
+            AzureStorageProviders storageAccount,
             string taskHub,
             int? maxPollingIntervalMilliseconds = null)
         {
             var settings = new AzureStorageOrchestrationServiceSettings
             {
-                StorageServices = storageAccount,
+                StorageProviders = storageAccount,
                 TaskHubName = taskHub
             };
 

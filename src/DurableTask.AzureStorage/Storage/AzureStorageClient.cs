@@ -14,42 +14,32 @@
 namespace DurableTask.AzureStorage.Storage
 {
     using System;
-    using System.Threading;
-    using System.Threading.Tasks;
-    using Azure;
+    using Azure.Core;
     using Azure.Data.Tables;
     using Azure.Storage.Blobs;
     using Azure.Storage.Queues;
+    using DurableTask.AzureStorage.Http;
     using DurableTask.AzureStorage.Monitoring;
 
     class AzureStorageClient
     {
-        static readonly TimeSpan StorageMaximumExecutionTime = TimeSpan.FromMinutes(2);
+        // using IDisposable requestLifetime = HttpPipeline.CreateClientRequestIdScope(clientRequestId);
+
         readonly BlobServiceClient blobClient;
         readonly QueueServiceClient queueClient;
         readonly TableServiceClient tableClient;
-        readonly SemaphoreSlim requestThrottleSemaphore;
 
         public AzureStorageClient(AzureStorageOrchestrationServiceSettings settings)
         {
             this.Settings = settings;
             this.Stats = new AzureStorageOrchestrationServiceStats();
-            this.queueClient = settings.StorageAccountDetails.GetQueueServiceClient();
 
-            var blobOptions = new BlobClientOptions();
-            blobOptions.Retry.NetworkTimeout = StorageMaximumExecutionTime;
-            this.blobClient = settings.StorageAccountDetails.GetBlobServiceClient(blobOptions);
+            var throttlingPolicy = new ThrottlingHttpPipelinePolicy(this.Settings.MaxStorageOperationConcurrency);
+            var monitoringPolicy = new MonitoringHttpPipelinePolicy(this.Stats);
 
-            if (settings.HasTrackingStoreStorageAccount)
-            {
-                this.tableClient = settings.TrackingStoreStorageAccountDetails.GetTableServiceClient();
-            }
-            else
-            {
-                this.tableClient = settings.StorageAccountDetails.GetTableServiceClient();
-            }
-
-            this.requestThrottleSemaphore = new SemaphoreSlim(this.Settings.MaxStorageOperationConcurrency);
+            this.blobClient = settings.BlobClientProvider.Create(o => AddPolicies(o, throttlingPolicy, monitoringPolicy));
+            this.queueClient = settings.QueueClientProvider.Create(o => AddPolicies(o, throttlingPolicy, monitoringPolicy));
+            this.tableClient = settings.TableClientProvider.Create(o => AddPolicies(o, throttlingPolicy, monitoringPolicy));
         }
 
         public AzureStorageOrchestrationServiceSettings Settings { get; }
@@ -77,66 +67,10 @@ namespace DurableTask.AzureStorage.Storage
         public Table GetTableReference(string tableName) =>
             new Table(this, this.tableClient, tableName);
 
-        public Task<T> GetBlobStorageRequestResponse<T>(Func<CancellationToken, Task<T>> storageRequest, string operationName, string? clientRequestId = null, bool force = false) =>
-            this.MakeStorageRequest(storageRequest, BlobAccountName, operationName, clientRequestId, force);
-
-        public Task<T> GetQueueStorageRequestResponse<T>(Func<CancellationToken, Task<T>> storageRequest, string operationName, string? clientRequestId = null, bool force = false) =>
-            this.MakeStorageRequest(storageRequest, QueueAccountName, operationName, clientRequestId, force);
-
-        public Task<T> MakeBlobStorageRequest<T>(Func<CancellationToken, Task<Response<T>>> storageRequest, string operationName, string? clientRequestId = null, bool force = false) =>
-            this.GetStorageResponseValue(storageRequest, BlobAccountName, operationName, clientRequestId, force);
-
-        public Task<T> MakeQueueStorageRequest<T>(Func<CancellationToken, Task<Response<T>>> storageRequest, string operationName, string? clientRequestId = null) =>
-            this.GetStorageResponseValue(storageRequest, QueueAccountName, operationName, clientRequestId);
-
-        public Task<T> MakeTableStorageRequest<T>(Func<CancellationToken, Task<Response<T>>> storageRequest, string operationName, string? clientRequestId = null) =>
-            this.GetStorageResponseValue(storageRequest, TableAccountName, operationName, clientRequestId);
-
-        public Task<Page<T>?> MakePaginatedBlobStorageRequest<T>(Func<CancellationToken, AsyncPageable<T>> storageRequest, string operationName, string? continuationToken = null, string? clientRequestId = null)
-            where T : notnull =>
-            this.GetNextPage(storageRequest, BlobAccountName, operationName, continuationToken, clientRequestId);
-
-        public Task MakeBlobStorageRequest(Func<CancellationToken, Task<Response>> storageRequest, string operationName, string? clientRequestId = null, bool force = false) =>
-            this.MakeStorageRequest(storageRequest, BlobAccountName, operationName, clientRequestId, force);
-
-        public Task MakeQueueStorageRequest(Func<CancellationToken, Task<Response>> storageRequest, string operationName, string? clientRequestId = null) =>
-            this.MakeStorageRequest(storageRequest, QueueAccountName, operationName, clientRequestId);
-
-        public Task MakeTableStorageRequest(Func<CancellationToken, Task<Response>> storageRequest, string operationName, string? clientRequestId = null) =>
-            this.MakeStorageRequest(storageRequest, TableAccountName, operationName, clientRequestId);
-
-        private async Task<T> GetStorageResponseValue<T>(Func<CancellationToken, Task<Response<T>>> storageRequest, string accountName, string operationName, string? clientRequestId, bool force = false)
+        static void AddPolicies(ClientOptions options, ThrottlingHttpPipelinePolicy throttlePolicy, MonitoringHttpPipelinePolicy monitoringPolicy)
         {
-            Response<T> response = await this.MakeStorageRequest(storageRequest, accountName, operationName, clientRequestId, force);
-            return response.Value;
-        }
-
-        private Task<Page<T>?> GetNextPage<T>(Func<CancellationToken, AsyncPageable<T>> storageRequest, string accountName, string operationName, string? continuationToken, string? clientRequestId, bool force = false)
-            where T : notnull =>
-            this.MakeStorageRequest(t => storageRequest(t).GetPageAsync(continuationToken, cancellationToken: t), accountName, operationName, clientRequestId, force);
-
-        private async Task<T> MakeStorageRequest<T>(Func<CancellationToken, Task<T>> storageRequest, string accountName, string operationName, string? clientRequestId = null, bool force = false)
-        {
-            if (!force)
-            {
-                await requestThrottleSemaphore.WaitAsync();
-            }
-
-            try
-            {
-                return await TimeoutHandler.ExecuteWithTimeout(operationName, accountName, this.Settings, storageRequest, this.Stats, clientRequestId);
-            }
-            catch (RequestFailedException ex)
-            {
-                throw new DurableTaskStorageException(ex);
-            }
-            finally
-            {
-                if (!force)
-                {
-                    requestThrottleSemaphore.Release();
-                }
-            }
+            options.AddPolicy(throttlePolicy, HttpPipelinePosition.PerCall);
+            options.AddPolicy(monitoringPolicy, HttpPipelinePosition.PerRetry);
         }
     }
 }

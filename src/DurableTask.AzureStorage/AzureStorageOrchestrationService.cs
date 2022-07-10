@@ -84,9 +84,9 @@ namespace DurableTask.AzureStorage
         /// <inheritdoc/>
         public override string ToString()
         {
-            string blobAccountName = this.settings.StorageServices.Blob.AccountName;
-            string queueAccountName = this.settings.StorageServices.Queue.AccountName;
-            string tableAccountName = this.settings.StorageServices.Table.AccountName;
+            string blobAccountName = this.settings.StorageProviders.Blob.AccountName;
+            string queueAccountName = this.settings.StorageProviders.Queue.AccountName;
+            string tableAccountName = this.settings.StorageProviders.Table.AccountName;
 
             return blobAccountName == queueAccountName && blobAccountName == tableAccountName
                 ? $"AzureStorageOrchestrationService on {blobAccountName}"
@@ -106,7 +106,7 @@ namespace DurableTask.AzureStorage
             }
 
             ValidateSettings(settings);
-            settings.StorageServices.Blob
+            settings.StorageProviders.Blob
 
             this.settings = settings;
             this.stats = this.azureStorageClient.Stats;

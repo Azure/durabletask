@@ -20,6 +20,8 @@ namespace DurableTask.AzureStorage
     using Microsoft.Extensions.Logging;
     using System.Runtime.Serialization;
     using Azure.Data.Tables;
+    using Azure.Storage.Blobs;
+    using Azure.Storage.Queues;
 
     /// <summary>
     /// Settings that impact the runtime behavior of the <see cref="AzureStorageOrchestrationService"/>.
@@ -153,15 +155,23 @@ namespace DurableTask.AzureStorage
         public AppLeaseOptions AppLeaseOptions { get; set; } = AppLeaseOptions.DefaultOptions;
 
         /// <summary>
-        /// The Azure Storage services used by the Durable Task framework.
+        /// Gets the provider for the Azure Blob Storage service client used to manage the task hub lease.
         /// </summary>
-        public AzureStorageServices StorageServices { get; set; }
+        /// <value>The <see cref="BlobServiceClient"/> instance.</value>
+        public AzureStorageProvider<BlobServiceClient, BlobClientOptions> BlobClientProvider { get; }
 
         /// <summary>
-        /// Gets or sets the client used for the tracking store.
-        /// In case of <see langword="null"/>, <see cref="StorageServices"/> are used instead.
+        /// Gets the provider for the Azure Queue Storage service client used to retrieve control and work item messages.
         /// </summary>
-        public TableServiceClient TrackingStoreServiceClient { get; set; }
+        /// <value>The <see cref="QueueServiceClient"/> instance.</value>
+        public AzureStorageProvider<QueueServiceClient, QueueClientOptions> QueueClientProvider { get; }
+
+        /// <summary>
+        /// Gets the provider for the Azure Table Storage service client used for tracking the
+        /// progress of durable orchestrations and entity operations.
+        /// </summary>
+        /// <value>The <see cref="TableServiceClient"/> instance.</value>
+        public AzureStorageProvider<TableServiceClient, TableClientOptions> TableClientProvider { get; }
         
         /// <summary>
         ///  Should we carry over unexecuted raised events to the next iteration of an orchestration on ContinueAsNew
