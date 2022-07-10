@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.AzureStorage
 {
     using System;
@@ -20,8 +20,6 @@ namespace DurableTask.AzureStorage
     using Microsoft.Extensions.Logging;
     using System.Runtime.Serialization;
     using Azure.Data.Tables;
-    using Azure.Storage.Blobs;
-    using Azure.Storage.Queues;
 
     /// <summary>
     /// Settings that impact the runtime behavior of the <see cref="AzureStorageOrchestrationService"/>.
@@ -32,7 +30,7 @@ namespace DurableTask.AzureStorage
 
         internal static readonly TimeSpan DefaultMaxQueuePollingInterval = TimeSpan.FromSeconds(30);
 
-        LogHelper logHelper;
+        LogHelper? logHelper;
 
         /// <summary>
         /// Gets or sets the name of the app.
@@ -155,24 +153,18 @@ namespace DurableTask.AzureStorage
         public AppLeaseOptions AppLeaseOptions { get; set; } = AppLeaseOptions.DefaultOptions;
 
         /// <summary>
-        /// Gets the provider for the Azure Blob Storage service client used to manage the task hub lease.
+        /// Gets or sets the Azure Storage Account details.
         /// </summary>
-        /// <value>The <see cref="BlobServiceClient"/> instance.</value>
-        public AzureStorageProvider<BlobServiceClient, BlobClientOptions> BlobClientProvider { get; }
+        public StorageAccountDetails? StorageAccountDetails { get; set; }
 
         /// <summary>
-        /// Gets the provider for the Azure Queue Storage service client used to retrieve control and work item messages.
+        /// Gets or sets the table client provider for Tracking Store.
         /// </summary>
-        /// <value>The <see cref="QueueServiceClient"/> instance.</value>
-        public AzureStorageProvider<QueueServiceClient, QueueClientOptions> QueueClientProvider { get; }
+        /// <remarks>
+        /// In case of <see langword="null"/>, <see cref="StorageAccountDetails"/> is applied.
+        /// </remarks>
+        public AzureStorageProvider<TableServiceClient, TableClientOptions>? TrackingStoreClientProvider { get; set; }
 
-        /// <summary>
-        /// Gets the provider for the Azure Table Storage service client used for tracking the
-        /// progress of durable orchestrations and entity operations.
-        /// </summary>
-        /// <value>The <see cref="TableServiceClient"/> instance.</value>
-        public AzureStorageProvider<TableServiceClient, TableClientOptions> TableClientProvider { get; }
-        
         /// <summary>
         ///  Should we carry over unexecuted raised events to the next iteration of an orchestration on ContinueAsNew
         /// </summary>
@@ -207,11 +199,11 @@ namespace DurableTask.AzureStorage
         /// <summary>
         /// Returns bool indicating is the TrackingStoreStorageAccount has been set.
         /// </summary>
-        public bool HasSeparateTrackingStore => this.TrackingStoreServiceClient != null;
+        public bool HasTrackingStoreStorageAccount => this.TrackingStoreClientProvider != null;
 
-        internal string HistoryTableName => this.HasSeparateTrackingStore ? $"{this.TrackingStoreNamePrefix}History" : $"{this.TaskHubName}History";
+        internal string HistoryTableName => this.HasTrackingStoreStorageAccount ? $"{this.TrackingStoreNamePrefix}History" : $"{this.TaskHubName}History";
 
-        internal string InstanceTableName => this.HasSeparateTrackingStore ? $"{this.TrackingStoreNamePrefix}Instances" : $"{this.TaskHubName}Instances";
+        internal string InstanceTableName => this.HasTrackingStoreStorageAccount ? $"{this.TrackingStoreNamePrefix}Instances" : $"{this.TaskHubName}Instances";
 
         /// <summary>
         /// Gets an instance of <see cref="LogHelper"/> that can be used for writing structured logs.

@@ -23,23 +23,43 @@ namespace DurableTask.AzureStorage.Storage
 
     class AzureStorageClient
     {
-        // using IDisposable requestLifetime = HttpPipeline.CreateClientRequestIdScope(clientRequestId);
-
         readonly BlobServiceClient blobClient;
         readonly QueueServiceClient queueClient;
         readonly TableServiceClient tableClient;
 
         public AzureStorageClient(AzureStorageOrchestrationServiceSettings settings)
         {
+            if (settings == null)
+            {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            if (settings.StorageAccountDetails?.BlobClientProvider == null)
+            {
+                throw new ArgumentException("Blob client provider is not specified.", nameof(settings));
+            }
+
+            if (settings.StorageAccountDetails?.QueueClientProvider == null)
+            {
+                throw new ArgumentException("Queue client provider is not specified.", nameof(settings));
+            }
+
+            if (settings.StorageAccountDetails?.TableClientProvider == null)
+            {
+                throw new ArgumentException("Table client provider is not specified.", nameof(settings));
+            }
+
             this.Settings = settings;
             this.Stats = new AzureStorageOrchestrationServiceStats();
 
             var throttlingPolicy = new ThrottlingHttpPipelinePolicy(this.Settings.MaxStorageOperationConcurrency);
             var monitoringPolicy = new MonitoringHttpPipelinePolicy(this.Stats);
 
-            this.blobClient = settings.BlobClientProvider.Create(o => AddPolicies(o, throttlingPolicy, monitoringPolicy));
-            this.queueClient = settings.QueueClientProvider.Create(o => AddPolicies(o, throttlingPolicy, monitoringPolicy));
-            this.tableClient = settings.TableClientProvider.Create(o => AddPolicies(o, throttlingPolicy, monitoringPolicy));
+            this.blobClient = settings.StorageAccountDetails.BlobClientProvider.Create(o => AddPolicies(o, throttlingPolicy, monitoringPolicy));
+            this.queueClient = settings.StorageAccountDetails.QueueClientProvider.Create(o => AddPolicies(o, throttlingPolicy, monitoringPolicy));
+            this.tableClient = settings.HasTrackingStoreStorageAccount
+                ? settings.TrackingStoreClientProvider!.Create(o => AddPolicies(o, throttlingPolicy, monitoringPolicy))
+                : settings.StorageAccountDetails.TableClientProvider.Create(o => AddPolicies(o, throttlingPolicy, monitoringPolicy));
         }
 
         public AzureStorageOrchestrationServiceSettings Settings { get; }
@@ -52,20 +72,30 @@ namespace DurableTask.AzureStorage.Storage
 
         public string TableAccountName => this.tableClient.AccountName;
 
-        public Blob GetBlobReference(string container, string blobName) =>
-            new Blob(this, this.blobClient, container, blobName);
+        public Blob GetBlobReference(string container, string blobName)
+        {
+            return new Blob(this.blobClient, container, blobName);
+        }
 
-        internal Blob GetBlobReference(Uri blobUri) =>
-            new Blob(this, this.blobClient, blobUri);
+        internal Blob GetBlobReference(Uri blobUri)
+        {
+            return new Blob(this.blobClient, blobUri);
+        }
 
-        public BlobContainer GetBlobContainerReference(string container) =>
-            new BlobContainer(this, this.blobClient, container);
+        public BlobContainer GetBlobContainerReference(string container)
+        {
+            return new BlobContainer(this, this.blobClient, container);
+        }
 
-        public Queue GetQueueReference(string queueName) =>
-            new Queue(this, this.queueClient, queueName);
+        public Queue GetQueueReference(string queueName)
+        {
+            return new Queue(this, this.queueClient, queueName);
+        }
 
-        public Table GetTableReference(string tableName) =>
-            new Table(this, this.tableClient, tableName);
+        public Table GetTableReference(string tableName)
+        {
+            return new Table(this, this.tableClient, tableName);
+        }
 
         static void AddPolicies(ClientOptions options, ThrottlingHttpPipelinePolicy throttlePolicy, MonitoringHttpPipelinePolicy monitoringPolicy)
         {

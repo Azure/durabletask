@@ -38,7 +38,7 @@ namespace DurableTask.AzureStorage
         /// <exception cref="ArgumentNullException">
         /// <paramref name="accountName"/> is <see langword="null"/> or consists entirely of white space characters.
         /// </exception>
-        public static AzureStorageProvider<BlobServiceClient, BlobClientOptions> ForBlob(
+        public static AzureStorageProvider<BlobServiceClient, BlobClientOptions> ForBlobAccount(
             string accountName,
             TokenCredential? tokenCredential = null,
             BlobClientOptions? options = null)
@@ -94,7 +94,7 @@ namespace DurableTask.AzureStorage
         /// <exception cref="ArgumentNullException">
         /// <paramref name="accountName"/> is <see langword="null"/> or consists entirely of white space characters.
         /// </exception>
-        public static AzureStorageProvider<QueueServiceClient, QueueClientOptions> ForQueue(
+        public static AzureStorageProvider<QueueServiceClient, QueueClientOptions> ForQueueAccount(
             string accountName,
             TokenCredential? tokenCredential = null,
             QueueClientOptions? options = null)
@@ -150,7 +150,7 @@ namespace DurableTask.AzureStorage
         /// <exception cref="ArgumentNullException">
         /// <paramref name="accountName"/> is <see langword="null"/> or consists entirely of white space characters.
         /// </exception>
-        public static AzureStorageProvider<TableServiceClient, TableClientOptions> ForTable(
+        public static AzureStorageProvider<TableServiceClient, TableClientOptions> ForTableAccount(
             string accountName,
             TokenCredential? tokenCredential = null,
             TableClientOptions? options = null)
@@ -194,7 +194,7 @@ namespace DurableTask.AzureStorage
 
         #endregion
 
-        private static Uri CreateDefaultServiceUri(string accountName, string service)
+        static Uri CreateDefaultServiceUri(string accountName, string service)
         {
             if (string.IsNullOrWhiteSpace(accountName))
             {

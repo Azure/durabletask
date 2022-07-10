@@ -26,35 +26,41 @@ namespace DurableTask.AzureStorage.Storage
 
     class Blob
     {
-        readonly AzureStorageClient azureStorageClient;
         readonly BlockBlobClient blockBlobClient;
 
-        public Blob(AzureStorageClient azureStorageClient, BlobServiceClient blobServiceClient, string containerName, string blobName)
+        public Blob(BlobServiceClient blobServiceClient, string containerName, string blobName)
         {
-            this.azureStorageClient = azureStorageClient;
             this.Name = blobName;
 
             this.blockBlobClient = blobServiceClient.GetBlobContainerClient(containerName).GetBlockBlobClient(blobName);
         }
 
-        public Blob(AzureStorageClient azureStorageClient, BlobServiceClient blobServiceClient, Uri blobUri)
+        public Blob(BlobServiceClient blobServiceClient, Uri blobUri)
         {
             if (!blobUri.IsAbsoluteUri)
+            {
                 throw new ArgumentException("Blob URI must be absolute", nameof(blobUri));
+            }
 
             if (blobUri.Scheme != blobServiceClient.Uri.Scheme)
+            {
                 throw new ArgumentException("Blob URI has a different scheme from blob client,", nameof(blobUri));
+            }
 
             if (blobUri.Host != blobServiceClient.Uri.Host)
+            {
                 throw new ArgumentException("Blob URI has a different host from blob client,", nameof(blobUri));
+            }
 
             if (blobUri.Port != blobServiceClient.Uri.Port)
+            {
                 throw new ArgumentException("Blob URI has a different port from blob client,", nameof(blobUri));
+            }
 
             if (blobUri.Segments.Length < 3)
+            {
                 throw new ArgumentException("Blob URI is missing the container.", nameof(blobUri));
-
-            this.azureStorageClient = azureStorageClient;
+            }
 
             // Uri.Segments splits on the '/' in the path such that it is always the last character.
             // Eg. 'https://foo.blob.core.windows.net/bar/baz/dog.json' => [ '/', 'bar/', 'baz/', 'dog.json' ]
@@ -138,7 +144,7 @@ namespace DurableTask.AzureStorage.Storage
 
         public Task ReleaseLeaseAsync(string leaseId, CancellationToken cancellationToken = default)
         {
-            return this.blockBlobClient.GetBlobLeaseClient(leaseId).ReleaseAsync(cancellationToken: cancellationToken)
+            return this.blockBlobClient.GetBlobLeaseClient(leaseId).ReleaseAsync(cancellationToken: cancellationToken);
         }
     }
 }

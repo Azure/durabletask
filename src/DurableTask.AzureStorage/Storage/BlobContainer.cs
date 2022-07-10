@@ -17,6 +17,7 @@ namespace DurableTask.AzureStorage.Storage
     using System.Collections.Generic;
     using System.IO;
     using System.Linq;
+    using System.Threading;
     using System.Threading.Tasks;
     using Azure;
     using Azure.Storage.Blobs;
@@ -39,27 +40,24 @@ namespace DurableTask.AzureStorage.Storage
 
         public Blob GetBlobReference(string blobName, string? blobPrefix = null)
         {
-            var fullBlobName = blobPrefix != null ? Path.Combine(blobPrefix, blobName) : blobName;
+            string fullBlobName = blobPrefix != null ? Path.Combine(blobPrefix, blobName) : blobName;
             return this.azureStorageClient.GetBlobReference(this.containerName, fullBlobName);
         }
 
-        public async Task<bool> CreateIfNotExistsAsync()
+        public async Task<bool> CreateIfNotExistsAsync(CancellationToken cancellationToken = default)
         {
             // TODO: Any encryption scope?
-            Response<BlobContainerInfo> response = await this.azureStorageClient.GetBlobStorageRequestResponse(
-                cancellationToken => this.blobContainerClient.CreateIfNotExistsAsync(PublicAccessType.None, cancellationToken: cancellationToken),
-                "Create Container");
-
             // If we received null, then the response must have been a 409 (Conflict) and the container must already exist
+            Response<BlobContainerInfo> response = await this.blobContainerClient.CreateIfNotExistsAsync(PublicAccessType.None, cancellationToken: cancellationToken);
             return response != null;
         }
 
-        public Task<bool> ExistsAsync() =>
-            this.azureStorageClient.MakeBlobStorageRequest(
-                cancellationToken => this.blobContainerClient.ExistsAsync(cancellationToken),
-                "Container Exists");
+        public async Task<bool> ExistsAsync(CancellationToken cancellationToken = default)
+        {
+            return await this.blobContainerClient.ExistsAsync(cancellationToken);
+        }
 
-        public async Task<bool> DeleteIfExistsAsync(string? appLeaseId = null)
+        public async Task<bool> DeleteIfExistsAsync(string? appLeaseId = null, CancellationToken cancellationToken = default)
         {
             BlobRequestConditions? conditions = null;
             if (appLeaseId != null)
@@ -67,39 +65,31 @@ namespace DurableTask.AzureStorage.Storage
                 conditions = new BlobRequestConditions { LeaseId = appLeaseId };
             }
 
-            return await this.azureStorageClient.MakeBlobStorageRequest(
-                cancellationToken => this.blobContainerClient.DeleteIfExistsAsync(conditions, cancellationToken),
-                "Delete Container");
+            return await this.blobContainerClient.DeleteIfExistsAsync(conditions, cancellationToken);
         }
 
-        public IAsyncEnumerable<Blob> ListBlobsAsync(string? prefix = null) =>
-            this.azureStorageClient
-                .EnumerateBlobStorageRequest(
-                    cancellationToken => this.blobContainerClient.GetBlobsAsync(BlobTraits.Metadata, BlobStates.None, prefix, cancellationToken),
-                    "Container GetBlobs")
+        public IAsyncEnumerable<Blob> ListBlobsAsync(string? prefix = null, CancellationToken cancellationToken = default)
+        {
+            return this.blobContainerClient
+                .GetBlobsAsync(BlobTraits.Metadata, BlobStates.None, prefix, cancellationToken)
                 .Select(x => this.GetBlobReference(x.Name));
+        }
 
-        public async Task<string> AcquireLeaseAsync(TimeSpan leaseInterval, string leaseId)
+        public async Task<string> AcquireLeaseAsync(TimeSpan leaseInterval, string leaseId, CancellationToken cancellationToken = default)
         {
-            BlobLease lease = await this.azureStorageClient.MakeBlobStorageRequest(
-                cancellationToken => this.blobContainerClient.GetBlobLeaseClient(leaseId).AcquireAsync(leaseInterval, cancellationToken: cancellationToken),
-                "Container AcquireLease");
-
+            BlobLease lease = await this.blobContainerClient.GetBlobLeaseClient(leaseId).AcquireAsync(leaseInterval, cancellationToken: cancellationToken);
             return lease.LeaseId;
         }
 
-        public async Task<string> ChangeLeaseAsync(string proposedLeaseId, string currentLeaseId)
+        public async Task<string> ChangeLeaseAsync(string proposedLeaseId, string currentLeaseId, CancellationToken cancellationToken = default)
         {
-            BlobLease lease = await this.azureStorageClient.MakeBlobStorageRequest(
-                cancellationToken => this.blobContainerClient.GetBlobLeaseClient(currentLeaseId).ChangeAsync(proposedLeaseId, cancellationToken: cancellationToken),
-                "Container ChangeLease");
-
+            BlobLease lease = await this.blobContainerClient.GetBlobLeaseClient(currentLeaseId).ChangeAsync(proposedLeaseId, cancellationToken: cancellationToken);
             return lease.LeaseId;
         }
 
-        public Task RenewLeaseAsync(string leaseId) =>
-            this.azureStorageClient.MakeBlobStorageRequest(
-                cancellationToken => this.blobContainerClient.GetBlobLeaseClient(leaseId).RenewAsync(cancellationToken: cancellationToken),
-                "Container RenewLease");
+        public Task RenewLeaseAsync(string leaseId, CancellationToken cancellationToken = default)
+        {
+            return this.blobContainerClient.GetBlobLeaseClient(leaseId).RenewAsync(cancellationToken: cancellationToken);
+        }
     }
 }

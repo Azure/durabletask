@@ -14,15 +14,14 @@
 namespace DurableTask.AzureStorage.Storage
 {
     using System;
-    using System.Collections.Generic;
-    using Azure;
+    using Azure.Core.Pipeline;
 
-    class TableResultResponseInfo
+    static class OperationContext
     {
-        public long ElapsedMilliseconds { get; set; }
-
-        public int RequestCount { get; set; }
-
-        public IReadOnlyList<Response>? TableResults { get; set; }
+        public static IDisposable CreateClientRequestScope(Guid? clientRequestId = null)
+        {
+            clientRequestId ??= Guid.NewGuid();
+            return HttpPipeline.CreateClientRequestIdScope(clientRequestId.ToString());
+        }
     }
 }
