@@ -104,39 +104,47 @@ namespace DurableTask.AzureStorage.Storage
             this.stats.TableEntitiesWritten.Increment();
         }
 
-        public async Task<TableResultResponseInfo> DeleteBatchAsync<T>(IList<T> entityBatch, CancellationToken cancellationToken = default) where T : ITableEntity
+        public async Task<TableResultResponseInfo> DeleteBatchAsync<T>(IEnumerable<T> entityBatch, CancellationToken cancellationToken = default) where T : ITableEntity
         {
             return await this.ExecuteBatchAsync(entityBatch, item => new TableTransactionAction(TableTransactionActionType.Delete, item), cancellationToken);
         }
 
-        public async Task<TableResultResponseInfo> InsertOrMergeBatchAsync<T>(IList<T> entityBatch, CancellationToken cancellationToken = default) where T : ITableEntity
+        public async Task<TableResultResponseInfo> InsertOrMergeBatchAsync<T>(IEnumerable<T> entityBatch, CancellationToken cancellationToken = default) where T : ITableEntity
         {
-            this.stats.TableEntitiesWritten.Increment(entityBatch.Count);
-            return await this.ExecuteBatchAsync(entityBatch, item => new TableTransactionAction(TableTransactionActionType.UpsertMerge, item), cancellationToken);
+            TableResultResponseInfo results = await this.ExecuteBatchAsync(entityBatch, item => new TableTransactionAction(TableTransactionActionType.UpsertMerge, item), cancellationToken);
+
+            if (results.TableResults?.Count > 0)
+            {
+                this.stats.TableEntitiesWritten.Increment(results.TableResults.Count);
+            }
+
+            return results;
         }
 
         async Task<TableResultResponseInfo> ExecuteBatchAsync<T>(
-            IList<T> entityBatch,
+            IEnumerable<T> entityBatch,
             Func<T, TableTransactionAction> batchOperation,
             CancellationToken cancellationToken = default) where T : ITableEntity
         {
             var results = new List<Response>();
             long elapsedMilliseconds = 0;
             int requestCount = 0;
-            for (int i = 0; i < entityBatch.Count; i += 100)
+
+            List<TableTransactionAction>? batch = null;
+            IEnumerator<T> batchEnumerator = entityBatch.GetEnumerator();
+            do
             {
-                // Note: Skip optimizes for IList<T> implementations
-                IEnumerable<TableTransactionAction> batch = entityBatch
-                    .Skip(i)
-                    .Take(100)
-                    .Select(batchOperation);
+                batch = GetNext(batchEnumerator, 100).Select(batchOperation).ToList();
 
-                TableResultResponseInfo batchResults = await this.ExecuteBatchAsync(batch, cancellationToken);
+                if (batch.Count > 0)
+                {
+                    TableResultResponseInfo batchResults = await this.ExecuteBatchAsync(batch, cancellationToken);
 
-                elapsedMilliseconds += batchResults.ElapsedMilliseconds;
-                requestCount++;
-                results.AddRange(batchResults.TableResults);
-            }
+                    elapsedMilliseconds += batchResults.ElapsedMilliseconds;
+                    requestCount++;
+                    results.AddRange(batchResults.TableResults);
+                }
+            } while (batch.Count > 0);
 
             return new TableResultResponseInfo
             {
@@ -144,6 +152,14 @@ namespace DurableTask.AzureStorage.Storage
                 RequestCount = requestCount,
                 TableResults = results
             };
+
+            IEnumerable<T> GetNext(IEnumerator<T> enumerator, int count)
+            {
+                for (int i = 0; i < count && enumerator.MoveNext(); i++)
+                {
+                    yield return enumerator.Current;
+                }
+            }
         }
 
         async Task<TableResultResponseInfo> ExecuteBatchAsync(IEnumerable<TableTransactionAction> batchOperation, CancellationToken cancellationToken = default)
@@ -190,7 +206,7 @@ namespace DurableTask.AzureStorage.Storage
             };
         }
 
-        public IAsyncEnumerable<T> ExecuteQueryAsync<T>(string? filter = null, IEnumerable<string>? select = null, CancellationToken cancellationToken = default) where T : class, ITableEntity, new()
+        public AsyncPageable<T> ExecuteQueryAsync<T>(string? filter = null, IEnumerable<string>? select = null, CancellationToken cancellationToken = default) where T : class, ITableEntity, new()
         {
             return this.tableClient.QueryAsync<T>(filter, select: select, cancellationToken: cancellationToken);
         }

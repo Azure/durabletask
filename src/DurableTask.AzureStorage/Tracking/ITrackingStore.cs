@@ -15,6 +15,7 @@ namespace DurableTask.AzureStorage.Tracking
 {
     using System;
     using System.Collections.Generic;
+    using System.Runtime.CompilerServices;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Core;
@@ -51,15 +52,14 @@ namespace DurableTask.AzureStorage.Tracking
         /// <param name="instanceId">InstanceId for</param>
         /// <param name="expectedExecutionId">ExcutionId for the execution that we want this retrieve for. If null the latest execution will be retrieved</param>
         /// <param name="cancellationToken">CancellationToken if abortion is needed</param>
-        Task<OrchestrationHistory> GetHistoryEventsAsync(string instanceId, string expectedExecutionId, CancellationToken cancellationToken = default(CancellationToken));
+        Task<OrchestrationHistory> GetHistoryEventsAsync(string instanceId, string expectedExecutionId, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Queries by InstanceId and locates failure - then calls function to wipe ExecutionIds
         /// </summary>
         /// <param name="instanceId">InstanceId for orchestration</param>
-        /// <param name="failedLeaves">List of failed orchestrators to send to message queue - no failed sub-orchestrators</param>
         /// <param name="cancellationToken">CancellationToken if abortion is needed</param>
-        Task<IList<string>> RewindHistoryAsync(string instanceId, IList<string> failedLeaves, CancellationToken cancellationToken);
+        Task<IReadOnlyList<string>> RewindHistoryAsync(string instanceId, CancellationToken cancellationToken);
 
         /// <summary>
         /// Update State in the Tracking store for a particular orchestration instance and execution base on the new runtime state
@@ -77,7 +77,8 @@ namespace DurableTask.AzureStorage.Tracking
         /// <param name="instanceId">Instance Id</param>
         /// <param name="allExecutions">True if states for all executions are to be fetched otherwise only the state for the latest execution of the instance is fetched</param>
         /// <param name="fetchInput">If set, fetch and return the input for the orchestration instance.</param>
-        Task<IList<OrchestrationState>> GetStateAsync(string instanceId, bool allExecutions, bool fetchInput);
+        /// <param name="cancellationToken">cancellation token</param>
+        IAsyncEnumerable<OrchestrationState> GetStateAsync(string instanceId, bool allExecutions, bool fetchInput, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Get The Orchestration State for a particular orchestration instance execution
@@ -98,13 +99,13 @@ namespace DurableTask.AzureStorage.Tracking
         /// Get The Orchestration State for querying all orchestration instances
         /// </summary>
         /// <returns></returns>
-        Task<IList<OrchestrationState>> GetStateAsync(CancellationToken cancellationToken = default(CancellationToken));
+        IAsyncEnumerable<OrchestrationState> GetStateAsync(CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Fetches instances status for multiple orchestration instances.
         /// </summary>
         /// <param name="instanceIds">The list of instances to query for.</param>
-        Task<IList<OrchestrationState>> GetStateAsync(IEnumerable<string> instanceIds);
+        IAsyncEnumerable<OrchestrationState> GetStateAsync(IEnumerable<string> instanceIds);
 
         /// <summary>
         /// Get The Orchestration State for querying orchestration instances by the condition
@@ -114,29 +115,15 @@ namespace DurableTask.AzureStorage.Tracking
         /// <param name="runtimeStatus">RuntimeStatus</param>
         /// <param name="cancellationToken">cancellation token</param>
         /// <returns></returns>
-        Task<IList<OrchestrationState>> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken = default(CancellationToken));
-
-        /// <summary>
-        /// Get The Orchestration State for querying orchestration instances by the condition
-        /// </summary>
-        /// <param name="createdTimeFrom">CreatedTimeFrom</param>
-        /// <param name="createdTimeTo">CreatedTimeTo</param>
-        /// <param name="runtimeStatus">RuntimeStatus</param>
-        /// <param name="top">Top</param>
-        /// <param name="continuationToken">Continuation token</param>
-        /// <param name="cancellationToken">cancellation token</param>
-        /// <returns></returns>
-        Task<DurableStatusQueryResult> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, int top, string continuationToken, CancellationToken cancellationToken = default(CancellationToken));
+        IAsyncEnumerable<OrchestrationState> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Get The Orchestration State for querying orchestration instances by the condition
         /// </summary>
         /// <param name="condition">Condition</param>
-        /// <param name="top">Top</param>
-        /// <param name="continuationToken">ContinuationToken</param>
         /// <param name="cancellationToken">CancellationToken</param>
         /// <returns></returns>
-        Task<DurableStatusQueryResult> GetStateAsync(OrchestrationInstanceStatusQueryCondition condition, int top, string continuationToken, CancellationToken cancellationToken = default(CancellationToken));
+        IAsyncEnumerable<OrchestrationState> GetStateAsync(OrchestrationInstanceStatusQueryCondition condition, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Used to set a state in the tracking store whenever a new execution is initiated from the client

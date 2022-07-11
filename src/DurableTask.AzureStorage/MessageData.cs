@@ -15,6 +15,7 @@ namespace DurableTask.AzureStorage
 {
     using System;
     using System.Runtime.Serialization;
+    using Azure.Storage.Queues.Models;
     using DurableTask.AzureStorage.Storage;
     using DurableTask.Core;
     using Newtonsoft.Json;

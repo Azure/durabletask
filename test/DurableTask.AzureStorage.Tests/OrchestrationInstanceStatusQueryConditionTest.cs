@@ -15,6 +15,7 @@ namespace DurableTask.AzureStorage.Tests
 {
     using System;
     using System.Collections.Generic;
+    using DurableTask.AzureStorage.Entities;
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -31,7 +32,7 @@ namespace DurableTask.AzureStorage.Tests
                 RuntimeStatus = runtimeStatus
             };
 
-            var query = condition.ToTableQuery<OrchestrationInstanceStatus>();
+            var query = condition.ToTableQuery<OrchestrationInstanceStatusEntity>();
             Assert.AreEqual("RuntimeStatus eq 'Running'", query.FilterString);
         }
 
@@ -44,10 +45,10 @@ namespace DurableTask.AzureStorage.Tests
                 CreatedTimeTo = new DateTime(2018, 1, 10, 10, 10, 50, DateTimeKind.Utc)
             };
 
-            var result = condition.ToTableQuery<OrchestrationInstanceStatus>().FilterString;
+            var result = condition.ToTableQuery<OrchestrationInstanceStatusEntity>().FilterString;
             Assert.AreEqual(
                 "(CreatedTime ge datetime'2018-01-10T10:10:10.0000000Z') and (CreatedTime le datetime'2018-01-10T10:10:50.0000000Z')",
-                condition.ToTableQuery<OrchestrationInstanceStatus>().FilterString);
+                condition.ToTableQuery<OrchestrationInstanceStatusEntity>().FilterString);
         }
 
         [TestMethod]
@@ -60,10 +61,10 @@ namespace DurableTask.AzureStorage.Tests
                 RuntimeStatus = new List<OrchestrationStatus>(),
             };
 
-            var result = condition.ToTableQuery<OrchestrationInstanceStatus>().FilterString;
+            var result = condition.ToTableQuery<OrchestrationInstanceStatusEntity>().FilterString;
             Assert.AreEqual(
                 "CreatedTime ge datetime'2018-01-10T10:10:10.0000000Z'",
-                condition.ToTableQuery<OrchestrationInstanceStatus>().FilterString);
+                condition.ToTableQuery<OrchestrationInstanceStatusEntity>().FilterString);
         }
 
         [TestMethod]
@@ -76,7 +77,7 @@ namespace DurableTask.AzureStorage.Tests
 
             Assert.AreEqual(
                 "CreatedTime ge datetime'2018-01-10T10:10:10.0000000Z'",
-                condition.ToTableQuery<OrchestrationInstanceStatus>().FilterString);
+                condition.ToTableQuery<OrchestrationInstanceStatusEntity>().FilterString);
 
             condition = new OrchestrationInstanceStatusQueryCondition
             {
@@ -85,7 +86,7 @@ namespace DurableTask.AzureStorage.Tests
 
             Assert.AreEqual(
                 "CreatedTime le datetime'2018-01-10T10:10:50.0000000Z'",
-                condition.ToTableQuery<OrchestrationInstanceStatus>().FilterString);
+                condition.ToTableQuery<OrchestrationInstanceStatusEntity>().FilterString);
         }
 
         [TestMethod]
@@ -101,14 +102,14 @@ namespace DurableTask.AzureStorage.Tests
 
             Assert.AreEqual(
                 "((CreatedTime ge datetime'2018-01-10T10:10:10.0000000Z') and (CreatedTime le datetime'2018-01-10T10:10:50.0000000Z')) and (RuntimeStatus eq 'Running')",
-                condition.ToTableQuery<OrchestrationInstanceStatus>().FilterString);
+                condition.ToTableQuery<OrchestrationInstanceStatusEntity>().FilterString);
         }
 
         [TestMethod]
         public void OrchestrationInstanceQuery_NoParameter()
         {
             var condition = new OrchestrationInstanceStatusQueryCondition();
-            var query = condition.ToTableQuery<OrchestrationInstanceStatus>();
+            var query = condition.ToTableQuery<OrchestrationInstanceStatusEntity>();
             Assert.IsTrue(string.IsNullOrWhiteSpace(query.FilterString));
         }
 
@@ -126,7 +127,7 @@ namespace DurableTask.AzureStorage.Tests
 
             Assert.AreEqual(
                 "(((CreatedTime ge datetime'2018-01-10T10:10:10.0000000Z') and (CreatedTime le datetime'2018-01-10T10:10:50.0000000Z')) and ((RuntimeStatus eq 'Running') or (RuntimeStatus eq 'Completed'))) and ((TaskHubName eq 'FooProduction') or (TaskHubName eq 'BarStaging'))",
-                condition.ToTableQuery<OrchestrationInstanceStatus>().FilterString);
+                condition.ToTableQuery<OrchestrationInstanceStatusEntity>().FilterString);
         }
 
         [TestMethod]
@@ -137,7 +138,7 @@ namespace DurableTask.AzureStorage.Tests
                 TaskHubNames = new string[] { "FooProduction" }
             };
             Assert.AreEqual("TaskHubName eq 'FooProduction'",
-                condition.ToTableQuery<OrchestrationInstanceStatus>().FilterString
+                condition.ToTableQuery<OrchestrationInstanceStatusEntity>().FilterString
             );
         }
 
@@ -153,7 +154,7 @@ namespace DurableTask.AzureStorage.Tests
 
             Assert.AreEqual(
                 "((CreatedTime ge datetime'2018-01-10T10:10:10.0000000Z') and (CreatedTime le datetime'2018-01-10T10:10:50.0000000Z')) and (RuntimeStatus eq 'Running')",
-                condition.ToTableQuery<OrchestrationInstanceStatus>().FilterString);
+                condition.ToTableQuery<OrchestrationInstanceStatusEntity>().FilterString);
         }
 
         [TestMethod]
@@ -162,7 +163,7 @@ namespace DurableTask.AzureStorage.Tests
             var runtimeStatus = new List<OrchestrationStatus>();
             runtimeStatus.Add(OrchestrationStatus.Running);
             var condition = OrchestrationInstanceStatusQueryCondition.Parse(default(DateTime), null, runtimeStatus);
-            var query = condition.ToTableQuery<OrchestrationInstanceStatus>();
+            var query = condition.ToTableQuery<OrchestrationInstanceStatusEntity>();
             Assert.AreEqual("RuntimeStatus eq 'Running'", query.FilterString);
         }
 
@@ -174,10 +175,10 @@ namespace DurableTask.AzureStorage.Tests
                 InstanceIdPrefix = "aaab",
             };
 
-            var result = condition.ToTableQuery<OrchestrationInstanceStatus>().FilterString;
+            var result = condition.ToTableQuery<OrchestrationInstanceStatusEntity>().FilterString;
             Assert.AreEqual(
                 "(PartitionKey ge 'aaab') and (PartitionKey lt 'aaac')",
-                condition.ToTableQuery<OrchestrationInstanceStatus>().FilterString);
+                condition.ToTableQuery<OrchestrationInstanceStatusEntity>().FilterString);
         }
 
         [TestMethod]
@@ -188,7 +189,7 @@ namespace DurableTask.AzureStorage.Tests
                 InstanceId = "", // This is technically legal
             };
 
-            string result = condition.ToTableQuery<OrchestrationInstanceStatus>().FilterString;
+            string result = condition.ToTableQuery<OrchestrationInstanceStatusEntity>().FilterString;
             Assert.AreEqual("PartitionKey eq ''", result);
         }
     }

@@ -19,7 +19,7 @@ namespace DurableTask.AzureStorage.Tracking
     using System.Diagnostics;
     using System.Reflection;
     using System.Runtime.Serialization;
-    using Microsoft.WindowsAzure.Storage.Table;
+    using Azure.Data.Tables;
     using Newtonsoft.Json;
 
     /// <summary>
@@ -39,9 +39,9 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <summary>
-        /// Converts a data contract object into a <see cref="DynamicTableEntity"/>.
+        /// Converts a data contract object into a <see cref="TableEntity"/>.
         /// </summary>
-        public DynamicTableEntity ConvertToTableEntity(object obj)
+        public TableEntity ConvertToTableEntity(object obj)
         {
             if (obj == null)
             {
@@ -54,16 +54,16 @@ namespace DurableTask.AzureStorage.Tracking
                 obj.GetType(),
                 GetPropertyConvertersForType);
 
-            var tableEntity = new DynamicTableEntity();
+            var tableEntity = new TableEntity();
             foreach (PropertyConverter propertyConverter in propertyConverters)
             {
-                tableEntity.Properties[propertyConverter.PropertyName] = propertyConverter.GetEntityProperty(obj);
+                tableEntity[propertyConverter.PropertyName] = propertyConverter.GetObjectProperty(obj);
             }
 
             return tableEntity;
         }
 
-        public object ConvertFromTableEntity(DynamicTableEntity tableEntity, Func<DynamicTableEntity, Type> typeFactory)
+        public T ConvertFromTableEntity<T>(TableEntity tableEntity, Func<TableEntity, Type> typeFactory)
         {
             if (tableEntity == null)
             {
@@ -85,14 +85,13 @@ namespace DurableTask.AzureStorage.Tracking
             foreach (PropertyConverter propertyConverter in propertyConverters)
             {
                 // Properties with null values are not actually saved/retrieved by table storage.
-                EntityProperty entityProperty;
-                if (tableEntity.Properties.TryGetValue(propertyConverter.PropertyName, out entityProperty))
+                if (tableEntity.TryGetValue(propertyConverter.PropertyName, out object entityProperty))
                 {
                     propertyConverter.SetObjectProperty(createdObject, entityProperty);
                 }
             }
 
-            return createdObject;
+            return (T)createdObject;
         }
 
         static List<PropertyConverter> GetPropertyConvertersForType(Type type)
@@ -129,21 +128,21 @@ namespace DurableTask.AzureStorage.Tracking
                         propertyName = "_Timestamp";
                     }
 
-                    Func<object, EntityProperty> getEntityPropertyFunc;
-                    Action<object, EntityProperty> setObjectPropertyFunc;
+                    Func<object, object> getEntityPropertyFunc;
+                    Action<object, object> setObjectPropertyFunc;
 
                     Type memberValueType = property != null ? property.PropertyType : field.FieldType;
-                    if (typeof(string).IsAssignableFrom(memberValueType))
+                    if (UseDefaultHandling(memberValueType))
                     {
                         if (property != null)
                         {
-                            getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForString((string)property.GetValue(o));
-                            setObjectPropertyFunc = (o, e) => property.SetValue(o, e.StringValue);
+                            getEntityPropertyFunc = o => property.GetValue(o);
+                            setObjectPropertyFunc = (o, e) => property.SetValue(o, e);
                         }
                         else
                         {
-                            getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForString((string)field.GetValue(o));
-                            setObjectPropertyFunc = (o, e) => field.SetValue(o, e.StringValue);
+                            getEntityPropertyFunc = o => field.GetValue(o);
+                            setObjectPropertyFunc = (o, e) => field.SetValue(o, e);
                         }
                     }
                     else if (memberValueType.IsEnum)
@@ -151,117 +150,13 @@ namespace DurableTask.AzureStorage.Tracking
                         // Enums are serialized as strings for readability.
                         if (property != null)
                         {
-                            getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForString(property.GetValue(o).ToString());
-                            setObjectPropertyFunc = (o, e) => property.SetValue(o, Enum.Parse(memberValueType, e.StringValue));
+                            getEntityPropertyFunc = o => property.GetValue(o).ToString();
+                            setObjectPropertyFunc = (o, e) => property.SetValue(o, Enum.Parse(memberValueType, e as string));
                         }
                         else
                         {
-                            getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForString(field.GetValue(o).ToString());
-                            setObjectPropertyFunc = (o, e) => field.SetValue(o, Enum.Parse(memberValueType, e.StringValue));
-                        }
-                    }
-                    else if (typeof(int?).IsAssignableFrom(memberValueType))
-                    {
-                        if (property != null)
-                        {
-                            getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForInt((int?)property.GetValue(o));
-                            setObjectPropertyFunc = (o, e) => property.SetValue(o, e.Int32Value);
-                        }
-                        else
-                        {
-                            getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForInt((int?)field.GetValue(o));
-                            setObjectPropertyFunc = (o, e) => field.SetValue(o, e.Int32Value);
-                        }
-                    }
-                    else if (typeof(long?).IsAssignableFrom(memberValueType))
-                    {
-                        if (property != null)
-                        {
-                            getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForLong((long?)property.GetValue(o));
-                            setObjectPropertyFunc = (o, e) => property.SetValue(o, e.Int64Value);
-                        }
-                        else
-                        {
-                            getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForLong((long?)field.GetValue(o));
-                            setObjectPropertyFunc = (o, e) => field.SetValue(o, e.Int64Value);
-                        }
-                    }
-                    else if (typeof(bool?).IsAssignableFrom(memberValueType))
-                    {
-                        if (property != null)
-                        {
-                            getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForBool((bool?)property.GetValue(o));
-                            setObjectPropertyFunc = (o, e) => property.SetValue(o, e.BooleanValue);
-                        }
-                        else
-                        {
-                            getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForBool((bool?)field.GetValue(o));
-                            setObjectPropertyFunc = (o, e) => field.SetValue(o, e.BooleanValue);
-                        }
-                    }
-                    else if (typeof(DateTime?).IsAssignableFrom(memberValueType))
-                    {
-                        if (property != null)
-                        {
-                            getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForDateTimeOffset((DateTime?)property.GetValue(o));
-                            setObjectPropertyFunc = (o, e) => property.SetValue(o, e.DateTime);
-                        }
-                        else
-                        {
-                            getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForDateTimeOffset((DateTime?)field.GetValue(o));
-                            setObjectPropertyFunc = (o, e) => field.SetValue(o, e.DateTime);
-                        }
-                    }
-                    else if (typeof(DateTimeOffset?).IsAssignableFrom(memberValueType))
-                    {
-                        if (property != null)
-                        {
-                            getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForDateTimeOffset((DateTimeOffset?)property.GetValue(o));
-                            setObjectPropertyFunc = (o, e) => property.SetValue(o, e.DateTimeOffsetValue);
-                        }
-                        else
-                        {
-                            getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForDateTimeOffset((DateTimeOffset?)field.GetValue(o));
-                            setObjectPropertyFunc = (o, e) => field.SetValue(o, e.DateTimeOffsetValue);
-                        }
-                    }
-                    else if (typeof(Guid?).IsAssignableFrom(memberValueType))
-                    {
-                        if (property != null)
-                        {
-                            getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForGuid((Guid?)property.GetValue(o));
-                            setObjectPropertyFunc = (o, e) => property.SetValue(o, e.GuidValue);
-                        }
-                        else
-                        {
-                            getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForGuid((Guid?)field.GetValue(o));
-                            setObjectPropertyFunc = (o, e) => field.SetValue(o, e.GuidValue);
-                        }
-                    }
-                    else if (typeof(double?).IsAssignableFrom(memberValueType))
-                    {
-                        if (property != null)
-                        {
-                            getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForDouble((double?)property.GetValue(o));
-                            setObjectPropertyFunc = (o, e) => property.SetValue(o, e.DoubleValue);
-                        }
-                        else
-                        {
-                            getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForDouble((double?)field.GetValue(o));
-                            setObjectPropertyFunc = (o, e) => field.SetValue(o, e.DoubleValue);
-                        }
-                    }
-                    else if (typeof(byte[]).IsAssignableFrom(memberValueType))
-                    {
-                        if (property != null)
-                        {
-                            getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForByteArray((byte[])property.GetValue(o));
-                            setObjectPropertyFunc = (o, e) => property.SetValue(o, e.BinaryValue);
-                        }
-                        else
-                        {
-                            getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForByteArray((byte[])field.GetValue(o));
-                            setObjectPropertyFunc = (o, e) => field.SetValue(o, e.BinaryValue);
+                            getEntityPropertyFunc = o => field.GetValue(o).ToString();
+                            setObjectPropertyFunc = (o, e) => field.SetValue(o, Enum.Parse(memberValueType, e as string));
                         }
                     }
                     else // assume a serializeable object
@@ -269,13 +164,12 @@ namespace DurableTask.AzureStorage.Tracking
                         getEntityPropertyFunc = o =>
                         {
                             object value = property != null ? property.GetValue(o) : field.GetValue(o);
-                            string json = value != null ? JsonConvert.SerializeObject(value) : null;
-                            return EntityProperty.GeneratePropertyForString(json);
+                            return value != null ? JsonConvert.SerializeObject(value) : null;
                         };
 
                         setObjectPropertyFunc = (o, e) =>
                         {
-                            string json = e.StringValue;
+                            string json = e as string;
                             object value = json != null ? JsonConvert.DeserializeObject(json, memberValueType) : null;
                             if (property != null)
                             {
@@ -297,21 +191,36 @@ namespace DurableTask.AzureStorage.Tracking
             return propertyConverters;
         }
 
-        class PropertyConverter
+        static bool UseDefaultHandling(Type memberValueType)
+        {
+            return typeof(string).IsAssignableFrom(memberValueType) ||
+                typeof(int?).IsAssignableFrom(memberValueType) ||
+                typeof(long?).IsAssignableFrom(memberValueType) ||
+                typeof(bool?).IsAssignableFrom(memberValueType) ||
+                typeof(DateTime?).IsAssignableFrom(memberValueType) ||
+                typeof(DateTimeOffset?).IsAssignableFrom(memberValueType) ||
+                typeof(Guid?).IsAssignableFrom(memberValueType) ||
+                typeof(double?).IsAssignableFrom(memberValueType) ||
+                typeof(byte[]).IsAssignableFrom(memberValueType);
+        }
+
+        sealed class PropertyConverter
         {
             public PropertyConverter(
                 string propertyName,
-                Func<object, EntityProperty> toEntityPropertyConverter,
-                Action<object, EntityProperty> toObjectPropertyConverter)
+                Func<object, object> getObjectProperty,
+                Action<object, object> setObjectProperty)
             {
                 this.PropertyName = propertyName;
-                this.GetEntityProperty = toEntityPropertyConverter;
-                this.SetObjectProperty = toObjectPropertyConverter;
+                this.GetObjectProperty = getObjectProperty;
+                this.SetObjectProperty = setObjectProperty;
             }
 
-            public string PropertyName { get; private set; }
-            public Func<object, EntityProperty> GetEntityProperty { get; private set; }
-            public Action<object, EntityProperty> SetObjectProperty { get; private set; }
+            public string PropertyName { get; }
+
+            public Func<object, object> GetObjectProperty { get; }
+
+            public Action<object, object> SetObjectProperty { get; }
         }
     }
 }

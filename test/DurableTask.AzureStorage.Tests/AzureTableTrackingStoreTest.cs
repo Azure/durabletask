@@ -19,6 +19,7 @@ namespace DurableTask.AzureStorage.Tests
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
+    using DurableTask.AzureStorage.Entities;
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Storage;
     using DurableTask.AzureStorage.Tracking;
@@ -109,7 +110,7 @@ namespace DurableTask.AzureStorage.Tests
 
             public string ActualPassedTokenString { get; set; }
 
-            public List<OrchestrationInstanceStatus> InputStatus { get; set; }
+            public List<OrchestrationInstanceStatusEntity> InputStatus { get; set; }
 
             public List<OrchestrationStatus> InputState { get; set; }
 
@@ -148,24 +149,24 @@ namespace DurableTask.AzureStorage.Tests
 
             public void VerifyQueryStateWithPager()
             {
-                this.tableMock.Verify(t => t.ExecuteQuerySegmentAsync<OrchestrationInstanceStatus>(
-                    It.IsAny<TableQuery<OrchestrationInstanceStatus>>(),
+                this.tableMock.Verify(t => t.ExecuteQuerySegmentAsync<OrchestrationInstanceStatusEntity>(
+                    It.IsAny<TableQuery<OrchestrationInstanceStatusEntity>>(),
                         It.IsAny<CancellationToken>(),
                         It.IsAny<string>()));
             }
 
             private void SetupExecuteQuerySegmentMock()
             {
-                var segment = (TableEntitiesResponseInfo<OrchestrationInstanceStatus>)System.Runtime.Serialization.FormatterServices.GetSafeUninitializedObject(typeof(TableEntitiesResponseInfo<OrchestrationInstanceStatus>));
+                var segment = (TableEntitiesResponseInfo<OrchestrationInstanceStatusEntity>)System.Runtime.Serialization.FormatterServices.GetSafeUninitializedObject(typeof(TableEntitiesResponseInfo<OrchestrationInstanceStatusEntity>));
                 segment.GetType().GetProperty("ReturnedEntities").SetValue(segment, this.InputStatus);
                 segment.GetType().GetProperty("ContinuationToken").SetValue(segment, this.ExpectedTokenObject);
 
-                this.tableMock.Setup(t => t.ExecuteQuerySegmentAsync<OrchestrationInstanceStatus>(
-                        It.IsAny<TableQuery<OrchestrationInstanceStatus>>(),
+                this.tableMock.Setup(t => t.ExecuteQuerySegmentAsync<OrchestrationInstanceStatusEntity>(
+                        It.IsAny<TableQuery<OrchestrationInstanceStatusEntity>>(),
                         It.IsAny<CancellationToken>(),
                         It.IsAny<string>()))
                     .Returns(Task.FromResult(segment))
-                    .Callback<TableQuery<OrchestrationInstanceStatus>, CancellationToken, string>(
+                    .Callback<TableQuery<OrchestrationInstanceStatusEntity>, CancellationToken, string>(
                         (q, cancelToken, token) =>
                         {
                             this.ActualPassedTokenString = token;
@@ -175,19 +176,19 @@ namespace DurableTask.AzureStorage.Tests
 
             private void SetupQueryStateWithPagerInputStatus()
             {
-                this.InputStatus = new List<OrchestrationInstanceStatus>()
+                this.InputStatus = new List<OrchestrationInstanceStatusEntity>()
                 {
-                    new OrchestrationInstanceStatus()
+                    new OrchestrationInstanceStatusEntity()
                     {
                         Name = "foo",
                         RuntimeStatus = "Running"
                     },
-                    new OrchestrationInstanceStatus()
+                    new OrchestrationInstanceStatusEntity()
                     {
                         Name = "bar",
                         RuntimeStatus = "Completed"
                     },
-                    new OrchestrationInstanceStatus()
+                    new OrchestrationInstanceStatusEntity()
                     {
                         Name = "baz",
                         RuntimeStatus = "Failed"

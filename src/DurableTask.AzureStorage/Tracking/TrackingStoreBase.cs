@@ -37,10 +37,10 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public abstract Task<OrchestrationHistory> GetHistoryEventsAsync(string instanceId, string expectedExecutionId, CancellationToken cancellationToken = default(CancellationToken));
+        public abstract Task<OrchestrationHistory> GetHistoryEventsAsync(string instanceId, string expectedExecutionId, CancellationToken cancellationToken = default);
 
         /// <inheritdoc />
-        public virtual Task<IList<string>> RewindHistoryAsync(string instanceId, IList<string> failedLeaves, CancellationToken cancellationToken)
+        public virtual Task<IReadOnlyList<string>> RewindHistoryAsync(string instanceId, CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
         }
@@ -49,36 +49,30 @@ namespace DurableTask.AzureStorage.Tracking
         public abstract Task<InstanceStatus> FetchInstanceStatusAsync(string instanceId);
 
         /// <inheritdoc />
-        public abstract Task<IList<OrchestrationState>> GetStateAsync(string instanceId, bool allExecutions, bool fetchInput);
-        
+        public abstract IAsyncEnumerable<OrchestrationState> GetStateAsync(string instanceId, bool allExecutions, bool fetchInput, CancellationToken cancellationToken = default);
+
         /// <inheritdoc />
         public abstract Task<OrchestrationState> GetStateAsync(string instanceId, string executionId, bool fetchInput);
 
         /// <inheritdoc />
-        public virtual Task<IList<OrchestrationState>> GetStateAsync(CancellationToken cancellationToken = default(CancellationToken))
+        public virtual IAsyncEnumerable<OrchestrationState> GetStateAsync(CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
         }
 
         /// <inheritdoc />
-        public virtual Task<IList<OrchestrationState>> GetStateAsync(IEnumerable<string> instanceIds)
+        public virtual IAsyncEnumerable<OrchestrationState> GetStateAsync(IEnumerable<string> instanceIds)
         {
             throw new NotSupportedException();
         }
 
         /// <inheritdoc />
-        public virtual Task<IList<OrchestrationState>> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken = default(CancellationToken))
+        public virtual IAsyncEnumerable<OrchestrationState> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
         }
 
-        /// <inheritdoc />
-        public virtual Task<DurableStatusQueryResult> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, int top, string continuationToken, CancellationToken cancellationToken = default(CancellationToken))
-        {
-            throw new NotSupportedException();
-        }
-
-        public virtual Task<DurableStatusQueryResult> GetStateAsync(OrchestrationInstanceStatusQueryCondition condition, int top, string continuationToken, CancellationToken cancellationToken = default(CancellationToken))
+        public virtual IAsyncEnumerable<OrchestrationState> GetStateAsync(OrchestrationInstanceStatusQueryCondition condition, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
         }

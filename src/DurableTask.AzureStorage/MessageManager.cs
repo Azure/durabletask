@@ -20,7 +20,9 @@ namespace DurableTask.AzureStorage
     using System.Reflection;
     using System.Runtime.Serialization;
     using System.Text;
+    using System.Threading;
     using System.Threading.Tasks;
+    using Azure.Storage.Queues.Models;
     using DurableTask.AzureStorage.Storage;
     using Newtonsoft.Json;
     using Newtonsoft.Json.Serialization;
@@ -66,27 +68,27 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        public async Task<bool> EnsureContainerAsync()
+        public async Task<bool> EnsureContainerAsync(CancellationToken cancellationToken = default)
         {
             bool created = false;
 
             if (!this.containerInitialized)
             {
-                created = await this.blobContainer.CreateIfNotExistsAsync();
+                created = await this.blobContainer.CreateIfNotExistsAsync(cancellationToken);
                 this.containerInitialized = true;
             }
 
             return created;
         }
 
-        public async Task<bool> DeleteContainerAsync()
+        public async Task<bool> DeleteContainerAsync(CancellationToken cancellationToken = default)
         {
-            bool deleted = await this.blobContainer.DeleteIfExistsAsync();
+            bool deleted = await this.blobContainer.DeleteIfExistsAsync(cancellationToken: cancellationToken);
             this.containerInitialized = false;
             return deleted;
         }
 
-        public async Task<string> SerializeMessageDataAsync(MessageData messageData)
+        public async Task<string> SerializeMessageDataAsync(MessageData messageData, CancellationToken cancellationToken = default)
         {
             string rawContent = JsonConvert.SerializeObject(messageData, this.taskMessageSerializerSettings);
             messageData.TotalMessageSizeBytes = Encoding.UTF8.GetByteCount(rawContent);
@@ -98,7 +100,7 @@ namespace DurableTask.AzureStorage
                 byte[] messageBytes = Encoding.UTF8.GetBytes(rawContent);
                 string blobName = this.GetNewLargeMessageBlobName(messageData);
                 messageData.CompressedBlobName = blobName;
-                await this.CompressAndUploadAsBytesAsync(messageBytes, blobName);
+                await this.CompressAndUploadAsBytesAsync(messageBytes, blobName, cancellationToken);
 
                 // Create a "wrapper" message which has the blob name but not a task message.
                 var wrapperMessageData = new MessageData { CompressedBlobName = blobName };
@@ -113,12 +115,13 @@ namespace DurableTask.AzureStorage
         /// Otherwise returns the message as is.
         /// </summary>
         /// <param name="message">The message to be fetched if it is a url.</param>
+        /// <param name="cancellationToken">A token used for canceling the operation.</param>
         /// <returns>Actual string representation of message.</returns>
-        public async Task<string> FetchLargeMessageIfNecessary(string message)
+        public async Task<string> FetchLargeMessageIfNecessary(string message, CancellationToken cancellationToken = default)
         {
             if (Uri.IsWellFormedUriString(message, UriKind.Absolute))
             {
-                return await this.DownloadAndDecompressAsBytesAsync(new Uri(message));
+                return await this.DownloadAndDecompressAsBytesAsync(new Uri(message), cancellationToken);
             }
             else
             {
@@ -126,10 +129,10 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        public async Task<MessageData> DeserializeQueueMessageAsync(QueueMessage queueMessage, string queueName)
+        public async Task<MessageData> DeserializeQueueMessageAsync(QueueMessage queueMessage, string queueName, CancellationToken cancellationToken = default)
         {
             MessageData envelope = JsonConvert.DeserializeObject<MessageData>(
-                queueMessage.Message,
+                queueMessage.Body,
                 this.taskMessageSerializerSettings);
 
             if (!string.IsNullOrEmpty(envelope.CompressedBlobName))
@@ -147,10 +150,10 @@ namespace DurableTask.AzureStorage
             return envelope;
         }
 
-        public Task CompressAndUploadAsBytesAsync(byte[] payloadBuffer, string blobName)
+        public Task CompressAndUploadAsBytesAsync(byte[] payloadBuffer, string blobName, CancellationToken cancellationToken = default)
         {
             ArraySegment<byte> compressedSegment = this.Compress(payloadBuffer);
-            return this.UploadToBlobAsync(compressedSegment.Array, compressedSegment.Count, blobName);
+            return this.UploadToBlobAsync(compressedSegment.Array, compressedSegment.Count, blobName, cancellationToken);
         }
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:DoNotDisposeObjectsMultipleTimes", Justification = "This GZipStream will not dispose the MemoryStream.")]
@@ -184,25 +187,25 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        public async Task<string> DownloadAndDecompressAsBytesAsync(string blobName)
+        public async Task<string> DownloadAndDecompressAsBytesAsync(string blobName, CancellationToken cancellationToken = default)
         {
-            await this.EnsureContainerAsync();
+            await this.EnsureContainerAsync(cancellationToken);
 
             Blob blob = this.blobContainer.GetBlobReference(blobName);
-            return await DownloadAndDecompressAsBytesAsync(blob);
+            return await DownloadAndDecompressAsBytesAsync(blob, cancellationToken);
         }
 
-        public Task<string> DownloadAndDecompressAsBytesAsync(Uri blobUri)
+        public Task<string> DownloadAndDecompressAsBytesAsync(Uri blobUri, CancellationToken cancellationToken = default)
         {
             Blob blob = this.azureStorageClient.GetBlobReference(blobUri);
-            return DownloadAndDecompressAsBytesAsync(blob);
+            return DownloadAndDecompressAsBytesAsync(blob, cancellationToken);
         }
 
-        private async Task<string> DownloadAndDecompressAsBytesAsync(Blob blob)
+        private async Task<string> DownloadAndDecompressAsBytesAsync(Blob blob, CancellationToken cancellationToken = default)
         {
             using (MemoryStream memory = new MemoryStream(MaxStorageQueuePayloadSizeInBytes * 2))
             {
-                await blob.DownloadToStreamAsync(memory);
+                await blob.DownloadToStreamAsync(memory, cancellationToken);
                 memory.Position = 0;
 
                 ArraySegment<byte> decompressedSegment = this.Decompress(memory);
@@ -252,12 +255,12 @@ namespace DurableTask.AzureStorage
             return messageFormatFlags;
         }
 
-        public async Task UploadToBlobAsync(byte[] data, int dataByteCount, string blobName)
+        public async Task UploadToBlobAsync(byte[] data, int dataByteCount, string blobName, CancellationToken cancellationToken = default)
         {
             await this.EnsureContainerAsync();
 
             Blob blob = this.blobContainer.GetBlobReference(blobName);
-            await blob.UploadFromByteArrayAsync(data, 0, dataByteCount);
+            await blob.UploadFromByteArrayAsync(data, 0, dataByteCount, cancellationToken);
         }
 
         public string GetNewLargeMessageBlobName(MessageData message)
@@ -269,12 +272,12 @@ namespace DurableTask.AzureStorage
             return $"{instanceId}/message-{activityId}-{eventType}.json.gz";
         }
 
-        public async Task<int> DeleteLargeMessageBlobs(string sanitizedInstanceId)
+        public async Task<int> DeleteLargeMessageBlobs(string sanitizedInstanceId, CancellationToken cancellationToken = default)
         {
             int storageOperationCount = 1;
             if (await this.blobContainer.ExistsAsync())
             {
-                IEnumerable<Blob> blobList = await this.blobContainer.ListBlobsAsync(sanitizedInstanceId);
+                IEnumerable<Blob> blobList = await this.blobContainer.ListBlobsAsync(sanitizedInstanceId, cancellationToken);
                 storageOperationCount++;
 
                 var blobForDeletionTaskList = new List<Task>();
