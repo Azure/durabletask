@@ -44,8 +44,6 @@ namespace DurableTask.AzureStorage.Storage
 
         public string Name { get; }
 
-        public Uri Uri => this.tableClient;
-
         public async Task<bool> CreateIfNotExistsAsync(CancellationToken cancellationToken = default)
         {
             // If we received null, then the response must have been a 409 (Conflict) and the table must already exist
@@ -169,14 +167,14 @@ namespace DurableTask.AzureStorage.Storage
             };
         }
 
-        public async Task<TableEntitiesResponseInfo<T>> ExecuteQueryAsync<T>(Expression<Func<T, bool>> filter, CancellationToken cancellationToken = default) where T : class, ITableEntity, new()
+        public async Task<TableEntitiesResponseInfo<T>> ExecuteCompleteQueryAsync<T>(string? filter = null, IEnumerable<string>? select = null, CancellationToken cancellationToken = default) where T : class, ITableEntity, new()
         {
             var stopwatch = new Stopwatch();
             stopwatch.Start();
 
             int requests = 0;
             var results = new List<T>();
-            await foreach (Page<T> page in this.tableClient.QueryAsync(filter, cancellationToken: cancellationToken).AsPages())
+            await foreach (Page<T> page in this.tableClient.QueryAsync<T>(filter, select: select, cancellationToken: cancellationToken).AsPages())
             {
                 requests++;
                 results.AddRange(page.Values);
@@ -190,6 +188,11 @@ namespace DurableTask.AzureStorage.Storage
                 RequestCount = requests,
                 ReturnedEntities = results,
             };
+        }
+
+        public IAsyncEnumerable<T> ExecuteQueryAsync<T>(string? filter = null, IEnumerable<string>? select = null, CancellationToken cancellationToken = default) where T : class, ITableEntity, new()
+        {
+            return this.tableClient.QueryAsync<T>(filter, select: select, cancellationToken: cancellationToken);
         }
     }
 }

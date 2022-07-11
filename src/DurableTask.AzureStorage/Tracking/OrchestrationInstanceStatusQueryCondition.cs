@@ -16,15 +16,15 @@ namespace DurableTask.AzureStorage.Tracking
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using DurableTask.AzureStorage.Entities;
     using DurableTask.Core;
-    using Microsoft.WindowsAzure.Storage.Table;
 
     /// <summary>
     /// OrchestrationInstanceStatusQueryBuilder is a builder to create a StorageTable Query
     /// </summary>
-    public class OrchestrationInstanceStatusQueryCondition
+    public sealed class OrchestrationInstanceStatusQueryCondition
     {
-        static readonly string[] ColumnNames = typeof(OrchestrationInstanceStatus).GetProperties()
+        static readonly string[] ColumnNames = typeof(OrchestrationInstanceStatusEntity).GetProperties()
             .Select(prop => prop.Name)
             .ToArray();
 
@@ -69,14 +69,11 @@ namespace DurableTask.AzureStorage.Tracking
         public bool FetchOutput { get; set; } = true;
 
         /// <summary>
-        /// Get the TableQuery object
+        /// Get the corresponding OData filter.
         /// </summary>
-        /// <typeparam name="T"></typeparam>
         /// <returns></returns>
-        public TableQuery<T> ToTableQuery<T>()
-            where T : ITableEntity, new()
+        public (string? Filter, IEnumerable<string>? Select) ToOData()
         {
-            var query = new TableQuery<T>();
             if (!((this.RuntimeStatus == null || !this.RuntimeStatus.Any()) && 
                 this.CreatedTimeFrom == default(DateTime) && 
                 this.CreatedTimeTo == default(DateTime) &&
@@ -84,66 +81,50 @@ namespace DurableTask.AzureStorage.Tracking
                 this.InstanceIdPrefix == null &&
                 this.InstanceId == null))
             {
+                IEnumerable<string>? select = null;
                 if (!this.FetchInput || !this.FetchOutput)
                 {
                     var columns = new HashSet<string>(ColumnNames);
                     if (!this.FetchInput)
                     {
-                        columns.Remove(nameof(OrchestrationInstanceStatus.Input));
+                        columns.Remove(nameof(OrchestrationInstanceStatusEntity.Input));
                     }
 
                     if (!this.FetchOutput)
                     {
-                        columns.Remove(nameof(OrchestrationInstanceStatus.Output));
+                        columns.Remove(nameof(OrchestrationInstanceStatusEntity.Output));
                     }
 
-                    query.Select(columns.ToList());
+                    select = columns;
                 }
 
-                string conditions = this.GetConditions();
-                if (!string.IsNullOrEmpty(conditions))
-                {
-                    query.Where(conditions);
-                }
+                return (this.GetODataFilter(), select);
             }
 
-            return query;
+            return default;
         }
 
-        string GetConditions()
+        string? GetODataFilter()
         {
             var conditions = new List<string>();
-
             if (this.CreatedTimeFrom > DateTime.MinValue)
             {
-                conditions.Add(TableQuery.GenerateFilterConditionForDate("CreatedTime", QueryComparisons.GreaterThanOrEqual, new DateTimeOffset(this.CreatedTimeFrom)));
+                conditions.Add($"{nameof(OrchestrationInstanceStatusEntity.CreatedTime)} ge datetime'{this.CreatedTimeFrom:O}'");
             }
 
             if (this.CreatedTimeTo != default(DateTime) && this.CreatedTimeTo < DateTime.MaxValue)
             {
-                conditions.Add(TableQuery.GenerateFilterConditionForDate("CreatedTime", QueryComparisons.LessThanOrEqual, new DateTimeOffset(this.CreatedTimeTo)));
+                conditions.Add($"{nameof(OrchestrationInstanceStatusEntity.CreatedTime)} le datetime'{this.CreatedTimeTo:O}'");
             }
 
             if (this.RuntimeStatus != null && this.RuntimeStatus.Any())
             {
-                string runtimeCondition = this.RuntimeStatus
-                    .Select(x => TableQuery.GenerateFilterCondition("RuntimeStatus", QueryComparisons.Equal, x.ToString()))
-                    .Aggregate((a, b) => TableQuery.CombineFilters(a, TableOperators.Or, b));
-                if (runtimeCondition.Length > 0)
-                {
-                    conditions.Add(runtimeCondition);
-                }
+                conditions.Add($"({string.Join(" or ", this.RuntimeStatus.Select(x => $"{nameof(OrchestrationInstanceStatusEntity.RuntimeStatus)} eq '{x:G}'"))})");
             }
 
-            if (this.TaskHubNames != null)
+            if (this.TaskHubNames != null && this.TaskHubNames.Any())
             {
-                string taskHubCondition = this.TaskHubNames
-                    .Select(x => TableQuery.GenerateFilterCondition("TaskHubName", QueryComparisons.Equal, x.ToString()))
-                    .Aggregate((a, b) => TableQuery.CombineFilters(a, TableOperators.Or, b));
-                if (taskHubCondition.Count() != 0)
-                {
-                    conditions.Add(taskHubCondition);
-                }
+                conditions.Add($"({string.Join(" or ", this.TaskHubNames.Select(x => $"{nameof(OrchestrationInstanceStatusEntity.TaskHubName)} eq '{x}'"))})");
             }
 
             if (!string.IsNullOrEmpty(this.InstanceIdPrefix))
@@ -154,26 +135,17 @@ namespace DurableTask.AzureStorage.Tracking
 
                 string greaterThanPrefix = sanitizedPrefix.Substring(0, length) + incrementedLastChar;
 
-                conditions.Add(TableQuery.CombineFilters(
-                    TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.GreaterThanOrEqual, sanitizedPrefix), 
-                    TableOperators.And, 
-                    TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.LessThan, greaterThanPrefix)));
+                conditions.Add($"{nameof(OrchestrationInstanceStatusEntity.PartitionKey)} ge '{sanitizedPrefix}'");
+                conditions.Add($"{nameof(OrchestrationInstanceStatusEntity.PartitionKey)} lt '{greaterThanPrefix}'");
             }
 
             if (this.InstanceId != null)
             {
                 string sanitizedInstanceId = KeySanitation.EscapePartitionKey(this.InstanceId);
-                conditions.Add(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, sanitizedInstanceId));
+                conditions.Add($"{nameof(OrchestrationInstanceStatusEntity.PartitionKey)} eq '{sanitizedInstanceId}'");
             }
 
-            if (conditions.Count == 0)
-            {
-                return string.Empty;
-            }
-
-            return conditions.Count == 1 ? 
-                conditions[0] : 
-                conditions.Aggregate((a, b) => TableQuery.CombineFilters(a, TableOperators.And, b));
+            return conditions.Count == 0 ? null : string.Join(" and ", conditions);
         }
 
         /// <summary>

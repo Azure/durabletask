@@ -133,7 +133,7 @@ namespace DurableTask.AzureStorage.Logging
                 string executionId,
                 string messageId,
                 int age,
-                int dequeueCount,
+                long dequeueCount,
                 string nextVisibleTime,
                 long sizeInBytes,
                 string partitionId,
@@ -184,7 +184,7 @@ namespace DurableTask.AzureStorage.Logging
             public int Age { get; }
 
             [StructuredLogField]
-            public int DequeueCount { get; }
+            public long DequeueCount { get; }
 
             [StructuredLogField]
             public string NextVisibleTime { get; }

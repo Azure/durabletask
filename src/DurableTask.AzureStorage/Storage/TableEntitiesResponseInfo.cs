@@ -21,8 +21,6 @@ namespace DurableTask.AzureStorage.Storage
 
         public int RequestCount { get; set; }
 
-        public IList<T>? ReturnedEntities { get; set; }
-
-        public string? ContinuationToken { get; set; }
+        public IReadOnlyList<T>? ReturnedEntities { get; set; }
     }
 }

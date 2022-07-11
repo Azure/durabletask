@@ -102,7 +102,7 @@ namespace DurableTask.AzureStorage
             string ExecutionId,
             string MessageId,
             int Age,
-            int DequeueCount,
+            long DequeueCount,
             string NextVisibleTime,
             long SizeInBytes,
             string PartitionId,

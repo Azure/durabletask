@@ -24,6 +24,7 @@ namespace DurableTask.AzureStorage
     using System.Threading.Tasks;
     using Azure;
     using Azure.Storage.Queues;
+    using Azure.Storage.Queues.Models;
     using DurableTask.AzureStorage.Messaging;
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Partitioning;
@@ -53,6 +54,7 @@ namespace DurableTask.AzureStorage
             ExecutionId = string.Empty
         };
 
+        readonly AzureStorageClient azureStorageClient;
         readonly AzureStorageOrchestrationServiceSettings settings;
         readonly AzureStorageOrchestrationServiceStats stats;
         readonly ConcurrentDictionary<string, ControlQueue> allControlQueues;
@@ -84,9 +86,9 @@ namespace DurableTask.AzureStorage
         /// <inheritdoc/>
         public override string ToString()
         {
-            string blobAccountName = this.settings.StorageProviders.Blob.AccountName;
-            string queueAccountName = this.settings.StorageProviders.Queue.AccountName;
-            string tableAccountName = this.settings.StorageProviders.Table.AccountName;
+            string blobAccountName = this.azureStorageClient.BlobAccountName;
+            string queueAccountName = this.azureStorageClient.QueueAccountName;
+            string tableAccountName = this.azureStorageClient.TableAccountName;
 
             return blobAccountName == queueAccountName && blobAccountName == tableAccountName
                 ? $"AzureStorageOrchestrationService on {blobAccountName}"
@@ -106,9 +108,10 @@ namespace DurableTask.AzureStorage
             }
 
             ValidateSettings(settings);
-            settings.StorageProviders.Blob
 
             this.settings = settings;
+
+            this.azureStorageClient = new AzureStorageClient(settings);
             this.stats = this.azureStorageClient.Stats;
 
             string compressedMessageBlobContainerName = $"{settings.TaskHubName.ToLowerInvariant()}-largemessages";
@@ -541,7 +544,7 @@ namespace DurableTask.AzureStorage
             return controlQueues;
         }
 
-        internal static Queue GetWorkItemQueue(QueueServiceClient queueService)
+        internal static Queue GetWorkItemQueue(AzureStorageClient azureStorageClient)
         {
             string queueName = GetWorkItemQueueName(azureStorageClient.Settings.TaskHubName);
             return azureStorageClient.GetQueueReference(queueName);
@@ -609,7 +612,7 @@ namespace DurableTask.AzureStorage
                                 session.ControlQueue.Name,
                                 message.TaskMessage.Event.EventType.ToString(),
                                 Utils.GetTaskEventId(message.TaskMessage.Event),
-                                message.OriginalQueueMessage.Id,
+                                message.OriginalQueueMessage.MessageId,
                                 message.Episode.GetValueOrDefault(-1),
                                 session.LastCheckpointTime);
                             outOfOrderMessages.Add(message);
@@ -647,7 +650,7 @@ namespace DurableTask.AzureStorage
                     orchestrationWorkItem = new TaskOrchestrationWorkItem
                     {
                         InstanceId = session.Instance.InstanceId,
-                        LockedUntilUtc = session.CurrentMessageBatch.Min(msg => msg.OriginalQueueMessage.NextVisibleTime.Value.UtcDateTime),
+                        LockedUntilUtc = session.CurrentMessageBatch.Min(msg => msg.OriginalQueueMessage.NextVisibleOn.Value.UtcDateTime),
                         NewMessages = session.CurrentMessageBatch.Select(m => m.TaskMessage).ToList(),
                         OrchestrationRuntimeState = session.RuntimeState,
                         Session = this.settings.ExtendedSessionsEnabled ? session : null,
@@ -899,10 +902,10 @@ namespace DurableTask.AzureStorage
                 Utils.GetTaskEventId(taskMessage.Event),
                 taskMessage.OrchestrationInstance.InstanceId,
                 taskMessage.OrchestrationInstance.ExecutionId,
-                queueMessage.Id,
-                Math.Max(0, (int)DateTimeOffset.UtcNow.Subtract(queueMessage.InsertionTime.Value).TotalMilliseconds),
+                queueMessage.MessageId,
+                Math.Max(0, (int)DateTimeOffset.UtcNow.Subtract(queueMessage.InsertedOn.Value).TotalMilliseconds),
                 queueMessage.DequeueCount,
-                queueMessage.NextVisibleTime.GetValueOrDefault().DateTime.ToString("o"),
+                queueMessage.NextVisibleOn.GetValueOrDefault().DateTime.ToString("o"),
                 data.TotalMessageSizeBytes,
                 data.QueueName /* PartitionId */,
                 data.SequenceNumber,
@@ -1383,7 +1386,7 @@ namespace DurableTask.AzureStorage
                 {
                     Id = message.Id,
                     TaskMessage = session.MessageData.TaskMessage,
-                    LockedUntilUtc = message.OriginalQueueMessage.NextVisibleTime.Value.UtcDateTime,
+                    LockedUntilUtc = message.OriginalQueueMessage.NextVisibleOn.Value.UtcDateTime,
 
                     TraceContextBase = requestTraceContext
                 };
