@@ -14,12 +14,12 @@
 namespace DurableTask.AzureStorage
 {
     using System;
-    using DurableTask.AzureStorage.Partitioning;
-    using DurableTask.AzureStorage.Logging;
-    using DurableTask.Core;
-    using Microsoft.Extensions.Logging;
     using System.Runtime.Serialization;
     using Azure.Data.Tables;
+    using DurableTask.AzureStorage.Logging;
+    using DurableTask.AzureStorage.Partitioning;
+    using DurableTask.Core;
+    using Microsoft.Extensions.Logging;
 
     /// <summary>
     /// Settings that impact the runtime behavior of the <see cref="AzureStorageOrchestrationService"/>.

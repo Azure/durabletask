@@ -24,7 +24,7 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public void ToCloudStorageAccount_ConnectionString()
         {
-            var details = new AzureStorageServices { ConnectionString = "UseDevelopmentStorage=true" };
+            var details = new StorageAccountDetails { ConnectionString = "UseDevelopmentStorage=true" };
 
             CloudStorageAccount actual = details.ToCloudStorageAccount();
             Assert.AreEqual(new Uri("http://127.0.0.1:10000/devstoreaccount1", UriKind.Absolute), actual.BlobEndpoint);
@@ -35,7 +35,7 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public void ToCloudStorageAccount_Endpoints()
         {
-            var expected = new AzureStorageServices
+            var expected = new StorageAccountDetails
             {
                 StorageCredentials = new StorageCredentials(),
                 BlobServiceUri = new Uri("https://blobs", UriKind.Absolute),
@@ -59,7 +59,7 @@ namespace DurableTask.AzureStorage.Tests
         [DataRow(true, false, true)]
         public void ToCloudStorageAccount_EndpointSubset(bool hasBlob, bool hasQueue, bool hasTable)
         {
-            var expected = new AzureStorageServices
+            var expected = new StorageAccountDetails
             {
                 StorageCredentials = new StorageCredentials(),
                 BlobServiceUri = hasBlob ? new Uri("https://blobs", UriKind.Absolute) : null,
@@ -73,7 +73,7 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public void ToCloudStorageAccount_AccountName()
         {
-            var expected = new AzureStorageServices
+            var expected = new StorageAccountDetails
             {
                 AccountName = "dev",
                 StorageCredentials = new StorageCredentials(),
