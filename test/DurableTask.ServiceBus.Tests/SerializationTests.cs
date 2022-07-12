@@ -17,6 +17,7 @@ namespace DurableTask.ServiceBus.Tests
     using System.Collections.Generic;
     using System.Diagnostics.CodeAnalysis;
     using System.IO;
+    using System.Linq;
     using System.Threading.Tasks;
     using DurableTask.Core;
     using DurableTask.Core.History;
@@ -879,6 +880,61 @@ namespace DurableTask.ServiceBus.Tests
 
                 GenericInterfaceOrchestrationInput b = await client.GetWhenNoParams<GenericInterfaceOrchestrationInput>();
                 Assert.IsNull(b);
+
+                return string.Empty;
+            }
+        }
+        #endregion
+
+        #region Interface or class based Activity tests
+
+        [TestMethod]
+        public async Task InterfaceOrClassActivityTests()
+        {
+            await this.taskHub.AddTaskOrchestrations(typeof(InterfaceOrClassActivityClientOrchestration))
+                .AddTaskActivitiesFromInterfaceOrClass<IInterfaceClient>(new InterfaceOrClassImpl())
+                .AddTaskActivitiesFromInterfaceOrClass<ClassClient>(new InterfaceOrClassImpl())
+                .StartAsync();
+
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(InterfaceOrClassActivityClientOrchestration),
+                true);
+
+            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
+        }
+
+        public abstract class ClassClient
+        {
+            public abstract Task<T[]> Run<T>();
+        }
+
+        public interface IInterfaceClient
+        {
+            public Task<T[]> Run<T>();
+        }
+
+        private sealed class InterfaceOrClassImpl : ClassClient, IInterfaceClient
+        {
+            public override Task<T[]> Run<T>()
+            {
+                return Task.FromResult(Array.Empty<T>());
+            }
+        }
+
+        sealed class InterfaceOrClassActivityClientOrchestration : TaskOrchestration<string, bool>
+        {
+            public override async Task<string> RunTask(OrchestrationContext context, bool input)
+            {
+                IInterfaceClient interfaceClient = context.CreateClient<IInterfaceClient>();
+                ClassClient classClient = context.CreateRetryableClient<ClassClient>(new RetryOptions(TimeSpan.FromMilliseconds(1), 1));
+
+                var interfaceResult = await interfaceClient.Run<string>();
+                Assert.IsNotNull(interfaceResult);
+                Assert.IsTrue(!interfaceResult.Any());
+
+                var classResult = await classClient.Run<string>();
+                Assert.IsNotNull(classResult);
+                Assert.IsTrue(!classResult.Any());
 
                 return string.Empty;
             }

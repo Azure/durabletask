@@ -88,12 +88,23 @@ namespace DurableTask.Core
         /// <returns></returns>
         public virtual T CreateClient<T>(bool useFullyQualifiedMethodNames) where T : class
         {
-            if (!typeof(T).IsInterface)
+            if (!typeof(T).IsInterface && !typeof(T).IsClass)
             {
-                throw new InvalidOperationException("Pass in an interface.");
+                throw new InvalidOperationException($"{nameof(T)} must be an interface or class.");
             }
 
             IInterceptor scheduleProxy = new ScheduleProxy(this, useFullyQualifiedMethodNames);
+
+            if (typeof(T).IsClass)
+            {
+                if (typeof(T).IsSealed)
+                {
+                    throw new InvalidOperationException("Class cannot be sealed.");
+                }
+
+                return ProxyGenerator.CreateClassProxy<T>(scheduleProxy);
+            }
+
             return ProxyGenerator.CreateInterfaceProxyWithoutTarget<T>(scheduleProxy);
         }
 
@@ -132,13 +143,23 @@ namespace DurableTask.Core
         /// <returns>Dynamic proxy that can be used to schedule the remote tasks</returns>
         public virtual T CreateRetryableClient<T>(RetryOptions retryOptions, bool useFullyQualifiedMethodNames) where T : class
         {
-            if (!typeof(T).IsInterface)
+            if (!typeof(T).IsInterface && !typeof(T).IsClass)
             {
-                throw new InvalidOperationException("Pass in an interface.");
+                throw new InvalidOperationException($"{nameof(T)} must be an interface or class.");
             }
 
             IInterceptor scheduleProxy = new ScheduleProxy(this, useFullyQualifiedMethodNames);
             IInterceptor retryProxy = new RetryProxy(this, retryOptions);
+
+            if (typeof(T).IsClass)
+            {
+                if (typeof(T).IsSealed)
+                {
+                    throw new InvalidOperationException($"Class cannot be sealed.");
+                }
+
+                return ProxyGenerator.CreateClassProxyWithTarget(target: ProxyGenerator.CreateClassProxy<T>(scheduleProxy), retryProxy);
+            }
 
             T scheduleInstance = ProxyGenerator.CreateInterfaceProxyWithoutTarget<T>(scheduleProxy);
             return ProxyGenerator.CreateInterfaceProxyWithTarget(scheduleInstance, retryProxy);
