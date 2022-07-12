@@ -18,6 +18,7 @@ namespace DurableTask.AzureStorage.Messaging
     using System.IO;
     using System.Linq;
     using System.Threading.Tasks;
+    using Azure;
     using DurableTask.Core;
     using DurableTask.Core.History;
     using Newtonsoft.Json;
@@ -36,7 +37,7 @@ namespace DurableTask.AzureStorage.Messaging
             ControlQueue controlQueue,
             List<MessageData> initialMessageBatch,
             OrchestrationRuntimeState runtimeState,
-            string eTag,
+            ETag? eTag,
             DateTime lastCheckpointTime,
             TimeSpan idleTimeout,
             Guid traceActivityId)
@@ -63,7 +64,7 @@ namespace DurableTask.AzureStorage.Messaging
 
         public OrchestrationRuntimeState RuntimeState { get; private set; }
 
-        public string ETag { get; set; }
+        public ETag? ETag { get; set; }
 
         public DateTime LastCheckpointTime { get; }
 

@@ -97,7 +97,7 @@ namespace DurableTask.AzureStorage
         [DataMember]
         public string SerializableTraceContext { get; set; }
 
-        internal string Id => this.OriginalQueueMessage?.Id;
+        internal string Id => this.OriginalQueueMessage?.MessageId;
 
         internal string QueueName { get; set; }
 

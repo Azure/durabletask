@@ -17,6 +17,7 @@ namespace DurableTask.Core
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Linq;
+    using System.Runtime.CompilerServices;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Core.History;
@@ -777,8 +778,8 @@ namespace DurableTask.Core
         /// <exception cref="InvalidOperationException">Thrown if instance store not configured</exception>
         public async Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId)
         {
-            IList<OrchestrationState> state = await this.GetOrchestrationStateAsync(instanceId, false);
-            return state?.FirstOrDefault();
+            IAsyncEnumerable<OrchestrationState> state = this.GetOrchestrationStateAsync(instanceId, false);
+            return state == null ? null : await state.FirstOrDefaultAsync();
         }
 
         /// <summary>
@@ -790,15 +791,18 @@ namespace DurableTask.Core
         ///     True if method should fetch all executions of the instance,
         ///     false if the method should only fetch the most recent execution
         /// </param>
+        /// <param name="cancellationToken">
+        ///     The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.
+        /// </param>
         /// <returns>
-        ///     List of OrchestrationState objects that represents the list of
-        ///     orchestrations in the instance store
+        ///     An asynchronous enumeration of <see cref="OrchestrationState"/> objects
+        ///     that represents the list of orchestrations in the instance store
         /// </returns>
         /// <exception cref="InvalidOperationException">Thrown if instance store not configured</exception>
-        public Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
+        public IAsyncEnumerable<OrchestrationState> GetOrchestrationStateAsync(string instanceId, bool allExecutions, CancellationToken cancellationToken = default)
         {
             this.logHelper.FetchingInstanceState(instanceId);
-            return this.ServiceClient.GetOrchestrationStateAsync(instanceId, allExecutions);
+            return this.ServiceClient.GetOrchestrationStateAsync(instanceId, allExecutions, cancellationToken);
         }
 
         /// <summary>

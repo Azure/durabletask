@@ -19,11 +19,11 @@ namespace DurableTask.AzureStorage
     using System.Diagnostics.Tracing;
     using System.Linq;
     using System.Net;
+    using System.Runtime.CompilerServices;
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
     using Azure;
-    using Azure.Storage.Queues;
     using Azure.Storage.Queues.Models;
     using DurableTask.AzureStorage.Messaging;
     using DurableTask.AzureStorage.Monitoring;
@@ -42,7 +42,7 @@ namespace DurableTask.AzureStorage
     public sealed class AzureStorageOrchestrationService :
         IOrchestrationService,
         IOrchestrationServiceClient,
-        IDisposable, 
+        IDisposable,
         IOrchestrationServiceQueryClient,
         IOrchestrationServicePurgeClient
     {
@@ -1626,12 +1626,16 @@ namespace DurableTask.AzureStorage
         /// </summary>
         /// <param name="instanceId">Instance ID of the orchestration.</param>
         /// <param name="allExecutions">This parameter is not used.</param>
-        /// <returns>List of <see cref="OrchestrationState"/> objects that represent the list of orchestrations.</returns>
-        public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
+        /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
+        /// <returns>An asynchronous enumeration of the <see cref="OrchestrationState"/> objects that represent the list of orchestrations.</returns>
+        public async IAsyncEnumerable<OrchestrationState> GetOrchestrationStateAsync(string instanceId, bool allExecutions, [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             // Client operations will auto-create the task hub if it doesn't already exist.
             await this.EnsureTaskHubAsync();
-            return await this.trackingStore.GetStateAsync(instanceId, allExecutions, fetchInput: true);
+            await foreach (OrchestrationState state in this.trackingStore.GetStateAsync(instanceId, allExecutions, fetchInput: true, cancellationToken: cancellationToken))
+            {
+                yield return state;
+            }
         }
 
         /// <summary>
@@ -1654,22 +1658,30 @@ namespace DurableTask.AzureStorage
         /// <param name="instanceId">Instance ID of the orchestration.</param>
         /// <param name="allExecutions">This parameter is not used.</param>
         /// <param name="fetchInput">If set, fetch and return the input for the orchestration instance.</param>
-        /// <returns>List of <see cref="OrchestrationState"/> objects that represent the list of orchestrations.</returns>
-        public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions, bool fetchInput = true)
+        /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
+        /// <returns>An asynchronous enumeration of the <see cref="OrchestrationState"/> objects that represent the list of orchestrations.</returns>
+        public async IAsyncEnumerable<OrchestrationState> GetOrchestrationStateAsync(string instanceId, bool allExecutions, bool fetchInput = true, [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             // Client operations will auto-create the task hub if it doesn't already exist.
             await this.EnsureTaskHubAsync();
-            return await this.trackingStore.GetStateAsync(instanceId, allExecutions, fetchInput);
+            await foreach (OrchestrationState state in this.trackingStore.GetStateAsync(instanceId, allExecutions, fetchInput))
+            {
+                yield return state;
+            }
         }
 
         /// <summary>
         /// Gets the state of all orchestration instances.
         /// </summary>
-        /// <returns>List of <see cref="OrchestrationState"/></returns>
-        public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(CancellationToken cancellationToken = default(CancellationToken))
+        /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
+        /// <returns>An asynchronous enumeration of <see cref="OrchestrationState"/>.</returns>
+        public async IAsyncEnumerable<OrchestrationState> GetOrchestrationStateAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             await this.EnsureTaskHubAsync();
-            return await this.trackingStore.GetStateAsync(cancellationToken);
+            await foreach (OrchestrationState state in this.trackingStore.GetStateAsync(cancellationToken))
+            {
+                yield return state;
+            }
         }
 
         /// <summary>
@@ -1678,42 +1690,15 @@ namespace DurableTask.AzureStorage
         /// <param name="createdTimeFrom">CreatedTime of orchestrations. Fetch status grater than this value.</param>
         /// <param name="createdTimeTo">CreatedTime of orchestrations. Fetch status less than this value.</param>
         /// <param name="runtimeStatus">RuntimeStatus of orchestrations. You can specify several status.</param>
-        /// <param name="cancellationToken">Cancellation Token</param>
-        /// <returns>List of <see cref="OrchestrationState"/></returns>
-        public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken = default(CancellationToken))
+        /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
+        /// <returns>An asynchronous enumeration of <see cref="OrchestrationState"/></returns>
+        public async IAsyncEnumerable<OrchestrationState> GetOrchestrationStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             await this.EnsureTaskHubAsync();
-            return await this.trackingStore.GetStateAsync(createdTimeFrom, createdTimeTo, runtimeStatus, cancellationToken);
-        }
-
-        /// <summary>
-        /// Gets the state of all orchestration instances that match the specified parameters.
-        /// </summary>
-        /// <param name="createdTimeFrom">CreatedTime of orchestrations. Fetch status grater than this value.</param>
-        /// <param name="createdTimeTo">CreatedTime of orchestrations. Fetch status less than this value.</param>
-        /// <param name="runtimeStatus">RuntimeStatus of orchestrations. You can specify several status.</param>
-        /// <param name="top">Top is number of records per one request.</param>
-        /// <param name="continuationToken">ContinuationToken of the pager.</param>
-        /// <param name="cancellationToken">Cancellation Token</param>
-        /// <returns>List of <see cref="OrchestrationState"/></returns>
-        public async Task<DurableStatusQueryResult> GetOrchestrationStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, int top, string continuationToken, CancellationToken cancellationToken = default(CancellationToken))
-        {
-            await this.EnsureTaskHubAsync();
-            return await this.trackingStore.GetStateAsync(createdTimeFrom, createdTimeTo, runtimeStatus, top, continuationToken, cancellationToken);
-        }
-
-        /// <summary>
-        /// Gets the state of all orchestration instances that match the specified parameters.
-        /// </summary>
-        /// <param name="condition">Query condition. <see cref="OrchestrationInstanceStatusQueryCondition"/></param>
-        /// <param name="top">Top is number of records per one request.</param>
-        /// <param name="continuationToken">ContinuationToken of the pager.</param>
-        /// <param name="cancellationToken">Cancellation Token</param>
-        /// <returns>List of <see cref="OrchestrationState"/></returns>
-        public async Task<DurableStatusQueryResult> GetOrchestrationStateAsync(OrchestrationInstanceStatusQueryCondition condition, int top, string continuationToken, CancellationToken cancellationToken = default(CancellationToken))
-        {
-            await this.EnsureTaskHubAsync();
-            return await this.trackingStore.GetStateAsync(condition, top, continuationToken, cancellationToken);
+            await foreach (OrchestrationState state in this.trackingStore.GetStateAsync(createdTimeFrom, createdTimeTo, runtimeStatus, cancellationToken))
+            {
+                yield return state;
+            }
         }
 
         /// <summary>
@@ -1739,9 +1724,7 @@ namespace DurableTask.AzureStorage
         /// <param name="reason">The reason for rewinding.</param>
         public async Task RewindTaskOrchestrationAsync(string instanceId, string reason)
         {
-            var queueIds = await this.trackingStore.RewindHistoryAsync(instanceId, new List<string>(), default(CancellationToken));
-
-            foreach (string id in queueIds)
+            foreach (string id in await this.trackingStore.RewindHistoryAsync(instanceId))
             {
                 var orchestrationInstance = new OrchestrationInstance
                 {
@@ -1927,13 +1910,15 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
-        /// Gets the status of all orchestration instances with paging that match the specified conditions.
+        /// Asynchronously enumerates over the status of all orchestration instances that match the specified conditions.
         /// </summary>
-        public async Task<OrchestrationQueryResult> GetOrchestrationWithQueryAsync(OrchestrationQuery query, CancellationToken cancellationToken)
+        /// <param name="query">Return orchestration instances that match the specified query.</param>
+        /// <param name="cancellationToken">Cancellation token that can be used to cancel the query operation.</param>
+        /// <returns>An asynchronous enumerable over the orchestration status for all instances.</returns>
+        public IAsyncEnumerable<OrchestrationState> GetOrchestrationWithQueryAsync(OrchestrationQuery query, CancellationToken cancellationToken = default)
         {
             OrchestrationInstanceStatusQueryCondition convertedCondition = ToAzureStorageCondition(query);
-            DurableStatusQueryResult statusContext = await this.GetOrchestrationStateAsync(convertedCondition, query.PageSize, query.ContinuationToken, cancellationToken);
-            return ConvertFrom(statusContext);
+            return this.trackingStore.GetStateAsync(convertedCondition, cancellationToken);
         }
 
         private static OrchestrationInstanceStatusQueryCondition ToAzureStorageCondition(OrchestrationQuery condition)
@@ -1947,27 +1932,6 @@ namespace DurableTask.AzureStorage
                 InstanceIdPrefix = condition.InstanceIdPrefix,
                 FetchInput = condition.FetchInputsAndOutputs,
             };
-        }
-
-        private static OrchestrationQueryResult ConvertFrom(DurableStatusQueryResult statusContext)
-        {
-            var results = new List<OrchestrationState>();
-            foreach (var state in statusContext.OrchestrationState)
-            {
-                results.Add(state);
-            }
-
-            return new OrchestrationQueryResult(results, statusContext.ContinuationToken);
-        }
-
-        class PendingMessageBatch
-        {
-            public string OrchestrationInstanceId { get; set; }
-            public string OrchestrationExecutionId { get; set; }
-
-            public List<MessageData> Messages { get; set; } = new List<MessageData>();
-
-            public OrchestrationRuntimeState Orchestrationstate { get; set; }
         }
 
         class ResettableLazy<T>

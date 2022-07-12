@@ -68,11 +68,12 @@ namespace DurableTask.AzureStorage.Storage
             return await this.blobContainerClient.DeleteIfExistsAsync(conditions, cancellationToken);
         }
 
-        public IAsyncEnumerable<Blob> ListBlobsAsync(string? prefix = null, CancellationToken cancellationToken = default)
+        public IAsyncEnumerable<Page<Blob>> ListBlobsAsync(string? prefix = null, CancellationToken cancellationToken = default)
         {
             return this.blobContainerClient
                 .GetBlobsAsync(BlobTraits.Metadata, BlobStates.None, prefix, cancellationToken)
-                .Select(x => this.GetBlobReference(x.Name));
+                .AsPages()
+                .Select(p => Page<Blob>.FromValues(p.Values.Select(b => this.GetBlobReference(b.Name)).ToList(), p.ContinuationToken, p.GetRawResponse()));
         }
 
         public async Task<string> AcquireLeaseAsync(TimeSpan leaseInterval, string leaseId, CancellationToken cancellationToken = default)

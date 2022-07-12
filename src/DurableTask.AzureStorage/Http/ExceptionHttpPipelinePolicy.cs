@@ -10,39 +10,40 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
-namespace DurableTask.AzureStorage.Partitioning
+#nullable enable
+namespace DurableTask.AzureStorage.Http
 {
-    using System.Threading;
+    using System;
     using System.Threading.Tasks;
+    using Azure;
+    using Azure.Core;
+    using Azure.Core.Pipeline;
     using DurableTask.AzureStorage.Storage;
-    using Newtonsoft.Json;
 
-    class BlobLease : Lease
+    sealed class ExceptionHttpPipelinePolicy : HttpPipelinePolicy
     {
-        public BlobLease()
-            : base()
+        public override void Process(HttpMessage message, ReadOnlyMemory<HttpPipelinePolicy> pipeline)
         {
+            try
+            {
+                ProcessNext(message, pipeline);
+            }
+            catch (RequestFailedException ex)
+            {
+                throw new DurableTaskStorageException(ex);
+            }
         }
 
-        public BlobLease(Blob leaseBlob)
-            : this()
+        public override async ValueTask ProcessAsync(HttpMessage message, ReadOnlyMemory<HttpPipelinePolicy> pipeline)
         {
-            this.Blob = leaseBlob;
-        }
-
-        public BlobLease(BlobLease source)
-            : base(source)
-        {
-            this.Blob = source.Blob;
-        }
-
-        [JsonIgnore]
-        public Blob Blob { get; set; }
-
-        public override Task<bool> IsExpiredAsync(CancellationToken cancellationToken = default)
-        {
-            return this.Blob.IsLeasedAsync(cancellationToken);
+            try
+            {
+                await ProcessNextAsync(message, pipeline);
+            }
+            catch (RequestFailedException ex)
+            {
+                throw new DurableTaskStorageException(ex);
+            }
         }
     }
 }

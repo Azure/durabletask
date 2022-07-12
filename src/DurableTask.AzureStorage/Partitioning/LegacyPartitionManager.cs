@@ -17,8 +17,8 @@ namespace DurableTask.AzureStorage.Partitioning
     using System.Collections.Generic;
     using System.Runtime.ExceptionServices;
     using System.Threading.Tasks;
+    using Azure;
     using DurableTask.AzureStorage.Storage;
-    using Microsoft.WindowsAzure.Storage;
 
     class LegacyPartitionManager : IPartitionManager
     {
@@ -73,8 +73,8 @@ namespace DurableTask.AzureStorage.Partitioning
                 {
                     foreach (Exception e in t.Exception.InnerExceptions)
                     {
-                        StorageException storageException = e as StorageException;
-                        if (storageException == null || storageException.RequestInformation.HttpStatusCode != 404)
+                        RequestFailedException storageException = e as RequestFailedException;
+                        if (storageException == null || storageException.Status != 404)
                         {
                             ExceptionDispatchInfo.Capture(e).Throw();
                         }

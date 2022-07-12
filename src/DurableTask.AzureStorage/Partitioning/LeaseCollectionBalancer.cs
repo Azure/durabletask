@@ -346,7 +346,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 }
 
                 allShards.Add(lease.PartitionId, lease);
-                if (lease.IsExpired || string.IsNullOrWhiteSpace(lease.Owner))
+                if (await lease.IsExpiredAsync() || string.IsNullOrWhiteSpace(lease.Owner))
                 {
                     expiredLeases.Add(lease);
                 }

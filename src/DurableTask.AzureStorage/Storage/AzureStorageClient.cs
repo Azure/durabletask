@@ -52,14 +52,15 @@ namespace DurableTask.AzureStorage.Storage
             this.Settings = settings;
             this.Stats = new AzureStorageOrchestrationServiceStats();
 
+            var exceptionPolicy = new ExceptionHttpPipelinePolicy();
             var throttlingPolicy = new ThrottlingHttpPipelinePolicy(this.Settings.MaxStorageOperationConcurrency);
             var monitoringPolicy = new MonitoringHttpPipelinePolicy(this.Stats);
 
-            this.blobClient = settings.StorageAccountDetails.BlobClientProvider.Create(o => AddPolicies(o, throttlingPolicy, monitoringPolicy));
-            this.queueClient = settings.StorageAccountDetails.QueueClientProvider.Create(o => AddPolicies(o, throttlingPolicy, monitoringPolicy));
+            this.blobClient = settings.StorageAccountDetails.BlobClientProvider.Create(o => AddPolicies(o, exceptionPolicy, throttlingPolicy, monitoringPolicy));
+            this.queueClient = settings.StorageAccountDetails.QueueClientProvider.Create(o => AddPolicies(o, exceptionPolicy, throttlingPolicy, monitoringPolicy));
             this.tableClient = settings.HasTrackingStoreStorageAccount
-                ? settings.TrackingStoreClientProvider!.Create(o => AddPolicies(o, throttlingPolicy, monitoringPolicy))
-                : settings.StorageAccountDetails.TableClientProvider.Create(o => AddPolicies(o, throttlingPolicy, monitoringPolicy));
+                ? settings.TrackingStoreClientProvider!.Create(o => AddPolicies(o, exceptionPolicy, throttlingPolicy, monitoringPolicy))
+                : settings.StorageAccountDetails.TableClientProvider.Create(o => AddPolicies(o, exceptionPolicy, throttlingPolicy, monitoringPolicy));
         }
 
         public AzureStorageOrchestrationServiceSettings Settings { get; }
@@ -97,8 +98,9 @@ namespace DurableTask.AzureStorage.Storage
             return new Table(this, this.tableClient, tableName);
         }
 
-        static void AddPolicies(ClientOptions options, ThrottlingHttpPipelinePolicy throttlePolicy, MonitoringHttpPipelinePolicy monitoringPolicy)
+        static void AddPolicies(ClientOptions options, ExceptionHttpPipelinePolicy exceptionPolicy, ThrottlingHttpPipelinePolicy throttlePolicy, MonitoringHttpPipelinePolicy monitoringPolicy)
         {
+            options.AddPolicy(exceptionPolicy, HttpPipelinePosition.PerCall);
             options.AddPolicy(throttlePolicy, HttpPipelinePosition.PerCall);
             options.AddPolicy(monitoringPolicy, HttpPipelinePosition.PerRetry);
         }

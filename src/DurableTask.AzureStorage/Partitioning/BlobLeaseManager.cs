@@ -20,7 +20,9 @@ namespace DurableTask.AzureStorage.Partitioning
     using System.Linq;
     using System.Net;
     using System.Text;
+    using System.Threading;
     using System.Threading.Tasks;
+    using Azure;
     using DurableTask.AzureStorage.Storage;
     using Newtonsoft.Json;
 
@@ -57,41 +59,33 @@ namespace DurableTask.AzureStorage.Partitioning
             this.Initialize();
         }
 
-        public Task<bool> LeaseStoreExistsAsync()
+        public Task<bool> LeaseStoreExistsAsync(CancellationToken cancellationToken = default)
         {
-            return taskHubContainer.ExistsAsync();
+            return taskHubContainer.ExistsAsync(cancellationToken);
         }
 
-        public async Task<bool> CreateLeaseStoreIfNotExistsAsync(TaskHubInfo eventHubInfo, bool checkIfStale)
+        public async Task<bool> CreateLeaseStoreIfNotExistsAsync(TaskHubInfo eventHubInfo, bool checkIfStale, CancellationToken cancellationToken = default)
         {
-            bool result = false;
-            result = await taskHubContainer.CreateIfNotExistsAsync();
+            bool result = await taskHubContainer.CreateIfNotExistsAsync(cancellationToken);
 
-            await this.GetOrCreateTaskHubInfoAsync(eventHubInfo, checkIfStale: checkIfStale);
+            await this.GetOrCreateTaskHubInfoAsync(eventHubInfo, checkIfStale: checkIfStale, cancellationToken: cancellationToken);
 
             return result;
         }
 
-        public async Task<IEnumerable<BlobLease>> ListLeasesAsync()
+        public async Task<IEnumerable<BlobLease>> ListLeasesAsync(CancellationToken cancellationToken = default)
         {
             var blobLeases = new List<BlobLease>();
 
-            IEnumerable<Blob> blobs = await this.taskHubContainer.ListBlobsAsync(this.blobDirectoryName);
-
-            var downloadTasks = new List<Task<BlobLease>>();
-            foreach (Blob blob in blobs)
+            await foreach (Page<Blob> page in this.taskHubContainer.ListBlobsAsync(this.blobDirectoryName, cancellationToken: cancellationToken))
             {
-                downloadTasks.Add(this.DownloadLeaseBlob(blob));
+                blobLeases.AddRange(await Task.WhenAll(page.Values.Select(x => this.DownloadLeaseBlob(x, cancellationToken))));
             }
-
-            await Task.WhenAll(downloadTasks);
-
-            blobLeases.AddRange(downloadTasks.Select(t => t.Result));
 
             return blobLeases;
         }
 
-        public async Task CreateLeaseIfNotExistAsync(string partitionId)
+        public async Task CreateLeaseIfNotExistAsync(string partitionId, CancellationToken cancellationToken = default)
         {
             Blob leaseBlob = this.taskHubContainer.GetBlobReference(partitionId, this.blobDirectoryName);
             BlobLease lease = new BlobLease(leaseBlob) { PartitionId = partitionId };
@@ -110,7 +104,7 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.blobDirectoryName,
                         partitionId));
 
-                await leaseBlob.UploadTextAsync(serializedLease, ifDoesntExist: true);
+                await leaseBlob.UploadTextAsync(serializedLease, ifDoesntExist: true, cancellationToken: cancellationToken);
             }
             catch (DurableTaskStorageException se)
             {
@@ -134,23 +128,23 @@ namespace DurableTask.AzureStorage.Partitioning
             }
         }
 
-        public async Task<BlobLease> GetLeaseAsync(string partitionId)
+        public async Task<BlobLease> GetLeaseAsync(string partitionId, CancellationToken cancellationToken = default)
         {
             Blob leaseBlob = this.taskHubContainer.GetBlobReference(partitionId, this.blobDirectoryName);
-            if (await leaseBlob.ExistsAsync())
+            if (await leaseBlob.ExistsAsync(cancellationToken))
             {
-                return await this.DownloadLeaseBlob(leaseBlob);
+                return await this.DownloadLeaseBlob(leaseBlob, cancellationToken);
             }
 
             return null;
         }
 
-        public async Task<bool> RenewAsync(BlobLease lease)
+        public async Task<bool> RenewAsync(BlobLease lease, CancellationToken cancellationToken = default)
         {
             Blob leaseBlob = lease.Blob;
             try
             {
-                await leaseBlob.RenewLeaseAsync(lease.Token);
+                await leaseBlob.RenewLeaseAsync(lease.Token, cancellationToken);
             }
             catch (DurableTaskStorageException storageException)
             {
@@ -160,25 +154,25 @@ namespace DurableTask.AzureStorage.Partitioning
             return true;
         }
 
-        public async Task<bool> AcquireAsync(BlobLease lease, string owner)
+        public async Task<bool> AcquireAsync(BlobLease lease, string owner, CancellationToken cancellationToken = default)
         {
             Blob leaseBlob = lease.Blob;
             try
             {
                 string newLeaseId = Guid.NewGuid().ToString();
-                if (await leaseBlob.IsLeasedAsync())
+                if (await leaseBlob.IsLeasedAsync(cancellationToken))
                 {
-                    lease.Token = await leaseBlob.ChangeLeaseAsync(newLeaseId, currentLeaseId: lease.Token);
+                    lease.Token = await leaseBlob.ChangeLeaseAsync(newLeaseId, currentLeaseId: lease.Token, cancellationToken: cancellationToken);
                 }
                 else
                 {
-                    lease.Token = await leaseBlob.AcquireLeaseAsync(this.leaseInterval, newLeaseId);
+                    lease.Token = await leaseBlob.AcquireLeaseAsync(this.leaseInterval, newLeaseId, cancellationToken: cancellationToken);
                 }
 
                 lease.Owner = owner;
                 // Increment Epoch each time lease is acquired or stolen by new host
                 lease.Epoch += 1;
-                await leaseBlob.UploadTextAsync(JsonConvert.SerializeObject(lease), leaseId: lease.Token);
+                await leaseBlob.UploadTextAsync(JsonConvert.SerializeObject(lease), leaseId: lease.Token, cancellationToken: cancellationToken);
             }
             catch (DurableTaskStorageException storageException)
             {
@@ -188,7 +182,7 @@ namespace DurableTask.AzureStorage.Partitioning
             return true;
         }
 
-        public async Task<bool> ReleaseAsync(BlobLease lease)
+        public async Task<bool> ReleaseAsync(BlobLease lease, CancellationToken cancellationToken = default)
         {
             Blob leaseBlob = lease.Blob;
             try
@@ -198,8 +192,8 @@ namespace DurableTask.AzureStorage.Partitioning
                 BlobLease copy = new BlobLease(lease);
                 copy.Token = null;
                 copy.Owner = null;
-                await leaseBlob.UploadTextAsync(JsonConvert.SerializeObject(copy), leaseId);
-                await leaseBlob.ReleaseLeaseAsync(leaseId);
+                await leaseBlob.UploadTextAsync(JsonConvert.SerializeObject(copy), leaseId, cancellationToken: cancellationToken);
+                await leaseBlob.ReleaseLeaseAsync(leaseId, cancellationToken);
             }
             catch (DurableTaskStorageException storageException)
             {
@@ -209,17 +203,17 @@ namespace DurableTask.AzureStorage.Partitioning
             return true;
         }
 
-        public async Task DeleteAsync(BlobLease lease)
+        public Task DeleteAsync(BlobLease lease, CancellationToken cancellationToken = default)
         {
-            await lease.Blob.DeleteIfExistsAsync();
+            return lease.Blob.DeleteIfExistsAsync(cancellationToken);
         }
 
-        public async Task DeleteAllAsync()
+        public Task DeleteAllAsync(CancellationToken cancellationToken = default)
         {
-            await this.taskHubContainer.DeleteIfExistsAsync();
+            return this.taskHubContainer.DeleteIfExistsAsync(cancellationToken: cancellationToken);
         }
 
-        public async Task<bool> UpdateAsync(BlobLease lease)
+        public async Task<bool> UpdateAsync(BlobLease lease, CancellationToken cancellationToken = default)
         {
             if (lease == null || string.IsNullOrWhiteSpace(lease.Token))
             {
@@ -230,7 +224,7 @@ namespace DurableTask.AzureStorage.Partitioning
             try
             {
                 // First renew the lease to make sure checkpoint will go through
-                await leaseBlob.RenewLeaseAsync(lease.Token);
+                await leaseBlob.RenewLeaseAsync(lease.Token, cancellationToken);
             }
             catch (DurableTaskStorageException storageException)
             {
@@ -239,7 +233,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
             try
             {
-                await leaseBlob.UploadTextAsync(JsonConvert.SerializeObject(lease), lease.Token);
+                await leaseBlob.UploadTextAsync(JsonConvert.SerializeObject(lease), lease.Token, cancellationToken: cancellationToken);
             }
             catch (DurableTaskStorageException storageException)
             {
@@ -249,12 +243,12 @@ namespace DurableTask.AzureStorage.Partitioning
             return true;
         }
 
-        public async Task CreateTaskHubInfoIfNotExistAsync(TaskHubInfo taskHubInfo)
+        public async Task CreateTaskHubInfoIfNotExistAsync(TaskHubInfo taskHubInfo, CancellationToken cancellationToken = default)
         {
             string serializedInfo = JsonConvert.SerializeObject(taskHubInfo);
             try
             {
-                await this.taskHubInfoBlob.UploadTextAsync(serializedInfo, ifDoesntExist: true);
+                await this.taskHubInfoBlob.UploadTextAsync(serializedInfo, ifDoesntExist: true, cancellationToken: cancellationToken);
             }
             catch (DurableTaskStorageException)
             {
@@ -263,9 +257,9 @@ namespace DurableTask.AzureStorage.Partitioning
             }
         }
 
-        internal async Task<TaskHubInfo> GetOrCreateTaskHubInfoAsync(TaskHubInfo newTaskHubInfo, bool checkIfStale)
+        internal async Task<TaskHubInfo> GetOrCreateTaskHubInfoAsync(TaskHubInfo newTaskHubInfo, bool checkIfStale, CancellationToken cancellationToken = default)
         {
-            TaskHubInfo currentTaskHubInfo = await this.GetTaskHubInfoAsync();
+            TaskHubInfo currentTaskHubInfo = await this.GetTaskHubInfoAsync(cancellationToken);
             if (currentTaskHubInfo != null)
             {
                 if (checkIfStale && IsStale(currentTaskHubInfo, newTaskHubInfo))
@@ -280,7 +274,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     try
                     {
                         string serializedInfo = JsonConvert.SerializeObject(newTaskHubInfo);
-                        await this.taskHubInfoBlob.UploadTextAsync(serializedInfo);
+                        await this.taskHubInfoBlob.UploadTextAsync(serializedInfo, cancellationToken: cancellationToken);
                     } 
                     catch (DurableTaskStorageException)
                     {
@@ -292,7 +286,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 return currentTaskHubInfo;
             }
 
-            await this.CreateTaskHubInfoIfNotExistAsync(newTaskHubInfo);
+            await this.CreateTaskHubInfoIfNotExistAsync(newTaskHubInfo, cancellationToken);
             return newTaskHubInfo;
         }
 
@@ -309,19 +303,18 @@ namespace DurableTask.AzureStorage.Partitioning
             this.taskHubInfoBlob = this.taskHubContainer.GetBlobReference(TaskHubInfoBlobName);
         }
 
-        async Task<TaskHubInfo> GetTaskHubInfoAsync()
+        async Task<TaskHubInfo> GetTaskHubInfoAsync(CancellationToken cancellationToken)
         {
-            if (await this.taskHubInfoBlob.ExistsAsync())
+            if (await this.taskHubInfoBlob.ExistsAsync(cancellationToken))
             {
-                await taskHubInfoBlob.FetchAttributesAsync();
-                string serializedEventHubInfo = await this.taskHubInfoBlob.DownloadTextAsync();
+                string serializedEventHubInfo = await this.taskHubInfoBlob.DownloadTextAsync(cancellationToken);
                 return JsonConvert.DeserializeObject<TaskHubInfo>(serializedEventHubInfo);
             }
 
             return null;
         }
 
-        async Task<BlobLease> DownloadLeaseBlob(Blob blob)
+        async Task<BlobLease> DownloadLeaseBlob(Blob blob, CancellationToken cancellationToken)
         {
             string serializedLease = null;
             var buffer = SimpleBufferManager.Shared.TakeBuffer(SimpleBufferManager.SmallBufferSize);
@@ -329,7 +322,7 @@ namespace DurableTask.AzureStorage.Partitioning
             {
                 using (var memoryStream = new MemoryStream(buffer))
                 {
-                    await blob.DownloadToStreamAsync(memoryStream);
+                    await blob.DownloadToStreamAsync(memoryStream, cancellationToken);
                     serializedLease = Encoding.UTF8.GetString(buffer, 0, (int)memoryStream.Position);
                 }
             }
@@ -341,8 +334,6 @@ namespace DurableTask.AzureStorage.Partitioning
             BlobLease deserializedLease = JsonConvert.DeserializeObject<BlobLease>(serializedLease);
             deserializedLease.Blob = blob;
 
-            // Workaround: for some reason storage client reports incorrect blob properties after downloading the blob
-            await blob.FetchAttributesAsync();
             return deserializedLease;
         }
 

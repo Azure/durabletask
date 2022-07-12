@@ -557,7 +557,7 @@ namespace DurableTask.AzureStorage.Logging
                 string instanceId,
                 string executionId,
                 string partitionId,
-                int dequeueCount)
+                long dequeueCount)
             {
                 this.Account = account;
                 this.TaskHub = taskHub;
@@ -595,7 +595,7 @@ namespace DurableTask.AzureStorage.Logging
             public string PartitionId { get; }
 
             [StructuredLogField]
-            public int DequeueCount { get; }
+            public long DequeueCount { get; }
 
             public override EventId EventId => new EventId(
                 EventIds.DuplicateMessageDetected,
@@ -636,7 +636,7 @@ namespace DurableTask.AzureStorage.Logging
                 string instanceId,
                 string executionId,
                 string partitionId,
-                int dequeueCount)
+                long dequeueCount)
             {
                 this.Account = account;
                 this.TaskHub = taskHub;
@@ -674,7 +674,7 @@ namespace DurableTask.AzureStorage.Logging
             public string PartitionId { get; }
 
             [StructuredLogField]
-            public int DequeueCount { get; }
+            public long DequeueCount { get; }
 
             public override EventId EventId => new EventId(
                 EventIds.PoisonMessageDetected,

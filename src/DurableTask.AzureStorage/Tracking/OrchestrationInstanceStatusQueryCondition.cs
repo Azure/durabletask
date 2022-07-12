@@ -16,7 +16,6 @@ namespace DurableTask.AzureStorage.Tracking
     using System;
     using System.Collections.Generic;
     using System.Linq;
-    using DurableTask.AzureStorage.Entities;
     using DurableTask.Core;
 
     /// <summary>
@@ -24,7 +23,7 @@ namespace DurableTask.AzureStorage.Tracking
     /// </summary>
     public sealed class OrchestrationInstanceStatusQueryCondition
     {
-        static readonly string[] ColumnNames = typeof(OrchestrationInstanceStatusEntity).GetProperties()
+        static readonly string[] ColumnNames = typeof(OrchestrationInstanceStatus).GetProperties()
             .Select(prop => prop.Name)
             .ToArray();
 
@@ -87,12 +86,12 @@ namespace DurableTask.AzureStorage.Tracking
                     var columns = new HashSet<string>(ColumnNames);
                     if (!this.FetchInput)
                     {
-                        columns.Remove(nameof(OrchestrationInstanceStatusEntity.Input));
+                        columns.Remove(nameof(OrchestrationInstanceStatus.Input));
                     }
 
                     if (!this.FetchOutput)
                     {
-                        columns.Remove(nameof(OrchestrationInstanceStatusEntity.Output));
+                        columns.Remove(nameof(OrchestrationInstanceStatus.Output));
                     }
 
                     select = columns;
@@ -109,22 +108,22 @@ namespace DurableTask.AzureStorage.Tracking
             var conditions = new List<string>();
             if (this.CreatedTimeFrom > DateTime.MinValue)
             {
-                conditions.Add($"{nameof(OrchestrationInstanceStatusEntity.CreatedTime)} ge datetime'{this.CreatedTimeFrom:O}'");
+                conditions.Add($"{nameof(OrchestrationInstanceStatus.CreatedTime)} ge datetime'{this.CreatedTimeFrom:O}'");
             }
 
             if (this.CreatedTimeTo != default(DateTime) && this.CreatedTimeTo < DateTime.MaxValue)
             {
-                conditions.Add($"{nameof(OrchestrationInstanceStatusEntity.CreatedTime)} le datetime'{this.CreatedTimeTo:O}'");
+                conditions.Add($"{nameof(OrchestrationInstanceStatus.CreatedTime)} le datetime'{this.CreatedTimeTo:O}'");
             }
 
             if (this.RuntimeStatus != null && this.RuntimeStatus.Any())
             {
-                conditions.Add($"({string.Join(" or ", this.RuntimeStatus.Select(x => $"{nameof(OrchestrationInstanceStatusEntity.RuntimeStatus)} eq '{x:G}'"))})");
+                conditions.Add($"({string.Join(" or ", this.RuntimeStatus.Select(x => $"{nameof(OrchestrationInstanceStatus.RuntimeStatus)} eq '{x:G}'"))})");
             }
 
             if (this.TaskHubNames != null && this.TaskHubNames.Any())
             {
-                conditions.Add($"({string.Join(" or ", this.TaskHubNames.Select(x => $"{nameof(OrchestrationInstanceStatusEntity.TaskHubName)} eq '{x}'"))})");
+                conditions.Add($"({string.Join(" or ", this.TaskHubNames.Select(x => $"TaskHubName eq '{x}'"))})");
             }
 
             if (!string.IsNullOrEmpty(this.InstanceIdPrefix))
@@ -135,14 +134,14 @@ namespace DurableTask.AzureStorage.Tracking
 
                 string greaterThanPrefix = sanitizedPrefix.Substring(0, length) + incrementedLastChar;
 
-                conditions.Add($"{nameof(OrchestrationInstanceStatusEntity.PartitionKey)} ge '{sanitizedPrefix}'");
-                conditions.Add($"{nameof(OrchestrationInstanceStatusEntity.PartitionKey)} lt '{greaterThanPrefix}'");
+                conditions.Add($"{nameof(OrchestrationInstanceStatus.PartitionKey)} ge '{sanitizedPrefix}'");
+                conditions.Add($"{nameof(OrchestrationInstanceStatus.PartitionKey)} lt '{greaterThanPrefix}'");
             }
 
             if (this.InstanceId != null)
             {
                 string sanitizedInstanceId = KeySanitation.EscapePartitionKey(this.InstanceId);
-                conditions.Add($"{nameof(OrchestrationInstanceStatusEntity.PartitionKey)} eq '{sanitizedInstanceId}'");
+                conditions.Add($"{nameof(OrchestrationInstanceStatus.PartitionKey)} eq '{sanitizedInstanceId}'");
             }
 
             return conditions.Count == 0 ? null : string.Join(" and ", conditions);

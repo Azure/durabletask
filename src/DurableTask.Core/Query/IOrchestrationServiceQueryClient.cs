@@ -11,8 +11,8 @@
 
 namespace DurableTask.Core.Query
 {
-    using System.Threading.Tasks;
     using System.Threading;
+    using System.Collections.Generic;
 
     /// <summary>
     /// Interface to allow query multi-instance status with filter.
@@ -20,11 +20,11 @@ namespace DurableTask.Core.Query
     public interface IOrchestrationServiceQueryClient
     {
         /// <summary>
-        /// Gets the status of all orchestration instances with paging that match the specified conditions.
+        /// Asynchronously enumerates over the status of all orchestration instances that match the specified conditions.
         /// </summary>
         /// <param name="query">Return orchestration instances that match the specified query.</param>
         /// <param name="cancellationToken">Cancellation token that can be used to cancel the query operation.</param>
-        /// <returns>Returns each page of orchestration status for all instances and continuation token of next page.</returns>
-        Task<OrchestrationQueryResult> GetOrchestrationWithQueryAsync(OrchestrationQuery query, CancellationToken cancellationToken);
+        /// <returns>An asynchronous enumerable over the orchestration status for all instances.</returns>
+        IAsyncEnumerable<OrchestrationState> GetOrchestrationWithQueryAsync(OrchestrationQuery query, CancellationToken cancellationToken = default);
     }
 }

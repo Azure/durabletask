@@ -63,9 +63,9 @@ namespace DurableTask.Core
         /// <param name="timeout">Maximum amount of time to wait</param>
         /// <param name="cancellationToken">Task cancellation token</param>
         Task<OrchestrationState> WaitForOrchestrationAsync(
-            string instanceId, 
+            string instanceId,
             string executionId,
-            TimeSpan timeout, 
+            TimeSpan timeout,
             CancellationToken cancellationToken);
 
         /// <summary>
@@ -76,12 +76,13 @@ namespace DurableTask.Core
         Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason);
 
         /// <summary>
-        /// Get a list of orchestration states from the instance storage for the most current execution (generation) of the specified instance.
+        /// Asynchronously enumerates over the list of orchestration states from the instance storage for the most current execution (generation) of the specified instance.
         /// </summary>
         /// <param name="instanceId">Instance id</param>
         /// <param name="allExecutions">True if method should fetch all executions of the instance, false if the method should only fetch the most recent execution</param>
-        /// <returns>List of OrchestrationState objects that represents the list of orchestrations in the instance store</returns>
-        Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions);
+        /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
+        /// <returns>An asynchronous enumerable over the list of orchestrations in the instance store</returns>
+        IAsyncEnumerable<OrchestrationState> GetOrchestrationStateAsync(string instanceId, bool allExecutions, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Get a list of orchestration states from the instance storage for the specified execution (generation) of the specified instance.

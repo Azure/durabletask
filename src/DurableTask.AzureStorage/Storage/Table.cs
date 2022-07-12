@@ -44,6 +44,8 @@ namespace DurableTask.AzureStorage.Storage
 
         public string Name { get; }
 
+        internal Uri? Uri => this.tableClient.GetEndpoint();
+
         public async Task<bool> CreateIfNotExistsAsync(CancellationToken cancellationToken = default)
         {
             // If we received null, then the response must have been a 409 (Conflict) and the table must already exist
@@ -162,7 +164,7 @@ namespace DurableTask.AzureStorage.Storage
             }
         }
 
-        async Task<TableResultResponseInfo> ExecuteBatchAsync(IEnumerable<TableTransactionAction> batchOperation, CancellationToken cancellationToken = default)
+        public async Task<TableResultResponseInfo> ExecuteBatchAsync(IEnumerable<TableTransactionAction> batchOperation, CancellationToken cancellationToken = default)
         {
             var stopwatch = new Stopwatch();
             long elapsedMilliseconds = 0;

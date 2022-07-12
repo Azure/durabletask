@@ -17,11 +17,13 @@ namespace DurableTask.AzureStorage
     using System.Collections.Generic;
     using System.IO;
     using System.IO.Compression;
+    using System.Linq;
     using System.Reflection;
     using System.Runtime.Serialization;
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
+    using Azure;
     using Azure.Storage.Queues.Models;
     using DurableTask.AzureStorage.Storage;
     using Newtonsoft.Json;
@@ -131,13 +133,15 @@ namespace DurableTask.AzureStorage
 
         public async Task<MessageData> DeserializeQueueMessageAsync(QueueMessage queueMessage, string queueName, CancellationToken cancellationToken = default)
         {
+            // TODO: Deserialize with Stream?
+            byte[] body = queueMessage.Body.ToArray();
             MessageData envelope = JsonConvert.DeserializeObject<MessageData>(
-                queueMessage.Body,
+                Encoding.UTF8.GetString(body),
                 this.taskMessageSerializerSettings);
 
             if (!string.IsNullOrEmpty(envelope.CompressedBlobName))
             {
-                string decompressedMessage = await this.DownloadAndDecompressAsBytesAsync(envelope.CompressedBlobName);
+                string decompressedMessage = await this.DownloadAndDecompressAsBytesAsync(envelope.CompressedBlobName, cancellationToken);
                 envelope = JsonConvert.DeserializeObject<MessageData>(
                     decompressedMessage,
                     this.taskMessageSerializerSettings);
@@ -145,7 +149,7 @@ namespace DurableTask.AzureStorage
             }
 
             envelope.OriginalQueueMessage = queueMessage;
-            envelope.TotalMessageSizeBytes = Encoding.UTF8.GetByteCount(queueMessage.Message);
+            envelope.TotalMessageSizeBytes = body.Length;
             envelope.QueueName = queueName;
             return envelope;
         }
@@ -257,7 +261,7 @@ namespace DurableTask.AzureStorage
 
         public async Task UploadToBlobAsync(byte[] data, int dataByteCount, string blobName, CancellationToken cancellationToken = default)
         {
-            await this.EnsureContainerAsync();
+            await this.EnsureContainerAsync(cancellationToken);
 
             Blob blob = this.blobContainer.GetBlobReference(blobName);
             await blob.UploadFromByteArrayAsync(data, 0, dataByteCount, cancellationToken);
@@ -275,19 +279,15 @@ namespace DurableTask.AzureStorage
         public async Task<int> DeleteLargeMessageBlobs(string sanitizedInstanceId, CancellationToken cancellationToken = default)
         {
             int storageOperationCount = 1;
-            if (await this.blobContainer.ExistsAsync())
+            if (await this.blobContainer.ExistsAsync(cancellationToken))
             {
-                IEnumerable<Blob> blobList = await this.blobContainer.ListBlobsAsync(sanitizedInstanceId, cancellationToken);
-                storageOperationCount++;
-
-                var blobForDeletionTaskList = new List<Task>();
-                foreach (Blob blob in blobList)
+                await foreach (Page<Blob> page in this.blobContainer.ListBlobsAsync(sanitizedInstanceId, cancellationToken))
                 {
-                    blobForDeletionTaskList.Add(blob.DeleteIfExistsAsync());
-                }
+                    storageOperationCount++;
 
-                await Task.WhenAll(blobForDeletionTaskList);
-                storageOperationCount += blobForDeletionTaskList.Count;
+                    await Task.WhenAll(page.Values.Select(x => x.DeleteIfExistsAsync(cancellationToken)));
+                    storageOperationCount += page.Values.Count;
+                }
             }
 
             return storageOperationCount;

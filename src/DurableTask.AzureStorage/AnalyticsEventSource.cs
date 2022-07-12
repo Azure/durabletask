@@ -248,7 +248,7 @@ namespace DurableTask.AzureStorage
             string InstanceId,
             string ExecutionId,
             string PartitionId,
-            int DequeueCount,
+            long DequeueCount,
             string AppName,
             string ExtensionVersion)
         {
@@ -277,7 +277,7 @@ namespace DurableTask.AzureStorage
             string InstanceId,
             string ExecutionId,
             string PartitionId,
-            int DequeueCount,
+            long DequeueCount,
             string AppName,
             string ExtensionVersion)
         {
