@@ -76,6 +76,20 @@ namespace DurableTask.Core
         Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason);
 
         /// <summary>
+        /// Forcefully suspend the specified orchestration instance
+        /// </summary>
+        /// <param name="instanceId">Instance to suspend</param>
+        /// <param name="reason">Reason for suspending</param>
+        Task ForceSuspendTaskOrchestrationAsync(string instanceId, string reason);
+
+        /// <summary>
+        /// Forcefully resume the specified orchestration instance
+        /// </summary>
+        /// <param name="instanceId">Instance to resume</param>
+        /// <param name="reason">Reason for resuming </param>
+        Task ForceResumeTaskOrchestrationAsync(string instanceId, string reason);
+
+        /// <summary>
         /// Get a list of orchestration states from the instance storage for the most current execution (generation) of the specified instance.
         /// </summary>
         /// <param name="instanceId">Instance id</param>

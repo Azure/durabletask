@@ -16,6 +16,7 @@ namespace DurableTask.AzureStorage
     using System;
     using System.Collections.Concurrent;
     using System.Collections.Generic;
+    using System.Diagnostics;
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
@@ -466,7 +467,7 @@ namespace DurableTask.AzureStorage
             AnalyticsEventSource.SetLogicalTraceActivityId(traceActivityId);
             
             try
-            {
+            {              
                 if (batch.OrchestrationState == null)
                 {
                     OrchestrationHistory history = await this.trackingStore.GetHistoryEventsAsync(
@@ -477,6 +478,14 @@ namespace DurableTask.AzureStorage
                     batch.OrchestrationState = new OrchestrationRuntimeState(history.Events);
                     batch.ETag = history.ETag;
                     batch.LastCheckpointTime = history.LastCheckpointTime;
+                }
+
+                // query instances table to determine if the orchestration is suspended
+                IList<OrchestrationState> instances = await this.trackingStore.GetStateAsync(batch.OrchestrationInstanceId, false, fetchInput: true);
+                OrchestrationState instanceState = instances.FirstOrDefault();
+                if (instanceState.OrchestrationStatus == OrchestrationStatus.Suspended)
+                {
+                    batch.OrchestrationState.OrchestrationStatus = OrchestrationStatus.Suspended;
                 }
 
                 this.readyForProcessingQueue.Enqueue(node);

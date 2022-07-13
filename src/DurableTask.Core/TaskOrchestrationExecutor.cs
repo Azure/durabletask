@@ -14,6 +14,7 @@
 namespace DurableTask.Core
 {
     using System;
+    using System.Collections;
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Linq;
@@ -110,7 +111,6 @@ namespace DurableTask.Core
                                 this.context.CurrentUtcDateTime = decisionStartedEvent.Timestamp;
                                 continue;
                             }
-
                             this.ProcessEvent(historyEvent);
                             historyEvent.IsPlayed = true;
                         }
@@ -214,15 +214,28 @@ namespace DurableTask.Core
                     this.context.HandleEventSentEvent((EventSentEvent)historyEvent);
                     break;
                 case EventType.EventRaised:
-                    if (this.skipCarryOverEvents || !this.context.HasContinueAsNew)
+                    if (this.context.executionSuspended)
                     {
-                        var eventRaisedEvent = (EventRaisedEvent)historyEvent;
-                        this.taskOrchestration.RaiseEvent(this.context, eventRaisedEvent.Name, eventRaisedEvent.Input);
-                    }
-                    else
+                        var msgInfo = new SuspendedOrchestrationMessageInfo(historyEvent, this.taskOrchestration, this.skipCarryOverEvents);
+                        this.context.suspendedOrchestrationMessages.Add(msgInfo);
+                    } else
                     {
-                        this.context.AddEventToNextIteration(historyEvent);
+                        if (this.skipCarryOverEvents || !this.context.HasContinueAsNew)
+                        {
+                            var eventRaisedEvent = (EventRaisedEvent)historyEvent;
+                            this.taskOrchestration.RaiseEvent(this.context, eventRaisedEvent.Name, eventRaisedEvent.Input);
+                        }
+                        else
+                        {
+                            this.context.AddEventToNextIteration(historyEvent);
+                        }
                     }
+                    break;
+                case EventType.ExecutionSuspended:
+                    this.context.HandleExecutionSuspendedEvent((ExecutionSuspendedEvent)historyEvent);
+                    break;
+                case EventType.ExecutionResumed:
+                    this.context.HandleExecutionResumedEvent((ExecutionResumedEvent)historyEvent);
                     break;
             }
         }

@@ -11,51 +11,36 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
+namespace DurableTask.Core.History
 {
+    using System.Runtime.Serialization;
+
     /// <summary>
-    /// Enum describing the status of the orchestration
+    /// A history event for orchestration pause
     /// </summary>
-    public enum OrchestrationStatus
+    [DataContract]
+    public class ExecutionSuspendedEvent : HistoryEvent
     {
         /// <summary>
-        /// Orchestration state of running
+        /// Creates a new ExecutionSuspendedEvent with the supplied params
         /// </summary>
-        Running,
+        /// <param name="eventId">The event id of the history event</param>
+        /// <param name="input">The serialized input of the termination event</param>
+        public ExecutionSuspendedEvent(int eventId, string input)
+            : base(eventId)
+        {
+            Input = input;
+        }
 
         /// <summary>
-        /// Orchestration state of complete
+        /// Gets the event type
         /// </summary>
-        Completed,
+        public override EventType EventType => EventType.ExecutionSuspended;
 
         /// <summary>
-        /// Orchestration state of continued as new (this instance complete, continued in a new instance)
+        /// Gets or sets the serialized input for the the termination event
         /// </summary>
-        ContinuedAsNew,
-
-        /// <summary>
-        /// Orchestration state of failed
-        /// </summary>
-        Failed,
-
-        /// <summary>
-        /// Orchestration state of gracefully canceled
-        /// </summary>
-        Canceled,
-
-        /// <summary>
-        /// Orchestration state of abruptly shut down
-        /// </summary>
-        Terminated,
-
-        /// <summary>
-        /// Orchestration state of pending (not yet running)
-        /// </summary>
-        Pending,
-
-        /// <summary>
-        /// Orchestration state of paused
-        /// </summary>
-        Suspended,
+        [DataMember]
+        public string Input { get; set; }
     }
 }

@@ -34,6 +34,10 @@ namespace DurableTask.Core
         private bool executionCompletedOrTerminated;
         private int idCounter;
 
+        // Buffer to hold metadata associated with messages that arrive while orchestration is in suspended state
+        public List<SuspendedOrchestrationMessageInfo> suspendedOrchestrationMessages;
+        public bool executionSuspended;
+
         public bool HasContinueAsNew => continueAsNew != null;
 
         public void AddEventToNextIteration(HistoryEvent he)
@@ -406,10 +410,20 @@ namespace DurableTask.Core
             int taskId = completedEvent.TaskScheduledId;
             if (this.openTasks.ContainsKey(taskId))
             {
-                OpenTaskInfo info = this.openTasks[taskId];
-                info.Result.SetResult(completedEvent.Result);
+                if (this.executionSuspended)
+                {
+                    Debug.Assert(this.suspendedOrchestrationMessages != null);
 
-                this.openTasks.Remove(taskId);
+                    var msgInfo = new SuspendedOrchestrationMessageInfo(completedEvent);
+                    suspendedOrchestrationMessages.Add(msgInfo);
+                }
+                else
+                {
+                    OpenTaskInfo info = this.openTasks[taskId];
+                    info.Result.SetResult(completedEvent.Result);
+
+                    this.openTasks.Remove(taskId);
+                }
             }
             else
             {
@@ -536,6 +550,50 @@ namespace DurableTask.Core
         public void CompleteOrchestration(string result)
         {
             CompleteOrchestration(result, null, OrchestrationStatus.Completed);
+        }
+
+        public void HandleExecutionSuspendedEvent(ExecutionSuspendedEvent suspendedEvent)
+        {
+            this.executionSuspended = true;
+            Debug.Assert(this.suspendedOrchestrationMessages == null);
+            this.suspendedOrchestrationMessages = new List<SuspendedOrchestrationMessageInfo>();
+        }
+
+        public void HandleExecutionResumedEvent(ExecutionResumedEvent resumedEvent)
+        {
+            Debug.Assert(suspendedOrchestrationMessages != null);
+
+            while (suspendedOrchestrationMessages.Count > 0)
+            {
+                var currMsgInfo = suspendedOrchestrationMessages[0];
+                switch (currMsgInfo.historyEvent.EventType)
+                {
+                    case EventType.TaskCompleted:
+                        var taskCompleted = (TaskCompletedEvent)currMsgInfo.historyEvent;
+
+                        OpenTaskInfo info = this.openTasks[taskCompleted.TaskScheduledId];
+                        info.Result.SetResult(taskCompleted.Result);
+                        this.openTasks.Remove(taskCompleted.TaskScheduledId);
+                        break;
+                    case EventType.EventRaised:
+                        if (currMsgInfo.skipCarryOverEvents || !this.HasContinueAsNew)
+                        {
+                            var eventRaisedEvent = (EventRaisedEvent)currMsgInfo.historyEvent;
+                            currMsgInfo.taskOrchestration.RaiseEvent(this, eventRaisedEvent.Name, eventRaisedEvent.Input);
+                        }
+                        else
+                        {
+                            this.AddEventToNextIteration(currMsgInfo.historyEvent);
+                        }
+                        break;
+                    default:
+                        throw new NotImplementedException("Found unkown event when resuming orchestration.");
+
+                }
+                suspendedOrchestrationMessages.RemoveAt(0);
+            }
+            this.executionSuspended = false;
+            suspendedOrchestrationMessages = null;
         }
 
         public void FailOrchestration(Exception failure)

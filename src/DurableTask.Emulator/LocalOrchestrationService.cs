@@ -553,6 +553,18 @@ namespace DurableTask.Emulator
         }
 
         /// <inheritdoc />
+        public Task ForceSuspendTaskOrchestrationAsync(string instanceId, string reason)
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <inheritdoc />
+        public Task ForceResumeTaskOrchestrationAsync(string instanceId, string reason)
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <inheritdoc />
         public Task RenewTaskOrchestrationWorkItemLockAsync(TaskOrchestrationWorkItem workItem)
         {
             workItem.LockedUntilUtc = workItem.LockedUntilUtc.AddMinutes(5);

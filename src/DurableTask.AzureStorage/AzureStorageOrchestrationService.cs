@@ -937,7 +937,8 @@ namespace DurableTask.AzureStorage
 
             if (runtimeState.ExecutionStartedEvent != null &&
                 runtimeState.OrchestrationStatus != OrchestrationStatus.Running &&
-                runtimeState.OrchestrationStatus != OrchestrationStatus.Pending)
+                runtimeState.OrchestrationStatus != OrchestrationStatus.Pending &&
+                runtimeState.OrchestrationStatus != OrchestrationStatus.Suspended)
             {
                 message = $"Instance is {runtimeState.OrchestrationStatus}";
                 return false;
@@ -1728,6 +1729,39 @@ namespace DurableTask.AzureStorage
             {
                 OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId },
                 Event = new ExecutionTerminatedEvent(-1, reason)
+            };
+
+            return SendTaskOrchestrationMessageAsync(taskMessage);
+        }
+
+        /// <summary>
+        /// Force suspends an orchestration by sending a execution suspended event
+        /// </summary>
+        /// <param name="instanceId">Instance ID of the orchestration to terminate.</param>
+        /// <param name="reason">The user-friendly reason for terminating.</param>
+        public Task ForceSuspendTaskOrchestrationAsync(string instanceId, string reason)
+        {
+            var taskMessage = new TaskMessage
+            {
+                OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId },
+                Event = new ExecutionSuspendedEvent(-1, reason)
+            };
+
+            return SendTaskOrchestrationMessageAsync(taskMessage);
+        }
+
+        /// <summary>
+        /// Force resumes a suspended orchestration (sets it to Running state) by sending an
+        /// execution resumed event
+        /// </summary>
+        /// <param name="instanceId">Instance ID of the orchestration to terminate.</param>
+        /// <param name="reason">The user-friendly reason for terminating.</param>
+        public Task ForceResumeTaskOrchestrationAsync(string instanceId, string reason)
+        {
+            var taskMessage = new TaskMessage
+            {
+                OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId },
+                Event = new ExecutionResumedEvent(-1, reason)
             };
 
             return SendTaskOrchestrationMessageAsync(taskMessage);

@@ -39,6 +39,16 @@ namespace DurableTask.Core.History
         ExecutionTerminated,
 
         /// <summary>
+        /// Orchestration was suspended event
+        /// </summary>
+        ExecutionSuspended,
+
+        /// <summary>
+        /// Orchestration was resumed event
+        /// </summary>
+        ExecutionResumed,
+
+        /// <summary>
         /// Task Activity scheduled event 
         /// </summary>
         TaskScheduled,

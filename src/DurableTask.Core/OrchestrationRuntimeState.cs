@@ -66,6 +66,11 @@ namespace DurableTask.Core
         public string? Status;
 
         /// <summary>
+        /// The OrchestrationStatus corresponding to the OrchestrationRuntimeStatus
+        /// </summary>
+        public OrchestrationStatus _orchestrationStatus;
+
+        /// <summary>
         /// Creates a new instance of the OrchestrationRuntimeState
         /// </summary>
         public OrchestrationRuntimeState()
@@ -83,6 +88,7 @@ namespace DurableTask.Core
             PastEvents = events != null ? new List<HistoryEvent>(events.Count) : new List<HistoryEvent>();
             NewEvents = new List<HistoryEvent>();
             completedEventIds = new HashSet<int>();
+            // OrchestrationStatus = orchStatus;
 
             if (events != null && events.Count > 0)
             {
@@ -161,7 +167,11 @@ namespace DurableTask.Core
                     return ExecutionCompletedEvent.OrchestrationStatus;
                 }
 
-                return OrchestrationStatus.Running;
+                return _orchestrationStatus;
+            }
+            set
+            {
+                _orchestrationStatus = value;
             }
         }
 

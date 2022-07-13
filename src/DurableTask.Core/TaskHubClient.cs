@@ -721,6 +721,56 @@ namespace DurableTask.Core
         }
 
         /// <summary>
+        ///     Forcefully suspend the specified orchestration instance
+        /// </summary>
+        /// <param name="orchestrationInstance">Instance to terminate</param>
+        public Task SuspendInstanceAsync(OrchestrationInstance orchestrationInstance)
+        {
+            return this.SuspendInstanceAsync(orchestrationInstance, string.Empty);
+        }
+
+        /// <summary>
+        ///     Forcefully suspend the specified orchestration instance with a reason
+        /// </summary>
+        /// <param name="orchestrationInstance">Instance to terminate</param>
+        /// <param name="reason">Reason for terminating the instance</param>
+        public async Task SuspendInstanceAsync(OrchestrationInstance orchestrationInstance, string reason)
+        {
+            if (string.IsNullOrWhiteSpace(orchestrationInstance?.InstanceId))
+            {
+                throw new ArgumentException("orchestrationInstance");
+            }
+
+            this.logHelper.SuspendingInstance(orchestrationInstance, reason);
+            await this.ServiceClient.ForceSuspendTaskOrchestrationAsync(orchestrationInstance.InstanceId, reason);
+        }
+
+        /// <summary>
+        ///     Forcefully resume the specified orchestration instance
+        /// </summary>
+        /// <param name="orchestrationInstance">Instance to resume</param>
+        public Task ResumeInstanceAsync(OrchestrationInstance orchestrationInstance)
+        {
+            return this.ResumeInstanceAsync(orchestrationInstance, string.Empty);
+        }
+
+        /// <summary>
+        ///     Forcefully resume the specified orchestration instance with a reason
+        /// </summary>
+        /// <param name="orchestrationInstance">Instance to resume</param>
+        /// <param name="reason">Reason for resuming the instance</param>
+        public async Task ResumeInstanceAsync(OrchestrationInstance orchestrationInstance, string reason)
+        {
+            if (string.IsNullOrWhiteSpace(orchestrationInstance?.InstanceId))
+            {
+                throw new ArgumentException("orchestrationInstance");
+            }
+
+            this.logHelper.ResumingInstance(orchestrationInstance, reason);
+            await this.ServiceClient.ForceResumeTaskOrchestrationAsync(orchestrationInstance.InstanceId, reason);
+        }
+
+        /// <summary>
         ///     Wait for an orchestration to reach any terminal state within the given timeout
         /// </summary>
         /// <param name="orchestrationInstance">Instance to terminate</param>

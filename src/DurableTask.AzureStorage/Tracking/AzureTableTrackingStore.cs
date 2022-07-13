@@ -957,6 +957,30 @@ namespace DurableTask.AzureStorage.Tracking
                             instancePropertyName: OutputProperty,
                             data: executionTerminatedEvent.Input);
                         break;
+                    case EventType.ExecutionSuspended:
+                        runtimeStatus = OrchestrationStatus.Suspended;
+                        ExecutionSuspendedEvent executionSuspendedEvent = (ExecutionSuspendedEvent)historyEvent;
+                        instanceEntity.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Suspended.ToString());
+                        instanceEntity.Properties["CompletedTime"] = new EntityProperty(DateTime.UtcNow);
+                        this.SetInstancesTablePropertyFromHistoryProperty(
+                            historyEntity,
+                            instanceEntity,
+                            historyPropertyName: nameof(executionTerminatedEvent.Input),
+                            instancePropertyName: OutputProperty,
+                            data: executionSuspendedEvent.Input);
+                        break;
+                    case EventType.ExecutionResumed:
+                        runtimeStatus = OrchestrationStatus.Running;
+                        ExecutionResumedEvent executionResumedEvent = (ExecutionResumedEvent)historyEvent;
+                        instanceEntity.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Running.ToString());
+                        instanceEntity.Properties["CompletedTime"] = new EntityProperty(DateTime.UtcNow);
+                        this.SetInstancesTablePropertyFromHistoryProperty(
+                            historyEntity,
+                            instanceEntity,
+                            historyPropertyName: nameof(executionTerminatedEvent.Input),
+                            instancePropertyName: OutputProperty,
+                            data: executionResumedEvent.Input);
+                        break;
                     case EventType.ContinueAsNew:
                         runtimeStatus = OrchestrationStatus.ContinuedAsNew;
                         ExecutionCompletedEvent executionCompletedEvent = (ExecutionCompletedEvent)historyEvent;

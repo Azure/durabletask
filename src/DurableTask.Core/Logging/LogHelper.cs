@@ -317,6 +317,32 @@ namespace DurableTask.Core.Logging
         }
 
         /// <summary>
+        /// Logs that an instance is being scheduled to be suspended.
+        /// </summary>
+        /// <param name="instance">The instance to be suspended.</param>
+        /// <param name="reason">The user-specified reason for the suspension.</param>
+        internal void SuspendingInstance(OrchestrationInstance instance, string reason)
+        {
+            if (this.IsStructuredLoggingEnabled)
+            {
+                this.WriteStructuredLog(new LogEvents.SuspendingInstance(instance, reason));
+            }
+        }
+
+        /// <summary>
+        /// Logs that an instance is being scheduled to be resumed.
+        /// </summary>
+        /// <param name="instance">The instance to be resumed.</param>
+        /// <param name="reason">The user-specified reason for the resumption.</param>
+        internal void ResumingInstance(OrchestrationInstance instance, string reason)
+        {
+            if (this.IsStructuredLoggingEnabled)
+            {
+                this.WriteStructuredLog(new LogEvents.ResumingInstance(instance, reason));
+            }
+        }
+
+        /// <summary>
         /// Logs that the client is waiting for an instance to reach a terminal state.
         /// </summary>
         /// <param name="instance">The instance being awaited.</param>
