@@ -17,19 +17,22 @@ namespace DurableTask.ServiceBus.Tests
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Diagnostics.CodeAnalysis;
+    using System.Diagnostics.Contracts;
     using System.Threading.Tasks;
+
     using DurableTask.Core;
     using DurableTask.Core.History;
     using DurableTask.ServiceBus.Tracking;
+
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]
     [SuppressMessage("ReSharper", "StringLiteralTypo")]
     public class OrchestrationHubTableClientTests
     {
-        TaskHubClient client;
-        AzureTableClient tableClient;
-        TaskHubWorker taskHub;
+        private TaskHubClient client;
+        private AzureTableClient tableClient;
+        private TaskHubWorker taskHub;
 
         [TestInitialize]
         public void TestInitialize()
@@ -43,7 +46,7 @@ namespace DurableTask.ServiceBus.Tests
 
             this.taskHub = TestHelpers.CreateTaskHub();
 
-            this.taskHub.orchestrationService.CreateAsync(true).Wait();
+            this.taskHub.OrchestrationService.CreateAsync(true).Wait();
         }
 
         [TestCleanup]
@@ -51,17 +54,17 @@ namespace DurableTask.ServiceBus.Tests
         {
             this.tableClient.DeleteTableIfExistsAsync().Wait();
             this.taskHub.StopAsync(true).Wait();
-            this.taskHub.orchestrationService.DeleteAsync(true).Wait();
+            this.taskHub.OrchestrationService.DeleteAsync(true).Wait();
         }
 
         [TestMethod]
         public async Task BasicInstanceStoreTest()
         {
-            await this.taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration))
+            await this.taskHub.AddTaskOrchestrations(typeof(InstanceStoreTestOrchestration))
                 .AddTaskActivities(new Activity1())
                 .StartAsync();
 
-            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(InstanceStoreTestOrchestration),
                 "DONT_THROW");
 
             bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
@@ -83,13 +86,13 @@ namespace DurableTask.ServiceBus.Tests
         [TestMethod]
         public async Task MultipleInstanceStoreTest()
         {
-            await this.taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration))
+            await this.taskHub.AddTaskOrchestrations(typeof(InstanceStoreTestOrchestration))
                 .AddTaskActivities(new Activity1())
                 .StartAsync();
 
-            OrchestrationInstance id1 = await this.client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
+            OrchestrationInstance id1 = await this.client.CreateOrchestrationInstanceAsync(typeof(InstanceStoreTestOrchestration),
                 "WAIT_THROW");
-            OrchestrationInstance id2 = await this.client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
+            OrchestrationInstance id2 = await this.client.CreateOrchestrationInstanceAsync(typeof(InstanceStoreTestOrchestration),
                 "WAIT_DONTTHROW");
 
             await TestHelpers.WaitForInstanceAsync(this.client, id1, 60, false);
@@ -112,11 +115,11 @@ namespace DurableTask.ServiceBus.Tests
         [TestMethod]
         public async Task TerminateInstanceStoreTest()
         {
-            await this.taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration))
+            await this.taskHub.AddTaskOrchestrations(typeof(InstanceStoreTestOrchestration))
                 .AddTaskActivities(new Activity1())
                 .StartAsync();
 
-            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(InstanceStoreTestOrchestration),
                 "WAIT");
 
             await TestHelpers.WaitForInstanceAsync(this.client, id, 60, false);
@@ -132,11 +135,11 @@ namespace DurableTask.ServiceBus.Tests
         [TestMethod]
         public async Task IntermediateStateInstanceStoreTest()
         {
-            await this.taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration))
+            await this.taskHub.AddTaskOrchestrations(typeof(InstanceStoreTestOrchestration))
                 .AddTaskActivities(new Activity1())
                 .StartAsync();
 
-            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(InstanceStoreTestOrchestration),
                 "WAIT");
 
             await TestHelpers.WaitForInstanceAsync(this.client, id, 60, false);
@@ -160,11 +163,11 @@ namespace DurableTask.ServiceBus.Tests
         [TestMethod]
         public async Task FailingInstanceStoreTest()
         {
-            await this.taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration))
+            await this.taskHub.AddTaskOrchestrations(typeof(InstanceStoreTestOrchestration))
                 .AddTaskActivities(new Activity1())
                 .StartAsync();
 
-            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof (InstanceStoreTestOrchestration),
+            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(InstanceStoreTestOrchestration),
                 "THROW");
 
             bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
@@ -176,13 +179,13 @@ namespace DurableTask.ServiceBus.Tests
         [TestMethod]
         public async Task OrchestrationEventHistoryTest()
         {
-            IEnumerable<AzureTableOrchestrationHistoryEventEntity> entitiesInst0Gen0 = CreateHistoryEntities(this.tableClient, "0", "0",
+            IEnumerable<AzureTableOrchestrationHistoryEventEntity> entitiesInst0Gen0 = OrchestrationHubTableClientTests.CreateHistoryEntities(this.tableClient, "0", "0",
                 10);
-            IEnumerable<AzureTableOrchestrationHistoryEventEntity> entitiesInst0Gen1 = CreateHistoryEntities(this.tableClient, "0", "1",
+            IEnumerable<AzureTableOrchestrationHistoryEventEntity> entitiesInst0Gen1 = OrchestrationHubTableClientTests.CreateHistoryEntities(this.tableClient, "0", "1",
                 10);
-            IEnumerable<AzureTableOrchestrationHistoryEventEntity> entitiesInst1Gen0 = CreateHistoryEntities(this.tableClient, "1", "0",
+            IEnumerable<AzureTableOrchestrationHistoryEventEntity> entitiesInst1Gen0 = OrchestrationHubTableClientTests.CreateHistoryEntities(this.tableClient, "1", "0",
                 10);
-            IEnumerable<AzureTableOrchestrationHistoryEventEntity> entitiesInst1Gen1 = CreateHistoryEntities(this.tableClient, "1", "1",
+            IEnumerable<AzureTableOrchestrationHistoryEventEntity> entitiesInst1Gen1 = OrchestrationHubTableClientTests.CreateHistoryEntities(this.tableClient, "1", "1",
                 10);
 
             IEnumerable<AzureTableOrchestrationHistoryEventEntity> histInst0Gen0Returned =
@@ -203,10 +206,10 @@ namespace DurableTask.ServiceBus.Tests
         [TestMethod]
         public async Task OrchestrationStateTest()
         {
-            IEnumerable<AzureTableOrchestrationStateEntity> entitiesInst0Gen0 = CreateStateEntities(this.tableClient, "0", "0");
-            IEnumerable<AzureTableOrchestrationStateEntity> entitiesInst0Gen1 = CreateStateEntities(this.tableClient, "0", "1");
-            IEnumerable<AzureTableOrchestrationStateEntity> entitiesInst1Gen0 = CreateStateEntities(this.tableClient, "1", "0");
-            IEnumerable<AzureTableOrchestrationStateEntity> entitiesInst1Gen1 = CreateStateEntities(this.tableClient, "1", "1");
+            IEnumerable<AzureTableOrchestrationStateEntity> entitiesInst0Gen0 = OrchestrationHubTableClientTests.CreateStateEntities(this.tableClient, "0", "0");
+            IEnumerable<AzureTableOrchestrationStateEntity> entitiesInst0Gen1 = OrchestrationHubTableClientTests.CreateStateEntities(this.tableClient, "0", "1");
+            IEnumerable<AzureTableOrchestrationStateEntity> entitiesInst1Gen0 = OrchestrationHubTableClientTests.CreateStateEntities(this.tableClient, "1", "0");
+            IEnumerable<AzureTableOrchestrationStateEntity> entitiesInst1Gen1 = OrchestrationHubTableClientTests.CreateStateEntities(this.tableClient, "1", "1");
 
             IEnumerable<AzureTableOrchestrationStateEntity> histInst0Gen0Returned = await this.tableClient.QueryOrchestrationStatesAsync(
                 new OrchestrationStateQuery().AddInstanceFilter("0", "0"));
@@ -226,7 +229,7 @@ namespace DurableTask.ServiceBus.Tests
             Assert.IsTrue(CompareEnumerations(entitiesInst1Gen1, histInst1Gen1Returned));
         }
 
-        bool CompareEnumerations(IEnumerable<AzureTableCompositeTableEntity> expected, IEnumerable<AzureTableCompositeTableEntity> actual)
+        private static bool CompareEnumerations(IEnumerable<AzureTableCompositeTableEntity> expected, IEnumerable<AzureTableCompositeTableEntity> actual)
         {
             using (IEnumerator<AzureTableCompositeTableEntity> expectedEnumerator = expected.GetEnumerator())
             using (IEnumerator<AzureTableCompositeTableEntity> actualEnumerator = actual.GetEnumerator())
@@ -244,13 +247,13 @@ namespace DurableTask.ServiceBus.Tests
                     Trace.WriteLine("Actual: " + actualEnumerator.Current);
                     if (expectedEnumerator.Current is AzureTableOrchestrationHistoryEventEntity azureTableOrchestrationHistoryEventEntity)
                     {
-                        match = CompareHistoryEntity(
+                        match = OrchestrationHubTableClientTests.CompareHistoryEntity(
                             azureTableOrchestrationHistoryEventEntity,
                             actualEnumerator.Current as AzureTableOrchestrationHistoryEventEntity);
                     }
                     else
                     {
-                        match = CompareStateEntity(
+                        match = OrchestrationHubTableClientTests.CompareStateEntity(
                             expectedEnumerator.Current as AzureTableOrchestrationStateEntity,
                             actualEnumerator.Current as AzureTableOrchestrationStateEntity);
                     }
@@ -274,32 +277,30 @@ namespace DurableTask.ServiceBus.Tests
             return true;
         }
 
-        bool CompareHistoryEntity(AzureTableOrchestrationHistoryEventEntity expected, AzureTableOrchestrationHistoryEventEntity actual)
+        private static bool CompareHistoryEntity(AzureTableOrchestrationHistoryEventEntity expected, AzureTableOrchestrationHistoryEventEntity actual)
         {
             // TODO : history comparison!
-            return expected.InstanceId.Equals(actual.InstanceId) && expected.ExecutionId.Equals(actual.ExecutionId) &&
+            return expected.InstanceId.Equals(actual.InstanceId, StringComparison.Ordinal) && expected.ExecutionId.Equals(actual.ExecutionId, StringComparison.Ordinal) &&
                    expected.SequenceNumber == actual.SequenceNumber;
         }
 
-        bool CompareStateEntity(AzureTableOrchestrationStateEntity expected, AzureTableOrchestrationStateEntity actual)
-        {
-            return
-                expected.State.OrchestrationInstance.InstanceId.Equals(actual.State.OrchestrationInstance.InstanceId) &&
-                expected.State.OrchestrationInstance.ExecutionId.Equals(actual.State.OrchestrationInstance.ExecutionId) &&
-                expected.State.Name.Equals(actual.State.Name) &&
-                expected.State.CreatedTime.Equals(actual.State.CreatedTime) &&
-                expected.State.LastUpdatedTime.Equals(actual.State.LastUpdatedTime) &&
-                // ReSharper disable once ConditionIsAlwaysTrueOrFalse
-                (expected.State.CompletedTime == null && actual.State.CompletedTime == null ||
-                 expected.State.CompletedTime.Equals(actual.State.CompletedTime)) &&
-                expected.State.Status.Equals(actual.State.Status) &&
-                expected.State.Input.Equals(actual.State.Input) &&
-                (string.IsNullOrWhiteSpace(expected.State.Output) && string.IsNullOrWhiteSpace(actual.State.Output) ||
-                 expected.State.Output.Equals(actual.State.Output));
-        }
+        private static bool CompareStateEntity(AzureTableOrchestrationStateEntity expected, AzureTableOrchestrationStateEntity actual)
+         => expected.State.OrchestrationInstance.InstanceId.Equals(actual.State.OrchestrationInstance.InstanceId, StringComparison.Ordinal)
+         && expected.State.OrchestrationInstance.ExecutionId.Equals(actual.State.OrchestrationInstance.ExecutionId, StringComparison.Ordinal)
+         && expected.State.Name.Equals(actual.State.Name, StringComparison.Ordinal)
+         && expected.State.CreatedTime.Equals(actual.State.CreatedTime)
+         && expected.State.LastUpdatedTime.Equals(actual.State.LastUpdatedTime)
+         // ReSharper disable once ConditionIsAlwaysTrueOrFalse
+         && (expected.State.CompletedTime == default && actual.State.CompletedTime == default
+          || expected.State.CompletedTime.Equals(actual.State.CompletedTime))
+         && expected.State.Status.Equals(actual.State.Status, StringComparison.Ordinal)
+         && expected.State.Input.Equals(actual.State.Input, StringComparison.Ordinal)
+         && (string.IsNullOrWhiteSpace(expected.State.Output)
+          && string.IsNullOrWhiteSpace(actual.State.Output)
+          || expected.State.Output.Equals(actual.State.Output, StringComparison.Ordinal));
 
-        IEnumerable<AzureTableOrchestrationHistoryEventEntity> CreateHistoryEntities(AzureTableClient azureTableClient, string instanceId,
-            string genId, int count)
+        private static IEnumerable<AzureTableOrchestrationHistoryEventEntity> CreateHistoryEntities(
+            AzureTableClient azureTableClient, string instanceId, string genId, int count)
         {
             var historyEntities = new List<AzureTableOrchestrationHistoryEventEntity>();
             for (var i = 0; i < count; i++)
@@ -314,7 +315,8 @@ namespace DurableTask.ServiceBus.Tests
             return historyEntities;
         }
 
-        IEnumerable<AzureTableOrchestrationStateEntity> CreateStateEntities(AzureTableClient azureTableClient, string instanceId, string genId)
+        private static IEnumerable<AzureTableOrchestrationStateEntity> CreateStateEntities(
+            AzureTableClient azureTableClient, string instanceId, string genId)
         {
             var entities = new List<AzureTableOrchestrationStateEntity>();
             var runtimeState = new OrchestrationState
@@ -350,11 +352,14 @@ namespace DurableTask.ServiceBus.Tests
         public class InstanceStoreTestOrchestration : TaskOrchestration<string, string>
         {
             // HACK: This is just a hack to communicate result of orchestration back to test
+#pragma warning disable CA2211 // Non-constant fields should not be visible
             public static string Result;
+#pragma warning restore CA2211 // Non-constant fields should not be visible
 
             public override async Task<string> RunTask(OrchestrationContext context, string input)
             {
-                string result = await context.ScheduleTask<string>(typeof (Activity1));
+                Contract.Assume(context is not null);
+                string result = await context.ScheduleTask<string>(typeof(Activity1));
                 if (string.Equals(input, "THROW", StringComparison.OrdinalIgnoreCase))
                 {
                     throw new InvalidOperationException("BADFOOD");

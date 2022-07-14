@@ -140,7 +140,7 @@ namespace DurableTask.AzureStorage
         /// <param name="s"></param>
         public static string GetTargetClassName(this string s)
         {
-            if (s == null)
+            if (s is null)
             {
                 return null;
             }

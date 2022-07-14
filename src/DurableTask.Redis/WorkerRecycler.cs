@@ -62,7 +62,7 @@ namespace DurableTask.Redis
                 long itemsToRestore = await redisDatabase.ListLengthAsync(processingQueueKey);
                 await this.logger.LogAsync($"Moving {itemsToRestore} from processing queue back to incoming queue");
                 string restoredMessage = await redisDatabase.ListRightPopLeftPushAsync(processingQueueKey, incomingActivityQueueKey);
-                while (restoredMessage != null)
+                while (restoredMessage is not null)
                 {
                     TaskMessage message = RedisSerializer.DeserializeObject<TaskMessage>(restoredMessage);
                     await this.logger.LogAsync($"Moved activity with id {message.Event.EventId} from processing queue back to incoming queue");

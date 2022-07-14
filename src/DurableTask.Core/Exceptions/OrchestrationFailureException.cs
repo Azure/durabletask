@@ -51,18 +51,14 @@ namespace DurableTask.Core.Exceptions
         /// </summary>
         public OrchestrationFailureException(string reason, string details)
             : base(reason)
-        {
-            Details = details;
-        }
+         => Details = details;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="OrchestrationFailureException"/> class.
         /// </summary>
         protected OrchestrationFailureException(SerializationInfo info, StreamingContext context)
             : base(info, context)
-        {
-            Details = info.GetString(nameof(Details));
-        }
+         => Details = info.GetString(nameof(Details));
 
         /// <summary>
         /// Details of the exception which will flow to the parent orchestration.

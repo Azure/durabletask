@@ -253,7 +253,7 @@ namespace DurableTask.AzureStorage
         /// <summary>
         /// Returns bool indicating is the TrackingStoreStorageAccount has been set.
         /// </summary>
-        public bool HasTrackingStoreStorageAccount => this.TrackingStoreStorageAccountDetails != null;
+        public bool HasTrackingStoreStorageAccount => this.TrackingStoreStorageAccountDetails is not null;
 
         internal string HistoryTableName => this.HasTrackingStoreStorageAccount ? $"{this.TrackingStoreNamePrefix}History" : $"{this.TaskHubName}History";
 
@@ -266,7 +266,7 @@ namespace DurableTask.AzureStorage
         {
             get
             {
-                if (this.logHelper == null)
+                if (this.logHelper is null)
                 {
                     this.logHelper = new LogHelper(this.LoggerFactory.CreateLogger("DurableTask.AzureStorage"));
                 }

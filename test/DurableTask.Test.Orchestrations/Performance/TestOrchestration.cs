@@ -34,7 +34,7 @@ namespace DurableTask.Test.Orchestrations.Performance
             }
         }
 
-        async Task<int> RunTaskCore(OrchestrationContext context, TestOrchestrationData data)
+        private async Task<int> RunTaskCore(OrchestrationContext context, TestOrchestrationData data)
         {
             int result = 0;
             List<Task<int>> results = new List<Task<int>>();
@@ -72,7 +72,7 @@ namespace DurableTask.Test.Orchestrations.Performance
             return result;
         }
 
-        async Task<int> RunTaskWithTimeout(OrchestrationContext context, TestOrchestrationData data)
+        private async Task<int> RunTaskWithTimeout(OrchestrationContext context, TestOrchestrationData data)
         {
             var timerCts = new CancellationTokenSource();
 

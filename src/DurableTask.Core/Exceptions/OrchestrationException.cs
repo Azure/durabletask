@@ -45,9 +45,7 @@ namespace DurableTask.Core.Exceptions
         /// <param name="message">The message that describes the error.</param>
         /// <param name="innerException">The exception that is the cause of the current exception, or a null reference if no inner exception is specified.</param>
         public OrchestrationException(string message, Exception innerException)
-            : base(message, innerException)
-        {
-        }
+            : base(message, innerException) { }
 
         /// <summary>
         /// Initializes an new instance of the OrchestrationException class with a specified event id and error message
@@ -58,9 +56,7 @@ namespace DurableTask.Core.Exceptions
         /// <param name="innerException">The exception that is the cause of the current exception, or a null reference if no inner exception is specified.</param>
         public OrchestrationException(int eventId, string message, Exception innerException)
             : base(message, innerException)
-        {
-            EventId = eventId;
-        }
+         => EventId = eventId;
 
         /// <summary>
         /// Initializes a new instance of the OrchestrationException class with serialized data.

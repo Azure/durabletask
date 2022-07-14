@@ -13,22 +13,25 @@
 
 namespace DurableTask.ServiceBus.Tests
 {
+#pragma warning disable CA1812 // Private classes instantiated indirectly
     using System;
     using System.Collections.Generic;
     using System.Diagnostics.CodeAnalysis;
     using System.IO;
     using System.Linq;
     using System.Threading.Tasks;
+
     using DurableTask.Core;
     using DurableTask.Core.History;
     using DurableTask.Core.Serializing;
+
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]
     public class SerializationTests
     {
-        TaskHubClient client;
-        TaskHubWorker taskHub;
+        private TaskHubClient client;
+        private TaskHubWorker taskHub;
 
         [TestInitialize]
         public void TestInitialize()
@@ -36,14 +39,14 @@ namespace DurableTask.ServiceBus.Tests
             this.client = TestHelpers.CreateTaskHubClient();
 
             this.taskHub = TestHelpers.CreateTaskHub();
-            this.taskHub.orchestrationService.CreateAsync(true).Wait();
+            this.taskHub.OrchestrationService.CreateAsync(true).Wait();
         }
 
         [TestCleanup]
         public void TestCleanup()
         {
             this.taskHub.StopAsync(true).Wait();
-            this.taskHub.orchestrationService.DeleteAsync(true).Wait();
+            this.taskHub.OrchestrationService.DeleteAsync(true).Wait();
         }
 
         #region Interface based activity serialization tests
@@ -529,7 +532,7 @@ namespace DurableTask.ServiceBus.Tests
         }
 
         [SuppressMessage("ReSharper", "MemberCanBePrivate.Local")]
-        sealed class PrimitiveTypeActivitiesOrchestration : TaskOrchestration<string, PrimitiveTypeOrchestrationInput>
+        private sealed class PrimitiveTypeActivitiesOrchestration : TaskOrchestration<string, PrimitiveTypeOrchestrationInput>
         {
             // HACK: This is just a hack to communicate result of orchestration back to test
             public static byte Byte { get; set; }
@@ -783,7 +786,7 @@ namespace DurableTask.ServiceBus.Tests
             }
         }
 
-        sealed class MoreParamsOrchestration : TaskOrchestration<string, MoreParamsOrchestrationInput>
+        private sealed class MoreParamsOrchestration : TaskOrchestration<string, MoreParamsOrchestrationInput>
         {
             // HACK: This is just a hack to communicate result of orchestration back to test
             public static string Result;
@@ -856,14 +859,16 @@ namespace DurableTask.ServiceBus.Tests
             {
                 input3.Add(input);
                 input3.AddRange(input2);
-                var result = new Dictionary<int, List<T>>();
-                result.Add(1, input3);
+                var result = new Dictionary<int, List<T>>
+                {
+                    { 1, input3 }
+                };
 
                 return Task.FromResult(result);
             }
         }
 
-        sealed class GenericMethodInterfaceOrchestration : TaskOrchestration<string, GenericInterfaceOrchestrationInput>
+        private sealed class GenericMethodInterfaceOrchestration : TaskOrchestration<string, GenericInterfaceOrchestrationInput>
         {
             public override async Task<string> RunTask(OrchestrationContext context, GenericInterfaceOrchestrationInput input)
             {
@@ -921,7 +926,7 @@ namespace DurableTask.ServiceBus.Tests
             }
         }
 
-        sealed class InterfaceOrClassActivityClientOrchestration : TaskOrchestration<string, bool>
+        private sealed class InterfaceOrClassActivityClientOrchestration : TaskOrchestration<string, bool>
         {
             public override async Task<string> RunTask(OrchestrationContext context, bool input)
             {

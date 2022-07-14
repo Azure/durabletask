@@ -23,14 +23,14 @@ namespace DurableTask.Core.Tests
     [TestClass]
     public class CustomExceptionsTests
     {
-        List<Type> customExceptions;
-        const string DefaultExceptionsNamespace = "DurableTask.Core.Exceptions";
-        const string DefaultExceptionMessage = "Test Message";
-        const long TestInt64Type = 1234567890123456789;
-        const int TestInt32Type = 1234567890;
-        const short TestInt16Type = 12345;
-        const string TestStringType = "This is a test string";
-        static readonly Guid TestGuidType = Guid.NewGuid();
+        private List<Type> customExceptions;
+        private const string DefaultExceptionsNamespace = "DurableTask.Core.Exceptions";
+        private const string DefaultExceptionMessage = "Test Message";
+        private const long TestInt64Type = 1234567890123456789;
+        private const int TestInt32Type = 1234567890;
+        private const short TestInt16Type = 12345;
+        private const string TestStringType = "This is a test string";
+        private static readonly Guid TestGuidType = Guid.NewGuid();
 
         [TestInitialize]
         public void Initialize()
@@ -54,11 +54,11 @@ namespace DurableTask.Core.Tests
             this.customExceptions.ForEach(_ =>
             {
                 // Get the default constructor
-                ConstructorInfo constructor = _.GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, CallingConventions.HasThis, new Type[0], null);
+                ConstructorInfo constructor = _.GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, CallingConventions.HasThis, Array.Empty<Type>(), null);
                 Assert.IsNotNull(constructor, $"Default constructor .ctor() for exception '{_.FullName}' does not exist");
 
                 // Create an instance to make sure no exception is raised
-                constructor.Invoke(new object[0]);
+                constructor.Invoke(Array.Empty<object>());
 
                 // Get the constructor with a single string parameter
                 constructor = _.GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, CallingConventions.HasThis, new[] { typeof(string) }, null);
@@ -143,7 +143,7 @@ namespace DurableTask.Core.Tests
             });
         }
 
-        void ForEachExceptionDisplayContext(Action<Type> exceptionType)
+        private void ForEachExceptionDisplayContext(Action<Type> exceptionType)
         {
             foreach (Type type in this.customExceptions)
             {
@@ -152,7 +152,7 @@ namespace DurableTask.Core.Tests
             }
         }
 
-        object GetValueFromType(Type type)
+        private object GetValueFromType(Type type)
         {
             // Return a predefined value for each well known type
             if (type == typeof(long)) return TestInt64Type;

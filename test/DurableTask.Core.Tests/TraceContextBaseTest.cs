@@ -126,19 +126,25 @@ namespace DurableTask.Core.Tests
 
         private static Foo GetNewRequestContext(string comment)
         {
-            var requestContext = new Foo() { Comment = comment };
-            requestContext.TelemetryType = TelemetryType.Request;
+            var requestContext = new Foo
+            {
+                Comment = comment,
+                TelemetryType = TelemetryType.Request
+            };
             return requestContext;
         }
 
         private static Foo GetNewDependencyContext(string comment)
         {
-            var dependencyContext = new Foo() { Comment = comment };
-            dependencyContext.TelemetryType = TelemetryType.Dependency;
+            var dependencyContext = new Foo
+            {
+                Comment = comment,
+                TelemetryType = TelemetryType.Dependency
+            };
             return dependencyContext;
         }
 
-        class Foo : TraceContextBase
+        private class Foo : TraceContextBase
         {
             public Foo() : base() { }
 

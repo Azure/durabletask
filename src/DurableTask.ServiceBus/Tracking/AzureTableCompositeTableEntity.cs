@@ -15,6 +15,7 @@ namespace DurableTask.ServiceBus.Tracking
 {
     using System;
     using System.Collections.Generic;
+
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Table;
 
@@ -64,7 +65,7 @@ namespace DurableTask.ServiceBus.Tracking
         internal abstract IEnumerable<ITableEntity> BuildDenormalizedEntities();
 
         /// <summary>
-        /// 
+        /// Gets entity property by its name
         /// </summary>
         protected T GetValue<T>(string key, IDictionary<string, EntityProperty> properties,
             Func<EntityProperty, T> extract)

@@ -38,10 +38,12 @@ namespace DurableTask.AzureStorage.Tests
             var fixture = new QueryFixture();
             fixture.SetUpQueryStateWithPagerWithoutInputToken();
 
-            var inputState = new List<OrchestrationStatus>();
-            inputState.Add(OrchestrationStatus.Running);
-            inputState.Add(OrchestrationStatus.Completed);
-            inputState.Add(OrchestrationStatus.Failed);
+            var inputState = new List<OrchestrationStatus>
+            {
+                OrchestrationStatus.Running,
+                OrchestrationStatus.Completed,
+                OrchestrationStatus.Failed
+            };
 
             var result = await fixture.TrackingStore.GetStateAsync(fixture.ExpectedCreatedDateFrom, fixture.ExpectedCreatedDateTo, inputState, 3, fixture.InputToken);
 
@@ -68,10 +70,12 @@ namespace DurableTask.AzureStorage.Tests
 
             fixture.SetupQueryStateWithPagerWithInputToken(inputTokenString);
 
-            var inputState = new List<OrchestrationStatus>();
-            inputState.Add(OrchestrationStatus.Running);
-            inputState.Add(OrchestrationStatus.Completed);
-            inputState.Add(OrchestrationStatus.Failed);
+            var inputState = new List<OrchestrationStatus>
+            {
+                OrchestrationStatus.Running,
+                OrchestrationStatus.Completed,
+                OrchestrationStatus.Failed
+            };
 
             var result = await fixture.TrackingStore.GetStateAsync(fixture.ExpectedCreatedDateFrom, fixture.ExpectedCreatedDateTo, inputState, 3, fixture.InputToken);
 

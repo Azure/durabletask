@@ -19,7 +19,7 @@ namespace DurableTask.ServiceBus.Stats
     public class ServiceBusOrchestrationServiceStats
     {
         // TODO: This should implement an interface so implementation specific perf counter implementations are possible
-        // TODO: Add: 
+        // TODO: Add:
         //      receive latency
         //      message/session throughput
         //      average E2E latency(i.e.look at curenttimeutc - enqueuedtimeutc on the received message)
@@ -54,10 +54,8 @@ namespace DurableTask.ServiceBus.Stats
         /// Returns a string that represents the stats for each queue.
         /// </summary>
         public override string ToString()
-        {
-            return $"OrchestrationDispatcherStats: {{{OrchestrationDispatcherStats}}}"
-                   + $", ActivityDispatcherStats: {{{ActivityDispatcherStats}}}"
-                   + $", TrackingDispatcherStats: {{{TrackingDispatcherStats}}}";
-        }
+         => $"OrchestrationDispatcherStats: {{{OrchestrationDispatcherStats}}}"
+          + $", ActivityDispatcherStats: {{{ActivityDispatcherStats}}}"
+          + $", TrackingDispatcherStats: {{{TrackingDispatcherStats}}}";
     }
 }

@@ -23,11 +23,10 @@ namespace DurableTask.Samples.Replat
     /// </summary>
     public class MigrateOrchestration : TaskOrchestration<bool, MigrateOrchestrationData, string, MigrateOrchestrationStatus>
     {
-        MigrateOrchestrationStatus status;
-        IMigrationTasks antaresReplatMigrationTasks;
-        IManagementSqlOrchestrationTasks managementDatabaseTasks;
-
-        readonly RetryOptions retryOptions = new RetryOptions(TimeSpan.FromSeconds(30), 5)
+        private MigrateOrchestrationStatus status;
+        private IMigrationTasks antaresReplatMigrationTasks;
+        private IManagementSqlOrchestrationTasks managementDatabaseTasks;
+        private readonly RetryOptions retryOptions = new RetryOptions(TimeSpan.FromSeconds(30), 5)
         {
             BackoffCoefficient = 1,
             MaxRetryInterval = TimeSpan.FromMinutes(5),
@@ -139,7 +138,7 @@ namespace DurableTask.Samples.Replat
             return this.status;
         }
 
-        void Initialize(OrchestrationContext context)
+        private void Initialize(OrchestrationContext context)
         {
             Context = context;
             this.status = new MigrateOrchestrationStatus();
@@ -148,7 +147,7 @@ namespace DurableTask.Samples.Replat
         }
 
         //private bool Validate(Application[] apps)
-        static bool Validate()
+        private static bool Validate()
         {
             // TODO: Validate if the entire subscription can be migrated
             //      1) No Apps are Kudu enabled
@@ -156,7 +155,7 @@ namespace DurableTask.Samples.Replat
             return true;
         }
 
-        async Task<bool> LockSubscription(string subscriptionId)
+        private async Task<bool> LockSubscription(string subscriptionId)
         {
             var subscriptionLocked = false;
             var error = false;
@@ -177,7 +176,7 @@ namespace DurableTask.Samples.Replat
             return subscriptionLocked;
         }
 
-        async Task<bool> MigrateApplication(int id, string subscriptionId, Application application)
+        private async Task<bool> MigrateApplication(int id, string subscriptionId, Application application)
         {
             string migrateId = Context.OrchestrationInstance.InstanceId + "-" + id.ToString();
             bool isSuccess = await this.antaresReplatMigrationTasks.ExportSite(migrateId, subscriptionId, application);
@@ -194,7 +193,7 @@ namespace DurableTask.Samples.Replat
             return isSuccess;
         }
 
-        async Task<T> SafeTaskInvoke<T>(Func<Task<T>> task)
+        private async Task<T> SafeTaskInvoke<T>(Func<Task<T>> task)
         {
             try
             {
@@ -208,7 +207,7 @@ namespace DurableTask.Samples.Replat
             return default(T);
         }
 
-        async Task<bool> ApplyAction(Application[] apps, Func<int, Application, Task<bool>> action)
+        private async Task<bool> ApplyAction(Application[] apps, Func<int, Application, Task<bool>> action)
         {
             var actionResults = new List<bool>();
             int totalApplications = apps.Length;

@@ -15,8 +15,10 @@ namespace DurableTask.ServiceBus.Tests
 {
     using System;
     using System.Configuration;
+    using System.Diagnostics.Contracts;
     using System.Diagnostics.Tracing;
     using System.Threading.Tasks;
+
     using DurableTask.Core;
     using DurableTask.Core.Common;
     using DurableTask.Core.History;
@@ -25,19 +27,23 @@ namespace DurableTask.ServiceBus.Tests
     using DurableTask.ServiceBus;
     using DurableTask.ServiceBus.Settings;
     using DurableTask.ServiceBus.Tracking;
-    using Microsoft.VisualStudio.TestTools.UnitTesting;
+
     using Microsoft.Practices.EnterpriseLibrary.SemanticLogging;
+    using Microsoft.VisualStudio.TestTools.UnitTesting;
+
     using ManagementClient = DurableTask.ServiceBus.Common.Abstraction.ManagementClient;
 
     public static class TestHelpers
     {
-        static readonly string ServiceBusConnectionString;
-        static readonly string StorageConnectionString;
-        static readonly string TaskHubName;
+        private static readonly string ServiceBusConnectionString;
+        private static readonly string StorageConnectionString;
+        private static readonly string TaskHubName;
 
         // ReSharper disable once PrivateFieldCanBeConvertedToLocalVariable
-        static readonly ObservableEventListener EventListener;
+        private static readonly ObservableEventListener EventListener;
 
+#pragma warning disable CA1065 // Do not raise exceptions in unexpected locations
+#pragma warning disable CA1810 // Initialize reference type static fields inline
         static TestHelpers()
         {
             ServiceBusConnectionString = GetTestSetting("ServiceBusConnectionString");
@@ -58,6 +64,8 @@ namespace DurableTask.ServiceBus.Tests
             EventListener.LogToConsole();
             EventListener.EnableEvents(DefaultEventSource.Log, EventLevel.LogAlways);
         }
+#pragma warning restore CA1810 // Initialize reference type static fields inline
+#pragma warning restore CA1065 // Do not raise exceptions in unexpected locations
 
         public static ServiceBusOrchestrationServiceSettings CreateTestWorkerSettings(CompressionStyle style = CompressionStyle.Threshold)
         {
@@ -86,7 +94,7 @@ namespace DurableTask.ServiceBus.Tests
         }
 
         // ReSharper disable once UnusedParameter.Local
-        static IOrchestrationService CreateOrchestrationServiceWorker(
+        private static IOrchestrationService CreateOrchestrationServiceWorker(
             ServiceBusOrchestrationServiceSettings settings,
             TimeSpan jumpStartAttemptInterval)
         {
@@ -99,7 +107,7 @@ namespace DurableTask.ServiceBus.Tests
             return service;
         }
 
-        static IOrchestrationServiceClient CreateOrchestrationServiceClient(
+        private static IOrchestrationServiceClient CreateOrchestrationServiceClient(
             ServiceBusOrchestrationServiceSettings settings)
         {
             var service = new ServiceBusOrchestrationService(
@@ -184,8 +192,9 @@ namespace DurableTask.ServiceBus.Tests
         {
             if (string.IsNullOrWhiteSpace(instance?.InstanceId))
             {
-                throw new ArgumentException("instance");
+                throw new ArgumentException("InstanceId cannot be null or whitespace", nameof(instance));
             }
+            Contract.Assume(taskHubClient is not null);
 
             var sleepForSeconds = 2;
 
@@ -201,7 +210,7 @@ namespace DurableTask.ServiceBus.Tests
                     state = await taskHubClient.GetOrchestrationStateAsync(instance.InstanceId);
                 }
 
-                if (state == null)
+                if (state is null)
                 {
                     throw new ArgumentException("OrchestrationState is expected but NULL value returned");
                 }
@@ -225,6 +234,7 @@ namespace DurableTask.ServiceBus.Tests
 
         public static string PrintHistory(TaskHubClient taskHubClient, OrchestrationInstance instance)
         {
+            Contract.Assume(taskHubClient is not null);
             return taskHubClient.GetOrchestrationHistoryAsync(instance).Result;
         }
 
@@ -235,7 +245,7 @@ namespace DurableTask.ServiceBus.Tests
         {
             if (string.IsNullOrWhiteSpace(instance?.InstanceId))
             {
-                throw new ArgumentException("instance");
+                throw new ArgumentException("InstanceId cannot be null or whitespace", nameof(instance));
             }
 
             string history = PrintHistory(taskHubClient, instance);
@@ -273,6 +283,7 @@ namespace DurableTask.ServiceBus.Tests
             {
                 executionId = Guid.NewGuid().ToString("N");
             }
+            Contract.Assume(sboService is not null);
 
             var orchestrationInstance = new OrchestrationInstance
             {
@@ -312,6 +323,7 @@ namespace DurableTask.ServiceBus.Tests
 
         public static async Task<TException> ThrowsAsync<TException>(Func<Task> action, string errorMessage = null) where TException : Exception
         {
+            Contract.Assume(action is not null);
             errorMessage = errorMessage ?? "Failed";
             try
             {

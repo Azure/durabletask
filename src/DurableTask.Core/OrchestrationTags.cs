@@ -11,15 +11,13 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 
 namespace DurableTask.Core
 {
     /// <summary>
-    /// Common code for dealing with orchestration tags. Orchestration tags are string-typed 
+    /// Common code for dealing with orchestration tags. Orchestration tags are string-typed
     /// properties that can be explicitly assigned when orchestrations or suborchestrations
     /// are created. A suborchestration automatically inherits the tags of its parent orchestration.
     /// </summary>
@@ -31,7 +29,7 @@ namespace DurableTask.Core
         /// </summary>
         /// <remarks>
         /// Tags are generally intended for application-specific purposes and ignored by the runtime,
-        /// except for this special tag. Unlike general application-defined tags, this tag is not 
+        /// except for this special tag. Unlike general application-defined tags, this tag is not
         /// automatically inherited by sub-orchestrations.
         /// </remarks>
         public const string FireAndForget = "FireAndForget";
@@ -42,19 +40,17 @@ namespace DurableTask.Core
         /// <param name="tags"></param>
         /// <returns></returns>
         internal static bool IsTaggedAsFireAndForget(IDictionary<string, string> tags)
-        {
-            return tags != null && tags.ContainsKey(FireAndForget);
-        }
+         => tags is not null && tags.ContainsKey(FireAndForget);
 
         internal static IDictionary<string, string> MergeTags(
             IDictionary<string, string> newTags,
             IDictionary<string, string> existingTags)
         {
-            if (existingTags == null)
+            if (existingTags is null)
             {
                 return newTags;
             }
-            else if (newTags != null)
+            else if (newTags is not null)
             {
                 // We merge the two dictionaries of tags, with new tags overriding existing tags
                 return newTags.Concat(

@@ -25,7 +25,7 @@ namespace DurableTask.Core
         internal static string GetDefaultMethodName(MethodInfo methodInfo, bool useFullyQualifiedMethodNames)
         {
             string methodName = methodInfo.Name;
-            if (useFullyQualifiedMethodNames && methodInfo.DeclaringType != null)
+            if (useFullyQualifiedMethodNames && methodInfo.DeclaringType is not null)
             {
                 methodName = GetFullyQualifiedMethodName(methodInfo.DeclaringType.Name, methodInfo.Name);
             }
@@ -38,10 +38,7 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="obj">Object to get the name for</param>
         /// <returns>Name of the object instance's type</returns>
-        public static string GetDefaultName(object obj)
-        {
-            return GetDefaultName(obj, false);
-        }
+        public static string GetDefaultName(object obj) => GetDefaultName(obj, false);
 
         /// <summary>
         /// Gets the default name of an Object instance using reflection
@@ -51,7 +48,7 @@ namespace DurableTask.Core
         /// <returns>Name of the object instance's type</returns>
         public static string GetDefaultName(object obj, bool useFullyQualifiedMethodNames)
         {
-            if (obj == null)
+            if (obj is null)
             {
                 throw new ArgumentNullException(nameof(obj));
             }
@@ -60,15 +57,15 @@ namespace DurableTask.Core
             Type type;
             MethodInfo methodInfo;
             InvokeMemberBinder binder;
-            if ((type = obj as Type) != null)
+            if ((type = obj as Type) is not null)
             {
                 name = type.ToString();
             }
-            else if ((methodInfo = obj as MethodInfo) != null)
+            else if ((methodInfo = obj as MethodInfo) is not null)
             {
                 name = GetDefaultMethodName(methodInfo, useFullyQualifiedMethodNames);
             }
-            else if ((binder = obj as InvokeMemberBinder) != null)
+            else if ((binder = obj as InvokeMemberBinder) is not null)
             {
                 name = binder.Name;
             }
@@ -85,10 +82,7 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="obj">Object to get the version for</param>
         /// <returns>The version as string</returns>
-        public static string GetDefaultVersion(object obj)
-        {
-            return string.Empty;
-        }
+        public static string GetDefaultVersion(object obj) => string.Empty;
 
         internal static string GetFullyQualifiedMethodName(string declaringType, string methodName)
         {

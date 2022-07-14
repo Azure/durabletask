@@ -108,7 +108,7 @@ namespace DurableTask.AzureStorage.Storage
             await ExecuteAsync(tableOperation, "InsertOrReplace");
         }
 
-        private async Task ExecuteAsync(TableOperation operation, string operationType)
+        async Task ExecuteAsync(TableOperation operation, string operationType)
         {
             var storageTableResult = await this.azureStorageClient.MakeTableStorageRequest<TableResult>(
                 (context, cancellationToken) => this.cloudTable.ExecuteAsync(operation, null, context, cancellationToken),
@@ -128,7 +128,7 @@ namespace DurableTask.AzureStorage.Storage
             return await this.ExecuteBatchAsync(entityBatch, "InsertOrMerge", (batch, item) => { batch.InsertOrMerge(item); return batch; });
         }
 
-        private async Task<TableResultResponseInfo> ExecuteBatchAsync(
+        async Task<TableResultResponseInfo> ExecuteBatchAsync(
             IList<DynamicTableEntity> entityBatch, 
             string batchType, 
             Func<TableBatchOperation, DynamicTableEntity, TableBatchOperation> batchOperation)
@@ -219,7 +219,7 @@ namespace DurableTask.AzureStorage.Storage
                 }
 
                 tableContinuationToken = segment.ContinuationToken;
-                if (tableContinuationToken == null || callerCancellationToken.IsCancellationRequested)
+                if (tableContinuationToken is null || callerCancellationToken.IsCancellationRequested)
                 {
                     break;
                 }
@@ -275,7 +275,7 @@ namespace DurableTask.AzureStorage.Storage
             results.AddRange(segment);
 
             string? newContinuationToken = null;
-            if (segment.ContinuationToken != null)
+            if (segment.ContinuationToken is not null)
             {
                 string tokenJson = JsonConvert.SerializeObject(segment.ContinuationToken);
                 newContinuationToken = Convert.ToBase64String(Encoding.UTF8.GetBytes(tokenJson));

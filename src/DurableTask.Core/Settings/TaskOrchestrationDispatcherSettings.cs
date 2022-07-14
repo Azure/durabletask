@@ -62,14 +62,12 @@ namespace DurableTask.Core.Settings
         public BehaviorOnContinueAsNew EventBehaviourForContinueAsNew { get; set; }
 
         internal TaskOrchestrationDispatcherSettings Clone()
-        {
-            return new TaskOrchestrationDispatcherSettings
-            {
-                TransientErrorBackOffSecs = TransientErrorBackOffSecs,
-                NonTransientErrorBackOffSecs = NonTransientErrorBackOffSecs,
-                MaxConcurrentOrchestrations = MaxConcurrentOrchestrations,
-                CompressOrchestrationState = CompressOrchestrationState,
-            };
-        }
+         => new TaskOrchestrationDispatcherSettings
+         {
+             TransientErrorBackOffSecs = TransientErrorBackOffSecs,
+             NonTransientErrorBackOffSecs = NonTransientErrorBackOffSecs,
+             MaxConcurrentOrchestrations = MaxConcurrentOrchestrations,
+             CompressOrchestrationState = CompressOrchestrationState,
+         };
     }
 }

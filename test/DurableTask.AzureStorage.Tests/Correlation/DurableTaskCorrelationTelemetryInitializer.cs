@@ -18,11 +18,11 @@ namespace DurableTask.AzureStorage.Tests.Correlation
     using System.ComponentModel;
     using System.Diagnostics;
     using System.Diagnostics.CodeAnalysis;
-    using System.Linq;
+
     using DurableTask.Core;
     using DurableTask.Core.Settings;
+
     using Microsoft.ApplicationInsights.Channel;
-    using Microsoft.ApplicationInsights.Common;
     using Microsoft.ApplicationInsights.DataContracts;
     using Microsoft.ApplicationInsights.Extensibility;
     using Microsoft.ApplicationInsights.Extensibility.Implementation;
@@ -91,7 +91,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
         public HashSet<string> ExcludeComponentCorrelationHttpHeadersOnDomains { get; set; }
 
         /// <summary>
-        /// Constructor 
+        /// Constructor
         /// </summary>
         public DurableTaskCorrelationTelemetryInitializer()
         {
@@ -118,23 +118,24 @@ namespace DurableTask.AzureStorage.Tests.Correlation
                     Console.WriteLine("exception!");
                 }
 
-                if (currentActivity == null)
+                if (currentActivity is null)
                 {
-                    if (CorrelationTraceContext.Current != null)
+                    if (CorrelationTraceContext.Current is not null)
                     {
                         UpdateTelemetry(telemetry, CorrelationTraceContext.Current);
                     }
                 }
                 else
                 {
-                    if (CorrelationTraceContext.Current != null)
+                    if (CorrelationTraceContext.Current is not null)
                     {
                         UpdateTelemetry(telemetry, CorrelationTraceContext.Current);
                     }
                     else if (CorrelationSettings.Current.Protocol == Protocol.W3CTraceContext)
                     {
                         UpdateTelemetry(telemetry, currentActivity, false);
-                    } else if (CorrelationSettings.Current.Protocol == Protocol.HttpCorrelationProtocol
+                    }
+                    else if (CorrelationSettings.Current.Protocol == Protocol.HttpCorrelationProtocol
                         && telemetry is ExceptionTelemetry)
                     {
                         UpdateTelemetryExceptionForHTTPCorrelationProtocol((ExceptionTelemetry)telemetry, currentActivity);
@@ -164,7 +165,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
         {
             OperationTelemetry opTelemetry = telemetry as OperationTelemetry;
 
-            bool initializeFromCurrent = opTelemetry != null;
+            bool initializeFromCurrent = opTelemetry is not null;
 
             if (initializeFromCurrent)
             {
@@ -185,7 +186,8 @@ namespace DurableTask.AzureStorage.Tests.Correlation
                 if (telemetry is ExceptionTelemetry)
                 {
                     telemetry.Context.Operation.ParentId = context.TelemetryId;
-                } else
+                }
+                else
                 {
                     telemetry.Context.Operation.ParentId = !string.IsNullOrEmpty(telemetry.Context.Operation.ParentId) ? telemetry.Context.Operation.ParentId : context.TelemetryContextOperationParentId;
                 }
@@ -196,7 +198,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
         {
             OperationTelemetry opTelemetry = telemetry as OperationTelemetry;
 
-            bool initializeFromCurrent = opTelemetry != null;
+            bool initializeFromCurrent = opTelemetry is not null;
 
             if (initializeFromCurrent)
             {
@@ -225,12 +227,12 @@ namespace DurableTask.AzureStorage.Tests.Correlation
             }
             else
             {
-                if (telemetry.Context.Operation.Id == null)
+                if (telemetry.Context.Operation.Id is null)
                 {
                     telemetry.Context.Operation.Id = traceParent.TraceId;
                 }
 
-                if (telemetry.Context.Operation.ParentId == null) 
+                if (telemetry.Context.Operation.ParentId is null)
                 {
                     telemetry.Context.Operation.ParentId = traceParent.SpanId;
                 }
@@ -281,19 +283,19 @@ namespace DurableTask.AzureStorage.Tests.Correlation
         [SuppressMessage("Microsoft.Usage", "CA1801:ReviewUnusedParameters", Justification = "This method has different code for Net45/NetCore")]
         internal static void UpdateTelemetry(ITelemetry telemetry, Activity activity, bool forceUpdate)
         {
-            if (activity == null)
+            if (activity is null)
             {
                 return;
             }
 
-            // Requests and dependnecies are initialized from the current Activity 
+            // Requests and dependnecies are initialized from the current Activity
             // (i.e. telemetry.Id = current.Id). Activity is created for such requests specifically
             // Traces, exceptions, events on the other side are children of current activity
             // There is one exception - SQL DiagnosticSource where current Activity is a parent
             // for dependency calls.
 
             OperationTelemetry opTelemetry = telemetry as OperationTelemetry;
-            bool initializeFromCurrent = opTelemetry != null;
+            bool initializeFromCurrent = opTelemetry is not null;
 
             if (initializeFromCurrent)
             {
@@ -311,7 +313,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
             if (initializeFromCurrent)
             {
                 opTelemetry.Id = activity.SpanId.ToHexString();
-                if (activity.ParentSpanId != null)
+                if (activity.ParentSpanId != default)
                 {
                     opTelemetry.Context.Operation.ParentId = activity.ParentSpanId.ToHexString();
                 }

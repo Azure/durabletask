@@ -12,9 +12,10 @@
 //  ----------------------------------------------------------------------------------
 
 using System.Collections.Generic;
-using System.Linq;
+
 using DurableTask.Core;
 using DurableTask.Core.History;
+
 using Newtonsoft.Json;
 
 namespace DurableTask.Redis
@@ -24,26 +25,22 @@ namespace DurableTask.Redis
     /// </summary>
     internal class RedisSerializer
     {
-        private static readonly JsonSerializerSettings serializerSettings = new JsonSerializerSettings
+        private static readonly JsonSerializerSettings SerializerSettings = new JsonSerializerSettings
         {
             TypeNameHandling = TypeNameHandling.All
         };
 
         public static string SerializeObject(object obj)
-        {
-            return JsonConvert.SerializeObject(obj, serializerSettings);
-        }
+         => JsonConvert.SerializeObject(obj, SerializerSettings);
 
         public static T DeserializeObject<T>(string serializedObj)
-        {
-            return JsonConvert.DeserializeObject<T>(serializedObj, serializerSettings);
-        }
+         => JsonConvert.DeserializeObject<T>(serializedObj, SerializerSettings);
 
         public static OrchestrationRuntimeState DeserializeRuntimeState(string serializedRuntimeState)
         {
             // OrchestrationRuntimeEvent builds its internal state with it's constructor and the AddEvent() method.
             // Must emulate that when deserializing
-            IList<HistoryEvent> events = JsonConvert.DeserializeObject<IList<HistoryEvent>>(serializedRuntimeState, serializerSettings);
+            IList<HistoryEvent> events = JsonConvert.DeserializeObject<IList<HistoryEvent>>(serializedRuntimeState, SerializerSettings);
             return new OrchestrationRuntimeState(events);
         }
     }

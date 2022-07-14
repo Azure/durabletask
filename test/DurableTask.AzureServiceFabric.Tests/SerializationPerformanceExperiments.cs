@@ -50,7 +50,7 @@ namespace DurableTask.AzureServiceFabric.Tests
         }
 
         [DataContract]
-        class ComplexType
+        private class ComplexType
         {
             [DataMember] public long LongProp;
 

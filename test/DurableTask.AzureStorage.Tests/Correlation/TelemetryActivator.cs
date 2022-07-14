@@ -14,19 +14,17 @@
 namespace DurableTask.AzureStorage.Tests.Correlation
 {
     using System;
-    using System.Diagnostics;
-    using DurableTask.AzureStorage;
+
     using DurableTask.Core;
+
     using Microsoft.ApplicationInsights;
     using Microsoft.ApplicationInsights.Channel;
-    using Microsoft.ApplicationInsights.DataContracts;
     using Microsoft.ApplicationInsights.DependencyCollector;
     using Microsoft.ApplicationInsights.Extensibility;
-    using Microsoft.ApplicationInsights.Extensibility.Implementation;
 
     public class TelemetryActivator
     {
-        private TelemetryClient telemetryClient; 
+        private TelemetryClient telemetryClient;
 
         public void Initialize()
         {
@@ -40,7 +38,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
             SetUpTelemetryCallbacks();
         }
 
-        void SetUpTelemetryCallbacks()
+        private void SetUpTelemetryCallbacks()
         {
             CorrelationTraceClient.SetUp(
                 (TraceContextBase requestTraceContext) =>
@@ -63,15 +61,17 @@ namespace DurableTask.AzureStorage.Tests.Correlation
             );
         }
 
-        void SetUpTelemetryClient(Action<ITelemetry> onSend, string instrumentationKey)
+        private void SetUpTelemetryClient(Action<ITelemetry> onSend, string instrumentationKey)
         {
-            var module = new DependencyTrackingTelemetryModule();
+            using var module = new DependencyTrackingTelemetryModule();
             // Currently it seems have a problem https://github.com/microsoft/ApplicationInsights-dotnet-server/issues/536
             module.ExcludeComponentCorrelationHttpHeadersOnDomains.Add("core.windows.net");
             module.ExcludeComponentCorrelationHttpHeadersOnDomains.Add("127.0.0.1");
 
+#pragma warning disable CA2000 // Dispose objects before losing scope
             TelemetryConfiguration config = TelemetryConfiguration.CreateDefault();
-            if (onSend != null)
+#pragma warning restore CA2000 // Dispose objects before losing scope
+            if (onSend is not null)
             {
                 config.TelemetryChannel = new NoOpTelemetryChannel { OnSend = onSend };
             }
@@ -79,13 +79,13 @@ namespace DurableTask.AzureStorage.Tests.Correlation
 #pragma warning disable 618 // DurableTaskCorrelationTelemetryIntializer() requires suppression. It is required for W3C for this System.Diagnostics version.
             var telemetryInitializer = new DurableTaskCorrelationTelemetryInitializer();
             // TODO It should be suppressed by DependencyTrackingTelemetryModule, however, it doesn't work currently.
-            // Once the bug is fixed, remove this settings. 
+            // Once the bug is fixed, remove this settings.
             telemetryInitializer.ExcludeComponentCorrelationHttpHeadersOnDomains.Add("127.0.0.1");
             config.TelemetryInitializers.Add(telemetryInitializer);
 #pragma warning restore 618
             module.Initialize(config);
             instrumentationKey = instrumentationKey ?? Environment.GetEnvironmentVariable("APPINSIGHTS_INSTRUMENTATIONKEY");
-            
+
             telemetryClient = new TelemetryClient(config);
         }
     }

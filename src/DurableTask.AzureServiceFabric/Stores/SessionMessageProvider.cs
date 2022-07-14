@@ -17,24 +17,17 @@ namespace DurableTask.AzureServiceFabric.Stores
     using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
+
     using Microsoft.ServiceFabric.Data;
 
-    class SessionMessageProvider : MessageProviderBase<Guid, TaskMessageItem>
+    internal class SessionMessageProvider : MessageProviderBase<Guid, TaskMessageItem>
     {
         public SessionMessageProvider(IReliableStateManager stateManager, string storeName, CancellationToken token)
-            : base(stateManager, storeName, token)
-        {
-        }
+            : base(stateManager, storeName, token) { }
 
-        protected override void AddItemInMemory(Guid key, TaskMessageItem value)
-        {
-            throw new NotSupportedException();
-        }
+        protected override void AddItemInMemory(Guid key, TaskMessageItem value) => throw new NotSupportedException();
 
-        public override Task StartAsync()
-        {
-            return InitializeStore();
-        }
+        public override Task StartAsync() => InitializeStore();
 
         public async Task<List<Message<Guid, TaskMessageItem>>> ReceiveBatchAsync()
         {

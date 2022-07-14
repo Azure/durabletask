@@ -16,24 +16,28 @@ namespace DurableTask.Core.Tests
     using System;
     using System.Diagnostics;
     using System.Threading.Tasks;
+
     using DurableTask.Core.Exceptions;
     using DurableTask.Emulator;
+
     using Microsoft.VisualStudio.TestTools.UnitTesting;
+
     using Newtonsoft.Json;
 
     [TestClass]
     public class ExceptionHandlingIntegrationTests
     {
-        static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(Debugger.IsAttached ? 300 : 10);
-
-        readonly TaskHubWorker worker;
-        readonly TaskHubClient client;
+        private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(Debugger.IsAttached ? 300 : 10);
+        private readonly TaskHubWorker worker;
+        private readonly TaskHubClient client;
 
         public ExceptionHandlingIntegrationTests()
         {
+#pragma warning disable CA2000 // Dispose objects before losing scope
             var service = new LocalOrchestrationService();
             this.worker = new TaskHubWorker(service);
             this.client = new TaskHubClient(service);
+#pragma warning restore CA2000 // Dispose objects before losing scope
         }
 
         [DataTestMethod]
@@ -141,14 +145,14 @@ namespace DurableTask.Core.Tests
                 string activityName = typeof(ThrowInvalidOperationException).FullName!;
                 string expectedOutput = $"{typeof(TaskFailedException).FullName}: Task '{activityName}' (#0) failed with an unhandled exception: {expectedErrorMessage}";
                 Assert.AreEqual(expectedOutput, state.Output);
-           }
+            }
             else
             {
                 Assert.Fail($"Unexpected {nameof(ErrorPropagationMode)} value: {mode}");
             }
         }
 
-        class ExceptionHandlingOrchestration : TaskOrchestration<object, string>
+        private class ExceptionHandlingOrchestration : TaskOrchestration<object, string>
         {
             public override async Task<object> RunTask(OrchestrationContext context, string input)
             {
@@ -164,7 +168,7 @@ namespace DurableTask.Core.Tests
             }
         }
 
-        class ExceptionHandlingWithRetryOrchestration : TaskOrchestration<int, string>
+        private class ExceptionHandlingWithRetryOrchestration : TaskOrchestration<int, string>
         {
             public override async Task<int> RunTask(OrchestrationContext context, string input)
             {
@@ -182,7 +186,7 @@ namespace DurableTask.Core.Tests
                                 // Users should be able to examine the structured exception details when
                                 // ErrorPropagationMode is set to UseFailureDetails
                                 if (e is TaskFailedException tfe &&
-                                    tfe.FailureDetails != null &&
+                                    tfe.FailureDetails is not null &&
                                     tfe.FailureDetails.ErrorType == typeof(InvalidOperationException).FullName &&
                                     tfe.FailureDetails.ErrorMessage == "This is a test exception" &&
                                     tfe.FailureDetails.StackTrace!.Contains(typeof(ThrowInvalidOperationException).Name) &&
@@ -206,7 +210,7 @@ namespace DurableTask.Core.Tests
             }
         }
 
-        class NoExceptionHandlingOrchestration : TaskOrchestration<object, string>
+        private class NoExceptionHandlingOrchestration : TaskOrchestration<object, string>
         {
             public override Task<object> RunTask(OrchestrationContext context, string input)
             {
@@ -215,7 +219,7 @@ namespace DurableTask.Core.Tests
             }
         }
 
-        class ThrowInvalidOperationException : TaskActivity<string, string>
+        private class ThrowInvalidOperationException : TaskActivity<string, string>
         {
             protected override string Execute(TaskContext context, string input)
             {

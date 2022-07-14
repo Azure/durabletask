@@ -29,7 +29,7 @@ namespace DurableTask.Samples.Common.WorkItems
 
     public sealed class EmailTask : TaskActivity<EmailInput, object>
     {
-        static readonly MailAddress FromAddress = new MailAddress("azuresbtest@outlook.com", "Service Bus Task Mailer");
+        private static readonly MailAddress FromAddress = new MailAddress("azuresbtest@outlook.com", "Service Bus Task Mailer");
 
         protected override object Execute(TaskContext context, EmailInput input)
         {

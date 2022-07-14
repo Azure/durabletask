@@ -13,9 +13,11 @@
 
 namespace DurableTask.AzureStorage
 {
+#pragma warning disable IDE1006 // Naming Styles
     using System;
     using System.Diagnostics.Tracing;
     using System.Runtime.CompilerServices;
+
     using DurableTask.AzureStorage.Logging;
 
     /// <summary>

@@ -100,8 +100,10 @@ namespace DurableTask.AzureStorage.Messaging
                     outboundTraceActivityId,
                     this.storageQueue.Name,
                     session?.GetCurrentEpisode(),
-                    sourceInstance);
-                data.SequenceNumber = Interlocked.Increment(ref messageSequenceNumber);
+                    sourceInstance)
+                {
+                    SequenceNumber = Interlocked.Increment(ref messageSequenceNumber)
+                };
 
                 // Inject Correlation TraceContext on a queue.
                 CorrelationTraceClient.Propagate(
@@ -155,12 +157,12 @@ namespace DurableTask.AzureStorage.Messaging
         static string? GetSerializableTraceContext(TaskMessage taskMessage)
         {
             TraceContextBase traceContext = CorrelationTraceContext.Current;
-            if (traceContext != null)
+            if (traceContext is not null)
             {
                 if (CorrelationTraceContext.GenerateDependencyTracking)
                 {
                     PropertyInfo nameProperty = taskMessage.Event.GetType().GetProperty("Name");
-                    string name = (nameProperty == null) ? TraceConstants.DependencyDefault : (string)nameProperty.GetValue(taskMessage.Event);
+                    string name = (nameProperty is null) ? TraceConstants.DependencyDefault : (string)nameProperty.GetValue(taskMessage.Event);
 
                     var dependencyTraceContext = TraceContextFactory.Create($"{TraceConstants.Orchestrator} {name}");
                     dependencyTraceContext.TelemetryType = TelemetryType.Dependency;
@@ -239,7 +241,7 @@ namespace DurableTask.AzureStorage.Messaging
             string instanceId = instance?.InstanceId ?? string.Empty;
             string executionId = instance?.ExecutionId ?? string.Empty;
             string eventType = taskMessage?.Event.EventType.ToString() ?? string.Empty;
-            int taskEventId = taskMessage != null ? Utils.GetTaskEventId(taskMessage.Event) : -1;
+            int taskEventId = taskMessage is not null ? Utils.GetTaskEventId(taskMessage.Event) : -1;
 
             // Exponentially backoff a given queue message until a maximum visibility delay of 10 minutes.
             // Once it hits the maximum, log the message as a poison message.
@@ -365,7 +367,7 @@ namespace DurableTask.AzureStorage.Messaging
             }
         }
 
-        private bool IsMessageGoneException(Exception e)
+        bool IsMessageGoneException(Exception e)
         {
             DurableTaskStorageException? storageException = e as DurableTaskStorageException;
             return storageException?.HttpStatusCode == 404;

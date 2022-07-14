@@ -8,6 +8,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
     using System.Runtime.Serialization;
     using System.Threading.Tasks;
     using System.Xml;
+
 #if !NETSTANDARD2_0
     using Microsoft.ServiceBus.Messaging;
 
@@ -22,17 +23,14 @@ namespace DurableTask.ServiceBus.Common.Abstraction
     /// ReadObject(Stream) and WriteObject(Stream, object) pick Binary Xml Reader/Writer
     /// instead of text.
     /// </summary>
-    sealed class DataContractBinarySerializer : XmlObjectSerializer
+    internal sealed class DataContractBinarySerializer : XmlObjectSerializer
     {
-        readonly DataContractSerializer dataContractSerializer;
+        private readonly DataContractSerializer dataContractSerializer;
 
         /// <summary>
         /// Initializes a new DataContractBinarySerializer instance
         /// </summary>
-        public DataContractBinarySerializer(Type type)
-        {
-            this.dataContractSerializer = new DataContractSerializer(type);
-        }
+        public DataContractBinarySerializer(Type type) => this.dataContractSerializer = new DataContractSerializer(type);
 
         /// <summary>
         /// Converts from stream to the corresponding object
@@ -40,9 +38,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
         /// <returns>Object corresponding to the stream</returns>
         /// <remarks>Override the default (Text) and use Binary Xml Reader instead</remarks>
         public override object ReadObject(Stream stream)
-        {
-            return this.ReadObject(XmlDictionaryReader.CreateBinaryReader(stream, XmlDictionaryReaderQuotas.Max));
-        }
+         => this.ReadObject(XmlDictionaryReader.CreateBinaryReader(stream, XmlDictionaryReaderQuotas.Max));
 
         /// <summary>
         /// Serializes the object into the stream
@@ -50,7 +46,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
         /// <remarks>Override the default (Text) and use Binary Xml Reader instead</remarks>
         public override void WriteObject(Stream stream, object graph)
         {
-            if (stream == null)
+            if (stream is null)
             {
                 throw new ArgumentNullException(nameof(stream));
             }
@@ -65,7 +61,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
         /// </summary>
         public override void WriteObject(XmlDictionaryWriter writer, object graph)
         {
-            if (writer == null)
+            if (writer is null)
             {
                 throw new ArgumentNullException(nameof(writer));
             }
@@ -77,41 +73,31 @@ namespace DurableTask.ServiceBus.Common.Abstraction
         /// This method simply delegates to the DataContractSerializer implementation
         /// </summary>
         public override bool IsStartObject(XmlDictionaryReader reader)
-        {
-            return this.dataContractSerializer.IsStartObject(reader);
-        }
+         => this.dataContractSerializer.IsStartObject(reader);
 
         /// <summary>
         /// This method simply delegates to the DataContractSerializer implementation
         /// </summary>
         public override object ReadObject(XmlDictionaryReader reader, bool verifyObjectName)
-        {
-            return this.dataContractSerializer.ReadObject(reader, verifyObjectName);
-        }
+         => this.dataContractSerializer.ReadObject(reader, verifyObjectName);
 
         /// <summary>
         /// This method simply delegates to the DataContractSerializer implementation
         /// </summary>
         public override void WriteEndObject(XmlDictionaryWriter writer)
-        {
-            this.dataContractSerializer.WriteEndObject(writer);
-        }
+         => this.dataContractSerializer.WriteEndObject(writer);
 
         /// <summary>
         /// This method simply delegates to the DataContractSerializer implementation
         /// </summary>
         public override void WriteObjectContent(XmlDictionaryWriter writer, object graph)
-        {
-            this.dataContractSerializer.WriteObjectContent(writer, graph);
-        }
+         => this.dataContractSerializer.WriteObjectContent(writer, graph);
 
         /// <summary>
         /// This method simply delegates to the DataContractSerializer implementation
         /// </summary>
         public override void WriteStartObject(XmlDictionaryWriter writer, object graph)
-        {
-            this.dataContractSerializer.WriteStartObject(writer, graph);
-        }
+         => this.dataContractSerializer.WriteStartObject(writer, graph);
     }
 #endif
 
@@ -119,65 +105,36 @@ namespace DurableTask.ServiceBus.Common.Abstraction
     /// <inheritdoc />
     public class IMessageSession
     {
-        Microsoft.Azure.ServiceBus.IMessageSession session;
+        private readonly Microsoft.Azure.ServiceBus.IMessageSession session;
 
-        public IMessageSession(Microsoft.Azure.ServiceBus.IMessageSession session)
-        {
-            this.session = session;
-        }
+        public IMessageSession(Microsoft.Azure.ServiceBus.IMessageSession session) => this.session = session;
 
         public string SessionId => this.session.SessionId;
 
         public DateTime LockedUntilUtc => this.session.LockedUntilUtc;
 
-        public async Task<byte[]> GetStateAsync()
-        {
-            return await this.session.GetStateAsync();
-        }
+        public Task<byte[]> GetStateAsync() => this.session.GetStateAsync();
 
-        public async Task SetStateAsync(byte[] sessionState)
-        {
-            await this.session.SetStateAsync(sessionState);
-        }
+        public Task SetStateAsync(byte[] sessionState) => this.session.SetStateAsync(sessionState);
 
-        public async Task RenewSessionLockAsync()
-        {
-            await this.session.RenewSessionLockAsync();
-        }
+        public Task RenewSessionLockAsync() => this.session.RenewSessionLockAsync();
 
-        public async Task AbandonAsync(string lockToken)
-        {
-            await this.session.AbandonAsync(lockToken);
-        }
+        public Task AbandonAsync(string lockToken) => this.session.AbandonAsync(lockToken);
 
         public async Task<IList<Message>> ReceiveAsync(int maxMessageCount)
-        {
-            return (await this.session.ReceiveAsync(maxMessageCount)).Select(x => (Message)x).ToList();
-        }
+         => (await this.session.ReceiveAsync(maxMessageCount)).Select(x => (Message)x).ToList();
 
-        public async Task CompleteAsync(IEnumerable<string> lockTokens)
-        {
-            await this.session.CompleteAsync(lockTokens);
-        }
+        public Task CompleteAsync(IEnumerable<string> lockTokens) => this.session.CompleteAsync(lockTokens);
 
-        public async Task CloseAsync()
-        {
-            await this.session.CloseAsync();
-        }
+        public Task CloseAsync() => this.session.CloseAsync();
 #else
     public class IMessageSession
     {
-        MessageSession session;
+        private readonly MessageSession session;
 
-        public IMessageSession(MessageSession session)
-        {
-            this.session = session;
-        }
+        public IMessageSession(MessageSession session) => this.session = session;
 
-        public static implicit operator IMessageSession(MessageSession s)
-        {
-            return new IMessageSession(s);
-        }
+        public static implicit operator IMessageSession(MessageSession s) => new IMessageSession(s);
 
         public string SessionId => this.session.SessionId;
 
@@ -186,7 +143,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
         public async Task<byte[]> GetStateAsync()
         {
             Stream state = await this.session.GetStateAsync();
-            if (state == null)
+            if (state is null)
                 return null;
             using (var ms = new MemoryStream())
             {
@@ -197,7 +154,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 
         public async Task SetStateAsync(byte[] sessionState)
         {
-            if (sessionState == null)
+            if (sessionState is null)
             {
                 await this.session.SetStateAsync(null);
                 return;
@@ -208,30 +165,17 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             await this.session.SetStateAsync(stream);
         }
 
-        public async Task RenewSessionLockAsync()
-        {
-            await this.session.RenewLockAsync();
-        }
+        public Task RenewSessionLockAsync() => this.session.RenewLockAsync();
 
-        public async Task AbandonAsync(string lockToken)
-        {
-            await this.session.AbandonAsync(Guid.Parse(lockToken));
-        }
+        public Task AbandonAsync(string lockToken) => this.session.AbandonAsync(Guid.Parse(lockToken));
 
         public async Task<IList<Message>> ReceiveAsync(int maxMessageCount)
-        {
-            return (await this.session.ReceiveBatchAsync(maxMessageCount)).Select(x => (Message)x).ToList();
-        }
+         => (await this.session.ReceiveBatchAsync(maxMessageCount)).Select(x => (Message)x).ToList();
 
-        public async Task CompleteAsync(IEnumerable<string> lockTokens)
-        {
-            await this.session.CompleteBatchAsync(lockTokens.Select(Guid.Parse));
-        }
+        public Task CompleteAsync(IEnumerable<string> lockTokens)
+         => this.session.CompleteBatchAsync(lockTokens.Select(Guid.Parse));
 
-        public async Task CloseAsync()
-        {
-            await this.session.CloseAsync();
-        }
+        public Task CloseAsync() => this.session.CloseAsync();
 #endif
 
     }
@@ -240,33 +184,18 @@ namespace DurableTask.ServiceBus.Common.Abstraction
     /// <inheritdoc />
     public class Message
     {
-        Microsoft.Azure.ServiceBus.Message msg;
+        private readonly Microsoft.Azure.ServiceBus.Message msg;
 
-        public Message(Microsoft.Azure.ServiceBus.Message msg)
-        {
-            this.msg = msg;
-        }
+        public Message(Microsoft.Azure.ServiceBus.Message msg) => this.msg = msg;
 
-        public static implicit operator Message(Microsoft.Azure.ServiceBus.Message m)
-        {
-            return m == null ? null : new Message(m);
-        }
+        public static implicit operator Message(Microsoft.Azure.ServiceBus.Message m) => m is null ? null : new Message(m);
 
-        public static implicit operator Microsoft.Azure.ServiceBus.Message(Message m)
-        {
-            return m.msg;
-        }
+        public static implicit operator Microsoft.Azure.ServiceBus.Message(Message m) => m.msg;
 
-        public Message()
-        {
-            this.msg = new Microsoft.Azure.ServiceBus.Message();
-        }
+        public Message() => this.msg = new Microsoft.Azure.ServiceBus.Message();
 
-        public Message(byte[] serializableObject)
-        {
-            this.msg = new Microsoft.Azure.ServiceBus.Message(serializableObject);
-        }
-        
+        public Message(byte[] serializableObject) => this.msg = new Microsoft.Azure.ServiceBus.Message(serializableObject);
+
 
         public string MessageId
         {
@@ -291,12 +220,12 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             get => this.msg?.SessionId;
             set => this.msg.SessionId = value;
         }
-        
+
 #else
 
     public class Message : IDisposable
     {
-        BrokeredMessage brokered;
+        private BrokeredMessage brokered;
 
         public Message(BrokeredMessage brokered)
         {
@@ -304,15 +233,9 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             this.SystemProperties = new SystemPropertiesCollection(this.brokered);
         }
 
-        public static implicit operator Message(BrokeredMessage b)
-        {
-            return b == null ? null : new Message(b);
-        }
+        public static implicit operator Message(BrokeredMessage b) => b is null ? null : new Message(b);
 
-        public static implicit operator BrokeredMessage(Message m)
-        {
-            return m.brokered;
-        }
+        public static implicit operator BrokeredMessage(Message m) => m.brokered;
 
         public Message()
         {
@@ -354,10 +277,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             set => this.brokered.SessionId = value;
         }
 
-        public T GetBody<T>()
-        {
-            return this.brokered.GetBody<T>();
-        }
+        public T GetBody<T>() => this.brokered.GetBody<T>();
 
         /// <inheritdoc />
         public void Dispose()
@@ -369,13 +289,10 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 
     public class SystemPropertiesCollection
     {
-        readonly BrokeredMessage _brokered;
+        private readonly BrokeredMessage brokered;
 
         /// <inheritdoc />
-        public SystemPropertiesCollection(BrokeredMessage brokered)
-        {
-            this._brokered = brokered;
-        }
+        public SystemPropertiesCollection(BrokeredMessage brokered) => this.brokered = brokered;
 
         /// <summary>Gets the lock token for the current message.</summary>
         /// <remarks>
@@ -384,7 +301,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
         ///   The token can also be used to pin the lock permanently through the <a href="https://docs.microsoft.com/azure/service-bus-messaging/message-deferral">Deferral API</a> and, with that, take the message out of the
         ///   regular delivery state flow. This property is read-only.
         /// </remarks>
-        public Guid LockToken => this._brokered.LockToken;
+        public Guid LockToken => this.brokered.LockToken;
 
         /// <summary>Get the current delivery count.</summary>
         /// <value>This value starts at 1.</value>
@@ -392,7 +309,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
         ///    Number of deliveries that have been attempted for this message. The count is incremented when a message lock expires,
         ///    or the message is explicitly abandoned by the receiver. This property is read-only.
         /// </remarks>
-        public int DeliveryCount => this._brokered.DeliveryCount;
+        public int DeliveryCount => this.brokered.DeliveryCount;
 
         /// <summary>Gets the date and time in UTC until which the message will be locked in the queue/subscription.</summary>
         /// <value>The date and time until which the message will be locked in the queue/subscription.</value>
@@ -401,7 +318,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
         ///     instant until which the message is held locked in the queue/subscription. When the lock expires, the <see cref="P:Microsoft.Azure.ServiceBus.Message.SystemPropertiesCollection.DeliveryCount" />
         ///     is incremented and the message is again available for retrieval. This property is read-only.
         /// </remarks>
-        public DateTime LockedUntilUtc => this._brokered.LockedUntilUtc;
+        public DateTime LockedUntilUtc => this.brokered.LockedUntilUtc;
 
         /// <summary>Gets the unique number assigned to a message by Service Bus.</summary>
         /// <remarks>
@@ -410,7 +327,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
         ///     the topmost 16 bits reflect the partition identifier. Sequence numbers monotonically increase.
         ///     They roll over to 0 when the 48-64 bit range is exhausted. This property is read-only.
         /// </remarks>
-        public long SequenceNumber => this._brokered.SequenceNumber;
+        public long SequenceNumber => this.brokered.SequenceNumber;
 
         /// <summary>Gets or sets the date and time of the sent time in UTC.</summary>
         /// <value>The enqueue time in UTC. </value>
@@ -419,7 +336,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
         ///    This value can be used as an authoritative and neutral arrival time indicator when
         ///    the receiver does not want to trust the sender's clock. This property is read-only.
         /// </remarks>
-        public DateTime EnqueuedTimeUtc => this._brokered.EnqueuedTimeUtc;
+        public DateTime EnqueuedTimeUtc => this.brokered.EnqueuedTimeUtc;
 
 #endif
     }
@@ -432,22 +349,13 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 
     public class RetryPolicy
     {
-        Microsoft.ServiceBus.RetryPolicy policy;
+        private readonly Microsoft.ServiceBus.RetryPolicy policy;
 
-        public RetryPolicy(Microsoft.ServiceBus.RetryPolicy policy)
-        {
-            this.policy = policy;
-        }
+        public RetryPolicy(Microsoft.ServiceBus.RetryPolicy policy) => this.policy = policy;
 
-        public static implicit operator RetryPolicy(Microsoft.ServiceBus.RetryPolicy rp)
-        {
-            return new RetryPolicy(rp);
-        }
+        public static implicit operator RetryPolicy(Microsoft.ServiceBus.RetryPolicy rp) => new RetryPolicy(rp);
 
-        public static implicit operator Microsoft.ServiceBus.RetryPolicy(RetryPolicy rp)
-        {
-            return rp.policy;
-        }
+        public static implicit operator Microsoft.ServiceBus.RetryPolicy(RetryPolicy rp) => rp.policy;
 
         public static RetryPolicy Default => Microsoft.ServiceBus.RetryPolicy.Default;
 
@@ -487,9 +395,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
     public class ServiceBusConnection
     {
         public ServiceBusConnection(ServiceBusConnectionStringBuilder connectionStringBuilder)
-        {
-            ConnectionString = connectionStringBuilder.ToString();
-        }
+         => ConnectionString = connectionStringBuilder.ToString();
 
         public string ConnectionString { get; private set; }
 
@@ -527,49 +433,32 @@ namespace DurableTask.ServiceBus.Common.Abstraction
     {
         private readonly Microsoft.Azure.ServiceBus.Primitives.TokenProvider tokenProvider;
 
-        public TokenProvider(Microsoft.Azure.ServiceBus.Primitives.TokenProvider t)
-        {
-            this.tokenProvider = t;
-        }
+        public TokenProvider(Microsoft.Azure.ServiceBus.Primitives.TokenProvider t) => this.tokenProvider = t;
 
         public static implicit operator TokenProvider(Microsoft.Azure.ServiceBus.Primitives.TokenProvider t)
-        {
-            return new TokenProvider(t);
-        }
+         => new TokenProvider(t);
 
         public async Task<Microsoft.Azure.ServiceBus.Primitives.SecurityToken> GetTokenAsync(string appliesTo, TimeSpan timeout)
-        {
-            return await this.tokenProvider.GetTokenAsync(appliesTo, timeout);
-        }
+         => await this.tokenProvider.GetTokenAsync(appliesTo, timeout);
 
-        public static TokenProvider CreateSharedAccessSignatureTokenProvider(string keyName, string sharedAccessKey, TimeSpan tokenTimeToLive)
-        {
-            return Microsoft.Azure.ServiceBus.Primitives.TokenProvider.CreateSharedAccessSignatureTokenProvider(keyName, sharedAccessKey, tokenTimeToLive);
-        }
+        public static TokenProvider CreateSharedAccessSignatureTokenProvider(
+            string keyName, string sharedAccessKey, TimeSpan tokenTimeToLive)
+         => Microsoft.Azure.ServiceBus.Primitives.
+            TokenProvider.CreateSharedAccessSignatureTokenProvider(keyName, sharedAccessKey, tokenTimeToLive);
 #else
     public class TokenProvider
     {
-        private Microsoft.ServiceBus.TokenProvider tokenProvider;
+        private readonly Microsoft.ServiceBus.TokenProvider tokenProvider;
 
-        public TokenProvider(Microsoft.ServiceBus.TokenProvider t)
-        {
-            this.tokenProvider = t;
-        }
+        public TokenProvider(Microsoft.ServiceBus.TokenProvider t) => this.tokenProvider = t;
 
-        public static implicit operator TokenProvider(Microsoft.ServiceBus.TokenProvider t)
-        {
-            return new TokenProvider(t);
-        }
+        public static implicit operator TokenProvider(Microsoft.ServiceBus.TokenProvider t) => new TokenProvider(t);
 
-        public static implicit operator Microsoft.ServiceBus.TokenProvider(TokenProvider t)
-        {
-            return t.tokenProvider;
-        }
+        public static implicit operator Microsoft.ServiceBus.TokenProvider(TokenProvider t) => t.tokenProvider;
 
         public static TokenProvider CreateSharedAccessSignatureTokenProvider(string keyName, string sharedAccessKey, TimeSpan tokenTimeToLive)
-        {
-            return Microsoft.ServiceBus.TokenProvider.CreateSharedAccessSignatureTokenProvider(keyName, sharedAccessKey, tokenTimeToLive);
-        }
+         => Microsoft.ServiceBus.
+            TokenProvider.CreateSharedAccessSignatureTokenProvider(keyName, sharedAccessKey, tokenTimeToLive);
 #endif
     }
 
@@ -578,57 +467,40 @@ namespace DurableTask.ServiceBus.Common.Abstraction
     public class MessageSender : Microsoft.Azure.ServiceBus.Core.MessageSender
     {
         public MessageSender(ServiceBusConnectionStringBuilder connectionStringBuilder, RetryPolicy retryPolicy = null)
-            : base(connectionStringBuilder, retryPolicy)
-        {
-        }
+            : base(connectionStringBuilder, retryPolicy) { }
 
         public MessageSender(string connectionString, string entityPath, RetryPolicy retryPolicy = null)
-            : base(connectionString, entityPath, retryPolicy)
-        {
-        }
+            : base(connectionString, entityPath, retryPolicy) { }
 
         public MessageSender(string endpoint, string entityPath, Microsoft.Azure.ServiceBus.Primitives.ITokenProvider tokenProvider, Microsoft.Azure.ServiceBus.TransportType transportType = Microsoft.Azure.ServiceBus.TransportType.Amqp, RetryPolicy retryPolicy = null)
-            : base(endpoint, entityPath, tokenProvider, transportType, retryPolicy)
-        {
-        }
+            : base(endpoint, entityPath, tokenProvider, transportType, retryPolicy) { }
 
         public MessageSender(ServiceBusConnection serviceBusConnection, string entityPath, RetryPolicy retryPolicy = null)
-            : base(serviceBusConnection, entityPath, retryPolicy)
-        {
-        }
+            : base(serviceBusConnection, entityPath, retryPolicy) { }
 
         public MessageSender(ServiceBusConnection serviceBusConnection, string entityPath, string viaEntityPath, RetryPolicy retryPolicy = null)
-            : base(serviceBusConnection, entityPath, viaEntityPath, retryPolicy)
-        {
-        }
+            : base(serviceBusConnection, entityPath, viaEntityPath, retryPolicy) { }
 
-        public async Task SendAsync(Message message)
-        {
-            await base.SendAsync(message);
-        }
+        public Task SendAsync(Message message) => base.SendAsync(message);
 
         public async Task SendAsync(IEnumerable<Message> messageList)
-        {
-            await base.SendAsync(messageList.Select(x => (Microsoft.Azure.ServiceBus.Message)x).ToList());
-        }
+         => await base.SendAsync(messageList.Select(x => (Microsoft.Azure.ServiceBus.Message)x).ToList());
 
 
 #else
     public class MessageSender
     {
-        Microsoft.ServiceBus.Messaging.MessageSender msgSender;
+        private readonly Microsoft.ServiceBus.Messaging.MessageSender msgSender;
 
         public MessageSender(ServiceBusConnection serviceBusConnection, string transferDestinationEntityPath, string viaEntityPath)
-        {
-            this.msgSender = BuildMessagingFactory(serviceBusConnection).CreateMessageSender(transferDestinationEntityPath, viaEntityPath);
-        }
+         => this.msgSender = BuildMessagingFactory(serviceBusConnection)
+                             .CreateMessageSender(transferDestinationEntityPath, viaEntityPath);
 
         public MessageSender(ServiceBusConnection serviceBusConnection, string entityPath, RetryPolicy retryPolicy = null)
-        {
-            this.msgSender = BuildMessagingFactory(serviceBusConnection).CreateMessageSender(entityPath);
-        }
+         => this.msgSender = BuildMessagingFactory(serviceBusConnection)
+                             .CreateMessageSender(entityPath);
 
-        static MessagingFactory BuildMessagingFactory(ServiceBusConnection serviceBusConnection)
+        private static MessagingFactory BuildMessagingFactory(ServiceBusConnection serviceBusConnection)
         {
             var namespaceManager = Microsoft.ServiceBus.NamespaceManager.CreateFromConnectionString(serviceBusConnection.ConnectionString);
             var factory = Microsoft.ServiceBus.Messaging.MessagingFactory.Create(
@@ -646,30 +518,16 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             return factory;
         }
 
-        public MessageSender(Microsoft.ServiceBus.Messaging.MessageSender msgSender)
-        {
-            this.msgSender = msgSender;
-        }
+        public MessageSender(Microsoft.ServiceBus.Messaging.MessageSender msgSender) => this.msgSender = msgSender;
 
-        public static implicit operator MessageSender(Microsoft.ServiceBus.Messaging.MessageSender ms)
-        {
-            return new MessageSender(ms);
-        }
+        public static implicit operator MessageSender(Microsoft.ServiceBus.Messaging.MessageSender ms) => new MessageSender(ms);
 
-        public async Task SendAsync(Message message)
-        {
-            await this.msgSender.SendAsync(message);
-        }
+        public Task SendAsync(Message message) => this.msgSender.SendAsync(message);
 
         public async Task SendAsync(IEnumerable<Message> messages)
-        {
-            await this.msgSender.SendBatchAsync(messages.Select(x => (BrokeredMessage)x));
-        }
+         => await this.msgSender.SendBatchAsync(messages.Select(x => (BrokeredMessage)x));
 
-        public async Task CloseAsync()
-        {
-            await this.msgSender.CloseAsync();
-        }
+        public Task CloseAsync() => this.msgSender.CloseAsync();
 
 #endif
     }
@@ -679,36 +537,26 @@ namespace DurableTask.ServiceBus.Common.Abstraction
     public class MessageReceiver : Microsoft.Azure.ServiceBus.Core.MessageReceiver
     {
         public MessageReceiver(Microsoft.Azure.ServiceBus.ServiceBusConnectionStringBuilder connectionStringBuilder, Microsoft.Azure.ServiceBus.ReceiveMode receiveMode = Microsoft.Azure.ServiceBus.ReceiveMode.PeekLock, Microsoft.Azure.ServiceBus.RetryPolicy retryPolicy = null, int prefetchCount = 0)
-            : base(connectionStringBuilder, receiveMode, retryPolicy, prefetchCount)
-        {
-        }
+            : base(connectionStringBuilder, receiveMode, retryPolicy, prefetchCount) { }
 
         public MessageReceiver(string connectionString, string entityPath, Microsoft.Azure.ServiceBus.ReceiveMode receiveMode = Microsoft.Azure.ServiceBus.ReceiveMode.PeekLock, Microsoft.Azure.ServiceBus.RetryPolicy retryPolicy = null, int prefetchCount = 0)
-            : base(connectionString, entityPath, receiveMode, retryPolicy, prefetchCount)
-        {
-        }
+            : base(connectionString, entityPath, receiveMode, retryPolicy, prefetchCount) { }
 
         public MessageReceiver(string endpoint, string entityPath, Microsoft.Azure.ServiceBus.Primitives.ITokenProvider tokenProvider, Microsoft.Azure.ServiceBus.TransportType transportType = Microsoft.Azure.ServiceBus.TransportType.Amqp, Microsoft.Azure.ServiceBus.ReceiveMode receiveMode = Microsoft.Azure.ServiceBus.ReceiveMode.PeekLock, Microsoft.Azure.ServiceBus.RetryPolicy retryPolicy = null, int prefetchCount = 0)
-            : base(endpoint, entityPath, tokenProvider, transportType, receiveMode, retryPolicy, prefetchCount)
-        {
-        }
+            : base(endpoint, entityPath, tokenProvider, transportType, receiveMode, retryPolicy, prefetchCount) { }
 
         public MessageReceiver(Microsoft.Azure.ServiceBus.ServiceBusConnection serviceBusConnection, string entityPath, Microsoft.Azure.ServiceBus.ReceiveMode receiveMode = Microsoft.Azure.ServiceBus.ReceiveMode.PeekLock, Microsoft.Azure.ServiceBus.RetryPolicy retryPolicy = null, int prefetchCount = 0)
-            : base(serviceBusConnection, entityPath, receiveMode, retryPolicy, prefetchCount)
-        {
-        }
+            : base(serviceBusConnection, entityPath, receiveMode, retryPolicy, prefetchCount) { }
 
 #else
     public class MessageReceiver
     {
-        Microsoft.ServiceBus.Messaging.MessageReceiver msgReceiver;
+        private readonly Microsoft.ServiceBus.Messaging.MessageReceiver msgReceiver;
 
         public MessageReceiver(ServiceBusConnection serviceBusConnection, string entityPath)
-        {
-            this.msgReceiver = BuildMessagingFactory(serviceBusConnection).CreateMessageReceiver(entityPath);
-        }
+         => this.msgReceiver = BuildMessagingFactory(serviceBusConnection).CreateMessageReceiver(entityPath);
 
-        static MessagingFactory BuildMessagingFactory(ServiceBusConnection serviceBusConnection)
+        private static MessagingFactory BuildMessagingFactory(ServiceBusConnection serviceBusConnection)
         {
             var namespaceManager = Microsoft.ServiceBus.NamespaceManager.CreateFromConnectionString(serviceBusConnection.ConnectionString);
             var factory = Microsoft.ServiceBus.Messaging.MessagingFactory.Create(
@@ -726,40 +574,21 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             return factory;
         }
 
-        public MessageReceiver(Microsoft.ServiceBus.Messaging.MessageReceiver msgReceiver)
-        {
-            this.msgReceiver = msgReceiver;
-        }
+        public MessageReceiver(Microsoft.ServiceBus.Messaging.MessageReceiver msgReceiver) => this.msgReceiver = msgReceiver;
 
         public static implicit operator MessageReceiver(Microsoft.ServiceBus.Messaging.MessageReceiver mr)
-        {
-            return new MessageReceiver(mr);
-        }
+         => new MessageReceiver(mr);
 
-        public async Task AbandonAsync(Guid lockToken)
-        {
-            await this.msgReceiver.AbandonAsync(lockToken);
-        }
+        public Task AbandonAsync(Guid lockToken) => this.msgReceiver.AbandonAsync(lockToken);
 
-        public async Task CloseAsync()
-        {
-            await this.msgReceiver.CloseAsync();
-        }
+        public Task CloseAsync() => this.msgReceiver.CloseAsync();
 
-        public async Task CompleteAsync(Guid lockToken)
-        {
-            await this.msgReceiver.CompleteAsync(lockToken);
-        }
+        public Task CompleteAsync(Guid lockToken) => this.msgReceiver.CompleteAsync(lockToken);
 
         public async Task<Message> ReceiveAsync(TimeSpan serverWaitTime)
-        {
-            return await this.msgReceiver.ReceiveAsync(serverWaitTime);
-        }
+         => await this.msgReceiver.ReceiveAsync(serverWaitTime);
 
-        public async Task RenewLockAsync(Message message)
-        {
-            await ((BrokeredMessage)message).RenewLockAsync();
-        }
+        public Task RenewLockAsync(Message message) => ((BrokeredMessage)message).RenewLockAsync();
 
 #endif
     }
@@ -769,34 +598,24 @@ namespace DurableTask.ServiceBus.Common.Abstraction
     public class QueueClient : Microsoft.Azure.ServiceBus.QueueClient
     {
         public QueueClient(Microsoft.Azure.ServiceBus.ServiceBusConnectionStringBuilder connectionStringBuilder, Microsoft.Azure.ServiceBus.ReceiveMode receiveMode = Microsoft.Azure.ServiceBus.ReceiveMode.PeekLock, Microsoft.Azure.ServiceBus.RetryPolicy retryPolicy = null)
-            : base(connectionStringBuilder, receiveMode, retryPolicy)
-        {
-        }
+            : base(connectionStringBuilder, receiveMode, retryPolicy) { }
 
         public QueueClient(string connectionString, string entityPath, Microsoft.Azure.ServiceBus.ReceiveMode receiveMode = Microsoft.Azure.ServiceBus.ReceiveMode.PeekLock, Microsoft.Azure.ServiceBus.RetryPolicy retryPolicy = null)
-            : base(connectionString, entityPath, receiveMode, retryPolicy)
-        {
-        }
+            : base(connectionString, entityPath, receiveMode, retryPolicy) { }
 
         public QueueClient(string endpoint, string entityPath, Microsoft.Azure.ServiceBus.Primitives.ITokenProvider tokenProvider, Microsoft.Azure.ServiceBus.TransportType transportType = Microsoft.Azure.ServiceBus.TransportType.Amqp, Microsoft.Azure.ServiceBus.ReceiveMode receiveMode = Microsoft.Azure.ServiceBus.ReceiveMode.PeekLock, Microsoft.Azure.ServiceBus.RetryPolicy retryPolicy = null)
-            : base(endpoint, entityPath, tokenProvider, transportType, receiveMode, retryPolicy)
-        {
-        }
+            : base(endpoint, entityPath, tokenProvider, transportType, receiveMode, retryPolicy) { }
 
         public QueueClient(Microsoft.Azure.ServiceBus.ServiceBusConnection serviceBusConnection, string entityPath, Microsoft.Azure.ServiceBus.ReceiveMode receiveMode, Microsoft.Azure.ServiceBus.RetryPolicy retryPolicy)
-            : base(serviceBusConnection, entityPath, receiveMode, retryPolicy)
-        {
-        }
+            : base(serviceBusConnection, entityPath, receiveMode, retryPolicy) { }
 
         public async Task SendAsync(List<Message> messageList)
-        {
-            await SendAsync(messageList.Select(x => (Microsoft.Azure.ServiceBus.Message)x).ToList());
-        }
+         => await SendAsync(messageList.Select(x => (Microsoft.Azure.ServiceBus.Message)x).ToList());
 
 #else
     public class QueueClient
     {
-        Microsoft.ServiceBus.Messaging.QueueClient queueClient;
+        private readonly Microsoft.ServiceBus.Messaging.QueueClient queueClient;
 
         public QueueClient(ServiceBusConnection serviceBusConnection, string entityPath, ReceiveMode receiveMode, RetryPolicy retryPolicy)
         {
@@ -805,7 +624,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             this.queueClient = factory.CreateQueueClient(entityPath, receiveMode);
         }
 
-        static MessagingFactory BuildMessagingFactory(ServiceBusConnection serviceBusConnection)
+        private static MessagingFactory BuildMessagingFactory(ServiceBusConnection serviceBusConnection)
         {
             var namespaceManager = Microsoft.ServiceBus.NamespaceManager.CreateFromConnectionString(serviceBusConnection.ConnectionString);
             var factory = Microsoft.ServiceBus.Messaging.MessagingFactory.Create(
@@ -823,35 +642,19 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             return factory;
         }
 
-        public QueueClient(Microsoft.ServiceBus.Messaging.QueueClient queueClient)
-        {
-            this.queueClient = queueClient;
-        }
+        public QueueClient(Microsoft.ServiceBus.Messaging.QueueClient queueClient) => this.queueClient = queueClient;
 
-        public static implicit operator QueueClient(Microsoft.ServiceBus.Messaging.QueueClient qc)
-        {
-            return new QueueClient(qc);
-        }
+        public static implicit operator QueueClient(Microsoft.ServiceBus.Messaging.QueueClient qc) => new QueueClient(qc);
 
-        public async Task SendAsync(Message message)
-        {
-            await this.queueClient.SendAsync(message);
-        }
+        public Task SendAsync(Message message) => this.queueClient.SendAsync(message);
 
         public async Task SendAsync(IList<Message> messageList)
-        {
-            await this.queueClient.SendBatchAsync(messageList.Select(x => (BrokeredMessage)x));
-        }
+         => await this.queueClient.SendBatchAsync(messageList.Select(x => (BrokeredMessage)x));
 
-        public async Task CloseAsync()
-        {
-            await this.queueClient.CloseAsync();
-        }
+        public Task CloseAsync() => this.queueClient.CloseAsync();
 
         public async Task<IMessageSession> AcceptMessageSessionAsync(TimeSpan operationTimeout)
-        {
-            return await this.queueClient.AcceptMessageSessionAsync(operationTimeout);
-        }
+         => await this.queueClient.AcceptMessageSessionAsync(operationTimeout);
 
 #endif
     }
@@ -861,85 +664,48 @@ namespace DurableTask.ServiceBus.Common.Abstraction
     public class ManagementClient : Microsoft.Azure.ServiceBus.Management.ManagementClient
     {
         public ManagementClient(string connectionString)
-            : base(connectionString)
-        {
-        }
+            : base(connectionString) { }
 
         public ManagementClient(string endpoint, Microsoft.Azure.ServiceBus.Primitives.ITokenProvider tokenProvider)
-            : base(endpoint, tokenProvider)
-        {
-        }
+            : base(endpoint, tokenProvider) { }
 
         public ManagementClient(Microsoft.Azure.ServiceBus.ServiceBusConnectionStringBuilder connectionStringBuilder, Microsoft.Azure.ServiceBus.Primitives.ITokenProvider tokenProvider = null)
-            : base(connectionStringBuilder, tokenProvider)
-        {
-        }
+            : base(connectionStringBuilder, tokenProvider) { }
 #else
     public class ManagementClient
     {
-        Microsoft.ServiceBus.NamespaceManager manager;
+        private readonly Microsoft.ServiceBus.NamespaceManager manager;
 
         public ManagementClient(string connectionString)
-        {
-            this.manager = Microsoft.ServiceBus.NamespaceManager.CreateFromConnectionString(connectionString);
-        }
+         => this.manager = Microsoft.ServiceBus.NamespaceManager.CreateFromConnectionString(connectionString);
 
-        public ManagementClient(Microsoft.ServiceBus.NamespaceManager manager)
-        {
-            this.manager = manager;
-        }
+        public ManagementClient(Microsoft.ServiceBus.NamespaceManager manager) => this.manager = manager;
 
-        public static implicit operator ManagementClient(Microsoft.ServiceBus.NamespaceManager nm)
-        {
-            return new ManagementClient(nm);
-        }
+        public static implicit operator ManagementClient(Microsoft.ServiceBus.NamespaceManager nm) => new ManagementClient(nm);
 
-        public async Task<QueueDescription> CreateQueueAsync(QueueDescription queueDescription)
-        {
-            return await this.manager.CreateQueueAsync(queueDescription);
-        }
+        public Task<QueueDescription> CreateQueueAsync(QueueDescription queueDescription) => this.manager.CreateQueueAsync(queueDescription);
 
-        public async Task DeleteQueueAsync(string queuePath)
-        {
-            await this.manager.DeleteQueueAsync(queuePath);
-        }
+        public Task DeleteQueueAsync(string queuePath) => this.manager.DeleteQueueAsync(queuePath);
 
-        public async Task<QueueDescription> GetQueueRuntimeInfoAsync(string queuePath)
-        {
-            return await this.manager.GetQueueAsync(queuePath);
-        }
+        public Task<QueueDescription> GetQueueRuntimeInfoAsync(string queuePath) => this.manager.GetQueueAsync(queuePath);
 
-        public async Task<IEnumerable<QueueDescription>> GetQueuesAsync()
-        {
-            return await this.manager.GetQueuesAsync();
-        }
+        public Task<IEnumerable<QueueDescription>> GetQueuesAsync() => this.manager.GetQueuesAsync();
 #endif
     }
 
 #if NETSTANDARD2_0
     public class SessionClient
     {
-        Microsoft.Azure.ServiceBus.SessionClient sessionClient;
+        private readonly Microsoft.Azure.ServiceBus.SessionClient sessionClient;
 
         public SessionClient(ServiceBusConnection serviceBusConnection, string entityPath, Microsoft.Azure.ServiceBus.ReceiveMode receiveMode)
-        {
-            this.sessionClient = new Microsoft.Azure.ServiceBus.SessionClient(serviceBusConnection, entityPath, receiveMode);
-        }
+         => this.sessionClient = new Microsoft.Azure.ServiceBus.SessionClient(serviceBusConnection, entityPath, receiveMode);
 
-        public SessionClient(Microsoft.Azure.ServiceBus.SessionClient sessionClient)
-        {
-            this.sessionClient = sessionClient;
-        }
+        public SessionClient(Microsoft.Azure.ServiceBus.SessionClient sessionClient) => this.sessionClient = sessionClient;
 
-        public static implicit operator SessionClient(Microsoft.Azure.ServiceBus.SessionClient sc)
-        {
-            return new SessionClient(sc);
-        }
+        public static implicit operator SessionClient(Microsoft.Azure.ServiceBus.SessionClient sc) => new SessionClient(sc);
 
-        public async Task CloseAsync()
-        {
-            await this.sessionClient.CloseAsync();
-        }
+        public Task CloseAsync() => this.sessionClient.CloseAsync();
 
         public async Task<IMessageSession> AcceptMessageSessionAsync(TimeSpan operationTimeout)
         {
@@ -948,7 +714,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
                 return new IMessageSession(await this.sessionClient.AcceptMessageSessionAsync(operationTimeout));
             }
             catch (Microsoft.Azure.ServiceBus.ServiceBusTimeoutException)
-            { 
+            {
                 return null;
             }
         }
@@ -957,16 +723,11 @@ namespace DurableTask.ServiceBus.Common.Abstraction
     public class SessionClient : QueueClient
     {
         public SessionClient(ServiceBusConnection serviceBusConnection, string entityPath, ReceiveMode receiveMode)
-            : base(serviceBusConnection, entityPath, receiveMode, RetryPolicy.Default)
-        {
-        }
+            : base(serviceBusConnection, entityPath, receiveMode, RetryPolicy.Default) { }
 
         public SessionClient(Microsoft.ServiceBus.Messaging.QueueClient queueClient)
-            : base(queueClient)
-        {
-        }
+            : base(queueClient) { }
 #endif
     }
-
 }
 #pragma warning restore 1591

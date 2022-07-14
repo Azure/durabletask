@@ -14,12 +14,14 @@
 
 namespace DurableTask.SqlServer.Tests
 {
-    using DurableTask.Core.Tracking;
-    using Microsoft.VisualStudio.TestTools.UnitTesting;
     using System;
     using System.Collections.Generic;
     using System.Linq;
     using System.Threading.Tasks;
+
+    using DurableTask.Core.Tracking;
+
+    using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]
     public class DeleteEntitiesTests : BaseTestClass
@@ -52,9 +54,10 @@ namespace DurableTask.SqlServer.Tests
         [TestMethod]
         public async Task VerifyWorkItemStatePersistedTest()
         {
-            var entities = new List<InstanceEntityBase>();
-
-            entities.Add(Utils.InfiniteWorkItemTestData(Guid.NewGuid().ToString("N"), Guid.NewGuid().ToString("N")).First());
+            var entities = new List<InstanceEntityBase>
+            {
+                Utils.InfiniteWorkItemTestData(Guid.NewGuid().ToString("N"), Guid.NewGuid().ToString("N")).First()
+            };
 
             await InstanceStore.WriteEntitiesAsync(entities);
 

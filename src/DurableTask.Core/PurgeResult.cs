@@ -22,10 +22,7 @@ namespace DurableTask.Core
         /// Initializes a new instance of the <see cref="PurgeResult" /> class.
         /// </summary>
         /// <param name="deletedInstanceCount">The number of instances deleted.</param>
-        public PurgeResult(int deletedInstanceCount)
-        {
-            this.DeletedInstanceCount = deletedInstanceCount;
-        }
+        public PurgeResult(int deletedInstanceCount) => this.DeletedInstanceCount = deletedInstanceCount;
 
         /// <summary>
         /// Number of instances deleted during this execution of the purge operation.

@@ -13,9 +13,11 @@
 
 namespace Correlation.Samples
 {
+#pragma warning disable CA1812 // Internal classes instantiated indirectly
     using System;
     using System.Runtime.Serialization;
     using System.Threading.Tasks;
+
     using DurableTask.Core;
 
     [KnownType(typeof(ChildOrchestration))]
@@ -36,7 +38,6 @@ namespace Correlation.Samples
             return await context.ScheduleTask<string>(typeof(ChildActivity), input);
         }
     }
-
 
     internal class ChildActivity : TaskActivity<string, string>
     {

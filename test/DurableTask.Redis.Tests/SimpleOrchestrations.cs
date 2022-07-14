@@ -13,25 +13,28 @@
 
 namespace DurableTask.Test.Orchestrations
 {
+#pragma warning disable CA1725 // Parameter names should match base declaration
     using System;
+    using System.Diagnostics.Contracts;
     using System.Threading.Tasks;
+
     using DurableTask.Core;
 
     public sealed class SimplestGetUserTask : TaskActivity<string, string>
     {
-        protected override string Execute(TaskContext context, string input)
-        {
-            return "Gabbar";
-        }
+        protected override string Execute(TaskContext context, string input) => "Gabbar";
     }
 
     public class SimplestGreetingsOrchestration : TaskOrchestration<string, string>
     {
+#pragma warning disable CA2211 // Non-constant fields should not be visible
         // HACK: This is just a hack to communicate result of orchestration back to test
         public static string Result;
+#pragma warning restore CA2211 // Non-constant fields should not be visible
 
         public override async Task<string> RunTask(OrchestrationContext context, string input)
         {
+            Contract.Assume(context is not null);
             string user = await context.ScheduleTask<string>(typeof(SimplestGetUserTask));
             int delayInSeconds = string.IsNullOrWhiteSpace(input) ? 0 : Int32.Parse(input);
 
@@ -50,20 +53,21 @@ namespace DurableTask.Test.Orchestrations
 
     public sealed class SimplestSendGreetingTask : TaskActivity<string, string>
     {
-        protected override string Execute(TaskContext context, string user)
-        {
-            return "Greeting send to " + user;
-        }
+        protected override string Execute(TaskContext context, string user) => "Greeting send to " + user;
     }
 
     public class FanOutOrchestration : TaskOrchestration<int, int[]>
     {
+#pragma warning disable CA2211 // Non-constant fields should not be visible
         // HACK: This is just a hack to communicate result of orchestration back to test
         public static int Result;
+#pragma warning restore CA2211 // Non-constant fields should not be visible
 
 
         public override async Task<int> RunTask(OrchestrationContext context, int[] input)
         {
+            Contract.Assume(context is not null);
+            Contract.Assume(input is not null);
             Task<int>[] squareTasks = new Task<int>[input.Length];
             for (int i = 0; i < input.Length; i++)
             {
@@ -73,21 +77,18 @@ namespace DurableTask.Test.Orchestrations
             Result = await context.ScheduleTask<int>(typeof(SumIntTask), squares);
             return Result;
         }
- 
     }
 
     public sealed class SquareIntTask : TaskActivity<int, int>
     {
-        protected override int Execute(TaskContext context, int numToSquare)
-        {
-            return numToSquare * numToSquare;
-        }
+        protected override int Execute(TaskContext context, int numToSquare) => numToSquare * numToSquare;
     }
 
     public sealed class SumIntTask : TaskActivity<int[], long>
     {
         protected override long Execute(TaskContext context, int[] numsToAdd)
         {
+            Contract.Assume(numsToAdd is not null);
             long sum = 0;
             foreach (int num in numsToAdd)
             {
@@ -96,5 +97,4 @@ namespace DurableTask.Test.Orchestrations
             return sum;
         }
     }
-
 }

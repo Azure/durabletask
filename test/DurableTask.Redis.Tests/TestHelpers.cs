@@ -14,12 +14,14 @@
 namespace DurableTask.Redis.Tests
 {
     using System.Threading.Tasks;
+
     using Microsoft.Extensions.Configuration;
+
     using StackExchange.Redis;
 
     public static class TestHelpers
     {
-        static RedisTestConfig config;
+        private static RedisTestConfig config;
 
         public static RedisOrchestrationService GetTestOrchestrationService(string taskHub = null)
         {
@@ -41,7 +43,7 @@ namespace DurableTask.Redis.Tests
 
         private static RedisTestConfig GetRedisTestConfig()
         {
-            if (config == null)
+            if (config is null)
             {
                 config = new RedisTestConfig();
                 IConfigurationRoot root = new ConfigurationBuilder()

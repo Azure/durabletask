@@ -198,7 +198,7 @@ namespace DurableTask.AzureStorage
             return DownloadAndDecompressAsBytesAsync(blob);
         }
 
-        private async Task<string> DownloadAndDecompressAsBytesAsync(Blob blob)
+        async Task<string> DownloadAndDecompressAsBytesAsync(Blob blob)
         {
             using (MemoryStream memory = new MemoryStream(MaxStorageQueuePayloadSizeInBytes * 2))
             {

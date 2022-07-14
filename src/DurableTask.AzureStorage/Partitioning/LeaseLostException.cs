@@ -82,7 +82,7 @@ namespace DurableTask.AzureStorage.Partitioning
         {
             base.GetObjectData(info, context);
 
-            if (Lease != null)
+            if (Lease is not null)
             {
                 info.AddValue("Lease", this.Lease);
             }

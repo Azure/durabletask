@@ -13,10 +13,12 @@
 
 namespace Correlation.Samples
 {
+#pragma warning disable CA1812 // Internal classes instantiated indirectly
     using System;
     using System.Runtime.Serialization;
     using System.Text;
     using System.Threading.Tasks;
+
     using DurableTask.Core;
 
     [KnownType(typeof(ParallelHello))]
@@ -32,7 +34,7 @@ namespace Correlation.Samples
 
             await Task.WhenAll(tasks);
             var buffer = new StringBuilder();
-            foreach(var task in tasks)
+            foreach (var task in tasks)
             {
                 buffer.Append(task.Result);
                 buffer.Append(":");

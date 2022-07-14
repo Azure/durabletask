@@ -19,10 +19,12 @@ namespace DurableTask.ServiceBus.Tracking
     using System.Linq;
     using System.Text;
     using System.Threading.Tasks;
+
     using DurableTask.Core;
     using DurableTask.Core.Common;
     using DurableTask.Core.Serializing;
     using DurableTask.Core.Tracking;
+
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Table;
 
@@ -31,11 +33,10 @@ namespace DurableTask.ServiceBus.Tracking
     /// </summary>
     public class AzureTableInstanceStore : IOrchestrationServiceInstanceStore
     {
-        const int MaxDisplayStringLengthForAzureTableColumn = (1024 * 24) - 20;
-        const int MaxRetriesTableStore = 5;
-        const int IntervalBetweenRetriesSecs = 5;
-
-        readonly AzureTableClient tableClient;
+        private const int MaxDisplayStringLengthForAzureTableColumn = (1024 * 24) - 20;
+        private const int MaxRetriesTableStore = 5;
+        private const int IntervalBetweenRetriesSecs = 5;
+        private readonly AzureTableClient tableClient;
 
         /// <summary>
         /// Creates a new AzureTableInstanceStore using the supplied hub name and table connection string
@@ -67,7 +68,7 @@ namespace DurableTask.ServiceBus.Tracking
         /// <param name="cloudStorageAccount">Cloud Storage Account</param>
         public AzureTableInstanceStore(string hubName, CloudStorageAccount cloudStorageAccount)
         {
-            if (cloudStorageAccount == null)
+            if (cloudStorageAccount is null)
             {
                 throw new ArgumentException("Invalid Cloud Storage Account", nameof(cloudStorageAccount));
             }
@@ -121,11 +122,9 @@ namespace DurableTask.ServiceBus.Tracking
         /// <param name="entities">List of history events to write</param>
         public async Task<object> WriteEntitiesAsync(IEnumerable<InstanceEntityBase> entities)
         {
-            return await Utils.ExecuteWithRetries(() => this.tableClient.WriteEntitiesAsync(entities.Select(HistoryEventToTableEntity)),
-                                string.Empty,
-                                "WriteEntitiesAsync",
-                                MaxRetriesTableStore,
-                                IntervalBetweenRetriesSecs);
+            Task<object> WriteAsync() => this.tableClient.WriteEntitiesAsync(entities.Select(HistoryEventToTableEntity));
+            return await Utils.ExecuteWithRetries(WriteAsync, string.Empty, "WriteEntitiesAsync",
+                                                  MaxRetriesTableStore, IntervalBetweenRetriesSecs);
         }
 
         /// <summary>
@@ -147,13 +146,13 @@ namespace DurableTask.ServiceBus.Tracking
         /// Deletes a list of history events from storage with retries for transient errors
         /// </summary>
         /// <param name="entities">List of history events to delete</param>
-        public async Task<object> DeleteEntitiesAsync(IEnumerable<InstanceEntityBase> entities)
+        public Task<object> DeleteEntitiesAsync(IEnumerable<InstanceEntityBase> entities)
         {
-            return await Utils.ExecuteWithRetries(() => this.tableClient.DeleteEntitiesAsync(entities.Select(HistoryEventToTableEntity)),
-                                string.Empty,
-                                "DeleteEntitiesAsync",
-                                MaxRetriesTableStore,
-                                IntervalBetweenRetriesSecs);
+            Func<Task<object>> DeleteAsync(IEnumerable<InstanceEntityBase> entities) =>
+                () => this.tableClient.DeleteEntitiesAsync(entities.Select(HistoryEventToTableEntity));
+
+            return Utils.ExecuteWithRetries(
+                DeleteAsync(entities), string.Empty, "DeleteEntitiesAsync", MaxRetriesTableStore, IntervalBetweenRetriesSecs);
         }
 
         /// <summary>
@@ -215,7 +214,7 @@ namespace DurableTask.ServiceBus.Tracking
                 new OrchestrationStateQuery().AddInstanceFilter(instanceId, executionId)).ConfigureAwait(false)).FirstOrDefault();
 
             // ReSharper disable once ConvertIfStatementToNullCoalescingExpression
-            if (result == null)
+            if (result is null)
             {
                 // Query from JumpStart table
                 result = (await this.tableClient.QueryJumpStartOrchestrationsAsync(
@@ -225,7 +224,7 @@ namespace DurableTask.ServiceBus.Tracking
                     .FirstOrDefault();
             }
 
-            return result != null ? TableStateToStateEvent(result.State) : null;
+            return result is not null ? TableStateToStateEvent(result.State) : null;
         }
 
         /// <summary>
@@ -272,9 +271,7 @@ namespace DurableTask.ServiceBus.Tracking
         /// <returns></returns>
         public Task<OrchestrationStateQuerySegment> QueryOrchestrationStatesSegmentedAsync(
             OrchestrationStateQuery stateQuery, string continuationToken)
-        {
-            return QueryOrchestrationStatesSegmentedAsync(stateQuery, continuationToken, -1);
-        }
+         => QueryOrchestrationStatesSegmentedAsync(stateQuery, continuationToken, -1);
 
         /// <summary>
         ///     Get a segmented list of orchestration states from the instance storage table which match the specified
@@ -289,7 +286,7 @@ namespace DurableTask.ServiceBus.Tracking
         {
             TableContinuationToken tokenObj = null;
 
-            if (continuationToken != null)
+            if (continuationToken is not null)
             {
                 tokenObj = DeserializeTableContinuationToken(continuationToken);
             }
@@ -301,7 +298,7 @@ namespace DurableTask.ServiceBus.Tracking
             return new OrchestrationStateQuerySegment
             {
                 Results = results.Results.Select(s => s.State),
-                ContinuationToken = results.ContinuationToken == null
+                ContinuationToken = results.ContinuationToken is null
                     ? null
                     : SerializeTableContinuationToken(results.ContinuationToken)
             };
@@ -329,17 +326,17 @@ namespace DurableTask.ServiceBus.Tracking
 
                 continuationToken = resultSegment.ContinuationToken;
 
-                if (resultSegment.Results != null)
+                if (resultSegment.Results is not null)
                 {
                     await PurgeOrchestrationHistorySegmentAsync(resultSegment).ConfigureAwait(false);
                     purgeCount += resultSegment.Results.Count;
                 }
-            } while (continuationToken != null);
+            } while (continuationToken is not null);
 
             return purgeCount;
         }
 
-        async Task PurgeOrchestrationHistorySegmentAsync(
+        private async Task PurgeOrchestrationHistorySegmentAsync(
             TableQuerySegment<AzureTableOrchestrationStateEntity> orchestrationStateEntitySegment)
         {
             var stateEntitiesToDelete = new List<AzureTableOrchestrationStateEntity>(orchestrationStateEntitySegment.Results);
@@ -389,19 +386,17 @@ namespace DurableTask.ServiceBus.Tracking
         /// </summary>
         /// <returns>List of jump start events</returns>
         public async Task<IEnumerable<OrchestrationJumpStartInstanceEntity>> GetJumpStartEntitiesAsync(int top)
-        {
-            return (await this.tableClient.QueryJumpStartOrchestrationsAsync(
+         => (await this.tableClient.QueryJumpStartOrchestrationsAsync(
                         DateTime.UtcNow.AddDays(-AzureTableClient.JumpStartTableScanIntervalInDays),
                         DateTime.UtcNow,
                         top)).Select(e => e.OrchestrationJumpStartInstanceEntity);
-        }
 
-        AzureTableCompositeTableEntity HistoryEventToTableEntity(InstanceEntityBase historyEvent)
+        private AzureTableCompositeTableEntity HistoryEventToTableEntity(InstanceEntityBase historyEvent)
         {
             OrchestrationWorkItemInstanceEntity workItemEvent;
             OrchestrationStateInstanceEntity historyStateEvent;
 
-            if ((workItemEvent = historyEvent as OrchestrationWorkItemInstanceEntity) != null)
+            if ((workItemEvent = historyEvent as OrchestrationWorkItemInstanceEntity) is not null)
             {
                 return new AzureTableOrchestrationHistoryEventEntity(
                     workItemEvent.InstanceId,
@@ -410,7 +405,7 @@ namespace DurableTask.ServiceBus.Tracking
                     workItemEvent.EventTimestamp,
                     workItemEvent.HistoryEvent);
             }
-            else if ((historyStateEvent = historyEvent as OrchestrationStateInstanceEntity) != null)
+            else if ((historyStateEvent = historyEvent as OrchestrationStateInstanceEntity) is not null)
             {
                 return new AzureTableOrchestrationStateEntity(historyStateEvent.State);
             }
@@ -421,12 +416,12 @@ namespace DurableTask.ServiceBus.Tracking
         }
 
         // ReSharper disable once UnusedMember.Local
-        InstanceEntityBase TableEntityToHistoryEvent(AzureTableCompositeTableEntity entity)
+        private InstanceEntityBase TableEntityToHistoryEvent(AzureTableCompositeTableEntity entity)
         {
             AzureTableOrchestrationHistoryEventEntity workItemEntity;
             AzureTableOrchestrationStateEntity historyStateEntity;
 
-            if ((workItemEntity = entity as AzureTableOrchestrationHistoryEventEntity) != null)
+            if ((workItemEntity = entity as AzureTableOrchestrationHistoryEventEntity) is not null)
             {
                 return new OrchestrationWorkItemInstanceEntity
                 {
@@ -437,7 +432,7 @@ namespace DurableTask.ServiceBus.Tracking
                     HistoryEvent = workItemEntity.HistoryEvent
                 };
             }
-            else if ((historyStateEntity = entity as AzureTableOrchestrationStateEntity) != null)
+            else if ((historyStateEntity = entity as AzureTableOrchestrationStateEntity) is not null)
             {
                 return new OrchestrationStateInstanceEntity { State = historyStateEntity.State };
             }
@@ -447,26 +442,22 @@ namespace DurableTask.ServiceBus.Tracking
             }
         }
 
-        OrchestrationStateInstanceEntity TableStateToStateEvent(OrchestrationState state)
-        {
-            return new OrchestrationStateInstanceEntity { State = state };
-        }
+        private OrchestrationStateInstanceEntity TableStateToStateEvent(OrchestrationState state)
+         => new OrchestrationStateInstanceEntity { State = state };
 
-        OrchestrationWorkItemInstanceEntity TableHistoryEntityToWorkItemEvent(AzureTableOrchestrationHistoryEventEntity entity)
-        {
-            return new OrchestrationWorkItemInstanceEntity
-            {
-                InstanceId = entity.InstanceId,
-                ExecutionId = entity.ExecutionId,
-                SequenceNumber = entity.SequenceNumber,
-                EventTimestamp = entity.TaskTimeStamp,
-                HistoryEvent = entity.HistoryEvent
-            };
-        }
+        private OrchestrationWorkItemInstanceEntity TableHistoryEntityToWorkItemEvent(AzureTableOrchestrationHistoryEventEntity entity)
+          => new OrchestrationWorkItemInstanceEntity
+          {
+              InstanceId = entity.InstanceId,
+              ExecutionId = entity.ExecutionId,
+              SequenceNumber = entity.SequenceNumber,
+              EventTimestamp = entity.TaskTimeStamp,
+              HistoryEvent = entity.HistoryEvent
+          };
 
-        string SerializeTableContinuationToken(TableContinuationToken continuationToken)
+        private string SerializeTableContinuationToken(TableContinuationToken continuationToken)
         {
-            if (continuationToken == null)
+            if (continuationToken is null)
             {
                 throw new ArgumentNullException(nameof(continuationToken));
             }
@@ -475,7 +466,7 @@ namespace DurableTask.ServiceBus.Tracking
             return Convert.ToBase64String(Encoding.Unicode.GetBytes(serializedToken));
         }
 
-        TableContinuationToken DeserializeTableContinuationToken(string serializedContinuationToken)
+        private TableContinuationToken DeserializeTableContinuationToken(string serializedContinuationToken)
         {
             if (string.IsNullOrWhiteSpace(serializedContinuationToken))
             {

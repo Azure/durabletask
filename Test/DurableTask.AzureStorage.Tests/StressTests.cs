@@ -26,8 +26,8 @@ namespace DurableTask.AzureStorage.Tests
     [TestClass]
     public class StressTests
     {
-        int originalMinWorkerThreads;
-        int originalMinIoThreads;
+        private int originalMinWorkerThreads;
+        private int originalMinIoThreads;
 
         [TestInitialize()]
         public void Startup()

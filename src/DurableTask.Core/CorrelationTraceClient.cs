@@ -17,6 +17,7 @@ namespace DurableTask.Core
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Threading.Tasks;
+
     using DurableTask.Core.Settings;
 
     /// <summary>
@@ -25,27 +26,26 @@ namespace DurableTask.Core
     /// </summary>
     public static class CorrelationTraceClient
     {
-        const string DiagnosticSourceName = "DurableTask.Core";
-        const string RequestTrackEvent = "RequestEvent";
-        const string DependencyTrackEvent = "DependencyEvent";
-        const string ExceptionEvent = "ExceptionEvent";
-        static DiagnosticSource logger = new DiagnosticListener(DiagnosticSourceName);
-        static IDisposable applicationInsightsSubscription = null;
-        static IDisposable listenerSubscription = null;
+        private const string DiagnosticSourceName = "DurableTask.Core";
+        private const string RequestTrackEvent = "RequestEvent";
+        private const string DependencyTrackEvent = "DependencyEvent";
+        private const string ExceptionEvent = "ExceptionEvent";
+        private static readonly DiagnosticSource Logger = new DiagnosticListener(DiagnosticSourceName);
+        private static IDisposable applicationInsightsSubscription = null;
+        private static IDisposable listenerSubscription = null;
 
         /// <summary>
         /// Setup this class uses callbacks to enable send telemetry to the Application Insights.
-        /// You need to call this method if you want to use this class. 
+        /// You need to call this method if you want to use this class.
         /// </summary>
         /// <param name="trackRequestTelemetryAction">Action to send request telemetry using <see cref="Activity"></see></param>
         /// <param name="trackDependencyTelemetryAction">Action to send telemetry for <see cref="Activity"/></param>
         /// <param name="trackExceptionAction">Action to send telemetry for exception </param>
         public static void SetUp(
-            Action<TraceContextBase> trackRequestTelemetryAction, 
-            Action<TraceContextBase> trackDependencyTelemetryAction, 
+            Action<TraceContextBase> trackRequestTelemetryAction,
+            Action<TraceContextBase> trackDependencyTelemetryAction,
             Action<Exception> trackExceptionAction)
-        {
-            listenerSubscription = DiagnosticListener.AllListeners.Subscribe(
+         => listenerSubscription = DiagnosticListener.AllListeners.Subscribe(
                     delegate (DiagnosticListener listener)
                     {
                         if (listener.Name == DiagnosticSourceName)
@@ -62,7 +62,7 @@ namespace DurableTask.Core
 
                                 if (evt.Key == DependencyTrackEvent)
                                 {
-                                    // the parameter is DependencyTelemetry which is already stopped. 
+                                    // the parameter is DependencyTelemetry which is already stopped.
                                     var context = (TraceContextBase)evt.Value;
                                     trackDependencyTelemetryAction(context);
                                 }
@@ -75,44 +75,34 @@ namespace DurableTask.Core
                             });
                         }
                     });
-        }
 
         /// <summary>
         /// Track the RequestTelemetry
         /// </summary>
         /// <param name="context"></param>
         public static void TrackRequestTelemetry(TraceContextBase context)
-        {
-            Tracking(() => logger.Write(RequestTrackEvent, context));
-        }
+         => Tracking(() => Logger.Write(RequestTrackEvent, context));
 
         /// <summary>
         /// Track the DependencyTelemetry
         /// </summary>
         /// <param name="context"></param>
         public static void TrackDepencencyTelemetry(TraceContextBase context)
-        {
-            Tracking(() => logger.Write(DependencyTrackEvent, context));
-        }
+         => Tracking(() => Logger.Write(DependencyTrackEvent, context));
 
         /// <summary>
         /// Track the Exception
         /// </summary>
         /// <param name="e"></param>
         public static void TrackException(Exception e)
-        {
-            Tracking(() => logger.Write(ExceptionEvent, e));
-        }
+         => Tracking(() => Logger.Write(ExceptionEvent, e));
 
         /// <summary>
         /// Execute Action for Propagate correlation information.
         /// It suppresses the execution when <see cref="CorrelationSettings"/>.DisablePropagation is true.
         /// </summary>
         /// <param name="action"></param>
-        public static void Propagate(Action action)
-        {
-            Execute(action);
-        }
+        public static void Propagate(Action action) => Execute(action);
 
         /// <summary>
         /// Execute Aysnc Function for propagete correlation information
@@ -125,19 +115,16 @@ namespace DurableTask.Core
             if (CorrelationSettings.Current.EnableDistributedTracing)
             {
                 return func();
-            } 
+            }
             else
             {
                 return Task.CompletedTask;
             }
         }
 
-        static void Tracking(Action tracking)
-        {
-            Execute(tracking);
-        }
+        private static void Tracking(Action tracking) => Execute(tracking);
 
-        static void Execute(Action action)
+        private static void Execute(Action action)
         {
             if (CorrelationSettings.Current.EnableDistributedTracing)
             {

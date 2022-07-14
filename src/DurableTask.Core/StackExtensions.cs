@@ -27,9 +27,6 @@ namespace DurableTask.Core
         /// <typeparam name="T">Type of the Stack</typeparam>
         /// <param name="original">Stack instance</param>
         /// <returns></returns>
-        public static Stack<T> Clone<T>(this Stack<T> original)
-        {
-            return new Stack<T>(original.Reverse());
-        }
+        public static Stack<T> Clone<T>(this Stack<T> original) => new Stack<T>(original.Reverse());
     }
 }

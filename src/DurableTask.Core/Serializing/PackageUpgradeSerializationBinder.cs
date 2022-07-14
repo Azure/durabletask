@@ -26,16 +26,15 @@ namespace DurableTask.Core.Serializing
     [ComVisible(false)]
     public class PackageUpgradeSerializationBinder : DefaultSerializationBinder
     {
-        static readonly Lazy<IDictionary<string, Type>> KnownTypes = new Lazy<IDictionary<string, Type>>(() =>
+        private static readonly Lazy<IDictionary<string, Type>> KnownTypes = new Lazy<IDictionary<string, Type>>(() =>
         {
             //Get all types in the DurableTask.Core Namespace
             return typeof(PackageUpgradeSerializationBinder).Assembly.GetTypes()
                 .Where(t => t?.Namespace?.StartsWith("DurableTask.Core") ?? false)
                 .ToDictionary(x => x.FullName);
         });
-
-        static readonly string CurrentAssemblyName = typeof(PackageUpgradeSerializationBinder).Assembly.GetName().Name;
-        static readonly ISet<string> UpgradeableAssemblyNames = new HashSet<string> { "DurableTask", "DurableTaskFx" };
+        private static readonly string CurrentAssemblyName = typeof(PackageUpgradeSerializationBinder).Assembly.GetName().Name;
+        private static readonly ISet<string> UpgradeableAssemblyNames = new HashSet<string> { "DurableTask", "DurableTaskFx" };
 
         /// <inheritdoc />
         public override Type BindToType(string assemblyName, string typeName)
@@ -54,7 +53,7 @@ namespace DurableTask.Core.Serializing
                 }
             }
 
-            if (resolvedType == null)
+            if (resolvedType is null)
             {
                 resolvedType = base.BindToType(assemblyName, typeName);
             }

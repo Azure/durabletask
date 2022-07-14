@@ -113,7 +113,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     foreach (Exception e in t.Exception.InnerExceptions)
                     {
                         StorageException storageException = e as StorageException;
-                        if (storageException == null || storageException.RequestInformation.HttpStatusCode != 404)
+                        if (storageException is null || storageException.RequestInformation.HttpStatusCode != 404)
                         {
                             ExceptionDispatchInfo.Capture(e).Throw();
                         }

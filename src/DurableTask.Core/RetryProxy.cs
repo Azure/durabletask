@@ -55,7 +55,7 @@ namespace DurableTask.Core
 
             MethodInfo invokeMethod = this.GetType().GetMethod("InvokeWithRetry", BindingFlags.Instance | BindingFlags.NonPublic);
 
-            Debug.Assert(invokeMethod != null);
+            Debug.Assert(invokeMethod is not null);
 
             MethodInfo genericInvokeMethod = invokeMethod.MakeGenericMethod(returnType);
             invocation.ReturnValue = genericInvokeMethod.Invoke(this, new object[] { invocation });

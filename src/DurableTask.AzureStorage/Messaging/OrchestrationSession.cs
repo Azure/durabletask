@@ -172,7 +172,7 @@ namespace DurableTask.AzureStorage.Messaging
                 // This message is a response to a task. Search the history to make sure that we've recorded the fact that
                 // this task was scheduled.
                 HistoryEvent mostRecentTaskEvent = this.RuntimeState.Events.LastOrDefault(e => e.EventId == taskScheduledId);
-                if (mostRecentTaskEvent != null)
+                if (mostRecentTaskEvent is not null)
                 {
                     return false;
                 }
@@ -182,10 +182,10 @@ namespace DurableTask.AzureStorage.Messaging
             {
                 // This EventRaised message is a response to an EventSent message.
                 var requestId = ((EventRaisedEvent)message.TaskMessage.Event).Name;
-                if (requestId != null)
+                if (requestId is not null)
                 {
                     HistoryEvent mostRecentTaskEvent = this.RuntimeState.Events.FirstOrDefault(e => e.EventType == EventType.EventSent && FindRequestId(((EventSentEvent)e).Input)?.ToString() == requestId);
-                    if (mostRecentTaskEvent != null)
+                    if (mostRecentTaskEvent is not null)
                     {
                         return false;
                     }
@@ -227,7 +227,7 @@ namespace DurableTask.AzureStorage.Messaging
 
         bool IsNonexistantInstance()
         {
-            return this.RuntimeState.Events.Count == 0 || this.RuntimeState.ExecutionStartedEvent == null;
+            return this.RuntimeState.Events.Count == 0 || this.RuntimeState.ExecutionStartedEvent is null;
         }
     }
 }

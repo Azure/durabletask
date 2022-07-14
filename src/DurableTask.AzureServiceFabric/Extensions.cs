@@ -32,7 +32,7 @@ namespace DurableTask.AzureServiceFabric
         /// <returns>boolean indicating whether instanceId is valid or not</returns>
         public static bool IsValidInstanceId(this string instanceId)
         {
-            if (instanceId == null)
+            if (instanceId is null)
             {
                 return false;
             }

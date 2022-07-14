@@ -51,7 +51,7 @@ namespace DurableTask.Core
         {
             get
             {
-                if (CurrentActivity == null)
+                if (CurrentActivity is null)
                 {
                     var traceParent = TraceParentObject.Create(TraceParent);
                     return traceParent.SpanId;
@@ -71,7 +71,7 @@ namespace DurableTask.Core
         public override string TelemetryContextOperationParentId {
             get
             {
-                if (CurrentActivity == null)
+                if (CurrentActivity is null)
                 {
                     return ParentSpanId;
                 }
@@ -85,7 +85,7 @@ namespace DurableTask.Core
         /// <inheritdoc />
         public override void SetParentAndStart(TraceContextBase parentTraceContext)
         {
-            if (CurrentActivity == null)
+            if (CurrentActivity is null)
             {
                 CurrentActivity = new Activity(this.OperationName);
                 CurrentActivity.SetIdFormat(ActivityIdFormat.W3C);

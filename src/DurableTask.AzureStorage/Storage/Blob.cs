@@ -30,7 +30,7 @@ namespace DurableTask.AzureStorage.Storage
             this.azureStorageClient = azureStorageClient;
             this.blobClient = blobClient;
             this.Name = blobName;
-            var fullBlobPath = blobDirectory != null ? Path.Combine(blobDirectory, this.Name) : blobName;
+            var fullBlobPath = blobDirectory is not null ? Path.Combine(blobDirectory, this.Name) : blobName;
 
             this.cloudBlockBlob = this.blobClient.GetContainerReference(containerName).GetBlockBlobReference(fullBlobPath);
         }
@@ -69,7 +69,7 @@ namespace DurableTask.AzureStorage.Storage
             {
                 accessCondition = AccessCondition.GenerateIfNoneMatchCondition("*");
             }
-            else if (leaseId != null)
+            else if (leaseId is not null)
             {
                 accessCondition = AccessCondition.GenerateLeaseCondition(leaseId);
             }

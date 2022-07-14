@@ -13,9 +13,11 @@
 
 namespace Correlation.Samples
 {
+#pragma warning disable CA1812 // Internal classes instantiated indirectly
     using System;
     using System.Runtime.Serialization;
     using System.Threading.Tasks;
+
     using DurableTask.Core;
 
     [KnownType(typeof(Hello))]
@@ -23,8 +25,8 @@ namespace Correlation.Samples
     {
         public override async Task<string> RunTask(OrchestrationContext context, string input)
         {
-          //  await contextBase.ScheduleTask<string>(typeof(Hello), "world");
-          //   if you pass an empty string it throws an error
+            //  await contextBase.ScheduleTask<string>(typeof(Hello), "world");
+            //   if you pass an empty string it throws an error
             return await context.ScheduleTask<string>(typeof(Hello), "world");
         }
     }

@@ -30,8 +30,10 @@ namespace DurableTask.AzureServiceFabric.Tests
         {
             int numberOfHistoryEvents = 256;
 
-            var events = new List<HistoryEvent>();
-            events.Add(new ExecutionStartedEvent(-1, "TestInput"));
+            var events = new List<HistoryEvent>
+            {
+                new ExecutionStartedEvent(-1, "TestInput")
+            };
             for (int i = 0; i < numberOfHistoryEvents; i++)
             {
                 events.Add(new TaskScheduledEvent(-1));

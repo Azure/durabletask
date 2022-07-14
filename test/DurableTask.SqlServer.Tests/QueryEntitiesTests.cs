@@ -13,13 +13,15 @@
 
 namespace DurableTask.SqlServer.Tests
 {
-    using DurableTask.Core;
-    using DurableTask.Core.Tracking;
-    using Microsoft.VisualStudio.TestTools.UnitTesting;
     using System;
     using System.Collections.Generic;
     using System.Linq;
     using System.Threading.Tasks;
+
+    using DurableTask.Core;
+    using DurableTask.Core.Tracking;
+
+    using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]
     public class QueryEntitiesTests : BaseTestClass
@@ -93,8 +95,15 @@ namespace DurableTask.SqlServer.Tests
             var entities = new List<OrchestrationStateInstanceEntity>();
             entities.AddRange(Utils.InfiniteOrchestrationTestData().Take(values.Length));
 
+#pragma warning disable CA1806 // Do not ignore method results
             //ensure each status exists in the collection and they all have the same InstanceId
-            entities.Select((e, i) => { e.State.OrchestrationStatus = values[i]; e.State.OrchestrationInstance.InstanceId = instanceId; return e; }).ToList();
+            entities.Select((e, i) =>
+                     {
+                         e.State.OrchestrationStatus = values[i];
+                         e.State.OrchestrationInstance.InstanceId = instanceId;
+                         return e;
+                     }).ToList();
+#pragma warning restore CA1806 // Do not ignore method results
 
             await InstanceStore.WriteEntitiesAsync(entities);
 
@@ -113,8 +122,15 @@ namespace DurableTask.SqlServer.Tests
             var entities = new List<OrchestrationStateInstanceEntity>();
             entities.AddRange(Utils.InfiniteOrchestrationTestData().Take(values.Length));
 
+#pragma warning disable CA1806 // Do not ignore method results
             //ensure each status exists in the collection and they all have the same InstanceId
-            entities.Select((e, i) => { e.State.OrchestrationStatus = values[i]; e.State.OrchestrationInstance.InstanceId = instanceId; return e; }).ToList();
+            entities.Select((e, i) =>
+                     {
+                         e.State.OrchestrationStatus = values[i];
+                         e.State.OrchestrationInstance.InstanceId = instanceId;
+                         return e;
+                     }).ToList();
+#pragma warning restore CA1806 // Do not ignore method results
 
             await InstanceStore.WriteEntitiesAsync(entities);
 

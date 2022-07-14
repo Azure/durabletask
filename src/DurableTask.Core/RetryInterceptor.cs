@@ -1,4 +1,4 @@
-//  ----------------------------------------------------------------------------------
+﻿//  ----------------------------------------------------------------------------------
 //  Copyright Microsoft Corporation
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -27,9 +27,9 @@ namespace DurableTask.Core
     /// <typeparam name="T">Type to return from the called Func</typeparam>
     public class RetryInterceptor<T>
     {
-        readonly OrchestrationContext context;
-        readonly Func<Task<T>> retryCall;
-        readonly RetryOptions retryOptions;
+        private readonly OrchestrationContext context;
+        private readonly Func<Task<T>> retryCall;
+        private readonly RetryOptions retryOptions;
 
         /// <summary>
         /// Creates a new instance of the RetryInterceptor with specified parameters
@@ -91,7 +91,7 @@ namespace DurableTask.Core
                 await this.context.CreateTimer(retryAt, "Retry Attempt " + retryCount + 1);
             }
 
-            if (lastException != null)
+            if (lastException is not null)
             {
                 ExceptionDispatchInfo.Capture(lastException).Throw();
                 throw lastException; // no op
@@ -100,7 +100,7 @@ namespace DurableTask.Core
             return default;
         }
 
-        TimeSpan ComputeNextDelay(int attempt, DateTime firstAttempt, Exception failure)
+        private TimeSpan ComputeNextDelay(int attempt, DateTime firstAttempt, Exception failure)
         {
             TimeSpan nextDelay = TimeSpan.Zero;
             try

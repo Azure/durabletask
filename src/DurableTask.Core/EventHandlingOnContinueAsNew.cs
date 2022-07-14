@@ -24,7 +24,7 @@ namespace DurableTask.Core
         Ignore,
 
         /// <summary>
-        /// 
+        /// All pending EventRaisedEvents will be carried
         /// </summary>
         Carryover,
     }

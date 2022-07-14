@@ -19,6 +19,7 @@ namespace DurableTask.Core.Logging
     using System.Collections.Generic;
     using System.Linq;
     using System.Reflection;
+
     using Microsoft.Extensions.Logging;
 
     /// <summary>
@@ -30,12 +31,12 @@ namespace DurableTask.Core.Logging
     {
         // We reflect over all the properties just once and reuse the cached property set for subsequent log
         // statements to minimize the overhead of using reflection.
-        static readonly ConcurrentDictionary<Type, IReadOnlyDictionary<string, PropertyInfo>> SharedPropertiesCache =
+        private static readonly ConcurrentDictionary<Type, IReadOnlyDictionary<string, PropertyInfo>> SharedPropertiesCache =
             new ConcurrentDictionary<Type, IReadOnlyDictionary<string, PropertyInfo>>();
 
-        IReadOnlyDictionary<string, PropertyInfo> Properties => GetProperties(this.GetType());
+        private IReadOnlyDictionary<string, PropertyInfo> Properties => GetProperties(this.GetType());
 
-        string logMessage;
+        private string logMessage;
 
         /// <inheritdoc />
         public abstract EventId EventId { get; }
@@ -50,7 +51,7 @@ namespace DurableTask.Core.Logging
                 // We assume all log events are immutable, which means we can cache the generated
                 // log message. This is useful in cases where there are multiple ILoggers in the pipeline
                 // because we can avoid generating the formatted message multiple times for the same event.
-                if (this.logMessage == null)
+                if (this.logMessage is null)
                 {
                     this.logMessage = this.CreateLogMessage();
                 }
@@ -87,25 +88,20 @@ namespace DurableTask.Core.Logging
         }
 
         IEnumerator<KeyValuePair<string, object>> IEnumerable<KeyValuePair<string, object>>.GetEnumerator()
-        {
-            return this.Properties.Select(pair => new KeyValuePair<string, object>(pair.Key, pair.Value.GetValue(this))).GetEnumerator();
-        }
+         => this.Properties.Select(pair => new KeyValuePair<string, object>(pair.Key, pair.Value.GetValue(this)))
+                           .GetEnumerator();
 
-        IEnumerator IEnumerable.GetEnumerator()
-        {
-            return ((IEnumerable<KeyValuePair<string, object>>)this).GetEnumerator();
-        }
+        IEnumerator IEnumerable.GetEnumerator() => ((IEnumerable<KeyValuePair<string, object>>)this).GetEnumerator();
 
-        static IReadOnlyDictionary<string, PropertyInfo> GetProperties(Type type)
-        {
-            return SharedPropertiesCache.GetOrAdd(type, t =>
+        private static IReadOnlyDictionary<string, PropertyInfo> GetProperties(Type type)
+         => SharedPropertiesCache.GetOrAdd(type, t =>
             {
                 var properties = new Dictionary<string, PropertyInfo>();
 
                 foreach (PropertyInfo property in t.GetProperties())
                 {
                     StructuredLogFieldAttribute fieldAttribute = property.GetCustomAttribute<StructuredLogFieldAttribute>();
-                    if (fieldAttribute != null)
+                    if (fieldAttribute is not null)
                     {
                         if (!property.CanRead)
                         {
@@ -122,7 +118,6 @@ namespace DurableTask.Core.Logging
 
                 return properties;
             });
-        }
 
         /// <summary>
         /// Gets a log-friendly description of a history event.

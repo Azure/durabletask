@@ -16,7 +16,6 @@ namespace DurableTask.Core.Common
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
-    using System.Dynamic;
     using System.IO;
     using System.IO.Compression;
     using System.Linq;
@@ -25,10 +24,12 @@ namespace DurableTask.Core.Common
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
+
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
     using DurableTask.Core.Serializing;
     using DurableTask.Core.Tracing;
+
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
 
@@ -37,15 +38,14 @@ namespace DurableTask.Core.Common
     /// </summary>
     public static class Utils
     {
-        const int FullGzipHeaderLength = 10;
+        private const int FullGzipHeaderLength = 10;
 
         /// <summary>
         /// Gets a safe maximum datetime value that accounts for timezone
         /// </summary>
         public static readonly DateTime DateTimeSafeMaxValue =
             DateTime.MaxValue.Subtract(TimeSpan.FromDays(1)).ToUniversalTime();
-
-        static readonly byte[] GzipHeader = { 0x1f, 0x8b };
+        private static readonly byte[] GzipHeader = { 0x1f, 0x8b };
 
         /// <summary>
         /// Gets the version of the DurableTask.Core nuget package, which by convension is the same as the assembly file version.
@@ -70,7 +70,7 @@ namespace DurableTask.Core.Common
         /// The default value comes from the WEBSITE_SITE_NAME environment variable, which is defined
         /// in Azure App Service. Other environments can use DTFX_APP_NAME to set this value.
         /// </remarks>
-        public static string AppName { get; set; } = 
+        public static string AppName { get; set; } =
             Environment.GetEnvironmentVariable("WEBSITE_SITE_NAME") ??
             Environment.GetEnvironmentVariable("DTFX_APP_NAME") ??
             string.Empty;
@@ -113,7 +113,7 @@ namespace DurableTask.Core.Common
         /// </summary>
         public static void WriteObjectToStream(Stream objectStream, object obj)
         {
-            if (objectStream == null || !objectStream.CanWrite || !objectStream.CanSeek)
+            if (objectStream is null || !objectStream.CanWrite || !objectStream.CanSeek)
             {
                 throw new ArgumentException("stream is not seekable or writable", nameof(objectStream));
             }
@@ -151,16 +151,14 @@ namespace DurableTask.Core.Common
         /// Reads and deserializes an Object from the supplied stream
         /// </summary>
         public static T ReadObjectFromStream<T>(Stream objectStream)
-        {
-            return ReadObjectFromByteArray<T>(ReadBytesFromStream(objectStream));
-        }
+         => ReadObjectFromByteArray<T>(ReadBytesFromStream(objectStream));
 
         /// <summary>
         /// Reads bytes from the supplied stream
         /// </summary>
         public static byte[] ReadBytesFromStream(Stream objectStream)
         {
-            if (objectStream == null || !objectStream.CanRead || !objectStream.CanSeek)
+            if (objectStream is null || !objectStream.CanRead || !objectStream.CanSeek)
             {
                 throw new ArgumentException("stream is not seekable or readable", nameof(objectStream));
             }
@@ -178,18 +176,16 @@ namespace DurableTask.Core.Common
         /// Deserializes an Object from the supplied bytes
         /// </summary>
         public static T ReadObjectFromByteArray<T>(byte[] serializedBytes)
-        {
-            return JsonConvert.DeserializeObject<T>(
+         => JsonConvert.DeserializeObject<T>(
                                 Encoding.UTF8.GetString(serializedBytes),
                                 ObjectJsonSettings);
-        }
 
         /// <summary>
         /// Returns true or false whether the supplied stream is a compressed stream
         /// </summary>
         public static bool IsGzipStream(Stream stream)
         {
-            if (stream == null || !stream.CanRead || !stream.CanSeek || stream.Length < FullGzipHeaderLength)
+            if (stream is null || !stream.CanRead || !stream.CanSeek || stream.Length < FullGzipHeaderLength)
             {
                 return false;
             }
@@ -214,7 +210,7 @@ namespace DurableTask.Core.Common
         /// <returns></returns>
         public static Stream GetCompressedStream(Stream input)
         {
-            if (input == null)
+            if (input is null)
             {
                 return null;
             }
@@ -238,7 +234,7 @@ namespace DurableTask.Core.Common
         /// <returns></returns>
         public static async Task<Stream> GetDecompressedStreamAsync(Stream input)
         {
-            if (input == null)
+            if (input is null)
             {
                 return null;
             }
@@ -366,12 +362,12 @@ namespace DurableTask.Core.Common
         /// </summary>
         public static string SerializeCause(Exception originalException, DataConverter converter)
         {
-            if (originalException == null)
+            if (originalException is null)
             {
                 throw new ArgumentNullException(nameof(originalException));
             }
 
-            if (converter == null)
+            if (converter is null)
             {
                 throw new ArgumentNullException(nameof(converter));
             }
@@ -396,7 +392,7 @@ namespace DurableTask.Core.Common
         /// </summary>
         public static Exception RetrieveCause(string details, DataConverter converter)
         {
-            if (converter == null)
+            if (converter is null)
             {
                 throw new ArgumentNullException(nameof(converter));
             }
@@ -434,27 +430,25 @@ namespace DurableTask.Core.Common
         /// Builds a new OrchestrationState from the supplied OrchestrationRuntimeState
         /// </summary>
         public static OrchestrationState BuildOrchestrationState(OrchestrationRuntimeState runtimeState)
-        {
-            return new OrchestrationState
-            {
-                OrchestrationInstance = runtimeState.OrchestrationInstance,
-                ParentInstance = runtimeState.ParentInstance,
-                Name = runtimeState.Name,
-                Version = runtimeState.Version,
-                Status = runtimeState.Status,
-                Tags = runtimeState.Tags,
-                OrchestrationStatus = runtimeState.OrchestrationStatus,
-                CreatedTime = runtimeState.CreatedTime,
-                CompletedTime = runtimeState.CompletedTime,
-                LastUpdatedTime = DateTime.UtcNow,
-                Size = runtimeState.Size,
-                CompressedSize = runtimeState.CompressedSize,
-                Input = runtimeState.Input,
-                Output = runtimeState.Output,
-                ScheduledStartTime = runtimeState.ExecutionStartedEvent?.ScheduledStartTime,
-                FailureDetails = runtimeState.FailureDetails,
-            };
-        }
+         => new OrchestrationState
+         {
+             OrchestrationInstance = runtimeState.OrchestrationInstance,
+             ParentInstance = runtimeState.ParentInstance,
+             Name = runtimeState.Name,
+             Version = runtimeState.Version,
+             Status = runtimeState.Status,
+             Tags = runtimeState.Tags,
+             OrchestrationStatus = runtimeState.OrchestrationStatus,
+             CreatedTime = runtimeState.CreatedTime,
+             CompletedTime = runtimeState.CompletedTime,
+             LastUpdatedTime = DateTime.UtcNow,
+             Size = runtimeState.Size,
+             CompressedSize = runtimeState.CompressedSize,
+             Input = runtimeState.Input,
+             Output = runtimeState.Output,
+             ScheduledStartTime = runtimeState.ExecutionStartedEvent?.ScheduledStartTime,
+             FailureDetails = runtimeState.FailureDetails,
+         };
 
         /// <summary>
         /// Delay for a specified period of time with support for cancellation.

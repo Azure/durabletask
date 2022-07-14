@@ -22,25 +22,19 @@ namespace DurableTask.Core.Common
     {
         /// <summary>
         /// Returns bool indicating is the datetime has a value set
-        /// </summary>        
-        public static bool IsSet(this DateTime dateTime)
-        {
-            return !(dateTime == DateTime.MinValue || dateTime == MinDateTime);
-        }
+        /// </summary>
+        public static bool IsSet(this DateTime dateTime) => !(dateTime == DateTime.MinValue || dateTime == MinDateTime);
 
         /// <summary>
         /// Returns minimum allowable DateTime, allows overriding this for the storage emulator.
         /// The Storage emulator supports a min datetime or DateTime.FromFileTimeUtc(0)
         /// Do not alter this value. Kept as field to have backward compatibility(#319).
-        /// </summary>  
+        /// </summary>
         public static DateTime MinDateTime = DateTime.MinValue;
 
         /// <summary>
         /// Uses reflection to alter the static readonly MinDateTime value for tests
-        /// </summary>  
-        public static void SetMinDateTimeForStorageEmulator()
-        {
-            MinDateTime = DateTime.FromFileTimeUtc(0);
-        }
+        /// </summary>
+        public static void SetMinDateTimeForStorageEmulator() => MinDateTime = DateTime.FromFileTimeUtc(0);
     }
 }

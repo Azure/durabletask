@@ -80,7 +80,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
             Assert.AreEqual(0, actual.Count);
         }
 
-        async Task<List<DateTimeOffset>> GetDateTimeOffsetsAsync(int count)
+        private async Task<List<DateTimeOffset>> GetDateTimeOffsetsAsync(int count)
         {
             List<DateTimeOffset> result = new List<DateTimeOffset>();
             for (var i = 0; i < count; i++)
@@ -92,17 +92,17 @@ namespace DurableTask.AzureStorage.Tests.Correlation
             return result;
         }
 
-        RequestTelemetry CreateRequestTelemetry(string id, string parentId, DateTimeOffset timeStamp)
+        private RequestTelemetry CreateRequestTelemetry(string id, string parentId, DateTimeOffset timeStamp)
         {
             return (RequestTelemetry)SetIdAndParentId(new RequestTelemetry(), id, parentId, timeStamp);
         }
 
-        DependencyTelemetry CreateDependencyTelemetry(string id, string parentId, DateTimeOffset timeStamp)
+        private DependencyTelemetry CreateDependencyTelemetry(string id, string parentId, DateTimeOffset timeStamp)
         {
             return (DependencyTelemetry)SetIdAndParentId(new DependencyTelemetry(), id, parentId, timeStamp);
         }
 
-        OperationTelemetry SetIdAndParentId(OperationTelemetry telemetry, string id, string parentId, DateTimeOffset timeStamp)
+        private OperationTelemetry SetIdAndParentId(OperationTelemetry telemetry, string id, string parentId, DateTimeOffset timeStamp)
         {
             telemetry.Id = id;
             telemetry.Context.Operation.ParentId = parentId;

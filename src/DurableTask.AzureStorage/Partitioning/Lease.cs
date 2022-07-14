@@ -66,7 +66,7 @@ namespace DurableTask.AzureStorage.Partitioning
             }
 
             Lease lease = obj as Lease;
-            if (lease == null)
+            if (lease is null)
             {
                 return false;
             }

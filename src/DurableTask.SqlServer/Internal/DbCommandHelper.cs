@@ -28,7 +28,7 @@ namespace DurableTask.SqlServer.Internal
 
         internal static void AddStatement(this DbCommand source, string sql, IDictionary<string, object> parameters = null)
         {
-            if (source == null) throw new ArgumentNullException(nameof(source));
+            if (source is null) throw new ArgumentNullException(nameof(source));
 
             //replace each parameter in the sql statement with auto-generated names
             //add parameters using new auto-generated names
@@ -49,7 +49,7 @@ namespace DurableTask.SqlServer.Internal
 
         internal static void AddStatement(this DbCommand source, string sql, object parameters)
         {
-            if (source == null) throw new ArgumentNullException(nameof(source));
+            if (source is null) throw new ArgumentNullException(nameof(source));
 
             var dictionary = new Dictionary<string, object>();
 
@@ -64,7 +64,7 @@ namespace DurableTask.SqlServer.Internal
 
         internal static DbCommand AddParameter(this DbCommand source, string name, object value)
         {
-            if (source == null) throw new ArgumentNullException(nameof(source));
+            if (source is null) throw new ArgumentNullException(nameof(source));
 
             var parameter = source.CreateParameter();
             parameter.ParameterName = name;

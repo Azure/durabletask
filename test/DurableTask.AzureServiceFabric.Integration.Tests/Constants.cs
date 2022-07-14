@@ -13,7 +13,7 @@
 
 namespace DurableTask.AzureServiceFabric.Integration.Tests
 {
-    static class Constants
+    internal static class Constants
     {
         public const string TestFabricApplicationAddress = "fabric:/TestFabricApplicationType/TestStatefulService";
     }

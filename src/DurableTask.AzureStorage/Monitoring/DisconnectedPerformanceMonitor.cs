@@ -36,7 +36,7 @@ namespace DurableTask.AzureStorage.Monitoring
         readonly QueueMetricHistory workItemQueueLatencies = new QueueMetricHistory(QueueLengthSampleSize);
 
         readonly AzureStorageOrchestrationServiceSettings settings;
-        private readonly AzureStorageClient azureStorageClient;
+        readonly AzureStorageClient azureStorageClient;
         readonly int maxPollingLatency;
         readonly int highLatencyThreshold;
 
@@ -102,7 +102,7 @@ namespace DurableTask.AzureStorage.Monitoring
             int? maxPollingIntervalMilliseconds = null)
         {
             var settings = new AzureStorageOrchestrationServiceSettings { TaskHubName = taskHub };
-            if (maxPollingIntervalMilliseconds != null)
+            if (maxPollingIntervalMilliseconds is not null)
             {
                 settings.MaxQueuePollingInterval = TimeSpan.FromMilliseconds(maxPollingIntervalMilliseconds.Value);
             }
@@ -120,7 +120,7 @@ namespace DurableTask.AzureStorage.Monitoring
         {
             var heartbeatPayload = await this.PulseAsync();
 
-            if (heartbeatPayload != null)
+            if (heartbeatPayload is not null)
             {
                 heartbeatPayload.ScaleRecommendation = MakeScaleRecommendation(currentWorkerCount);
             }
@@ -163,8 +163,10 @@ namespace DurableTask.AzureStorage.Monitoring
             Task<QueueMetric> workItemMetricTask = GetQueueMetricsAsync(workItemQueue);
             List<Task<QueueMetric>> controlQueueMetricTasks = controlQueues.Select(GetQueueMetricsAsync).ToList();
 
-            var tasks = new List<Task>(controlQueueMetricTasks.Count + 1);
-            tasks.Add(workItemMetricTask);
+            var tasks = new List<Task>(controlQueueMetricTasks.Count + 1)
+            {
+                workItemMetricTask
+            };
             tasks.AddRange(controlQueueMetricTasks);
 
             try
@@ -232,7 +234,7 @@ namespace DurableTask.AzureStorage.Monitoring
         {
             DateTimeOffset now = DateTimeOffset.UtcNow;
             QueueMessage firstMessage = await queue.PeekMessageAsync();
-            if (firstMessage == null)
+            if (firstMessage is null)
             {
                 return TimeSpan.MinValue;
             }
@@ -293,8 +295,10 @@ namespace DurableTask.AzureStorage.Monitoring
                 defaultPartitionCount: AzureStorageOrchestrationServiceSettings.DefaultPartitionCount);
 
             // There is one queue per partition.
-            var result = new ControlQueueData();
-            result.PartitionCount = controlQueues.Length;
+            var result = new ControlQueueData
+            {
+                PartitionCount = controlQueues.Length
+            };
 
             // We treat all control queues like one big queue and sum the lengths together.
             foreach (Queue queue in controlQueues)
@@ -325,7 +329,7 @@ namespace DurableTask.AzureStorage.Monitoring
         /// <returns>Returns a scale recommendation</returns>
         public virtual ScaleRecommendation MakeScaleRecommendation(int workerCount, PerformanceHeartbeat[] performanceHeartbeats)
         {
-            if (performanceHeartbeats == null || performanceHeartbeats.Length == 0)
+            if (performanceHeartbeats is null || performanceHeartbeats.Length == 0)
             {
                 return new ScaleRecommendation(ScaleAction.None, keepWorkersAlive: true, reason: "No heartbeat metrics");
             }

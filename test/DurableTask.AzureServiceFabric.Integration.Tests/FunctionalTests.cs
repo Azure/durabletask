@@ -27,7 +27,7 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
     [TestClass]
     public class FunctionalTests
     {
-        TaskHubClient taskHubClient;
+        private TaskHubClient taskHubClient;
 
         [TestInitialize]
         public void TestInitialize()
@@ -218,9 +218,9 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
             for (int i = 0; i < allResults.Length; i++)
             {
                 var result = allResults[i];
-                if (result.Item1 != null)
+                if (result.Item1 is not null)
                 {
-                    if (createdInstance != null)
+                    if (createdInstance is not null)
                     {
                         Assert.Fail($"Multiple orchestrations were started with the instance id {instanceId} at the same time");
                     }
@@ -402,9 +402,11 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
             await Task.Delay(TimeSpan.FromSeconds(1));
 
             var reason = "Testing Terminate (Twice) Functionality";
-            var tasks = new List<Task>();
-            tasks.Add(this.taskHubClient.TerminateInstanceAsync(instance, reason));
-            tasks.Add(this.taskHubClient.TerminateInstanceAsync(instance, reason));
+            var tasks = new List<Task>
+            {
+                this.taskHubClient.TerminateInstanceAsync(instance, reason),
+                this.taskHubClient.TerminateInstanceAsync(instance, reason)
+            };
             await Task.WhenAll(tasks);
             var result = await this.taskHubClient.WaitForOrchestrationAsync(instance, TimeSpan.FromMinutes(1));
 

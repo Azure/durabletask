@@ -30,8 +30,8 @@ namespace DurableTask.AzureServiceFabric.Service
     /// </summary>
     public sealed class TaskHubStatefulService : StatefulService
     {
-        readonly IList<IServiceListener> serviceListeners;
-        ReplicaRole currentRole;
+        private readonly IList<IServiceListener> serviceListeners;
+        private ReplicaRole currentRole;
 
         /// <summary>
         /// Creates instance of <see cref="TaskHubProxyListener"/>
@@ -75,9 +75,8 @@ namespace DurableTask.AzureServiceFabric.Service
         /// </remarks>
         /// <returns>A collection of listeners.</returns>
         protected override IEnumerable<ServiceReplicaListener> CreateServiceReplicaListeners()
-        {
-            return serviceListeners.Select(listener => listener.CreateServiceReplicaListener()).Where(listener => listener != null);
-        }
+         => serviceListeners.Select(listener => listener.CreateServiceReplicaListener())
+                            .Where(listener => listener is not null);
 
         /// <summary>
         /// This is the main entry point for your service replica.

@@ -1,4 +1,4 @@
-//  ----------------------------------------------------------------------------------
+﻿//  ----------------------------------------------------------------------------------
 //  Copyright Microsoft Corporation
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -14,9 +14,10 @@
 
 namespace DurableTask.SqlServer.Tests
 {
-    using Microsoft.VisualStudio.TestTools.UnitTesting;
     using System;
     using System.Threading.Tasks;
+
+    using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]
     public class InstanceStoreSetupTeardownTests : BaseTestClass

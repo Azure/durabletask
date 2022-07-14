@@ -14,8 +14,6 @@
 namespace Correlation.Samples
 {
     using System;
-    using System.Collections.Generic;
-    using System.Text;
 
     public static class StringExtensions
     {
@@ -41,5 +39,4 @@ namespace Correlation.Samples
             return null;
         }
     }
-
 }

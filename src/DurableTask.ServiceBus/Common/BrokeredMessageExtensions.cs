@@ -26,7 +26,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
         /// </summary>        
         public static double DeliveryLatency(this Message message)
         {
-            if (message == null)
+            if (message is null)
             {
                 return 0;
             }

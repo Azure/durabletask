@@ -15,9 +15,11 @@ namespace DurableTask.Core
 {
     using System;
     using System.Threading.Tasks;
+
     using DurableTask.Core.Common;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.Serializing;
+
     using Newtonsoft.Json.Linq;
 
     /// <summary>
@@ -41,10 +43,7 @@ namespace DurableTask.Core
         /// <param name="context">The task context</param>
         /// <param name="input">The serialized input</param>
         /// <returns>Serialized output from the execution</returns>
-        public virtual Task<string> RunAsync(TaskContext context, string input)
-        {
-            return Task.FromResult(Run(context, input));
-        }
+        public virtual Task<string> RunAsync(TaskContext context, string input) => Task.FromResult(Run(context, input));
     }
 
     /// <summary>
@@ -57,34 +56,25 @@ namespace DurableTask.Core
         /// <summary>
         /// Creates a new AsyncTaskActivity with the default DataConverter
         /// </summary>
-        protected AsyncTaskActivity()
-        {
-            DataConverter = JsonDataConverter.Default;
-        }
+        protected AsyncTaskActivity() => DataConverter = JsonDataConverter.Default;
 
         /// <summary>
         /// Creates a new AsyncTaskActivity with the supplied DataConverter
         /// </summary>
         /// <param name="dataConverter"></param>
-        protected AsyncTaskActivity(DataConverter dataConverter)
-        {
-            DataConverter = dataConverter ?? JsonDataConverter.Default;
-        }
+        protected AsyncTaskActivity(DataConverter dataConverter) => DataConverter = dataConverter ?? JsonDataConverter.Default;
 
         /// <summary>
         /// The DataConverter to use for input and output serialization/deserialization
         /// </summary>
         public DataConverter DataConverter { get; protected set; }
 
+        // will never run
         /// <summary>
         /// Synchronous execute method, blocked for AsyncTaskActivity
         /// </summary>
         /// <returns>string.Empty</returns>
-        public override string Run(TaskContext context, string input)
-        {
-            // will never run
-            return string.Empty;
-        }
+        public override string Run(TaskContext context, string input) => string.Empty;
 
         /// <summary>
         /// Abstract method for executing a task activity asynchronously
@@ -112,7 +102,7 @@ namespace DurableTask.Core
                 throw new TaskFailureException(
                     "TaskActivity implementation cannot be invoked due to more than expected input parameters.  Signature mismatch.");
             }
-            
+
             if (parameterCount == 1)
             {
                 JToken jToken = jArray[0];
@@ -176,8 +166,6 @@ namespace DurableTask.Core
         /// <param name="input">The typed input</param>
         /// <returns>The typed output from the execution</returns>
         protected override Task<TResult> ExecuteAsync(TaskContext context, TInput input)
-        {
-            return Task.FromResult(Execute(context, input));
-        }
+         => Task.FromResult(Execute(context, input));
     }
 }

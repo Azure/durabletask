@@ -22,15 +22,15 @@ namespace DurableTask.ServiceBus.Tests
     [TestClass]
     public class TaskHubClientTests
     {
-        TaskHubClient client;
-        TaskHubWorker taskHub;
+        private TaskHubClient client;
+        private TaskHubWorker taskHub;
 
         [TestCategory("DisabledInCI")] // https://github.com/Azure/durabletask/issues/262
         [TestMethod]
         public async Task TestCreateIfNew()
         {
             this.taskHub = TestHelpers.CreateTaskHub();
-            var service = this.taskHub.orchestrationService as ServiceBusOrchestrationService;
+            var service = this.taskHub.OrchestrationService as ServiceBusOrchestrationService;
             Assert.IsNotNull(service);
 
             await service.CreateAsync();
@@ -45,7 +45,7 @@ namespace DurableTask.ServiceBus.Tests
         {
             this.taskHub = TestHelpers.CreateTaskHub();
             this.client = TestHelpers.CreateTaskHubClient();
-            var service = this.taskHub.orchestrationService as ServiceBusOrchestrationService;
+            var service = this.taskHub.OrchestrationService as ServiceBusOrchestrationService;
             Assert.IsNotNull(service);
             await service.CreateAsync();
             await this.client.CreateOrchestrationInstanceAsync("foo", "1.0", null);
@@ -67,7 +67,7 @@ namespace DurableTask.ServiceBus.Tests
             };
 
             this.taskHub = TestHelpers.CreateTaskHub(settings);
-            var service = this.taskHub.orchestrationService as ServiceBusOrchestrationService;
+            var service = this.taskHub.OrchestrationService as ServiceBusOrchestrationService;
             Assert.IsNotNull(service);
             await service.CreateAsync();
 
@@ -92,7 +92,7 @@ namespace DurableTask.ServiceBus.Tests
             };
 
             this.taskHub = TestHelpers.CreateTaskHub(settings);
-            var service = this.taskHub.orchestrationService as ServiceBusOrchestrationService;
+            var service = this.taskHub.OrchestrationService as ServiceBusOrchestrationService;
             Assert.IsNotNull(service);
             await service.CreateIfNotExistsAsync();
 

@@ -15,9 +15,11 @@ namespace DurableTask.ServiceBus.Tracking
 {
     using System;
     using System.Collections.Generic;
+
     using DurableTask.Core;
     using DurableTask.Core.Common;
     using DurableTask.Core.Serializing;
+
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Table;
 
@@ -26,15 +28,12 @@ namespace DurableTask.ServiceBus.Tracking
     /// </summary>
     public class AzureTableOrchestrationStateEntity : AzureTableCompositeTableEntity
     {
-        readonly DataConverter dataConverter;
+        private readonly DataConverter dataConverter;
 
         /// <summary>
         /// Creates a new AzureTableOrchestrationStateEntity
         /// </summary>
-        public AzureTableOrchestrationStateEntity()
-        {
-            this.dataConverter = JsonDataConverter.Default;
-        }
+        public AzureTableOrchestrationStateEntity() => this.dataConverter = JsonDataConverter.Default;
 
         /// <summary>
         /// Creates a new AzureTableOrchestrationStateEntity with the supplied orchestration state
@@ -54,14 +53,15 @@ namespace DurableTask.ServiceBus.Tracking
 
         internal override IEnumerable<ITableEntity> BuildDenormalizedEntities()
         {
-            var entity1 = new AzureTableOrchestrationStateEntity(State);
-
-            entity1.PartitionKey = AzureTableConstants.InstanceStatePrefix;
-            entity1.RowKey = AzureTableConstants.InstanceStateExactRowPrefix +
+            var entity1 = new AzureTableOrchestrationStateEntity(State)
+            {
+                PartitionKey = AzureTableConstants.InstanceStatePrefix,
+                RowKey = AzureTableConstants.InstanceStateExactRowPrefix +
                              AzureTableConstants.JoinDelimiter + State.OrchestrationInstance.InstanceId +
-                             AzureTableConstants.JoinDelimiter + State.OrchestrationInstance.ExecutionId;
+                             AzureTableConstants.JoinDelimiter + State.OrchestrationInstance.ExecutionId
+            };
 
-            return new [] { entity1 };
+            return new[] { entity1 };
             // TODO : additional indexes for efficient querying in the future
         }
 
@@ -71,12 +71,13 @@ namespace DurableTask.ServiceBus.Tracking
         /// <param name="operationContext">The operation context</param>
         public override IDictionary<string, EntityProperty> WriteEntity(OperationContext operationContext)
         {
-            var returnValues = new Dictionary<string, EntityProperty>();
+            var returnValues = new Dictionary<string, EntityProperty>
+            {
+                { "InstanceId", new EntityProperty(State.OrchestrationInstance.InstanceId) },
+                { "ExecutionId", new EntityProperty(State.OrchestrationInstance.ExecutionId) }
+            };
 
-            returnValues.Add("InstanceId", new EntityProperty(State.OrchestrationInstance.InstanceId));
-            returnValues.Add("ExecutionId", new EntityProperty(State.OrchestrationInstance.ExecutionId));
-
-            if (State.ParentInstance != null)
+            if (State.ParentInstance is not null)
             {
                 returnValues.Add("ParentInstanceId", new EntityProperty(State.ParentInstance.OrchestrationInstance.InstanceId));
                 returnValues.Add("ParentExecutionId", new EntityProperty(State.ParentInstance.OrchestrationInstance.ExecutionId));
@@ -86,7 +87,7 @@ namespace DurableTask.ServiceBus.Tracking
             returnValues.Add("Name", new EntityProperty(State.Name));
             returnValues.Add("Version", new EntityProperty(State.Version));
             returnValues.Add("Status", new EntityProperty(State.Status));
-            returnValues.Add("Tags", new EntityProperty(State.Tags != null ? this.dataConverter.Serialize(State.Tags) : null));
+            returnValues.Add("Tags", new EntityProperty(State.Tags is not null ? this.dataConverter.Serialize(State.Tags) : null));
             returnValues.Add("OrchestrationStatus", new EntityProperty(State.OrchestrationStatus.ToString()));
             returnValues.Add("CreatedTime", new EntityProperty(State.CreatedTime));
             returnValues.Add("CompletedTime", new EntityProperty(State.CompletedTime));
@@ -182,15 +183,13 @@ namespace DurableTask.ServiceBus.Tracking
         /// A string that represents the current object.
         /// </returns>
         /// <filterpriority>2</filterpriority>
-        public override string ToString()
-        {
+        public override string ToString() =>
             // ReSharper disable once UseStringInterpolation
-            return string.Format(
+            string.Format(
                 "Instance Id: {0} Execution Id: {1} Name: {2} Version: {3} CreatedTime: {4} CompletedTime: {5} LastUpdated: {6} Status: {7} User Status: {8} Input: {9} Output: {10} Size: {11} CompressedSize: {12}",
                 State.OrchestrationInstance.InstanceId, State.OrchestrationInstance.ExecutionId, State.Name,
                 State.Version, State.CreatedTime, State.CompletedTime,
                 State.LastUpdatedTime, State.OrchestrationStatus, State.Status, State.Input, State.Output, State.Size,
                 State.CompressedSize);
-        }
     }
 }

@@ -5,10 +5,8 @@
     <DebugType Condition="'$(Configuration)'=='Release'">pdbonly</DebugType>
     <DebugSymbols>True</DebugSymbols>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <LangVersion>9.0</LangVersion>
     <!-- See https://github.com/Azure/durabletask/issues/428 -->
     <NoWarn>NU5125,NU5048</NoWarn>
-    <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
     <!-- SourceLink Settings-->
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>

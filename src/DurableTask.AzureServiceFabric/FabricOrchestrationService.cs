@@ -21,25 +21,25 @@ namespace DurableTask.AzureServiceFabric
     using System.Threading;
     using System.Threading.Tasks;
 
-    using DurableTask.Core;
-    using DurableTask.Core.History;
-    using DurableTask.Core.Tracking;
     using DurableTask.AzureServiceFabric.Stores;
     using DurableTask.AzureServiceFabric.TaskHelpers;
     using DurableTask.AzureServiceFabric.Tracing;
+    using DurableTask.Core;
+    using DurableTask.Core.History;
+    using DurableTask.Core.Tracking;
+
     using Microsoft.ServiceFabric.Data;
 
-    class FabricOrchestrationService : IOrchestrationService
+    internal class FabricOrchestrationService : IOrchestrationService
     {
-        readonly IReliableStateManager stateManager;
-        readonly IFabricOrchestrationServiceInstanceStore instanceStore;
-        readonly SessionProvider orchestrationProvider;
-        readonly ActivityProvider activitiesProvider;
-        readonly ScheduledMessageProvider scheduledMessagesProvider;
-        readonly FabricOrchestrationProviderSettings settings;
-        readonly CancellationTokenSource cancellationTokenSource;
-
-        ConcurrentDictionary<string, SessionInformation> sessionInfos = new ConcurrentDictionary<string, SessionInformation>();
+        private readonly IReliableStateManager stateManager;
+        private readonly IFabricOrchestrationServiceInstanceStore instanceStore;
+        private readonly SessionProvider orchestrationProvider;
+        private readonly ActivityProvider activitiesProvider;
+        private readonly ScheduledMessageProvider scheduledMessagesProvider;
+        private readonly FabricOrchestrationProviderSettings settings;
+        private readonly CancellationTokenSource cancellationTokenSource;
+        private readonly ConcurrentDictionary<string, SessionInformation> sessionInfos = new ConcurrentDictionary<string, SessionInformation>();
 
         public FabricOrchestrationService(IReliableStateManager stateManager,
             SessionProvider orchestrationProvider,
@@ -57,17 +57,13 @@ namespace DurableTask.AzureServiceFabric
         }
 
         public Task StartAsync()
-        {
-            return Task.WhenAll(this.activitiesProvider.StartAsync(),
-                this.scheduledMessagesProvider.StartAsync(),
-                this.instanceStore.StartAsync(),
-                this.orchestrationProvider.StartAsync());
-        }
+         => Task.WhenAll(
+             this.activitiesProvider.StartAsync(),
+             this.scheduledMessagesProvider.StartAsync(),
+             this.instanceStore.StartAsync(),
+             this.orchestrationProvider.StartAsync());
 
-        public Task StopAsync()
-        {
-            return StopAsync(false);
-        }
+        public Task StopAsync() => StopAsync(false);
 
         public Task StopAsync(bool isForced)
         {
@@ -79,33 +75,23 @@ namespace DurableTask.AzureServiceFabric
             return Task.CompletedTask;
         }
 
-        public Task CreateAsync()
-        {
-            return CreateAsync(true);
-        }
+        public Task CreateAsync() => CreateAsync(true);
 
-        public Task CreateAsync(bool recreateInstanceStore)
-        {
-            return DeleteAsync(deleteInstanceStore: recreateInstanceStore);
-            // Actual creation will be done on demand when we call GetOrAddAsync in StartAsync method.
-        }
+        // Actual creation will be done on demand when we call GetOrAddAsync in StartAsync method.
+        public Task CreateAsync(bool recreateInstanceStore) => DeleteAsync(deleteInstanceStore: recreateInstanceStore);
 
-        public Task CreateIfNotExistsAsync()
-        {
-            return Task.CompletedTask;
-        }
+        public Task CreateIfNotExistsAsync() => Task.CompletedTask;
 
-        public Task DeleteAsync()
-        {
-            return DeleteAsync(true);
-        }
+        public Task DeleteAsync() => DeleteAsync(true);
 
         public Task DeleteAsync(bool deleteInstanceStore)
         {
-            List<Task> tasks = new List<Task>();
-            tasks.Add(this.stateManager.RemoveAsync(Constants.OrchestrationDictionaryName));
-            tasks.Add(this.stateManager.RemoveAsync(Constants.ScheduledMessagesDictionaryName));
-            tasks.Add(this.stateManager.RemoveAsync(Constants.ActivitiesQueueName));
+            List<Task> tasks = new List<Task>
+            {
+                this.stateManager.RemoveAsync(Constants.OrchestrationDictionaryName),
+                this.stateManager.RemoveAsync(Constants.ScheduledMessagesDictionaryName),
+                this.stateManager.RemoveAsync(Constants.ActivitiesQueueName)
+            };
 
             if (deleteInstanceStore)
             {
@@ -115,20 +101,13 @@ namespace DurableTask.AzureServiceFabric
             return Task.WhenAll(tasks);
         }
 
-        public bool IsMaxMessageCountExceeded(int currentMessageCount, OrchestrationRuntimeState runtimeState)
-        {
-            return false;
-        }
+        public bool IsMaxMessageCountExceeded(int currentMessageCount, OrchestrationRuntimeState runtimeState) => false;
 
         public int GetDelayInSecondsAfterOnProcessException(Exception exception)
-        {
-            return GetDelayForFetchOrProcessException(exception);
-        }
+         => GetDelayForFetchOrProcessException(exception);
 
         public int GetDelayInSecondsAfterOnFetchException(Exception exception)
-        {
-            return GetDelayForFetchOrProcessException(exception);
-        }
+         => GetDelayForFetchOrProcessException(exception);
 
         public int TaskOrchestrationDispatcherCount => this.settings.TaskOrchestrationDispatcherSettings.DispatcherCount;
         public int MaxConcurrentTaskOrchestrationWorkItems => this.settings.TaskOrchestrationDispatcherSettings.MaxConcurrentOrchestrations;
@@ -138,7 +117,7 @@ namespace DurableTask.AzureServiceFabric
         {
             var currentSession = await this.orchestrationProvider.AcceptSessionAsync(receiveTimeout);
 
-            if (currentSession == null)
+            if (currentSession is null)
             {
                 return null;
             }
@@ -158,7 +137,7 @@ namespace DurableTask.AzureServiceFabric
 
                 if (newMessages.Count == 0)
                 {
-                    if (currentRuntimeState.ExecutionStartedEvent == null)
+                    if (currentRuntimeState.ExecutionStartedEvent is null)
                     {
                         ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition($"Orchestration with no execution started event found: {currentSession.SessionId}");
                         return null;
@@ -194,10 +173,7 @@ namespace DurableTask.AzureServiceFabric
             }
         }
 
-        public Task RenewTaskOrchestrationWorkItemLockAsync(TaskOrchestrationWorkItem workItem)
-        {
-            return Task.CompletedTask;
-        }
+        public Task RenewTaskOrchestrationWorkItemLockAsync(TaskOrchestrationWorkItem workItem) => Task.CompletedTask;
 
         public async Task CompleteTaskOrchestrationWorkItemAsync(
             TaskOrchestrationWorkItem workItem,
@@ -246,7 +222,7 @@ namespace DurableTask.AzureServiceFabric
 
                             if (orchestratorMessages?.Count > 0)
                             {
-                                if (workItem.OrchestrationRuntimeState?.ParentInstance != null)
+                                if (workItem.OrchestrationRuntimeState?.ParentInstance is not null)
                                 {
                                     sessionsToEnqueue = await this.orchestrationProvider.TryAppendMessageBatchAsync(txn, orchestratorMessages.Select(tm => new TaskMessageItem(tm)));
                                 }
@@ -257,7 +233,7 @@ namespace DurableTask.AzureServiceFabric
                                 }
                             }
 
-                            if (continuedAsNewMessage != null)
+                            if (continuedAsNewMessage is not null)
                             {
                                 await this.orchestrationProvider.AppendMessageAsync(txn, new TaskMessageItem(continuedAsNewMessage));
                                 sessionsToEnqueue = new List<OrchestrationInstance>() { continuedAsNewMessage.OrchestrationInstance };
@@ -290,7 +266,7 @@ namespace DurableTask.AzureServiceFabric
                             // wait for an orchestration completes but another orchestration with the same name cannot be started immediately
                             // because the session is still in store. We update the instance store on orchestration completion and drop the
                             // session as part of the next atomic transaction.
-                            if (this.instanceStore != null && orchestrationState != null && !isComplete)
+                            if (this.instanceStore is not null && orchestrationState is not null && !isComplete)
                             {
                                 await this.instanceStore.WriteEntitiesAsync(txn, new InstanceEntityBase[]
                                 {
@@ -311,7 +287,7 @@ namespace DurableTask.AzureServiceFabric
                         outboundMessages = null;
                         timerMessages = null;
                         orchestratorMessages = null;
-                        if (orchestrationState != null)
+                        if (orchestrationState is not null)
                         {
                             orchestrationState.OrchestrationStatus = OrchestrationStatus.Failed;
                             orchestrationState.Output = $"Fabric exception when trying to process orchestration: {ex}. Investigate and consider reducing the serialization size of orchestration inputs/outputs/overall length to avoid the issue.";
@@ -320,15 +296,15 @@ namespace DurableTask.AzureServiceFabric
                 } while (retryOnException);
             }, uniqueActionIdentifier: $"OrchestrationId = '{workItem.InstanceId}', Action = '{nameof(CompleteTaskOrchestrationWorkItemAsync)}'");
 
-            if (activityMessages != null)
+            if (activityMessages is not null)
             {
                 this.activitiesProvider.SendBatchComplete(activityMessages);
             }
-            if (scheduledMessages != null)
+            if (scheduledMessages is not null)
             {
                 this.scheduledMessagesProvider.SendBatchComplete(scheduledMessages);
             }
-            if (sessionsToEnqueue != null)
+            if (sessionsToEnqueue is not null)
             {
                 foreach (var instance in sessionsToEnqueue)
                 {
@@ -382,7 +358,7 @@ namespace DurableTask.AzureServiceFabric
         public Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
             SessionInformation sessionInfo = TryRemoveSessionInfo(workItem.InstanceId);
-            if (sessionInfo == null)
+            if (sessionInfo is null)
             {
                 ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition($"{nameof(AbandonTaskOrchestrationWorkItemAsync)} : Could not get a session info object while trying to abandon session {workItem.InstanceId}");
             }
@@ -398,7 +374,7 @@ namespace DurableTask.AzureServiceFabric
             bool isComplete = this.IsOrchestrationComplete(workItem.OrchestrationRuntimeState.OrchestrationStatus);
 
             SessionInformation sessionInfo = TryRemoveSessionInfo(workItem.InstanceId);
-            if (sessionInfo != null)
+            if (sessionInfo is not null)
             {
                 this.orchestrationProvider.TryUnlockSession(sessionInfo.Instance, isComplete: isComplete);
             }
@@ -417,7 +393,7 @@ namespace DurableTask.AzureServiceFabric
         {
             var message = await this.activitiesProvider.ReceiveAsync(receiveTimeout);
 
-            if (message != null)
+            if (message is not null)
             {
                 return new TaskActivityWorkItem()
                 {
@@ -475,20 +451,18 @@ namespace DurableTask.AzureServiceFabric
         }
 
         public Task<TaskActivityWorkItem> RenewTaskActivityWorkItemLockAsync(TaskActivityWorkItem workItem)
-        {
-            return Task.FromResult(workItem);
-        }
+         => Task.FromResult(workItem);
 
-        int GetTaskScheduledId(HistoryEvent historyEvent)
+        private int GetTaskScheduledId(HistoryEvent historyEvent)
         {
             TaskCompletedEvent tce = historyEvent as TaskCompletedEvent;
-            if (tce != null)
+            if (tce is not null)
             {
                 return tce.TaskScheduledId;
             }
 
             TaskFailedEvent tfe = historyEvent as TaskFailedEvent;
-            if (tfe != null)
+            if (tfe is not null)
             {
                 return tfe.TaskScheduledId;
             }
@@ -496,7 +470,7 @@ namespace DurableTask.AzureServiceFabric
             return -1;
         }
 
-        int GetDelayForFetchOrProcessException(Exception exception)
+        private int GetDelayForFetchOrProcessException(Exception exception)
         {
             //Todo: Need to fine tune
             if (exception is TimeoutException)
@@ -512,12 +486,10 @@ namespace DurableTask.AzureServiceFabric
             return 0;
         }
 
-        bool IsOrchestrationComplete(OrchestrationStatus status)
-        {
-            return !(status.IsRunningOrPending() || status == OrchestrationStatus.ContinuedAsNew);
-        }
+        private bool IsOrchestrationComplete(OrchestrationStatus status)
+         => !(status.IsRunningOrPending() || status == OrchestrationStatus.ContinuedAsNew);
 
-        SessionInformation GetSessionInfo(string sessionId)
+        private SessionInformation GetSessionInfo(string sessionId)
         {
             ServiceFabricProviderEventSource.Tracing.TraceMessage(sessionId, $"{nameof(GetSessionInfo)} - Getting session info");
             if (!this.sessionInfos.TryGetValue(sessionId, out SessionInformation sessionInfo))
@@ -530,14 +502,14 @@ namespace DurableTask.AzureServiceFabric
             return sessionInfo;
         }
 
-        SessionInformation TryRemoveSessionInfo(string sessionId)
+        private SessionInformation TryRemoveSessionInfo(string sessionId)
         {
             var removed = this.sessionInfos.TryRemove(sessionId, out SessionInformation sessionInfo);
             ServiceFabricProviderEventSource.Tracing.TraceMessage(sessionId, $"{nameof(TryRemoveSessionInfo)}: Removed = {removed}");
             return sessionInfo;
         }
 
-        class SessionInformation
+        private class SessionInformation
         {
             public OrchestrationInstance Instance { get; set; }
 

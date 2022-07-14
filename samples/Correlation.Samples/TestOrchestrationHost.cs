@@ -18,22 +18,23 @@ namespace Correlation.Samples
     using System.Diagnostics;
     using System.Runtime.Serialization;
     using System.Threading.Tasks;
+
     using DurableTask.AzureStorage;
     using DurableTask.Core;
 
     internal sealed class TestOrchestrationHost : IDisposable
     {
-        readonly AzureStorageOrchestrationServiceSettings settings;
-        readonly TaskHubWorker worker;
-        readonly TaskHubClient client;
-        readonly HashSet<Type> addedOrchestrationTypes;
-        readonly HashSet<Type> addedActivityTypes;
+        private readonly AzureStorageOrchestrationServiceSettings settings;
+        private readonly TaskHubWorker worker;
+        private readonly TaskHubClient client;
+        private readonly HashSet<Type> addedOrchestrationTypes;
+        private readonly HashSet<Type> addedActivityTypes;
 
         public TestOrchestrationHost(AzureStorageOrchestrationServiceSettings settings)
         {
             try
             {
-                var service = new AzureStorageOrchestrationService(settings);
+                using var service = new AzureStorageOrchestrationService(settings);
                 service.CreateAsync().GetAwaiter().GetResult(); // I change Create to CreateIfNotExistsAsync for enabling execute without fail once per twice.
 
                 this.settings = settings;
@@ -45,7 +46,9 @@ namespace Correlation.Samples
             }
             catch (Exception e)
             {
+#pragma warning disable CA2200 // Rethrow to preserve stack details
                 throw e;
+#pragma warning restore CA2200 // Rethrow to preserve stack details
             }
         }
 

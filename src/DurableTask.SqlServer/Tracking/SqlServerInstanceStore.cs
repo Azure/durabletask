@@ -343,9 +343,9 @@ namespace DurableTask.SqlServer.Tracking
 
         private void ValidateSettings(SqlServerInstanceStoreSettings settings)
         {
-            if (settings.GetDatabaseConnection == null) throw new ArgumentException($"{nameof(settings.GetDatabaseConnection)} cannot be null.");
-            if (settings.HubName == null) throw new ArgumentException($"{nameof(settings.HubName)} cannot be null.");
-            if (settings.SchemaName == null) throw new ArgumentException($"{nameof(settings.SchemaName)} cannot be null.");
+            if (settings.GetDatabaseConnection is null) throw new ArgumentException($"{nameof(settings.GetDatabaseConnection)} cannot be null.");
+            if (settings.HubName is null) throw new ArgumentException($"{nameof(settings.HubName)} cannot be null.");
+            if (settings.SchemaName is null) throw new ArgumentException($"{nameof(settings.SchemaName)} cannot be null.");
 
             //Validate schema and hubnames are valid SQL Identifiers
             var sqlIdentifierRegex = new Regex(@"^[\p{L}_][\p{L}\p{N}@$#_]{0,127}$");

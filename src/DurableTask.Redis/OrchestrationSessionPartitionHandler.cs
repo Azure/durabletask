@@ -18,9 +18,11 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+
 using DurableTask.Core;
 using DurableTask.Core.Exceptions;
 using DurableTask.Core.History;
+
 using StackExchange.Redis;
 
 namespace DurableTask.Redis
@@ -36,7 +38,7 @@ namespace DurableTask.Redis
         // will need a single redis lock to enforce only one worker having access to a partition.
         private readonly ConcurrentDictionary<string, SemaphoreSlim> activeOrchestrationLocks;
         private readonly SemaphoreSlim controlQueueLock = new SemaphoreSlim(1, 1);
-        private readonly SemaphoreSlim orchestrationCurrentStateLock = new SemaphoreSlim(1,1);
+        private readonly SemaphoreSlim orchestrationCurrentStateLock = new SemaphoreSlim(1, 1);
 
         private readonly string taskHub;
         private readonly ConnectionMultiplexer redisConnection;
@@ -84,7 +86,7 @@ namespace DurableTask.Redis
             string[] orchestrationIds = activeOrchestrationLocks.Keys.ToArray();
             int currentIndex = 0;
             int count = 0;
-            int perOrchestrationWaitTime = 5; // No particular reason for this value. 
+            int perOrchestrationWaitTime = 5; // No particular reason for this value.
             while (!((int)timer.ElapsedMilliseconds > receiveTimeout.Milliseconds && cancellationToken.IsCancellationRequested))
             {
                 string orchestrationId = orchestrationIds[currentIndex];
@@ -135,9 +137,9 @@ namespace DurableTask.Redis
             if (this.activeOrchestrationLocks.TryGetValue(orchestrationId, out SemaphoreSlim orchLock))
             {
                 this.activeOrchestrationLocks[orchestrationId].Release();
-            }    
+            }
         }
-        
+
         public async Task CreateTaskOrchestration(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses)
         {
             if (!(creationMessage.Event is ExecutionStartedEvent executionStartEvent))
@@ -150,13 +152,13 @@ namespace DurableTask.Redis
             await this.orchestrationCurrentStateLock.WaitAsync();
 
             IDatabase redisDB = this.redisConnection.GetDatabase();
-            string orchestrationHistoryKey = RedisKeyNameResolver.GetOrchestrationStateKey(this.taskHub, this.partition, orchestrationId); 
+            string orchestrationHistoryKey = RedisKeyNameResolver.GetOrchestrationStateKey(this.taskHub, this.partition, orchestrationId);
             string currentStateJson = await redisDB.StringGetAsync(orchestrationHistoryKey);
-            
-            if (currentStateJson != null)
+
+            if (currentStateJson is not null)
             {
                 OrchestrationState currentState = RedisSerializer.DeserializeObject<OrchestrationState>(currentStateJson);
-                if (dedupeStatuses == null || dedupeStatuses.Contains(currentState.OrchestrationStatus))
+                if (dedupeStatuses is null || dedupeStatuses.Contains(currentState.OrchestrationStatus))
                 {
                     // An orchestration with same instance id is already running
                     throw new OrchestrationAlreadyExistsException($"An orchestration with id '{creationMessage.OrchestrationInstance.InstanceId}' already exists. It is in state {currentState.OrchestrationStatus}");
@@ -216,7 +218,7 @@ namespace DurableTask.Redis
             return RedisTransactionBuilder.BuildTransactionInPartition(
                 taskHub: this.taskHub,
                 partition: this.partition,
-                connection: this.redisConnection, 
+                connection: this.redisConnection,
                 condition: Condition.SetContains(this.currentOrchestrationsSetKey, orchestrationId));
         }
 
@@ -235,7 +237,7 @@ namespace DurableTask.Redis
             IDatabase redisDatabase = this.redisConnection.GetDatabase();
             string orchestrationStateKey = RedisKeyNameResolver.GetOrchestrationStateKey(this.taskHub, this.partition, orchestrationId);
             string orchestrationStateJson = await redisDatabase.StringGetAsync(orchestrationStateKey);
-            if (orchestrationStateJson == null)
+            if (orchestrationStateJson is null)
             {
                 return null;
             }
@@ -280,7 +282,7 @@ namespace DurableTask.Redis
             IDatabase database = this.redisConnection.GetDatabase();
             RedisValue[] messagesJson = await database.ListRangeAsync(this.partitionControlQueueKey);
 
-            foreach(string messageJson in messagesJson)
+            foreach (string messageJson in messagesJson)
             {
                 TaskMessage taskMessage = RedisSerializer.DeserializeObject<TaskMessage>(messageJson);
                 string instanceId = taskMessage.OrchestrationInstance.InstanceId;
@@ -296,7 +298,7 @@ namespace DurableTask.Redis
                 }
 
                 await database.ListRightPopLeftPushAsync(this.partitionControlQueueKey, orchestrationInstanceQueueKey);
-                this.activeOrchestrationLocks.TryAdd(instanceId, new SemaphoreSlim(1,1));
+                this.activeOrchestrationLocks.TryAdd(instanceId, new SemaphoreSlim(1, 1));
             }
 
             //Release lock so another notification can be handled

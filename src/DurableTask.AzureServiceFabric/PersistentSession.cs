@@ -16,11 +16,12 @@ namespace DurableTask.AzureServiceFabric
     using System.Collections.Generic;
     using System.Collections.Immutable;
     using System.Runtime.Serialization;
+
     using DurableTask.Core;
     using DurableTask.Core.History;
 
     [DataContract]
-    sealed partial class PersistentSession : IExtensibleDataObject
+    internal sealed partial class PersistentSession : IExtensibleDataObject
     {
         // Note : Ideally all the properties in this class should be readonly because this
         // class is designed to be immutable class. We use private settable properties
@@ -39,13 +40,10 @@ namespace DurableTask.AzureServiceFabric
         /// Do not use except in the constructor or serialization methods, use <see cref="SessionState"/> property instead.
         /// </summary>
         [DataMember]
-        IEnumerable<HistoryEvent> sessionState { get; set; }
+        private IEnumerable<HistoryEvent> sessionState { get; set; }
 
         [OnDeserialized]
-        private void OnDeserialized(StreamingContext context)
-        {
-            this.sessionState = this.sessionState.ToImmutableList();
-        }
+        private void OnDeserialized(StreamingContext context) => this.sessionState = this.sessionState.ToImmutableList();
 
         private PersistentSession(OrchestrationInstance sessionId, IImmutableList<HistoryEvent> sessionState)
         {
@@ -53,15 +51,10 @@ namespace DurableTask.AzureServiceFabric
             this.sessionState = sessionState ?? ImmutableList<HistoryEvent>.Empty;
         }
 
-        public static PersistentSession Create(OrchestrationInstance sessionId)
-        {
-            return Create(sessionId, null);
-        }
+        public static PersistentSession Create(OrchestrationInstance sessionId) => Create(sessionId, null);
 
         public static PersistentSession Create(OrchestrationInstance sessionId, IImmutableList<HistoryEvent> sessionState)
-        {
-            return new PersistentSession(sessionId, sessionState);
-        }
+         => new PersistentSession(sessionId, sessionState);
 
         public ImmutableList<HistoryEvent> SessionState => this.sessionState.ToImmutableList();
 

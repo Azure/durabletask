@@ -13,11 +13,6 @@
 
 namespace DurableTask.Core.Settings
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Net.Sockets;
-    using System.Text;
-
     /// <summary>
     /// Settings for Distributed Tracing
     /// </summary>
@@ -26,10 +21,7 @@ namespace DurableTask.Core.Settings
         /// <summary>
         /// Create a new instance of the CorrelationSettings with default settings
         /// </summary>
-        public CorrelationSettings()
-        {
-            Protocol = Protocol.W3CTraceContext;
-        }
+        public CorrelationSettings() => Protocol = Protocol.W3CTraceContext;
 
         /// <summary>
         /// Correlation Protocol

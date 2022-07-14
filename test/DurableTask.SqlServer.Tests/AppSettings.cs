@@ -21,12 +21,12 @@ namespace DurableTask.SqlServer.Tests
     {
         public Uri DockerEndpoint { get; set; }
         public ContainerInformation SqlContainer { get; set; }
-        public IDictionary<string, string> ConnectionStrings { get; set; }
-        
+        public IDictionary<string, string> ConnectionStrings { get; }
+
         public class ContainerInformation
         {
             public string Image { get; set; }
             public string Tag { get; set; }
         }
-    }     
+    }
 }

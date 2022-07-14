@@ -49,9 +49,10 @@ namespace DurableTask.SqlServer.Tests
         [TestMethod]
         public async Task VerifyWorkItemStatePersistedTest()
         {
-            var entities = new List<InstanceEntityBase>();
-
-            entities.Add(Utils.InfiniteWorkItemTestData(Guid.NewGuid().ToString("N"), Guid.NewGuid().ToString("N")).First());
+            var entities = new List<InstanceEntityBase>
+            {
+                Utils.InfiniteWorkItemTestData(Guid.NewGuid().ToString("N"), Guid.NewGuid().ToString("N")).First()
+            };
 
             await InstanceStore.WriteEntitiesAsync(entities);
 

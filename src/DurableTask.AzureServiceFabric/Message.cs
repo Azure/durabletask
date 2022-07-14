@@ -15,16 +15,16 @@ namespace DurableTask.AzureServiceFabric
 {
     using System;
 
-    sealed class Message<TKey, TValue> where TKey : IComparable<TKey>, IEquatable<TKey>
+    internal sealed class Message<TKey, TValue> where TKey : IComparable<TKey>, IEquatable<TKey>
     {
         public Message(TKey key, TValue value)
         {
-            if (key == null)
+            if (key is null)
             {
                 throw new ArgumentNullException(nameof(key));
             }
 
-            if (value == null)
+            if (value is null)
             {
                 throw new ArgumentNullException(nameof(value));
             }

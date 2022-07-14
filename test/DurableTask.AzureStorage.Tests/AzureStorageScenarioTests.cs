@@ -13,9 +13,9 @@
 
 namespace DurableTask.AzureStorage.Tests
 {
+#pragma warning disable CA1812 // Internal classes instantiated indirectly
     using System;
     using System.Collections.Generic;
-    using System.Configuration;
     using System.Diagnostics;
     using System.IO;
     using System.Linq;
@@ -23,15 +23,18 @@ namespace DurableTask.AzureStorage.Tests
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
+
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
+
     using Microsoft.Practices.EnterpriseLibrary.SemanticLogging.Utility;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Blob;
     using Microsoft.WindowsAzure.Storage.Table;
+
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
 
@@ -180,13 +183,13 @@ namespace DurableTask.AzureStorage.Tests
                 client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloInline), "world two");
                 await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
-                DurableStatusQueryResult queryResult = await host.service.GetOrchestrationStateAsync(
+                DurableStatusQueryResult queryResult = await host.Service.GetOrchestrationStateAsync(
                     new OrchestrationInstanceStatusQueryCondition(),
                     1,
                     null);
                 Assert.AreEqual(1, queryResult.OrchestrationState.Count());
                 Assert.IsNotNull(queryResult.ContinuationToken);
-                queryResult = await host.service.GetOrchestrationStateAsync(
+                queryResult = await host.Service.GetOrchestrationStateAsync(
                     new OrchestrationInstanceStatusQueryCondition(),
                     1,
                     queryResult.ContinuationToken);
@@ -228,7 +231,7 @@ namespace DurableTask.AzureStorage.Tests
                 instanceId: $"Foo_{instanceIdPrefixGuid}");
             await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
 
-            DurableStatusQueryResult queryResult = await host.service.GetOrchestrationStateAsync(
+            DurableStatusQueryResult queryResult = await host.Service.GetOrchestrationStateAsync(
                 new OrchestrationInstanceStatusQueryCondition()
                 {
                     InstanceIdPrefix = instanceIdPrefixGuid,
@@ -248,7 +251,7 @@ namespace DurableTask.AzureStorage.Tests
             {
                 // Execute the orchestrator twice. Orchestrator will be replied. However instances might be two.
                 await host.StartAsync();
-                var queryResult = await host.service.GetOrchestrationStateAsync(
+                var queryResult = await host.Service.GetOrchestrationStateAsync(
                     new OrchestrationInstanceStatusQueryCondition(),
                     100,
                     null);
@@ -517,7 +520,7 @@ namespace DurableTask.AzureStorage.Tests
                 List<HistoryStateEvent> thirdHistoryEventsAfterPurging = await client.GetOrchestrationHistoryAsync(thirdInstanceId);
                 Assert.AreEqual(0, thirdHistoryEventsAfterPurging.Count);
 
-                List<HistoryStateEvent>fourthHistoryEventsAfterPurging = await client.GetOrchestrationHistoryAsync(fourthInstanceId);
+                List<HistoryStateEvent> fourthHistoryEventsAfterPurging = await client.GetOrchestrationHistoryAsync(fourthInstanceId);
                 Assert.AreEqual(0, fourthHistoryEventsAfterPurging.Count);
 
                 firstOrchestrationStateList = await client.GetStateAsync(firstInstanceId);
@@ -546,8 +549,7 @@ namespace DurableTask.AzureStorage.Tests
         private async Task<int> GetBlobCount(string containerName, string directoryName)
         {
             string storageConnectionString = TestHelpers.GetTestStorageAccountConnectionString();
-            CloudStorageAccount storageAccount;
-            if (!CloudStorageAccount.TryParse(storageConnectionString, out storageAccount))
+            if (!CloudStorageAccount.TryParse(storageConnectionString, out var storageAccount))
             {
                 Assert.Fail("Couldn't find the connection string to use to look up blobs!");
                 return 0;
@@ -573,10 +575,10 @@ namespace DurableTask.AzureStorage.Tests
                             operationContext: context,
                             cancellationToken: timeoutToken);
                 }); ;
-                
+
                 blobContinuationToken = results.ContinuationToken;
                 blobCount += results.Results.Count();
-            } while (blobContinuationToken != null);
+            } while (blobContinuationToken is not null);
 
             return blobCount;
         }
@@ -604,9 +606,9 @@ namespace DurableTask.AzureStorage.Tests
 
                 IList<OrchestrationState> results = await host.GetAllOrchestrationInstancesAsync();
                 Assert.AreEqual(3, results.Count);
-                Assert.IsNotNull(results[0].Output.Equals("\"Done\""));
-                Assert.IsNotNull(results[1].Output.Equals("\"Done\""));
-                Assert.IsNotNull(results[2].Output.Equals("\"Done\""));
+                Assert.IsNotNull(results[0].Output.Equals("\"Done\"", StringComparison.Ordinal));
+                Assert.IsNotNull(results[1].Output.Equals("\"Done\"", StringComparison.Ordinal));
+                Assert.IsNotNull(results[2].Output.Equals("\"Done\"", StringComparison.Ordinal));
 
 
                 List<HistoryStateEvent> firstHistoryEvents = await client.GetOrchestrationHistoryAsync(firstInstanceId);
@@ -658,7 +660,7 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         /// <summary>
-        /// End-to-end test which validates parallel function execution by enumerating all files in the current directory 
+        /// End-to-end test which validates parallel function execution by enumerating all files in the current directory
         /// in parallel and getting the sum total of all file sizes.
         /// </summary>
         [DataTestMethod]
@@ -998,7 +1000,7 @@ namespace DurableTask.AzureStorage.Tests
 
 
         /// <summary>
-        /// End-to-end test which validates the Rewind functionality on an activity function failure 
+        /// End-to-end test which validates the Rewind functionality on an activity function failure
         /// with modified (to fail initially) SayHelloWithActivity orchestrator.
         /// </summary>
         [TestMethod]
@@ -1612,7 +1614,7 @@ namespace DurableTask.AzureStorage.Tests
                 var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), message);
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
 
-                //Ensure that orchestration state querying also retrieves messages 
+                //Ensure that orchestration state querying also retrieves messages
                 status = (await client.GetStateAsync(status.OrchestrationInstance.InstanceId)).First();
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
@@ -1623,7 +1625,7 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-        private StringBuilder GenerateMediumRandomStringPayload(int numChars = 128*1024, short utf8ByteSize = 1, short utf16ByteSize = 2)
+        private StringBuilder GenerateMediumRandomStringPayload(int numChars = 128 * 1024, short utf8ByteSize = 1, short utf16ByteSize = 2)
         {
             string Chars;
             if (utf16ByteSize != 2 && utf16ByteSize != 4)
@@ -2008,7 +2010,7 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-                /// <summary>
+        /// <summary>
         /// Validates scheduled starts, ensuring they are executed according to defined start date time
         /// </summary>
         /// <param name="enableExtendedSessions"></param>
@@ -2124,7 +2126,7 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-        static class Orchestrations
+        private static class Orchestrations
         {
             internal class SayHelloInline : TaskOrchestration<string, string>
             {
@@ -2291,8 +2293,8 @@ namespace DurableTask.AzureStorage.Tests
             [KnownType(typeof(Activities.Echo))]
             internal class SemiLargePayloadFanOutFanIn : TaskOrchestration<string, int>
             {
-                static readonly string Some50KBPayload = new string('x', 25 * 1024); // Assumes UTF-16 encoding
-                static readonly string Some16KBPayload = new string('x', 8 * 1024); // Assumes UTF-16 encoding
+                private static readonly string Some50KBPayload = new string('x', 25 * 1024); // Assumes UTF-16 encoding
+                private static readonly string Some16KBPayload = new string('x', 8 * 1024); // Assumes UTF-16 encoding
 
                 public override async Task<string> RunTask(OrchestrationContext context, int parallelTasks)
                 {
@@ -2454,7 +2456,7 @@ namespace DurableTask.AzureStorage.Tests
 
             internal class Counter : TaskOrchestration<int, int>
             {
-                TaskCompletionSource<string> waitForOperationHandle;
+                private TaskCompletionSource<string> waitForOperationHandle;
 
                 public override async Task<int> RunTask(OrchestrationContext context, int currentValue)
                 {
@@ -2483,7 +2485,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 }
 
-                async Task<string> WaitForOperation()
+                private async Task<string> WaitForOperation()
                 {
                     this.waitForOperationHandle = new TaskCompletionSource<string>();
                     string operation = await this.waitForOperationHandle.Task;
@@ -2494,7 +2496,7 @@ namespace DurableTask.AzureStorage.Tests
                 public override void OnEvent(OrchestrationContext context, string name, string input)
                 {
                     Assert.AreEqual("operation", name, true, "Unknown signal recieved...");
-                    if (this.waitForOperationHandle != null)
+                    if (this.waitForOperationHandle is not null)
                     {
                         this.waitForOperationHandle.SetResult(input);
                     }
@@ -2503,7 +2505,7 @@ namespace DurableTask.AzureStorage.Tests
 
             internal class CharacterCounter : TaskOrchestration<Tuple<string, int>, Tuple<string, int>>
             {
-                TaskCompletionSource<string> waitForOperationHandle;
+                private TaskCompletionSource<string> waitForOperationHandle;
 
                 public override async Task<Tuple<string, int>> RunTask(OrchestrationContext context, Tuple<string, int> inputData)
                 {
@@ -2529,7 +2531,7 @@ namespace DurableTask.AzureStorage.Tests
                     return inputData;
                 }
 
-                async Task<string> WaitForOperation()
+                private async Task<string> WaitForOperation()
                 {
                     this.waitForOperationHandle = new TaskCompletionSource<string>();
                     string operation = await this.waitForOperationHandle.Task;
@@ -2540,7 +2542,7 @@ namespace DurableTask.AzureStorage.Tests
                 public override void OnEvent(OrchestrationContext context, string name, string input)
                 {
                     Assert.AreEqual("operation", name, true, "Unknown signal recieved...");
-                    if (this.waitForOperationHandle != null)
+                    if (this.waitForOperationHandle is not null)
                     {
                         this.waitForOperationHandle.SetResult(input);
                     }
@@ -2549,8 +2551,8 @@ namespace DurableTask.AzureStorage.Tests
 
             internal class Approval : TaskOrchestration<string, TimeSpan, bool, string>
             {
-                TaskCompletionSource<bool> waitForApprovalHandle;
-                public static bool shouldFail = false;
+                private TaskCompletionSource<bool> waitForApprovalHandle;
+                public static bool ShouldFail = false;
 
                 public override async Task<string> RunTask(OrchestrationContext context, TimeSpan timeout)
                 {
@@ -2561,7 +2563,7 @@ namespace DurableTask.AzureStorage.Tests
                         Task<bool> approvalTask = this.GetWaitForApprovalTask();
                         Task timeoutTask = context.CreateTimer(deadline, cts.Token);
 
-                        if (shouldFail)
+                        if (ShouldFail)
                         {
                             throw new Exception("Simulating unhanded error exception");
                         }
@@ -2581,7 +2583,7 @@ namespace DurableTask.AzureStorage.Tests
                     }
                 }
 
-                async Task<bool> GetWaitForApprovalTask()
+                private async Task<bool> GetWaitForApprovalTask()
                 {
                     this.waitForApprovalHandle = new TaskCompletionSource<bool>();
                     bool approvalResult = await this.waitForApprovalHandle.Task;
@@ -2592,7 +2594,7 @@ namespace DurableTask.AzureStorage.Tests
                 public override void OnEvent(OrchestrationContext context, string name, bool approvalResult)
                 {
                     Assert.AreEqual("approval", name, true, "Unknown signal recieved...");
-                    if (this.waitForApprovalHandle != null)
+                    if (this.waitForApprovalHandle is not null)
                     {
                         this.waitForApprovalHandle.SetResult(approvalResult);
                     }
@@ -2720,13 +2722,15 @@ namespace DurableTask.AzureStorage.Tests
             [KnownType(typeof(AutoStartOrchestration.Responder))]
             internal class AutoStartOrchestration : TaskOrchestration<string, string>
             {
+#pragma warning disable CA2247 // Argument passed to TaskCompletionSource constructor should be TaskCreationOptions enum instead of TaskContinuationOptions enum
                 private readonly TaskCompletionSource<string> tcs
                     = new TaskCompletionSource<string>(TaskContinuationOptions.ExecuteSynchronously);
+#pragma warning restore CA2247 // Argument passed to TaskCompletionSource constructor should be TaskCreationOptions enum instead of TaskContinuationOptions enum
 
                 // HACK: This is just a hack to communicate result of orchestration back to test
                 public static bool OkResult;
 
-                private static string ChannelName = Guid.NewGuid().ToString();
+                private static readonly string ChannelName = Guid.NewGuid().ToString();
 
                 public async override Task<string> RunTask(OrchestrationContext context, string input)
                 {
@@ -2737,7 +2741,7 @@ namespace DurableTask.AzureStorage.Tests
                     // send the RequestInformation containing RequestId and Instanceid of this orchestration to a not-yet-started orchestration
                     context.SendEvent(responderInstance, ChannelName, requestInformation);
 
-                    // wait for a response event 
+                    // wait for a response event
                     var message = await tcs.Task;
                     if (message != "hello from autostarted orchestration")
                         throw new Exception("test failed");
@@ -2764,8 +2768,10 @@ namespace DurableTask.AzureStorage.Tests
 
                 public class Responder : TaskOrchestration<string, string, RequestInformation, string>
                 {
+#pragma warning disable CA2247 // Argument passed to TaskCompletionSource constructor should be TaskCreationOptions enum instead of TaskContinuationOptions enum
                     private readonly TaskCompletionSource<string> tcs
                         = new TaskCompletionSource<string>(TaskContinuationOptions.ExecuteSynchronously);
+#pragma warning restore CA2247 // Argument passed to TaskCompletionSource constructor should be TaskCreationOptions enum instead of TaskContinuationOptions enum
 
                     public async override Task<string> RunTask(OrchestrationContext context, string input)
                     {
@@ -2773,7 +2779,7 @@ namespace DurableTask.AzureStorage.Tests
                         string responseString;
 
                         // send a message back to the sender
-                        if (input != null)
+                        if (input is not null)
                         {
                             responseString = "expected null input for autostarted orchestration";
                         }
@@ -2801,8 +2807,8 @@ namespace DurableTask.AzureStorage.Tests
             internal class AbortSessionOrchestration : TaskOrchestration<string, string>
             {
                 // This is a hacky way of keeping track of global state
-                static bool abortedOrchestration = false;
-                static bool abortedActivity = false;
+                private static bool abortedOrchestration = false;
+                private static bool abortedActivity = false;
 
                 public async override Task<string> RunTask(OrchestrationContext context, string input)
                 {
@@ -2880,7 +2886,7 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-        static class Activities
+        private static class Activities
         {
             internal class HelloFailActivity : TaskActivity<string, string>
             {
@@ -3058,13 +3064,13 @@ namespace DurableTask.AzureStorage.Tests
 
             internal class WriteTableRow : TaskActivity<Tuple<string, string>, string>
             {
-                static CloudTable cachedTable;
+                private static CloudTable cachedTable;
 
                 internal static CloudTable TestCloudTable
                 {
                     get
                     {
-                        if (cachedTable == null)
+                        if (cachedTable is null)
                         {
                             string connectionString = TestHelpers.GetTestStorageAccountConnectionString();
                             CloudTable table = CloudStorageAccount.Parse(connectionString).CreateCloudTableClient().GetTableReference("TestTable");

@@ -13,6 +13,7 @@
 
 namespace DurableTask.AzureStorage.Tests.Correlation
 {
+#pragma warning disable CA1812 // Private classes instantiated indirectly
     using System;
     using System.Collections.Concurrent;
     using System.Collections.Generic;
@@ -20,12 +21,15 @@ namespace DurableTask.AzureStorage.Tests.Correlation
     using System.Linq;
     using System.Runtime.Serialization;
     using System.Threading.Tasks;
+
     using DurableTask.Core;
     using DurableTask.Core.Settings;
+
     using Microsoft.ApplicationInsights.Channel;
     using Microsoft.ApplicationInsights.DataContracts;
     using Microsoft.ApplicationInsights.Extensibility.Implementation;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
+
     using Newtonsoft.Json;
 
     [TestClass]
@@ -88,7 +92,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
             CorrelationSettings.Current.Protocol = protocol;
             CorrelationSettings.Current.EnableDistributedTracing = true;
             var host = new TestCorrelationOrchestrationHost();
-            // parameter = null cause an exception. 
+            // parameter = null cause an exception.
             Tuple<List<OperationTelemetry>, List<ExceptionTelemetry>> result = await host.ExecuteOrchestrationWithExceptionAsync(typeof(SayHelloOrchestrator), null, 50, enableExtendedSessions);
 
             List<OperationTelemetry> actual = result.Item1;
@@ -107,7 +111,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
                 }, actual.Select(x => (x.GetType(), x.Name)).ToList());
 
             CollectionAssert.AreEqual(
-                actualExceptions.Select(x => 
+                actualExceptions.Select(x =>
                      x.Context.Operation.ParentId).ToList(),
                 new string[] { actual[4].Id, actual[2].Id }
                 );
@@ -137,16 +141,18 @@ namespace DurableTask.AzureStorage.Tests.Correlation
                     (typeof(DependencyTelemetry), $"{TraceConstants.Orchestrator} {typeof(HelloWait).FullName}"),
                     (typeof(RequestTelemetry), $"{TraceConstants.Activity} HelloWait")
                 }, actual.Select(x => (x.GetType(), x.Name)).ToList());
-         }
+        }
 
         [KnownType(typeof(HelloWait))]
         internal class SayHelloActivities : TaskOrchestration<string, string>
         {
             public override async Task<string> RunTask(OrchestrationContext context, string input)
             {
-                var tasks = new List<Task<string>>();
-                tasks.Add(context.ScheduleTask<string>(typeof(HelloWait), input));
-                tasks.Add(context.ScheduleTask<string>(typeof(HelloWait), input));
+                var tasks = new List<Task<string>>
+                {
+                    context.ScheduleTask<string>(typeof(HelloWait), input),
+                    context.ScheduleTask<string>(typeof(HelloWait), input)
+                };
                 await Task.WhenAll(tasks);
                 return $"{tasks[0].Result}:{tasks[1].Result}";
             }
@@ -266,9 +272,11 @@ namespace DurableTask.AzureStorage.Tests.Correlation
         {
             public override async Task<string> RunTask(OrchestrationContext context, string input)
             {
-                var tasks = new List<Task<string>>();
-                tasks.Add(context.CreateSubOrchestrationInstance<string>(typeof(ChildOrchestrator), "foo"));
-                tasks.Add(context.CreateSubOrchestrationInstance<string>(typeof(ChildOrchestrator), "bar"));
+                var tasks = new List<Task<string>>
+                {
+                    context.CreateSubOrchestrationInstance<string>(typeof(ChildOrchestrator), "foo"),
+                    context.CreateSubOrchestrationInstance<string>(typeof(ChildOrchestrator), "bar")
+                };
                 await Task.WhenAll(tasks);
                 return $"{tasks[0].Result}:{tasks[1].Result}";
             }
@@ -380,7 +388,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
 
             CollectionAssert.AreEqual(
                 actualExceptions.Select(x => x.Context.Operation.ParentId).ToList(),
-                new string[] { actual[6].Id , actual[4].Id, actual[12].Id, actual[8].Id});
+                new string[] { actual[6].Id, actual[4].Id, actual[12].Id, actual[8].Id });
         }
 
         [KnownType(typeof(MultiLayeredOrchestrationChildWithRetry))]
@@ -481,7 +489,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
         [KnownType(typeof(Hello))]
         internal class ContinueAsNewOrchestration : TaskOrchestration<string, string>
         {
-            static int counter = 0;
+            private static int counter = 0;
 
             public override async Task<string> RunTask(OrchestrationContext context, string input)
             {
@@ -513,8 +521,10 @@ namespace DurableTask.AzureStorage.Tests.Correlation
             CorrelationSettings.Current.Protocol = protocol;
             CorrelationSettings.Current.EnableDistributedTracing = true;
             var host = new TestCorrelationOrchestrationHost();
-            var tasks = new List<Task>();
-            tasks.Add(host.ExecuteOrchestrationAsync(typeof(MultiParentOrchestrator), "world", 30, enableExtendedSessions));
+            var tasks = new List<Task>
+            {
+                host.ExecuteOrchestrationAsync(typeof(MultiParentOrchestrator), "world", 30, enableExtendedSessions)
+            };
 
             while (IsNotReadyForRaiseEvent(host.Client))
             {
@@ -540,22 +550,19 @@ namespace DurableTask.AzureStorage.Tests.Correlation
                 actual.Select(x => (x.GetType(), x.Name)).ToList());
         }
 
-        bool IsNotReadyForRaiseEvent(TestOrchestrationClient client)
+        private static bool IsNotReadyForRaiseEvent(TestOrchestrationClient client)
         {
-            return client == null || !MultiParentOrchestrator.IsWaitForExternalEvent;
+            return client is null || !MultiParentOrchestrator.IsWaitForExternalEvent;
         }
 
-        List<OperationTelemetry> Convert(Task task)
-        {
-            return (task as Task<List<OperationTelemetry>>)?.Result;
-        }
+        private static List<OperationTelemetry> Convert(Task task) => (task as Task<List<OperationTelemetry>>)?.Result;
 
         [KnownType(typeof(Hello))]
         internal class MultiParentOrchestrator : TaskOrchestration<string, string>
         {
             public static bool IsWaitForExternalEvent { get; set; } = false;
 
-            readonly TaskCompletionSource<object> receiveEvent = new TaskCompletionSource<object>();
+            private readonly TaskCompletionSource<object> receiveEvent = new TaskCompletionSource<object>();
 
             public async override Task<string> RunTask(OrchestrationContext context, string input)
             {
@@ -570,10 +577,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
                 this.receiveEvent.SetResult(null);
             }
 
-            internal static void Reset()
-            {
-                IsWaitForExternalEvent = false;
-            }
+            internal static void Reset() => IsWaitForExternalEvent = false;
         }
 
         [DataTestMethod]
@@ -587,8 +591,10 @@ namespace DurableTask.AzureStorage.Tests.Correlation
             CorrelationSettings.Current.Protocol = protocol;
             CorrelationSettings.Current.EnableDistributedTracing = true;
             var host = new TestCorrelationOrchestrationHost();
-            var tasks = new List<Task>();
-            tasks.Add(host.ExecuteOrchestrationAsync(typeof(MultiParentMultiLayeredOrchestrator), "world", 30, enableExtendedSessions));
+            var tasks = new List<Task>
+            {
+                host.ExecuteOrchestrationAsync(typeof(MultiParentMultiLayeredOrchestrator), "world", 30, enableExtendedSessions)
+            };
 
             while (IsNotReadyForTwoRaiseEvents(host.Client))
             {
@@ -596,7 +602,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
             }
 
             await Task.Delay(TimeSpan.FromSeconds(1));
-            foreach(string instanceId in MultiParentChildOrchestrator.InstanceIds)
+            foreach (string instanceId in MultiParentChildOrchestrator.InstanceIds)
             {
                 tasks.Add(host.Client.RaiseEventAsync(instanceId, "someEvent", "hi"));
             }
@@ -625,9 +631,9 @@ namespace DurableTask.AzureStorage.Tests.Correlation
             MultiParentChildOrchestrator.Reset();
         }
 
-        bool IsNotReadyForTwoRaiseEvents(TestOrchestrationClient client)
+        private static bool IsNotReadyForTwoRaiseEvents(TestOrchestrationClient client)
         {
-            return client == null || !(MultiParentChildOrchestrator.ReadyForExternalEvent == 2);
+            return client is null || !(MultiParentChildOrchestrator.ReadyForExternalEvent == 2);
         }
 
         [KnownType(typeof(MultiParentChildOrchestrator))]
@@ -636,9 +642,11 @@ namespace DurableTask.AzureStorage.Tests.Correlation
         {
             public override async Task<string> RunTask(OrchestrationContext context, string input)
             {
-                var tasks = new List<Task<string>>();
-                tasks.Add(context.CreateSubOrchestrationInstance<string>(typeof(MultiParentChildOrchestrator), "foo"));
-                tasks.Add(context.CreateSubOrchestrationInstance<string>(typeof(MultiParentChildOrchestrator), "bar"));
+                var tasks = new List<Task<string>>
+                {
+                    context.CreateSubOrchestrationInstance<string>(typeof(MultiParentChildOrchestrator), "foo"),
+                    context.CreateSubOrchestrationInstance<string>(typeof(MultiParentChildOrchestrator), "bar")
+                };
                 await Task.WhenAll(tasks);
                 return $"{tasks[0].Result}:{tasks[1].Result}";
             }
@@ -646,17 +654,14 @@ namespace DurableTask.AzureStorage.Tests.Correlation
         [KnownType(typeof(Hello))]
         internal class MultiParentChildOrchestrator : TaskOrchestration<string, string>
         {
-            static readonly object lockExternalEvent = new object();
-            static readonly object lockId = new object();
-            static int readyCountForExternalEvent = 0;
-            static List<string> orchestrationIds = new List<string>();
+            private static readonly object lockExternalEvent = new object();
+            private static readonly object lockId = new object();
+            private static int readyCountForExternalEvent = 0;
+            private static List<string> orchestrationIds = new List<string>();
 
             public static int ReadyForExternalEvent
             {
-                get
-                {
-                    return readyCountForExternalEvent;
-                }
+                get => readyCountForExternalEvent;
 
                 set
                 {
@@ -671,7 +676,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
                 get
                 {
                     IEnumerable<string> result;
-                    lock(lockId)
+                    lock (lockId)
                     {
                         result = orchestrationIds.ToList<string>();
                     }
@@ -681,7 +686,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
 
             public static void AddOrchestrationId(string orchestrationId)
             {
-                lock(lockId)
+                lock (lockId)
                 {
                     orchestrationIds.Add(orchestrationId);
                 }
@@ -695,7 +700,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
                 }
             }
 
-            readonly TaskCompletionSource<object> receiveEvent = new TaskCompletionSource<object>();
+            private readonly TaskCompletionSource<object> receiveEvent = new TaskCompletionSource<object>();
 
             public async override Task<string> RunTask(OrchestrationContext context, string input)
             {
@@ -738,7 +743,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
 
         //[TestMethod] terminate
 
-        class TestCorrelationOrchestrationHost
+        private class TestCorrelationOrchestrationHost
         {
             internal TestOrchestrationClient Client { get; set; }
 
@@ -780,22 +785,22 @@ namespace DurableTask.AzureStorage.Tests.Correlation
                 return result.CorrelationSort();
             }
 
-            IEnumerable<OperationTelemetry> FilterOperationTelemetry(IEnumerable<OperationTelemetry> operationTelemetries)
+            private static IEnumerable<OperationTelemetry> FilterOperationTelemetry(IEnumerable<OperationTelemetry> operationTelemetries)
             {
                 return operationTelemetries.Where(
                     p => p.Name.Contains(TraceConstants.Activity) || p.Name.Contains(TraceConstants.Orchestrator) || p.Name.Contains(TraceConstants.Client) || p.Name.Contains("Operation"));
             }
 
-            async Task ExtractTelemetry(Type orchestrationType, string parameter, int timeout, ConcurrentQueue<ITelemetry> sendItems, bool enableExtendedSessions)
+            private async Task ExtractTelemetry(Type orchestrationType, string parameter, int timeout, ConcurrentQueue<ITelemetry> sendItems, bool enableExtendedSessions)
             {
                 var sendAction = new Action<ITelemetry>(
-                    delegate(ITelemetry telemetry) { sendItems.Enqueue(telemetry); });
+                    delegate (ITelemetry telemetry) { sendItems.Enqueue(telemetry); });
                 new TelemetryActivator().Initialize(sendAction, Guid.NewGuid().ToString());
                 // new TelemetryActivator().Initialize(item => sendItems.Enqueue(item), Guid.NewGuid().ToString());
                 using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
                 {
                     await host.StartAsync();
-                    var activity = new Activity(TraceConstants.Client);
+                    using var activity = new Activity(TraceConstants.Client);
 
                     var idFormat = CorrelationSettings.Current.Protocol == Protocol.W3CTraceContext ? ActivityIdFormat.W3C : ActivityIdFormat.Hierarchical;
                     activity.SetIdFormat(idFormat);
@@ -808,13 +813,12 @@ namespace DurableTask.AzureStorage.Tests.Correlation
                 }
             }
 
-            List<ITelemetry> ConvertTo(ConcurrentQueue<ITelemetry> queue)
+            private static List<ITelemetry> ConvertTo(ConcurrentQueue<ITelemetry> queue)
             {
                 var converted = new List<ITelemetry>();
                 while (!queue.IsEmpty)
                 {
-                    ITelemetry x;
-                    if (queue.TryDequeue(out x))
+                    if (queue.TryDequeue(out var x))
                     {
                         converted.Add(x);
                     }

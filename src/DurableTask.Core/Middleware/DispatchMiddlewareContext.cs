@@ -26,10 +26,7 @@ namespace DurableTask.Core.Middleware
         /// </summary>
         /// <typeparam name="T">The type of the property.</typeparam>
         /// <param name="value">The value of the property.</param>
-        public void SetProperty<T>(T value)
-        {
-            SetProperty(typeof(T).FullName, value);
-        }
+        public void SetProperty<T>(T value) => SetProperty(typeof(T).FullName, value);
 
         /// <summary>
         /// Sets a named property value to the context.
@@ -37,20 +34,14 @@ namespace DurableTask.Core.Middleware
         /// <typeparam name="T">The type of the property.</typeparam>
         /// <param name="key">The name of the property.</param>
         /// <param name="value">The value of the property.</param>
-        public void SetProperty<T>(string key, T value)
-        {
-            Properties[key] = value;
-        }
+        public void SetProperty<T>(string key, T value) => Properties[key] = value;
 
         /// <summary>
         /// Gets a property value from the context using the full name of <typeparamref name="T"/>.
         /// </summary>
         /// <typeparam name="T">The type of the property.</typeparam>
         /// <returns>The value of the property or <c>default(T)</c> if the property is not defined.</returns>
-        public T GetProperty<T>()
-        {
-            return GetProperty<T>(typeof(T).FullName);
-        }
+        public T GetProperty<T>() => GetProperty<T>(typeof(T).FullName);
 
         /// <summary>
         /// Gets a named property value from the context.
@@ -58,10 +49,7 @@ namespace DurableTask.Core.Middleware
         /// <typeparam name="T"></typeparam>
         /// <param name="key">The name of the property value.</param>
         /// <returns>The value of the property or <c>default(T)</c> if the property is not defined.</returns>
-        public T GetProperty<T>(string key)
-        {
-            return Properties.TryGetValue(key, out object value) ? (T)value : default(T);
-        }
+        public T GetProperty<T>(string key) => Properties.TryGetValue(key, out object value) ? (T)value : default(T);
 
         /// <summary>
         /// Gets a key/value collection that can be used to share data between middleware.

@@ -17,7 +17,9 @@ namespace DurableTask.AzureStorage.Partitioning
     using System.Net;
     using System.Threading;
     using System.Threading.Tasks;
+
     using DurableTask.AzureStorage.Storage;
+
     using Newtonsoft.Json;
 
     /// <summary>
@@ -116,7 +118,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
         async Task RestartAppLeaseStarterTask()
         {
-            if (this.starterTokenSource != null)
+            if (this.starterTokenSource is not null)
             {
                 this.starterTokenSource.Cancel();
                 this.starterTokenSource.Dispose();
@@ -168,7 +170,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 await this.partitionManager.StopAsync();
             }
 
-            if (this.starterTokenSource != null)
+            if (this.starterTokenSource is not null)
             {
                 this.starterTokenSource.Cancel();
                 this.starterTokenSource.Dispose();
@@ -257,7 +259,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
             await this.partitionManager.StopAsync();
 
-            if (this.renewTask != null)
+            if (this.renewTask is not null)
             {
                 this.leaseRenewerCancellationTokenSource.Cancel();
                 await this.renewTask;
@@ -425,8 +427,8 @@ namespace DurableTask.AzureStorage.Partitioning
                 catch (Exception ex)
                 {
                     this.settings.Logger.PartitionManagerError(
-                        this.storageAccountName, 
-                        this.taskHub, 
+                        this.storageAccountName,
+                        this.taskHub,
                         this.workerName,
                         this.appLeaseContainerName,
                         $"App lease renewer task failed. AppLeaseId: {this.appLeaseId} Exception: {ex}");
@@ -562,7 +564,7 @@ namespace DurableTask.AzureStorage.Partitioning
             return null;
         }
 
-        private class AppLeaseInfo
+        class AppLeaseInfo
         {
             public string OwnerId { get; set; }
             public string DesiredSwapId { get; set; }
